@@ -1,0 +1,52 @@
+# Go
+/bin/
+/dist/
+*.test
+*.out
+*.prof
+coverage.*
+coverage/
+vendor/
+operator/bin/
+test/e2e/.kube/
+
+# Node / web
+web/node_modules/
+web/dist/
+web/.vite/
+web/.turbo/
+web/coverage/
+*.log
+.npmrc.local
+
+# Editor / OS
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig
+kubeconfig-*
+
+# Build / dev
+/tmp/
+/.cache/
+/.local/
+
+# Kind / k3d artifacts
+/.kube/
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

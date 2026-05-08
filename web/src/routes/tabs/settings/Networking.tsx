@@ -1,0 +1,216 @@
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import { useState } from "react";
+import type { Expose, GameServerNetworking, PortOverride } from "@/types";
+import { Field } from "./Field";
+import type { SectionProps } from "./types";
+
+const EXPOSE_OPTIONS: { value: Expose; label: string }[] = [
+  { value: "ClusterIP", label: "ClusterIP (in-cluster only)" },
+  { value: "NodePort", label: "NodePort" },
+  { value: "LoadBalancer", label: "LoadBalancer" },
+  { value: "Hostport", label: "Hostport" },
+];
+
+export function NetworkingSection({ draft, onChange }: SectionProps) {
+  const net = draft.spec.networking ?? {};
+
+  const setNet = (next: GameServerNetworking) => {
+    const cleaned: GameServerNetworking = {};
+    if (next.expose) cleaned.expose = next.expose;
+    if (next.hostname) cleaned.hostname = next.hostname;
+    if (next.serviceAnnotations && Object.keys(next.serviceAnnotations).length) {
+      cleaned.serviceAnnotations = next.serviceAnnotations;
+    }
+    if (next.portOverrides && next.portOverrides.length) {
+      cleaned.portOverrides = next.portOverrides;
+    }
+    onChange({
+      ...draft,
+      spec: {
+        ...draft.spec,
+        networking: Object.keys(cleaned).length ? cleaned : undefined,
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Field label="Expose" hint="Service type fronting the game pod.">
+        <Select
+          value={net.expose ?? "ClusterIP"}
+          options={EXPOSE_OPTIONS}
+          onValueChange={(v) => setNet({ ...net, expose: v as Expose })}
+        />
+      </Field>
+
+      <Field label="Hostname" hint="Optional DNS name for ingress / external-dns annotations.">
+        <Input
+          value={net.hostname ?? ""}
+          onChange={(e) => setNet({ ...net, hostname: e.target.value || undefined })}
+          placeholder="mc.example.com"
+          spellCheck={false}
+        />
+      </Field>
+
+      <Field
+        label="Service annotations"
+        hint="Merged into the Service. Useful for cloud LB or external-dns config."
+      >
+        <KVEditor
+          values={net.serviceAnnotations ?? {}}
+          onChange={(v) => setNet({ ...net, serviceAnnotations: v })}
+          keyPlaceholder="service.beta.kubernetes.io/…"
+          valuePlaceholder="value"
+        />
+      </Field>
+
+      <Field
+        label="Port overrides"
+        hint="Pin a NodePort or override the Service port for a named template port."
+      >
+        <PortOverridesEditor
+          values={net.portOverrides ?? []}
+          onChange={(v) => setNet({ ...net, portOverrides: v })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function KVEditor({
+  values,
+  onChange,
+  keyPlaceholder,
+  valuePlaceholder,
+}: {
+  values: Record<string, string>;
+  onChange: (v: Record<string, string>) => void;
+  keyPlaceholder: string;
+  valuePlaceholder: string;
+}) {
+  const [draftKV, setDraftKV] = useState({ key: "", value: "" });
+  const add = () => {
+    const key = draftKV.key.trim();
+    if (!key) return;
+    onChange({ ...values, [key]: draftKV.value });
+    setDraftKV({ key: "", value: "" });
+  };
+  return (
+    <div className="space-y-2">
+      {Object.entries(values).map(([k, v]) => (
+        <div
+          key={k}
+          className="flex items-center gap-2 rounded border border-border bg-surface/40 px-2 py-1"
+        >
+          <span className="flex-1 truncate font-mono text-xs">{k}</span>
+          <span className="text-muted">=</span>
+          <span className="flex-1 truncate font-mono text-xs">{v}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="Remove"
+            onClick={() => {
+              const next = { ...values };
+              delete next[k];
+              onChange(next);
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <Input
+          value={draftKV.key}
+          onChange={(e) => setDraftKV({ ...draftKV, key: e.target.value })}
+          placeholder={keyPlaceholder}
+          className="flex-1"
+        />
+        <Input
+          value={draftKV.value}
+          onChange={(e) => setDraftKV({ ...draftKV, value: e.target.value })}
+          placeholder={valuePlaceholder}
+          className="flex-1"
+        />
+        <Button size="sm" variant="outline" onClick={add} disabled={!draftKV.key.trim()}>
+          Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PortOverridesEditor({
+  values,
+  onChange,
+}: {
+  values: PortOverride[];
+  onChange: (v: PortOverride[]) => void;
+}) {
+  const update = (idx: number, patch: Partial<PortOverride>) => {
+    onChange(values.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  };
+  const remove = (idx: number) => {
+    onChange(values.filter((_, i) => i !== idx));
+  };
+  const add = () => {
+    onChange([...values, { name: "" }]);
+  };
+  return (
+    <div className="space-y-2">
+      {values.length > 0 && (
+        <div className="grid grid-cols-[1fr_120px_120px_32px] items-center gap-2 text-xs text-muted">
+          <span>Port name</span>
+          <span>Service port</span>
+          <span>NodePort</span>
+          <span />
+        </div>
+      )}
+      {values.map((p, idx) => (
+        <div key={idx} className="grid grid-cols-[1fr_120px_120px_32px] items-center gap-2">
+          <Input
+            value={p.name}
+            onChange={(e) => update(idx, { name: e.target.value })}
+            placeholder="game"
+          />
+          <Input
+            value={p.servicePort?.toString() ?? ""}
+            onChange={(e) =>
+              update(idx, {
+                servicePort: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            inputMode="numeric"
+            placeholder="—"
+          />
+          <Input
+            value={p.nodePort?.toString() ?? ""}
+            onChange={(e) =>
+              update(idx, {
+                nodePort: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            inputMode="numeric"
+            placeholder="30000-32767"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="Remove"
+            onClick={() => remove(idx)}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ))}
+      <Button size="sm" variant="outline" onClick={add}>
+        Add override
+      </Button>
+    </div>
+  );
+}

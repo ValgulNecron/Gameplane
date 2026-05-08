@@ -1,0 +1,173 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: gameservers.kestrel.gg
+spec:
+  group: kestrel.gg
+  names:
+    kind: GameServer
+    listKind: GameServerList
+    plural: gameservers
+    singular: gameserver
+    shortNames:
+      - gs
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Template
+          type: string
+          jsonPath: .spec.templateRef.name
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Players
+          type: integer
+          jsonPath: .status.agent.playersOnline
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion: { type: string }
+            kind: { type: string }
+            metadata: { type: object }
+            spec:
+              type: object
+              required: [templateRef]
+              properties:
+                templateRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    name: { type: string, minLength: 1 }
+                suspend: { type: boolean, default: false }
+                image: { type: string }
+                env:
+                  type: array
+                  items: { type: object, x-kubernetes-preserve-unknown-fields: true }
+                config:
+                  type: object
+                  maxProperties: 64
+                  additionalProperties:
+                    type: string
+                    maxLength: 4096
+                resources:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                storage:
+                  type: object
+                  properties:
+                    size:
+                      anyOf: [{ type: integer }, { type: string }]
+                      x-kubernetes-int-or-string: true
+                    storageClassName: { type: string }
+                    mountPath: { type: string }
+                networking:
+                  type: object
+                  properties:
+                    expose:
+                      type: string
+                      enum: [ClusterIP, NodePort, LoadBalancer, Hostport]
+                      default: ClusterIP
+                    hostname:
+                      type: string
+                      # RFC 1123 hostname: up to 253 chars, dotted labels
+                      # of 1-63 alphanumeric + hyphen, no leading/trailing hyphen.
+                      maxLength: 253
+                      pattern: '^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$'
+                    serviceAnnotations:
+                      type: object
+                      maxProperties: 32
+                      additionalProperties: { type: string, maxLength: 4096 }
+                    portOverrides:
+                      type: array
+                      items:
+                        type: object
+                        required: [name]
+                        properties:
+                          name: { type: string, minLength: 1 }
+                          servicePort: { type: integer }
+                          nodePort:
+                            type: integer
+                            minimum: 30000
+                            maximum: 32767
+                nodeSelector:
+                  type: object
+                  maxProperties: 32
+                  additionalProperties: { type: string, maxLength: 253 }
+                tolerations:
+                  type: array
+                  items: { type: object, x-kubernetes-preserve-unknown-fields: true }
+                affinity:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                backupPolicy:
+                  type: object
+                  required: [schedule, repoRef]
+                  properties:
+                    schedule: { type: string, minLength: 1 }
+                    repoRef:
+                      type: object
+                      required: [name, key]
+                      properties:
+                        name: { type: string }
+                        key: { type: string }
+                    retention:
+                      type: object
+                      properties:
+                        keepLast: { type: integer, format: int32 }
+                        keepHourly: { type: integer, format: int32 }
+                        keepDaily: { type: integer, format: int32 }
+                        keepWeekly: { type: integer, format: int32 }
+                        keepMonthly: { type: integer, format: int32 }
+                        keepYearly: { type: integer, format: int32 }
+                    suspend: { type: boolean }
+                serviceAccountName: { type: string }
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Starting, Running, Stopping, Stopped, Suspended, Failed]
+                observedGeneration: { type: integer, format: int64 }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status, lastTransitionTime, reason, message]
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                      reason: { type: string }
+                      message: { type: string }
+                      observedGeneration: { type: integer, format: int64 }
+                endpoints:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, host, port]
+                    properties:
+                      name: { type: string }
+                      host: { type: string }
+                      port: { type: integer, format: int32 }
+                      protocol: { type: string }
+                agent:
+                  type: object
+                  properties:
+                    version: { type: string }
+                    lastHeartbeat: { type: string, format: date-time }
+                    playersOnline: { type: integer, format: int32 }
+                    playersMax: { type: integer, format: int32 }
+                    gameVersion: { type: string }
+                startedAt: { type: string, format: date-time }
+                lastBackupTime: { type: string, format: date-time }

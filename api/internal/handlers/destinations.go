@@ -1,0 +1,232 @@
+// Backup destinations are restic repositories the Backup/BackupSchedule
+// CRDs reference by Secret name. They're modelled as plain Kubernetes
+// Secrets labeled `kestrel.gg/backup-destination=true` rather than a
+// dedicated CRD — the on-disk shape is small (URL + password) and the
+// generic CRD CRUD path doesn't cover core resources.
+//
+// The handler always reads/writes a *redacted* projection: the URL is
+// visible (it's already shown in restic logs and BackupSchedule.spec),
+// but the password value is never returned. Callers can verify a key
+// exists via `hasPassword: true`; updating the password requires
+// supplying a fresh value via POST.
+
+package handlers
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"regexp"
+
+	"github.com/go-chi/chi/v5"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/kestrel-gg/kestrel/api/internal/httperr"
+	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/kestrel-gg/kestrel/api/internal/scope"
+)
+
+// destinationLabel marks a Secret as a Kestrel backup destination. The
+// agent and operator never read this label — it's purely a discovery
+// hint for the API.
+const destinationLabel = "kestrel.gg/backup-destination"
+
+// nameRE enforces a conservative DNS-label name. Matches the validation
+// already applied by the operator to GameServer names.
+var nameRE = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
+
+// MountDestinations wires /backup-destinations onto the supplied router.
+// Reads return a redacted projection (no secret values); writes accept
+// {url, password} and persist them as Secret stringData.
+func MountDestinations(r chi.Router, k *kube.Client) {
+	h := destinationHandler{k: k}
+	r.Route("/backup-destinations", func(r chi.Router) {
+		r.Get("/", h.list)
+		r.Post("/", h.create)
+		r.Get("/{name}", h.get)
+		r.Delete("/{name}", h.del)
+	})
+}
+
+type destinationHandler struct {
+	k *kube.Client
+}
+
+// destinationView is the public projection. Note password is absent;
+// hasPassword is the read-side existence check.
+type destinationView struct {
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	HasPassword bool   `json:"hasPassword"`
+	CreatedAt   string `json:"createdAt,omitempty"`
+}
+
+type destinationCreate struct {
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	Password string `json:"password"`
+}
+
+type destinationListResp struct {
+	Items []destinationView `json:"items"`
+}
+
+func (h destinationHandler) list(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	secrets, err := h.k.Typed.CoreV1().Secrets(ns).List(req.Context(), metav1.ListOptions{
+		LabelSelector: destinationLabel + "=true",
+	})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	out := destinationListResp{Items: make([]destinationView, 0, len(secrets.Items))}
+	for i := range secrets.Items {
+		out.Items = append(out.Items, project(&secrets.Items[i]))
+	}
+	writeJSON(w, out)
+}
+
+func (h destinationHandler) get(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(req, "name")
+	s, err := h.k.Typed.CoreV1().Secrets(ns).Get(req.Context(), name, metav1.GetOptions{})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	if !isDestination(s) {
+		httperr.Write(w, req, apierrors.NewNotFound(corev1.Resource("secrets"), name))
+		return
+	}
+	writeJSON(w, project(s))
+}
+
+func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	var in destinationCreate
+	if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	if !nameRE.MatchString(in.Name) {
+		httperr.Write(w, req, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
+		return
+	}
+	if in.URL == "" || in.Password == "" {
+		httperr.Write(w, req, errors.New("url and password are required"))
+		return
+	}
+
+	desired := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      in.Name,
+			Namespace: ns,
+			Labels:    map[string]string{destinationLabel: "true"},
+		},
+		Type: corev1.SecretTypeOpaque,
+		StringData: map[string]string{
+			"url":      in.URL,
+			"password": in.Password,
+		},
+	}
+
+	// Try create first; on AlreadyExists, fall through to a JSON-merge
+	// patch that preserves any extra keys an admin may have set via
+	// kubectl. This lets users rotate the password without nuking unrelated
+	// fields like a pinned restic version.
+	created, err := h.k.Typed.CoreV1().Secrets(ns).Create(req.Context(), desired, metav1.CreateOptions{})
+	if err == nil {
+		writeJSON(w, project(created))
+		return
+	}
+	if !apierrors.IsAlreadyExists(err) {
+		httperr.Write(w, req, err)
+		return
+	}
+	// Verify the existing object is one of ours before patching.
+	existing, err := h.k.Typed.CoreV1().Secrets(ns).Get(req.Context(), in.Name, metav1.GetOptions{})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	if !isDestination(existing) {
+		httperr.Write(w, req, errors.New("a non-Kestrel secret with that name already exists"))
+		return
+	}
+	patch := map[string]any{
+		"stringData": map[string]string{
+			"url":      in.URL,
+			"password": in.Password,
+		},
+	}
+	patchBytes, _ := json.Marshal(patch)
+	updated, err := h.k.Typed.CoreV1().Secrets(ns).Patch(
+		req.Context(), in.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{},
+	)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	writeJSON(w, project(updated))
+}
+
+func (h destinationHandler) del(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(req, "name")
+	// Refuse to delete arbitrary Secrets through this endpoint — only
+	// labelled ones. This matters because the route name is friendly to
+	// guess but the underlying object is a core Secret with broader trust.
+	existing, err := h.k.Typed.CoreV1().Secrets(ns).Get(req.Context(), name, metav1.GetOptions{})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	if !isDestination(existing) {
+		httperr.Write(w, req, apierrors.NewNotFound(corev1.Resource("secrets"), name))
+		return
+	}
+	if err := h.k.Typed.CoreV1().Secrets(ns).Delete(req.Context(), name, metav1.DeleteOptions{}); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func project(s *corev1.Secret) destinationView {
+	url := string(s.Data["url"])
+	if v, ok := s.StringData["url"]; ok {
+		url = v
+	}
+	_, hasPwData := s.Data["password"]
+	_, hasPwString := s.StringData["password"]
+	return destinationView{
+		Name:        s.Name,
+		URL:         url,
+		HasPassword: hasPwData || hasPwString,
+		CreatedAt:   s.CreationTimestamp.Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+func isDestination(s *corev1.Secret) bool {
+	return s != nil && s.Labels[destinationLabel] == "true"
+}
+
+// scope.ErrForbiddenNamespace handling already lives in resolveNS via
+// httperr.Write, so we don't repeat it here.
+var _ = scope.ErrForbiddenNamespace

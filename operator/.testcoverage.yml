@@ -1,0 +1,27 @@
+# Coverage threshold gate for the operator module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# Day-0 thresholds are 0 — phase 1 just measures and reports. Bump these
+# after each test-writing PR; `make cover-ratchet` shows headroom.
+
+profile: coverage/merged.out
+github-action-output: false
+
+# Locked at the unit-only baseline so `make cover` works without envtest.
+# CI merges envtest profile in, runs much higher (~50%+) — bump `total` after
+# the first CI run captures the merged number.
+threshold:
+  file: 0
+  package: 0
+  total: 71
+
+# Coverage profile: merged unit + envtest (controller-runtime envtest).
+# Run locally with `make cover` after `setup-envtest use 1.31.0`. CI
+# merges these profiles via cover-go-merge before invoking the gate.
+
+exclude:
+  # Match against package import paths (no leading module prefix).
+  paths:
+    - ^cmd/                                   # main.go + flag/signal wiring
+    - ^api/v1alpha1$                          # CRD types — mostly generated deepcopy
+    - ^hack/                                  # codegen helpers, not shipped

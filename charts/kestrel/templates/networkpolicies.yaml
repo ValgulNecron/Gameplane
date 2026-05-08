@@ -1,0 +1,93 @@
+{{- if .Values.networkPolicies.enabled }}
+# Default-deny ingress in the games namespace. Individual GameServers
+# open only the ports declared in their template (and whatever the
+# operator surfaces via the backing Service / Ingress).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: []
+---
+# Default-deny egress. Game pods only need DNS resolution and outbound
+# access the game itself requires (Steam, Mojang auth, mod repos). We
+# don't know those targets in advance, so the allow rule below opens
+# only DNS; operators add game-specific allow policies as needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Allow the API pod (in the system namespace) to reach every game pod's
+# agent on port 8090.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-to-agent
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kestrel-game
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kestrel-api
+      ports:
+        - { protocol: TCP, port: 8090 }
+---
+# Allow probe traffic from kubelet. Source IP depends on the CNI; by
+# default we scope to RFC1918 + link-local, which covers most single-
+# cluster installs without opening the public internet. Operators on
+# clusters where nodes sit outside those ranges should set
+# networkPolicies.kubeletCIDRs explicitly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kestrel-game
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- $cidrs := (.Values.networkPolicies.kubeletCIDRs | default (list)) }}
+        {{- if $cidrs }}
+        {{- range $cidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+        {{- else }}
+        - ipBlock: { cidr: 10.0.0.0/8 }
+        - ipBlock: { cidr: 172.16.0.0/12 }
+        - ipBlock: { cidr: 192.168.0.0/16 }
+        - ipBlock: { cidr: 169.254.0.0/16 }
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: 8090 }
+{{- end }}

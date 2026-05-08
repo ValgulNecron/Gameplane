@@ -1,0 +1,29 @@
+# Coverage threshold gate for the api module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# Day-0 thresholds are 0 — phase 1 just measures and reports. Bump these
+# after each test-writing PR; `make cover-ratchet` shows headroom.
+
+profile: coverage/merged.out
+github-action-output: false
+
+# Locked at the unit-only baseline so `make cover` works without envtest.
+# CI merges envtest profile in — bump `total` after the first CI run captures
+# the merged number.
+threshold:
+  file: 0
+  package: 0
+  total: 80
+
+# Final 20% gap is concentrated in: ws/attach.go's main handle()
+# (SPDY exec proxy — exercised by e2e), oidc.go's last-mile error paths
+# (id_token claim parse failure), and the events.go SSE pump (live
+# kube-watch, also e2e). The plan file tracks closing these via e2e.
+
+exclude:
+  paths:
+    - ^cmd/                                   # main.go + flag/signal wiring
+    # Postgres driver is build-tag gated and needs Docker (testcontainers).
+    # Coverage runs without -tags=postgres, so this file is never built.
+    # Tracked separately on a nightly job.
+    - ^internal/db/db_postgres\.go$

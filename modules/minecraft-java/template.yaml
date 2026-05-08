@@ -1,0 +1,156 @@
+# Kestrel GameTemplate for Minecraft: Java Edition.
+#
+# Backed by the community itzg/minecraft-server image, which understands
+# the env vars declared below (VERSION, TYPE, DIFFICULTY, …).
+#
+# Cluster-scoped; apply once per cluster:
+#     kubectl apply -f modules/minecraft-java/template.yaml
+
+apiVersion: kestrel.gg/v1alpha1
+kind: GameTemplate
+metadata:
+  name: minecraft-java
+  labels:
+    kestrel.gg/module: minecraft-java
+spec:
+  displayName: Minecraft (Java Edition)
+  game: minecraft-java
+  version: 1.0.0
+  description: |
+    Vanilla, Paper, Spigot, Forge, Fabric, or Quilt Minecraft: Java Edition
+    servers. Uses the community [itzg/minecraft-server](https://github.com/itzg/docker-minecraft-server)
+    image, which understands the same env var interface (TYPE, VERSION,
+    DIFFICULTY, …).
+
+  image: itzg/minecraft-server:2025.1.0
+
+  env:
+    - name: EULA
+      value: "TRUE"
+    - name: ENABLE_RCON
+      value: "true"
+    - name: RCON_PORT
+      value: "25575"
+    - name: INIT_MEMORY
+      value: "1G"
+    - name: MAX_MEMORY
+      value: "2G"
+
+  ports:
+    - name: game
+      containerPort: 25565
+      protocol: TCP
+      advertise: true
+    - name: rcon
+      containerPort: 25575
+      protocol: TCP
+      advertise: false
+
+  storage:
+    size: 10Gi
+    mountPath: /data
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  rcon:
+    protocol: source
+    port: 25575
+    # PasswordSecretRef left unset — operator will generate a password
+    # and store it in a managed Secret named "<gameserver>-rcon".
+
+  probes:
+    readiness:
+      exec:
+        command: ["mc-health"]
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 20
+    liveness:
+      exec:
+        command: ["mc-health"]
+      initialDelaySeconds: 120
+      periodSeconds: 30
+      failureThreshold: 5
+    startup:
+      exec:
+        command: ["mc-health"]
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 60
+
+  configSchema:
+    - name: TYPE
+      displayName: Server type
+      description: Server flavor. PAPER recommended for most plugin setups.
+      type: enum
+      enum: ["VANILLA", "PAPER", "SPIGOT", "BUKKIT", "FORGE", "FABRIC", "QUILT", "PURPUR"]
+      default: VANILLA
+      required: true
+
+    - name: VERSION
+      displayName: Minecraft version
+      description: Exact version (e.g. "1.21.4") or "LATEST".
+      type: string
+      default: LATEST
+      required: true
+
+    - name: DIFFICULTY
+      displayName: Difficulty
+      type: enum
+      enum: ["peaceful", "easy", "normal", "hard"]
+      default: easy
+
+    - name: MODE
+      displayName: Game mode
+      type: enum
+      enum: ["survival", "creative", "adventure", "spectator"]
+      default: survival
+
+    - name: MAX_PLAYERS
+      displayName: Max players
+      type: int
+      default: "20"
+
+    - name: MOTD
+      displayName: MOTD
+      description: Server description shown in the multiplayer list.
+      type: string
+      default: "A Kestrel Minecraft server"
+
+    - name: LEVEL_SEED
+      displayName: World seed
+      description: Leave blank for a random seed.
+      type: string
+      default: ""
+
+    - name: WHITELIST_ENABLED
+      displayName: Enforce whitelist
+      type: bool
+      default: "false"
+
+    - name: PVP
+      displayName: PvP enabled
+      type: bool
+      default: "true"
+
+    - name: HARDCORE
+      displayName: Hardcore mode
+      type: bool
+      default: "false"
+
+    - name: ONLINE_MODE
+      displayName: Online mode
+      description: Verify players with Mojang. Disable only for offline/LAN setups.
+      type: bool
+      default: "true"
+
+    - name: VIEW_DISTANCE
+      displayName: View distance (chunks)
+      type: int
+      default: "10"

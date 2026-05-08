@@ -1,0 +1,61 @@
+//go:build envtest
+
+package controller
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+)
+
+// envtest provides a real kube-apiserver + etcd in-process. It does NOT
+// run the kube controllers (StatefulSet, Job, Pod, GC). Tests that need
+// to drive a Job past Pending must Status().Update() the Job manually.
+//
+// The shared apiserver is bootstrapped here once. Per-test isolation
+// comes from newNamespace(t) and per-test Manager goroutines started
+// via startMgr(t, ...) — see helpers_envtest_test.go.
+
+var (
+	testEnv   *envtest.Environment
+	cfg       *rest.Config
+	k8sClient client.Client
+	scheme    *runtime.Scheme
+)
+
+func TestMain(m *testing.M) {
+	scheme = runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(kestrelv1alpha1.AddToScheme(scheme))
+
+	testEnv = &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd")},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	var err error
+	cfg, err = testEnv.Start()
+	if err != nil {
+		panic("envtest: start apiserver: " + err.Error())
+	}
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		_ = testEnv.Stop()
+		panic("envtest: build client: " + err.Error())
+	}
+
+	code := m.Run()
+	_ = testEnv.Stop()
+	os.Exit(code)
+}

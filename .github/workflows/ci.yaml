@@ -1,0 +1,194 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: go (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [operator, api, agent]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - name: Cache modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: go mod download
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+      - name: go vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+      - name: go test (unit + coverage)
+        working-directory: ${{ matrix.module }}
+        run: |
+          mkdir -p coverage
+          go test -race -covermode=atomic -coverpkg=./... \
+            -coverprofile=coverage/unit.out ./...
+      - name: upload unit coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage/unit.out
+          retention-days: 7
+          if-no-files-found: error
+
+  integration:
+    name: integration (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    needs: [go]
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [operator, api]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - name: Cache modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: install setup-envtest
+        run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+      - name: fetch envtest binaries
+        run: |
+          echo "KUBEBUILDER_ASSETS=$($HOME/go/bin/setup-envtest use 1.31.0 -p path)" >> $GITHUB_ENV
+      - name: integration test (envtest + coverage)
+        working-directory: ${{ matrix.module }}
+        run: |
+          mkdir -p coverage
+          go test -race -tags=envtest -timeout 10m \
+            -covermode=atomic -coverpkg=./... \
+            -coverprofile=coverage/envtest.out ./...
+      - name: upload envtest coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-envtest-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage/envtest.out
+          retention-days: 7
+          if-no-files-found: error
+
+  coverage-go:
+    name: coverage gate (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    needs: [go, integration]
+    # Don't gate the build on a coverage flake when one of the upstream jobs
+    # is allowed to skip (e.g., agent has no integration job).
+    if: always() && needs.go.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [operator, api, agent]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - name: download unit coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-unit-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage
+      - name: download envtest coverage (operator/api only)
+        if: matrix.module != 'agent'
+        # If integration failed, the artifact won't exist — that's its own
+        # red signal in CI. Tolerate it here and gate on unit-only data.
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-envtest-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage
+      - name: merge profiles
+        run: make cover-go-merge
+      - name: threshold check
+        run: make cover-go-check
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:cover
+      - name: upload web coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-web
+          path: web/coverage
+          retention-days: 7
+          if-no-files-found: warn
+
+  helm:
+    name: helm lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint charts/kestrel
+
+  chart-template:
+    name: chart render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm template kestrel charts/kestrel > /tmp/rendered.yaml
+      - name: sanity-check rendered manifests
+        run: |
+          grep -q 'kind: Deployment' /tmp/rendered.yaml
+          grep -q 'kind: ClusterRole' /tmp/rendered.yaml
+          grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
+
+  e2e:
+    name: e2e (kind)
+    runs-on: ubuntu-latest
+    needs: [go, helm]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        run: make e2e-images
+      - name: bring up cluster + helm install
+        run: ./deploy/kind/e2e.sh up kestrel-e2e e2e
+      - name: run e2e tests
+        run: |
+          cd test/e2e && \
+            KESTREL_E2E_REUSE_CLUSTER=1 \
+            KESTREL_E2E_CLUSTER=kestrel-e2e \
+            KESTREL_E2E_KEEP_ON_FAILURE=1 \
+            go test -tags=e2e -timeout 20m -v ./...
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl get all -A
+          kubectl describe pods -n kestrel-system
+          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
+          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-api --tail=200 || true
+      - name: tear down
+        if: always()
+        run: ./deploy/kind/e2e.sh down kestrel-e2e || true

@@ -1,0 +1,244 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: modulesources.kestrel.gg
+spec:
+  group: kestrel.gg
+  names:
+    kind: ModuleSource
+    listKind: ModuleSourceList
+    plural: modulesources
+    shortNames:
+    - msrc
+    - modsource
+    singular: modulesource
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.url
+      name: URL
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Synced")].status
+      name: Synced
+      type: string
+    - jsonPath: .status.lastSync
+      name: Last Sync
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ModuleSource is a registry that Kestrel pulls module bundles
+          from.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ModuleSourceSpec configures one OCI registry that hosts Kestrel
+              modules. The operator periodically lists tags for each ModuleRef and
+              caches the resulting catalog into status.modules.
+            properties:
+              insecure:
+                description: |-
+                  Insecure allows plain HTTP and skips TLS verification. Intended
+                  for local kind/k3d registries; do not enable on production
+                  clusters.
+                type: boolean
+              modules:
+                description: |-
+                  Modules is the explicit list of modules served by this source. v1
+                  keeps the listing explicit; anonymous discovery (catalog index
+                  artifact) is reserved for future extensions.
+                items:
+                  description: |-
+                    ModuleRef identifies a module within a ModuleSource by its logical
+                    name. The full OCI reference is reconstructed as
+                    "<source.url>/<name>".
+                  properties:
+                    name:
+                      description: |-
+                        Name is the module identifier within this source. Must match the
+                        "name" field in the bundle's module.yaml.
+                      minLength: 1
+                      type: string
+                  required:
+                  - name
+                  type: object
+                minItems: 1
+                type: array
+              pullSecretRef:
+                description: |-
+                  PullSecretRef references a kubernetes.io/dockerconfigjson Secret
+                  in the operator namespace. Used for private registries.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              refreshInterval:
+                default: 1h
+                description: |-
+                  RefreshInterval is how often the controller re-indexes the
+                  registry. Defaults to 1h. Minimum 1m.
+                type: string
+              url:
+                description: |-
+                  URL is the registry/repository prefix that holds module bundles
+                  (e.g. "ghcr.io/kestrel-gg/modules"). Each Module in this source is
+                  pushed under "<URL>/<name>:<version>".
+                minLength: 1
+                type: string
+            required:
+            - modules
+            - url
+            type: object
+          status:
+            description: |-
+              ModuleSourceStatus is populated by the operator from a successful
+              registry index.
+            properties:
+              conditions:
+                description: |-
+                  Conditions tracks Synced (last index attempt succeeded) and Ready
+                  (a complete catalog is available).
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastSync:
+                description: LastSync is the time of the most recent successful index
+                  pull.
+                format: date-time
+                type: string
+              modules:
+                description: Modules is the cached catalog for this source.
+                items:
+                  description: |-
+                    ModuleEntry is one module's catalog snapshot from the registry. The
+                    operator fills these from each module's module.yaml + tag list.
+                  properties:
+                    displayName:
+                      description: DisplayName is the human-readable label from module.yaml.
+                      type: string
+                    game:
+                      description: Game is the game-family identifier from module.yaml.
+                      type: string
+                    icon:
+                      description: |-
+                        Icon is either a relative filename (resolved against the bundle)
+                        or a URL/data URI passed straight through to the UI.
+                      type: string
+                    latestVersion:
+                      description: LatestVersion is Versions[0] when populated.
+                      type: string
+                    name:
+                      description: Name is the logical module name (matches ModuleRef.Name).
+                      type: string
+                    reference:
+                      description: |-
+                        Reference is the registry/repo path for this module without a
+                        tag (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java").
+                      type: string
+                    summary:
+                      description: Summary is the one-line catalog blurb from module.yaml.
+                      type: string
+                    versions:
+                      description: |-
+                        Versions is the list of tags found in the registry, semver-sorted
+                        in descending order. Non-semver tags are excluded.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - name
+                  - reference
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

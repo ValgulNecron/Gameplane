@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens sampled from design.pen (c: theme, Dark mode). */
+:root {
+  --bg: 0 0% 100%;
+  --surface: 220 14% 96%;
+  --card: 0 0% 100%;
+  --border: 220 13% 91%;
+  --muted: 220 9% 46%;
+  --fg: 224 71% 4%;
+  --primary: 22 95% 53%;
+  --primary-fg: 0 0% 100%;
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --danger: 0 72% 51%;
+  --violet: 258 90% 66%;
+}
+
+.dark {
+  --bg: 0 0% 6%;         /* #0F0F0F */
+  --surface: 0 0% 9%;    /* #171717 */
+  --card: 0 0% 11%;      /* #1C1C1C */
+  --border: 0 0% 16%;    /* #292929 */
+  --muted: 0 0% 58%;     /* #949494 */
+  --fg: 0 0% 96%;        /* #F5F5F5 */
+  --primary: 24 95% 53%; /* #F97316 orange */
+  --primary-fg: 0 0% 100%;
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --danger: 0 72% 51%;
+  --violet: 258 90% 66%;
+}
+
+html, body, #root { height: 100%; }
+body {
+  -webkit-font-smoothing: antialiased;
+  background: hsl(var(--bg));
+  color: hsl(var(--fg));
+}
+
+/* Invisible by default scrollbars, subtle on hover (dashboards need space) */
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }

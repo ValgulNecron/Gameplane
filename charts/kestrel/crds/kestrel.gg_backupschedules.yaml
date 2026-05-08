@@ -1,0 +1,105 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: backupschedules.kestrel.gg
+spec:
+  group: kestrel.gg
+  names:
+    kind: BackupSchedule
+    listKind: BackupScheduleList
+    plural: backupschedules
+    singular: backupschedule
+    shortNames:
+      - bks
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Server
+          type: string
+          jsonPath: .spec.serverRef.name
+        - name: Schedule
+          type: string
+          jsonPath: .spec.schedule
+        - name: Suspended
+          type: boolean
+          jsonPath: .spec.suspend
+        - name: Last
+          type: date
+          jsonPath: .status.lastSuccessfulTime
+        - name: Next
+          type: date
+          jsonPath: .status.nextScheduleTime
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion: { type: string }
+            kind: { type: string }
+            metadata: { type: object }
+            spec:
+              type: object
+              required: [serverRef, schedule, repoRef]
+              properties:
+                serverRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    name: { type: string, minLength: 1 }
+                schedule:
+                  type: string
+                  minLength: 9
+                repoRef:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: { type: string, minLength: 1 }
+                    key: { type: string, minLength: 1 }
+                strategy:
+                  type: string
+                  enum: [restic-snapshot, volume-snapshot]
+                  default: restic-snapshot
+                quiesce: { type: boolean, default: true }
+                retention:
+                  type: object
+                  properties:
+                    keepLast: { type: integer, format: int32 }
+                    keepHourly: { type: integer, format: int32 }
+                    keepDaily: { type: integer, format: int32 }
+                    keepWeekly: { type: integer, format: int32 }
+                    keepMonthly: { type: integer, format: int32 }
+                    keepYearly: { type: integer, format: int32 }
+                suspend: { type: boolean, default: false }
+                concurrencyPolicy:
+                  type: string
+                  enum: [Allow, Forbid, Replace]
+                  default: Forbid
+                startingDeadlineSeconds: { type: integer, format: int64 }
+            status:
+              type: object
+              properties:
+                observedGeneration: { type: integer, format: int64 }
+                lastScheduleTime: { type: string, format: date-time }
+                lastSuccessfulTime: { type: string, format: date-time }
+                nextScheduleTime: { type: string, format: date-time }
+                active:
+                  type: array
+                  items: { type: object, x-kubernetes-preserve-unknown-fields: true }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status, lastTransitionTime, reason, message]
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                      reason: { type: string }
+                      message: { type: string }
+                      observedGeneration: { type: integer, format: int64 }

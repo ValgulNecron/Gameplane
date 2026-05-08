@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kestrel-api
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+---
+# Cluster-wide READ access: templates (cluster-scoped), nodes, storage
+# classes, and read-only watches on Kestrel CRDs for the /events stream.
+# Note the absence of any write verb here — mutation permissions are
+# bound per-namespace via Role + RoleBinding below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-api-read
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["kestrel.gg"]
+    resources: [gameservers, gametemplates, backups, backupschedules, restores]
+    verbs: [get, list, watch]
+  - apiGroups: ["kestrel.gg"]
+    resources: [gametemplates]
+    verbs: [create, update, patch, delete]      # templates are cluster-scoped; admin UI edits them
+  - apiGroups: [""]
+    resources: [nodes, events]
+    verbs: [get, list, watch]
+  - apiGroups: ["storage.k8s.io"]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-api-read
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ .Release.Name }}-api-read }
+subjects:
+  - kind: ServiceAccount
+    name: kestrel-api
+    namespace: {{ .Release.Namespace }}
+---
+# Namespace-scoped WRITE access: limited to the games namespace(s) the
+# API is allowed to mutate. Expanding this to additional namespaces
+# requires a new RoleBinding here AND adding them to
+# KESTREL_EXTRA_NAMESPACES on the API Deployment.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-api-games
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["kestrel.gg"]
+    resources: [gameservers, backups, backupschedules, restores]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["kestrel.gg"]
+    resources: [gameservers/status, backups/status, backupschedules/status, restores/status]
+    verbs: [get, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-api-games
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Release.Name }}-api-games }
+subjects:
+  - kind: ServiceAccount
+    name: kestrel-api
+    namespace: {{ .Release.Namespace }}
+---
+{{- if eq .Values.api.db.driver "sqlite" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kestrel-api-data
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: {{ .Values.api.storage.size }} }
+  {{- with .Values.api.storage.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kestrel-api
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: kestrel-api }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kestrel-api
+        {{- include "kestrel.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: kestrel-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: api
+          image: {{ include "kestrel.apiImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --db-driver={{ .Values.api.db.driver }}
+            - --db-dsn={{ .Values.api.db.dsn }}
+            {{- if .Values.api.oidc.enabled }}
+            - --oidc-issuer={{ .Values.api.oidc.issuer }}
+            - --oidc-client-id={{ .Values.api.oidc.clientID }}
+            - --oidc-redirect-url={{ .Values.api.oidc.redirectURL }}
+            {{- end }}
+            - --agent-ca-bundle=/etc/kestrel/agent-ca/ca.crt
+            - --agent-client-cert=/etc/kestrel/agent-client/tls.crt
+            - --agent-client-key=/etc/kestrel/agent-client/tls.key
+          env:
+            {{- if .Values.api.oidc.enabled }}
+            - name: KESTREL_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.oidc.clientSecretRef.name }}
+                  key:  {{ .Values.api.oidc.clientSecretRef.key }}
+            {{- end }}
+          ports:
+            - { name: http,    containerPort: 8000 }
+          livenessProbe:  { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 15 }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 5 }
+          resources: {{ toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: agent-ca, mountPath: /etc/kestrel/agent-ca, readOnly: true }
+            - { name: agent-client, mountPath: /etc/kestrel/agent-client, readOnly: true }
+      volumes:
+        - name: data
+          {{- if eq .Values.api.db.driver "sqlite" }}
+          persistentVolumeClaim: { claimName: kestrel-api-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: agent-ca
+          secret: { secretName: {{ .Values.api.agentMTLS.caSecretRef.name }} }
+        - name: agent-client
+          secret: { secretName: {{ .Values.api.agentMTLS.clientCertRef.name }} }
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kestrel-api
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: kestrel-api }
+  ports:
+    - { name: http, port: 80, targetPort: http }

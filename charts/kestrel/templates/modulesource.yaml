@@ -1,0 +1,20 @@
+{{- if .Values.defaultModuleSource.enabled }}
+apiVersion: kestrel.gg/v1alpha1
+kind: ModuleSource
+metadata:
+  name: {{ .Values.defaultModuleSource.name | default "default" }}
+  labels:
+    {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  url: {{ .Values.defaultModuleSource.url | quote }}
+  refreshInterval: {{ .Values.defaultModuleSource.refreshInterval | default "1h" }}
+  insecure: {{ .Values.defaultModuleSource.insecure | default false }}
+  modules:
+    {{- range .Values.defaultModuleSource.modules }}
+    - name: {{ . | quote }}
+    {{- end }}
+  {{- with .Values.defaultModuleSource.pullSecretName }}
+  pullSecretRef:
+    name: {{ . | quote }}
+  {{- end }}
+{{- end }}

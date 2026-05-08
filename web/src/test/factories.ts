@@ -1,0 +1,181 @@
+// Test data factories — produce fully-populated objects matching the
+// types in src/types.ts. Each factory accepts a partial override so tests
+// can pin only the fields they care about.
+
+import type {
+  GameServer,
+  GameTemplate,
+  Backup,
+  BackupSchedule,
+  BackupDestination,
+  User,
+  AuditEvent,
+  ClusterView,
+  ClusterStats,
+  CatalogEntry,
+  ModuleSource,
+  PlayersResp,
+} from "@/types";
+
+export function makeUser(over: Partial<User> = {}): User {
+  return {
+    id: 1,
+    username: "admin",
+    displayName: "Admin",
+    email: "admin@example.com",
+    role: "admin",
+    provider: "local",
+    createdAt: "2026-01-01T00:00:00Z",
+    ...over,
+  };
+}
+
+export function makeServer(over: Partial<GameServer> = {}): GameServer {
+  return {
+    metadata: {
+      name: "alpha",
+      namespace: "kestrel-games",
+      creationTimestamp: "2026-04-01T00:00:00Z",
+      ...(over.metadata ?? {}),
+    },
+    spec: {
+      templateRef: { name: "minecraft-vanilla" },
+      ...(over.spec ?? {}),
+    },
+    status: {
+      phase: "Running",
+      agent: { playersOnline: 3, playersMax: 20, lastHeartbeat: "2026-05-07T11:59:30Z" },
+      startedAt: "2026-05-07T09:00:00Z",
+      ...(over.status ?? {}),
+    },
+    ...over,
+  };
+}
+
+export function makeTemplate(over: Partial<GameTemplate> = {}): GameTemplate {
+  return {
+    metadata: { name: "minecraft-vanilla", ...(over.metadata ?? {}) },
+    spec: {
+      displayName: "Minecraft (Vanilla)",
+      game: "minecraft",
+      version: "1.21",
+      image: "ghcr.io/kestrel/minecraft:1.21",
+      consoleMode: "rcon",
+      ...(over.spec ?? {}),
+    },
+    status: { inUseCount: 1, ...(over.status ?? {}) },
+    ...over,
+  };
+}
+
+export function makeBackup(over: Partial<Backup> = {}): Backup {
+  return {
+    metadata: { name: "alpha-2026-05-07", namespace: "kestrel-games" },
+    spec: { serverRef: { name: "alpha" } },
+    status: {
+      phase: "Succeeded",
+      startTime: "2026-05-07T03:00:00Z",
+      completionTime: "2026-05-07T03:01:30Z",
+      size: "120 MiB",
+    },
+    ...over,
+  };
+}
+
+export function makeSchedule(over: Partial<BackupSchedule> = {}): BackupSchedule {
+  return {
+    metadata: { name: "alpha-daily", namespace: "kestrel-games" },
+    spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", retention: { keepLast: 7 } },
+    status: {
+      lastSuccessfulTime: "2026-05-07T03:01:30Z",
+      nextScheduleTime: "2026-05-08T03:00:00Z",
+    },
+    ...over,
+  };
+}
+
+export function makeDestination(over: Partial<BackupDestination> = {}): BackupDestination {
+  return {
+    name: "default",
+    url: "s3:s3.amazonaws.com/kestrel-backups",
+    hasPassword: true,
+    createdAt: "2026-04-01T00:00:00Z",
+    ...over,
+  };
+}
+
+export function makeAudit(over: Partial<AuditEvent> = {}): AuditEvent {
+  return {
+    id: 1,
+    ts: "2026-05-07T12:00:00Z",
+    actor: "admin",
+    method: "POST",
+    path: "/api/v1/servers",
+    target: "alpha",
+    status: 201,
+    ip: "10.0.0.1",
+    ...over,
+  };
+}
+
+export function makeClusterView(over: Partial<ClusterView> = {}): ClusterView {
+  return {
+    name: "kestrel-prod",
+    version: "v1.31.0",
+    ready: 3,
+    total: 3,
+    nodes: [
+      {
+        name: "node-1",
+        roles: ["control-plane", "worker"],
+        status: "Ready",
+        startedAt: "2026-05-01T00:00:00Z",
+        cpu: { used: 2, capacity: 8 },
+        memory: { used: 4_000_000_000, capacity: 16_000_000_000 },
+        pods: { used: 12, capacity: 110 },
+      },
+    ],
+    ...over,
+  };
+}
+
+export function makeClusterStats(over: Partial<ClusterStats> = {}): ClusterStats {
+  return { nodes: 3, totalStorageBytes: 1_000_000_000_000, usedStorageBytes: 250_000_000_000, ...over };
+}
+
+export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {
+  return {
+    name: "minecraft-vanilla",
+    displayName: "Minecraft (Vanilla)",
+    summary: "Run a vanilla Minecraft server",
+    game: "minecraft",
+    sources: ["upstream"],
+    versions: ["1.21", "1.20", "1.19"],
+    latestVersion: "1.21",
+    installed: false,
+    ...over,
+  };
+}
+
+export function makeModuleSource(over: Partial<ModuleSource> = {}): ModuleSource {
+  return {
+    metadata: { name: "upstream" },
+    spec: {
+      url: "ghcr.io/kestrel/modules",
+      modules: [{ name: "minecraft-vanilla" }],
+    },
+    status: { lastSync: "2026-05-07T00:00:00Z", modules: [] },
+    ...over,
+  };
+}
+
+export function makePlayers(over: Partial<PlayersResp> = {}): PlayersResp {
+  return {
+    online: 2,
+    max: 20,
+    players: ["alice", "bob"],
+    asOf: "2026-05-07T12:00:00Z",
+    capabilities: { kick: true, ban: true, unban: true },
+    ...over,
+  };
+}

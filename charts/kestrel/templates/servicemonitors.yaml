@@ -1,0 +1,29 @@
+{{- if .Values.serviceMonitors.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kestrel-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kestrel.labels" . | nindent 4 }}
+    {{- toYaml .Values.serviceMonitors.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: kestrel-operator }
+  endpoints:
+    - { port: metrics, interval: 30s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kestrel-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kestrel.labels" . | nindent 4 }}
+    {{- toYaml .Values.serviceMonitors.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: kestrel-api }
+  endpoints:
+    - { port: http, interval: 30s, path: /metrics }
+{{- end }}

@@ -1,0 +1,352 @@
+openapi: 3.1.0
+info:
+  title: Kestrel Agent
+  version: 1.0.0
+  description: |
+    HTTP API served by the Kestrel agent sidecar inside every game pod.
+    This contract is consumed by the Kestrel API gateway, which proxies
+    authenticated dashboard traffic through to the agent.
+
+    Auth: all /files, /logs, /console, /players routes require either
+    (a) an mTLS client cert signed by the operator's CA, or (b) a
+    shared-secret bearer token mounted from a per-pod Secret. The /healthz
+    and /metrics endpoints are unauthenticated.
+
+servers:
+  - url: https://{pod}.{namespace}.svc.cluster.local:8090
+    variables:
+      pod:        { default: "<gameserver-pod-0>" }
+      namespace:  { default: "kestrel-games" }
+
+security:
+  - mtls: []
+  - bearer: []
+
+components:
+  securitySchemes:
+    mtls:
+      type: mutualTLS
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    FileEntry:
+      type: object
+      required: [name, path, size, mode, dir, modTime]
+      properties:
+        name:    { type: string }
+        path:    { type: string, description: "Path relative to /data" }
+        size:    { type: integer, format: int64 }
+        mode:    { type: string }
+        dir:     { type: boolean }
+        modTime: { type: string, format: date-time }
+    Players:
+      type: object
+      required: [online, max, players, asOf, capabilities]
+      properties:
+        online:  { type: integer }
+        max:     { type: integer }
+        players: { type: array, items: { type: string } }
+        asOf:    { type: string, format: date-time }
+        capabilities: { $ref: "#/components/schemas/Capabilities" }
+    Capabilities:
+      type: object
+      required: [kick, ban, unban]
+      description: |
+        Per-game moderation capabilities. False entries indicate the
+        underlying game protocol does not expose that action via RCON,
+        so the dashboard hides the corresponding controls instead of
+        emitting requests that would 501.
+      properties:
+        kick:  { type: boolean }
+        ban:   { type: boolean }
+        unban: { type: boolean }
+    BannedPlayer:
+      type: object
+      required: [name]
+      properties:
+        name:   { type: string }
+        reason: { type: string }
+        source: { type: string, description: "Who issued the ban (e.g. 'Server' or an op username)" }
+    ModerationRequest:
+      type: object
+      required: [name]
+      properties:
+        name:   { type: string, description: "1-32 chars [A-Za-z0-9_]" }
+        reason: { type: string, description: "Optional, max 256 chars; rejected if it contains newlines" }
+    ModerationResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:  { type: boolean }
+        raw: { type: string, description: "Raw RCON response, useful for surfacing in the UI" }
+    ConsoleEnvelope:
+      type: object
+      required: [kind, body]
+      properties:
+        kind:
+          type: string
+          enum: [cmd, out, err]
+          description: |
+            "cmd" on client-to-server; "out" on server-to-client for
+            successful RCON responses; "err" on server-to-client for
+            failures.
+        body: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": { description: OK }
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      security: []
+      responses:
+        "200": { description: Metrics exposition }
+
+  /files/list:
+    get:
+      summary: List directory entries
+      parameters:
+        - in: query
+          name: path
+          schema: { type: string, default: "/" }
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FileEntry" }
+  /files/read:
+    get:
+      summary: Read a file inline (small files only)
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: File content }
+        "413": { description: File too large — use /files/download }
+  /files/download:
+    get:
+      summary: Download a file as an attachment
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: File content }
+  /files/write:
+    post:
+      summary: Overwrite or create a file
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "204": { description: OK }
+  /files/upload:
+    post:
+      summary: Upload one or more files to a directory
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        "204": { description: OK }
+  /files/mkdir:
+    post:
+      summary: Create a directory (recursive)
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: OK }
+  /files/delete:
+    delete:
+      summary: Delete a file or directory
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+        - in: query
+          name: recursive
+          schema: { type: boolean, default: false }
+      responses:
+        "204": { description: OK }
+        "400": { description: Refusing to delete root or invalid request }
+
+  /logs/tail:
+    get:
+      summary: Tail the game container log over WebSocket (text frames per line)
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, enum: [end, start], default: end }
+      responses:
+        "101": { description: Switching Protocols }
+
+  /players:
+    get:
+      summary: Current online player count and names
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Players" }
+  /players/kick:
+    post:
+      summary: Kick a player (capability-gated; 501 when unsupported)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModerationRequest" }
+      responses:
+        "200":
+          description: Kicked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ModerationResponse" }
+        "400": { description: Invalid name or reason }
+        "501": { description: Not supported by this game }
+        "502": { description: Upstream RCON unavailable }
+  /players/ban:
+    post:
+      summary: Ban a player (capability-gated)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModerationRequest" }
+      responses:
+        "200":
+          description: Banned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ModerationResponse" }
+        "400": { description: Invalid name or reason }
+        "501": { description: Not supported by this game }
+        "502": { description: Upstream RCON unavailable }
+  /players/unban:
+    post:
+      summary: Lift a ban on a player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "200":
+          description: Unbanned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ModerationResponse" }
+        "400": { description: Invalid name }
+        "501": { description: Not supported by this game }
+        "502": { description: Upstream RCON unavailable }
+  /players/banned:
+    get:
+      summary: Currently banned players
+      description: |
+        Returns an empty array when the underlying game doesn't support
+        a banlist query — capabilities advertise the truth so the UI
+        can hide the section if all moderation actions are unsupported.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BannedPlayer" }
+        "502": { description: Upstream RCON unavailable }
+
+  /console:
+    get:
+      summary: Duplex console over WebSocket (JSON envelopes)
+      description: |
+        Client writes ConsoleEnvelope with kind="cmd"; server replies
+        with kind="out" (success) or kind="err" (RCON failure).
+      responses:
+        "101": { description: Switching Protocols }
+
+  /quiesce:
+    post:
+      summary: Pause writes to the data volume before a snapshot
+      description: |
+        Asks the agent to flush in-memory game state to disk and stop
+        further auto-saves until /unquiesce is called. For Minecraft
+        this issues `save-off` followed by `save-all flush` over RCON.
+
+        Games without a quiesce equivalent (Valheim, Factorio, etc.)
+        return 200 with `quiesced: false` and a human-readable reason.
+        Callers should treat that as success-with-degradation, not as
+        an error — backups must still proceed.
+      responses:
+        "200":
+          description: Quiesce attempted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [quiesced]
+                properties:
+                  quiesced: { type: boolean }
+                  reason:   { type: string }
+        "502": { description: RCON unavailable; auto-save was rolled back where possible }
+  /unquiesce:
+    post:
+      summary: Resume writes after a snapshot
+      description: |
+        Reverses the most recent /quiesce. For Minecraft this issues
+        `save-on`. Calling on an unsupported game is a no-op.
+      responses:
+        "200":
+          description: Unquiesce attempted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [quiesced]
+                properties:
+                  quiesced: { type: boolean, description: "false on success" }
+                  reason:   { type: string }
+        "502": { description: RCON unavailable; the game may still be quiesced — retry }

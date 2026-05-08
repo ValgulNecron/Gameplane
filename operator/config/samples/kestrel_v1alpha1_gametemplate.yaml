@@ -1,0 +1,29 @@
+apiVersion: kestrel.gg/v1alpha1
+kind: GameTemplate
+metadata:
+  name: minecraft-java
+spec:
+  displayName: Minecraft (Java Edition)
+  game: minecraft-java
+  version: 1.0.0
+  image: itzg/minecraft-server:2025.1.0
+  env:
+    - name: EULA
+      value: "TRUE"
+    - name: ENABLE_RCON
+      value: "true"
+  ports:
+    - name: game
+      containerPort: 25565
+      protocol: TCP
+      advertise: true
+    - name: rcon
+      containerPort: 25575
+      protocol: TCP
+      advertise: false
+  storage:
+    size: 10Gi
+    mountPath: /data
+  rcon:
+    protocol: source
+    port: 25575

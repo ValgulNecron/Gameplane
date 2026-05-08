@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  images:
+    name: build & push images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [operator, api, agent]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.component }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.component }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+
+  chart:
+    name: package Helm chart
+    runs-on: ubuntu-latest
+    needs: images
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: chart version
+        run: |
+          sed -i "s/^version: .*/version: ${GITHUB_REF_NAME#v}/" charts/kestrel/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: ${GITHUB_REF_NAME#v}/" charts/kestrel/Chart.yaml
+      - name: helm package
+        run: helm package charts/kestrel -d dist
+      - name: push to OCI
+        env:
+          HELM_REGISTRY_CONFIG: ${{ runner.temp }}/helm.json
+        run: |
+          helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+          helm push dist/kestrel-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts

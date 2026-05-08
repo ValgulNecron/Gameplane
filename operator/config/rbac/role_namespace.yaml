@@ -1,0 +1,50 @@
+# Namespace-scoped writes for the operator. This pairs with the tight
+# ClusterRole in role.yaml (reads only) and grants the mutating verbs
+# the operator actually needs — but only in the games namespace.
+#
+# A production Helm install binds an equivalent Role in each managed
+# namespace (see charts/kestrel/templates/operator.yaml). This file
+# exists so `kubectl apply -f operator/config/rbac/` works for local
+# dev without regressing to cluster-wide write grants.
+#
+# If you deploy to additional games namespaces, duplicate this file
+# (or run kustomize) with the namespace field updated.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kestrel-operator-manage
+  namespace: kestrel-games
+rules:
+  - apiGroups: ["kestrel.gg"]
+    resources:
+      - gameservers
+      - backups
+      - backupschedules
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources:
+      - services
+      - persistentvolumeclaims
+      - configmaps
+      - secrets
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kestrel-operator-manage
+  namespace: kestrel-games
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kestrel-operator-manage
+subjects:
+  - kind: ServiceAccount
+    name: kestrel-operator
+    namespace: kestrel-system

@@ -1,0 +1,34 @@
+package handlers
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+// nonFlushingWriter is an http.ResponseWriter that does NOT implement
+// http.Flusher, used to deterministically hit the 500 branch in
+// eventsHandler. (httptest.ResponseRecorder implements Flusher, so it
+// would route into the streaming path.)
+type nonFlushingWriter struct {
+	header http.Header
+	code   int
+}
+
+func (n *nonFlushingWriter) Header() http.Header        { return n.header }
+func (n *nonFlushingWriter) Write(b []byte) (int, error) { return len(b), nil }
+func (n *nonFlushingWriter) WriteHeader(c int)          { n.code = c }
+
+// MountEvents wires the SSE handler under /events and depends on a real
+// http.Flusher to send frames. The streaming-success path is exercised
+// by the e2e tier (real cluster + real kube-watch); here we only assert
+// the no-Flusher 500 branch deterministically.
+func TestEvents_StreamingUnsupported(t *testing.T) {
+	k := fakeKubeClient()
+	w := &nonFlushingWriter{header: http.Header{}}
+	req := httptest.NewRequest("GET", "/events", nil)
+	eventsHandler(k)(w, req)
+	if w.code != http.StatusInternalServerError {
+		t.Fatalf("got %d", w.code)
+	}
+}

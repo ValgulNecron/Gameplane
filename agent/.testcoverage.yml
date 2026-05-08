@@ -1,0 +1,25 @@
+# Coverage threshold gate for the agent module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# Day-0 thresholds are 0 — phase 1 just measures and reports. Bump these
+# after each test-writing PR; `make cover-ratchet` shows headroom.
+
+profile: coverage/unit.out
+github-action-output: false
+
+# Agent has no envtest tier — unit profile is the whole truth. Gate is set
+# at floor(measured) - 1 so a regression below baseline fails CI.
+threshold:
+  file: 0
+  package: 0
+  total: 91
+
+# Final ~8% gap is in heartbeat.Run's in-cluster path (reaches
+# rest.InClusterConfig — only meaningful in a real pod) and a couple of
+# sleep/return bookkeeping branches in logs.streamFile. Both are
+# exercised by the e2e tier on a real cluster.
+
+exclude:
+  paths:
+    - ^cmd/                                   # main.go + flag/signal wiring
+    - ^proto/                                 # generated protobuf, if any lands here

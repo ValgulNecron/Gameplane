@@ -1,0 +1,26 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kestrel-operator-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kestrel-operator-manager
+subjects:
+  - kind: ServiceAccount
+    name: kestrel-operator
+    namespace: kestrel-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kestrel-operator-leader-election
+  namespace: kestrel-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kestrel-operator-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: kestrel-operator
+    namespace: kestrel-system

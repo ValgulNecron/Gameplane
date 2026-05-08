@@ -1,0 +1,93 @@
+# Kestrel GameTemplate for Terraria.
+#
+# Backed by ryshe/terraria — a community-maintained Terraria server image
+# that supports world creation, autosave, and command stdin.
+
+apiVersion: kestrel.gg/v1alpha1
+kind: GameTemplate
+metadata:
+  name: terraria
+spec:
+  displayName: Terraria
+  game: terraria
+  version: 1.0.0
+  description: |
+    Terraria dedicated server using [ryshe/terraria](https://github.com/ryshe/terraria-docker).
+    Supports world generation, autosave, and console commands via the
+    container's tty (Console tab uses pty mode).
+
+  image: ryshe/terraria:latest
+
+  env:
+    - name: WORLD_FILENAME
+      value: "world.wld"
+    - name: AUTOCREATE
+      value: "2"          # 1 = small, 2 = medium, 3 = large
+    - name: WORLDNAME
+      value: "Kestrel"
+    - name: DIFFICULTY
+      value: "1"          # 0 classic, 1 expert, 2 master, 3 journey
+
+  ports:
+    - name: game
+      containerPort: 7777
+      protocol: TCP
+      advertise: true
+
+  storage:
+    size: 2Gi
+    mountPath: /world
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  # Terraria's command interface is the container stdin (no RCON), so
+  # the Console tab attaches via the kubelet's pod-attach API.
+  rcon:
+    protocol: none
+  consoleMode: pty
+
+  probes:
+    readiness:
+      tcpSocket:
+        port: game
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 30
+
+  configSchema:
+    - name: WORLDNAME
+      displayName: World name
+      type: string
+      default: "Kestrel"
+      required: true
+    - name: AUTOCREATE
+      displayName: World size
+      description: 1 small, 2 medium, 3 large.
+      type: enum
+      enum: ["1", "2", "3"]
+      default: "2"
+    - name: DIFFICULTY
+      displayName: Difficulty
+      description: 0 classic, 1 expert, 2 master, 3 journey.
+      type: enum
+      enum: ["0", "1", "2", "3"]
+      default: "1"
+    - name: PASSWORD
+      displayName: Server password
+      description: Leave blank for an open server.
+      type: password
+      default: ""
+    - name: MAX_PLAYERS
+      displayName: Max players
+      type: int
+      default: "8"
+    - name: MOTD
+      displayName: MOTD
+      type: string
+      default: "Welcome to a Kestrel-hosted Terraria server"

@@ -1,0 +1,81 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { UsersPage } from "./Users";
+
+const list = vi.fn();
+vi.mock("@/lib/endpoints", () => ({
+  Users: {
+    list: () => list(),
+    update: vi.fn(),
+    remove: vi.fn(),
+    resetPassword: vi.fn(),
+    create: vi.fn(),
+  },
+}));
+vi.mock("@/lib/auth", () => ({
+  useMe: () => ({
+    data: { id: 1, username: "root", displayName: "Root", email: "r@x", role: "admin" },
+    error: null,
+    isLoading: false,
+  }),
+}));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => (
+    <a {...rest}>{children}</a>
+  ),
+}));
+
+function renderPage() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <UsersPage />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  list.mockResolvedValue([
+    { id: 1, username: "root", displayName: "Root", email: "r@x", role: "admin", provider: "local" },
+  ]);
+});
+
+afterEach(() => {
+  vi.resetAllMocks();
+});
+
+describe("UsersPage tabs", () => {
+  it("Roles tab renders the three role cards", async () => {
+    renderPage();
+    await screen.findByText("root");
+    await userEvent.click(screen.getByRole("button", { name: /Roles/i }));
+    expect(await screen.findByText(/Full access/i)).toBeInTheDocument();
+    expect(screen.getByText(/Manage game servers/i)).toBeInTheDocument();
+    expect(screen.getByText(/Read-only access/i)).toBeInTheDocument();
+  });
+
+  it("Service accounts tab renders the placeholder", async () => {
+    renderPage();
+    await screen.findByText("root");
+    await userEvent.click(
+      screen.getByRole("button", { name: /Service accounts/i }),
+    );
+    expect(
+      await screen.findByText(/Service accounts.*tracked for v1\.1/i),
+    ).toBeInTheDocument();
+  });
+
+  it("Identity providers tab renders the placeholder", async () => {
+    renderPage();
+    await screen.findByText("root");
+    await userEvent.click(
+      screen.getByRole("button", { name: /Identity providers/i }),
+    );
+    expect(
+      await screen.findByText(/OIDC identity providers/i),
+    ).toBeInTheDocument();
+  });
+});

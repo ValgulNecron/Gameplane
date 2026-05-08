@@ -1,0 +1,46 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - bodyclose      # catches unclosed http.Response.Body leaks
+    - errcheck       # flags ignored error returns
+    - gosec          # security-focused static analysis (CWEs, hardcoded creds, etc.)
+    - govet          # stdlib vet
+    - ineffassign    # dead assignments
+    - staticcheck    # broad correctness checks
+    - unused         # dead code
+    - misspell
+    - gofmt
+    - goimports
+    - revive         # replaces golint
+    - unparam        # unused function parameters
+    - nilerr         # "return nil" where err should be returned
+    - noctx          # http.Request without context
+    - errorlint      # errors.Is / errors.As usage
+    - contextcheck   # functions that should take context but don't
+
+linters-settings:
+  gosec:
+    # Exclude noisy rules that don't map to the codebase's threat model:
+    # - G104: "Errors unhandled" — errcheck covers this more precisely.
+    # - G204: "subprocess launched with variable" — we don't exec shell.
+    excludes: [G104]
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+issues:
+  exclude-rules:
+    # Tests often ignore errors deliberately in setup. Keep loud elsewhere.
+    - path: _test\.go
+      linters: [errcheck, gosec, unparam]
+    # Reconciler builder helpers have a lot of repeated patterns; revive
+    # can get noisy on them without catching real bugs.
+    - path: operator/internal/controller/
+      linters: [revive]
+      text: "exported:"
+  max-same-issues: 20
+  max-issues-per-linter: 50

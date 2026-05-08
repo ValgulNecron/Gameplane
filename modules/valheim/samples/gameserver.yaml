@@ -1,0 +1,26 @@
+apiVersion: kestrel.gg/v1alpha1
+kind: GameServer
+metadata:
+  name: valheim-01
+  namespace: kestrel-games
+spec:
+  templateRef:
+    name: valheim
+  config:
+    SERVER_NAME: "Kestrel Valheim"
+    WORLD_NAME: "Dedicated"
+    SERVER_PUBLIC: "true"
+  networking:
+    expose: NodePort
+    portOverrides:
+      - name: game
+        nodePort: 32456
+      - name: game2
+        nodePort: 32457
+      - name: game3
+        nodePort: 32458
+  storage:
+    size: 5Gi
+  resources:
+    requests: { cpu: 1, memory: 2Gi }
+    limits:   { cpu: 2, memory: 6Gi }

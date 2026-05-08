@@ -1,0 +1,49 @@
+# Example GameServer for the minecraft-java template.
+#
+# Apply in any namespace where Kestrel watches:
+#     kubectl -n kestrel-games apply -f samples/gameserver.yaml
+
+apiVersion: kestrel.gg/v1alpha1
+kind: GameServer
+metadata:
+  name: smp-01
+  namespace: kestrel-games
+spec:
+  templateRef:
+    name: minecraft-java
+
+  config:
+    TYPE: PAPER
+    VERSION: "1.21.4"
+    DIFFICULTY: normal
+    MODE: survival
+    MAX_PLAYERS: "20"
+    MOTD: "Welcome to the Kestrel SMP"
+    PVP: "true"
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: 3Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  storage:
+    size: 20Gi
+
+  networking:
+    expose: NodePort
+    portOverrides:
+      - name: game
+        nodePort: 30565
+
+  backupPolicy:
+    schedule: "0 */6 * * *"  # every six hours
+    repoRef:
+      name: kestrel-backup-repo
+      key: url
+    retention:
+      keepLast: 12
+      keepDaily: 7
+      keepWeekly: 4

@@ -1,0 +1,113 @@
+## Kestrel Helm values.
+##
+## Top-level layout:
+##   image.*        — registry/tag shared by all component images
+##   operator.*     — operator Deployment tunables
+##   api.*          — API Deployment tunables (incl. DB + OIDC)
+##   ingress.*      — dashboard ingress
+##   gamesNamespace — namespace Kestrel creates GameServers in
+##   networkPolicies — default-deny policies in gamesNamespace
+##   serviceMonitors — Prometheus Operator integration
+##   podSecurity     — cluster-wide hardening knobs
+
+image:
+  registry: ghcr.io/kestrel
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+operator:
+  replicas: 1
+  logLevel: info
+  resources:
+    requests: { cpu: 100m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+  agentImage: ""   # defaults to {image.registry}/agent:{image.tag}
+
+api:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 64Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+  db:
+    driver: sqlite       # sqlite | postgres
+    dsn: "file:/data/kestrel.db?_pragma=journal_mode(WAL)"
+    # When driver=postgres, set dsn to a postgres connection string and
+    # rebuild the api image with -tags postgres. Example:
+    # dsn: "postgres://kestrel:***@postgres/kestrel?sslmode=require"
+
+  # PVC attached to the API for SQLite storage. Only used when db.driver=sqlite.
+  storage:
+    size: 2Gi
+    storageClassName: ""
+
+  oidc:
+    enabled: false
+    issuer: ""
+    clientID: ""
+    clientSecretRef:
+      name: kestrel-oidc
+      key:  clientSecret
+    redirectURL: ""
+
+  # mTLS material the API presents to in-pod agents. When unset, the
+  # chart provisions a self-signed CA + cert via a post-install hook.
+  agentMTLS:
+    caSecretRef:     { name: kestrel-agent-ca,     key: ca.crt }
+    clientCertRef:   { name: kestrel-agent-client, key: tls.crt }
+    clientKeyRef:    { name: kestrel-agent-client, key: tls.key }
+
+ingress:
+  enabled: true
+  className: nginx
+  host: kestrel.local
+  # TLS is on by default because session cookies + login credentials
+  # travel this path. Provide a cert via cert-manager (annotations) or
+  # by pre-creating the `kestrel-tls` Secret. For throwaway dev clusters
+  # where HTTPS is overkill, override `ingress.tls=false` explicitly.
+  tls: true
+  # Sensible default annotations for nginx-ingress. Override to swap in
+  # cert-manager cluster-issuer, tune limits, etc.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"  # long-lived WS
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+
+gamesNamespace: kestrel-games
+
+networkPolicies:
+  enabled: true
+  # CIDRs that hold kubelet source IPs for liveness/readiness probes.
+  # If unset, the chart falls back to RFC1918 + link-local ranges,
+  # which cover most clusters without opening the public internet.
+  # Set this explicitly when your node pool sits outside those ranges
+  # (some managed providers do).
+  kubeletCIDRs: []
+
+serviceMonitors:
+  enabled: false
+  labels: {}
+
+podSecurity:
+  enforceRestricted: false   # label gamesNamespace with pod-security.kubernetes.io/enforce=restricted
+
+# Default ModuleSource shipped with the chart. Disable when you manage
+# ModuleSource resources via GitOps. The operator pulls module bundles
+# from this registry on a schedule and the dashboard's Modules page
+# renders the resulting catalog.
+defaultModuleSource:
+  enabled: true
+  name: default
+  url: ghcr.io/kestrel-gg/modules
+  refreshInterval: 1h
+  insecure: false       # set true for plain-HTTP local registries
+  modules:
+    - minecraft-java
+    - valheim
+    - terraria
+  # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
+  # namespace for private registries. Leave empty for public registries.
+  pullSecretName: ""
