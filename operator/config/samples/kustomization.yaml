@@ -5,3 +5,6 @@ resources:
   - kestrel_v1alpha1_gameserver.yaml
   - kestrel_v1alpha1_backup.yaml
   - kestrel_v1alpha1_backupschedule.yaml
+  - kestrel_v1alpha1_restore.yaml
+  - kestrel_v1alpha1_modulesource.yaml
+  - kestrel_v1alpha1_module.yaml

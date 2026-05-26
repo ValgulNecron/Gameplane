@@ -56,12 +56,18 @@ EOF
     done
 
     echo "helm upgrade --install kestrel"
+    # Bump the API container's memory limit above the chart default of
+    # 256Mi. The bootstrap-admin subcommand and every login endpoint
+    # invocation runs argon2id, which uses ~64Mi of working memory per
+    # hash; the default limit OOM-kills the container under e2e's
+    # frequent BootstrapAdmin/APIClient calls. 512Mi is comfortable.
     helm upgrade --install kestrel "${CHART_DIR}" \
         --namespace kestrel-system --create-namespace \
         --set "image.registry=kestrel-test" \
         --set "image.tag=${TAG}" \
         --set "ingress.enabled=false" \
         --set "operator.agentImage=kestrel-test/agent:${TAG}" \
+        --set "api.resources.limits.memory=512Mi" \
         --wait --timeout 5m
 
     echo

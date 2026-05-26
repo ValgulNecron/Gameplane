@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Backups } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
 import type { Backup } from "@/types";
-import { PhaseBadge } from "./PhaseBadge";
+import { PhaseBadge } from "@/components/ui/badge";
 import { ErrorBanner } from "./ErrorBanner";
 
 interface Props {

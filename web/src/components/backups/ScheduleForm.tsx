@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Schedules } from "@/lib/endpoints";
+import { useBackupDestinations } from "@/lib/destinations";
 import { ErrorBanner } from "./ErrorBanner";
-import { FieldLabel } from "./FieldLabel";
+import { FieldLabel } from "@/components/ui/field";
 
 interface Props {
   serverName: string;
@@ -14,12 +15,21 @@ interface Props {
 
 export function ScheduleForm({ serverName, onClose }: Props) {
   const qc = useQueryClient();
+  const { data: destinations = [] } = useBackupDestinations();
   const [form, setForm] = useState({
     schedule: "0 */6 * * *",
-    repoName: "kestrel-backup-repo",
+    repoName: "",
     repoKey: "url",
     keepLast: 7,
   });
+  // Default the destination to the first one once the list resolves.
+  // The user can still pick a different one if more than one exists.
+  useEffect(() => {
+    if (!form.repoName && destinations.length > 0) {
+      setForm((f) => ({ ...f, repoName: destinations[0].name }));
+    }
+  }, [destinations, form.repoName]);
+
   const create = useMutation({
     mutationFn: () =>
       Schedules.create({
@@ -56,11 +66,20 @@ export function ScheduleForm({ serverName, onClose }: Props) {
             onChange={(e) => setForm({ ...form, keepLast: Number(e.target.value) })}
           />
         </FieldLabel>
-        <FieldLabel label="Repo secret · name">
-          <Input
+        <FieldLabel label="Destination">
+          <select
+            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
             value={form.repoName}
             onChange={(e) => setForm({ ...form, repoName: e.target.value })}
-          />
+            aria-label="Destination"
+          >
+            {destinations.length === 0 && (
+              <option value="" disabled>No destinations configured</option>
+            )}
+            {destinations.map((d) => (
+              <option key={d.name} value={d.name}>{d.name}</option>
+            ))}
+          </select>
         </FieldLabel>
         <FieldLabel label="Repo secret · key">
           <Input

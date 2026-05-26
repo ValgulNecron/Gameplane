@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhaseBadge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat";
+import { TabBar } from "@/components/ui/tabs";
 import { GameIcon } from "@/components/ui/game-icon";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatBytes } from "@/lib/utils";
@@ -109,7 +110,7 @@ export function DashboardPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <TabFilter
+        <TabBar
           items={[
             { key: "all",     label: "All",     count: servers.length },
             { key: "running", label: "Running", count: counts.running },
@@ -161,39 +162,6 @@ export function DashboardPage() {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function TabFilter<K extends string>({
-  items, value, onChange,
-}: {
-  items: Array<{ key: K; label: string; count?: number }>;
-  value: K;
-  onChange: (k: K) => void;
-}) {
-  return (
-    <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
-      {items.map((t) => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={cn(
-            "rounded px-3 py-1.5 text-xs transition-colors",
-            value === t.key
-              ? "bg-primary/15 text-primary"
-              : "text-muted hover:text-fg",
-          )}
-        >
-          {t.label}
-          {typeof t.count === "number" && (
-            <span className={cn(
-              "ml-2 rounded px-1.5 text-[10px] font-mono",
-              value === t.key ? "bg-primary/20" : "bg-border/60",
-            )}>{t.count}</span>
-          )}
-        </button>
-      ))}
     </div>
   );
 }

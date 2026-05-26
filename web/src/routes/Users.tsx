@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FieldLabel } from "@/components/ui/field";
+import { TabBar } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
 import { useMe } from "@/lib/auth";
@@ -101,12 +103,16 @@ export function UsersPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
-          <TabButton active={tab === "users"} onClick={() => setTab("users")} label="Users" count={counts.users} />
-          <TabButton active={tab === "roles"} onClick={() => setTab("roles")} label="Roles" count={counts.roles} />
-          <TabButton active={tab === "service"} onClick={() => setTab("service")} label="Service accounts" count={counts.service} />
-          <TabButton active={tab === "idp"} onClick={() => setTab("idp")} label="Identity providers" count={counts.idp} />
-        </div>
+        <TabBar
+          items={[
+            { key: "users",   label: "Users",              count: counts.users },
+            { key: "roles",   label: "Roles",              count: counts.roles },
+            { key: "service", label: "Service accounts",   count: counts.service },
+            { key: "idp",     label: "Identity providers", count: counts.idp },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
         <div className="relative ml-auto w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <Input
@@ -201,38 +207,6 @@ export function UsersPage() {
         />
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  label,
-  count,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded px-3 py-1.5 text-xs transition-colors",
-        active ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
-      )}
-    >
-      {label}
-      <span
-        className={cn(
-          "ml-2 rounded px-1.5 text-[10px] font-mono",
-          active ? "bg-primary/20" : "bg-border/60",
-        )}
-      >
-        {count}
-      </span>
-    </button>
   );
 }
 
@@ -400,10 +374,6 @@ function ModalShell({
   );
 }
 
-function FieldLabel({ children }: { children: ReactNode }) {
-  return <label className="block pb-1 text-xs font-medium text-fg">{children}</label>;
-}
-
 function ErrorLine({ error }: { error: unknown }) {
   if (!error) return null;
   const text =
@@ -452,57 +422,54 @@ function InviteModal({
       description="Create a local account. Leave password blank to send an OIDC invite later."
     >
       <div className="space-y-3">
-        <div>
-          <FieldLabel>Username</FieldLabel>
+        <FieldLabel label="Username">
           <Input
             autoFocus
             value={form.username}
             onChange={(e) => setForm({ ...form, username: e.target.value })}
             placeholder="alice"
           />
-        </div>
+        </FieldLabel>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>Display name</FieldLabel>
+          <FieldLabel label="Display name">
             <Input
               value={form.displayName ?? ""}
               onChange={(e) => setForm({ ...form, displayName: e.target.value })}
               placeholder="Alice Operator"
             />
-          </div>
-          <div>
-            <FieldLabel>Email</FieldLabel>
+          </FieldLabel>
+          <FieldLabel label="Email">
             <Input
               type="email"
               value={form.email ?? ""}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="alice@example.com"
             />
-          </div>
+          </FieldLabel>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <FieldLabel>Initial password</FieldLabel>
-            <Input
-              type="password"
-              value={form.password ?? ""}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-            />
+            <FieldLabel label="Initial password">
+              <Input
+                type="password"
+                value={form.password ?? ""}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+              />
+            </FieldLabel>
             {passwordTooShort && (
               <div className="pt-1 text-[11px] text-destructive">
                 At least {MIN_PASSWORD_LEN} characters.
               </div>
             )}
           </div>
-          <div>
-            <FieldLabel>Role</FieldLabel>
+          <FieldLabel label="Role">
             <Select
               value={form.role}
               onValueChange={(v) => setForm({ ...form, role: v as UserRole })}
               options={ROLES.map((r) => ({ value: r, label: r }))}
             />
-          </div>
+          </FieldLabel>
         </div>
         <ErrorLine error={create.error} />
         <div className="flex justify-end gap-2 pt-2">
@@ -565,29 +532,28 @@ function EditUserModal({
       description={user.username}
     >
       <div className="space-y-3">
-        <div>
-          <FieldLabel>Display name</FieldLabel>
+        <FieldLabel label="Display name">
           <Input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             autoFocus
           />
-        </div>
-        <div>
-          <FieldLabel>Email</FieldLabel>
+        </FieldLabel>
+        <FieldLabel label="Email">
           <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-        </div>
+        </FieldLabel>
         <div>
-          <FieldLabel>Role</FieldLabel>
-          <Select
-            value={role}
-            onValueChange={(v) => setRole(v as UserRole)}
-            options={ROLES.map((r) => ({ value: r, label: r }))}
-          />
+          <FieldLabel label="Role">
+            <Select
+              value={role}
+              onValueChange={(v) => setRole(v as UserRole)}
+              options={ROLES.map((r) => ({ value: r, label: r }))}
+            />
+          </FieldLabel>
           {wouldDemoteSelf && (
             <div className="pt-1 text-[11px] text-destructive">
               You can’t demote yourself out of admin.
@@ -637,14 +603,15 @@ function ResetPasswordModal({
     >
       <div className="space-y-3">
         <div>
-          <FieldLabel>New password</FieldLabel>
-          <Input
-            type="password"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            autoFocus
-            placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
-          />
+          <FieldLabel label="New password">
+            <Input
+              type="password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              autoFocus
+              placeholder={`At least ${MIN_PASSWORD_LEN} characters`}
+            />
+          </FieldLabel>
           {tooShort && (
             <div className="pt-1 text-[11px] text-destructive">
               At least {MIN_PASSWORD_LEN} characters.

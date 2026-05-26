@@ -16,11 +16,29 @@ metadata:
   labels: {{- include "kestrel.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["kestrel.gg"]
-    resources: [gameservers, gametemplates, backups, backupschedules, restores]
+    resources: [gameservers, gametemplates, backups, backupschedules, restores, modules, modulesources]
     verbs: [get, list, watch]
+  # GameTemplate is cluster-scoped; the gametemplate controller updates
+  # status (inUseCount) and the module controller creates/deletes
+  # templates owned by Module objects.
   - apiGroups: ["kestrel.gg"]
     resources: [gametemplates, gametemplates/status]
-    verbs: [get, list, watch, update, patch]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Module is cluster-scoped; the module controller updates its own
+  # status, manages a finalizer (so a Module can't be deleted while a
+  # GameServer references its template), and patches spec mid-reconcile
+  # when version tracking resolves "latest" to a concrete tag.
+  - apiGroups: ["kestrel.gg"]
+    resources: [modules, modules/status]
+    verbs: [get, update, patch]
+  - apiGroups: ["kestrel.gg"]
+    resources: [modules/finalizers]
+    verbs: [update]
+  # ModuleSource is cluster-scoped, read-only on spec; controller writes
+  # the cached catalog into status.
+  - apiGroups: ["kestrel.gg"]
+    resources: [modulesources/status]
+    verbs: [get, update, patch]
   - apiGroups: ["apps"]
     resources: [statefulsets]
     verbs: [get, list, watch]
@@ -154,6 +172,8 @@ spec:
             - --agent-ca-bundle=/etc/kestrel/agent-ca/ca.crt
             - --agent-client-cert=/etc/kestrel/agent-client/tls.crt
             - --agent-client-key=/etc/kestrel/agent-client/tls.key
+            - --agent-ca-secret-name={{ .Values.api.agentMTLS.caSecretRef.name }}
+            - --agent-ca-secret-namespace={{ .Release.Namespace }}
             - --module-namespace={{ .Release.Namespace }}
           ports:
             - { name: metrics, containerPort: 8080 }

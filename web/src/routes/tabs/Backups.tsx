@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Backups, Schedules, Restores } from "@/lib/endpoints";
+import { useBackupDestinations } from "@/lib/destinations";
 import { formatRelative } from "@/lib/utils";
-import { PhaseBadge } from "@/components/backups/PhaseBadge";
+import { PhaseBadge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { ScheduleForm } from "@/components/backups/ScheduleForm";
 import { RestoreDialog } from "@/components/backups/RestoreDialog";
@@ -30,15 +31,28 @@ export function BackupsTab({ name }: { name: string }) {
     queryFn: () => Restores.list(),
     refetchInterval: 5000,
   });
+  const { data: destinations = [] } = useBackupDestinations();
+
+  // Multi-destination picking is handled on the dashboard's Backups page;
+  // here we only act when there's exactly one configured destination.
+  const lone = destinations.length === 1 ? destinations[0] : null;
 
   const createNow = useMutation({
     mutationFn: () =>
       Backups.create({
         serverRef: { name },
-        repoRef: { name: "kestrel-backup-repo", key: "url" },
+        repoRef: { name: lone!.name, key: "url" },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["backups"] }),
   });
+
+  const backupNowDisabled = !lone || createNow.isPending;
+  const backupNowHint =
+    destinations.length === 0
+      ? "No backup destination configured. Add one in admin settings."
+      : destinations.length > 1
+        ? "Multiple destinations configured — use the Backups page to pick one."
+        : undefined;
 
   const serverBackups = backups?.items.filter((b) => b.spec.serverRef.name === name) ?? [];
   const serverSchedules = schedules?.items.filter((s) => s.spec.serverRef.name === name) ?? [];
@@ -103,7 +117,12 @@ export function BackupsTab({ name }: { name: string }) {
       <section>
         <div className="flex items-center justify-between pb-3">
           <h2 className="text-sm text-muted">Backups</h2>
-          <Button size="sm" onClick={() => createNow.mutate()} disabled={createNow.isPending}>
+          <Button
+            size="sm"
+            onClick={() => createNow.mutate()}
+            disabled={backupNowDisabled}
+            title={backupNowHint}
+          >
             {createNow.isPending ? "Starting…" : "Back up now"}
           </Button>
         </div>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { FieldLabel } from "./FieldLabel";
+import { FieldLabel } from "./field";
 
 describe("FieldLabel", () => {
   it("renders the label and child content", () => {

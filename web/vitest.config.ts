@@ -11,6 +11,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Playwright specs live under e2e/ and use @playwright/test, not
+    // vitest. Exclude them so `npx vitest run` doesn't try to load
+    // them and choke on test.describe() calls.
+    exclude: ["e2e/**", "node_modules/**", "dist/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],

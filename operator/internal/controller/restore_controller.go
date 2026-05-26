@@ -216,7 +216,11 @@ func (r *RestoreReconciler) buildRestorePodSpec(
 		Containers: []corev1.Container{{
 			Name:  "restic",
 			Image: "restic/restic:0.17.1",
-			Args:  []string{"restore", rs.Status.SnapshotID, "--target", "/data"},
+			// --target / restores each snapshot entry at its original
+			// absolute path. The companion backup runs `restic backup
+			// /data`, so the snapshot tree is rooted at /data/...; with
+			// --target /data the path doubles to /data/data/marker.txt.
+			Args: []string{"restore", rs.Status.SnapshotID, "--target", "/"},
 			Env: []corev1.EnvVar{
 				{Name: "RESTIC_REPOSITORY", ValueFrom: &corev1.EnvVarSource{
 					SecretKeyRef: &corev1.SecretKeySelector{

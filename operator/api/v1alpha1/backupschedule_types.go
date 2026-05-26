@@ -11,8 +11,14 @@ type BackupScheduleSpec struct {
 	ServerRef LocalObjectRef `json:"serverRef"`
 
 	// Schedule is a standard cron expression in the cluster's timezone.
-	// Five-field form (no seconds).
+	// Five-field form (no seconds). The Pattern is a structural guard
+	// against typos like "every-night"; the controller uses
+	// robfig/cron/v3 to parse for actual validity and surfaces a
+	// failed condition on any expression that's well-formed but
+	// uninterpretable. The optional sixth token tolerates the
+	// seconds-prefix dialect.
 	// +kubebuilder:validation:MinLength=9
+	// +kubebuilder:validation:Pattern=`^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$`
 	Schedule string `json:"schedule"`
 
 	// RepoRef is the restic repository credentials Secret.

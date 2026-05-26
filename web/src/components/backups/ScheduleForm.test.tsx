@@ -7,10 +7,16 @@ import { renderWithQuery } from "@/test/render";
 import { ScheduleForm } from "./ScheduleForm";
 
 describe("ScheduleForm", () => {
-  it("renders the form with default schedule", () => {
+  it("renders the form with default schedule and the lone destination preselected", async () => {
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
     expect(screen.getByDisplayValue("0 */6 * * *")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("kestrel-backup-repo")).toBeInTheDocument();
+    // Destination select defaults to the only configured destination
+    // (the MSW handler returns one named "default").
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText("Destination") as HTMLSelectElement).value,
+      ).toBe("default");
+    });
   });
 
   it("Cancel calls onClose", async () => {
@@ -37,7 +43,9 @@ describe("ScheduleForm", () => {
       }),
     );
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={onClose} />);
-    await userEvent.click(screen.getByRole("button", { name: /Create schedule/i }));
+    const create = screen.getByRole("button", { name: /Create schedule/i });
+    await waitFor(() => expect(create).toBeEnabled());
+    await userEvent.click(create);
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(captured).toMatchObject({ spec: expect.objectContaining({ schedule: "0 */6 * * *" }) });
   });
@@ -49,7 +57,9 @@ describe("ScheduleForm", () => {
       ),
     );
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: /Create schedule/i }));
+    const create = screen.getByRole("button", { name: /Create schedule/i });
+    await waitFor(() => expect(create).toBeEnabled());
+    await userEvent.click(create);
     await waitFor(() =>
       expect(screen.getByText(/rejected/i)).toBeInTheDocument(),
     );

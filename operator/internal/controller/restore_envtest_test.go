@@ -201,6 +201,19 @@ func TestRestore_AdvancesToRunningOnceSuspended(t *testing.T) {
 		if len(args) < 2 || args[0] != "restore" || args[1] != "snap-1" {
 			return false, "unexpected restic args: " + sprintArgs(args)
 		}
+		// --target / is load-bearing: the backup snapshots /data
+		// absolutely, so restoring to /data would double-prefix to
+		// /data/data/<file>. See restore_controller.go.
+		var sawTargetRoot bool
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--target" && args[i+1] == "/" {
+				sawTargetRoot = true
+				break
+			}
+		}
+		if !sawTargetRoot {
+			return false, "expected --target / in restic args, got: " + sprintArgs(args)
+		}
 		return true, ""
 	})
 

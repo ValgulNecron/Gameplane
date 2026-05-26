@@ -55,6 +55,7 @@ spec:
                 schedule:
                   type: string
                   minLength: 9
+                  pattern: ^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$
                 repoRef:
                   type: object
                   required: [name, key]

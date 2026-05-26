@@ -168,6 +168,20 @@ e2e-up: e2e-images ## Bring up the e2e kind cluster + install chart (no tests)
 e2e-down: ## Tear down the e2e kind cluster
 	./deploy/kind/e2e.sh down $(KIND_E2E_CLUSTER)
 
+# -------- web e2e (Playwright) --------
+# Mock mode: vite + MSW intercepting fetches. No cluster needed.
+# Live mode: vite proxies fetches to a kubectl port-forward globalSetup
+# spawns against the kestrel-e2e cluster. Run after `make e2e-up` and
+# the Go e2e suite (which writes the admin password to test/e2e/.tmp/).
+
+.PHONY: test-web-e2e-mock
+test-web-e2e-mock: ## Playwright tests against vite + MSW mocks (no cluster)
+	cd web && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:mock
+
+.PHONY: test-web-e2e-live
+test-web-e2e-live: ## Playwright tests against the live e2e cluster (requires e2e-up + Go e2e)
+	cd web && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:live
+
 # -------- lint --------
 .PHONY: lint
 lint: lint-go lint-web ## Run all linters

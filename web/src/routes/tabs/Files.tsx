@@ -21,34 +21,26 @@ import {
   Upload,
 } from "lucide-react";
 
-import { APIError, api, csrfHeaders } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Files, type FileEntry } from "@/lib/endpoints";
 import { cn, formatBytes } from "@/lib/utils";
-
-interface Entry {
-  name: string;
-  path: string;
-  size: number;
-  dir: boolean;
-}
 
 const ROOT = "/";
 
 export function FilesTab({ name }: { name: string }) {
   const qc = useQueryClient();
-  const fileBase = `/servers/${encodeURIComponent(name)}/files`;
   const listKey = (cwd: string) => ["files", name, cwd] as const;
 
   const [cwd, setCwd] = useState(ROOT);
-  const [selected, setSelected] = useState<Entry | null>(null);
+  const [selected, setSelected] = useState<FileEntry | null>(null);
   const [serverContent, setServerContent] = useState<string | null>(null);
   const [editorValue, setEditorValue] = useState<string>("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
 
-  const [confirmDelete, setConfirmDelete] = useState<Entry | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<FileEntry | null>(null);
   const [mkdirOpen, setMkdirOpen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
 
@@ -58,8 +50,7 @@ export function FilesTab({ name }: { name: string }) {
 
   const { data: entries, isFetching, refetch } = useQuery({
     queryKey: listKey(cwd),
-    queryFn: () =>
-      api<Entry[]>(`${fileBase}/list?path=${encodeURIComponent(cwd)}`),
+    queryFn: () => Files.list(name, cwd),
   });
 
   // Load file contents when a file is selected (and only then). Folder
@@ -68,13 +59,7 @@ export function FilesTab({ name }: { name: string }) {
     if (!selected || selected.dir) return;
     let aborted = false;
     setLoadError(null);
-    fetch(`${fileBase}/read?path=${encodeURIComponent(selected.path)}`, {
-      credentials: "include",
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(await r.text() || `read failed (${r.status})`);
-        return r.text();
-      })
+    Files.read(name, selected.path)
       .then((text) => {
         if (aborted) return;
         setServerContent(text);
@@ -89,7 +74,7 @@ export function FilesTab({ name }: { name: string }) {
     return () => {
       aborted = true;
     };
-  }, [selected, fileBase]);
+  }, [selected, name]);
 
   function navigateTo(path: string) {
     if (dirty && !confirmDiscard()) return;
@@ -99,7 +84,7 @@ export function FilesTab({ name }: { name: string }) {
     setCwd(path);
   }
 
-  function onEntryClick(e: Entry) {
+  function onEntryClick(e: FileEntry) {
     if (e.dir) {
       navigateTo(e.path);
       return;
@@ -112,16 +97,7 @@ export function FilesTab({ name }: { name: string }) {
   const saveMutation = useMutation({
     mutationFn: async (body: string) => {
       if (!selected) throw new Error("no file selected");
-      const res = await fetch(
-        `${fileBase}/write?path=${encodeURIComponent(selected.path)}`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "text/plain", ...csrfHeaders() },
-          body,
-        },
-      );
-      if (!res.ok) throw new APIError(res.status, await res.text());
+      await Files.write(name, selected.path, body);
     },
     onSuccess: async (_data, body) => {
       setServerContent(body);
@@ -132,13 +108,8 @@ export function FilesTab({ name }: { name: string }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (entry: Entry) => {
-      const recursive = entry.dir ? "&recursive=true" : "";
-      const res = await fetch(
-        `${fileBase}/delete?path=${encodeURIComponent(entry.path)}${recursive}`,
-        { method: "DELETE", credentials: "include", headers: csrfHeaders() },
-      );
-      if (!res.ok) throw new APIError(res.status, await res.text());
+    mutationFn: async (entry: FileEntry) => {
+      await Files.remove(name, entry.path, entry.dir);
       return entry;
     },
     onSuccess: async (entry) => {
@@ -155,15 +126,8 @@ export function FilesTab({ name }: { name: string }) {
   });
 
   const mkdirMutation = useMutation({
-    mutationFn: async (folderName: string) => {
-      const path = joinPath(cwd, folderName);
-      const res = await fetch(`${fileBase}/mkdir?path=${encodeURIComponent(path)}`, {
-        method: "POST",
-        credentials: "include",
-        headers: csrfHeaders(),
-      });
-      if (!res.ok) throw new APIError(res.status, await res.text());
-    },
+    mutationFn: (folderName: string) =>
+      Files.mkdir(name, joinPath(cwd, folderName)),
     onSuccess: async () => {
       setMkdirOpen(false);
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
@@ -175,13 +139,7 @@ export function FilesTab({ name }: { name: string }) {
   const newFileMutation = useMutation({
     mutationFn: async (fileName: string) => {
       const path = joinPath(cwd, fileName);
-      const res = await fetch(`${fileBase}/write?path=${encodeURIComponent(path)}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "text/plain", ...csrfHeaders() },
-        body: "",
-      });
-      if (!res.ok) throw new APIError(res.status, await res.text());
+      await Files.write(name, path, "");
       return path;
     },
     onSuccess: async (path) => {
@@ -199,17 +157,7 @@ export function FilesTab({ name }: { name: string }) {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async (files: FileList) => {
-      const fd = new FormData();
-      for (const f of Array.from(files)) fd.append("files", f, f.name);
-      const res = await fetch(`${fileBase}/upload?path=${encodeURIComponent(cwd)}`, {
-        method: "POST",
-        credentials: "include",
-        headers: csrfHeaders(),
-        body: fd,
-      });
-      if (!res.ok) throw new APIError(res.status, await res.text());
-    },
+    mutationFn: (files: FileList) => Files.upload(name, cwd, files),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
       setOpError(null);
@@ -225,7 +173,7 @@ export function FilesTab({ name }: { name: string }) {
 
   function downloadSelected() {
     if (!selected || selected.dir) return;
-    window.location.href = `${fileBase}/download?path=${encodeURIComponent(selected.path)}`;
+    window.location.href = Files.downloadURL(name, selected.path);
   }
 
   return (

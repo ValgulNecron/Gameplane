@@ -1,0 +1,79 @@
+# Tiny module bundle pushed to the in-cluster OCI registry, used by
+# Module/ModuleSource e2e tests. Layout matches modules/build.sh — the
+# operator's puller decides which layer is what by media type, so any
+# rename here breaks the indexer.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kestrel-test-module-bundle
+  namespace: kestrel-system
+  labels:
+    app.kubernetes.io/component: e2e-fixture
+data:
+  module.yaml: |
+    apiVersion: kestrel.gg/module/v1
+    name: e2e-test-game
+    displayName: E2E Test Game
+    version: 0.1.0
+    game: e2e-test-game
+    summary: Tiny test module for e2e tests
+    license: MIT
+    kestrelMinVersion: 0.1.0
+  template.yaml: |
+    apiVersion: kestrel.gg/v1alpha1
+    kind: GameTemplate
+    metadata:
+      name: e2e-test-game
+      labels:
+        kestrel.gg/module: e2e-test-game
+    spec:
+      displayName: E2E Test Game
+      game: e2e-test-game
+      version: "0.1.0"
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 100000"]
+      ports:
+        - name: noop
+          containerPort: 12345
+          advertise: true
+          protocol: TCP
+---
+# One-shot Job that runs `oras push` against the in-cluster registry.
+# Mounts the bundle ConfigMap at /workspace so oras records each layer
+# under its plain filename (matching the build.sh contract).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oras-push-test-game
+  namespace: kestrel-system
+  labels:
+    app.kubernetes.io/component: e2e-fixture
+spec:
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: e2e-fixture
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: push
+          image: ghcr.io/oras-project/oras:v1.2.0
+          command: ["oras"]
+          args:
+            - push
+            - --plain-http
+            - --artifact-type=application/vnd.kestrel.module.v1+json
+            - kestrel-test-registry.kestrel-system.svc:5000/e2e-test-game:0.1.0
+            - module.yaml:application/vnd.kestrel.module.metadata.v1+yaml
+            - template.yaml:application/vnd.kestrel.module.template.v1+yaml
+          workingDir: /workspace
+          volumeMounts:
+            - { name: bundle, mountPath: /workspace }
+            - { name: tmp,    mountPath: /tmp }
+      volumes:
+        - name: bundle
+          configMap:
+            name: kestrel-test-module-bundle
+        - name: tmp
+          emptyDir: {}

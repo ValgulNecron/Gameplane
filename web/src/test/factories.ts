@@ -8,14 +8,19 @@ import type {
   Backup,
   BackupSchedule,
   BackupDestination,
+  BannedPlayer,
   User,
   AuditEvent,
   ClusterView,
   ClusterStats,
   CatalogEntry,
+  Module,
   ModuleSource,
   PlayersResp,
+  Restore,
 } from "@/types";
+import type { AllConfig } from "@/lib/config";
+import type { FileEntry } from "@/lib/endpoints";
 
 export function makeUser(over: Partial<User> = {}): User {
   return {
@@ -77,6 +82,7 @@ export function makeBackup(over: Partial<Backup> = {}): Backup {
       startTime: "2026-05-07T03:00:00Z",
       completionTime: "2026-05-07T03:01:30Z",
       size: "120 MiB",
+      snapshotID: "abcd1234ef",
     },
     ...over,
   };
@@ -89,6 +95,23 @@ export function makeSchedule(over: Partial<BackupSchedule> = {}): BackupSchedule
     status: {
       lastSuccessfulTime: "2026-05-07T03:01:30Z",
       nextScheduleTime: "2026-05-08T03:00:00Z",
+    },
+    ...over,
+  };
+}
+
+export function makeRestore(over: Partial<Restore> = {}): Restore {
+  return {
+    metadata: { name: "restore-alpha-1", namespace: "kestrel-games" },
+    spec: {
+      backupRef: { name: "alpha-2026-05-07" },
+      serverRef: { name: "alpha" },
+    },
+    status: {
+      phase: "Succeeded",
+      snapshotID: "abcd1234ef",
+      startTime: "2026-05-07T04:00:00Z",
+      completionTime: "2026-05-07T04:02:00Z",
     },
     ...over,
   };
@@ -157,6 +180,23 @@ export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {
   };
 }
 
+export function makeModule(over: Partial<Module> = {}): Module {
+  return {
+    metadata: { name: "minecraft-vanilla" },
+    spec: {
+      source: { name: "upstream" },
+      name: "minecraft-vanilla",
+      version: "1.21",
+    },
+    status: {
+      phase: "Ready",
+      appliedVersion: "1.21",
+      appliedTemplate: "minecraft-vanilla",
+    },
+    ...over,
+  };
+}
+
 export function makeModuleSource(over: Partial<ModuleSource> = {}): ModuleSource {
   return {
     metadata: { name: "upstream" },
@@ -176,6 +216,42 @@ export function makePlayers(over: Partial<PlayersResp> = {}): PlayersResp {
     players: ["alice", "bob"],
     asOf: "2026-05-07T12:00:00Z",
     capabilities: { kick: true, ban: true, unban: true },
+    ...over,
+  };
+}
+
+export function makeBannedPlayer(over: Partial<BannedPlayer> = {}): BannedPlayer {
+  return {
+    name: "griefer-1",
+    reason: "broke spawn",
+    source: "console",
+    ...over,
+  };
+}
+
+export function makeFileEntry(over: Partial<FileEntry> = {}): FileEntry {
+  return {
+    name: "server.properties",
+    path: "/data/server.properties",
+    size: 412,
+    dir: false,
+    mode: "0644",
+    modTime: "2026-05-07T12:00:00Z",
+    ...over,
+  };
+}
+
+export function makeConfig(over: Partial<AllConfig> = {}): AllConfig {
+  return {
+    general: {
+      instanceName: "Kestrel (mock)",
+      externalURL: "https://kestrel.local",
+      defaultNamespace: "kestrel-games",
+    },
+    auth: { providers: [{ name: "local", kind: "local", enabled: true }] },
+    notifications: { sinks: [] },
+    telemetry: { sendMetrics: false },
+    updates: { channel: "stable" },
     ...over,
   };
 }

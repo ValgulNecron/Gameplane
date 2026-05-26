@@ -136,6 +136,29 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+  web-e2e-mock:
+    name: web e2e (mock)
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - name: install chromium
+        run: npx playwright install --with-deps chromium
+      - name: playwright (mock)
+        run: npm run test:e2e:mock
+      - name: upload playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-mock
+          path: web/playwright-report
+          retention-days: 7
+          if-no-files-found: warn
+
   helm:
     name: helm lint
     runs-on: ubuntu-latest
@@ -157,11 +180,103 @@ jobs:
           grep -q 'kind: ClusterRole' /tmp/rendered.yaml
           grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
 
-  e2e:
-    name: e2e (kind)
+  # The e2e suite is split into two parallel kind clusters so the
+  # combined Go runtime stays under the per-job budget. e2e-core covers
+  # helm install + GameServer/RBAC/auth/agent/CRD validation and runs
+  # the live Playwright spec; e2e-extended covers the slower restic-
+  # backed Backup/Restore/Module/BackupSchedule/WS/finalizer suites.
+  # Each spins its own cluster (~3 min setup); in exchange wall-clock
+  # drops from sequential to parallel.
+  e2e-core:
+    name: e2e core (kind)
     runs-on: ubuntu-latest
     needs: [go, helm]
-    timeout-minutes: 25
+    timeout-minutes: 26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        run: make e2e-images
+      - name: bring up cluster + helm install
+        run: ./deploy/kind/e2e.sh up kestrel-e2e e2e
+      - name: run go e2e (core)
+        run: |
+          # Anchored ^(...)$ list — prefix-matching (e.g. TestGameServer vs
+          # TestGameServer_Cascading) would silently run tests in both buckets.
+          RUN_REGEX='^('
+          RUN_REGEX+='TestHelmInstall_AllPodsReady|'
+          RUN_REGEX+='TestHelmInstall_AllCRDsPresent|'
+          RUN_REGEX+='TestHelmInstall_APIHealthz|'
+          RUN_REGEX+='TestHelmInstall_APILogsClean|'
+          RUN_REGEX+='TestHelmInstall_OperatorLogsClean|'
+          RUN_REGEX+='TestCRD_Validation_GameServerWithoutTemplate|'
+          RUN_REGEX+='TestCRD_Validation_BackupScheduleBadCron|'
+          RUN_REGEX+='TestCRD_Validation_BackupRequiresServerRef|'
+          RUN_REGEX+='TestCRD_Validation_GameTemplateRequiresImage|'
+          RUN_REGEX+='TestGameServer_OperatorMaterializesChildren|'
+          RUN_REGEX+='TestGameServer_SuspendScalesToZeroAndBack|'
+          RUN_REGEX+='TestAPI_BootstrapAndLogin|'
+          RUN_REGEX+='TestAPI_LoginPrivacy|'
+          RUN_REGEX+='TestAPI_AuditEmitsOnMutation|'
+          RUN_REGEX+='TestAPI_RBAC_ViewerCannotMutate|'
+          RUN_REGEX+='TestAPI_RBAC_ViewerCannotMutate_Matrix|'
+          RUN_REGEX+='TestAPI_RBAC_OperatorCanWriteServers_NotUsers|'
+          RUN_REGEX+='TestAPI_RBAC_AdminCanReachAll|'
+          RUN_REGEX+='TestAPI_OperatorCannotInviteUsers|'
+          RUN_REGEX+='TestAPI_LifecycleStartStop|'
+          RUN_REGEX+='TestAPI_LifecycleRestart|'
+          RUN_REGEX+='TestAPI_LifecycleClone|'
+          RUN_REGEX+='TestAPI_LifecycleNotFound|'
+          RUN_REGEX+='TestAPI_AgentFilesRoundTrip|'
+          RUN_REGEX+='TestAPI_AgentPlayers|'
+          RUN_REGEX+='TestAPI_AgentUnreachable'
+          RUN_REGEX+=')$'
+          cd test/e2e && \
+            KESTREL_E2E_REUSE_CLUSTER=1 \
+            KESTREL_E2E_CLUSTER=kestrel-e2e \
+            KESTREL_E2E_KEEP_ON_FAILURE=1 \
+            go test -tags=e2e -timeout 19m -v -run "$RUN_REGEX" ./...
+      - name: install playwright browser
+        run: |
+          cd web && npm ci && npx playwright install --with-deps chromium
+      - name: run playwright (live)
+        env:
+          KESTREL_E2E_TARGET: live
+          KESTREL_E2E_CLUSTER: kestrel-e2e
+        run: |
+          cd web && npm run test:e2e:live
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl get all -A
+          kubectl describe pods -n kestrel-system
+          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
+          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-api --tail=200 || true
+      - name: upload playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-live-core
+          path: web/playwright-report
+          retention-days: 7
+          if-no-files-found: warn
+      - name: tear down
+        if: always()
+        run: ./deploy/kind/e2e.sh down kestrel-e2e || true
+
+  e2e-extended:
+    name: e2e extended (kind)
+    runs-on: ubuntu-latest
+    needs: [go, helm]
+    timeout-minutes: 32
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -174,21 +289,46 @@ jobs:
       - name: build images
         run: make e2e-images
       - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up kestrel-e2e e2e
-      - name: run e2e tests
+        run: ./deploy/kind/e2e.sh up kestrel-e2e-2 e2e
+      - name: run go e2e (extended)
         run: |
+          # Anchored ^(...)$ list — must stay disjoint from e2e-core.
+          RUN_REGEX='^('
+          RUN_REGEX+='TestGameServer_PVCSurvivesPodDelete|'
+          RUN_REGEX+='TestGameServer_CascadingDelete|'
+          RUN_REGEX+='TestGameTemplate_DeletionWithLiveServer|'
+          RUN_REGEX+='TestModule_FinalizerBlocksWhileTemplateInUse|'
+          RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
+          RUN_REGEX+='TestModuleSourceAndModule|'
+          RUN_REGEX+='TestBackup_OperatorMaterializesJob|'
+          RUN_REGEX+='TestBackup_FailsOnMissingPVC|'
+          RUN_REGEX+='TestBackup_FailsOnBadCredentials|'
+          RUN_REGEX+='TestBackupSchedule_CreatesBackupCR|'
+          RUN_REGEX+='TestBackupSchedule_SuspendStopsScheduling|'
+          RUN_REGEX+='TestBackupSchedule_RetentionTrimsPast|'
+          RUN_REGEX+='TestBackupSchedule_ConcurrencyForbid|'
+          RUN_REGEX+='TestRestore_RoundTrip|'
+          RUN_REGEX+='TestRestore_RejectsMissingBackup|'
+          RUN_REGEX+='TestRestore_FailsOnMissingSnapshot|'
+          RUN_REGEX+='TestAPI_PasswordResetInvalidatesSession|'
+          RUN_REGEX+='TestAPI_LoginRateLimit|'
+          RUN_REGEX+='TestAPI_AuditPaginationAndFilter|'
+          RUN_REGEX+='TestAPI_LogoutInvalidatesSession|'
+          RUN_REGEX+='TestAPI_ConsolePTYRoundTrip|'
+          RUN_REGEX+='TestAPI_LogsTailWS'
+          RUN_REGEX+=')$'
           cd test/e2e && \
             KESTREL_E2E_REUSE_CLUSTER=1 \
-            KESTREL_E2E_CLUSTER=kestrel-e2e \
+            KESTREL_E2E_CLUSTER=kestrel-e2e-2 \
             KESTREL_E2E_KEEP_ON_FAILURE=1 \
-            go test -tags=e2e -timeout 20m -v ./...
+            go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure
         if: failure()
         run: |
-          kubectl get all -A
-          kubectl describe pods -n kestrel-system
-          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
-          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-api --tail=200 || true
+          kubectl --context kind-kestrel-e2e-2 get all -A || true
+          kubectl --context kind-kestrel-e2e-2 describe pods -n kestrel-system || true
+          kubectl --context kind-kestrel-e2e-2 logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
+          kubectl --context kind-kestrel-e2e-2 logs -n kestrel-system -l app.kubernetes.io/name=kestrel-api --tail=200 || true
       - name: tear down
         if: always()
-        run: ./deploy/kind/e2e.sh down kestrel-e2e || true
+        run: ./deploy/kind/e2e.sh down kestrel-e2e-2 || true

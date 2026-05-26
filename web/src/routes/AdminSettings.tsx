@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Switch } from "@/components/ui/switch";
 import { cn, formatRelative } from "@/lib/utils";
 import { BackupDestinations } from "@/lib/endpoints";
 import {
@@ -32,7 +33,7 @@ import {
   type UpdatesCfg,
 } from "@/lib/config";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
-import { FieldLabel } from "@/components/backups/FieldLabel";
+import { FieldLabel } from "@/components/ui/field";
 import { ModuleSourcesPanel } from "@/components/modules/ModuleSourcesPanel";
 
 type Section =
@@ -463,18 +464,16 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
               <div className="text-sm">{s.name}</div>
               <div className="truncate text-xs text-muted">{s.kind}</div>
             </div>
-            <button
-              type="button"
+            <Switch
               aria-label={s.enabled ? "Disable sink" : "Enable sink"}
-              onClick={() => {
+              checked={s.enabled}
+              onCheckedChange={(v) => {
                 const next = f.draft.sinks.map((x, i) =>
-                  i === idx ? { ...x, enabled: !x.enabled } : x,
+                  i === idx ? { ...x, enabled: v } : x,
                 );
                 f.replace({ sinks: next });
               }}
-            >
-              <Toggle on={s.enabled} />
-            </button>
+            />
           </li>
         ))}
       </ul>
@@ -504,13 +503,11 @@ function TelemetrySection({ initial }: { initial?: TelemetryCfg }) {
             No server names, player counts, or identifying data.
           </div>
         </div>
-        <button
-          type="button"
+        <Switch
           aria-label={f.draft.sendMetrics ? "Disable telemetry" : "Enable telemetry"}
-          onClick={() => f.update({ sendMetrics: !f.draft.sendMetrics })}
-        >
-          <Toggle on={f.draft.sendMetrics} />
-        </button>
+          checked={f.draft.sendMetrics}
+          onCheckedChange={(v) => f.update({ sendMetrics: v })}
+        />
       </div>
     </SectionCard>
   );
@@ -580,20 +577,6 @@ function AuditLogSection() {
         Open audit log →
       </Link>
     </Card>
-  );
-}
-
-function Toggle({ on }: { on: boolean }) {
-  return (
-    <div className={cn(
-      "relative h-5 w-9 rounded-full transition-colors",
-      on ? "bg-primary" : "bg-border",
-    )}>
-      <span className={cn(
-        "absolute top-0.5 h-4 w-4 rounded-full bg-primary-fg transition-all",
-        on ? "right-0.5" : "left-0.5",
-      )} />
-    </div>
   );
 }
 

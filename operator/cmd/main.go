@@ -29,14 +29,16 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr          string
-		probeAddr            string
-		enableLeaderElection bool
-		agentImage           string
-		agentCABundle        string
-		agentClientCert      string
-		agentClientKey       string
-		moduleNamespace      string
+		metricsAddr            string
+		probeAddr              string
+		enableLeaderElection   bool
+		agentImage             string
+		agentCABundle          string
+		agentClientCert        string
+		agentClientKey         string
+		agentCASecretName      string
+		agentCASecretNamespace string
+		moduleNamespace        string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the probe endpoint binds to.")
@@ -51,6 +53,10 @@ func main() {
 		"Client cert presented when calling the agent over mTLS.")
 	flag.StringVar(&agentClientKey, "agent-client-key", "",
 		"Client key for the agent client cert.")
+	flag.StringVar(&agentCASecretName, "agent-ca-secret-name", "kestrel-agent-ca",
+		"Name of the Secret holding the agent CA cert+key used to sign per-GameServer agent server certs.")
+	flag.StringVar(&agentCASecretNamespace, "agent-ca-secret-namespace", "kestrel-system",
+		"Namespace of the agent CA Secret.")
 
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
@@ -72,9 +78,11 @@ func main() {
 	}
 
 	if err := (&controller.GameServerReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		AgentImage: agentImage,
+		Client:                 mgr.GetClient(),
+		Scheme:                 mgr.GetScheme(),
+		AgentImage:             agentImage,
+		AgentCASecretName:      agentCASecretName,
+		AgentCASecretNamespace: agentCASecretNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameServer")
 		os.Exit(1)

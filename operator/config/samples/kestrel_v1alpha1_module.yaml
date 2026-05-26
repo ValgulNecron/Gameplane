@@ -1,0 +1,11 @@
+# Cluster-scoped. References the example-source ModuleSource above.
+# Version is left empty so the reconciler tracks the source's
+# LatestVersion and re-pulls when a new bundle appears.
+apiVersion: kestrel.gg/v1alpha1
+kind: Module
+metadata:
+  name: minecraft-java
+spec:
+  source:
+    name: example-source
+  name: minecraft-java

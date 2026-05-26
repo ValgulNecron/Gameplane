@@ -5,12 +5,20 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -179,4 +187,378 @@ func (e *Env) ensureCluster() error {
 		return fmt.Errorf("cluster %q not reachable: %w", e.ClusterName, err)
 	}
 	return err
+}
+
+// KubectlWithStdin is like Kubectl but pipes the given string as stdin
+// to the kubectl process. Used for password-stdin and similar flows
+// where putting the value in argv would leak it through /proc.
+func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
+	all := append([]string{"--context", "kind-" + e.ClusterName}, args...)
+	cmd := exec.Command("kubectl", all...)
+	cmd.Stdin = strings.NewReader(stdin)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// KubectlExec is a readability wrapper for `kubectl exec` against a
+// specific namespace + target. The variadic command runs inside the
+// container; the typical caller is exec'ing a single binary with args.
+func (e *Env) KubectlExec(t *testing.T, ns, target string, cmd ...string) (string, error) {
+	t.Helper()
+	args := append([]string{"exec", "-n", ns, target, "--"}, cmd...)
+	return e.Kubectl(args...)
+}
+
+// EventuallyNoErr is the error-returning sibling of Eventually. Useful
+// when the probe naturally returns (T, error) — the typical client-go
+// API shape.
+func (e *Env) EventuallyNoErr(t *testing.T, timeout time.Duration, fn func() error) {
+	t.Helper()
+	e.Eventually(t, timeout, func() (bool, string) {
+		if err := fn(); err != nil {
+			return false, err.Error()
+		}
+		return true, ""
+	})
+}
+
+// bootstrapAdminOnce serializes BootstrapAdmin calls across the test
+// process so a single (username, password) pair is materialized at most
+// once. argon2id hashing inside the running api container is heavy;
+// repeating it per test pushes the pod over its memory limit and the
+// kubelet OOM-kills the container. Tests freely call BootstrapAdmin
+// for idempotence; the helper short-circuits after the first.
+var (
+	bootstrapAdminOnce sync.Once
+	bootstrapAdminKey  string
+)
+
+// BootstrapAdmin invokes the API binary's `bootstrap-admin` subcommand
+// inside the running api Deployment. Pass --force so the call is
+// idempotent across reruns of the e2e suite.
+//
+// Password is fed via --password-stdin so it never lands in argv. The
+// distroless API image has no shell, but kubectl exec can still launch
+// /api directly.
+//
+// Per-process: only one (username, password) pair is bootstrapped per
+// `go test` invocation. Calls with a different pair after the first
+// fail loudly so a test author notices the fixture clash rather than
+// silently using stale credentials.
+func (e *Env) BootstrapAdmin(t *testing.T, username, password string) {
+	t.Helper()
+	key := username + "\x00" + password
+	bootstrapAdminOnce.Do(func() {
+		bootstrapAdminKey = key
+		out, err := e.KubectlWithStdin(
+			password+"\n",
+			"exec", "-i", "-n", "kestrel-system", "deploy/kestrel-api", "--",
+			"/api", "bootstrap-admin",
+			"--username="+username,
+			"--password-stdin",
+			"--force",
+		)
+		if err != nil {
+			t.Fatalf("bootstrap-admin: %v\n%s", err, out)
+		}
+	})
+	if bootstrapAdminKey != key {
+		t.Fatalf("BootstrapAdmin called with a second (user, password) pair: " +
+			"the helper bootstraps once per test process. Pick a single shared admin fixture.")
+	}
+}
+
+// WriteAdminPasswordFile drops the admin password at
+// test/e2e/.tmp/admin-password (mode 0600) so the Playwright suite can
+// reuse the credentials in live mode. The directory is gitignored.
+func (e *Env) WriteAdminPasswordFile(t *testing.T, pw string) {
+	t.Helper()
+	if err := os.MkdirAll(".tmp", 0o700); err != nil {
+		t.Fatalf("mkdir .tmp: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(".tmp", "admin-password"), []byte(pw), 0o600); err != nil {
+		t.Fatalf("write admin-password: %v", err)
+	}
+}
+
+// PortForward starts `kubectl port-forward` for target in the given
+// namespace, picks a free local port, and waits until the port accepts
+// TCP. Returns the port and a stop func that kills the kubectl child.
+//
+// `target` follows kubectl conventions ("svc/foo" or "pod/foo").
+func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int, func()) {
+	t.Helper()
+	local, err := freePort()
+	if err != nil {
+		t.Fatalf("free port: %v", err)
+	}
+	args := []string{
+		"--context", "kind-" + e.ClusterName,
+		"port-forward",
+		"-n", ns,
+		target,
+		fmt.Sprintf("%d:%d", local, remotePort),
+	}
+	cmd := exec.Command("kubectl", args...)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start port-forward: %v", err)
+	}
+	stop := func() {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		c, derr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", local), 500*time.Millisecond)
+		if derr == nil {
+			_ = c.Close()
+			return local, stop
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	stop()
+	t.Fatalf("port-forward never became ready on 127.0.0.1:%d (target %s/%s:%d)", local, ns, target, remotePort)
+	return 0, nil
+}
+
+// freePort returns an OS-allocated free TCP port on 127.0.0.1. There's a
+// small race between releasing the port and kubectl binding it, but in
+// practice the window is too short to matter for e2e tests.
+func freePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, fmt.Errorf("listen for free port: %w", err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+// APIClient is a minimal authenticated session against the API service.
+// Mutations attach the X-Kestrel-CSRF header that the session
+// middleware demands; reads pass through unchanged.
+type APIClient struct {
+	BaseURL string
+	CSRF    string
+	HTTP    *http.Client
+	stop    func()
+}
+
+// APIClient logs in as username/password against the in-cluster API
+// (via a freshly-spawned port-forward). Caller MUST defer Close() to
+// tear the port-forward down.
+func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
+	t.Helper()
+	local, stop := e.PortForward(t, "kestrel-system", "svc/kestrel-api", 80)
+	base := fmt.Sprintf("http://127.0.0.1:%d", local)
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		stop()
+		t.Fatalf("cookie jar: %v", err)
+	}
+	cli := &http.Client{Jar: jar, Timeout: 15 * time.Second}
+
+	body, err := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	if err != nil {
+		stop()
+		t.Fatalf("marshal login: %v", err)
+	}
+
+	// Retry on 429 with exponential backoff. The API's LoginLimiter
+	// rate-limits per-IP, and a `go test ./...` run that exercises
+	// many APIClient-using tests in close succession can saturate the
+	// bucket. The window is small (typically <1 minute), so a few
+	// retries comfortably absorb the burst without inflating the
+	// timeout for normal runs.
+	var resp *http.Response
+	var rb []byte
+	delay := 2 * time.Second
+	for attempt := 0; attempt < 5; attempt++ {
+		req, rerr := http.NewRequest(http.MethodPost, base+"/auth/login", bytes.NewReader(body))
+		if rerr != nil {
+			stop()
+			t.Fatalf("new login request: %v", rerr)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err = cli.Do(req)
+		if err != nil {
+			stop()
+			t.Fatalf("login: %v", err)
+		}
+		rb, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusTooManyRequests {
+			break
+		}
+		time.Sleep(delay)
+		delay *= 2
+	}
+	if resp.StatusCode != http.StatusOK {
+		stop()
+		t.Fatalf("login %d: %s", resp.StatusCode, string(rb))
+	}
+	var lr struct {
+		CSRF string `json:"csrf"`
+	}
+	if jerr := json.Unmarshal(rb, &lr); jerr != nil {
+		stop()
+		t.Fatalf("decode login response: %v\n%s", jerr, string(rb))
+	}
+	return &APIClient{BaseURL: base, CSRF: lr.CSRF, HTTP: cli, stop: stop}
+}
+
+// Close tears down the port-forward backing this client.
+func (c *APIClient) Close() {
+	if c.stop != nil {
+		c.stop()
+	}
+}
+
+// Do performs an authenticated request. Body, when non-nil, is
+// marshalled as JSON and the Content-Type header is set. CSRF header is
+// attached for mutating methods.
+func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, error) {
+	var br io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal body: %w", err)
+		}
+		br = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, c.BaseURL+path, br)
+	if err != nil {
+		return nil, nil, fmt.Errorf("new request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if isMutation(method) {
+		req.Header.Set("X-Kestrel-CSRF", c.CSRF)
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("do %s %s: %w", method, path, err)
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(resp.Body)
+	return resp, rb, nil
+}
+
+// Get/Post/Patch/Delete are method-bound shortcuts for Do.
+func (c *APIClient) Get(path string) (*http.Response, []byte, error) {
+	return c.Do(http.MethodGet, path, nil)
+}
+func (c *APIClient) Post(path string, body any) (*http.Response, []byte, error) {
+	return c.Do(http.MethodPost, path, body)
+}
+func (c *APIClient) Patch(path string, body any) (*http.Response, []byte, error) {
+	return c.Do(http.MethodPatch, path, body)
+}
+func (c *APIClient) Delete(path string) (*http.Response, []byte, error) {
+	return c.Do(http.MethodDelete, path, nil)
+}
+
+func isMutation(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	}
+	return true
+}
+
+// OCIPush is a backwards-compatible shim over OCIPushFromFixture pinned
+// to the original "oras-push-job.yaml" fixture.
+func (e *Env) OCIPush(t *testing.T, jobNS, jobName string) {
+	t.Helper()
+	e.OCIPushFromFixture(t, jobNS, jobName, "oras-push-job.yaml")
+}
+
+// OCIPushFromFixture applies the given fixture (a ConfigMap + oras Job)
+// and waits for the Job to succeed. Used by module install and module
+// upgrade tests, where each version needs its own Job + ConfigMap pair.
+//
+// jobNS is where the Job is created (typically "kestrel-system"), and
+// jobName matches the metadata.name in the fixture.
+func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
+	t.Helper()
+	ctx := context.Background()
+	// Recreate each call so a previous failure doesn't leave a Failed
+	// shell behind. Best-effort delete; ignore NotFound.
+	bg := metav1.DeletePropagationBackground
+	_ = e.K8s.BatchV1().Jobs(jobNS).Delete(ctx, jobName, metav1.DeleteOptions{
+		PropagationPolicy: &bg,
+	})
+	e.ApplyYAML(t, fixture)
+	e.Eventually(t, 90*time.Second, func() (bool, string) {
+		j, err := e.K8s.BatchV1().Jobs(jobNS).Get(ctx, jobName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get job: " + err.Error()
+		}
+		if j.Status.Succeeded > 0 {
+			return true, ""
+		}
+		if j.Status.Failed > 0 {
+			out, _ := e.Kubectl("logs", "-n", jobNS, "job/"+jobName, "--tail=200")
+			return false, "job failed:\n" + out
+		}
+		return false, fmt.Sprintf("job not done (succeeded=%d, failed=%d, active=%d)",
+			j.Status.Succeeded, j.Status.Failed, j.Status.Active)
+	})
+}
+
+// CreateUser POSTs /users as the given admin client and returns the
+// generated credentials and the new user id. The username is suffixed
+// with time.UnixNano() so a re-run against a stateful kestrel-system DB
+// (the API PVC isn't wiped between local iterations) doesn't collide.
+//
+// The caller owns cleanup — register `t.Cleanup` to DELETE /users/{id}
+// (best-effort; swallow 404). The helper does not register cleanup
+// itself because some lifecycle tests want to assert on behavior across
+// the user's full lifetime, including delete.
+func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, password, id string) {
+	t.Helper()
+	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	password = "e2e-created-user-password-1234"
+	resp, body, err := admin.Post("/users", map[string]string{
+		"username": username,
+		"password": password,
+		"role":     role,
+	})
+	if err != nil {
+		t.Fatalf("CreateUser post: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("CreateUser %s/%s %d: %s", role, prefix, resp.StatusCode, string(body))
+	}
+	id = extractIntField(string(body), "id")
+	if id == "" {
+		t.Fatalf("CreateUser: could not parse id from response: %s", string(body))
+	}
+	return username, password, id
+}
+
+// extractIntField is a tiny scanner for `"<key>":<digits>` inside a JSON
+// blob. Lets the e2e tests parse the one or two integer fields they
+// care about (user id, mostly) without pulling in encoding/json.
+//
+// Lives on env.go (not in a _test.go) so non-test helper code like
+// CreateUser can use it.
+func extractIntField(body, key string) string {
+	needle := `"` + key + `":`
+	i := strings.Index(body, needle)
+	if i < 0 {
+		return ""
+	}
+	rest := body[i+len(needle):]
+	end := 0
+	for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+		end++
+	}
+	return rest[:end]
 }

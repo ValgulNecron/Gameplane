@@ -31,6 +31,13 @@ type GameServerReconciler struct {
 	// injected into every game pod. Set from an operator flag so the
 	// deployer can pin the agent version independently of the game.
 	AgentImage string
+
+	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
+	// wide Secret holding `ca.crt` + `ca.key` used to sign the
+	// per-GameServer agent server cert. Provisioned by the chart
+	// (charts/kestrel/templates/mtls.yaml).
+	AgentCASecretName      string
+	AgentCASecretNamespace string
 }
 
 // RBAC markers below describe only the CLUSTER-wide permissions the
@@ -76,6 +83,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile Service")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileAgentTLS(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile agent TLS")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
@@ -99,6 +110,7 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&kestrelv1alpha1.BackupSchedule{}).
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }
 
@@ -226,14 +238,26 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 			buildGameContainer(gs, tmpl, image),
 			buildAgentContainer(gs, tmpl, r.AgentImage),
 		}
-		ss.Spec.Template.Spec.Volumes = []corev1.Volume{{
-			Name: "data",
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: gs.Name + "-data",
+		ss.Spec.Template.Spec.Volumes = []corev1.Volume{
+			{
+				Name: "data",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: gs.Name + "-data",
+					},
 				},
 			},
-		}}
+			{
+				// Per-GameServer Secret with tls.crt, tls.key, ca.crt.
+				// Reconciled by reconcileAgentTLS before this StatefulSet.
+				Name: "agent-tls",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: agentTLSSecretName(gs),
+					},
+				},
+			},
+		}
 		if gs.Spec.NodeSelector != nil {
 			ss.Spec.Template.Spec.NodeSelector = gs.Spec.NodeSelector
 		}
@@ -316,14 +340,22 @@ func buildAgentContainer(
 	return corev1.Container{
 		Name:  "agent",
 		Image: image,
+		Args: []string{
+			"--tls-cert=/etc/kestrel/agent-tls/tls.crt",
+			"--tls-key=/etc/kestrel/agent-tls/tls.key",
+			"--tls-client-ca=/etc/kestrel/agent-tls/ca.crt",
+		},
 		Env: []corev1.EnvVar{
 			{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
 			{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
 			{Name: "KESTREL_GAME", Value: tmpl.Spec.Game},
 		},
-		VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: mountPath}},
-		Ports:        []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
-		Resources:    res,
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "data", MountPath: mountPath},
+			{Name: "agent-tls", MountPath: "/etc/kestrel/agent-tls", ReadOnly: true},
+		},
+		Ports:     []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
+		Resources: res,
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             &nonRoot,
 			RunAsUser:                &uid,

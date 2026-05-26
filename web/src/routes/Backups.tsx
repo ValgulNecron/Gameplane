@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Backups, Restores, Schedules, Servers } from "@/lib/endpoints";
+import { useBackupDestinations } from "@/lib/destinations";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatRelative } from "@/lib/utils";
-import { PhaseBadge } from "@/components/backups/PhaseBadge";
+import { PhaseBadge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { ScheduleForm } from "@/components/backups/ScheduleForm";
 import { RestoreDialog } from "@/components/backups/RestoreDialog";
@@ -13,6 +15,7 @@ import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import { BackupRow } from "@/components/backups/BackupRow";
 import { BackupFilters } from "@/components/backups/BackupFilters";
 import { Switch } from "@/components/ui/switch";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Backup } from "@/types";
 
 type Tab = "backups" | "schedules" | "restores";
@@ -77,6 +80,7 @@ function BackupsTabPanel() {
   const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
   const [createServer, setCreateServer] = useState("");
+  const [createDest, setCreateDest] = useState("");
 
   const { data: backups } = useQuery({
     queryKey: ["backups"],
@@ -87,6 +91,15 @@ function BackupsTabPanel() {
     queryKey: ["servers"],
     queryFn: () => Servers.list(),
   });
+  const { data: destinations = [] } = useBackupDestinations();
+
+  // When destinations resolve, default to the first one. The user can
+  // still pick a different one if more than one exists.
+  useEffect(() => {
+    if (!createDest && destinations.length > 0) {
+      setCreateDest(destinations[0].name);
+    }
+  }, [destinations, createDest]);
 
   const items = useMemo(() => backups?.items ?? [], [backups]);
   const filtered = useMemo(() => {
@@ -106,13 +119,15 @@ function BackupsTabPanel() {
     mutationFn: () =>
       Backups.create({
         serverRef: { name: createServer },
-        repoRef: { name: "kestrel-backup-repo", key: "url" },
+        repoRef: { name: createDest, key: "url" },
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["backups"] });
       setCreateServer("");
     },
   });
+
+  const noDestinations = destinations.length === 0;
 
   return (
     <div className="space-y-4">
@@ -145,13 +160,36 @@ function BackupsTabPanel() {
               ))}
             </select>
           </div>
+          {destinations.length > 1 && (
+            <div className="w-56 space-y-1.5">
+              <div className="text-xs font-medium text-fg">Destination</div>
+              <select
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+                value={createDest}
+                onChange={(e) => setCreateDest(e.target.value)}
+              >
+                {destinations.map((d) => (
+                  <option key={d.name} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <Button
-            disabled={!createServer || createNow.isPending}
+            disabled={!createServer || !createDest || createNow.isPending || noDestinations}
             onClick={() => createNow.mutate()}
           >
             {createNow.isPending ? "Starting…" : "Run snapshot"}
           </Button>
         </div>
+        {noDestinations && (
+          <div className="pt-3 text-xs text-muted">
+            No backup destinations configured. Add one in{" "}
+            <Link to="/admin" className="text-primary hover:underline">
+              admin settings
+            </Link>{" "}
+            to enable snapshots.
+          </div>
+        )}
         {createNow.error && <div className="pt-3"><ErrorBanner err={createNow.error} /></div>}
       </Card>
 
@@ -209,6 +247,7 @@ function BackupsTabPanel() {
 function SchedulesTabPanel() {
   const qc = useQueryClient();
   const [creatingFor, setCreatingFor] = useState<string>("");
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const { data: schedules } = useQuery({
     queryKey: ["schedules"],
@@ -230,7 +269,10 @@ function SchedulesTabPanel() {
 
   const remove = useMutation({
     mutationFn: (name: string) => Schedules.remove(name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["schedules"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["schedules"] });
+      setDeleting(null);
+    },
   });
 
   return (
@@ -306,11 +348,7 @@ function SchedulesTabPanel() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
-                      if (confirm(`Delete schedule ${s.metadata.name}?`)) {
-                        remove.mutate(s.metadata.name);
-                      }
-                    }}
+                    onClick={() => setDeleting(s.metadata.name)}
                   >
                     Delete
                   </Button>
@@ -320,6 +358,30 @@ function SchedulesTabPanel() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => { if (!open) setDeleting(null); }}
+        title="Delete schedule?"
+        description={
+          <>
+            <p>
+              The cron schedule will be removed. Existing backups remain intact;
+              new snapshots on this schedule will stop running until it&apos;s recreated.
+            </p>
+            {deleting && (
+              <p className="pt-2">
+                Type <span className="font-mono">{deleting}</span> to confirm.
+              </p>
+            )}
+          </>
+        }
+        confirmPhrase={deleting ?? undefined}
+        confirmLabel="Delete"
+        destructive
+        busy={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting)}
+      />
     </div>
   );
 }

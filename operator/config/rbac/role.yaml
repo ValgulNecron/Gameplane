@@ -65,6 +65,8 @@ rules:
   - backupschedules/status
   - gameservers/status
   - gametemplates/status
+  - modules/status
+  - modulesources/status
   - restores/status
   verbs:
   - get
@@ -74,6 +76,7 @@ rules:
   - kestrel.gg
   resources:
   - gameservers
+  - modules
   - restores
   verbs:
   - get
@@ -85,5 +88,14 @@ rules:
   - kestrel.gg
   resources:
   - gameservers/finalizers
+  - modules/finalizers
   verbs:
   - update
+- apiGroups:
+  - kestrel.gg
+  resources:
+  - modulesources
+  verbs:
+  - get
+  - list
+  - watch

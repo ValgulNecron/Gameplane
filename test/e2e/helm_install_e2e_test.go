@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +58,8 @@ func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 		"backups.kestrel.gg",
 		"backupschedules.kestrel.gg",
 		"restores.kestrel.gg",
+		"modules.kestrel.gg",
+		"modulesources.kestrel.gg",
 	}
 	for _, name := range want {
 		ok, err := envInstance.CRDExists(ctx, name)
@@ -97,6 +100,64 @@ func TestHelmInstall_OperatorLogsClean(t *testing.T) {
 			t.Errorf("operator pod %s logged a panic:\n%s", p.Name, lastLines(out, 40))
 		}
 	}
+}
+
+// TestHelmInstall_APILogsClean — mirror of OperatorLogsClean for the
+// API pod. Catches "API container starts and immediately panics" or
+// repeated request-handling crashes that pod-Ready alone might miss
+// during a slow-starting readiness probe.
+func TestHelmInstall_APILogsClean(t *testing.T) {
+	ctx := context.Background()
+	pods, err := envInstance.K8s.CoreV1().Pods("kestrel-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=kestrel-api",
+	})
+	if err != nil {
+		t.Fatalf("list api pods: %v", err)
+	}
+	if len(pods.Items) == 0 {
+		t.Fatal("no api pod found by app.kubernetes.io/name=kestrel-api")
+	}
+
+	for _, p := range pods.Items {
+		out, err := envInstance.Kubectl("logs", "-n", "kestrel-system", p.Name, "--tail=500")
+		if err != nil {
+			t.Fatalf("kubectl logs %s: %v\n%s", p.Name, err, out)
+		}
+		if strings.Contains(out, "panic:") {
+			t.Errorf("api pod %s logged a panic:\n%s", p.Name, lastLines(out, 40))
+		}
+	}
+}
+
+// TestHelmInstall_APIHealthz — proves the API service answers
+// /healthz over the cluster network. Runs `curl -fsS` from a
+// transient pod in kestrel-system; -f makes curl exit non-zero on
+// non-2xx so we can assert on the kubectl exit code instead of
+// parsing kubectl-and-pod-mixed stdout.
+//
+// The probe pod uses curlimages/curl, which is the only external
+// (non-Kestrel) image this suite pulls. First-run cost is the image
+// pull from the public registry into kind; the 90s budget is mostly
+// to absorb that.
+func TestHelmInstall_APIHealthz(t *testing.T) {
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		// Random suffix so an Eventually retry doesn't collide with a
+		// not-yet-cleaned-up pod from the previous tick.
+		name := fmt.Sprintf("healthz-probe-%d", time.Now().UnixNano())
+		out, err := envInstance.Kubectl(
+			"run", "-n", "kestrel-system",
+			"--rm", "--restart=Never", "--attach",
+			"--image=curlimages/curl:8.10.1",
+			name,
+			"--",
+			"curl", "-fsS", "--max-time", "5",
+			"http://kestrel-api/healthz",
+		)
+		if err != nil {
+			return false, fmt.Sprintf("api healthz probe failed: %v\n%s", err, out)
+		}
+		return true, ""
+	})
 }
 
 // lastLines returns the last n lines of s (or all of s if shorter).

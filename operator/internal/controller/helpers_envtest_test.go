@@ -5,9 +5,14 @@ package controller
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
 	"strings"
 	"sync"
 	"testing"
@@ -73,12 +78,20 @@ func withScheduleReconciler() setupReconciler {
 	}
 }
 
-func withGameServerReconciler() setupReconciler {
+// withGameServerReconciler wires up GameServerReconciler and seeds an
+// agent-CA Secret in ns so reconcileAgentTLS has something to sign with.
+// All GameServer envtest cases call this — the per-server agent TLS
+// Secret is part of the reconcile, so the CA must always be present.
+func withGameServerReconciler(t *testing.T, ns string) setupReconciler {
+	t.Helper()
+	seedAgentCA(t, ns, "agent-ca")
 	return func(mgr manager.Manager) error {
 		return (&GameServerReconciler{
-			Client:     mgr.GetClient(),
-			Scheme:     mgr.GetScheme(),
-			AgentImage: "ghcr.io/kestrel/agent:test",
+			Client:                 mgr.GetClient(),
+			Scheme:                 mgr.GetScheme(),
+			AgentImage:             "ghcr.io/kestrel/agent:test",
+			AgentCASecretName:      "agent-ca",
+			AgentCASecretNamespace: ns,
 		}).SetupWithManager(mgr)
 	}
 }
@@ -301,6 +314,48 @@ func buildBackupSchedule(
 			Schedule:  cron,
 			Retention: ret,
 		},
+	}
+}
+
+// seedAgentCA generates a real RSA CA in-memory and creates a Secret
+// holding ca.crt + ca.key in ns. The GameServer reconciler reads this
+// Secret to sign per-server agent server certs. Cheap to call (~ms);
+// the CA stays scoped to the test's namespace so cleanup is automatic
+// when newNamespace's deferred Delete fires.
+func seedAgentCA(t *testing.T, ns, name string) {
+	t.Helper()
+
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("seedAgentCA: gen key: %v", err)
+	}
+	now := time.Now()
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "kestrel-test-agent-ca"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(365 * 24 * time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatalf("seedAgentCA: sign: %v", err)
+	}
+	caCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	caKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
+
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Type:       corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"ca.crt": caCertPEM,
+			"ca.key": caKeyPEM,
+		},
+	}
+	if err := k8sClient.Create(context.Background(), sec); err != nil {
+		t.Fatalf("seedAgentCA: create Secret: %v", err)
 	}
 }
 

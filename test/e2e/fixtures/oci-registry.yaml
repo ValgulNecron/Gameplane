@@ -1,0 +1,46 @@
+# In-cluster OCI registry for Module/ModuleSource e2e tests. Plain HTTP,
+# no auth. Lives in kestrel-system so the operator's pull side and the
+# oras-push Job can both reach it via DNS without crossing namespaces.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kestrel-test-registry
+  namespace: kestrel-system
+  labels:
+    app.kubernetes.io/name: kestrel-test-registry
+    app.kubernetes.io/component: e2e-fixture
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: kestrel-test-registry }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: kestrel-test-registry }
+    spec:
+      containers:
+        - name: registry
+          image: registry:2.8.3
+          ports:
+            - { name: http, containerPort: 5000 }
+          env:
+            - { name: REGISTRY_HTTP_ADDR, value: ":5000" }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 2
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/registry }
+      volumes:
+        - { name: data, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kestrel-test-registry
+  namespace: kestrel-system
+  labels:
+    app.kubernetes.io/name: kestrel-test-registry
+    app.kubernetes.io/component: e2e-fixture
+spec:
+  selector: { app.kubernetes.io/name: kestrel-test-registry }
+  ports:
+    - { name: http, port: 5000, targetPort: http }

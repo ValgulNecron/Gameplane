@@ -115,8 +115,14 @@ spec:
               schedule:
                 description: |-
                   Schedule is a standard cron expression in the cluster's timezone.
-                  Five-field form (no seconds).
+                  Five-field form (no seconds). The Pattern is a structural guard
+                  against typos like "every-night"; the controller uses
+                  robfig/cron/v3 to parse for actual validity and surfaces a
+                  failed condition on any expression that's well-formed but
+                  uninterpretable. The optional sixth token tolerates the
+                  seconds-prefix dialect.
                 minLength: 9
+                pattern: ^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$
                 type: string
               serverRef:
                 description: ServerRef is the GameServer to back up on this schedule.

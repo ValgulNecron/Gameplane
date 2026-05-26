@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Restores, Servers } from "@/lib/endpoints";
 import type { Backup } from "@/types";
 import { ErrorBanner } from "./ErrorBanner";
-import { FieldLabel } from "./FieldLabel";
+import { FieldLabel } from "@/components/ui/field";
 
 interface Props {
   backup: Backup | null;

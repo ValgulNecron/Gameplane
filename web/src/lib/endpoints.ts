@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { APIError, api, csrfHeaders } from "@/lib/api";
 import type {
   AuditEvent,
   Backup,
@@ -244,40 +244,86 @@ export const Audit = {
   },
 };
 
+// FileEntry mirrors the agent's response shape (agent/openapi.yaml). The
+// dashboard ignores `mode`, but it's typed here for completeness.
 export interface FileEntry {
   name: string;
   path: string;
-  size?: number;
-  isDir?: boolean;
+  size: number;
+  dir: boolean;
+  mode?: string;
   modTime?: string;
+}
+
+function filesBase(server: string): string {
+  return `/servers/${encodeURIComponent(server)}/files`;
+}
+
+// Shared helper for the non-JSON file endpoints (read/write/mkdir/upload/
+// delete). The agent speaks raw bytes and multipart for these, which the
+// generic api<T>() helper can't express. Errors are still surfaced as
+// APIError so callers and TanStack Query treat them uniformly.
+async function filesFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, { credentials: "include", ...init });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new APIError(res.status, text);
+  }
+  return res;
 }
 
 export const Files = {
   list: (server: string, path: string) =>
-    api<FileEntry[]>(
-      `/servers/${server}/files/list?path=${encodeURIComponent(path)}`,
-    ),
-  read: (server: string, path: string) =>
-    api<{ content: string; truncated?: boolean }>(
-      `/servers/${server}/files/read?path=${encodeURIComponent(path)}`,
-    ),
-  write: (server: string, path: string, content: string) =>
-    api<void>(`/servers/${server}/files/write`, {
+    api<FileEntry[]>(`${filesBase(server)}/list?path=${encodeURIComponent(path)}`),
+  read: async (server: string, path: string): Promise<string> => {
+    const res = await filesFetch(
+      `${filesBase(server)}/read?path=${encodeURIComponent(path)}`,
+    );
+    return res.text();
+  },
+  write: async (
+    server: string,
+    path: string,
+    content: string | Blob,
+  ): Promise<void> => {
+    await filesFetch(`${filesBase(server)}/write?path=${encodeURIComponent(path)}`, {
       method: "POST",
-      body: { path, content },
-    }),
-  mkdir: (server: string, path: string) =>
-    api<void>(`/servers/${server}/files/mkdir`, {
+      headers: { "Content-Type": "application/octet-stream", ...csrfHeaders() },
+      body: content,
+    });
+  },
+  mkdir: async (server: string, path: string): Promise<void> => {
+    await filesFetch(`${filesBase(server)}/mkdir?path=${encodeURIComponent(path)}`, {
       method: "POST",
-      body: { path },
-    }),
-  remove: (server: string, path: string) =>
-    api<void>(`/servers/${server}/files/delete`, {
+      headers: csrfHeaders(),
+    });
+  },
+  remove: async (
+    server: string,
+    path: string,
+    recursive = false,
+  ): Promise<void> => {
+    const qs = `path=${encodeURIComponent(path)}${recursive ? "&recursive=true" : ""}`;
+    await filesFetch(`${filesBase(server)}/delete?${qs}`, {
+      method: "DELETE",
+      headers: csrfHeaders(),
+    });
+  },
+  upload: async (
+    server: string,
+    dir: string,
+    files: FileList | File[],
+  ): Promise<void> => {
+    const fd = new FormData();
+    for (const f of Array.from(files)) fd.append("files", f, f.name);
+    await filesFetch(`${filesBase(server)}/upload?path=${encodeURIComponent(dir)}`, {
       method: "POST",
-      body: { path },
-    }),
+      headers: csrfHeaders(),
+      body: fd,
+    });
+  },
   downloadURL: (server: string, path: string) =>
-    `/servers/${server}/files/download?path=${encodeURIComponent(path)}`,
+    `${filesBase(server)}/download?path=${encodeURIComponent(path)}`,
 };
 
 // Module catalog and install/uninstall surface. The dashboard reads

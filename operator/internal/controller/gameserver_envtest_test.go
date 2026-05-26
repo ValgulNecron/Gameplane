@@ -21,7 +21,7 @@ import (
 // in the test namespace.
 func TestGameServer_CreatesStatefulSetServicePVC(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -58,7 +58,7 @@ func TestGameServer_CreatesStatefulSetServicePVC(t *testing.T) {
 // agent has the documented identity env vars.
 func TestGameServer_AgentSidecarInjected(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("valheim"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -124,7 +124,7 @@ func TestGameServer_AgentSidecarInjected(t *testing.T) {
 // template flips Status.Phase to Failed with a reasonable message.
 func TestGameServer_TemplateNotFound_PhaseFailed(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "orphan", "does-not-exist")); err != nil {
 		t.Fatalf("create gameserver: %v", err)
@@ -143,7 +143,7 @@ func TestGameServer_TemplateNotFound_PhaseFailed(t *testing.T) {
 // StatefulSet replicas=0.
 func TestGameServer_SuspendScalesToZero(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -194,7 +194,7 @@ func TestGameServer_SuspendScalesToZero(t *testing.T) {
 // BackupPolicy to a GameServer materializes a managed BackupSchedule.
 func TestGameServer_BackupPolicyMaterializesSchedule(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -238,7 +238,7 @@ func TestGameServer_BackupPolicyMaterializesSchedule(t *testing.T) {
 // Spec.BackupPolicy deletes the managed schedule.
 func TestGameServer_BackupPolicyRemovedDeletesSchedule(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -287,7 +287,7 @@ func TestGameServer_BackupPolicyRemovedDeletesSchedule(t *testing.T) {
 // template default and lands on the PVC.
 func TestGameServer_StorageOverride(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -332,7 +332,7 @@ func TestGameServer_StorageOverride(t *testing.T) {
 // getting them right at first reconcile is critical.
 func TestGameServer_ConsoleMode_PTY(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("ptygame"))
 	tmpl.Spec.ConsoleMode = "pty"
@@ -378,7 +378,7 @@ func TestGameServer_ConsoleMode_PTY(t *testing.T) {
 // expect for the rcon path.
 func TestGameServer_ConsoleMode_RCONNoTTY(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns, withGameServerReconciler())
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("rcongame"))
 	tmpl.Spec.RCON = &kestrelv1alpha1.RCONSpec{Protocol: "source", Port: 25575}

@@ -119,3 +119,72 @@ func contains(ss []string, s string) bool {
 	}
 	return false
 }
+
+// TestGameServer_PVCSurvivesPodDelete: deleting pod-0 must not destroy
+// the persistent <gs>-data PVC. The StatefulSet's volumeClaimTemplate
+// guarantees this in K8s, but a regression in how the operator scopes
+// the PVC's owner references could tie its lifetime to the pod.
+//
+// We delete pod-0 and assert the StatefulSet recreates a pod with a
+// different UID, while the PVC keeps the same UID throughout.
+func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
+	ctx := context.Background()
+	ns := "kestrel-games"
+	tmpl := "e2e-pvc-survive-tmpl"
+	gs := "e2e-pvc-survive-gs"
+
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServer(t, ns, gs, tmpl)
+	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
+	waitStatefulSetReplicas(t, ns, gs, 1, 90*time.Second)
+
+	// Wait for pod-0 to be present so we can capture its UID.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		_, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gs+"-0", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		return true, ""
+	})
+
+	pvcPre, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		Get(ctx, gs+"-data", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pvc pre-delete: %v", err)
+	}
+	pvcUID := pvcPre.UID
+
+	podPre, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gs+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod pre-delete: %v", err)
+	}
+	oldPodUID := podPre.UID
+
+	if err := envInstance.K8s.CoreV1().Pods(ns).
+		Delete(ctx, gs+"-0", metav1.DeleteOptions{}); err != nil {
+		t.Fatalf("delete pod-0: %v", err)
+	}
+
+	// StatefulSet recreates pod-0 with a fresh UID.
+	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
+		pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gs+"-0", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		if pod.UID == oldPodUID {
+			return false, "pod still has old UID"
+		}
+		return true, ""
+	})
+
+	// PVC UID is unchanged — it must NOT have been recreated.
+	pvcPost, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		Get(ctx, gs+"-data", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pvc post-delete: %v", err)
+	}
+	if pvcPost.UID != pvcUID {
+		t.Errorf("PVC UID changed after pod delete (pre=%s, post=%s) — pod ownership leaked into PVC lifetime",
+			pvcUID, pvcPost.UID)
+	}
+}
