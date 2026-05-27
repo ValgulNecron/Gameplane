@@ -39,11 +39,22 @@ if ! command -v oras >/dev/null 2>&1; then
 fi
 
 # ---------- golangci-lint ----------
-GOLANGCI_VERSION="v1.61.0"
-if ! command -v golangci-lint >/dev/null 2>&1; then
-	log "installing golangci-lint ${GOLANGCI_VERSION}"
-	curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-		| sh -s -- -b "$GOBIN_DIR" "${GOLANGCI_VERSION}"
+# The Go devcontainer feature pre-installs golangci-lint at /go/bin, but
+# pulls v2 by default — and the project's .golangci.yml is v1 format
+# (`disable-all`, `enable:` list). We force v1.
+#
+# Additionally, the *release binary* of v1.64.8 is built with Go 1.24,
+# which makes it refuse to lint this repo's Go 1.25.0 module ("Go
+# language version used to build golangci-lint is lower than the
+# targeted Go version"). Building from source with the in-container
+# Go toolchain sidesteps that — same trick the host uses.
+GOLANGCI_VERSION="v1.64.8"
+GOLANGCI_BIN="/go/bin/golangci-lint"
+if ! "$GOLANGCI_BIN" --version 2>/dev/null | grep -qE 'version v?1\.6[4-9]\.' \
+		|| "$GOLANGCI_BIN" --version 2>/dev/null | grep -q 'built with go1\.2[0-4]\.'; then
+	log "installing golangci-lint ${GOLANGCI_VERSION} (built from source with Go $(go env GOVERSION))"
+	GOBIN=/go/bin go install \
+		"github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_VERSION}"
 fi
 
 # ---------- envtest assets (K8s 1.31; pulled lazily by the Makefile but

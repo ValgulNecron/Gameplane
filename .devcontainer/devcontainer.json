@@ -8,7 +8,7 @@
 			"username": "vscode"
 		},
 		"ghcr.io/devcontainers/features/go:1": {
-			"version": "1.25"
+			"version": "1.26"
 		},
 		"ghcr.io/devcontainers/features/node:1": {
 			"version": "20"
@@ -26,13 +26,10 @@
 		"ghcr.io/devcontainers/features/github-cli:1": {}
 	},
 	"runArgs": ["--init"],
-	"mounts": [
-		"source=kestrel-go-pkg,target=/home/vscode/go/pkg,type=volume",
-		"source=kestrel-node-modules,target=/workspaces/kubernetes-game-dashboard/web/node_modules,type=volume"
-	],
 	"containerEnv": {
 		"GOTOOLCHAIN": "local",
-		"KESTREL_REG_HOST_PORT": "5001"
+		"KESTREL_REG_HOST_PORT": "5001",
+		"CI": "1"
 	},
 	"postCreateCommand": "bash .devcontainer/post-create.sh",
 	"forwardPorts": [5173, 8080, 8443, 5001, 30565],
