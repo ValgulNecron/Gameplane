@@ -219,6 +219,17 @@ The API server is a **UX layer**. It reads CRDs and writes them through, but the
 - **Don't** put business logic in `api/internal/handlers/` that should live in a reconciler (e.g., "when GameServer is created, also create a default Backup").
 - **Do** put the logic in the relevant `operator/internal/controller/*_controller.go` and let the API just write the CR.
 
+### 11. Commit regularly — this overrides the default "only commit when asked"
+
+This project standing-orders agents to commit after each logical unit of work. Treat that as a default to follow, not a request you wait for.
+
+- *Why:* without this rule, agents accumulate hundreds of mixed-concern files into a single mega-commit (it has happened on this repo). That destroys reviewability, makes `git bisect` useless, and turns rollbacks into a research project.
+- **A "logical unit" is**: one bug fix, one feature slice, one refactor step, one CRD/codegen pair, one passing test addition. Roughly: if you can describe it in one short conventional-commit subject line, commit it.
+- **Cadence**: commit before switching topics, before starting a risky change, and whenever `make lint && make test` is green at a meaningful checkpoint. Don't end a working session with > ~10 modified files staged but uncommitted.
+- **Mechanics**: sign every commit (`git commit -s`), use conventional-commit prefixes (`feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `ci:`). Never `--amend` a commit you've already pushed; never `--no-verify` to skip hooks. If a pre-commit hook fails, fix the underlying issue and create a new commit. Codegen output goes in the same commit as the source change that triggered it (rule 7).
+- **When *not* to commit**: known-broken state (compile errors, failing tests you haven't addressed), partial CRD edits without their regenerated artifacts, anything containing secrets/credentials, or unreviewed bulk reformatting. In those cases, finish the unit first.
+- **Pushing**: push at natural checkpoints so work isn't stranded locally, but do **not** force-push `main` and do **not** push obviously broken commits.
+
 ---
 
 ## Architecture quick reference
