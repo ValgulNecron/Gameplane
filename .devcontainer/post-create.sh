@@ -77,6 +77,22 @@ done
 log "npm ci (web)"
 ( cd web && npm ci )
 
+# ---------- AI coding CLIs ----------
+# Installed globally so every shell has `claude`, `opencode`, `gemini`, and
+# `codex` on PATH. No credentials are baked in: each authenticates interactively
+# at runtime (login or its API-key env var), keeping the image sharable and
+# secret-free. Falls back to sudo if the node feature's global prefix isn't
+# user-writable; best-effort so a registry hiccup doesn't fail the whole setup.
+AI_CLIS=(@anthropic-ai/claude-code opencode-ai @google/gemini-cli @openai/codex)
+if ! command -v claude >/dev/null 2>&1 \
+		|| ! command -v opencode >/dev/null 2>&1 \
+		|| ! command -v gemini >/dev/null 2>&1 \
+		|| ! command -v codex >/dev/null 2>&1; then
+	log "installing AI coding CLIs (claude, opencode, gemini, codex)"
+	npm install -g "${AI_CLIS[@]}" || sudo npm install -g "${AI_CLIS[@]}" || \
+		log "WARN: AI CLI install failed; run 'npm install -g ${AI_CLIS[*]}' by hand"
+fi
+
 # ---------- Friendly summary ----------
 log "tool versions"
 {
@@ -89,6 +105,10 @@ log "tool versions"
 	kind version
 	oras version | head -1
 	golangci-lint --version | head -1
+	echo "claude $(claude --version 2>/dev/null || echo '(installed; log in at runtime)')"
+	echo "opencode $(opencode --version 2>/dev/null || echo '(installed; log in at runtime)')"
+	echo "gemini $(gemini --version 2>/dev/null || echo '(installed; log in at runtime)')"
+	echo "codex $(codex --version 2>/dev/null || echo '(installed; log in at runtime)')"
 } || true
 
 cat <<'EOF'
@@ -109,4 +129,7 @@ Notes:
     rebuilt.
   * Ports 5173 (web dev), 8080/8443 (ingress), and 5001 (OCI registry)
     are forwarded to your host.
+  * AI CLIs (claude, opencode, gemini, codex) are installed but NOT logged
+    in. Authenticate each on first use (its login flow or API-key env var);
+    no credentials are baked into the image.
 EOF

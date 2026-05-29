@@ -50,7 +50,20 @@
 				"bradlc.vscode-tailwindcss",
 				"ms-kubernetes-tools.vscode-kubernetes-tools",
 				"redhat.vscode-yaml",
-				"tamasfe.even-better-toml"
+				"tamasfe.even-better-toml",
+				"anthropic.claude-code",
+				"google.geminicodeassist",
+				"google.gemini-cli-vscode-ide-companion",
+				"highagency.pencildev",
+				"ms-azuretools.vscode-containers",
+				"ms-vscode.makefile-tools",
+				"fill-labs.dependi",
+				"rust-lang.rust-analyzer",
+				"dustypomerleau.rust-syntax",
+				"1yib.rust-bundle",
+				"vue.volar",
+				"nicolasdschmidt.lunar-pink",
+				"ahmedsaid.darkpinkpro"
 			],
 			"settings": {
 				"go.toolsManagement.checkForUpdates": "off",
@@ -64,6 +77,11 @@
 				},
 				"[typescriptreact]": {
 					"editor.defaultFormatter": "esbenp.prettier-vscode"
+				},
+				"workbench.colorTheme": "Lunar Pink",
+				"workbench.browser.openLocalhostLinks": false,
+				"vs-kubernetes": {
+					"vs-kubernetes.crd-code-completion": "enabled"
 				}
 			}
 		}
