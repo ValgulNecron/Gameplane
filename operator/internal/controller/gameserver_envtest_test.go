@@ -448,3 +448,49 @@ func intToStr(n int32) string {
 	}
 	return string(buf[i:])
 }
+
+// TestGameServer_AgentServiceAlwaysClusterIP — the dedicated `<gs>-agent`
+// Service exists with port 8090 and stays ClusterIP even when the game's
+// own Service is externally exposed via spec.networking.expose.
+func TestGameServer_AgentServiceAlwaysClusterIP(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("factorio"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.Networking.Expose = "NodePort"
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-agent"}, &svc); err != nil {
+			return false, "agent service: " + err.Error()
+		}
+		if svc.Spec.Type != corev1.ServiceTypeClusterIP {
+			return false, "agent service type = " + string(svc.Spec.Type)
+		}
+		if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 8090 {
+			return false, "agent service ports unexpected"
+		}
+		if svc.Spec.Selector["app.kubernetes.io/instance"] != "smp" {
+			return false, "agent service selector missing instance label"
+		}
+		var game corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &game); err != nil {
+			return false, "game service: " + err.Error()
+		}
+		if game.Spec.Type != corev1.ServiceTypeNodePort {
+			return false, "game service should be NodePort, got " + string(game.Spec.Type)
+		}
+		return true, ""
+	})
+}

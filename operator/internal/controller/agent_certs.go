@@ -58,7 +58,7 @@ func (r *GameServerReconciler) reconcileAgentTLS(
 	var existing corev1.Secret
 	getErr := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: name}, &existing)
 	if getErr == nil {
-		if certValidFor(existing.Data["tls.crt"], agentCertRenewalThreshold) {
+		if certValidFor(existing.Data["tls.crt"], agentCertRenewalThreshold, agentDNSNames(gs)) {
 			return nil
 		}
 	} else if !apierrors.IsNotFound(getErr) {
@@ -107,7 +107,11 @@ func (r *GameServerReconciler) reconcileAgentTLS(
 	return nil
 }
 
-func certValidFor(certPEM []byte, d time.Duration) bool {
+// certValidFor reports whether the PEM cert still has at least d of
+// validity left AND carries every required SAN. The SAN check forces a
+// re-issue when the expected DNS name set grows (e.g. the dedicated
+// agent Service names) instead of waiting out the expiry window.
+func certValidFor(certPEM []byte, d time.Duration, requiredSANs []string) bool {
 	if len(certPEM) == 0 {
 		return false
 	}
@@ -119,7 +123,19 @@ func certValidFor(certPEM []byte, d time.Duration) bool {
 	if err != nil {
 		return false
 	}
-	return time.Until(cert.NotAfter) >= d
+	if time.Until(cert.NotAfter) < d {
+		return false
+	}
+	have := make(map[string]bool, len(cert.DNSNames))
+	for _, n := range cert.DNSNames {
+		have[n] = true
+	}
+	for _, want := range requiredSANs {
+		if !have[want] {
+			return false
+		}
+	}
+	return true
 }
 
 func parseAgentCA(certPEM, keyPEM []byte) (*x509.Certificate, *rsa.PrivateKey, error) {
@@ -181,14 +197,15 @@ func signAgentServerCert(
 	return certPEM, keyPEM, nil
 }
 
-// agentDNSNames lists every DNS form the API may use to dial this
-// GameServer's agent. The API's dialer (api/internal/ws/dialer.go)
-// builds URLs from the headless StatefulSet pod hostname; we cover the
-// FQDN, short forms, and the bare service name so a cert mismatch
-// surfaces only when something is genuinely wrong, not because the
-// caller picked a different aliasing.
+// agentDNSNames lists every DNS form the API or operator may use to
+// dial this GameServer's agent. The canonical path is the dedicated
+// `<gs>-agent` ClusterIP Service (api/internal/ws/dialer.go,
+// operator/internal/agent/client.go); the pod-DNS and game-Service
+// forms are kept so a cert mismatch surfaces only when something is
+// genuinely wrong, not because the caller picked a different aliasing.
 func agentDNSNames(gs *kestrelv1alpha1.GameServer) []string {
 	pod := gs.Name + "-0"
+	agentSvc := gs.Name + "-agent"
 	return []string{
 		pod,
 		gs.Name,
@@ -198,5 +215,9 @@ func agentDNSNames(gs *kestrelv1alpha1.GameServer) []string {
 		fmt.Sprintf("%s.%s.%s.svc.cluster.local", pod, gs.Name, gs.Namespace),
 		fmt.Sprintf("%s.%s.svc", gs.Name, gs.Namespace),
 		fmt.Sprintf("%s.%s.svc.cluster.local", gs.Name, gs.Namespace),
+		agentSvc,
+		fmt.Sprintf("%s.%s", agentSvc, gs.Namespace),
+		fmt.Sprintf("%s.%s.svc", agentSvc, gs.Namespace),
+		fmt.Sprintf("%s.%s.svc.cluster.local", agentSvc, gs.Namespace),
 	}
 }

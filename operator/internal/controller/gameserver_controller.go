@@ -83,6 +83,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile Service")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileAgentService(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile agent Service")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileAgentTLS(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile agent TLS")
 		return ctrl.Result{}, err
@@ -169,6 +173,38 @@ func (r *GameServerReconciler) reconcileService(
 		for k, v := range gs.Spec.Networking.ServiceAnnotations {
 			svc.Annotations[k] = v
 		}
+		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
+	})
+	return err
+}
+
+// reconcileAgentService maintains a dedicated ClusterIP Service
+// (`<gs>-agent`) fronting the agent sidecar on port 8090. The game's
+// own Service follows spec.networking.expose and may be NodePort or
+// LoadBalancer; the agent must never ride along on an externally
+// exposed Service, so it gets its own, always cluster-internal one.
+// The API and operator dial the agent through this Service
+// (api/internal/ws/dialer.go, operator/internal/agent/client.go) —
+// per-pod DNS only resolves under headless Services, which the game
+// Service is not.
+func (r *GameServerReconciler) reconcileAgentService(
+	ctx context.Context, gs *kestrelv1alpha1.GameServer,
+) error {
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: gs.Name + "-agent", Namespace: gs.Namespace},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		svc.Spec.Type = corev1.ServiceTypeClusterIP
+		svc.Spec.Selector = map[string]string{
+			"app.kubernetes.io/name":     "kestrel-game",
+			"app.kubernetes.io/instance": gs.Name,
+		}
+		svc.Spec.Ports = []corev1.ServicePort{{
+			Name:       "agent",
+			Port:       8090,
+			TargetPort: intstr.FromInt32(8090),
+			Protocol:   corev1.ProtocolTCP,
+		}}
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
