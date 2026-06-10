@@ -64,11 +64,17 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	cli := r.newClient(creds, src.Spec.Insecure)
 
 	entries := make([]kestrelv1alpha1.ModuleEntry, 0, len(src.Spec.Modules))
+	indexErrs := 0
+	var firstIndexErr error
 	for _, m := range src.Spec.Modules {
 		ref := path.Join(src.Spec.URL, m.Name)
 		entry, err := r.indexModule(ctx, cli, m.Name, ref)
 		if err != nil {
 			logger.Error(err, "indexing module", "module", m.Name)
+			indexErrs++
+			if firstIndexErr == nil {
+				firstIndexErr = err
+			}
 			// Surface partial progress; one bad module shouldn't blank the
 			// whole catalog. Keep the entry with no versions so the UI
 			// shows the failure inline.
@@ -84,12 +90,37 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	now := metav1.Now()
 	src.Status.LastSync = &now
 	src.Status.ObservedGeneration = src.Generation
+
+	// Every module errored: the registry itself is almost certainly
+	// unreachable. Don't publish a catalog of empty stubs as if the
+	// source were healthy — report the failure and back off.
+	if len(src.Spec.Modules) > 0 && indexErrs == len(src.Spec.Modules) {
+		src.Status.Modules = nil
+		src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
+			Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
+			Status:             metav1.ConditionFalse,
+			Reason:             "IndexFailed",
+			Message:            fmt.Sprintf("all %d module(s) failed to index: %v", indexErrs, firstIndexErr),
+			ObservedGeneration: src.Generation,
+		})
+		src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
+			Type:               kestrelv1alpha1.ModuleSourceConditionReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             "RegistryUnreachable",
+			ObservedGeneration: src.Generation,
+		})
+		if err := r.Status().Update(ctx, &src); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: minRefreshInterval}, nil
+	}
+
 	src.Status.Modules = entries
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
 		Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Indexed",
-		Message:            fmt.Sprintf("indexed %d module(s)", len(entries)),
+		Message:            fmt.Sprintf("indexed %d of %d module(s)", len(entries)-indexErrs, len(entries)),
 		ObservedGeneration: src.Generation,
 	})
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{

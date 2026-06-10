@@ -130,8 +130,8 @@ func TestAgentTLS_SecretCreatedAndConsumed(t *testing.T) {
 	}
 
 	wantArgs := map[string]bool{
-		"--tls-cert=/etc/kestrel/agent-tls/tls.crt":      false,
-		"--tls-key=/etc/kestrel/agent-tls/tls.key":       false,
+		"--tls-cert=/etc/kestrel/agent-tls/tls.crt":     false,
+		"--tls-key=/etc/kestrel/agent-tls/tls.key":      false,
 		"--tls-client-ca=/etc/kestrel/agent-tls/ca.crt": false,
 	}
 	for _, a := range agent.Args {

@@ -9,6 +9,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 )
@@ -356,4 +357,50 @@ func sprintArgs(a []string) string {
 		out += s
 	}
 	return out + "]"
+}
+
+// TestRestore_FailsWhenBackupFailed — a Restore pointed at a terminally
+// Failed Backup must fail with a message instead of waiting forever for
+// a snapshotID that will never appear.
+func TestRestore_FailsWhenBackupFailed(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withRestoreReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", "minecraft")); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	bk := buildBackup(ns, "smp-dead", "smp", "repo")
+	if err := k8sClient.Create(context.Background(), bk); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+	bk.Status.Phase = kestrelv1alpha1.BackupPhaseFailed
+	bk.Status.Message = "repo Secret missing"
+	if err := k8sClient.Status().Update(context.Background(), bk); err != nil {
+		t.Fatalf("mark backup failed: %v", err)
+	}
+
+	if err := k8sClient.Create(context.Background(), buildRestore(ns, "rs-dead", "smp-dead", "smp")); err != nil {
+		t.Fatalf("create restore: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		r := getRestore(t, ns, "rs-dead")
+		if r.Status.Phase != kestrelv1alpha1.RestorePhaseFailed {
+			return false, describeRestoreStatus(r)
+		}
+		if r.Status.Message == "" {
+			return false, "Failed but no message"
+		}
+		return true, ""
+	})
+
+	// The target GameServer was never suspended.
+	var gs kestrelv1alpha1.GameServer
+	if err := k8sClient.Get(context.Background(),
+		types.NamespacedName{Namespace: ns, Name: "smp"}, &gs); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+	if gs.Spec.Suspend {
+		t.Error("failed Restore must not flip GameServer.spec.suspend")
+	}
 }

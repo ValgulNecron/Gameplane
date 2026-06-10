@@ -53,6 +53,13 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			return ctrl.Result{}, err
 		}
+		if src.Status.Phase == kestrelv1alpha1.BackupPhaseFailed {
+			// Terminal: a Failed backup will never grow a snapshotID, so
+			// waiting would leave the Restore Pending forever.
+			return r.fail(ctx, &rs, fmt.Sprintf(
+				"source backup %q failed and has no usable snapshot: %s",
+				rs.Spec.BackupRef.Name, src.Status.Message))
+		}
 		if src.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded || src.Status.SnapshotID == "" {
 			// Source backup is not ready yet. Stay Pending.
 			if rs.Status.Phase != kestrelv1alpha1.RestorePhasePending {

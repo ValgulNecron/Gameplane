@@ -531,3 +531,31 @@ func TestBackup_FailsFastOnMissingGameServer(t *testing.T) {
 		t.Error("no Job must be created for a Backup with an unresolvable serverRef")
 	}
 }
+
+// TestBackup_FailsFastOnMissingRepoSecret — a Backup whose repoRef
+// Secret doesn't exist must go Failed instead of producing a Job whose
+// pod is stuck in CreateContainerConfigError.
+func TestBackup_FailsFastOnMissingRepoSecret(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
+
+	if err := k8sClient.Create(context.Background(), buildBackup(ns, "smp-nosecret", "smp", "no-such-secret")); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got := getBackup(t, ns, "smp-nosecret")
+		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+			return false, "phase=" + string(got.Status.Phase)
+		}
+		if got.Status.Message == "" {
+			return false, "Failed but no message"
+		}
+		return true, ""
+	})
+
+	if _, ok := getJob(t, ns, "smp-nosecret"); ok {
+		t.Error("no Job must be created for a Backup with a missing repo Secret")
+	}
+}

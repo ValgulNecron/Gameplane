@@ -102,6 +102,19 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	// Same for the restic repo Secret: a missing repoRef leaves the Job
+	// pod stuck in CreateContainerConfigError instead of failing.
+	var repoSecret corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{
+		Namespace: b.Namespace, Name: b.Spec.RepoRef.Name,
+	}, &repoSecret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.fail(ctx, &b,
+				fmt.Sprintf("repo Secret %q not found in namespace %s", b.Spec.RepoRef.Name, b.Namespace))
+		}
+		return ctrl.Result{}, err
+	}
+
 	if err := r.maybeQuiesce(ctx, &b); err != nil {
 		return ctrl.Result{}, err
 	}

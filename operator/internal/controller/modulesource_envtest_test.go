@@ -233,3 +233,44 @@ func conditionTrue(conds []metav1.Condition, t string) bool {
 	}
 	return false
 }
+
+// TestModuleSource_ReportsFailureWhenAllModulesError — when every
+// module fails to index (registry unreachable), the source must not
+// publish a catalog of empty stubs as if it were healthy: modules stay
+// empty, lastSync records the attempt, and Synced/Ready go False.
+func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
+	_ = newNamespace(t)
+	fake := newFakeOCI()
+	startMgr(t, "kestrel-system", withModuleSourceReconciler(fake))
+
+	fake.errOn["tags:unreachable/test/ghost"] = fmt.Errorf("dial tcp: no such host")
+
+	src := &kestrelv1alpha1.ModuleSource{
+		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("unreachable")},
+		Spec: kestrelv1alpha1.ModuleSourceSpec{
+			URL:     "unreachable/test",
+			Modules: []kestrelv1alpha1.ModuleRef{{Name: "ghost"}},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), src); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	deleteCleanup(t, src)
+
+	eventually(t, func() (bool, string) {
+		got := getModuleSource(t, src.Name)
+		if got.Status.LastSync == nil {
+			return false, "lastSync not recorded"
+		}
+		if len(got.Status.Modules) != 0 {
+			return false, fmt.Sprintf("modules unexpectedly populated: %d", len(got.Status.Modules))
+		}
+		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+			return false, "Synced should be False"
+		}
+		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionReady) {
+			return false, "Ready should be False"
+		}
+		return true, ""
+	})
+}
