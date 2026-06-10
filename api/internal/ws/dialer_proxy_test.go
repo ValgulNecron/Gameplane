@@ -67,7 +67,7 @@ func TestWSProxy_ScopeError(t *testing.T) {
 func TestAgentHost_Format(t *testing.T) {
 	p := &proxy{}
 	got := p.agentHost("alpha", "kestrel-games")
-	for _, want := range []string{"alpha-0.alpha.kestrel-games", ":8090"} {
+	for _, want := range []string{"alpha-agent.kestrel-games", ":8090"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("got %q, want substring %q", got, want)
 		}

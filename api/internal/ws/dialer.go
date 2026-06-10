@@ -67,10 +67,11 @@ type proxy struct {
 // agentHost returns the in-cluster DNS + port of the agent sidecar.
 // Kept as a method so tests can override it.
 func (p *proxy) agentHost(name, namespace string) string {
-	// Headless service + StatefulSet naming — the operator creates a
-	// Service matching the GameServer name. The pod's DNS is
-	// <pod>.<svc>.<ns>.svc.cluster.local; agent listens on :8090.
-	return fmt.Sprintf("%s-0.%s.%s.svc.cluster.local:8090", name, name, namespace)
+	// The operator maintains a dedicated ClusterIP Service named
+	// <gs>-agent for the sidecar (the game's own Service may be
+	// NodePort/LoadBalancer and per-pod DNS only resolves under
+	// headless Services). Agent listens on :8090.
+	return fmt.Sprintf("%s-agent.%s.svc.cluster.local:8090", name, namespace)
 }
 
 func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {

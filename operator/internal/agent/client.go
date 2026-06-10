@@ -83,10 +83,12 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
-// agentURL builds the in-cluster URL for a given GameServer's agent.
-// Layout matches api/internal/ws/dialer.go:69-73 exactly.
+// agentURL builds the in-cluster URL for a given GameServer's agent,
+// via the dedicated `<gs>-agent` ClusterIP Service the GameServer
+// reconciler maintains. Layout matches api/internal/ws/dialer.go's
+// agentHost exactly.
 func agentURL(namespace, server, path string) string {
-	return fmt.Sprintf("https://%s-0.%s.%s.svc.cluster.local:8090%s", server, server, namespace, path)
+	return fmt.Sprintf("https://%s-agent.%s.svc.cluster.local:8090%s", server, namespace, path)
 }
 
 type quiesceResponse struct {
