@@ -3,8 +3,12 @@
 //
 // For Minecraft this gives the UI a usable "console" even though there
 // is no real PTY — each submitted line is executed as an RCON command
-// and its textual response streams back as a single WS frame. A PTY
-// fallback (for games without RCON) is part of a later phase.
+// and its textual response streams back as a single WS frame.
+//
+// This package is RCON-only by design: games without RCON declare
+// GameTemplate.spec.consoleMode "pty", which the Kestrel API serves by
+// bridging the browser WebSocket to the Kubernetes pod-attach API
+// (api/internal/ws/attach.go) — no agent involvement.
 package console
 
 import (
