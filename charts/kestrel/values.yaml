@@ -86,6 +86,10 @@ networkPolicies:
   # Set this explicitly when your node pool sits outside those ranges
   # (some managed providers do).
   kubeletCIDRs: []
+  # CIDRs that hold the kube-apiserver endpoint(s) the agent sidecar
+  # patches its status heartbeat through. Same fallback semantics as
+  # kubeletCIDRs: unset means RFC1918 + link-local on TCP 443/6443.
+  apiServerCIDRs: []
 
 serviceMonitors:
   enabled: false

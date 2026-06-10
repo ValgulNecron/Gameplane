@@ -35,8 +35,43 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
-# Allow the API pod (in the system namespace) to reach every game pod's
-# agent on port 8090.
+# Allow the agent sidecar to reach the kube-apiserver for its status
+# heartbeat (gameservers/status patches). Service VIP traffic is DNATed
+# to the apiserver endpoint before policy evaluation on most CNIs, so an
+# ipBlock toward the endpoint address is required; like the kubelet
+# probes policy below, default to RFC1918 + link-local and let operators
+# narrow it via networkPolicies.apiServerCIDRs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-agent-to-apiserver
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kestrel-game
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- $apiCidrs := (.Values.networkPolicies.apiServerCIDRs | default (list)) }}
+        {{- if $apiCidrs }}
+        {{- range $apiCidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+        {{- else }}
+        - ipBlock: { cidr: 10.0.0.0/8 }
+        - ipBlock: { cidr: 172.16.0.0/12 }
+        - ipBlock: { cidr: 192.168.0.0/16 }
+        - ipBlock: { cidr: 169.254.0.0/16 }
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 6443 }
+---
+# Allow the API and operator pods (in the system namespace) to reach
+# every game pod's agent on port 8090. The API proxies console/files/
+# logs/players traffic; the operator calls /quiesce before backups.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -56,6 +91,12 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: kestrel-api
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kestrel-operator
       ports:
         - { protocol: TCP, port: 8090 }
 ---
