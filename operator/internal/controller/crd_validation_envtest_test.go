@@ -1,0 +1,168 @@
+//go:build envtest
+
+package controller
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+)
+
+// These tests assert that the CRD OpenAPI schemas (loaded by the suite
+// from operator/config/crd) reject invalid specs at the apiserver
+// admission layer. They are the seconds-tier counterpart of the
+// kubectl-based cases in test/e2e/crd_validation_e2e_test.go — a schema
+// regression should fail here first, without a kind cluster.
+
+func validGameServer(ns, name string) *kestrelv1alpha1.GameServer {
+	return &kestrelv1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: kestrelv1alpha1.GameServerSpec{
+			TemplateRef: kestrelv1alpha1.GameTemplateRef{Name: "some-template"},
+		},
+	}
+}
+
+func TestCRDValidation_GameServerEmptyTemplateRef(t *testing.T) {
+	ns := newNamespace(t)
+	gs := validGameServer(ns, "v-empty-templateref")
+	gs.Spec.TemplateRef.Name = ""
+	err := k8sClient.Create(context.Background(), gs)
+	if !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid, got %v", err)
+	}
+}
+
+func TestCRDValidation_GameServerBadHostname(t *testing.T) {
+	ns := newNamespace(t)
+	for _, bad := range []string{"Has_Underscores", "-leading.dash", "double..dot"} {
+		gs := validGameServer(ns, "v-bad-hostname")
+		gs.Spec.Networking.Hostname = bad
+		if err := k8sClient.Create(context.Background(), gs); !apierrors.IsInvalid(err) {
+			t.Fatalf("hostname %q: expected Invalid, got %v", bad, err)
+		}
+	}
+
+	gs := validGameServer(ns, "v-good-hostname")
+	gs.Spec.Networking.Hostname = "mc.example.com"
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("valid hostname rejected: %v", err)
+	}
+}
+
+func TestCRDValidation_GameServerConfigValueTooLong(t *testing.T) {
+	ns := newNamespace(t)
+	gs := validGameServer(ns, "v-config-too-long")
+	gs.Spec.Config = map[string]string{"motd": strings.Repeat("x", 4097)}
+	if err := k8sClient.Create(context.Background(), gs); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid for 4097-char config value, got %v", err)
+	}
+
+	gs = validGameServer(ns, "v-config-ok")
+	gs.Spec.Config = map[string]string{"motd": strings.Repeat("x", 4096)}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("4096-char config value rejected: %v", err)
+	}
+}
+
+func TestCRDValidation_GameServerBadInlineBackupSchedule(t *testing.T) {
+	ns := newNamespace(t)
+	gs := validGameServer(ns, "v-bad-inline-cron")
+	gs.Spec.BackupPolicy = &kestrelv1alpha1.InlineBackupPolicy{
+		Schedule: "every-night",
+		RepoRef:  kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+	}
+	if err := k8sClient.Create(context.Background(), gs); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid for non-cron inline schedule, got %v", err)
+	}
+
+	gs = validGameServer(ns, "v-good-inline-cron")
+	gs.Spec.BackupPolicy = &kestrelv1alpha1.InlineBackupPolicy{
+		Schedule: "0 4 * * *",
+		RepoRef:  kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("valid inline schedule rejected: %v", err)
+	}
+}
+
+func TestCRDValidation_BackupScheduleBadCron(t *testing.T) {
+	ns := newNamespace(t)
+	bs := &kestrelv1alpha1.BackupSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-bad-cron", Namespace: ns},
+		Spec: kestrelv1alpha1.BackupScheduleSpec{
+			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "any"},
+			Schedule:  "not-a-cron",
+			RepoRef:   kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), bs); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid, got %v", err)
+	}
+}
+
+func TestCRDValidation_BackupRequiresServerRef(t *testing.T) {
+	ns := newNamespace(t)
+	bk := &kestrelv1alpha1.Backup{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-no-serverref", Namespace: ns},
+		Spec: kestrelv1alpha1.BackupSpec{
+			RepoRef: kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), bk); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid, got %v", err)
+	}
+}
+
+func TestCRDValidation_GameTemplateRequiresImage(t *testing.T) {
+	tmpl := &kestrelv1alpha1.GameTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-no-image"},
+		Spec: kestrelv1alpha1.GameTemplateSpec{
+			DisplayName: "no image",
+			Game:        "busybox",
+			Version:     "1",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid, got %v", err)
+	}
+}
+
+func TestCRDValidation_ConsoleModeRconRequiresRcon(t *testing.T) {
+	tmpl := &kestrelv1alpha1.GameTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-rcon-mode-no-rcon"},
+		Spec: kestrelv1alpha1.GameTemplateSpec{
+			DisplayName: "rcon mode without rcon",
+			Game:        "busybox",
+			Version:     "1",
+			Image:       "busybox:1.36",
+			ConsoleMode: "rcon",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid for consoleMode=rcon without rcon, got %v", err)
+	}
+
+	// consoleMode pty needs no rcon block.
+	tmpl = &kestrelv1alpha1.GameTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-pty-mode-no-rcon"},
+		Spec: kestrelv1alpha1.GameTemplateSpec{
+			DisplayName: "pty mode without rcon",
+			Game:        "busybox",
+			Version:     "1",
+			Image:       "busybox:1.36",
+			ConsoleMode: "pty",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("consoleMode=pty without rcon rejected: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = k8sClient.Delete(context.Background(), tmpl)
+	})
+}
