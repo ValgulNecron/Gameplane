@@ -59,7 +59,7 @@ func requireAgentReady(t *testing.T, ns, gsName string) {
 //  2. Waits for the pod (including agent) to reach Ready — without
 //     this, every files request 502s through the proxy.
 //  3. Writes a file via /files/write.
-//  4. Lists /data and asserts the file is present.
+//  4. Lists the data root and asserts the file is present.
 //  5. Reads it back and asserts the bytes match.
 //  6. Deletes it and asserts a subsequent list does NOT show it.
 //
@@ -81,8 +81,11 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
 
+	// Agent file paths are relative to the agent's data root ("/" is the
+	// game's data volume), matching the paths the list endpoint returns —
+	// NOT absolute pod paths.
 	const fileName = "hello-from-e2e.txt"
-	const filePath = "/data/" + fileName
+	const filePath = "/" + fileName
 	const payload = "hi from kestrel api e2e"
 
 	// Write a file. The endpoint takes path as query param and body as
@@ -104,9 +107,9 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		t.Fatalf("/files/write expected 2xx, got %d body=%q", resp.StatusCode, string(body))
 	}
 
-	// List /data — file must appear.
+	// List the data root — file must appear.
 	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
-		resp, body, err := cli.Get("/servers/" + gs + "/files/list?path=" + url.QueryEscape("/data"))
+		resp, body, err := cli.Get("/servers/" + gs + "/files/list?path=" + url.QueryEscape("/"))
 		if err != nil {
 			return false, "list: " + err.Error()
 		}
@@ -149,7 +152,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	}
 
 	envInstance.Eventually(t, 15*time.Second, func() (bool, string) {
-		resp, body, err := cli.Get("/servers/" + gs + "/files/list?path=" + url.QueryEscape("/data"))
+		resp, body, err := cli.Get("/servers/" + gs + "/files/list?path=" + url.QueryEscape("/"))
 		if err != nil {
 			return false, "list-after-delete: " + err.Error()
 		}
