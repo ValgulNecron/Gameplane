@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
 )
 
 type Rcon interface {
@@ -77,6 +79,18 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 
 	if !fresh {
 		result, err = h.fetch()
+	}
+	if errors.Is(err, rcon.ErrDisabled) {
+		// The game has no RCON: player counts are simply unknown. The
+		// dashboard contract is a valid snapshot with online=-1, not an
+		// error — there is no upstream to be unavailable.
+		writeJSON(w, http.StatusOK, Snapshot{
+			Online:  -1,
+			Max:     -1,
+			Players: []string{},
+			AsOf:    time.Now().UTC().Format(time.RFC3339),
+		})
+		return
 	}
 	if err != nil {
 		// err can contain RCON protocol detail (addresses, passwords from
@@ -164,6 +178,10 @@ func (h *handler) runMod(
 		return
 	}
 	raw, err := h.rcon.Exec(cmd)
+	if errors.Is(err, rcon.ErrDisabled) {
+		writeErr(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
+		return
+	}
 	if err != nil {
 		slog.Warn("players moderation rcon", "cmd", cmd, "err", err)
 		writeErr(w, http.StatusBadGateway, "upstream unavailable")
@@ -182,6 +200,10 @@ func (h *handler) banned(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	raw, err := h.rcon.Exec(cmd)
+	if errors.Is(err, rcon.ErrDisabled) {
+		writeJSON(w, http.StatusOK, []BannedPlayer{})
+		return
+	}
 	if err != nil {
 		slog.Warn("banlist rcon", "err", err)
 		http.Error(w, "upstream unavailable", http.StatusBadGateway)

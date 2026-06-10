@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -404,6 +405,10 @@ func buildAgentContainer(
 			{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
 			{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
 			{Name: "KESTREL_GAME", Value: tmpl.Spec.Game},
+			// Games without RCON (consoleMode pty/none) must not have the
+			// agent dialing a console port that doesn't exist — players
+			// and moderation endpoints degrade instead.
+			{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "data", MountPath: mountPath},

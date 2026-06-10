@@ -84,3 +84,11 @@ func enqueueTemplateForServer() handler.EventHandler {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: gs.Spec.TemplateRef.Name}}}
 	})
 }
+
+// templateHasRCON reports whether the game actually exposes an RCON
+// console the agent can dial. Mirrors EffectiveConsoleMode's defaulting:
+// an absent RCON block or protocol "none" means no console port exists.
+func templateHasRCON(tmpl *kestrelv1alpha1.GameTemplate) bool {
+	return tmpl != nil && tmpl.Spec.RCON != nil &&
+		tmpl.Spec.RCON.Protocol != "" && tmpl.Spec.RCON.Protocol != "none"
+}

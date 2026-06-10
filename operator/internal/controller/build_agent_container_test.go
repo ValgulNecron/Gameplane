@@ -97,3 +97,42 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildAgentContainer_RconEnabledEnv(t *testing.T) {
+	gs := &kestrelv1alpha1.GameServer{}
+	gs.Name = "smp"
+	gs.Namespace = "g"
+
+	envOf := func(c corev1.Container) map[string]string {
+		out := map[string]string{}
+		for _, e := range c.Env {
+			out[e.Name] = e.Value
+		}
+		return out
+	}
+
+	t.Run("rcon template advertises enabled", func(t *testing.T) {
+		tmpl := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
+			RCON: &kestrelv1alpha1.RCONSpec{Protocol: "source"},
+		}}
+		if got := envOf(buildAgentContainer(gs, tmpl, "fb"))["KESTREL_RCON_ENABLED"]; got != "true" {
+			t.Fatalf("KESTREL_RCON_ENABLED=%q, want true", got)
+		}
+	})
+
+	t.Run("no rcon block disables", func(t *testing.T) {
+		tmpl := &kestrelv1alpha1.GameTemplate{}
+		if got := envOf(buildAgentContainer(gs, tmpl, "fb"))["KESTREL_RCON_ENABLED"]; got != "false" {
+			t.Fatalf("KESTREL_RCON_ENABLED=%q, want false", got)
+		}
+	})
+
+	t.Run("protocol none disables", func(t *testing.T) {
+		tmpl := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
+			RCON: &kestrelv1alpha1.RCONSpec{Protocol: "none"},
+		}}
+		if got := envOf(buildAgentContainer(gs, tmpl, "fb"))["KESTREL_RCON_ENABLED"]; got != "false" {
+			t.Fatalf("KESTREL_RCON_ENABLED=%q, want false", got)
+		}
+	})
+}

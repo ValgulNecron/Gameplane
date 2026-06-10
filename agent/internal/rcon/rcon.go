@@ -216,3 +216,14 @@ func (c *Client) readPacket() (id, kind uint32, body string, err error) {
 	body = string(buf[8:end])
 	return
 }
+
+// ErrDisabled marks RCON as deliberately not configured for this game
+// (GameTemplate declares no RCON protocol). Callers degrade gracefully
+// — players reports an unknown count, moderation reports unsupported —
+// instead of treating it as an upstream outage.
+var ErrDisabled = errors.New("rcon disabled for this game")
+
+// Disabled returns an Exec-er whose every call fails with ErrDisabled.
+type Disabled struct{}
+
+func (Disabled) Exec(string) (string, error) { return "", ErrDisabled }

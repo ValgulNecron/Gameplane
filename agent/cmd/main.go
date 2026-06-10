@@ -35,6 +35,7 @@ func main() {
 		rconHost     string
 		rconPort     int
 		rconPassFile string
+		rconEnabled  bool
 		gameLogPath  string
 		certFile     string
 		keyFile      string
@@ -49,6 +50,8 @@ func main() {
 	flag.StringVar(&rconHost, "rcon-host", "127.0.0.1", "RCON host (loopback in the pod)")
 	flag.IntVar(&rconPort, "rcon-port", 25575, "RCON port")
 	flag.StringVar(&rconPassFile, "rcon-password-file", "", "path to file holding the RCON password")
+	flag.BoolVar(&rconEnabled, "rcon-enabled", envOr("KESTREL_RCON_ENABLED", "true") != "false",
+		"whether the game exposes RCON; when false, RCON-backed endpoints degrade instead of dialing")
 	flag.StringVar(&gameLogPath, "game-log-path", "", "path to the game container's log file (for /logs/tail)")
 	flag.StringVar(&certFile, "tls-cert", "", "server TLS cert (PEM). Enables HTTPS + requires client cert")
 	flag.StringVar(&keyFile, "tls-key", "", "server TLS key (PEM)")
@@ -71,7 +74,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	rconClient := rcon.New(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
+	var rconClient interface {
+		Exec(cmd string) (string, error)
+	} = rcon.New(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
+	if !rconEnabled {
+		// The game declares no RCON (e.g. consoleMode pty/none). Dialing
+		// 127.0.0.1:25575 would just fail on every request; the Disabled
+		// client makes that explicit so handlers degrade cleanly.
+		rconClient = rcon.Disabled{}
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer)
