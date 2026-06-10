@@ -34,6 +34,16 @@ rules:
       - configmaps
       - secrets
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Per-GameServer agent identity: SA + heartbeat Role/RoleBinding
+  # (resourceNames-scoped to one GameServer's status subresource).
+  # Granting gameservers/status passes the RBAC escalation check because
+  # the operator's ClusterRole already holds that permission.
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

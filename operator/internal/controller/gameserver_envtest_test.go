@@ -9,6 +9,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
@@ -490,6 +491,96 @@ func TestGameServer_AgentServiceAlwaysClusterIP(t *testing.T) {
 		}
 		if game.Spec.Type != corev1.ServiceTypeNodePort {
 			return false, "game service should be NodePort, got " + string(game.Spec.Type)
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_AgentHeartbeatRBAC — the per-GameServer SA, Role, and
+// RoleBinding exist, the Role is resourceNames-scoped to this server's
+// status subresource, and the pod template runs as the SA (unless
+// spec.serviceAccountName overrides it).
+func TestGameServer_AgentHeartbeatRBAC(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("terraria"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var sa corev1.ServiceAccount
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-agent"}, &sa); err != nil {
+			return false, "serviceaccount: " + err.Error()
+		}
+		var role rbacv1.Role
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-agent-heartbeat"}, &role); err != nil {
+			return false, "role: " + err.Error()
+		}
+		if len(role.Rules) != 1 {
+			return false, "expected 1 rule"
+		}
+		rule := role.Rules[0]
+		if len(rule.ResourceNames) != 1 || rule.ResourceNames[0] != "smp" {
+			return false, "role not resourceNames-scoped to the GameServer"
+		}
+		if len(rule.Resources) != 1 || rule.Resources[0] != "gameservers/status" {
+			return false, "role grants more than gameservers/status"
+		}
+		var rb rbacv1.RoleBinding
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-agent-heartbeat"}, &rb); err != nil {
+			return false, "rolebinding: " + err.Error()
+		}
+		if len(rb.Subjects) != 1 || rb.Subjects[0].Name != "smp-agent" {
+			return false, "rolebinding subject is not the agent SA"
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		if got := ss.Spec.Template.Spec.ServiceAccountName; got != "smp-agent" {
+			return false, "pod SA = " + got
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_ServiceAccountOverrideWins — spec.serviceAccountName
+// replaces the operator-managed default on the pod template.
+func TestGameServer_ServiceAccountOverrideWins(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("astroneer"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.ServiceAccountName = "my-own-sa"
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		if got := ss.Spec.Template.Spec.ServiceAccountName; got != "my-own-sa" {
+			return false, "pod SA = " + got
 		}
 		return true, ""
 	})

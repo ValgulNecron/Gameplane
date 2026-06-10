@@ -6,6 +6,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,6 +55,8 @@ type GameServerReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -91,6 +94,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile agent TLS")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileAgentRBAC(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile agent RBAC")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
@@ -115,6 +122,9 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&kestrelv1alpha1.BackupSchedule{}).
 		Owns(&corev1.Secret{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }
 
@@ -299,6 +309,10 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		}
 		ss.Spec.Template.Spec.Tolerations = gs.Spec.Tolerations
 		ss.Spec.Template.Spec.Affinity = gs.Spec.Affinity
+		// Default to the per-GameServer SA so the agent's heartbeat can
+		// patch gameservers/status (see reconcileAgentRBAC); an explicit
+		// spec.serviceAccountName still wins.
+		ss.Spec.Template.Spec.ServiceAccountName = agentServiceAccountName(gs)
 		if gs.Spec.ServiceAccountName != "" {
 			ss.Spec.Template.Spec.ServiceAccountName = gs.Spec.ServiceAccountName
 		}

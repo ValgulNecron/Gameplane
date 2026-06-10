@@ -12,6 +12,7 @@ rules:
   - pods
   - pods/log
   - secrets
+  - serviceaccounts
   - services
   verbs:
   - get
@@ -95,6 +96,15 @@ rules:
   - kestrel.gg
   resources:
   - modulesources
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
   verbs:
   - get
   - list

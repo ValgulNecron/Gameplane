@@ -78,8 +78,12 @@ type GameServerSpec struct {
 	// +optional
 	BackupPolicy *InlineBackupPolicy `json:"backupPolicy,omitempty"`
 
-	// ServiceAccountName, when set, overrides the default SA the pod
-	// runs as. Kestrel does not require any specific SA for game pods.
+	// ServiceAccountName, when set, overrides the SA the pod runs as.
+	// By default the operator creates a per-GameServer ServiceAccount
+	// (`<name>-agent`) whose only grant is patching this GameServer's
+	// status — the agent sidecar's heartbeat needs it. Overriding with
+	// an SA that lacks that grant disables heartbeats (the server then
+	// never reports Running).
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
