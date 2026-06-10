@@ -4,7 +4,10 @@
 package audit
 
 import (
+	"bufio"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -68,6 +71,26 @@ type responseRecorder struct {
 func (r *responseRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack forwards to the underlying writer. Without this, the embedded
+// interface hides the concrete writer's Hijacker and every WebSocket
+// upgrade behind this middleware fails with 501 (websocket.Accept
+// type-asserts http.Hijacker).
+func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("audit: underlying ResponseWriter does not implement http.Hijacker")
+	}
+	return hj.Hijack()
+}
+
+// Flush forwards so streaming responses keep working through the
+// recorder.
+func (r *responseRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // ---- query API ----
