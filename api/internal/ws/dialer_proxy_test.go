@@ -2,6 +2,8 @@ package ws
 
 import (
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,5 +73,30 @@ func TestAgentHost_Format(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("got %q, want substring %q", got, want)
 		}
+	}
+}
+
+type fakeTimeoutErr struct{}
+
+func (fakeTimeoutErr) Error() string   { return "i/o timeout" }
+func (fakeTimeoutErr) Timeout() bool   { return true }
+func (fakeTimeoutErr) Temporary() bool { return true }
+
+// Transport failures on the API->agent leg must surface as gateway
+// statuses (the dashboard and TestAPI_AgentUnreachable key off the
+// 502/503/504 range), never as 500.
+func TestWriteUpstreamErr_GatewayStatuses(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/servers/x/players", nil)
+
+	rr := httptest.NewRecorder()
+	writeUpstreamErr(rr, req, errors.New("dial tcp 10.0.0.1:8090: connect: connection refused"))
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("refused: got %d want 502", rr.Code)
+	}
+
+	rr = httptest.NewRecorder()
+	writeUpstreamErr(rr, req, fmt.Errorf("proxy: %w", fakeTimeoutErr{}))
+	if rr.Code != http.StatusGatewayTimeout {
+		t.Fatalf("timeout: got %d want 504", rr.Code)
 	}
 }

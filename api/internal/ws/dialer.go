@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 
@@ -164,7 +166,7 @@ func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
 		copyProxyHeaders(upReq.Header, req.Header)
 		resp, err := p.http.Do(upReq)
 		if err != nil {
-			httperr.Write(w, req, err)
+			writeUpstreamErr(w, req, err)
 			return
 		}
 		defer resp.Body.Close()
@@ -172,6 +174,21 @@ func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
 	}
+}
+
+// writeUpstreamErr maps transport-level failures on the API→agent leg
+// to gateway statuses so the dashboard can tell "agent down" (502/504)
+// apart from API bugs (500). The dashboard's error handling and
+// TestAPI_AgentUnreachable both rely on this distinction.
+func writeUpstreamErr(w http.ResponseWriter, req *http.Request, err error) {
+	status := http.StatusBadGateway
+	var nerr net.Error
+	if errors.As(err, &nerr) && nerr.Timeout() {
+		status = http.StatusGatewayTimeout
+	}
+	slog.Error("agent proxy upstream error",
+		"method", req.Method, "path", req.URL.Path, "status", status, "err", err)
+	http.Error(w, "agent unreachable", status)
 }
 
 // proxyHeaderAllowlist is the set of request headers forwarded from the
