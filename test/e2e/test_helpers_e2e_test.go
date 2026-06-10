@@ -387,8 +387,16 @@ func waitBackupCount(t *testing.T, ns, schedName string, want int, timeout time.
 		if err != nil {
 			return false, "list backups: " + err.Error()
 		}
+		// Count only Succeeded backups: retention's contract is about
+		// completed snapshots — with a one-minute cron there is almost
+		// always an in-flight Backup alongside the kept one, and the
+		// trimmer never touches in-flight backups by design.
 		got := 0
 		for _, item := range bks.Items {
+			phase, _, _ := unstructured.NestedString(item.Object, "status", "phase")
+			if phase != "Succeeded" {
+				continue
+			}
 			for _, owner := range item.GetOwnerReferences() {
 				if owner.Kind == "BackupSchedule" && owner.Name == schedName {
 					got++
@@ -399,7 +407,7 @@ func waitBackupCount(t *testing.T, ns, schedName string, want int, timeout time.
 		if got == want {
 			return true, ""
 		}
-		return false, "owned Backups got=" + itoa(got) + " want=" + itoa(want)
+		return false, "succeeded owned Backups got=" + itoa(got) + " want=" + itoa(want)
 	})
 }
 

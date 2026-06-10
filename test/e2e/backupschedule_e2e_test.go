@@ -170,10 +170,12 @@ func TestBackupSchedule_RetentionTrimsPast(t *testing.T) {
 	})
 
 	// Retention reconcile is asynchronous — the controller may emit a
-	// new Backup and then trim the oldest on a follow-up tick. We accept
-	// up to keepLast (1) at the steady state. If the set is still >1
-	// after another minute, retention is broken.
-	waitBackupCount(t, ns, schedName, 1, 90*time.Second)
+	// new Backup and then trim the oldest on a follow-up tick. The
+	// helper counts only Succeeded backups (in-flight ones are expected
+	// with a one-minute cron and are never trimmed); if more than
+	// keepLast succeeded backups persist, retention is broken. Two cron
+	// windows of slack lets the second backup finish and get trimmed.
+	waitBackupCount(t, ns, schedName, 1, 3*time.Minute)
 }
 
 // TestBackupSchedule_ConcurrencyForbid — concurrencyPolicy=Forbid must

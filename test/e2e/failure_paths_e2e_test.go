@@ -87,6 +87,44 @@ func TestBackup_FailsOnBadCredentials(t *testing.T) {
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 
+	// Seed the repo with the GOOD credentials first. The repo password
+	// is restic's encryption key, and the backup Job idempotently runs
+	// `restic init` — against a repo that doesn't exist yet, the "bad"
+	// password would simply initialize it and the backup would succeed.
+	// The wrong-password failure only exists once the repo has a key.
+	seedName := bkName + "-seed"
+	seed := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "kestrel.gg/v1alpha1",
+		"kind":       "Backup",
+		"metadata":   map[string]any{"name": seedName, "namespace": ns},
+		"spec": map[string]any{
+			"serverRef": map[string]any{"name": gs},
+			"repoRef":   map[string]any{"name": "e2e-restic-creds", "key": "repo"},
+			"strategy":  "restic-snapshot",
+			"quiesce":   false,
+		},
+	}}
+	if _, err := envInstance.Dyn.Resource(backupGVR).Namespace(ns).
+		Create(ctx, seed, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create seed backup: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(backupGVR).Namespace(ns).
+			Delete(context.Background(), seedName, metav1.DeleteOptions{})
+	})
+	envInstance.Eventually(t, 5*time.Minute, func() (bool, string) {
+		got, err := envInstance.Dyn.Resource(backupGVR).Namespace(ns).
+			Get(ctx, seedName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get seed backup: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(got.Object, "status", "phase")
+		if phase != "Succeeded" {
+			return false, "seed phase=" + phase
+		}
+		return true, ""
+	})
+
 	bk := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "kestrel.gg/v1alpha1",
 		"kind":       "Backup",
