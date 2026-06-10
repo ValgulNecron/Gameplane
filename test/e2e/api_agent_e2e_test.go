@@ -17,18 +17,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// requireAgentReady waits up to a reasonable window for the agent
-// sidecar in `<gs>-0` to reach Ready=True, and `t.Skip`s the rest of
-// the test if it never does. As of this writing the e2e helm chart
-// doesn't pass the agent the auth credentials it needs (`--tls-client-ca`
-// or `--api-token-file`), so the sidecar crashloops with `auth setup`
-// errors and these tests can't exercise the API↔agent proxy. The skip
-// keeps the suite green while the gap is clearly visible in `go test
-// -v` output.
-//
-// TODO(infra): wire agent-auth secrets into the e2e helm values
-// (charts/kestrel/values-e2e.yaml or similar) so this skip can be
-// removed and the tests below run for real.
+// requireAgentReady waits for the agent sidecar in `<gs>-0` to reach
+// Ready=True with no restarts, and fails the test if it never does.
+// The chart provisions the agent CA unconditionally (templates/mtls.yaml)
+// and the operator wires --tls-cert/--tls-key/--tls-client-ca from the
+// per-GameServer Secret it signs, so an unready agent here is a real
+// regression, not missing test wiring.
 func requireAgentReady(t *testing.T, ns, gsName string) {
 	t.Helper()
 	ctx := context.Background()
@@ -40,12 +34,12 @@ func requireAgentReady(t *testing.T, ns, gsName string) {
 				if cs.Name != "agent" {
 					continue
 				}
-				// Require restartCount=0 in addition to Ready=true. The
-				// agent's auth-setup error kills it almost immediately,
-				// but there's a tiny window where ContainerStatus.Ready
-				// flips to true before the kubelet records the crash —
-				// without the restart-count guard, the test passes the
-				// wait and then 500s on the first agent call.
+				// Require restartCount=0 in addition to Ready=true: a
+				// crashlooping agent has a tiny window where
+				// ContainerStatus.Ready flips to true before the kubelet
+				// records the crash — without the restart-count guard,
+				// the test passes the wait and then 500s on the first
+				// agent call.
 				if cs.Ready && cs.RestartCount == 0 {
 					return
 				}
@@ -54,7 +48,7 @@ func requireAgentReady(t *testing.T, ns, gsName string) {
 		time.Sleep(2 * time.Second)
 	}
 	logs, _ := envInstance.Kubectl("logs", "-n", ns, gsName+"-0", "-c", "agent", "--tail=10")
-	t.Skipf("agent sidecar never reached stable Ready in 90s — likely missing auth wiring in the e2e helm chart. agent logs:\n%s", logs)
+	t.Fatalf("agent sidecar never reached stable Ready in 90s. agent logs:\n%s", logs)
 }
 
 // TestAPI_AgentFilesRoundTrip exercises the API → agent proxy for the

@@ -44,8 +44,8 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 
 	// We need the game container actually running with a TTY before the
-	// attach can succeed. Wait for pod-0 Ready (game container only —
-	// agent sidecar may still be crashlooping per requireAgentReady).
+	// attach can succeed. Wait for the game container in pod-0 to be
+	// Ready; the agent sidecar is irrelevant to this attach path.
 	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
 		pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gs+"-0", metav1.GetOptions{})
 		if err != nil {
