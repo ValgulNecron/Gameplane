@@ -188,3 +188,39 @@ func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
 			pvcUID, pvcPost.UID)
 	}
 }
+
+// TestGameServer_HeartbeatReachesRunning: with the per-GameServer
+// ServiceAccount, the heartbeat RBAC, and the agent->apiserver egress
+// policy in place, the agent's status heartbeat must land and the
+// operator must derive phase Running. Before those existed, no chart
+// install could ever leave Starting — this is the regression guard.
+func TestGameServer_HeartbeatReachesRunning(t *testing.T) {
+	ctx := context.Background()
+	ns := "kestrel-games"
+	tmpl := "e2e-hb-tmpl"
+	gs := "e2e-hb-gs"
+
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServer(t, ns, gs, tmpl)
+	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gs)
+
+	// Heartbeat interval is 20s and the status reconciler requeues every
+	// ~15s, so a couple of minutes is comfortable without being flaky.
+	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gs, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		hb, _, _ := unstructured.NestedString(obj.Object, "status", "agent", "lastHeartbeat")
+		if hb == "" {
+			return false, "no heartbeat yet"
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Running" {
+			return false, "heartbeat present but phase=" + phase
+		}
+		return true, ""
+	})
+}
