@@ -12,6 +12,15 @@ func TestAllow(t *testing.T) {
 		{RoleOperator, "POST", "/servers", true},
 		{RoleOperator, "DELETE", "/users/1", false},
 		{RoleAdmin, "DELETE", "/users/1", true},
+		// Own profile: every authenticated role reads /users/me; the rest
+		// of /users stays admin-only, and /users/me stays read-only for
+		// non-admins.
+		{RoleViewer, "GET", "/users/me", true},
+		{RoleOperator, "GET", "/users/me", true},
+		{RoleAdmin, "GET", "/users/me", true},
+		{RoleViewer, "GET", "/users", false},
+		{RoleViewer, "POST", "/users/me", false},
+		{RoleViewer, "PUT", "/users/me", false},
 		{RoleOperator, "GET", "/admin/audit", false},
 		{RoleAdmin, "GET", "/admin/audit", true},
 		{RoleViewer, "PATCH", "/servers/foo", false},

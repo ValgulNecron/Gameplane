@@ -59,6 +59,10 @@ type rule struct {
 var rules = []rule{
 	// Admin-only
 	{method: "", segment: "admin", role: RoleAdmin},
+	// Own profile: any authenticated role may read /users/me (the
+	// dashboard loads it after login). Must precede the admin-only
+	// catch-all for the rest of /users.
+	{method: "GET", segment: "users", pathSuffix: "/users/me", role: RoleViewer},
 	{method: "", segment: "users", role: RoleAdmin},
 
 	// Writes on server/template/backup resources → operator+
