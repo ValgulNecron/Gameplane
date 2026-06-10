@@ -49,7 +49,7 @@ func doReq(t *testing.T, method, url string, body any) (int, []byte) {
 		}
 		buf = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequest(method, url, buf)
+	req, err := http.NewRequestWithContext(t.Context(), method, url, buf)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestConfig_PutUnknownSection(t *testing.T) {
 
 func TestConfig_PutBadJSON(t *testing.T) {
 	srv, _ := newConfigServer(t)
-	req, _ := http.NewRequest("PUT", srv.URL+"/admin/config/general", bytes.NewReader([]byte("{not json")))
+	req, _ := http.NewRequestWithContext(t.Context(), "PUT", srv.URL+"/admin/config/general", bytes.NewReader([]byte("{not json")))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestConfig_PutValidationFailure(t *testing.T) {
 
 func TestConfig_PutEmptyBody(t *testing.T) {
 	srv, _ := newConfigServer(t)
-	req, _ := http.NewRequest("PUT", srv.URL+"/admin/config/general", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), "PUT", srv.URL+"/admin/config/general", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("do: %v", err)

@@ -54,7 +54,6 @@ var validRoles = map[string]bool{"admin": true, "operator": true, "viewer": true
 // can show up in audit logs and (eventually) API paths.
 var usernameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
 
-
 func (h *userHandler) list(w http.ResponseWriter, req *http.Request) {
 	rows, err := h.db.DB.QueryContext(req.Context(), `
 		SELECT u.id, u.username, u.display_name, u.email, u.role, u.created_at,

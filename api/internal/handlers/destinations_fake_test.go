@@ -36,7 +36,7 @@ func newDestSecret(ns, name string) *corev1.Secret {
 func TestDestinations_List(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed: kubefake.NewSimpleClientset(
+		Typed: kubefake.NewClientset(
 			newDestSecret("kestrel-games", "default"),
 			newDestSecret("kestrel-games", "second"),
 			// A non-labelled secret that must NOT appear in the list.
@@ -62,7 +62,7 @@ func TestDestinations_List(t *testing.T) {
 func TestDestinations_Get(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed: kubefake.NewSimpleClientset(
+		Typed: kubefake.NewClientset(
 			newDestSecret("kestrel-games", "default"),
 			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "wild", Namespace: "kestrel-games"}},
 		),
@@ -88,7 +88,7 @@ func TestDestinations_Get(t *testing.T) {
 func TestDestinations_Create(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed:   kubefake.NewSimpleClientset(),
+		Typed:   kubefake.NewClientset(),
 	}
 	r := mountDestRouter(k)
 
@@ -129,7 +129,7 @@ func TestDestinations_Create(t *testing.T) {
 func TestDestinations_Delete(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed: kubefake.NewSimpleClientset(
+		Typed: kubefake.NewClientset(
 			newDestSecret("kestrel-games", "default"),
 			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "kestrel-games"}},
 		),

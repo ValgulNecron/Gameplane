@@ -42,9 +42,11 @@ func TestRepo_WithCredentials(t *testing.T) {
 func TestListTags_RepositoryDoesNotExist(t *testing.T) {
 	reg := newFakeRegistry(t)
 	c := New(nil, true)
-	_, err := c.ListTags(context.Background(), reg.host()+"/no/such/repo")
-	if err == nil {
-		// Some fakes return empty tags list rather than 404; accept that.
+	// Some registry fakes return an empty tag list rather than a 404, so
+	// either an error or an empty result is acceptable here.
+	tags, err := c.ListTags(context.Background(), reg.host()+"/no/such/repo")
+	if err == nil && len(tags) != 0 {
+		t.Fatalf("expected error or empty tag list, got %v", tags)
 	}
 }
 

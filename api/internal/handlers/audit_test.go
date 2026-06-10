@@ -27,7 +27,11 @@ func TestMountAudit_HappyPath(t *testing.T) {
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
-	resp, err := http.Get(srv.URL + "/admin/audit?limit=2")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/admin/audit?limit=2", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -55,7 +59,11 @@ func TestMountAudit_DBError(t *testing.T) {
 	MountAudit(r, a)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
-	resp, err := http.Get(srv.URL + "/admin/audit")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/admin/audit", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

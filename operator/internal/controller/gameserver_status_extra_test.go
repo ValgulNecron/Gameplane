@@ -97,7 +97,7 @@ func TestEndpointsFromService_LoadBalancer(t *testing.T) {
 func TestEndpointsFromService_LoadBalancerHostname(t *testing.T) {
 	svc := &corev1.Service{
 		Spec: corev1.ServiceSpec{
-			Type: corev1.ServiceTypeLoadBalancer,
+			Type:  corev1.ServiceTypeLoadBalancer,
 			Ports: []corev1.ServicePort{{Name: "g", Port: 1}},
 		},
 		Status: corev1.ServiceStatus{

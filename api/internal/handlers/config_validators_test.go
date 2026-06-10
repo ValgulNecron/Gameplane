@@ -92,8 +92,12 @@ func TestValidateNotifications(t *testing.T) {
 }
 
 func TestValidateTelemetry(t *testing.T) {
-	if _, err := validateTelemetry([]byte(`{"sendMetrics":true}`)); err != nil {
+	canon, err := validateTelemetry([]byte(`{"sendMetrics":true,"unknown":"dropped"}`))
+	if err != nil {
 		t.Fatalf("happy: %v", err)
+	}
+	if string(canon) != `{"sendMetrics":true}` {
+		t.Fatalf("canonicalized output: got %s", canon)
 	}
 	if _, err := validateTelemetry([]byte(`bogus`)); err == nil {
 		t.Fatal("expected json error")
@@ -101,8 +105,12 @@ func TestValidateTelemetry(t *testing.T) {
 }
 
 func TestValidateUpdates(t *testing.T) {
-	if _, err := validateUpdates([]byte(`{"channel":"stable"}`)); err != nil {
+	canon, err := validateUpdates([]byte(`{"channel":"stable","unknown":"dropped"}`))
+	if err != nil {
 		t.Fatalf("stable: %v", err)
+	}
+	if string(canon) != `{"channel":"stable"}` {
+		t.Fatalf("canonicalized output: got %s", canon)
 	}
 	if _, err := validateUpdates([]byte(`{"channel":"beta"}`)); err != nil {
 		t.Fatalf("beta: %v", err)

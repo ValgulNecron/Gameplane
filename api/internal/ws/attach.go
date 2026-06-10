@@ -31,9 +31,9 @@ import (
 //
 // Wire protocol on the WS:
 //   - browser → server: {"kind":"stdin","body":"<base64>"} or
-//                       {"kind":"resize","cols":N,"rows":M}
+//     {"kind":"resize","cols":N,"rows":M}
 //   - server → browser: {"kind":"stdout","body":"<base64>"} or
-//                       {"kind":"err","body":"<message>"}
+//     {"kind":"err","body":"<message>"}
 //
 // stderr is intentionally merged into stdout — that's what the kubelet
 // produces under TTY=true, and the xterm.js front end has no use for a

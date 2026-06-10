@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,11 @@ func TestUsers_Me_Authenticated(t *testing.T) {
 	srv, _, _ := newUsersServer(t, &auth.User{
 		ID: 42, Username: "root", DisplayName: "Root", Email: "r@x", Role: "admin",
 	})
-	resp, err := srv.Client().Get(srv.URL + "/users/me")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/users/me", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -33,7 +38,11 @@ func TestUsers_Me_Authenticated(t *testing.T) {
 
 func TestUsers_Me_NoUser(t *testing.T) {
 	srv, _, _ := newUsersServer(t, nil) // no caller injected
-	resp, err := srv.Client().Get(srv.URL + "/users/me")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/users/me", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -73,5 +82,5 @@ func TestUsers_Del_Self(t *testing.T) {
 // chain. The users router exposes routes under /users/* and our test
 // middleware injects auth.User directly.
 func newReqWithCSRF(srv *httptest.Server, method, path, body string) (*http.Request, error) {
-	return http.NewRequest(method, srv.URL+path, strings.NewReader(body))
+	return http.NewRequestWithContext(context.Background(), method, srv.URL+path, strings.NewReader(body))
 }

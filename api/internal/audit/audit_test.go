@@ -105,7 +105,7 @@ func TestMiddleware_AnonymousActorWhenNoUser(t *testing.T) {
 func TestMiddleware_SkipsReads(t *testing.T) {
 	s := newStore(t)
 	a := New(s)
-	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	h := Middleware(a)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	req := httptest.NewRequest("GET", "/api/v1/servers", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	var n int

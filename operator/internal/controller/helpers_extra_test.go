@@ -89,15 +89,10 @@ func TestEnqueueTemplateForServer(t *testing.T) {
 		},
 	}
 
-	type fakeQueue struct{ items []string }
 	// We don't have a real workqueue available; the func returns a
-	// MapFunc-handler. Indirect access via reflection isn't worth it —
-	// the underlying MapFunc is tested by reading it via the handler API.
-	// Instead, exercise the inner mapping by calling the registered
-	// EnqueueRequestsFromMapFunc's dispatcher with handler.OnGenericFunc
-	// equivalents below.
+	// MapFunc-handler whose dispatch is exercised by envtest. Here we
+	// only smoke-test that the handler is constructed.
 	_ = h
-	_ = gs
 
 	// Direct: call the closure via the handler's underlying type. We
 	// recreate the body of the func to verify the mapping logic without

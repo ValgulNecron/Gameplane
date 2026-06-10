@@ -17,7 +17,7 @@ func TestDestinations_Upsert_RotatesPasswordOnExisting(t *testing.T) {
 	pre := newDestSecret("kestrel-games", "default")
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed:   kubefake.NewSimpleClientset(pre),
+		Typed:   kubefake.NewClientset(pre),
 	}
 	r := mountDestRouter(k)
 	body := map[string]any{"name": "default", "url": "s3:rotated", "password": "newpw"}
@@ -38,7 +38,7 @@ func TestDestinations_Upsert_ConflictsWithNonKestrelSecret(t *testing.T) {
 	}
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed:   kubefake.NewSimpleClientset(stranger),
+		Typed:   kubefake.NewClientset(stranger),
 	}
 	r := mountDestRouter(k)
 	body := map[string]any{"name": "default", "url": "s3:x", "password": "p"}
@@ -53,7 +53,7 @@ func TestDestinations_Upsert_ConflictsWithNonKestrelSecret(t *testing.T) {
 func TestDestinations_Upsert_MissingPassword(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
-		Typed:   kubefake.NewSimpleClientset(),
+		Typed:   kubefake.NewClientset(),
 	}
 	r := mountDestRouter(k)
 	body := map[string]any{"name": "x", "url": "s3:x"}

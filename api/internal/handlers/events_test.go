@@ -15,9 +15,9 @@ type nonFlushingWriter struct {
 	code   int
 }
 
-func (n *nonFlushingWriter) Header() http.Header        { return n.header }
+func (n *nonFlushingWriter) Header() http.Header         { return n.header }
 func (n *nonFlushingWriter) Write(b []byte) (int, error) { return len(b), nil }
-func (n *nonFlushingWriter) WriteHeader(c int)          { n.code = c }
+func (n *nonFlushingWriter) WriteHeader(c int)           { n.code = c }
 
 // MountEvents wires the SSE handler under /events and depends on a real
 // http.Flusher to send frames. The streaming-success path is exercised

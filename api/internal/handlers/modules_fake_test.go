@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,15 +31,7 @@ func fakeKubeClient(objs ...runtime.Object) *kube.Client {
 		kube.GVRs["servers"]: "GameServerList",
 	}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr, objs...)
-	return &kube.Client{Dynamic: dyn, Typed: kubefake.NewSimpleClientset()}
-}
-
-func fakeKubeClientWithTyped(typed runtime.Object, dyn ...runtime.Object) *kube.Client {
-	c := fakeKubeClient(dyn...)
-	if typed != nil {
-		c.Typed = kubefake.NewSimpleClientset(typed)
-	}
-	return c
+	return &kube.Client{Dynamic: dyn, Typed: kubefake.NewClientset()}
 }
 
 func newModule(name string, spec map[string]any) *unstructured.Unstructured {
@@ -127,11 +118,9 @@ func TestMountModules_Install(t *testing.T) {
 
 	t.Run("missing source/module", func(t *testing.T) {
 		rr := do(t, r, "POST", "/modules/", map[string]any{"module": "x"})
-		if rr.Code != http.StatusInternalServerError {
-			// httperr.Write maps the generic error to 500 since it's not
-			// a typed apierror. The handler still rejects it — we just
-			// confirm it didn't succeed.
-		}
+		// httperr.Write maps the generic error to 500 since it's not a
+		// typed apierror. The handler still rejects it — we just confirm
+		// it didn't succeed.
 		if rr.Code == http.StatusCreated {
 			t.Fatal("missing source should not create")
 		}
@@ -202,12 +191,4 @@ func TestMountModules_Catalog(t *testing.T) {
 	if len(resp.Items) != 1 || resp.Items[0].Name != "minecraft" {
 		t.Fatalf("got %+v", resp.Items)
 	}
-}
-
-func TestMountModules_Catalog_DBErrorPath(t *testing.T) {
-	// Force a list error by reacting on ModuleSource list. Simplest
-	// approach: leave a malformed handler that returns an error on
-	// every list. Skip this — exercising the list-failure path requires
-	// a reactor; the catalog success path above covers the happy code.
-	_ = metav1.NamespaceAll
 }

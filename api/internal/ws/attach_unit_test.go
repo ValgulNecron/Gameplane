@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -64,9 +63,14 @@ func TestTermSizeQueue_PushDropsWhenFull(t *testing.T) {
 }
 
 func TestTermSizeQueue_DoubleClose(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("double close panicked: %v", r)
+		}
+	}()
 	q := newTermSizeQueue()
 	q.close()
-	q.close() // must not panic
+	q.close()
 }
 
 // TestPumpStdout sends a single read of bytes through the pump and
@@ -84,7 +88,10 @@ func TestPumpStdout(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cli, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	cli, dialResp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -132,7 +139,10 @@ func TestPumpBrowser_StdinAndResize(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cli, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	cli, dialResp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -194,7 +204,10 @@ func TestPumpBrowser_BadBase64Stdin(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cli, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	cli, dialResp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -239,7 +252,10 @@ func TestWriteEnvErr_OnClosedConn(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	cli, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	cli, dialResp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -249,8 +265,3 @@ func TestWriteEnvErr_OnClosedConn(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	writeEnvErr(ctx, srvConn, "anything") // must not panic
 }
-
-// Compile-time guard: the existing errors package import is exercised
-// via attach.go, but we re-import here so a future cleanup of attach.go
-// that drops "errors" doesn't silently break references in tests.
-var _ = errors.New("")

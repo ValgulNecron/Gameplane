@@ -24,7 +24,7 @@ func newBackupPod(name, jobName string, phase corev1.PodPhase, created time.Time
 }
 
 func TestBackupLogs_NoPodErrors(t *testing.T) {
-	cs := kubefake.NewSimpleClientset()
+	cs := kubefake.NewClientset()
 	r := &clientsetLogReader{cs: cs}
 	_, err := r.BackupLogs(context.Background(), "kestrel-games", "backup-1")
 	if err == nil || !strings.Contains(err.Error(), "no succeeded pod") {
@@ -34,7 +34,7 @@ func TestBackupLogs_NoPodErrors(t *testing.T) {
 
 func TestBackupLogs_NoSucceededPodErrors(t *testing.T) {
 	// Two pods labelled with the job, neither succeeded.
-	cs := kubefake.NewSimpleClientset(
+	cs := kubefake.NewClientset(
 		newBackupPod("p1", "backup-1", corev1.PodRunning, time.Now()),
 		newBackupPod("p2", "backup-1", corev1.PodFailed, time.Now()),
 	)
@@ -48,7 +48,7 @@ func TestBackupLogs_NoSucceededPodErrors(t *testing.T) {
 func TestBackupLogs_PicksLatestSucceeded(t *testing.T) {
 	// Three succeeded pods — the most recent one's logs are streamed.
 	now := time.Now()
-	cs := kubefake.NewSimpleClientset(
+	cs := kubefake.NewClientset(
 		newBackupPod("p1", "backup-1", corev1.PodSucceeded, now.Add(-2*time.Hour)),
 		newBackupPod("p3", "backup-1", corev1.PodSucceeded, now), // latest
 		newBackupPod("p2", "backup-1", corev1.PodSucceeded, now.Add(-time.Hour)),
