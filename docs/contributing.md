@@ -40,6 +40,16 @@ cd agent    && go test ./...
 cd web      && npm test
 ```
 
+## AI-assisted development
+
+Much of this codebase is developed with AI coding assistants (Claude
+Code). The project was started on Claude Opus 4.8 (`claude-opus-4-8`);
+since June 2026 development continues on Claude Fable 5
+(`claude-fable-5`). Agent-facing guidance lives in
+[`CLAUDE.md`](../CLAUDE.md) — keep it current when project structure or
+house rules change. All contributions, AI-assisted or not, go through
+the same review, lint, and test gates below.
+
 ## Submitting a change
 
 1. Fork + feature branch

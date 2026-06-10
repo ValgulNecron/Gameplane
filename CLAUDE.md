@@ -6,6 +6,8 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 
 > **Status:** pre-alpha. CRDs, operator, and dashboard are under active development. Not production-ready.
 
+> **AI tooling provenance:** the project was started with Claude Code on Claude Opus 4.8 (`claude-opus-4-8`); since June 2026 development continues on Claude Fable 5 (`claude-fable-5`). This is informational only — nothing in this file is model-specific.
+
 ---
 
 ## Repo map
