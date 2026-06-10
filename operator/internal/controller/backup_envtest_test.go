@@ -22,6 +22,7 @@ import (
 func TestBackup_CreatesJobWithExpectedSpec(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo-secret")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -134,6 +135,7 @@ func TestBackup_CreatesJobWithExpectedSpec(t *testing.T) {
 func TestBackup_OwnerReferenceSet(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -161,6 +163,7 @@ func TestBackup_OwnerReferenceSet(t *testing.T) {
 func TestBackup_MirrorsJobActiveToRunning(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -194,6 +197,7 @@ func TestBackup_MirrorsJobActiveToRunning(t *testing.T) {
 func TestBackup_MirrorsJobSucceededToSucceeded(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -244,6 +248,7 @@ func TestBackup_MirrorsJobSucceededToSucceeded(t *testing.T) {
 func TestBackup_MirrorsJobFailedToFailed(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -282,6 +287,7 @@ func TestBackup_MirrorsJobFailedToFailed(t *testing.T) {
 func TestBackup_StableInTerminalPhase(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -340,6 +346,7 @@ func equalStrings(a, b []string) bool {
 func TestBackup_PassesTagsToRestic(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -369,6 +376,7 @@ func TestBackup_PassesTagsToRestic(t *testing.T) {
 func TestBackup_VolumeSnapshotStrategyShortCircuits(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -406,6 +414,7 @@ func TestBackup_QuiesceAnnotationSetBeforeJob(t *testing.T) {
 	ns := newNamespace(t)
 	fa := &fakeAgent{}
 	startMgr(t, ns, withBackupReconciler(backupReconcilerOpts{agent: fa}))
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -460,6 +469,7 @@ func TestBackup_PopulatesSnapshotIDFromLogs(t *testing.T) {
 		body: `{"message_type":"summary","snapshot_id":"deadbeef","total_bytes_processed":1048576}` + "\n",
 	}
 	startMgr(t, ns, withBackupReconciler(backupReconcilerOpts{logs: logs}))
+	seedGameServer(t, ns, "smp")
 
 	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
 		t.Fatalf("create secret: %v", err)
@@ -490,4 +500,34 @@ func TestBackup_PopulatesSnapshotIDFromLogs(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// TestBackup_FailsFastOnMissingGameServer — a Backup whose serverRef
+// resolves to nothing must go Failed with an explanatory message
+// instead of producing a Job whose pod waits forever on a missing PVC.
+func TestBackup_FailsFastOnMissingGameServer(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withBackupReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildBackup(ns, "smp-orphan", "no-such-server", "repo")); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got := getBackup(t, ns, "smp-orphan")
+		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+			return false, "phase=" + string(got.Status.Phase)
+		}
+		if got.Status.Message == "" {
+			return false, "Failed but no message"
+		}
+		return true, ""
+	})
+
+	if _, ok := getJob(t, ns, "smp-orphan"); ok {
+		t.Error("no Job must be created for a Backup with an unresolvable serverRef")
+	}
 }

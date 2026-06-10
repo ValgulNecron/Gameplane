@@ -559,3 +559,14 @@ type fakeLogReader struct {
 func (f *fakeLogReader) BackupLogs(_ context.Context, _, _ string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader(f.body)), nil
 }
+
+// seedGameServer creates a bare GameServer so reconcilers that resolve
+// Backup/Restore serverRefs find their target. No GameServer reconciler
+// runs in these suites, so the object stays inert (no children).
+func seedGameServer(t *testing.T, ns, name string) {
+	t.Helper()
+	gs := buildGameServer(ns, name, "seed-template")
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("seed gameserver %s/%s: %v", ns, name, err)
+	}
+}

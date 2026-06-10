@@ -88,6 +88,20 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.fail(ctx, &b, "volume-snapshot strategy not yet implemented")
 	}
 
+	// Resolve the target before building the Job: a Backup against a
+	// GameServer that doesn't exist would produce a pod waiting forever
+	// on a missing PVC instead of a clean Failed phase.
+	var gs kestrelv1alpha1.GameServer
+	if err := r.Get(ctx, types.NamespacedName{
+		Namespace: b.Namespace, Name: b.Spec.ServerRef.Name,
+	}, &gs); err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.fail(ctx, &b,
+				fmt.Sprintf("GameServer %q not found in namespace %s", b.Spec.ServerRef.Name, b.Namespace))
+		}
+		return ctrl.Result{}, err
+	}
+
 	if err := r.maybeQuiesce(ctx, &b); err != nil {
 		return ctrl.Result{}, err
 	}
