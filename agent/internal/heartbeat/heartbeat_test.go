@@ -17,11 +17,11 @@ import (
 )
 
 func TestRun_DisabledPaths(t *testing.T) {
-	t.Run("empty server name returns immediately", func(t *testing.T) {
+	t.Run("empty server name returns immediately", func(_ *testing.T) {
 		Run(context.Background(), Config{})
 	})
 
-	t.Run("empty namespace and no SA file returns immediately", func(t *testing.T) {
+	t.Run("empty namespace and no SA file returns immediately", func(_ *testing.T) {
 		// readNamespace will fail because SA path is unreadable in the
 		// test env; Run should early-return without panicking.
 		Run(context.Background(), Config{ServerName: "srv"})

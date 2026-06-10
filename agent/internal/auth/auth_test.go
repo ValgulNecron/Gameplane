@@ -130,12 +130,12 @@ func TestMiddleware_Token(t *testing.T) {
 
 func TestBearer(t *testing.T) {
 	cases := map[string]string{
-		"":                "",
-		"Bearer":          "",
-		"Basic xyz":       "",
-		"Bearer abc":      "abc",
-		"Bearer   abc  ":  "abc",
-		"Bearer\tabc":     "",
+		"":               "",
+		"Bearer":         "",
+		"Basic xyz":      "",
+		"Bearer abc":     "abc",
+		"Bearer   abc  ": "abc",
+		"Bearer\tabc":    "",
 	}
 	for in, want := range cases {
 		if got := bearer(in); got != want {
@@ -228,12 +228,12 @@ func writeKeypair(t *testing.T) (certPath, keyPath string) {
 		t.Fatalf("genkey: %v", err)
 	}
 	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "test"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 	}

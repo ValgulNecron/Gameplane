@@ -37,7 +37,10 @@ func newServer(t *testing.T, rc Rcon) (*httptest.Server, string) {
 func dial(t *testing.T, wsURL string) (*websocket.Conn, context.Context, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		t.Cleanup(func() { _ = dialResp.Body.Close() })
+	}
 	if err != nil {
 		cancel()
 		t.Fatalf("dial: %v", err)
@@ -108,7 +111,10 @@ func TestConsole_ClientCloseEndsLoop(t *testing.T) {
 	_, wsURL := newServer(t, &fakeRcon{})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}

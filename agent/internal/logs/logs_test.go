@@ -23,9 +23,18 @@ func mountServer(t *testing.T, path string) string {
 	return srv.URL
 }
 
+func testGet(t *testing.T, url string) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	return http.DefaultClient.Do(req)
+}
+
 func TestTail_NotConfigured(t *testing.T) {
 	url := mountServer(t, "")
-	resp, err := http.Get(url + "/logs/tail")
+	resp, err := testGet(t, url+"/logs/tail")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -47,7 +56,10 @@ func TestTail_StreamsLinesAndRotates(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -107,7 +119,10 @@ func TestTail_FileMissingThenAppears(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}

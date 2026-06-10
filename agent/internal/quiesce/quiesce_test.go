@@ -151,7 +151,12 @@ func decodeResponse(t *testing.T, body []byte) response {
 
 func doPOST(t *testing.T, srv *httptest.Server, path string) (int, []byte) {
 	t.Helper()
-	resp, err := srv.Client().Post(srv.URL+path, "application/json", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+path, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}

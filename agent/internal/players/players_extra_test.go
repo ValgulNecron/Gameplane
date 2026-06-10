@@ -22,11 +22,30 @@ func newSrv(t *testing.T, game string, rc Rcon) *httptest.Server {
 	return srv
 }
 
+func testGet(t *testing.T, url string) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	return http.DefaultClient.Do(req)
+}
+
+func testPost(t *testing.T, url, contentType string, body io.Reader) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, body)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	return http.DefaultClient.Do(req)
+}
+
 func TestBanHappyPath(t *testing.T) {
 	rc := &fakeRcon{respond: func(string) (string, error) { return "Banned alice", nil }}
 	srv := newSrv(t, "minecraft-java", rc)
 	body, _ := json.Marshal(modReq{Name: "alice", Reason: "x"})
-	resp, err := http.Post(srv.URL+"/players/ban", "application/json", bytes.NewReader(body))
+	resp, err := testPost(t, srv.URL+"/players/ban", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -44,7 +63,7 @@ func TestUnbanHappyPath_IgnoresReason(t *testing.T) {
 	rc := &fakeRcon{respond: func(string) (string, error) { return "Pardoned alice", nil }}
 	srv := newSrv(t, "minecraft-java", rc)
 	body, _ := json.Marshal(modReq{Name: "alice", Reason: "ignored"})
-	resp, err := http.Post(srv.URL+"/players/unban", "application/json", bytes.NewReader(body))
+	resp, err := testPost(t, srv.URL+"/players/unban", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -60,7 +79,7 @@ func TestUnbanHappyPath_IgnoresReason(t *testing.T) {
 func TestRunMod_InvalidJSON(t *testing.T) {
 	rc := &fakeRcon{}
 	srv := newSrv(t, "minecraft-java", rc)
-	resp, err := http.Post(srv.URL+"/players/kick", "application/json", strings.NewReader("not json"))
+	resp, err := testPost(t, srv.URL+"/players/kick", "application/json", strings.NewReader("not json"))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -75,7 +94,7 @@ func TestServe_RconError(t *testing.T) {
 		return "", errors.New("upstream broken: 127.0.0.1:25575")
 	}}
 	srv := newSrv(t, "minecraft-java", rc)
-	resp, err := http.Get(srv.URL + "/players")
+	resp, err := testGet(t, srv.URL+"/players")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -97,7 +116,7 @@ func TestServe_CacheReturnsLastResult(t *testing.T) {
 	}}
 	srv := newSrv(t, "minecraft-java", rc)
 	for i := 0; i < 3; i++ {
-		resp, err := http.Get(srv.URL + "/players")
+		resp, err := testGet(t, srv.URL+"/players")
 		if err != nil {
 			t.Fatalf("get: %v", err)
 		}
@@ -116,7 +135,7 @@ func TestBanned_SupportedGameSuccess(t *testing.T) {
 		}, "\n"), nil
 	}}
 	srv := newSrv(t, "minecraft-java", rc)
-	resp, err := http.Get(srv.URL + "/players/banned")
+	resp, err := testGet(t, srv.URL+"/players/banned")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -139,7 +158,7 @@ func TestBanned_SupportedGameSuccess(t *testing.T) {
 func TestBanned_RconError(t *testing.T) {
 	rc := &fakeRcon{respond: func(string) (string, error) { return "", errors.New("rcon down") }}
 	srv := newSrv(t, "minecraft-java", rc)
-	resp, err := http.Get(srv.URL + "/players/banned")
+	resp, err := testGet(t, srv.URL+"/players/banned")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

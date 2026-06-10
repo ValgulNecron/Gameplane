@@ -20,7 +20,7 @@ func TestWrite_OSCreateError(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	// POST /files/write?path=/is-a-dir — os.Create on a directory fails.
-	resp, err := http.Post(srvURL+"/files/write?path=/is-a-dir", "text/plain", strings.NewReader("x"))
+	resp, err := testPost(t, srvURL+"/files/write?path=/is-a-dir", "text/plain", strings.NewReader("x"))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}

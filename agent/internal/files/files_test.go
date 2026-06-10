@@ -41,11 +41,25 @@ func get(t *testing.T, srvURL, path string, q url.Values) *http.Response {
 	if q != nil {
 		full += "?" + q.Encode()
 	}
-	resp, err := http.Get(full)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, full, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	return resp
+}
+
+func testPost(t *testing.T, url, contentType string, body io.Reader) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, body)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	return http.DefaultClient.Do(req)
 }
 
 func TestList(t *testing.T) {
@@ -211,7 +225,7 @@ func TestWrite(t *testing.T) {
 
 	t.Run("writes file in root", func(t *testing.T) {
 		body := bytes.NewBufferString("hello world")
-		resp, err := http.Post(srvURL+"/files/write?path=/a.txt", "text/plain", body)
+		resp, err := testPost(t, srvURL+"/files/write?path=/a.txt", "text/plain", body)
 		if err != nil {
 			t.Fatalf("post: %v", err)
 		}
@@ -236,7 +250,7 @@ func TestWrite(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = os.Remove(link) })
 		// Targeting the symlink itself: resolve will follow and reject.
-		resp, err := http.Post(srvURL+"/files/write?path=/escape", "text/plain", strings.NewReader("x"))
+		resp, err := testPost(t, srvURL+"/files/write?path=/escape", "text/plain", strings.NewReader("x"))
 		if err != nil {
 			t.Fatalf("post: %v", err)
 		}
@@ -252,7 +266,7 @@ func TestUpload(t *testing.T) {
 
 	t.Run("happy path", func(t *testing.T) {
 		buf, ct := multipartBody(t, map[string]string{"a.txt": "alpha", "b.txt": "beta"})
-		resp, err := http.Post(srvURL+"/files/upload?path=/up", ct, buf)
+		resp, err := testPost(t, srvURL+"/files/upload?path=/up", ct, buf)
 		if err != nil {
 			t.Fatalf("post: %v", err)
 		}
@@ -276,7 +290,7 @@ func TestUpload(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = os.Remove(link) })
 		buf, ct := multipartBody(t, map[string]string{"x.txt": "x"})
-		resp, err := http.Post(srvURL+"/files/upload?path=/esc-up", ct, buf)
+		resp, err := testPost(t, srvURL+"/files/upload?path=/esc-up", ct, buf)
 		if err != nil {
 			t.Fatalf("post: %v", err)
 		}
@@ -288,7 +302,7 @@ func TestUpload(t *testing.T) {
 
 	t.Run("multipart parse error", func(t *testing.T) {
 		// Wrong Content-Type (no multipart boundary) → ParseMultipartForm fails.
-		resp, err := http.Post(srvURL+"/files/upload?path=/", "text/plain", strings.NewReader("not multipart"))
+		resp, err := testPost(t, srvURL+"/files/upload?path=/", "text/plain", strings.NewReader("not multipart"))
 		if err != nil {
 			t.Fatalf("post: %v", err)
 		}
@@ -330,7 +344,7 @@ func TestUpload_TooManyFiles(t *testing.T) {
 		files[filepath.Join("f"+itoa(i)+".txt")] = "x"
 	}
 	buf, ct := multipartBody(t, files)
-	resp, err := http.Post(srvURL+"/files/upload?path=/many", ct, buf)
+	resp, err := testPost(t, srvURL+"/files/upload?path=/many", ct, buf)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -342,7 +356,7 @@ func TestUpload_TooManyFiles(t *testing.T) {
 
 func TestMkdir(t *testing.T) {
 	srvURL, root := newServer(t)
-	resp, err := http.Post(srvURL+"/files/mkdir?path=/single", "", nil)
+	resp, err := testPost(t, srvURL+"/files/mkdir?path=/single", "", nil)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -359,7 +373,7 @@ func TestMkdir(t *testing.T) {
 func TestMkdir_BadResolve(t *testing.T) {
 	// Parent path doesn't exist → resolve fails on its EvalSymlinks call.
 	srvURL, _ := newServer(t)
-	resp, err := http.Post(srvURL+"/files/mkdir?path=/no/such/parent/dir", "", nil)
+	resp, err := testPost(t, srvURL+"/files/mkdir?path=/no/such/parent/dir", "", nil)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -382,7 +396,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	t.Run("non-recursive removes file", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", srvURL+"/files/delete?path=/f", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/f", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("delete: %v", err)
@@ -397,7 +411,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("non-recursive on non-empty dir errors", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", srvURL+"/files/delete?path=/d", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/d", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("delete: %v", err)
@@ -409,7 +423,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("recursive removes dir tree", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", srvURL+"/files/delete?path=/d&recursive=true", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/d&recursive=true", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("delete: %v", err)
@@ -421,7 +435,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("refuses to delete root", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", srvURL+"/files/delete?path=/&recursive=true", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/&recursive=true", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("delete: %v", err)
@@ -433,7 +447,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("bad resolve on delete (parent missing)", func(t *testing.T) {
-		req, _ := http.NewRequest("DELETE", srvURL+"/files/delete?path=/no/such/parent/file", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/no/such/parent/file", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("delete: %v", err)

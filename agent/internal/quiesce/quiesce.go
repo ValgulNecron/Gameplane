@@ -124,6 +124,6 @@ func (minecraftQuiescer) Unquiesce(rc Rcon) error {
 
 type unsupportedQuiescer struct{}
 
-func (unsupportedQuiescer) Supported() bool        { return false }
-func (unsupportedQuiescer) Quiesce(Rcon) error     { return nil }
-func (unsupportedQuiescer) Unquiesce(Rcon) error   { return nil }
+func (unsupportedQuiescer) Supported() bool      { return false }
+func (unsupportedQuiescer) Quiesce(Rcon) error   { return nil }
+func (unsupportedQuiescer) Unquiesce(Rcon) error { return nil }

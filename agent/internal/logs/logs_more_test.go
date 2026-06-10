@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,7 +40,10 @@ func TestTail_OpenError(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -72,13 +76,16 @@ func TestStreamFile_CtxCanceledImmediately(t *testing.T) {
 	// of the loop returns ctx.Err() before any IO.
 	srv := dummyWSServer(t)
 	defer srv.Close()
-	cli, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	cli, dialResp, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if dialResp != nil && dialResp.Body != nil {
+		defer dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
 	defer cli.Close(websocket.StatusNormalClosure, "")
 
-	if err := streamFile(ctx, cli, path, false); err != context.Canceled {
+	if err := streamFile(ctx, cli, path, false); !errors.Is(err, context.Canceled) {
 		t.Fatalf("got %v want %v", err, context.Canceled)
 	}
 }

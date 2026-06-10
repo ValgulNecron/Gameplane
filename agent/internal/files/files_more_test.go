@@ -41,7 +41,7 @@ func TestList_ResolveError(t *testing.T) {
 // TestDelete_ResolveError covers the resolve-fail branch on /files/delete.
 func TestDelete_ResolveError(t *testing.T) {
 	srvURL, _ := newServer(t)
-	req, _ := http.NewRequest("DELETE", srvURL+"/files/delete?path=/no/such/parent/file", nil)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/no/such/parent/file", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("delete: %v", err)

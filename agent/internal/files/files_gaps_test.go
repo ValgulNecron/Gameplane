@@ -30,7 +30,7 @@ func TestList_NotADirectory(t *testing.T) {
 func TestWrite_BodyTooLarge(t *testing.T) {
 	srvURL, _ := newServer(t)
 	body := bytes.NewReader(bytes.Repeat([]byte("a"), maxWriteBytes+1))
-	resp, err := http.Post(srvURL+"/files/write?path=/big.txt", "application/octet-stream", body)
+	resp, err := testPost(t, srvURL+"/files/write?path=/big.txt", "application/octet-stream", body)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestWrite_BodyTooLarge(t *testing.T) {
 // TestWrite_BadResolve hits the resolve-error branch on /files/write.
 func TestWrite_BadResolve(t *testing.T) {
 	srvURL, _ := newServer(t)
-	resp, err := http.Post(srvURL+"/files/write?path=/no/such/parent/file", "text/plain", strings.NewReader("x"))
+	resp, err := testPost(t, srvURL+"/files/write?path=/no/such/parent/file", "text/plain", strings.NewReader("x"))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -68,18 +68,23 @@ func TestSaveMultipart_OpenError(t *testing.T) {
 		t.Fatalf("readForm: %v", err)
 	}
 	defer form.RemoveAll()
+	var fh *multipart.FileHeader
 	for _, fhs := range form.File {
-		for _, fh := range fhs {
-			fh.Filename = "valid.txt"
-			form.RemoveAll() // invalidate the underlying tmpfile
-			err := saveMultipart(dir, fh)
-			if err == nil {
-				return // some platforms keep the file open; tolerate
-			}
-			if !errors.Is(err, os.ErrNotExist) && !strings.Contains(err.Error(), "no such file") {
-				return
-			}
-			return
+		if len(fhs) > 0 {
+			fh = fhs[0]
+			break
+		}
+	}
+	if fh == nil {
+		t.Fatal("no file header parsed")
+	}
+	fh.Filename = "valid.txt"
+	form.RemoveAll() // invalidate the underlying tmpfile
+	if err := saveMultipart(dir, fh); err != nil {
+		// some platforms keep the file open; tolerate a nil error above,
+		// and only report errors that aren't the expected not-exist kind.
+		if !errors.Is(err, os.ErrNotExist) && !strings.Contains(err.Error(), "no such file") {
+			t.Logf("saveMultipart returned unexpected error: %v", err)
 		}
 	}
 }
@@ -98,7 +103,7 @@ func TestMkdir_ExistingFile(t *testing.T) {
 	if err := os.WriteFile(conflict, []byte("x"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	resp, err := http.Post(srvURL+"/files/mkdir?path=/blocking/sub", "", nil)
+	resp, err := testPost(t, srvURL+"/files/mkdir?path=/blocking/sub", "", nil)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -112,7 +117,7 @@ func TestMkdir_ExistingFile(t *testing.T) {
 func TestUpload_ResolveError(t *testing.T) {
 	srvURL, _ := newServer(t)
 	buf, ct := multipartBody(t, map[string]string{"x.txt": "y"})
-	resp, err := http.Post(srvURL+"/files/upload?path=/no/such/parent", ct, buf)
+	resp, err := testPost(t, srvURL+"/files/upload?path=/no/such/parent", ct, buf)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
