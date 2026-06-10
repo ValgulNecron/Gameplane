@@ -205,6 +205,11 @@ func (r *GameServerReconciler) reconcileAgentService(
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
 		svc.Spec.Type = corev1.ServiceTypeClusterIP
+		// The agent must be reachable while the game container is still
+		// starting (console/files/logs during long world generation), so
+		// don't gate endpoints on whole-pod readiness — the game's
+		// readiness probe would otherwise hold the agent hostage.
+		svc.Spec.PublishNotReadyAddresses = true
 		svc.Spec.Selector = map[string]string{
 			"app.kubernetes.io/name":     "kestrel-game",
 			"app.kubernetes.io/instance": gs.Name,

@@ -481,6 +481,9 @@ func TestGameServer_AgentServiceAlwaysClusterIP(t *testing.T) {
 		if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 8090 {
 			return false, "agent service ports unexpected"
 		}
+		if !svc.Spec.PublishNotReadyAddresses {
+			return false, "agent service must publish not-ready addresses"
+		}
 		if svc.Spec.Selector["app.kubernetes.io/instance"] != "smp" {
 			return false, "agent service selector missing instance label"
 		}
