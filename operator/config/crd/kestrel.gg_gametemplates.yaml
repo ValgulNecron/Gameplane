@@ -1028,6 +1028,11 @@ spec:
             - image
             - version
             type: object
+            x-kubernetes-validations:
+            - message: consoleMode 'rcon' requires spec.rcon with a protocol other
+                than 'none'
+              rule: '!has(self.consoleMode) || self.consoleMode != ''rcon'' || (has(self.rcon)
+                && (!has(self.rcon.protocol) || self.rcon.protocol != ''none''))'
           status:
             description: |-
               GameTemplateStatus is intentionally minimal — templates are mostly

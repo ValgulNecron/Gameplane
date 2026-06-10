@@ -1013,7 +1013,13 @@ spec:
                         type: integer
                     type: object
                   schedule:
-                    minLength: 1
+                    description: |-
+                      Schedule is a standard cron expression; same structural guard as
+                      BackupScheduleSpec.Schedule so typos are rejected at admission
+                      instead of failing inside the reconcile loop of the materialized
+                      BackupSchedule.
+                    minLength: 9
+                    pattern: ^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$
                     type: string
                   suspend:
                     type: boolean
@@ -1028,7 +1034,11 @@ spec:
                   Config holds wizard-driven values keyed by ConfigField.Name from
                   the referenced GameTemplate. The operator materializes these as
                   env vars or files per the template's ConfigSchema.
+                maxProperties: 64
                 type: object
+                x-kubernetes-validations:
+                - message: config values must be at most 4096 characters
+                  rule: self.all(k, self[k].size() <= 4096)
               env:
                 description: Env is appended to (and overrides) the template's env
                   vars.
@@ -1213,8 +1223,12 @@ spec:
                   hostname:
                     description: |-
                       Hostname is an optional DNS name the operator may advertise via
-                      ingress / external-dns annotations on the Service. Free-form; the
-                      operator does not create the DNS record itself.
+                      ingress / external-dns annotations on the Service. Must be an
+                      RFC 1123 hostname: dotted labels of 1-63 alphanumeric characters
+                      or hyphens, no leading/trailing hyphen, at most 253 characters
+                      total. The operator does not create the DNS record itself.
+                    maxLength: 253
+                    pattern: ^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$
                     type: string
                   portOverrides:
                     description: |-
@@ -1238,6 +1252,8 @@ spec:
                           description: ServicePort overrides the external Service
                             port.
                           format: int32
+                          maximum: 65535
+                          minimum: 1
                           type: integer
                       required:
                       - name
@@ -1250,7 +1266,11 @@ spec:
                       ServiceAnnotations are merged into the fronting Service's
                       annotations (useful for LoadBalancer-specific config, external-dns
                       hooks, etc.).
+                    maxProperties: 32
                     type: object
+                    x-kubernetes-validations:
+                    - message: serviceAnnotations values must be at most 4096 characters
+                      rule: self.all(k, self[k].size() <= 4096)
                 type: object
               nodeSelector:
                 additionalProperties:
@@ -1258,7 +1278,11 @@ spec:
                 description: |-
                   NodeSelector / Tolerations / Affinity are passed through to the
                   pod spec unchanged.
+                maxProperties: 32
                 type: object
+                x-kubernetes-validations:
+                - message: nodeSelector values must be at most 253 characters
+                  rule: self.all(k, self[k].size() <= 253)
               resources:
                 description: Resources overrides compute resources from the template.
                 properties:

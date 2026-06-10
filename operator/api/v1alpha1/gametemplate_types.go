@@ -9,6 +9,7 @@ import (
 // GameTemplateSpec defines a reusable blueprint for a game server.
 // Users instantiate a GameTemplate by creating a GameServer that
 // references it.
+// +kubebuilder:validation:XValidation:rule="!has(self.consoleMode) || self.consoleMode != 'rcon' || (has(self.rcon) && (!has(self.rcon.protocol) || self.rcon.protocol != 'none'))",message="consoleMode 'rcon' requires spec.rcon with a protocol other than 'none'"
 type GameTemplateSpec struct {
 	// DisplayName is a human-friendly label shown in the dashboard.
 	// +kubebuilder:validation:MinLength=1

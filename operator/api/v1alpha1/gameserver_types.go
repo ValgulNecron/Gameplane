@@ -44,6 +44,8 @@ type GameServerSpec struct {
 	// Config holds wizard-driven values keyed by ConfigField.Name from
 	// the referenced GameTemplate. The operator materializes these as
 	// env vars or files per the template's ConfigSchema.
+	// +kubebuilder:validation:MaxProperties=64
+	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k].size() <= 4096)",message="config values must be at most 4096 characters"
 	// +optional
 	Config map[string]string `json:"config,omitempty"`
 
@@ -61,6 +63,8 @@ type GameServerSpec struct {
 
 	// NodeSelector / Tolerations / Affinity are passed through to the
 	// pod spec unchanged.
+	// +kubebuilder:validation:MaxProperties=32
+	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k].size() <= 253)",message="nodeSelector values must be at most 253 characters"
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// +optional
@@ -99,14 +103,20 @@ type GameServerNetworking struct {
 	Expose string `json:"expose,omitempty"`
 
 	// Hostname is an optional DNS name the operator may advertise via
-	// ingress / external-dns annotations on the Service. Free-form; the
-	// operator does not create the DNS record itself.
+	// ingress / external-dns annotations on the Service. Must be an
+	// RFC 1123 hostname: dotted labels of 1-63 alphanumeric characters
+	// or hyphens, no leading/trailing hyphen, at most 253 characters
+	// total. The operator does not create the DNS record itself.
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$`
 	// +optional
 	Hostname string `json:"hostname,omitempty"`
 
 	// ServiceAnnotations are merged into the fronting Service's
 	// annotations (useful for LoadBalancer-specific config, external-dns
 	// hooks, etc.).
+	// +kubebuilder:validation:MaxProperties=32
+	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k].size() <= 4096)",message="serviceAnnotations values must be at most 4096 characters"
 	// +optional
 	ServiceAnnotations map[string]string `json:"serviceAnnotations,omitempty"`
 
@@ -122,6 +132,8 @@ type PortOverride struct {
 	Name string `json:"name"`
 
 	// ServicePort overrides the external Service port.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	// +optional
 	ServicePort int32 `json:"servicePort,omitempty"`
 
@@ -136,7 +148,12 @@ type PortOverride struct {
 // configure when enabling backups directly from GameServer. The
 // operator materializes this into a managed BackupSchedule.
 type InlineBackupPolicy struct {
-	// +kubebuilder:validation:MinLength=1
+	// Schedule is a standard cron expression; same structural guard as
+	// BackupScheduleSpec.Schedule so typos are rejected at admission
+	// instead of failing inside the reconcile loop of the materialized
+	// BackupSchedule.
+	// +kubebuilder:validation:MinLength=9
+	// +kubebuilder:validation:Pattern=`^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$`
 	Schedule string `json:"schedule"`
 
 	// RepoRef points at a BackupRepo (cluster-scoped resource, TBD) or
