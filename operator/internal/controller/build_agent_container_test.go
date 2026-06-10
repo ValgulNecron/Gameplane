@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -135,4 +136,33 @@ func TestBuildAgentContainer_RconEnabledEnv(t *testing.T) {
 			t.Fatalf("KESTREL_RCON_ENABLED=%q, want false", got)
 		}
 	})
+}
+
+func TestBuildAgentContainer_GameLogPathArg(t *testing.T) {
+	gs := &kestrelv1alpha1.GameServer{}
+	gs.Name = "smp"
+	gs.Namespace = "g"
+
+	hasArg := func(c corev1.Container, want string) bool {
+		for _, a := range c.Args {
+			if a == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	tmpl := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
+		LogPath: "/data/logs/latest.log",
+	}}
+	if !hasArg(buildAgentContainer(gs, tmpl, "fb"), "--game-log-path=/data/logs/latest.log") {
+		t.Fatal("expected --game-log-path arg when template declares logPath")
+	}
+
+	bare := &kestrelv1alpha1.GameTemplate{}
+	for _, a := range buildAgentContainer(gs, bare, "fb").Args {
+		if strings.HasPrefix(a, "--game-log-path") {
+			t.Fatalf("unexpected log-path arg without template logPath: %s", a)
+		}
+	}
 }

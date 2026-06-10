@@ -393,14 +393,18 @@ func buildAgentContainer(
 	roRootFS := true
 	noPrivEsc := false
 	uid := int64(65532)
+	args := []string{
+		"--tls-cert=/etc/kestrel/agent-tls/tls.crt",
+		"--tls-key=/etc/kestrel/agent-tls/tls.key",
+		"--tls-client-ca=/etc/kestrel/agent-tls/ca.crt",
+	}
+	if tmpl.Spec.LogPath != "" {
+		args = append(args, "--game-log-path="+tmpl.Spec.LogPath)
+	}
 	return corev1.Container{
 		Name:  "agent",
 		Image: image,
-		Args: []string{
-			"--tls-cert=/etc/kestrel/agent-tls/tls.crt",
-			"--tls-key=/etc/kestrel/agent-tls/tls.key",
-			"--tls-client-ca=/etc/kestrel/agent-tls/ca.crt",
-		},
+		Args:  args,
 		Env: []corev1.EnvVar{
 			{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
 			{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},

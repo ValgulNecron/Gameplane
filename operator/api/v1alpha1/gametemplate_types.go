@@ -81,6 +81,14 @@ type GameTemplateSpec struct {
 	// +optional
 	ConsoleMode string `json:"consoleMode,omitempty"`
 
+	// LogPath is the file holding the game's primary log, as seen from
+	// inside the pod (e.g. "/data/logs/latest.log"). It must live under
+	// the shared data volume (Storage.MountPath) so the agent sidecar
+	// can tail it for the dashboard's Logs tab. Leave empty for games
+	// that only log to stdout — the Logs tab is then unavailable.
+	// +optional
+	LogPath string `json:"logPath,omitempty"`
+
 	// Probes are the default readiness/liveness/startup probes for the
 	// game container. Operator supplies sane defaults when unset.
 	// +optional

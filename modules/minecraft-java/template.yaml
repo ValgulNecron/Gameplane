@@ -50,6 +50,10 @@ spec:
     size: 10Gi
     mountPath: /data
 
+  # itzg/minecraft-server writes the server log under the data volume,
+  # where the agent sidecar can tail it for the dashboard's Logs tab.
+  logPath: /data/logs/latest.log
+
   resources:
     requests:
       cpu: 500m

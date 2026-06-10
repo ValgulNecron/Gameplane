@@ -307,9 +307,11 @@ func applyBusyboxPTYTemplate(t *testing.T, tmplName string) {
 	})
 }
 
-// applyBusyboxLogTickerTemplate creates a GameTemplate that emits the
-// given marker line to stdout every second. Used by the WS log-tail
-// test — the marker is what the test grep'es for in the streamed frames.
+// applyBusyboxLogTickerTemplate creates a GameTemplate that appends the
+// given marker line to /data/game.log every second and declares that
+// file as spec.logPath, so the agent sidecar tails it. Used by the WS
+// log-tail test — the marker is what the test grep'es for in the
+// streamed frames.
 func applyBusyboxLogTickerTemplate(t *testing.T, tmplName, marker string) {
 	t.Helper()
 	ctx := context.Background()
@@ -322,7 +324,8 @@ func applyBusyboxLogTickerTemplate(t *testing.T, tmplName, marker string) {
 			"game":        "busybox",
 			"version":     "1",
 			"image":       "busybox:1.36",
-			"command":     []any{"sh", "-c", "while true; do echo " + marker + "; sleep 1; done"},
+			"command":     []any{"sh", "-c", "while true; do echo " + marker + " >> /data/game.log; sleep 1; done"},
+			"logPath":     "/data/game.log",
 			"ports": []any{
 				map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
 			},

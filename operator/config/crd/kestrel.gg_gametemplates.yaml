@@ -397,6 +397,14 @@ spec:
                   "itzg/minecraft-server:2025.1.0"). Can be overridden by GameServer.
                 minLength: 1
                 type: string
+              logPath:
+                description: |-
+                  LogPath is the file holding the game's primary log, as seen from
+                  inside the pod (e.g. "/data/logs/latest.log"). It must live under
+                  the shared data volume (Storage.MountPath) so the agent sidecar
+                  can tail it for the dashboard's Logs tab. Leave empty for games
+                  that only log to stdout — the Logs tab is then unavailable.
+                type: string
               ports:
                 description: Ports declares exposed ports on the game container.
                 items:
