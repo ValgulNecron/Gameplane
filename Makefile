@@ -214,13 +214,14 @@ image-agent: ## Build agent image
 generate: ## Run controller-gen deepcopy generators
 	cd operator && go run sigs.k8s.io/controller-tools/cmd/controller-gen object paths=./api/...
 
-manifests: ## Regenerate CRDs + RBAC manifests
+manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 	cd operator && go run sigs.k8s.io/controller-tools/cmd/controller-gen \
 		crd:generateEmbeddedObjectMeta=true \
 		rbac:roleName=manager-role \
 		paths=./... \
 		output:crd:artifacts:config=config/crd \
 		output:rbac:artifacts:config=config/rbac
+	cp operator/config/crd/kestrel.gg_*.yaml charts/kestrel/crds/
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-install

@@ -108,7 +108,7 @@ Coverage gates: `operator/.testcoverage.yml` (71%), `api/.testcoverage.yml` (80%
 
 ```sh
 make generate    # regenerates operator/api/v1alpha1/zz_generated.deepcopy.go
-make manifests   # regenerates operator/config/crd/bases/*.yaml and operator/config/rbac/*.yaml
+make manifests   # regenerates operator/config/crd/*.yaml + operator/config/rbac/*.yaml and syncs charts/kestrel/crds/
 ```
 
 Forgetting these leaves the CRD YAML out of sync with the Go types — CI will catch it, but your envtest run will fail mysteriously first.
@@ -197,10 +197,11 @@ make generate && make manifests
 Commit the regenerated files in the same change:
 
 - `operator/api/v1alpha1/zz_generated.deepcopy.go`
-- `operator/config/crd/bases/*.yaml`
+- `operator/config/crd/*.yaml`
 - `operator/config/rbac/*.yaml`
+- `charts/kestrel/crds/*.yaml` (synced automatically by `make manifests`)
 
-If a Helm chart copy of the CRDs lives under `charts/kestrel/crds/`, keep it in sync too.
+Note: Helm only installs `crds/` on first install — `helm upgrade` never updates CRDs, so e2e/dev clusters must be recreated after CRD schema changes.
 
 ### 8. Pre-flight every PR
 
