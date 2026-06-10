@@ -112,11 +112,7 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 
 // TestAPI_LogsTailWS dials /ws/servers/{name}/logs and verifies a known
 // marker emitted by the game container surfaces in the streamed frames.
-//
-// SKIPS in CI: /ws/servers/{name}/logs is proxied to the agent sidecar
-// (which is not yet auth-wired in the e2e helm chart). The test runs
-// locally against a manually-provisioned cluster where the agent is
-// reachable. requireAgentReady drives the skip.
+// The route is proxied to the agent sidecar over mTLS.
 func TestAPI_LogsTailWS(t *testing.T) {
 	ctx := context.Background()
 	ns := "kestrel-games"
@@ -133,6 +129,7 @@ func TestAPI_LogsTailWS(t *testing.T) {
 
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
+	waitAgentReachable(t, cli, gs)
 
 	wsConn, stop := dialAuthedWS(t, cli, "/ws/servers/"+gs+"/logs")
 	defer stop()
