@@ -51,6 +51,25 @@ func requireAgentReady(t *testing.T, ns, gsName string) {
 	t.Fatalf("agent sidecar never reached stable Ready in 90s. agent logs:\n%s", logs)
 }
 
+// waitAgentReachable polls a cheap agent endpoint through the API until
+// it answers 200. "Agent container Ready" does not mean routable yet:
+// the per-GameServer agent Service, its EndpointSlice, and kube-proxy's
+// dataplane programming are all asynchronous, so the first proxied
+// request can race that chain and see a 502.
+func waitAgentReachable(t *testing.T, cli *APIClient, gs string) {
+	t.Helper()
+	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
+		resp, body, err := cli.Get("/servers/" + gs + "/players")
+		if err != nil {
+			return false, "GET /players: " + err.Error()
+		}
+		if resp.StatusCode != http.StatusOK {
+			return false, "status=" + http.StatusText(resp.StatusCode) + " body=" + string(body)
+		}
+		return true, ""
+	})
+}
+
 // TestAPI_AgentFilesRoundTrip exercises the API → agent proxy for the
 // files endpoints. The dashboard's Files tab calls this same path:
 // /servers/{name}/files/{write,list,read,delete}. The test:
@@ -80,6 +99,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
+	waitAgentReachable(t, cli, gs)
 
 	// Agent file paths are relative to the agent's data root ("/" is the
 	// game's data volume), matching the paths the list endpoint returns —
@@ -196,6 +216,8 @@ func TestAPI_AgentPlayers(t *testing.T) {
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
+
+	waitAgentReachable(t, cli, gs)
 
 	resp, body, err := cli.Get("/servers/" + gs + "/players")
 	if err != nil {
