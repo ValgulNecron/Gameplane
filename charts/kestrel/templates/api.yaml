@@ -56,6 +56,15 @@ rules:
   - apiGroups: ["kestrel.gg"]
     resources: [gameservers/status, backups/status, backupschedules/status, restores/status]
     verbs: [get, update, patch]
+  # The PTY console (api/internal/ws/attach.go) attaches to the game
+  # container via the pod-attach subresource. SPDY uses POST (create);
+  # the websocket transport uses GET.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods/attach]
+    verbs: [get, create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
