@@ -49,6 +49,26 @@ describe("LogsTab", () => {
     await waitFor(() => expect(screen.getByText(/1 lines/)).toBeInTheDocument());
   });
 
+  it("download button navigates to the log download URL", async () => {
+    render(<LogsTab name="alpha" />);
+    // jsdom can't navigate; swap in a plain object so the href
+    // assignment is observable instead of throwing "not implemented".
+    const original = window.location;
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { href: "" },
+    });
+    try {
+      await userEvent.click(screen.getByRole("button", { name: /download/i }));
+      expect(window.location.href).toBe("/servers/alpha/logs/download");
+    } finally {
+      Object.defineProperty(window, "location", {
+        writable: true,
+        value: original,
+      });
+    }
+  });
+
   it("closes the socket on unmount", async () => {
     const { unmount } = render(<LogsTab name="alpha" />);
     unmount();

@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Download } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Logs } from "@/lib/endpoints";
 import { openWS } from "@/lib/ws";
 
 const MAX_LINES = 20_000;
@@ -48,6 +52,17 @@ export function LogsTab({ name }: { name: string }) {
           onChange={(e) => setFilter(e.target.value)}
         />
         <span className="text-xs text-muted">{filtered.length.toLocaleString()} lines</span>
+        <div className="ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              window.location.href = Logs.downloadURL(name);
+            }}
+          >
+            <Download className="h-3 w-3" /> Download
+          </Button>
+        </div>
       </div>
       <div ref={scrollerRef} className="flex-1 overflow-auto bg-[#0b0b0d] font-mono text-xs">
         <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>

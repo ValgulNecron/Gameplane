@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Audit, Auth, Files, Players, Servers, Templates, Users } from "./endpoints";
+import { Audit, Auth, Files, Logs, Players, Servers, Templates, Users } from "./endpoints";
 
 const fetchMock = vi.fn();
 
@@ -168,6 +168,14 @@ describe("endpoints", () => {
     it("downloadURL builds a path-encoded GET URL", () => {
       expect(Files.downloadURL("mc-survival", "/world/level.dat")).toBe(
         "/servers/mc-survival/files/download?path=%2Fworld%2Flevel.dat",
+      );
+    });
+  });
+
+  describe("Logs", () => {
+    it("downloadURL builds a server-encoded GET URL", () => {
+      expect(Logs.downloadURL("mc survival")).toBe(
+        "/servers/mc%20survival/logs/download",
       );
     });
   });

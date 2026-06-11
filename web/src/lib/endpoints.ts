@@ -326,6 +326,14 @@ export const Files = {
     `${filesBase(server)}/download?path=${encodeURIComponent(path)}`,
 };
 
+// Historical log access. Live tailing goes over the WebSocket at
+// /ws/servers/{name}/logs; download fetches the whole current log file
+// from the agent as an attachment.
+export const Logs = {
+  downloadURL: (server: string) =>
+    `/servers/${encodeURIComponent(server)}/logs/download`,
+};
+
 // Module catalog and install/uninstall surface. The dashboard reads
 // the merged catalog from /modules/catalog and drives installs by
 // creating Module CRs through /modules.
