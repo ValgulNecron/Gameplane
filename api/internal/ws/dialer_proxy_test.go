@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // TestWSProxy_NoTLSConfigReturns503 covers the early-return when mTLS
@@ -61,6 +63,20 @@ func TestWSProxy_ScopeError(t *testing.T) {
 	p.wsProxy("/logs/tail")(rr, req)
 	if rr.Code == http.StatusSwitchingProtocols {
 		t.Fatalf("expected non-101, got %d", rr.Code)
+	}
+}
+
+// TestMount_LogsDownloadRouted proves Mount registers the log-download
+// proxy route: with no mTLS material the handler answers 503 (the
+// dev-mode fallback), whereas an unregistered path would 404.
+func TestMount_LogsDownloadRouted(t *testing.T) {
+	r := chi.NewRouter()
+	Mount(r, nil, "", "", "")
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha/logs/download", nil)
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got %d, want 503", rr.Code)
 	}
 }
 

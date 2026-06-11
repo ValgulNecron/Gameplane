@@ -38,6 +38,7 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	p := &proxy{k: k, tls: tlsCfg, http: client}
 	r.Get("/ws/servers/{name}/console", p.wsProxy("/console"))
 	r.Get("/ws/servers/{name}/logs", p.wsProxy("/logs/tail"))
+	r.Get("/servers/{name}/logs/download", p.httpProxy("/logs/download"))
 	// PTY console attaches via the Kubernetes API (not the agent), so it
 	// doesn't need mTLS material — it uses the API's existing in-cluster
 	// kubeconfig. Mounted unconditionally.
