@@ -79,6 +79,16 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	// Resolve spec.config against the template's configSchema before
+	// touching any children: invalid config must fail loudly (mirroring
+	// the missing-template path) instead of materializing a pod that
+	// silently ignores what the user asked for.
+	mc, err := materializeConfig(&gs, &tmpl)
+	if err != nil {
+		return ctrl.Result{}, r.setPhase(ctx, &gs, kestrelv1alpha1.GameServerPhaseFailed,
+			fmt.Sprintf("invalid config: %v", err))
+	}
+
 	if err := r.reconcilePVC(ctx, &gs, &tmpl); err != nil {
 		logger.Error(err, "reconcile PVC")
 		return ctrl.Result{}, err
@@ -99,7 +109,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile agent RBAC")
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl); err != nil {
+	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, mc); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
 	}
@@ -263,6 +273,7 @@ func svcPortsFromTemplate(
 
 func (r *GameServerReconciler) reconcileStatefulSet(
 	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	mc *materializedConfig,
 ) error {
 	replicas := int32(1)
 	if gs.Spec.Suspend {
@@ -286,8 +297,20 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		ss.Spec.ServiceName = gs.Name
 		ss.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
 		ss.Spec.Template.ObjectMeta.Labels = labels
+		// Stamp (or clear) the config fingerprint without touching
+		// annotations other actors may have set on the pod template.
+		ann := ss.Spec.Template.ObjectMeta.Annotations
+		if mc.hash != "" {
+			if ann == nil {
+				ann = map[string]string{}
+			}
+			ann[configHashAnnotation] = mc.hash
+		} else {
+			delete(ann, configHashAnnotation)
+		}
+		ss.Spec.Template.ObjectMeta.Annotations = ann
 		ss.Spec.Template.Spec.Containers = []corev1.Container{
-			buildGameContainer(gs, tmpl, image),
+			buildGameContainer(gs, tmpl, image, mc),
 			buildAgentContainer(gs, tmpl, r.AgentImage),
 		}
 		ss.Spec.Template.Spec.Volumes = []corev1.Volume{
@@ -329,6 +352,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 
 func buildGameContainer(
 	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, image string,
+	mc *materializedConfig,
 ) corev1.Container {
 	mountPath := "/data"
 	if tmpl.Spec.Storage.MountPath != "" {
@@ -340,7 +364,10 @@ func buildGameContainer(
 			Name: p.Name, ContainerPort: p.ContainerPort, Protocol: p.Protocol,
 		})
 	}
+	// Later entries win on duplicate names: template defaults, then
+	// schema-resolved config, then explicit spec.env overrides.
 	env := append([]corev1.EnvVar{}, tmpl.Spec.Env...)
+	env = append(env, mc.env...)
 	env = append(env, gs.Spec.Env...)
 
 	res := tmpl.Spec.Resources

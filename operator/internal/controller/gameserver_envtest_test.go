@@ -4,6 +4,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -584,6 +585,200 @@ func TestGameServer_ServiceAccountOverrideWins(t *testing.T) {
 		}
 		if got := ss.Spec.Template.Spec.ServiceAccountName; got != "my-own-sa" {
 			return false, "pod SA = " + got
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_ConfigMaterializesAsEnv — spec.config resolved against
+// the template's configSchema lands on the game container with the
+// documented precedence: template env < config < spec.env.
+func TestGameServer_ConfigMaterializesAsEnv(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	tmpl.Spec.Env = []corev1.EnvVar{
+		{Name: "EULA", Value: "TRUE"},
+		{Name: "TYPE", Value: "VANILLA"}, // config below must override this
+	}
+	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+		{Name: "TYPE", Type: "enum", Enum: []string{"VANILLA", "PAPER"}, Default: "VANILLA", Required: true},
+		{Name: "VERSION", Type: "string", Default: "LATEST"},
+		{Name: "MAX_PLAYERS", Type: "int", Default: "20"},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.Config = map[string]string{"TYPE": "PAPER"}
+	gs.Spec.Env = []corev1.EnvVar{{Name: "MAX_PLAYERS", Value: "64"}} // explicit env beats config default
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		var game *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == "game" {
+				game = &ss.Spec.Template.Spec.Containers[i]
+			}
+		}
+		if game == nil {
+			return false, "no game container"
+		}
+		// Later duplicates win in the kubelet; assert on the last
+		// occurrence of each name.
+		got := map[string]string{}
+		for _, e := range game.Env {
+			got[e.Name] = e.Value
+		}
+		want := map[string]string{
+			"EULA":        "TRUE",   // template env untouched
+			"TYPE":        "PAPER",  // config overrides template env
+			"VERSION":     "LATEST", // schema default applied
+			"MAX_PLAYERS": "64",     // spec.env overrides config
+		}
+		for k, v := range want {
+			if got[k] != v {
+				return false, "env " + k + " = " + got[k] + ", want " + v
+			}
+		}
+		if ss.Spec.Template.Annotations["kestrel.gg/config-hash"] == "" {
+			return false, "config-hash annotation missing"
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_InvalidConfigFailsThenRecovers — a config violating the
+// schema flips phase to Failed with a pointed message and creates no
+// StatefulSet; fixing spec.config materializes the server.
+func TestGameServer_InvalidConfigFailsThenRecovers(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+		{Name: "MODE", Type: "enum", Enum: []string{"survival", "creative"}},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.Config = map[string]string{"MODE": "hardcore"}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got := getGameServer(t, ns, "smp")
+		if got.Status.Phase != kestrelv1alpha1.GameServerPhaseFailed {
+			return false, "phase = " + string(got.Status.Phase)
+		}
+		for _, c := range got.Status.Conditions {
+			if c.Type == "Ready" && strings.Contains(c.Message, "MODE") {
+				return true, ""
+			}
+		}
+		return false, "Ready condition does not mention the offending field"
+	})
+
+	var ss appsv1.StatefulSet
+	if err := k8sClient.Get(context.Background(),
+		types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); !apierrors.IsNotFound(err) {
+		t.Fatalf("StatefulSet should not exist while config is invalid, get err = %v", err)
+	}
+
+	gs = getGameServer(t, ns, "smp")
+	gs.Spec.Config["MODE"] = "creative"
+	if err := k8sClient.Update(context.Background(), gs); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		got := getGameServer(t, ns, "smp")
+		if got.Status.Phase == kestrelv1alpha1.GameServerPhaseFailed {
+			return false, "phase still Failed after fixing config"
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_ConfigChangeRollsPodTemplate — editing a config value
+// must change the pod template (env + hash annotation) so the
+// StatefulSet rolls the pod.
+func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+		{Name: "DIFFICULTY", Type: "string", Default: "easy"},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	firstHash := ""
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		firstHash = ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		return firstHash != "", "config-hash annotation missing"
+	})
+
+	gs = getGameServer(t, ns, "smp")
+	gs.Spec.Config = map[string]string{"DIFFICULTY": "hard"}
+	if err := k8sClient.Update(context.Background(), gs); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		hash := ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		if hash == firstHash {
+			return false, "config-hash unchanged"
+		}
+		var game *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == "game" {
+				game = &ss.Spec.Template.Spec.Containers[i]
+			}
+		}
+		got := map[string]string{}
+		for _, e := range game.Env {
+			got[e.Name] = e.Value
+		}
+		if got["DIFFICULTY"] != "hard" {
+			return false, "DIFFICULTY = " + got["DIFFICULTY"]
 		}
 		return true, ""
 	})
