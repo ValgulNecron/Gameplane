@@ -49,6 +49,14 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 			"ports": []any{
 				map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
 			},
+			// Exercise spec.config materialization end to end: a value
+			// set explicitly, a default the operator must fill in, and a
+			// password that must land in a Secret instead of the pod spec.
+			"configSchema": []any{
+				map[string]any{"name": "DIFFICULTY", "type": "enum", "enum": []any{"easy", "hard"}, "default": "easy"},
+				map[string]any{"name": "MAX_PLAYERS", "type": "int", "default": "16"},
+				map[string]any{"name": "SERVER_PASS", "type": "password"},
+			},
 		},
 	}}
 	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).
@@ -67,6 +75,10 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec": map[string]any{
 			"templateRef": map[string]any{"name": tmplName},
+			"config": map[string]any{
+				"DIFFICULTY":  "hard",
+				"SERVER_PASS": "e2e-secret",
+			},
 		},
 	}}
 	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
@@ -108,6 +120,41 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 	}
 	if !contains(names, "game") {
 		t.Errorf("game container missing — container names: %s", strings.Join(names, ","))
+	}
+
+	// spec.config must be materialized: explicit value, schema default,
+	// and the password routed through the <gs>-config Secret.
+	for _, c := range ss.Spec.Template.Spec.Containers {
+		if c.Name != "game" {
+			continue
+		}
+		env := map[string]string{}
+		var passRef string
+		for _, e := range c.Env {
+			env[e.Name] = e.Value
+			if e.Value == "e2e-secret" {
+				t.Errorf("password appears inline in pod spec env %s", e.Name)
+			}
+			if e.Name == "SERVER_PASS" && e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil {
+				passRef = e.ValueFrom.SecretKeyRef.Name
+			}
+		}
+		if env["DIFFICULTY"] != "hard" {
+			t.Errorf("DIFFICULTY = %q, want hard", env["DIFFICULTY"])
+		}
+		if env["MAX_PLAYERS"] != "16" {
+			t.Errorf("MAX_PLAYERS = %q, want default 16", env["MAX_PLAYERS"])
+		}
+		if passRef != gsName+"-config" {
+			t.Errorf("SERVER_PASS SecretKeyRef = %q, want %s-config", passRef, gsName)
+		}
+	}
+	sec, err := envInstance.K8s.CoreV1().Secrets(ns).Get(ctx, gsName+"-config", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get config secret: %v", err)
+	}
+	if string(sec.Data["SERVER_PASS"]) != "e2e-secret" {
+		t.Errorf("config secret does not hold the password")
 	}
 }
 
