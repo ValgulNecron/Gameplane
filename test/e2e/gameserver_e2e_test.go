@@ -56,6 +56,16 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 				map[string]any{"name": "DIFFICULTY", "type": "enum", "enum": []any{"easy", "hard"}, "default": "easy"},
 				map[string]any{"name": "MAX_PLAYERS", "type": "int", "default": "16"},
 				map[string]any{"name": "SERVER_PASS", "type": "password"},
+				map[string]any{"name": "MOTD", "type": "string", "default": "hello e2e", "target": "file"},
+			},
+			// Exercise target:file materialization: the rendered file must
+			// land in the <gs>-files Secret and be wired to the pod via the
+			// config-init container, never into env.
+			"configFiles": []any{
+				map[string]any{
+					"path":     "cfg/server.cfg",
+					"template": "motd={{ .Values.MOTD }}\npass={{ .Values.SERVER_PASS }}\n",
+				},
 			},
 		},
 	}}
@@ -148,6 +158,9 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 		if passRef != gsName+"-config" {
 			t.Errorf("SERVER_PASS SecretKeyRef = %q, want %s-config", passRef, gsName)
 		}
+		if _, ok := env["MOTD"]; ok {
+			t.Errorf("file-target field MOTD leaked into game env")
+		}
 	}
 	sec, err := envInstance.K8s.CoreV1().Secrets(ns).Get(ctx, gsName+"-config", metav1.GetOptions{})
 	if err != nil {
@@ -155,6 +168,36 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 	}
 	if string(sec.Data["SERVER_PASS"]) != "e2e-secret" {
 		t.Errorf("config secret does not hold the password")
+	}
+
+	// target:file config must be rendered into the <gs>-files Secret and
+	// reach the pod through the config-init container.
+	filesSec, err := envInstance.K8s.CoreV1().Secrets(ns).Get(ctx, gsName+"-files", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get files secret: %v", err)
+	}
+	if got := string(filesSec.Data["file-0"]); got != "motd=hello e2e\npass=e2e-secret\n" {
+		t.Errorf("rendered file-0 = %q", got)
+	}
+	inits := ss.Spec.Template.Spec.InitContainers
+	if len(inits) != 1 || inits[0].Name != "config-init" {
+		t.Fatalf("expected a config-init init container, got %+v", inits)
+	}
+	foundVol := false
+	for _, v := range ss.Spec.Template.Spec.Volumes {
+		if v.Name != "config-files" {
+			continue
+		}
+		foundVol = true
+		if v.Secret == nil || v.Secret.SecretName != gsName+"-files" {
+			t.Errorf("config-files volume not backed by %s-files: %+v", gsName, v)
+		} else if len(v.Secret.Items) != 1 || v.Secret.Items[0].Key != "file-0" ||
+			v.Secret.Items[0].Path != "cfg/server.cfg" {
+			t.Errorf("config-files items do not map file-0 to cfg/server.cfg: %+v", v.Secret.Items)
+		}
+	}
+	if !foundVol {
+		t.Errorf("config-files volume missing from pod spec")
 	}
 }
 
