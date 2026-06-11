@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -41,6 +42,59 @@ func TestTail_NotConfigured(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status=%d", resp.StatusCode)
+	}
+}
+
+func TestDownload_NotConfigured(t *testing.T) {
+	url := mountServer(t, "")
+	resp, err := testGet(t, url+"/logs/download")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+}
+
+func TestDownload_FileMissing(t *testing.T) {
+	dir := t.TempDir()
+	url := mountServer(t, filepath.Join(dir, "latest.log"))
+	resp, err := testGet(t, url+"/logs/download")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+}
+
+func TestDownload_ServesFileAsAttachment(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "latest.log")
+	if err := os.WriteFile(logPath, []byte("line one\nline two\n"), 0o600); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	url := mountServer(t, logPath)
+	resp, err := testGet(t, url+"/logs/download")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); cd != `attachment; filename="latest.log"` {
+		t.Fatalf("content-disposition=%q", cd)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if string(body) != "line one\nline two\n" {
+		t.Fatalf("body=%q", body)
 	}
 }
 

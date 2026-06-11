@@ -10,9 +10,11 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/coder/websocket"
@@ -26,6 +28,30 @@ type handler struct {
 func Mount(r chi.Router, path string) {
 	h := &handler{path: path}
 	r.Get("/logs/tail", h.tail)
+	r.Get("/logs/download", h.download)
+}
+
+func (h *handler) download(w http.ResponseWriter, req *http.Request) {
+	if h.path == "" {
+		http.Error(w, "log download not configured (set --game-log-path)", http.StatusServiceUnavailable)
+		return
+	}
+	fi, err := os.Stat(h.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			http.Error(w, "log file not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if fi.IsDir() {
+		http.Error(w, "log path is a directory", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf(`attachment; filename=%q`, filepath.Base(h.path)))
+	http.ServeFile(w, req, h.path)
 }
 
 func (h *handler) tail(w http.ResponseWriter, req *http.Request) {
