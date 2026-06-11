@@ -129,6 +129,7 @@ func TestMaterializeConfig_Errors(t *testing.T) {
 		name    string
 		schema  []kestrelv1alpha1.ConfigField
 		config  map[string]string
+		files   []kestrelv1alpha1.ConfigFile
 		wantErr string
 	}{
 		{
@@ -168,15 +169,49 @@ func TestMaterializeConfig_Errors(t *testing.T) {
 			wantErr: "not one of",
 		},
 		{
-			name:    "file target not implemented",
+			name:    "file value without configFiles",
 			schema:  []kestrelv1alpha1.ConfigField{{Name: "SERVER_CFG", Type: "string", Target: "file"}},
 			config:  map[string]string{"SERVER_CFG": "motd=hi"},
-			wantErr: "file targets are not implemented",
+			wantErr: "declares no configFiles",
+		},
+		{
+			name:    "bad template syntax",
+			files:   []kestrelv1alpha1.ConfigFile{{Path: "server.cfg", Template: "{{ .Values.X"}},
+			wantErr: "parse template",
+		},
+		{
+			name:    "template references unknown key",
+			files:   []kestrelv1alpha1.ConfigFile{{Path: "server.cfg", Template: "{{ .Values.NOPE }}"}},
+			wantErr: "render template",
+		},
+		{
+			name:    "absolute path",
+			files:   []kestrelv1alpha1.ConfigFile{{Path: "/etc/passwd", Template: "x"}},
+			wantErr: "is absolute",
+		},
+		{
+			name:    "path escapes the data mount",
+			files:   []kestrelv1alpha1.ConfigFile{{Path: "../escape.cfg", Template: "x"}},
+			wantErr: "must not contain '..'",
+		},
+		{
+			name:    "unclean path",
+			files:   []kestrelv1alpha1.ConfigFile{{Path: "cfg//server.cfg", Template: "x"}},
+			wantErr: "is not clean",
+		},
+		{
+			name: "duplicate path",
+			files: []kestrelv1alpha1.ConfigFile{
+				{Path: "server.cfg", Template: "a"},
+				{Path: "server.cfg", Template: "b"},
+			},
+			wantErr: "duplicate path",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			gs, tmpl := configFixtures(tc.schema, tc.config)
+			tmpl.Spec.ConfigFiles = tc.files
 			_, err := materializeConfig(gs, tmpl)
 			if err == nil {
 				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
@@ -252,5 +287,124 @@ func TestMaterializeConfig_FileTargetUnsetIsAllowed(t *testing.T) {
 	}, nil)
 	if _, err := materializeConfig(gs, tmpl); err != nil {
 		t.Fatalf("unset optional file field should be fine, got: %v", err)
+	}
+}
+
+func TestMaterializeConfig_FileTargetRendersToFile(t *testing.T) {
+	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+		{Name: "MOTD", Type: "string", Target: "file", Default: "hello"},
+		{Name: "MAX_PLAYERS", Type: "int", Default: "20"},
+		{Name: "SERVER_PASS", Type: "password", Target: "file"},
+	}, map[string]string{"SERVER_PASS": "hunter22"})
+	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+		Path:     "cfg/server.cfg",
+		Template: "motd={{ .Values.MOTD }}\nmax={{ .Values.MAX_PLAYERS }}\npass={{ .Values.SERVER_PASS }}\nname={{ .Server.Name }}\n",
+	}}
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if len(mc.files) != 1 {
+		t.Fatalf("got %d files, want 1", len(mc.files))
+	}
+	f := mc.files[0]
+	if f.key != "file-0" || f.path != "cfg/server.cfg" {
+		t.Errorf("file key/path = %q/%q, want file-0/cfg/server.cfg", f.key, f.path)
+	}
+	want := "motd=hello\nmax=20\npass=hunter22\nname=smp\n"
+	if string(f.content) != want {
+		t.Errorf("rendered content = %q, want %q", f.content, want)
+	}
+	env := envMap(mc.env)
+	if _, ok := env["MOTD"]; ok {
+		t.Errorf("file-target field MOTD must not become an env var")
+	}
+	if env["MAX_PLAYERS"] != "20" {
+		t.Errorf("env-target field MAX_PLAYERS missing, got %v", env)
+	}
+	for _, e := range mc.env {
+		if e.Name == "SERVER_PASS" {
+			t.Errorf("file-target password must not appear in env at all, got %+v", e)
+		}
+	}
+	if len(mc.secretData) != 0 {
+		t.Errorf("file-target password belongs in the files Secret, not %v", mc.secretData)
+	}
+	if mc.hash == "" {
+		t.Errorf("hash should cover rendered files")
+	}
+}
+
+func TestMaterializeConfig_UnsetOptionalRendersEmptyInTemplate(t *testing.T) {
+	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+		{Name: "PASSWORD", Type: "string", Target: "file"},
+	}, nil)
+	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+		Path:     "server.cfg",
+		Template: "{{ if .Values.PASSWORD }}password={{ .Values.PASSWORD }}{{ end }}",
+	}}
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if got := string(mc.files[0].content); got != "" {
+		t.Errorf("unset optional field should render empty via the if-guard, got %q", got)
+	}
+}
+
+func TestMaterializeConfig_StaticFileNeedsNoSchema(t *testing.T) {
+	gs, tmpl := configFixtures(nil, nil)
+	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+		Path:     "eula.txt",
+		Template: "eula=true\n",
+	}}
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if got := string(mc.files[0].content); got != "eula=true\n" {
+		t.Errorf("static file content = %q", got)
+	}
+	if mc.hash == "" {
+		t.Errorf("hash should be set so adding/removing static files rolls the pod")
+	}
+}
+
+func TestMaterializeConfig_FileContentChangesHash(t *testing.T) {
+	schema := []kestrelv1alpha1.ConfigField{{Name: "MOTD", Type: "string", Target: "file", Default: "hi"}}
+	file := func(text string) []kestrelv1alpha1.ConfigFile {
+		return []kestrelv1alpha1.ConfigFile{{Path: "server.cfg", Template: text}}
+	}
+
+	gs, tmpl := configFixtures(schema, nil)
+	tmpl.Spec.ConfigFiles = file("motd={{ .Values.MOTD }}")
+	base, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+
+	// Same values, different template text: must roll the pod.
+	gsB, tmplB := configFixtures(schema, nil)
+	tmplB.Spec.ConfigFiles = file("# banner\nmotd={{ .Values.MOTD }}")
+	reworded, err := materializeConfig(gsB, tmplB)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if base.hash == reworded.hash {
+		t.Errorf("template-text change must change the config hash")
+	}
+
+	// Same template, different value: must roll too.
+	gsC, tmplC := configFixtures(schema, map[string]string{"MOTD": "yo"})
+	tmplC.Spec.ConfigFiles = file("motd={{ .Values.MOTD }}")
+	revalued, err := materializeConfig(gsC, tmplC)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if base.hash == revalued.hash {
+		t.Errorf("file-target value change must change the config hash")
 	}
 }

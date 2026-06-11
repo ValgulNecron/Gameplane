@@ -113,6 +113,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile config Secret")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileFilesSecret(ctx, &gs, mc); err != nil {
+		logger.Error(err, "reconcile files Secret")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, mc); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
@@ -317,7 +321,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 			buildGameContainer(gs, tmpl, image, mc),
 			buildAgentContainer(gs, tmpl, r.AgentImage),
 		}
-		ss.Spec.Template.Spec.Volumes = []corev1.Volume{
+		volumes := []corev1.Volume{
 			{
 				Name: "data",
 				VolumeSource: corev1.VolumeSource{
@@ -337,6 +341,27 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 				},
 			},
 		}
+		// Volumes and InitContainers are assigned wholesale so removing
+		// configFiles from the template strips them on the next reconcile.
+		if len(mc.files) > 0 {
+			items := make([]corev1.KeyToPath, 0, len(mc.files))
+			for _, f := range mc.files {
+				items = append(items, corev1.KeyToPath{Key: f.key, Path: f.path})
+			}
+			volumes = append(volumes, corev1.Volume{
+				Name: "config-files",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: filesSecretName(gs),
+						Items:      items,
+					},
+				},
+			})
+			ss.Spec.Template.Spec.InitContainers = []corev1.Container{buildConfigInitContainer(tmpl)}
+		} else {
+			ss.Spec.Template.Spec.InitContainers = nil
+		}
+		ss.Spec.Template.Spec.Volumes = volumes
 		if gs.Spec.NodeSelector != nil {
 			ss.Spec.Template.Spec.NodeSelector = gs.Spec.NodeSelector
 		}
@@ -354,14 +379,49 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 	return err
 }
 
+// effectiveMountPath is where the game's data volume is mounted,
+// defaulting to /data when the template doesn't say.
+func effectiveMountPath(tmpl *kestrelv1alpha1.GameTemplate) string {
+	if tmpl.Spec.Storage.MountPath != "" {
+		return tmpl.Spec.Storage.MountPath
+	}
+	return "/data"
+}
+
+// configFilesStagingPath is where the `<gs>-files` Secret is mounted
+// inside the config-init container before being copied onto the data
+// volume.
+const configFilesStagingPath = "/etc/kestrel/config-files"
+
+// configInitImage runs the copy from the staging mount onto the data
+// volume. Pinned like the restic image in backup_controller.go; the
+// agent image can't do this job (distroless, no shell or cp).
+const configInitImage = "busybox:1.37.0"
+
+// buildConfigInitContainer copies the rendered config files onto the
+// data volume on every pod start — operator-rendered files always win
+// over in-place edits (e.g. via the dashboard Files tab).
+func buildConfigInitContainer(tmpl *kestrelv1alpha1.GameTemplate) corev1.Container {
+	mountPath := effectiveMountPath(tmpl)
+	return corev1.Container{
+		Name:    "config-init",
+		Image:   configInitImage,
+		Command: []string{"/bin/sh", "-c"},
+		// -L dereferences the kubelet's per-key symlinks; the * glob
+		// skips the ..data/..<timestamp> dot-entries of the Secret mount.
+		Args: []string{"cp -RL " + configFilesStagingPath + "/* '" + mountPath + "/'"},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "config-files", MountPath: configFilesStagingPath, ReadOnly: true},
+			{Name: "data", MountPath: mountPath},
+		},
+	}
+}
+
 func buildGameContainer(
 	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, image string,
 	mc *materializedConfig,
 ) corev1.Container {
-	mountPath := "/data"
-	if tmpl.Spec.Storage.MountPath != "" {
-		mountPath = tmpl.Spec.Storage.MountPath
-	}
+	mountPath := effectiveMountPath(tmpl)
 	ports := make([]corev1.ContainerPort, 0, len(tmpl.Spec.Ports))
 	for _, p := range tmpl.Spec.Ports {
 		ports = append(ports, corev1.ContainerPort{
@@ -416,10 +476,7 @@ func buildAgentContainer(
 		}
 		res = tmpl.Spec.Agent.Resources
 	}
-	mountPath := "/data"
-	if tmpl.Spec.Storage.MountPath != "" {
-		mountPath = tmpl.Spec.Storage.MountPath
-	}
+	mountPath := effectiveMountPath(tmpl)
 	nonRoot := true
 	roRootFS := true
 	noPrivEsc := false

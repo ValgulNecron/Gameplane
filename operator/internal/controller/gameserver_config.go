@@ -1,14 +1,17 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,10 +41,24 @@ type materializedConfig struct {
 	// are readable by anyone with pod read access, so secrets must
 	// never appear there as plain env values.
 	secretData map[string][]byte
+	// files holds the rendered configFiles in declaration order. They
+	// live in the per-server `<gs>-files` Secret — always a Secret,
+	// never a ConfigMap, because any template may embed password-type
+	// values.
+	files []renderedConfigFile
 	// hash fingerprints all resolved values (including secret ones)
 	// for configHashAnnotation, so Secret-only changes still roll the
 	// StatefulSet. Empty when no config materialized.
 	hash string
+}
+
+// renderedConfigFile is one configFiles entry after template execution.
+type renderedConfigFile struct {
+	// key is the Secret data key ("file-<i>", by declaration order).
+	key string
+	// path is the destination, relative to the data volume mountPath.
+	path    string
+	content []byte
 }
 
 // configSecretName returns the per-GameServer Secret holding
@@ -51,8 +68,16 @@ func configSecretName(gs *kestrelv1alpha1.GameServer) string {
 	return gs.Name + "-config"
 }
 
+// filesSecretName returns the per-GameServer Secret holding rendered
+// configFiles, mounted into the config-init container. Owned by the
+// GameServer so it's GC'd on delete.
+func filesSecretName(gs *kestrelv1alpha1.GameServer) string {
+	return gs.Name + "-files"
+}
+
 // materializeConfig validates spec.config against the template's
-// configSchema and resolves it into container env vars. Defaults are
+// configSchema and resolves it into container env vars and rendered
+// configFiles (target=file values feed only the latter). Defaults are
 // applied for absent keys (keeping `kubectl apply` behavior identical
 // to the wizard, which pre-fills them); empty optional values are
 // skipped entirely so games treat them as unset. Any violation is an
@@ -82,7 +107,13 @@ func materializeConfig(
 
 	mc := &materializedConfig{}
 	var hashParts []string
+	// values feeds configFiles templates: every schema field is
+	// present ("" when unset) so `{{ if .Values.X }}` guards work
+	// while missingkey=error still catches typos.
+	values := make(map[string]string, len(schema))
+	fileFieldSet := false
 	for _, f := range schema {
+		values[f.Name] = ""
 		val, set := gs.Spec.Config[f.Name]
 		if !set {
 			val = f.Default
@@ -112,8 +143,15 @@ func materializeConfig(
 					f.Name, val, strings.Join(f.Enum, ", "))
 			}
 		}
+		values[f.Name] = val
+		hashParts = append(hashParts, f.Name+"="+val)
 		if f.Target == "file" {
-			return nil, fmt.Errorf("config field %q targets a file; file targets are not implemented yet", f.Name)
+			// File-target values exist only inside rendered
+			// configFiles — no env var, and password values reach
+			// the pod via the `<gs>-files` Secret instead of
+			// `<gs>-config`.
+			fileFieldSet = true
+			continue
 		}
 		if f.Type == "password" {
 			if mc.secretData == nil {
@@ -132,13 +170,82 @@ func materializeConfig(
 		} else {
 			mc.env = append(mc.env, corev1.EnvVar{Name: f.Name, Value: val})
 		}
-		hashParts = append(hashParts, f.Name+"="+val)
+	}
+	if fileFieldSet && len(tmpl.Spec.ConfigFiles) == 0 {
+		return nil, fmt.Errorf("config fields target a file but template %q declares no configFiles", tmpl.Name)
+	}
+	files, err := renderConfigFiles(gs, tmpl, values)
+	if err != nil {
+		return nil, err
+	}
+	mc.files = files
+	for _, f := range files {
+		hashParts = append(hashParts, "file:"+f.path+"="+string(f.content))
 	}
 	if len(hashParts) > 0 {
 		sum := sha256.Sum256([]byte(strings.Join(hashParts, "\n")))
 		mc.hash = hex.EncodeToString(sum[:])
 	}
 	return mc, nil
+}
+
+// renderConfigFiles executes every spec.configFiles template against
+// the resolved config values. All failures are errors — a bad path or
+// template fails the GameServer rather than materializing a pod that
+// silently misses a config file.
+func renderConfigFiles(
+	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, values map[string]string,
+) ([]renderedConfigFile, error) {
+	data := struct {
+		Values map[string]string
+		Server struct{ Name, Namespace string }
+	}{Values: values}
+	data.Server.Name = gs.Name
+	data.Server.Namespace = gs.Namespace
+
+	var files []renderedConfigFile
+	seen := make(map[string]bool, len(tmpl.Spec.ConfigFiles))
+	for i, cf := range tmpl.Spec.ConfigFiles {
+		if err := validateConfigFilePath(cf.Path); err != nil {
+			return nil, fmt.Errorf("configFiles[%d]: %w", i, err)
+		}
+		if seen[cf.Path] {
+			return nil, fmt.Errorf("configFiles[%d]: duplicate path %q", i, cf.Path)
+		}
+		seen[cf.Path] = true
+		t, err := template.New(cf.Path).Option("missingkey=error").Parse(cf.Template)
+		if err != nil {
+			return nil, fmt.Errorf("configFiles[%d] %q: parse template: %w", i, cf.Path, err)
+		}
+		var buf bytes.Buffer
+		if err := t.Execute(&buf, data); err != nil {
+			return nil, fmt.Errorf("configFiles[%d] %q: render template: %w", i, cf.Path, err)
+		}
+		files = append(files, renderedConfigFile{
+			key:     fmt.Sprintf("file-%d", i),
+			path:    cf.Path,
+			content: buf.Bytes(),
+		})
+	}
+	return files, nil
+}
+
+// validateConfigFilePath enforces that a configFiles path stays inside
+// the data volume: relative, clean, and free of ".." segments. The CRD
+// carries a matching CEL rule; this re-check keeps the operator
+// authoritative and attributes errors to the GameServer.
+func validateConfigFilePath(p string) error {
+	switch {
+	case p == "" || p == ".":
+		return fmt.Errorf("path %q is empty", p)
+	case strings.HasPrefix(p, "/"):
+		return fmt.Errorf("path %q is absolute; paths are relative to the data mount", p)
+	case strings.Contains(p, ".."):
+		return fmt.Errorf("path %q must not contain '..'", p)
+	case path.Clean(p) != p:
+		return fmt.Errorf("path %q is not clean (use %q)", p, path.Clean(p))
+	}
+	return nil
 }
 
 // reconcileConfigSecret keeps the per-server `<gs>-config` Secret in
@@ -161,6 +268,32 @@ func (r *GameServerReconciler) reconcileConfigSecret(
 	})
 	if err != nil {
 		return fmt.Errorf("reconcile config Secret %s/%s: %w", gs.Namespace, sec.Name, err)
+	}
+	return nil
+}
+
+// reconcileFilesSecret keeps the per-server `<gs>-files` Secret in step
+// with the rendered configFiles, deleting it outright when the template
+// declares none (same lifecycle as the config Secret above).
+func (r *GameServerReconciler) reconcileFilesSecret(
+	ctx context.Context, gs *kestrelv1alpha1.GameServer, mc *materializedConfig,
+) error {
+	sec := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: filesSecretName(gs), Namespace: gs.Namespace},
+	}
+	if len(mc.files) == 0 {
+		return client.IgnoreNotFound(r.Delete(ctx, sec))
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sec, func() error {
+		sec.Type = corev1.SecretTypeOpaque
+		sec.Data = make(map[string][]byte, len(mc.files))
+		for _, f := range mc.files {
+			sec.Data[f.key] = f.content
+		}
+		return controllerutil.SetControllerReference(gs, sec, r.Scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile files Secret %s/%s: %w", gs.Namespace, sec.Name, err)
 	}
 	return nil
 }

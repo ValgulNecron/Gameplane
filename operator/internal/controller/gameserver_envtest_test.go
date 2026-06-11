@@ -792,6 +792,203 @@ func TestGameServer_PasswordConfigStoredInSecret(t *testing.T) {
 	})
 }
 
+// TestGameServer_ConfigFilesMaterialize — target:file config renders
+// into the owned `<gs>-files` Secret, wires the config-init container
+// and the config-files volume, never leaks into env, and is torn down
+// again when the template stops declaring configFiles.
+func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("terraria"))
+	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+		{Name: "MOTD", Type: "string", Target: "file", Default: "hello"},
+		{Name: "SERVER_PASS", Type: "password", Target: "file"},
+	}
+	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+		Path:     "cfg/server.cfg",
+		Template: "motd={{ .Values.MOTD }}\npass={{ .Values.SERVER_PASS }}\n",
+	}}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.Config = map[string]string{"SERVER_PASS": "hunter22"}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	firstHash := ""
+	eventually(t, func() (bool, string) {
+		var sec corev1.Secret
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-files"}, &sec); err != nil {
+			return false, "files secret: " + err.Error()
+		}
+		if got := string(sec.Data["file-0"]); got != "motd=hello\npass=hunter22\n" {
+			return false, "file-0 content = " + got
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		inits := ss.Spec.Template.Spec.InitContainers
+		if len(inits) != 1 || inits[0].Name != "config-init" {
+			return false, "init containers missing config-init"
+		}
+		var vol *corev1.Volume
+		for i := range ss.Spec.Template.Spec.Volumes {
+			if ss.Spec.Template.Spec.Volumes[i].Name == "config-files" {
+				vol = &ss.Spec.Template.Spec.Volumes[i]
+			}
+		}
+		if vol == nil || vol.Secret == nil || vol.Secret.SecretName != "smp-files" {
+			return false, "config-files volume not backed by smp-files"
+		}
+		if len(vol.Secret.Items) != 1 || vol.Secret.Items[0].Key != "file-0" ||
+			vol.Secret.Items[0].Path != "cfg/server.cfg" {
+			return false, "volume items do not map file-0 to cfg/server.cfg"
+		}
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			for _, e := range c.Env {
+				if e.Name == "MOTD" || e.Name == "SERVER_PASS" || e.Value == "hunter22" {
+					return false, "file-target value leaked into env " + e.Name + " of " + c.Name
+				}
+			}
+		}
+		firstHash = ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		if firstHash == "" {
+			return false, "config-hash annotation missing"
+		}
+		return true, ""
+	})
+
+	// Changing a file-target value must re-render the Secret and roll
+	// the pod template hash.
+	gs = getGameServer(t, ns, "smp")
+	gs.Spec.Config["MOTD"] = "welcome"
+	if err := k8sClient.Update(context.Background(), gs); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+	eventually(t, func() (bool, string) {
+		var sec corev1.Secret
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-files"}, &sec); err != nil {
+			return false, "files secret: " + err.Error()
+		}
+		if got := string(sec.Data["file-0"]); got != "motd=welcome\npass=hunter22\n" {
+			return false, "file-0 content = " + got
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		if ss.Spec.Template.Annotations["kestrel.gg/config-hash"] == firstHash {
+			return false, "config-hash did not roll"
+		}
+		return true, ""
+	})
+
+	// Dropping configFiles from the template must delete the Secret and
+	// strip the init container + volume. Template edits don't trigger a
+	// GameServer reconcile (no cross-watch), so poke the GameServer.
+	tmplNow := &kestrelv1alpha1.GameTemplate{}
+	if err := k8sClient.Get(context.Background(),
+		types.NamespacedName{Name: tmpl.Name}, tmplNow); err != nil {
+		t.Fatalf("get template: %v", err)
+	}
+	tmplNow.Spec.ConfigSchema = nil
+	tmplNow.Spec.ConfigFiles = nil
+	if err := k8sClient.Update(context.Background(), tmplNow); err != nil {
+		t.Fatalf("update template: %v", err)
+	}
+	gs = getGameServer(t, ns, "smp")
+	gs.Spec.Config = nil
+	if err := k8sClient.Update(context.Background(), gs); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+	eventually(t, func() (bool, string) {
+		// Re-poke each poll: the reconcile racing the template cache
+		// update must not strand the test.
+		poke := getGameServer(t, ns, "smp")
+		if poke.Annotations == nil {
+			poke.Annotations = map[string]string{}
+		}
+		poke.Annotations["test.kestrel.gg/poke"] = time.Now().Format(time.RFC3339Nano)
+		_ = k8sClient.Update(context.Background(), poke)
+
+		var sec corev1.Secret
+		err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-files"}, &sec)
+		if err == nil {
+			return false, "files secret still exists"
+		}
+		if !apierrors.IsNotFound(err) {
+			return false, err.Error()
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		if len(ss.Spec.Template.Spec.InitContainers) != 0 {
+			return false, "config-init container still present"
+		}
+		for _, v := range ss.Spec.Template.Spec.Volumes {
+			if v.Name == "config-files" {
+				return false, "config-files volume still present"
+			}
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_BadConfigFileTemplateFails — a template that fails to
+// render flips the GameServer to Failed with a pointed message and
+// creates no StatefulSet; fixing the template recovers.
+func TestGameServer_BadConfigFileTemplateFails(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("terraria"))
+	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+		Path:     "server.cfg",
+		Template: "{{ .Values.NO_SUCH_FIELD }}",
+	}}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got := getGameServer(t, ns, "smp")
+		if got.Status.Phase != kestrelv1alpha1.GameServerPhaseFailed {
+			return false, "phase = " + string(got.Status.Phase)
+		}
+		for _, c := range got.Status.Conditions {
+			if c.Type == "Ready" && strings.Contains(c.Message, "server.cfg") {
+				return true, ""
+			}
+		}
+		return false, "Ready condition does not mention the offending file"
+	})
+
+	var ss appsv1.StatefulSet
+	if err := k8sClient.Get(context.Background(),
+		types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); !apierrors.IsNotFound(err) {
+		t.Fatalf("StatefulSet should not exist while the template is broken, get err = %v", err)
+	}
+}
+
 // TestGameServer_ConfigChangeRollsPodTemplate — editing a config value
 // must change the pod template (env + hash annotation) so the
 // StatefulSet rolls the pod.
