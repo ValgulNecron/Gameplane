@@ -28,6 +28,7 @@ export interface GameTemplate {
       default?: string;
       enum?: string[];
       required?: boolean;
+      target?: "env" | "file";
     }>;
   };
   status?: { inUseCount?: number };

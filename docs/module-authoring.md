@@ -184,9 +184,67 @@ Materialization rules:
   `SecretKeyRef`.
 - **Precedence**: template `env` < schema-resolved config <
   GameServer `spec.env` — an explicit env override always wins.
-- **`target: file` is not implemented yet.** Declaring such a field
-  is fine, but supplying a value fails the server explicitly rather
-  than dropping it silently.
+- **`target: file` fields feed `configFiles` templates** instead of
+  becoming env vars — see the next section.
+
+### Config files
+
+Games that read a config *file* instead of env vars (Terraria's
+`serverconfig.txt` is the intended first adopter) declare
+`configFiles`: a list of files the operator renders from the resolved
+config values and places under `storage.mountPath` before the game
+starts.
+
+```yaml
+configSchema:
+  - name: MOTD
+    type: string
+    default: Welcome!
+    target: file          # consumed by templates below, never an env var
+  - name: SERVER_PASS
+    type: password
+    target: file
+configFiles:
+  - path: serverconfig.txt          # relative to storage.mountPath
+    template: |
+      motd={{ .Values.MOTD }}
+      {{ if .Values.SERVER_PASS }}password={{ .Values.SERVER_PASS }}{{ end }}
+      world={{ .Server.Name }}
+```
+
+`template` is a Go [`text/template`](https://pkg.go.dev/text/template)
+rendered with:
+
+- **`.Values`** — every `configSchema` field name mapped to its
+  resolved value. Unset optional fields are present as `""`, so
+  `{{ if .Values.X }}` guards work; referencing a name outside the
+  schema fails the GameServer (`missingkey=error`). Env-target values
+  are available too — a value may drive both an env var and a file.
+- **`.Server`** — `.Name` and `.Namespace` of the GameServer.
+
+Rules and semantics:
+
+- **Paths are relative to `storage.mountPath`.** Absolute paths,
+  `..` segments, unclean paths, and duplicates fail the GameServer.
+- **Rendered files live in an owned `<server>-files` Secret** —
+  always a Secret, never a ConfigMap, because any template may embed
+  a password value.
+- **Files are copied onto the data volume by a `config-init`
+  container on every pod start.** The operator's rendering wins:
+  manual edits to these paths (e.g. via the dashboard's Files tab)
+  are overwritten on the next restart. Games may freely rewrite the
+  files at runtime — the copy is plain data on the PVC, not a
+  read-only mount.
+- **The copy runs as root (busybox).** Non-root game images that
+  rewrite their config need permissions compatible with root-owned
+  files.
+- **Changes roll the pod.** Rendered contents are part of the config
+  hash, so editing a template or a file-target value restarts the
+  server with the new file.
+- **Failures are strict.** A parse error, a missing key, or a
+  file-target value supplied while the template declares no
+  `configFiles` fails the GameServer (phase `Failed`, message on the
+  `Ready` condition) instead of silently dropping user intent.
 
 ### RCON
 
