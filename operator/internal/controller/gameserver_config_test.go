@@ -188,6 +188,62 @@ func TestMaterializeConfig_Errors(t *testing.T) {
 	}
 }
 
+func TestMaterializeConfig_PasswordGoesToSecret(t *testing.T) {
+	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+		{Name: "SERVER_PASS", Type: "password", Required: true},
+		{Name: "WORLD", Type: "string", Default: "Midgard"},
+	}, map[string]string{"SERVER_PASS": "hunter22"})
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if string(mc.secretData["SERVER_PASS"]) != "hunter22" {
+		t.Errorf("secretData[SERVER_PASS] = %q, want the password", mc.secretData["SERVER_PASS"])
+	}
+	var pass *corev1.EnvVar
+	for i := range mc.env {
+		if mc.env[i].Name == "SERVER_PASS" {
+			pass = &mc.env[i]
+		}
+		if mc.env[i].Value == "hunter22" {
+			t.Errorf("password leaked as inline env value on %s", mc.env[i].Name)
+		}
+	}
+	if pass == nil {
+		t.Fatalf("no SERVER_PASS env var")
+	}
+	if pass.ValueFrom == nil || pass.ValueFrom.SecretKeyRef == nil {
+		t.Fatalf("SERVER_PASS should use a SecretKeyRef, got %+v", pass)
+	}
+	if got := pass.ValueFrom.SecretKeyRef.Name; got != "smp-config" {
+		t.Errorf("SecretKeyRef.Name = %q, want smp-config", got)
+	}
+	if got := pass.ValueFrom.SecretKeyRef.Key; got != "SERVER_PASS" {
+		t.Errorf("SecretKeyRef.Key = %q, want SERVER_PASS", got)
+	}
+}
+
+func TestMaterializeConfig_PasswordValueChangesHash(t *testing.T) {
+	schema := []kestrelv1alpha1.ConfigField{{Name: "SERVER_PASS", Type: "password"}}
+	gs1, tmpl := configFixtures(schema, map[string]string{"SERVER_PASS": "one"})
+	gs2, _ := configFixtures(schema, map[string]string{"SERVER_PASS": "two"})
+
+	mc1, err := materializeConfig(gs1, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	mc2, err := materializeConfig(gs2, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	// The SecretKeyRef env entry is identical for both, so only the
+	// hash can roll the pod when a password rotates.
+	if mc1.hash == mc2.hash {
+		t.Errorf("rotating a password must change the config hash")
+	}
+}
+
 func TestMaterializeConfig_FileTargetUnsetIsAllowed(t *testing.T) {
 	// A declared-but-unset file field must not block servers that
 	// don't use it; only a value we would have to drop is an error.

@@ -109,6 +109,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile agent RBAC")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileConfigSecret(ctx, &gs, mc); err != nil {
+		logger.Error(err, "reconcile config Secret")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, mc); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err

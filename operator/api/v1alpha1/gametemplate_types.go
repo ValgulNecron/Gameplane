@@ -208,7 +208,9 @@ type ConfigField struct {
 	// +optional
 	Description string `json:"description,omitempty"`
 
-	// Type controls the input widget in the wizard.
+	// Type controls the input widget in the wizard. Values of password
+	// fields are stored in a per-GameServer Secret and injected via
+	// SecretKeyRef, never inline in the pod spec.
 	// +kubebuilder:validation:Enum=string;int;bool;enum;password
 	// +kubebuilder:default=string
 	Type string `json:"type"`

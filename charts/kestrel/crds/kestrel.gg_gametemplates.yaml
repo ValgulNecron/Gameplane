@@ -188,7 +188,10 @@ spec:
                       type: string
                     type:
                       default: string
-                      description: Type controls the input widget in the wizard.
+                      description: |-
+                        Type controls the input widget in the wizard. Values of password
+                        fields are stored in a per-GameServer Secret and injected via
+                        SecretKeyRef, never inline in the pod spec.
                       enum:
                       - string
                       - int

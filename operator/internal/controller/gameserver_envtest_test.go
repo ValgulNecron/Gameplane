@@ -719,6 +719,79 @@ func TestGameServer_InvalidConfigFailsThenRecovers(t *testing.T) {
 	})
 }
 
+// TestGameServer_PasswordConfigStoredInSecret — password-type config
+// lands in the owned `<gs>-config` Secret and the pod spec carries only
+// a SecretKeyRef; dropping the password deletes the Secret again.
+func TestGameServer_PasswordConfigStoredInSecret(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("valheim"))
+	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+		{Name: "SERVER_PASS", Type: "password"},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.Config = map[string]string{"SERVER_PASS": "hunter22"}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var sec corev1.Secret
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-config"}, &sec); err != nil {
+			return false, "config secret: " + err.Error()
+		}
+		if string(sec.Data["SERVER_PASS"]) != "hunter22" {
+			return false, "secret does not hold the password"
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			for _, e := range c.Env {
+				if e.Value == "hunter22" {
+					return false, "password appears inline in pod spec env " + e.Name
+				}
+				if c.Name == "game" && e.Name == "SERVER_PASS" {
+					if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil ||
+						e.ValueFrom.SecretKeyRef.Name != "smp-config" {
+						return false, "SERVER_PASS env is not a SecretKeyRef into smp-config"
+					}
+				}
+			}
+		}
+		return true, ""
+	})
+
+	// Dropping the password must clean the Secret up.
+	gs = getGameServer(t, ns, "smp")
+	gs.Spec.Config = nil
+	if err := k8sClient.Update(context.Background(), gs); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var sec corev1.Secret
+		err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-config"}, &sec)
+		if err == nil {
+			return false, "config secret still exists"
+		}
+		if !apierrors.IsNotFound(err) {
+			return false, err.Error()
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_ConfigChangeRollsPodTemplate — editing a config value
 // must change the pod template (env + hash annotation) so the
 // StatefulSet rolls the pod.
