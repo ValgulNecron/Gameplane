@@ -146,9 +146,9 @@ this as a clear "still in use by N servers" message.
 ### Config schema → wizard
 
 Declared `configSchema` fields become inputs in the "New server"
-wizard. Each field is applied as an env var on the game container
-(`target: env`, default) or — once file-template support lands —
-rendered into a config file (`target: file`).
+wizard. At reconcile time the operator resolves the server's
+`spec.config` against this schema and sets each resolved value as an
+env var on the game container.
 
 ```yaml
 configSchema:
@@ -160,7 +160,33 @@ configSchema:
     type: enum
     enum: [easy, normal, hard]
     default: normal
+  - name: SERVER_PASS
+    displayName: Password
+    type: password
 ```
+
+Materialization rules:
+
+- **Defaults apply at reconcile time.** A key absent from
+  `spec.config` resolves to its `default`, so `kubectl apply` of a
+  bare GameServer behaves exactly like the wizard (which pre-fills
+  defaults).
+- **Empty optional values are skipped** — no env var is set at all,
+  letting the game image fall back to its own default. "Leave blank
+  for an open server" means *unset*, not `PASSWORD=""`.
+- **Validation is strict.** Unknown keys, enum violations,
+  unparseable `int`/`bool` values, and empty `required` fields fail
+  the GameServer (phase `Failed`, message on the `Ready` condition)
+  instead of materializing a pod that ignores user intent. Fixing
+  `spec.config` recovers automatically.
+- **`password` fields never appear inline in the pod spec.** Values
+  are stored in an owned `<server>-config` Secret and injected via
+  `SecretKeyRef`.
+- **Precedence**: template `env` < schema-resolved config <
+  GameServer `spec.env` — an explicit env override always wins.
+- **`target: file` is not implemented yet.** Declaring such a field
+  is fine, but supplying a value fails the server explicitly rather
+  than dropping it silently.
 
 ### RCON
 

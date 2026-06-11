@@ -142,8 +142,11 @@ spec:
               configSchema:
                 description: |-
                   ConfigSchema declares user-tunable fields surfaced in the Create
-                  Server wizard. Operator renders these into env vars or file
-                  templates (implementation TBD per-module).
+                  Server wizard. The operator resolves GameServer.spec.config
+                  against this schema (applying defaults, validating types/enums)
+                  and sets each resolved value as an env var on the game container.
+                  Fields with target=file are not implemented yet and fail the
+                  GameServer if a value is supplied.
                 items:
                   description: ConfigField is a single user-tunable setting surfaced
                     in the wizard.
@@ -185,7 +188,10 @@ spec:
                       type: string
                     type:
                       default: string
-                      description: Type controls the input widget in the wizard.
+                      description: |-
+                        Type controls the input widget in the wizard. Values of password
+                        fields are stored in a per-GameServer Secret and injected via
+                        SecretKeyRef, never inline in the pod spec.
                       enum:
                       - string
                       - int

@@ -95,8 +95,11 @@ type GameTemplateSpec struct {
 	Probes *GameProbesSpec `json:"probes,omitempty"`
 
 	// ConfigSchema declares user-tunable fields surfaced in the Create
-	// Server wizard. Operator renders these into env vars or file
-	// templates (implementation TBD per-module).
+	// Server wizard. The operator resolves GameServer.spec.config
+	// against this schema (applying defaults, validating types/enums)
+	// and sets each resolved value as an env var on the game container.
+	// Fields with target=file are not implemented yet and fail the
+	// GameServer if a value is supplied.
 	// +optional
 	ConfigSchema []ConfigField `json:"configSchema,omitempty"`
 
@@ -205,7 +208,9 @@ type ConfigField struct {
 	// +optional
 	Description string `json:"description,omitempty"`
 
-	// Type controls the input widget in the wizard.
+	// Type controls the input widget in the wizard. Values of password
+	// fields are stored in a per-GameServer Secret and injected via
+	// SecretKeyRef, never inline in the pod spec.
 	// +kubebuilder:validation:Enum=string;int;bool;enum;password
 	// +kubebuilder:default=string
 	Type string `json:"type"`
