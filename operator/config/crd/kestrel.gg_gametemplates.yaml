@@ -139,14 +139,54 @@ spec:
                 items:
                   type: string
                 type: array
+              configFiles:
+                description: |-
+                  ConfigFiles declares files the operator renders from the resolved
+                  config values and places under Storage.MountPath before the game
+                  starts. Rendered contents are stored in an owned `<server>-files`
+                  Secret (they may embed password values) and copied onto the data
+                  volume by an init container on every pod start — manual edits to
+                  these paths via the Files tab are overwritten on restart.
+                items:
+                  description: |-
+                    ConfigFile is a single operator-rendered file on the game's data
+                    volume.
+                  properties:
+                    path:
+                      description: |-
+                        Path is where the rendered file lands, relative to
+                        Storage.MountPath (e.g. "serverconfig.txt", "cfg/server.cfg").
+                        Absolute paths and ".." segments are rejected.
+                      maxLength: 512
+                      minLength: 1
+                      type: string
+                      x-kubernetes-validations:
+                      - message: path must be relative to the data mount and must
+                          not contain '..'
+                        rule: '!self.startsWith(''/'') && !self.contains(''..'')'
+                    template:
+                      description: |-
+                        Template is a Go text/template rendered with `.Values` (every
+                        configSchema field name mapped to its resolved value, "" when an
+                        optional field is unset) and `.Server` (`.Name`, `.Namespace`).
+                        Rendering uses missingkey=error: referencing a key outside the
+                        schema fails the GameServer.
+                      minLength: 1
+                      type: string
+                  required:
+                  - path
+                  - template
+                  type: object
+                maxItems: 32
+                type: array
               configSchema:
                 description: |-
                   ConfigSchema declares user-tunable fields surfaced in the Create
                   Server wizard. The operator resolves GameServer.spec.config
                   against this schema (applying defaults, validating types/enums)
                   and sets each resolved value as an env var on the game container.
-                  Fields with target=file are not implemented yet and fail the
-                  GameServer if a value is supplied.
+                  Fields with target=file are consumed by ConfigFiles templates
+                  instead of becoming env vars.
                 items:
                   description: ConfigField is a single user-tunable setting surfaced
                     in the wizard.
@@ -180,8 +220,8 @@ spec:
                       default: env
                       description: |-
                         Target controls where the value is applied. "env" (default) sets
-                        an env var on the game container; "file" writes to a file rendered
-                        from a template (module-specific).
+                        an env var on the game container; "file" makes the value available
+                        to spec.configFiles templates instead of the environment.
                       enum:
                       - env
                       - file

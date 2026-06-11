@@ -98,10 +98,20 @@ type GameTemplateSpec struct {
 	// Server wizard. The operator resolves GameServer.spec.config
 	// against this schema (applying defaults, validating types/enums)
 	// and sets each resolved value as an env var on the game container.
-	// Fields with target=file are not implemented yet and fail the
-	// GameServer if a value is supplied.
+	// Fields with target=file are consumed by ConfigFiles templates
+	// instead of becoming env vars.
 	// +optional
 	ConfigSchema []ConfigField `json:"configSchema,omitempty"`
+
+	// ConfigFiles declares files the operator renders from the resolved
+	// config values and places under Storage.MountPath before the game
+	// starts. Rendered contents are stored in an owned `<server>-files`
+	// Secret (they may embed password values) and copied onto the data
+	// volume by an init container on every pod start — manual edits to
+	// these paths via the Files tab are overwritten on restart.
+	// +kubebuilder:validation:MaxItems=32
+	// +optional
+	ConfigFiles []ConfigFile `json:"configFiles,omitempty"`
 
 	// Agent tunes the sidecar deployed alongside the game container.
 	// +optional
@@ -228,12 +238,32 @@ type ConfigField struct {
 	Required bool `json:"required,omitempty"`
 
 	// Target controls where the value is applied. "env" (default) sets
-	// an env var on the game container; "file" writes to a file rendered
-	// from a template (module-specific).
+	// an env var on the game container; "file" makes the value available
+	// to spec.configFiles templates instead of the environment.
 	// +kubebuilder:validation:Enum=env;file
 	// +kubebuilder:default=env
 	// +optional
 	Target string `json:"target,omitempty"`
+}
+
+// ConfigFile is a single operator-rendered file on the game's data
+// volume.
+type ConfigFile struct {
+	// Path is where the rendered file lands, relative to
+	// Storage.MountPath (e.g. "serverconfig.txt", "cfg/server.cfg").
+	// Absolute paths and ".." segments are rejected.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=512
+	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="path must be relative to the data mount and must not contain '..'"
+	Path string `json:"path"`
+
+	// Template is a Go text/template rendered with `.Values` (every
+	// configSchema field name mapped to its resolved value, "" when an
+	// optional field is unset) and `.Server` (`.Name`, `.Namespace`).
+	// Rendering uses missingkey=error: referencing a key outside the
+	// schema fails the GameServer.
+	// +kubebuilder:validation:MinLength=1
+	Template string `json:"template"`
 }
 
 // SecretKeySelector references a key inside a namespaced Secret. Mirrors
