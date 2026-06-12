@@ -17,13 +17,14 @@ func TestJoinNames(t *testing.T) {
 	}
 }
 
-func TestAppendUnique(t *testing.T) {
-	got := appendUnique([]string{"a", "b"}, "c")
-	if !reflect.DeepEqual(got, []string{"a", "b", "c"}) {
+func TestAppendUniqueSource(t *testing.T) {
+	a, b := SourceRef{Name: "a", Type: "oci"}, SourceRef{Name: "b", Type: "git"}
+	got := appendUniqueSource([]SourceRef{a, b}, SourceRef{Name: "c", Type: "upload"})
+	if !reflect.DeepEqual(got, []SourceRef{a, b, {Name: "c", Type: "upload"}}) {
 		t.Fatalf("got %+v", got)
 	}
-	got = appendUnique([]string{"a", "b"}, "a")
-	if !reflect.DeepEqual(got, []string{"a", "b"}) {
+	got = appendUniqueSource([]SourceRef{a, b}, SourceRef{Name: "a", Type: "oci"})
+	if !reflect.DeepEqual(got, []SourceRef{a, b}) {
 		t.Fatalf("got %+v", got)
 	}
 }

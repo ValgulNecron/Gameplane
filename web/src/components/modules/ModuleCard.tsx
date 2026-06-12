@@ -60,7 +60,7 @@ export function ModuleCard({ entry, onInstall, onUpgrade, onUninstall, busy }: M
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
         <span className="font-mono">
           {entry.sources.length === 1
-            ? entry.sources[0]
+            ? `${entry.sources[0].name} (${entry.sources[0].type})`
             : `${entry.sources.length} sources`}
         </span>
         <div className="flex items-center gap-1">

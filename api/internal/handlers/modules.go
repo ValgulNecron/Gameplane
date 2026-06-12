@@ -56,22 +56,30 @@ type modulesHandler struct {
 	namespace string
 }
 
+// SourceRef names one ModuleSource offering a catalog entry, with its
+// type so the UI can badge where the module comes from.
+type SourceRef struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
 // CatalogEntry is one row in the merged catalog response.
 type CatalogEntry struct {
-	Name             string   `json:"name"`
-	DisplayName      string   `json:"displayName,omitempty"`
-	Summary          string   `json:"summary,omitempty"`
-	Game             string   `json:"game,omitempty"`
-	Icon             string   `json:"icon,omitempty"`
-	Sources          []string `json:"sources"`
-	Versions         []string `json:"versions,omitempty"`
-	LatestVersion    string   `json:"latestVersion,omitempty"`
-	Installed        bool     `json:"installed"`
-	InstalledVersion string   `json:"installedVersion,omitempty"`
-	InstalledFrom    string   `json:"installedFrom,omitempty"` // ModuleSource name
-	ModuleName       string   `json:"moduleName,omitempty"`    // Module CR name (= template name)
-	Phase            string   `json:"phase,omitempty"`
-	LastError        string   `json:"lastError,omitempty"`
+	Name             string      `json:"name"`
+	DisplayName      string      `json:"displayName,omitempty"`
+	Summary          string      `json:"summary,omitempty"`
+	Game             string      `json:"game,omitempty"`
+	Icon             string      `json:"icon,omitempty"`
+	Sources          []SourceRef `json:"sources"`
+	Versions         []string    `json:"versions,omitempty"`
+	LatestVersion    string      `json:"latestVersion,omitempty"`
+	Digest           string      `json:"digest,omitempty"`
+	Installed        bool        `json:"installed"`
+	InstalledVersion string      `json:"installedVersion,omitempty"`
+	InstalledFrom    string      `json:"installedFrom,omitempty"` // ModuleSource name
+	ModuleName       string      `json:"moduleName,omitempty"`    // Module CR name (= template name)
+	Phase            string      `json:"phase,omitempty"`
+	LastError        string      `json:"lastError,omitempty"`
 }
 
 type catalogResponse struct {
@@ -272,6 +280,10 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 	merged := map[string]*CatalogEntry{}
 	for i := range sources.Items {
 		src := &sources.Items[i]
+		srcType, _, _ := unstructured.NestedString(src.Object, "spec", "type")
+		if srcType == "" {
+			srcType = "oci"
+		}
 		entries, _, _ := unstructured.NestedSlice(src.Object, "status", "modules")
 		for _, raw := range entries {
 			m, ok := raw.(map[string]any)
@@ -299,12 +311,15 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 			if ic, _ := m["icon"].(string); ic != "" && e.Icon == "" {
 				e.Icon = ic
 			}
-			e.Sources = appendUnique(e.Sources, src.GetName())
+			e.Sources = appendUniqueSource(e.Sources, SourceRef{Name: src.GetName(), Type: srcType})
 			vers, _, _ := unstructured.NestedStringSlice(m, "versions")
 			e.Versions = mergeVersions(e.Versions, vers)
 			if lv, _ := m["latestVersion"].(string); lv != "" {
 				if e.LatestVersion == "" || semverDescending(lv, e.LatestVersion) {
 					e.LatestVersion = lv
+					if d, _ := m["digest"].(string); d != "" {
+						e.Digest = d
+					}
 				}
 			}
 		}
@@ -344,9 +359,9 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, out)
 }
 
-func appendUnique(s []string, v string) []string {
+func appendUniqueSource(s []SourceRef, v SourceRef) []SourceRef {
 	for _, x := range s {
-		if x == v {
+		if x.Name == v.Name {
 			return s
 		}
 	}

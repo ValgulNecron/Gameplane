@@ -97,7 +97,7 @@ describe("ModuleCard", () => {
   it("multiple sources renders 'N sources'", () => {
     render(
       <ModuleCard
-        entry={makeCatalog({ sources: ["a", "b", "c"] })}
+        entry={makeCatalog({ sources: [{ name: "a", type: "oci" }, { name: "b", type: "git" }, { name: "c", type: "upload" }] })}
         {...handlers}
       />,
     );

@@ -172,7 +172,7 @@ export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {
     displayName: "Minecraft (Vanilla)",
     summary: "Run a vanilla Minecraft server",
     game: "minecraft",
-    sources: ["upstream"],
+    sources: [{ name: "upstream", type: "oci" }],
     versions: ["1.21", "1.20", "1.19"],
     latestVersion: "1.21",
     installed: false,

@@ -35,12 +35,12 @@ export function ModulesPage() {
   const items = useMemo(() => data?.items ?? [], [data]);
   const sources = useMemo(() => {
     const out = new Set<string>();
-    for (const it of items) for (const s of it.sources) out.add(s);
+    for (const it of items) for (const s of it.sources) out.add(s.name);
     return ["all", ...Array.from(out).sort()];
   }, [items]);
 
   const visible = items.filter((e) => {
-    if (sourceFilter !== "all" && !e.sources.includes(sourceFilter)) return false;
+    if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }

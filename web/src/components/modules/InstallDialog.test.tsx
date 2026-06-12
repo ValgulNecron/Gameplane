@@ -23,7 +23,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ sources: ["upstream"], versions: ["1.21", "1.20"], latestVersion: "1.21" })}
+        entry={makeCatalog({ sources: [{ name: "upstream", type: "oci" }], versions: ["1.21", "1.20"], latestVersion: "1.21" })}
         onConfirm={() => {}}
       />,
     );
@@ -39,7 +39,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ name: "minecraft", sources: ["upstream"], versions: ["1.21"], latestVersion: "1.21" })}
+        entry={makeCatalog({ name: "minecraft", sources: [{ name: "upstream", type: "oci" }], versions: ["1.21"], latestVersion: "1.21" })}
         onConfirm={onConfirm}
       />,
     );
@@ -59,7 +59,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ name: "x", sources: ["s"], versions: ["1"], latestVersion: "1" })}
+        entry={makeCatalog({ name: "x", sources: [{ name: "s", type: "oci" }], versions: ["1"], latestVersion: "1" })}
         onConfirm={onConfirm}
       />,
     );
@@ -76,7 +76,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ name: "x", sources: ["s"], versions: ["1"], latestVersion: "1" })}
+        entry={makeCatalog({ name: "x", sources: [{ name: "s", type: "oci" }], versions: ["1"], latestVersion: "1" })}
         onConfirm={onConfirm}
       />,
     );
@@ -90,7 +90,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={onOpenChange}
-        entry={makeCatalog({ sources: ["a"], versions: ["1"], latestVersion: "1" })}
+        entry={makeCatalog({ sources: [{ name: "a", type: "oci" }], versions: ["1"], latestVersion: "1" })}
         onConfirm={() => {}}
       />,
     );
@@ -103,7 +103,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ sources: ["only"], versions: ["1.0"], latestVersion: "1.0" })}
+        entry={makeCatalog({ sources: [{ name: "only", type: "oci" }], versions: ["1.0"], latestVersion: "1.0" })}
         onConfirm={() => {}}
       />,
     );
@@ -117,7 +117,7 @@ describe("InstallDialog", () => {
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ name: "x", sources: ["s"], versions: ["1"], latestVersion: "1" })}
+        entry={makeCatalog({ name: "x", sources: [{ name: "s", type: "oci" }], versions: ["1"], latestVersion: "1" })}
         onConfirm={() => {}}
       />,
     );

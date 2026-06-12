@@ -31,7 +31,7 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
   useEffect(() => {
     if (!open || !entry) return;
     setError(null);
-    setSource(entry.sources[0] ?? "");
+    setSource(entry.sources[0]?.name ?? "");
     setVersion(entry.latestVersion ?? entry.versions?.[0] ?? "");
     setName(entry.name);
   }, [open, entry]);
@@ -71,7 +71,7 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
               <Select
                 value={source}
                 onValueChange={setSource}
-                options={entry.sources.map((s) => ({ value: s, label: s }))}
+                options={entry.sources.map((s) => ({ value: s.name, label: `${s.name} (${s.type})` }))}
                 disabled={entry.sources.length <= 1}
               />
             </Field>

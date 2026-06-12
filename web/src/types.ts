@@ -303,6 +303,13 @@ export interface ModuleEntry {
   digest?: string;
 }
 
+// SourceRef names one ModuleSource offering a catalog entry, with its
+// type so the UI can badge where the module comes from.
+export interface SourceRef {
+  name: string;
+  type: ModuleSourceType;
+}
+
 export interface ModuleSource {
   metadata: ObjectMeta;
   spec: ModuleSourceSpec;
@@ -352,9 +359,10 @@ export interface CatalogEntry {
   summary?: string;
   game?: string;
   icon?: string;
-  sources: string[];
+  sources: SourceRef[];
   versions?: string[];
   latestVersion?: string;
+  digest?: string;
   installed: boolean;
   installedVersion?: string;
   installedFrom?: string; // ModuleSource name

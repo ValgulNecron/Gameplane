@@ -34,7 +34,7 @@ const MINECRAFT: CatalogEntry = {
   displayName: "Minecraft (Java)",
   summary: "Vanilla / Paper / Forge",
   game: "minecraft-java",
-  sources: ["default"],
+  sources: [{ name: "default", type: "oci" }],
   versions: ["1.1.0", "1.0.0"],
   latestVersion: "1.1.0",
   installed: false,
@@ -43,7 +43,7 @@ const MINECRAFT: CatalogEntry = {
 const VALHEIM_INSTALLED: CatalogEntry = {
   name: "valheim",
   displayName: "Valheim",
-  sources: ["default"],
+  sources: [{ name: "default", type: "oci" }],
   versions: ["0.9.0"],
   latestVersion: "0.9.0",
   installed: true,
@@ -56,7 +56,7 @@ const VALHEIM_INSTALLED: CatalogEntry = {
 const TERRARIA_UPGRADE: CatalogEntry = {
   name: "terraria",
   displayName: "Terraria",
-  sources: ["default"],
+  sources: [{ name: "default", type: "oci" }],
   versions: ["1.1.0", "1.0.0"],
   latestVersion: "1.1.0",
   installed: true,
