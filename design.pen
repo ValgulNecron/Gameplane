@@ -38704,6 +38704,538 @@
           }
         }
       }
+    },
+    {
+      "type": "frame",
+      "id": "dU90X",
+      "x": 1520,
+      "y": 1960,
+      "name": "Screen/Server Detail — Interactions",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "width": 1500,
+      "height": 900,
+      "fill": "$c:--background",
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 40,
+      "children": [
+        {
+          "type": "frame",
+          "id": "HbiUw",
+          "name": "header",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "children": [
+            {
+              "type": "text",
+              "id": "rMnUF",
+              "name": "hTitle",
+              "fill": "$c:--foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Server Detail — interaction surfaces",
+              "fontFamily": "$c:--font-primary",
+              "fontSize": 22,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "S6CGa1",
+              "name": "hSub",
+              "fill": "$c:--muted-foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "States layered on the server header: actions menu (anchored to ⋯) and the clone-server dialog.",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "y8SPh",
+          "name": "row1",
+          "width": "fill_container",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "XQshT",
+              "name": "Surface 1 — Actions menu",
+              "width": 720,
+              "fill": "$c:--card",
+              "stroke": "$c:--border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kv5Yz",
+                  "name": "Surface 1 — Actions menu label",
+                  "fill": "$c:--foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Actions menu (popover, anchored to ⋯)",
+                  "fontFamily": "$c:--font-primary",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "A9545",
+                  "name": "Surface 1 — Actions menu desc",
+                  "fill": "$c:--muted-foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Opens from the More button in the server header. Clone requires the operator role — viewers see the item disabled with a hint.",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "R5emFU",
+                  "name": "s1stage",
+                  "width": "fill_container",
+                  "fill": "$c:--background",
+                  "cornerRadius": "$c:--radius-m",
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": [
+                    24,
+                    16
+                  ],
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "r4QDr",
+                      "name": "Btn More (trigger)",
+                      "width": 40,
+                      "height": 40,
+                      "cornerRadius": 999,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "wPEpJ",
+                          "width": 20,
+                          "height": 20,
+                          "icon": "more_horiz",
+                          "library": "Material Symbols Sharp",
+                          "weight": 300,
+                          "fill": "$c:--foreground"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TEZCf",
+                      "name": "popovers",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "hwY2l",
+                          "name": "popover (operator/admin)",
+                          "width": 200,
+                          "fill": "$c:--popover",
+                          "cornerRadius": "$c:--radius-m",
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#00000026",
+                            "offset": {
+                              "x": 0,
+                              "y": 4
+                            },
+                            "blur": 6
+                          },
+                          "layout": "vertical",
+                          "gap": 2,
+                          "padding": 6,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "owACH",
+                              "name": "mi clone",
+                              "width": "fill_container",
+                              "gap": 8,
+                              "padding": [
+                                8,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "OsZrx",
+                                  "name": "copy icon",
+                                  "width": 14,
+                                  "height": 14,
+                                  "icon": "copy",
+                                  "library": "lucide",
+                                  "fill": "$c:--foreground"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "s3yZt",
+                                  "name": "item label",
+                                  "fill": "$c:--foreground",
+                                  "content": "Clone server",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "t0u83",
+                          "name": "popover (viewer — disabled)",
+                          "width": 200,
+                          "fill": "$c:--popover",
+                          "cornerRadius": "$c:--radius-m",
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#00000026",
+                            "offset": {
+                              "x": 0,
+                              "y": 4
+                            },
+                            "blur": 6
+                          },
+                          "layout": "vertical",
+                          "gap": 2,
+                          "padding": 6,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "B8iXBF",
+                              "name": "mi clone disabled",
+                              "opacity": 0.5,
+                              "width": "fill_container",
+                              "gap": 8,
+                              "padding": [
+                                8,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "jFdoy",
+                                  "name": "copy icon",
+                                  "width": 14,
+                                  "height": 14,
+                                  "icon": "copy",
+                                  "library": "lucide",
+                                  "fill": "$c:--foreground"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "rhm2C",
+                                  "name": "item label",
+                                  "fill": "$c:--foreground",
+                                  "content": "Clone server",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "nDHy0",
+                              "name": "disabled hint wrap",
+                              "width": "fill_container",
+                              "padding": [
+                                0,
+                                10,
+                                6,
+                                10
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "Q8KL1d",
+                                  "name": "disabled hint",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "Requires operator role",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "GJu3C",
+              "name": "Surface 2 — Clone server dialog",
+              "width": 720,
+              "fill": "$c:--card",
+              "stroke": "$c:--border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NoBow",
+                  "name": "Surface 2 — Clone server dialog label",
+                  "fill": "$c:--foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Clone server (dialog)",
+                  "fontFamily": "$c:--font-primary",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "uOgof",
+                  "name": "Surface 2 — Clone server dialog desc",
+                  "fill": "$c:--muted-foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "POST /servers/{name}:clone with {newName}. Copies the spec only — world data is not copied. 409 (name exists) and 403 (role) surface inline below the input; on success the UI navigates to the new server.",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "EDJ9E",
+                  "name": "cloneModal",
+                  "width": "fill_container",
+                  "fill": "$c:--popover",
+                  "cornerRadius": "$c:--radius-m",
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#00000033",
+                    "offset": {
+                      "x": 0,
+                      "y": 8
+                    },
+                    "blur": 14
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Jv3E2",
+                      "name": "dlgHeader",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Q3VlG",
+                          "name": "dlgTitle",
+                          "fill": "$c:--foreground",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Clone server",
+                          "fontFamily": "$c:--font-primary",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "i9LJS",
+                          "name": "dlgSub",
+                          "fill": "$c:--muted-foreground",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Creates a new server with the same configuration. World data is not copied.",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "iefq7",
+                      "name": "dlgBody",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "I1DqDu",
+                          "name": "nameLabel",
+                          "fill": "$c:--foreground",
+                          "content": "New name",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Hj9F6",
+                          "name": "nameInput",
+                          "width": "fill_container",
+                          "height": 36,
+                          "fill": "$c:--background",
+                          "cornerRadius": "$c:--radius-pill",
+                          "stroke": "$c:--input",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 8,
+                          "padding": [
+                            8,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "p2VOXR",
+                              "name": "nameValue",
+                              "fill": "$c:--foreground",
+                              "content": "mc-survival-copy",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "VjWCX",
+                          "name": "nameHelp",
+                          "fill": "$c:--muted-foreground",
+                          "content": "Lowercase letters, digits, dashes (max 63).",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "P7iTi9",
+                          "name": "nameError",
+                          "fill": "$c:--destructive",
+                          "content": "A server named “mc-survival-copy” already exists.",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QTqSp",
+                      "name": "dlgFooter",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "p2qsPz",
+                          "name": "btnCancel",
+                          "height": 36,
+                          "fill": "$c:--background",
+                          "cornerRadius": "$c:--radius-pill",
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            8,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "HdiZK",
+                              "name": "btnCancelLabel",
+                              "fill": "$c:--foreground",
+                              "content": "Cancel",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ShWkh",
+                          "name": "btnClone",
+                          "height": 36,
+                          "fill": "$c:--primary",
+                          "cornerRadius": "$c:--radius-pill",
+                          "padding": [
+                            8,
+                            16
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "N35jiy",
+                              "name": "btnCloneLabel",
+                              "fill": "$c:--primary-foreground",
+                              "content": "Clone server",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "imports": {
