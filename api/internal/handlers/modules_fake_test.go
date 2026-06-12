@@ -54,7 +54,7 @@ func newSource(name string, modules []any) *unstructured.Unstructured {
 
 func mountModulesRouter(k *kube.Client) http.Handler {
 	r := chi.NewRouter()
-	MountModules(r, k)
+	MountModules(r, k, "kestrel-system")
 	return r
 }
 

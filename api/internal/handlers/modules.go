@@ -31,9 +31,10 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
 )
 
-// MountModules wires the /modules surface onto r.
-func MountModules(r chi.Router, k *kube.Client) {
-	h := modulesHandler{k: k}
+// MountModules wires the /modules surface onto r. namespace is the
+// operator namespace, where uploaded bundle ConfigMaps live.
+func MountModules(r chi.Router, k *kube.Client, namespace string) {
+	h := modulesHandler{k: k, namespace: namespace}
 	r.Route("/modules", func(r chi.Router) {
 		r.Get("/", h.listInstalled)
 		r.Post("/", h.install)
@@ -41,6 +42,8 @@ func MountModules(r chi.Router, k *kube.Client) {
 		r.Post("/sources", h.createSource)
 		r.Put("/sources/{name}", h.updateSource)
 		r.Delete("/sources/{name}", h.deleteSource)
+		r.Post("/sources/{name}/upload", h.uploadBundle)
+		r.Delete("/sources/{name}/upload/{module}", h.deleteUpload)
 		r.Get("/catalog", h.catalog)
 		r.Get("/{name}", h.getInstalled)
 		r.Patch("/{name}", h.upgrade)
@@ -49,7 +52,8 @@ func MountModules(r chi.Router, k *kube.Client) {
 }
 
 type modulesHandler struct {
-	k *kube.Client
+	k         *kube.Client
+	namespace string
 }
 
 // CatalogEntry is one row in the merged catalog response.

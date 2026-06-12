@@ -137,7 +137,7 @@ func main() {
 		handlers.MountConfig(p, store)
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
-		handlers.MountModules(p, k8s)
+		handlers.MountModules(p, k8s, cfg.namespace)
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 
@@ -177,6 +177,8 @@ type config struct {
 	agentCABundle   string
 	agentClientCert string
 	agentClientKey  string
+
+	namespace string
 }
 
 func (c *config) bindFlags(fs *flag.FlagSet) {
@@ -190,6 +192,8 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("KESTREL_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("KESTREL_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("KESTREL_AGENT_CLIENT_KEY", ""), "client key presented to agents")
+	fs.StringVar(&c.namespace, "namespace", envOr("KESTREL_NAMESPACE", "kestrel-system"),
+		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
 }
 
 func envOr(key, fallback string) string {

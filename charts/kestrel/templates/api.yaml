@@ -89,6 +89,32 @@ subjects:
     name: kestrel-api
     namespace: {{ .Release.Namespace }}
 ---
+# Module upload bundles are ConfigMaps in the control-plane namespace
+# (api/internal/handlers/module_upload.go); the operator indexes them
+# via upload-type ModuleSources.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-api-uploads
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, create, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-api-uploads
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Release.Name }}-api-uploads }
+subjects:
+  - kind: ServiceAccount
+    name: kestrel-api
+    namespace: {{ .Release.Namespace }}
+---
 {{- if eq .Values.api.db.driver "sqlite" }}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -143,6 +169,9 @@ spec:
             - --agent-client-cert=/etc/kestrel/agent-client/tls.crt
             - --agent-client-key=/etc/kestrel/agent-client/tls.key
           env:
+            - name: KESTREL_NAMESPACE
+              valueFrom:
+                fieldRef: { fieldPath: metadata.namespace }
             {{- if .Values.api.oidc.enabled }}
             - name: KESTREL_OIDC_CLIENT_SECRET
               valueFrom:
