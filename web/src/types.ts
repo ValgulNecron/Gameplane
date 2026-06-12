@@ -253,12 +253,42 @@ export interface AuditEvent {
 
 // Module catalog types — shape of /modules and /modules/* responses.
 
-export interface ModuleSourceSpec {
+export type ModuleSourceType = "oci" | "git" | "http" | "local" | "upload";
+
+export interface OCISourceSpec {
   url: string;
   modules: Array<{ name: string }>;
-  refreshInterval?: string;
   insecure?: boolean;
   pullSecretRef?: { name: string };
+}
+
+export interface GitSourceSpec {
+  url: string;
+  ref?: string;
+  subPath?: string;
+  secretRef?: { name: string };
+}
+
+export interface HTTPSourceSpec {
+  url: string;
+  secretRef?: { name: string };
+  insecure?: boolean;
+}
+
+export interface LocalSourceSpec {
+  path?: string;
+}
+
+// Discriminated union mirroring ModuleSourceSpec on the CRD: exactly
+// the nested config matching `type` is set (upload needs none).
+export interface ModuleSourceSpec {
+  type?: ModuleSourceType;
+  oci?: OCISourceSpec;
+  git?: GitSourceSpec;
+  http?: HTTPSourceSpec;
+  local?: LocalSourceSpec;
+  allow?: string[];
+  refreshInterval?: string;
 }
 
 export interface ModuleEntry {
@@ -270,6 +300,7 @@ export interface ModuleEntry {
   reference?: string;
   versions?: string[];
   latestVersion?: string;
+  digest?: string;
 }
 
 export interface ModuleSource {

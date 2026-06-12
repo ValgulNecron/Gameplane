@@ -201,8 +201,11 @@ export function makeModuleSource(over: Partial<ModuleSource> = {}): ModuleSource
   return {
     metadata: { name: "upstream" },
     spec: {
-      url: "ghcr.io/kestrel/modules",
-      modules: [{ name: "minecraft-vanilla" }],
+      type: "oci",
+      oci: {
+        url: "ghcr.io/kestrel/modules",
+        modules: [{ name: "minecraft-vanilla" }],
+      },
     },
     status: { lastSync: "2026-05-07T00:00:00Z", modules: [] },
     ...over,

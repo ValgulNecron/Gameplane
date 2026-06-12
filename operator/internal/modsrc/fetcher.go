@@ -3,6 +3,7 @@ package modsrc
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -31,16 +32,52 @@ type Options struct {
 	LocalRoot string
 }
 
-// ForSource builds the Fetcher for a ModuleSource. c and namespace are
-// used to resolve credential Secrets living in the operator namespace.
+// ForSource builds the Fetcher for a ModuleSource based on its type.
+// c and namespace are used to resolve credential Secrets living in the
+// operator namespace.
 func ForSource(ctx context.Context, c client.Client, namespace string, src *kestrelv1alpha1.ModuleSource, _ Options) (Fetcher, error) {
-	creds, err := oci.CredentialFromSecret(ctx, c, namespace, src.Spec.PullSecretRef)
-	if err != nil {
-		return nil, fmt.Errorf("resolve credentials: %w", err)
+	switch src.Spec.Type {
+	// Empty matches pre-defaulting objects constructed in Go (the API
+	// server always defaults type to "oci").
+	case kestrelv1alpha1.ModuleSourceTypeOCI, "":
+		spec := src.Spec.OCI
+		if spec == nil {
+			return nil, fmt.Errorf("spec.oci is required when spec.type is oci")
+		}
+		creds, err := oci.CredentialFromSecret(ctx, c, namespace, spec.PullSecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("resolve credentials: %w", err)
+		}
+		names := make([]string, 0, len(spec.Modules))
+		for _, m := range spec.Modules {
+			if allowed(m.Name, src.Spec.Allow) {
+				names = append(names, m.Name)
+			}
+		}
+		return NewOCI(oci.New(creds, spec.Insecure), spec.URL, names), nil
+	case kestrelv1alpha1.ModuleSourceTypeGit,
+		kestrelv1alpha1.ModuleSourceTypeHTTP,
+		kestrelv1alpha1.ModuleSourceTypeLocal,
+		kestrelv1alpha1.ModuleSourceTypeUpload:
+		return nil, fmt.Errorf("source type %q is not implemented yet", src.Spec.Type)
+	default:
+		return nil, fmt.Errorf("unknown source type %q", src.Spec.Type)
 	}
-	names := make([]string, 0, len(src.Spec.Modules))
-	for _, m := range src.Spec.Modules {
-		names = append(names, m.Name)
+}
+
+// allowed reports whether name passes the source's allow-list. Entries
+// are exact names or path.Match globs; an empty list allows everything.
+func allowed(name string, allow []string) bool {
+	if len(allow) == 0 {
+		return true
 	}
-	return NewOCI(oci.New(creds, src.Spec.Insecure), src.Spec.URL, names), nil
+	for _, pat := range allow {
+		if pat == name {
+			return true
+		}
+		if ok, err := path.Match(pat, name); err == nil && ok {
+			return true
+		}
+	}
+	return false
 }

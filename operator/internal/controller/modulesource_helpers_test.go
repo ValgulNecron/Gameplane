@@ -45,8 +45,11 @@ func TestModuleSourceReconciler_FetcherFor_DefaultPath(t *testing.T) {
 	r := &ModuleSourceReconciler{}
 	src := &kestrelv1alpha1.ModuleSource{
 		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			URL:     "localhost:5001/modules",
-			Modules: []kestrelv1alpha1.ModuleRef{{Name: "valheim"}},
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL:     "localhost:5001/modules",
+				Modules: []kestrelv1alpha1.ModuleRef{{Name: "valheim"}},
+			},
 		},
 	}
 	f, err := r.fetcherFor(context.Background(), src)

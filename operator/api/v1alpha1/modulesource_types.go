@@ -5,19 +5,83 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ModuleSourceSpec configures one OCI registry that hosts Kestrel
-// modules. The operator periodically lists tags for each ModuleRef and
-// caches the resulting catalog into status.modules.
+// ModuleSource type discriminator values.
+const (
+	ModuleSourceTypeOCI    = "oci"
+	ModuleSourceTypeGit    = "git"
+	ModuleSourceTypeHTTP   = "http"
+	ModuleSourceTypeLocal  = "local"
+	ModuleSourceTypeUpload = "upload"
+)
+
+// ModuleSourceSpec configures one store that hosts Kestrel modules. The
+// spec is a discriminated union: exactly the nested config matching
+// spec.type must be set (enforced by CEL rules below). The operator
+// periodically indexes the source and caches the resulting catalog into
+// status.modules.
+//
+// +kubebuilder:validation:XValidation:rule="self.type != 'oci' || has(self.oci)",message="spec.oci is required when spec.type is oci"
+// +kubebuilder:validation:XValidation:rule="self.type != 'git' || has(self.git)",message="spec.git is required when spec.type is git"
+// +kubebuilder:validation:XValidation:rule="self.type != 'http' || has(self.http)",message="spec.http is required when spec.type is http"
+// +kubebuilder:validation:XValidation:rule="self.type != 'local' || has(self.local)",message="spec.local is required when spec.type is local"
+// +kubebuilder:validation:XValidation:rule="!has(self.oci) || self.type == 'oci'",message="spec.oci is only valid when spec.type is oci"
+// +kubebuilder:validation:XValidation:rule="!has(self.git) || self.type == 'git'",message="spec.git is only valid when spec.type is git"
+// +kubebuilder:validation:XValidation:rule="!has(self.http) || self.type == 'http'",message="spec.http is only valid when spec.type is http"
+// +kubebuilder:validation:XValidation:rule="!has(self.local) || self.type == 'local'",message="spec.local is only valid when spec.type is local"
 type ModuleSourceSpec struct {
+	// Type selects where this source pulls modules from:
+	//   - oci:    an OCI registry holding module bundle artifacts
+	//   - git:    a git repository containing module directories
+	//   - http:   an http(s) URL to a tar.gz/zip of module directories
+	//   - local:  a directory mounted into the operator pod
+	//   - upload: bundles uploaded through the API, stored as labeled
+	//             ConfigMaps in the operator namespace (no config)
+	// +kubebuilder:validation:Enum=oci;git;http;local;upload
+	// +kubebuilder:default=oci
+	// +optional
+	Type string `json:"type,omitempty"`
+
+	// OCI configures an oci-type source.
+	// +optional
+	OCI *OCISourceSpec `json:"oci,omitempty"`
+
+	// Git configures a git-type source.
+	// +optional
+	Git *GitSourceSpec `json:"git,omitempty"`
+
+	// HTTP configures an http-type source.
+	// +optional
+	HTTP *HTTPSourceSpec `json:"http,omitempty"`
+
+	// Local configures a local-type source.
+	// +optional
+	Local *LocalSourceSpec `json:"local,omitempty"`
+
+	// Allow restricts which discovered module names this source exposes.
+	// Entries are exact names or path.Match globs (e.g. "minecraft-*").
+	// Empty means every discovered module. For oci sources the explicit
+	// spec.oci.modules list is authoritative; allow filters on top of it.
+	// +optional
+	Allow []string `json:"allow,omitempty"`
+
+	// RefreshInterval is how often the controller re-indexes the
+	// source. Defaults to 1h. Minimum 1m.
+	// +kubebuilder:default="1h"
+	// +optional
+	RefreshInterval metav1.Duration `json:"refreshInterval,omitempty"`
+}
+
+// OCISourceSpec points at an OCI registry prefix that holds module
+// bundle artifacts. Registries cannot be enumerated portably, so the
+// module list is explicit; each module is pushed under
+// "<url>/<name>:<version>".
+type OCISourceSpec struct {
 	// URL is the registry/repository prefix that holds module bundles
-	// (e.g. "ghcr.io/kestrel-gg/modules"). Each Module in this source is
-	// pushed under "<URL>/<name>:<version>".
+	// (e.g. "ghcr.io/kestrel-gg/modules").
 	// +kubebuilder:validation:MinLength=1
 	URL string `json:"url"`
 
-	// Modules is the explicit list of modules served by this source. v1
-	// keeps the listing explicit; anonymous discovery (catalog index
-	// artifact) is reserved for future extensions.
+	// Modules is the explicit list of modules served by this source.
 	// +kubebuilder:validation:MinItems=1
 	Modules []ModuleRef `json:"modules"`
 
@@ -31,17 +95,72 @@ type ModuleSourceSpec struct {
 	// clusters.
 	// +optional
 	Insecure bool `json:"insecure,omitempty"`
+}
 
-	// RefreshInterval is how often the controller re-indexes the
-	// registry. Defaults to 1h. Minimum 1m.
-	// +kubebuilder:default="1h"
+// GitSourceSpec points at a git repository containing module
+// directories (each holding a module.yaml + template.yaml). Modules
+// are auto-discovered by scanning the checkout; the source publishes
+// one version stream — whatever each module.yaml declares at the
+// configured ref.
+type GitSourceSpec struct {
+	// URL is the clone URL (https://... or ssh://git@...).
+	// +kubebuilder:validation:MinLength=1
+	URL string `json:"url"`
+
+	// Ref is the branch or tag to index. Defaults to main.
+	// +kubebuilder:default=main
 	// +optional
-	RefreshInterval metav1.Duration `json:"refreshInterval,omitempty"`
+	Ref string `json:"ref,omitempty"`
+
+	// SubPath limits scanning to a subdirectory of the repository
+	// (e.g. "modules"). Must be relative and must not contain "..".
+	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="subPath must be relative and must not contain '..'"
+	// +optional
+	SubPath string `json:"subPath,omitempty"`
+
+	// SecretRef references a Secret in the operator namespace holding
+	// credentials: either "token" (or "username"+"password") for https,
+	// or "ssh-privatekey" (+ optional "known_hosts") for ssh.
+	// +optional
+	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
+}
+
+// HTTPSourceSpec points at an http(s) URL serving a tar.gz or zip
+// archive of module directories. Modules are auto-discovered by
+// scanning the extracted archive.
+type HTTPSourceSpec struct {
+	// URL of the archive (.tar.gz/.tgz/.zip).
+	// +kubebuilder:validation:MinLength=1
+	URL string `json:"url"`
+
+	// SecretRef references a Secret in the operator namespace holding
+	// "token" (sent as a bearer token) or "username"+"password" (basic
+	// auth).
+	// +optional
+	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
+
+	// Insecure allows plain http URLs. TLS verification is never
+	// skipped — for self-signed registries mount the CA into the
+	// operator's trust store.
+	// +optional
+	Insecure bool `json:"insecure,omitempty"`
+}
+
+// LocalSourceSpec points at a directory mounted into the operator pod
+// (the mount and the operator's --module-local-root flag are wired via
+// Helm values). Modules are auto-discovered by scanning the directory.
+type LocalSourceSpec struct {
+	// Path is resolved relative to the operator's --module-local-root.
+	// Empty scans the root itself. Must be relative and must not
+	// contain "..".
+	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="path must be relative and must not contain '..'"
+	// +optional
+	Path string `json:"path,omitempty"`
 }
 
 // ModuleRef identifies a module within a ModuleSource by its logical
-// name. The full OCI reference is reconstructed as
-// "<source.url>/<name>".
+// name. For oci sources the full reference is reconstructed as
+// "<oci.url>/<name>".
 type ModuleRef struct {
 	// Name is the module identifier within this source. Must match the
 	// "name" field in the bundle's module.yaml.
@@ -50,7 +169,7 @@ type ModuleRef struct {
 }
 
 // ModuleSourceStatus is populated by the operator from a successful
-// registry index.
+// source index.
 type ModuleSourceStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
@@ -71,10 +190,11 @@ type ModuleSourceStatus struct {
 	Modules []ModuleEntry `json:"modules,omitempty"`
 }
 
-// ModuleEntry is one module's catalog snapshot from the registry. The
-// operator fills these from each module's module.yaml + tag list.
+// ModuleEntry is one module's catalog snapshot from the source. The
+// operator fills these from each module's module.yaml (+ tag list for
+// oci sources).
 type ModuleEntry struct {
-	// Name is the logical module name (matches ModuleRef.Name).
+	// Name is the logical module name.
 	Name string `json:"name"`
 
 	// DisplayName is the human-readable label from module.yaml.
@@ -94,29 +214,38 @@ type ModuleEntry struct {
 	// +optional
 	Icon string `json:"icon,omitempty"`
 
-	// Reference is the registry/repo path for this module without a
-	// tag (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java").
+	// Reference locates this module within its source: the registry
+	// repo path for oci (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java"),
+	// or "<type>:<location>/<dir>" for the other source types.
 	Reference string `json:"reference"`
 
-	// Versions is the list of tags found in the registry, semver-sorted
-	// in descending order. Non-semver tags are excluded.
+	// Versions lists the available versions, semver-sorted descending.
+	// For oci these are the registry tags; non-oci sources publish a
+	// single version — whatever module.yaml declares.
 	// +optional
 	Versions []string `json:"versions,omitempty"`
 
 	// LatestVersion is Versions[0] when populated.
 	// +optional
 	LatestVersion string `json:"latestVersion,omitempty"`
+
+	// Digest identifies the exact content backing LatestVersion: the
+	// OCI manifest digest, "git:<commit sha>", or a sha256 content hash
+	// over the module directory. Lets installs detect content drift
+	// when a version string is reused.
+	// +optional
+	Digest string `json:"digest,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=msrc;modsource
-// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.spec.url`
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="Synced",type=string,JSONPath=`.status.conditions[?(@.type=="Synced")].status`
 // +kubebuilder:printcolumn:name="Last Sync",type=date,JSONPath=`.status.lastSync`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:subresource:status
 
-// ModuleSource is a registry that Kestrel pulls module bundles from.
+// ModuleSource is a store that Kestrel pulls module bundles from.
 type ModuleSource struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

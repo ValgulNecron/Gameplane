@@ -57,22 +57,46 @@ export function ModuleSourcesPanel() {
   );
 }
 
+// sourceLocation renders the human-meaningful "where" of a source,
+// which lives in a different nested field per source type.
+export function sourceLocation(spec: ModuleSource["spec"]): string {
+  switch (spec.type ?? "oci") {
+    case "git":
+      return `${spec.git?.url ?? ""}${spec.git?.ref ? `@${spec.git.ref}` : ""}`;
+    case "http":
+      return spec.http?.url ?? "";
+    case "local":
+      return spec.local?.path ? `local:${spec.local.path}` : "local";
+    case "upload":
+      return "uploaded bundles";
+    default:
+      return spec.oci?.url ?? "";
+  }
+}
+
 function SourceRow({ source }: { source: ModuleSource }) {
   const synced = source.status?.conditions?.find((c) => c.type === "Synced");
   const ok = synced?.status === "True";
   const Icon = ok ? CheckCircle2 : synced ? CircleAlert : Circle;
   const tone = ok ? "text-success" : synced ? "text-danger" : "text-muted";
   const refresh = source.spec.refreshInterval ?? "1h";
-  const moduleCount = source.status?.modules?.length ?? source.spec.modules.length;
+  const insecure = source.spec.oci?.insecure ?? source.spec.http?.insecure ?? false;
+  const moduleCount =
+    source.status?.modules?.length ?? source.spec.oci?.modules.length ?? 0;
 
   return (
     <li className="flex items-center gap-3 py-3">
       <Icon className={`h-4 w-4 ${tone}`} aria-hidden />
       <div className="min-w-0 flex-1">
-        <div className="font-medium text-sm text-fg">{source.metadata.name}</div>
+        <div className="font-medium text-sm text-fg">
+          {source.metadata.name}
+          <span className="ml-2 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted">
+            {source.spec.type ?? "oci"}
+          </span>
+        </div>
         <div className="truncate text-xs text-muted">
-          <span className="font-mono">{source.spec.url}</span>
-          {source.spec.insecure && (
+          <span className="font-mono">{sourceLocation(source.spec)}</span>
+          {insecure && (
             <span className="ml-2 rounded bg-warning/15 px-1.5 py-0.5 font-mono text-[10px] text-warning">
               insecure
             </span>

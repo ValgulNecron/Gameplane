@@ -257,12 +257,15 @@ func TestModule_FailsOnUnreachableRegistry(t *testing.T) {
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": sourceName},
 		"spec": map[string]any{
-			// .invalid is reserved (RFC 6761) so it never resolves on any
-			// network — the controller must surface a DNS / connect error
-			// rather than wait indefinitely.
-			"url":             "kestrel-nonexistent-registry.invalid:5000",
-			"insecure":        true,
-			"modules":         []any{map[string]any{"name": "ghost-game"}},
+			"type": "oci",
+			"oci": map[string]any{
+				// .invalid is reserved (RFC 6761) so it never resolves on
+				// any network — the controller must surface a DNS / connect
+				// error rather than wait indefinitely.
+				"url":      "kestrel-nonexistent-registry.invalid:5000",
+				"insecure": true,
+				"modules":  []any{map[string]any{"name": "ghost-game"}},
+			},
 			"refreshInterval": "10m",
 		},
 	}}

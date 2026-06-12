@@ -35,12 +35,15 @@ func createIndexedSource(t *testing.T, name, urlPrefix string, _ *fakeOCI, modul
 	src := &kestrelv1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			URL:     urlPrefix,
-			Modules: []kestrelv1alpha1.ModuleRef{},
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL:     urlPrefix,
+				Modules: []kestrelv1alpha1.ModuleRef{},
+			},
 		},
 	}
 	for _, e := range modules {
-		src.Spec.Modules = append(src.Spec.Modules, kestrelv1alpha1.ModuleRef{Name: e.Name})
+		src.Spec.OCI.Modules = append(src.Spec.OCI.Modules, kestrelv1alpha1.ModuleRef{Name: e.Name})
 	}
 	if err := k8sClient.Create(context.Background(), src); err != nil {
 		t.Fatalf("create modulesource: %v", err)

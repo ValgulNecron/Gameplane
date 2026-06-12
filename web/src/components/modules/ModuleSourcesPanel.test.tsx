@@ -15,7 +15,7 @@ describe("ModuleSourcesPanel", () => {
           items: [
             makeModuleSource({
               metadata: { name: "upstream" },
-              spec: { url: "ghcr.io/x", modules: [{ name: "minecraft" }] },
+              spec: { type: "oci", oci: { url: "ghcr.io/x", modules: [{ name: "minecraft" }] } },
               status: {
                 conditions: [
                   { type: "Synced", status: "True", lastTransitionTime: "2026-01-01T00:00:00Z" },
@@ -74,7 +74,7 @@ describe("ModuleSourcesPanel", () => {
         HttpResponse.json({
           items: [
             makeModuleSource({
-              spec: { url: "localhost:5000", modules: [], insecure: true },
+              spec: { type: "oci", oci: { url: "localhost:5000", modules: [], insecure: true } },
             }),
           ],
         }),

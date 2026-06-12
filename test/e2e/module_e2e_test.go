@@ -66,9 +66,12 @@ func TestModuleSourceAndModule(t *testing.T) {
 			"kind":       "ModuleSource",
 			"metadata":   map[string]any{"name": sourceName},
 			"spec": map[string]any{
-				"url":      "kestrel-test-registry.kestrel-system.svc:5000",
-				"insecure": true,
-				"modules":  []any{map[string]any{"name": "e2e-test-game"}},
+				"type": "oci",
+				"oci": map[string]any{
+					"url":      "kestrel-test-registry.kestrel-system.svc:5000",
+					"insecure": true,
+					"modules":  []any{map[string]any{"name": "e2e-test-game"}},
+				},
 				// Default refreshInterval is 1h; for tests we want a
 				// fast first reconcile, which controller-runtime gives
 				// us regardless of this value.

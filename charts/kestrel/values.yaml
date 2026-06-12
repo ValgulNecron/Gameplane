@@ -115,3 +115,11 @@ defaultModuleSource:
   # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
   # namespace for private registries. Leave empty for public registries.
   pullSecretName: ""
+
+# Upload-backed ModuleSource: bundles uploaded through the dashboard
+# (stored as labeled ConfigMaps in the operator namespace) are indexed
+# into this source's catalog. Disable if you don't want UI uploads.
+uploadModuleSource:
+  enabled: true
+  name: uploads
+  refreshInterval: 1h

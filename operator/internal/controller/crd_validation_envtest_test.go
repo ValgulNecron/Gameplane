@@ -133,6 +133,103 @@ func TestCRDValidation_GameTemplateRequiresImage(t *testing.T) {
 	}
 }
 
+func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
+	ociSpec := &kestrelv1alpha1.OCISourceSpec{
+		URL:     "ghcr.io/test/modules",
+		Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft-java"}},
+	}
+
+	t.Run("type oci requires spec.oci", func(t *testing.T) {
+		src := &kestrelv1alpha1.ModuleSource{
+			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-oci-no-config")},
+			Spec:       kestrelv1alpha1.ModuleSourceSpec{Type: kestrelv1alpha1.ModuleSourceTypeOCI},
+		}
+		if err := k8sClient.Create(context.Background(), src); !apierrors.IsInvalid(err) {
+			t.Fatalf("expected Invalid, got %v", err)
+		}
+	})
+
+	t.Run("type defaults to oci and still requires spec.oci", func(t *testing.T) {
+		src := &kestrelv1alpha1.ModuleSource{
+			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-default-no-config")},
+		}
+		if err := k8sClient.Create(context.Background(), src); !apierrors.IsInvalid(err) {
+			t.Fatalf("expected Invalid, got %v", err)
+		}
+	})
+
+	t.Run("mismatched nested config rejected", func(t *testing.T) {
+		src := &kestrelv1alpha1.ModuleSource{
+			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-git-with-oci")},
+			Spec: kestrelv1alpha1.ModuleSourceSpec{
+				Type: kestrelv1alpha1.ModuleSourceTypeGit,
+				Git:  &kestrelv1alpha1.GitSourceSpec{URL: "https://example.com/mods.git"},
+				OCI:  ociSpec,
+			},
+		}
+		if err := k8sClient.Create(context.Background(), src); !apierrors.IsInvalid(err) {
+			t.Fatalf("expected Invalid, got %v", err)
+		}
+	})
+
+	t.Run("git subPath escape rejected", func(t *testing.T) {
+		src := &kestrelv1alpha1.ModuleSource{
+			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-git-escape")},
+			Spec: kestrelv1alpha1.ModuleSourceSpec{
+				Type: kestrelv1alpha1.ModuleSourceTypeGit,
+				Git: &kestrelv1alpha1.GitSourceSpec{
+					URL:     "https://example.com/mods.git",
+					SubPath: "../outside",
+				},
+			},
+		}
+		if err := k8sClient.Create(context.Background(), src); !apierrors.IsInvalid(err) {
+			t.Fatalf("expected Invalid, got %v", err)
+		}
+	})
+
+	t.Run("valid typed sources accepted", func(t *testing.T) {
+		for _, src := range []*kestrelv1alpha1.ModuleSource{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-oci")},
+				Spec: kestrelv1alpha1.ModuleSourceSpec{
+					Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+					OCI:  ociSpec,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-git")},
+				Spec: kestrelv1alpha1.ModuleSourceSpec{
+					Type: kestrelv1alpha1.ModuleSourceTypeGit,
+					Git: &kestrelv1alpha1.GitSourceSpec{
+						URL:     "https://example.com/mods.git",
+						SubPath: "modules",
+					},
+					Allow: []string{"minecraft-*"},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-local")},
+				Spec: kestrelv1alpha1.ModuleSourceSpec{
+					Type:  kestrelv1alpha1.ModuleSourceTypeLocal,
+					Local: &kestrelv1alpha1.LocalSourceSpec{Path: "bundles"},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-upload")},
+				Spec: kestrelv1alpha1.ModuleSourceSpec{
+					Type: kestrelv1alpha1.ModuleSourceTypeUpload,
+				},
+			},
+		} {
+			if err := k8sClient.Create(context.Background(), src); err != nil {
+				t.Fatalf("valid %s source rejected: %v", src.Spec.Type, err)
+			}
+			deleteCleanup(t, src)
+		}
+	})
+}
+
 func TestCRDValidation_ConsoleModeRconRequiresRcon(t *testing.T) {
 	tmpl := &kestrelv1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-rcon-mode-no-rcon"},

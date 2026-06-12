@@ -84,8 +84,11 @@ func TestModuleReconciler_FetcherFor_DefaultPath(t *testing.T) {
 	r := &ModuleReconciler{}
 	src := &kestrelv1alpha1.ModuleSource{
 		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			URL:     "ghcr.io/test/modules",
-			Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft-java"}},
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL:     "ghcr.io/test/modules",
+				Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft-java"}},
+			},
 		},
 	}
 	f, err := r.fetcherFor(context.Background(), src)

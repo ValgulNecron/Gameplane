@@ -18,8 +18,8 @@ spec:
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.url
-      name: URL
+    - jsonPath: .spec.type
+      name: Type
       type: string
     - jsonPath: .status.conditions[?(@.type=="Synced")].status
       name: Synced
@@ -33,8 +33,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ModuleSource is a registry that Kestrel pulls module bundles
-          from.
+        description: ModuleSource is a store that Kestrel pulls module bundles from.
         properties:
           apiVersion:
             description: |-
@@ -55,75 +54,206 @@ spec:
             type: object
           spec:
             description: |-
-              ModuleSourceSpec configures one OCI registry that hosts Kestrel
-              modules. The operator periodically lists tags for each ModuleRef and
-              caches the resulting catalog into status.modules.
+              ModuleSourceSpec configures one store that hosts Kestrel modules. The
+              spec is a discriminated union: exactly the nested config matching
+              spec.type must be set (enforced by CEL rules below). The operator
+              periodically indexes the source and caches the resulting catalog into
+              status.modules.
             properties:
-              insecure:
+              allow:
                 description: |-
-                  Insecure allows plain HTTP and skips TLS verification. Intended
-                  for local kind/k3d registries; do not enable on production
-                  clusters.
-                type: boolean
-              modules:
-                description: |-
-                  Modules is the explicit list of modules served by this source. v1
-                  keeps the listing explicit; anonymous discovery (catalog index
-                  artifact) is reserved for future extensions.
+                  Allow restricts which discovered module names this source exposes.
+                  Entries are exact names or path.Match globs (e.g. "minecraft-*").
+                  Empty means every discovered module. For oci sources the explicit
+                  spec.oci.modules list is authoritative; allow filters on top of it.
                 items:
-                  description: |-
-                    ModuleRef identifies a module within a ModuleSource by its logical
-                    name. The full OCI reference is reconstructed as
-                    "<source.url>/<name>".
-                  properties:
-                    name:
-                      description: |-
-                        Name is the module identifier within this source. Must match the
-                        "name" field in the bundle's module.yaml.
-                      minLength: 1
-                      type: string
-                  required:
-                  - name
-                  type: object
-                minItems: 1
+                  type: string
                 type: array
-              pullSecretRef:
-                description: |-
-                  PullSecretRef references a kubernetes.io/dockerconfigjson Secret
-                  in the operator namespace. Used for private registries.
+              git:
+                description: Git configures a git-type source.
                 properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                  ref:
+                    default: main
+                    description: Ref is the branch or tag to index. Defaults to main.
                     type: string
+                  secretRef:
+                    description: |-
+                      SecretRef references a Secret in the operator namespace holding
+                      credentials: either "token" (or "username"+"password") for https,
+                      or "ssh-privatekey" (+ optional "known_hosts") for ssh.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  subPath:
+                    description: |-
+                      SubPath limits scanning to a subdirectory of the repository
+                      (e.g. "modules"). Must be relative and must not contain "..".
+                    type: string
+                    x-kubernetes-validations:
+                    - message: subPath must be relative and must not contain '..'
+                      rule: '!self.startsWith(''/'') && !self.contains(''..'')'
+                  url:
+                    description: URL is the clone URL (https://... or ssh://git@...).
+                    minLength: 1
+                    type: string
+                required:
+                - url
                 type: object
-                x-kubernetes-map-type: atomic
+              http:
+                description: HTTP configures an http-type source.
+                properties:
+                  insecure:
+                    description: |-
+                      Insecure allows plain http URLs. TLS verification is never
+                      skipped — for self-signed registries mount the CA into the
+                      operator's trust store.
+                    type: boolean
+                  secretRef:
+                    description: |-
+                      SecretRef references a Secret in the operator namespace holding
+                      "token" (sent as a bearer token) or "username"+"password" (basic
+                      auth).
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  url:
+                    description: URL of the archive (.tar.gz/.tgz/.zip).
+                    minLength: 1
+                    type: string
+                required:
+                - url
+                type: object
+              local:
+                description: Local configures a local-type source.
+                properties:
+                  path:
+                    description: |-
+                      Path is resolved relative to the operator's --module-local-root.
+                      Empty scans the root itself. Must be relative and must not
+                      contain "..".
+                    type: string
+                    x-kubernetes-validations:
+                    - message: path must be relative and must not contain '..'
+                      rule: '!self.startsWith(''/'') && !self.contains(''..'')'
+                type: object
+              oci:
+                description: OCI configures an oci-type source.
+                properties:
+                  insecure:
+                    description: |-
+                      Insecure allows plain HTTP and skips TLS verification. Intended
+                      for local kind/k3d registries; do not enable on production
+                      clusters.
+                    type: boolean
+                  modules:
+                    description: Modules is the explicit list of modules served by
+                      this source.
+                    items:
+                      description: |-
+                        ModuleRef identifies a module within a ModuleSource by its logical
+                        name. For oci sources the full reference is reconstructed as
+                        "<oci.url>/<name>".
+                      properties:
+                        name:
+                          description: |-
+                            Name is the module identifier within this source. Must match the
+                            "name" field in the bundle's module.yaml.
+                          minLength: 1
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    minItems: 1
+                    type: array
+                  pullSecretRef:
+                    description: |-
+                      PullSecretRef references a kubernetes.io/dockerconfigjson Secret
+                      in the operator namespace. Used for private registries.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  url:
+                    description: |-
+                      URL is the registry/repository prefix that holds module bundles
+                      (e.g. "ghcr.io/kestrel-gg/modules").
+                    minLength: 1
+                    type: string
+                required:
+                - modules
+                - url
+                type: object
               refreshInterval:
                 default: 1h
                 description: |-
                   RefreshInterval is how often the controller re-indexes the
-                  registry. Defaults to 1h. Minimum 1m.
+                  source. Defaults to 1h. Minimum 1m.
                 type: string
-              url:
+              type:
+                default: oci
                 description: |-
-                  URL is the registry/repository prefix that holds module bundles
-                  (e.g. "ghcr.io/kestrel-gg/modules"). Each Module in this source is
-                  pushed under "<URL>/<name>:<version>".
-                minLength: 1
+                  Type selects where this source pulls modules from:
+                    - oci:    an OCI registry holding module bundle artifacts
+                    - git:    a git repository containing module directories
+                    - http:   an http(s) URL to a tar.gz/zip of module directories
+                    - local:  a directory mounted into the operator pod
+                    - upload: bundles uploaded through the API, stored as labeled
+                              ConfigMaps in the operator namespace (no config)
+                enum:
+                - oci
+                - git
+                - http
+                - local
+                - upload
                 type: string
-            required:
-            - modules
-            - url
             type: object
+            x-kubernetes-validations:
+            - message: spec.oci is required when spec.type is oci
+              rule: self.type != 'oci' || has(self.oci)
+            - message: spec.git is required when spec.type is git
+              rule: self.type != 'git' || has(self.git)
+            - message: spec.http is required when spec.type is http
+              rule: self.type != 'http' || has(self.http)
+            - message: spec.local is required when spec.type is local
+              rule: self.type != 'local' || has(self.local)
+            - message: spec.oci is only valid when spec.type is oci
+              rule: '!has(self.oci) || self.type == ''oci'''
+            - message: spec.git is only valid when spec.type is git
+              rule: '!has(self.git) || self.type == ''git'''
+            - message: spec.http is only valid when spec.type is http
+              rule: '!has(self.http) || self.type == ''http'''
+            - message: spec.local is only valid when spec.type is local
+              rule: '!has(self.local) || self.type == ''local'''
           status:
             description: |-
               ModuleSourceStatus is populated by the operator from a successful
-              registry index.
+              source index.
             properties:
               conditions:
                 description: |-
@@ -193,9 +323,17 @@ spec:
                 description: Modules is the cached catalog for this source.
                 items:
                   description: |-
-                    ModuleEntry is one module's catalog snapshot from the registry. The
-                    operator fills these from each module's module.yaml + tag list.
+                    ModuleEntry is one module's catalog snapshot from the source. The
+                    operator fills these from each module's module.yaml (+ tag list for
+                    oci sources).
                   properties:
+                    digest:
+                      description: |-
+                        Digest identifies the exact content backing LatestVersion: the
+                        OCI manifest digest, "git:<commit sha>", or a sha256 content hash
+                        over the module directory. Lets installs detect content drift
+                        when a version string is reused.
+                      type: string
                     displayName:
                       description: DisplayName is the human-readable label from module.yaml.
                       type: string
@@ -211,20 +349,22 @@ spec:
                       description: LatestVersion is Versions[0] when populated.
                       type: string
                     name:
-                      description: Name is the logical module name (matches ModuleRef.Name).
+                      description: Name is the logical module name.
                       type: string
                     reference:
                       description: |-
-                        Reference is the registry/repo path for this module without a
-                        tag (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java").
+                        Reference locates this module within its source: the registry
+                        repo path for oci (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java"),
+                        or "<type>:<location>/<dir>" for the other source types.
                       type: string
                     summary:
                       description: Summary is the one-line catalog blurb from module.yaml.
                       type: string
                     versions:
                       description: |-
-                        Versions is the list of tags found in the registry, semver-sorted
-                        in descending order. Non-semver tags are excluded.
+                        Versions lists the available versions, semver-sorted descending.
+                        For oci these are the registry tags; non-oci sources publish a
+                        single version — whatever module.yaml declares.
                       items:
                         type: string
                       type: array

@@ -98,11 +98,11 @@ func (f *fakeOCI) putBundle(ref, version string, a fakeArtifact) {
 // so envtests exercise the production index/pull logic.
 func fakeOCIFetcher(fake *fakeOCI) func(context.Context, *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
 	return func(_ context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
-		names := make([]string, 0, len(src.Spec.Modules))
-		for _, m := range src.Spec.Modules {
+		names := make([]string, 0, len(src.Spec.OCI.Modules))
+		for _, m := range src.Spec.OCI.Modules {
 			names = append(names, m.Name)
 		}
-		return modsrc.NewOCI(fake, src.Spec.URL, names), nil
+		return modsrc.NewOCI(fake, src.Spec.OCI.URL, names), nil
 	}
 }
 
@@ -150,10 +150,13 @@ func TestModuleSource_IndexesCatalog(t *testing.T) {
 	src := &kestrelv1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("indexed")},
 		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			URL: "local/test",
-			Modules: []kestrelv1alpha1.ModuleRef{
-				{Name: "minecraft-java"},
-				{Name: "valheim"},
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL: "local/test",
+				Modules: []kestrelv1alpha1.ModuleRef{
+					{Name: "minecraft-java"},
+					{Name: "valheim"},
+				},
 			},
 		},
 	}
@@ -199,8 +202,11 @@ func TestModuleSource_KeepsPartialCatalogOnError(t *testing.T) {
 	src := &kestrelv1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("partial")},
 		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			URL:     "local/test",
-			Modules: []kestrelv1alpha1.ModuleRef{{Name: "good"}, {Name: "broken"}},
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL:     "local/test",
+				Modules: []kestrelv1alpha1.ModuleRef{{Name: "good"}, {Name: "broken"}},
+			},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), src); err != nil {
@@ -263,8 +269,11 @@ func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 	src := &kestrelv1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("unreachable")},
 		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			URL:     "unreachable/test",
-			Modules: []kestrelv1alpha1.ModuleRef{{Name: "ghost"}},
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL:     "unreachable/test",
+				Modules: []kestrelv1alpha1.ModuleRef{{Name: "ghost"}},
+			},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), src); err != nil {
