@@ -133,6 +133,80 @@ spec:
                 items:
                   type: string
                 type: array
+              capabilities:
+                description: |-
+                  Capabilities declares the game-specific console commands behind
+                  agent features (player moderation, backup quiesce). The operator
+                  serializes this onto the agent sidecar, which interprets it at
+                  runtime — modules add full feature support without agent code
+                  changes. All commands run over the template's RCON connection,
+                  so they require rcon.protocol != none.
+                properties:
+                  players:
+                    description: Players configures the moderation actions on the
+                      Players tab.
+                    properties:
+                      ban:
+                        description: Ban bans a player.
+                        type: string
+                      banList:
+                        description: BanList configures reading the current ban list.
+                        properties:
+                          command:
+                            description: Command prints the ban list (e.g. "banlist
+                              players").
+                            minLength: 1
+                            type: string
+                          entryRegex:
+                            description: |-
+                              EntryRegex matches one banned player per output line, using the
+                              named groups "name" (required), "source" and "reason" (optional).
+                            minLength: 1
+                            type: string
+                        required:
+                        - command
+                        - entryRegex
+                        type: object
+                      kick:
+                        description: |-
+                          Kick disconnects a player, e.g.
+                          "kick {{.Player}}{{if .Reason}} {{.Reason}}{{end}}".
+                        type: string
+                      unban:
+                        description: Unban lifts a ban, e.g. "pardon {{.Player}}".
+                        type: string
+                    type: object
+                  quiesce:
+                    description: |-
+                      Quiesce configures how in-flight game state is flushed to disk
+                      before a backup snapshot (and resumed afterwards).
+                    properties:
+                      failurePattern:
+                        description: |-
+                          FailurePattern, when it matches a quiesce command's output
+                          (case-insensitive regex), treats the step as failed even though
+                          the command itself returned successfully.
+                        type: string
+                      quiesce:
+                        description: |-
+                          Quiesce runs before the snapshot, in order (e.g. ["save-off",
+                          "save-all flush"]). Any command error triggers a best-effort
+                          Unquiesce.
+                        items:
+                          type: string
+                        minItems: 1
+                        type: array
+                      unquiesce:
+                        description: Unquiesce runs after the snapshot (e.g. ["save-on"]).
+                        items:
+                          type: string
+                        minItems: 1
+                        type: array
+                    required:
+                    - quiesce
+                    - unquiesce
+                    type: object
+                type: object
               command:
                 description: Command / Args override the container image entrypoint
                   when set.

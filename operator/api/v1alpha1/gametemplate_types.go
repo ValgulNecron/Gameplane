@@ -116,6 +116,83 @@ type GameTemplateSpec struct {
 	// Agent tunes the sidecar deployed alongside the game container.
 	// +optional
 	Agent *AgentSpec `json:"agent,omitempty"`
+
+	// Capabilities declares the game-specific console commands behind
+	// agent features (player moderation, backup quiesce). The operator
+	// serializes this onto the agent sidecar, which interprets it at
+	// runtime — modules add full feature support without agent code
+	// changes. All commands run over the template's RCON connection,
+	// so they require rcon.protocol != none.
+	// +optional
+	Capabilities *CapabilitiesSpec `json:"capabilities,omitempty"`
+}
+
+// CapabilitiesSpec declares the per-game command surface the agent
+// interprets.
+type CapabilitiesSpec struct {
+	// Players configures the moderation actions on the Players tab.
+	// +optional
+	Players *PlayerActionsSpec `json:"players,omitempty"`
+
+	// Quiesce configures how in-flight game state is flushed to disk
+	// before a backup snapshot (and resumed afterwards).
+	// +optional
+	Quiesce *QuiesceSpec `json:"quiesce,omitempty"`
+}
+
+// PlayerActionsSpec maps moderation actions to console commands. Each
+// command is a Go text/template rendered with .Player and .Reason
+// (reason may be empty — guard with {{if .Reason}}). Unset actions are
+// reported as unsupported.
+type PlayerActionsSpec struct {
+	// Kick disconnects a player, e.g.
+	// "kick {{.Player}}{{if .Reason}} {{.Reason}}{{end}}".
+	// +optional
+	Kick string `json:"kick,omitempty"`
+
+	// Ban bans a player.
+	// +optional
+	Ban string `json:"ban,omitempty"`
+
+	// Unban lifts a ban, e.g. "pardon {{.Player}}".
+	// +optional
+	Unban string `json:"unban,omitempty"`
+
+	// BanList configures reading the current ban list.
+	// +optional
+	BanList *BanListSpec `json:"banList,omitempty"`
+}
+
+// BanListSpec reads and parses the game's ban list.
+type BanListSpec struct {
+	// Command prints the ban list (e.g. "banlist players").
+	// +kubebuilder:validation:MinLength=1
+	Command string `json:"command"`
+
+	// EntryRegex matches one banned player per output line, using the
+	// named groups "name" (required), "source" and "reason" (optional).
+	// +kubebuilder:validation:MinLength=1
+	EntryRegex string `json:"entryRegex"`
+}
+
+// QuiesceSpec declares the command sequences that pause and resume
+// game writes around a backup.
+type QuiesceSpec struct {
+	// Quiesce runs before the snapshot, in order (e.g. ["save-off",
+	// "save-all flush"]). Any command error triggers a best-effort
+	// Unquiesce.
+	// +kubebuilder:validation:MinItems=1
+	Quiesce []string `json:"quiesce"`
+
+	// Unquiesce runs after the snapshot (e.g. ["save-on"]).
+	// +kubebuilder:validation:MinItems=1
+	Unquiesce []string `json:"unquiesce"`
+
+	// FailurePattern, when it matches a quiesce command's output
+	// (case-insensitive regex), treats the step as failed even though
+	// the command itself returned successfully.
+	// +optional
+	FailurePattern string `json:"failurePattern,omitempty"`
 }
 
 // GamePort is a single exposed port.

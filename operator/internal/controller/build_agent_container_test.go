@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -164,5 +165,51 @@ func TestBuildAgentContainer_GameLogPathArg(t *testing.T) {
 		if strings.HasPrefix(a, "--game-log-path") {
 			t.Fatalf("unexpected log-path arg without template logPath: %s", a)
 		}
+	}
+}
+
+func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
+	gs := &kestrelv1alpha1.GameServer{}
+	gs.Name = "smp"
+	gs.Namespace = "g"
+
+	envValue := func(c corev1.Container, name string) (string, bool) {
+		for _, e := range c.Env {
+			if e.Name == name {
+				return e.Value, true
+			}
+		}
+		return "", false
+	}
+
+	tmpl := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
+		Capabilities: &kestrelv1alpha1.CapabilitiesSpec{
+			Players: &kestrelv1alpha1.PlayerActionsSpec{
+				Kick: "kick {{.Player}}",
+			},
+			Quiesce: &kestrelv1alpha1.QuiesceSpec{
+				Quiesce:   []string{"save-off", "save-all flush"},
+				Unquiesce: []string{"save-on"},
+			},
+		},
+	}}
+	got, ok := envValue(buildAgentContainer(gs, tmpl, "fb"), "KESTREL_CAPABILITIES")
+	if !ok {
+		t.Fatal("expected KESTREL_CAPABILITIES env when template declares capabilities")
+	}
+	var parsed kestrelv1alpha1.CapabilitiesSpec
+	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+		t.Fatalf("env is not valid JSON: %v", err)
+	}
+	if parsed.Players == nil || parsed.Players.Kick != "kick {{.Player}}" {
+		t.Errorf("players round-trip = %+v", parsed.Players)
+	}
+	if parsed.Quiesce == nil || len(parsed.Quiesce.Quiesce) != 2 {
+		t.Errorf("quiesce round-trip = %+v", parsed.Quiesce)
+	}
+
+	bare := &kestrelv1alpha1.GameTemplate{}
+	if _, ok := envValue(buildAgentContainer(gs, bare, "fb"), "KESTREL_CAPABILITIES"); ok {
+		t.Fatal("unexpected KESTREL_CAPABILITIES env without declared capabilities")
 	}
 }

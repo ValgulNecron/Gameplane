@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -489,19 +490,28 @@ func buildAgentContainer(
 	if tmpl.Spec.LogPath != "" {
 		args = append(args, "--game-log-path="+tmpl.Spec.LogPath)
 	}
+	env := []corev1.EnvVar{
+		{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
+		{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
+		{Name: "KESTREL_GAME", Value: tmpl.Spec.Game},
+		// Games without RCON (consoleMode pty/none) must not have the
+		// agent dialing a console port that doesn't exist — players
+		// and moderation endpoints degrade instead.
+		{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+	}
+	// Declared capability commands travel to the agent as one JSON
+	// blob; the env change rolls the StatefulSet, so capability edits
+	// apply on the next pod rollout like every other template change.
+	if tmpl.Spec.Capabilities != nil {
+		if caps, err := json.Marshal(tmpl.Spec.Capabilities); err == nil {
+			env = append(env, corev1.EnvVar{Name: "KESTREL_CAPABILITIES", Value: string(caps)})
+		}
+	}
 	return corev1.Container{
 		Name:  "agent",
 		Image: image,
 		Args:  args,
-		Env: []corev1.EnvVar{
-			{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
-			{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
-			{Name: "KESTREL_GAME", Value: tmpl.Spec.Game},
-			// Games without RCON (consoleMode pty/none) must not have the
-			// agent dialing a console port that doesn't exist — players
-			// and moderation endpoints degrade instead.
-			{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
-		},
+		Env:   env,
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "data", MountPath: mountPath},
 			{Name: "agent-tls", MountPath: "/etc/kestrel/agent-tls", ReadOnly: true},
