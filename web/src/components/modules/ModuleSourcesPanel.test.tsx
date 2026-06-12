@@ -5,7 +5,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeModuleSource } from "@/test/factories";
-import { ModuleSourcesPanel } from "./ModuleSourcesPanel";
+import { ModuleSourcesPanel, sourceLocation } from "./ModuleSourcesPanel";
 
 describe("ModuleSourcesPanel", () => {
   it("renders the listing", async () => {
@@ -66,6 +66,40 @@ describe("ModuleSourcesPanel", () => {
     await waitFor(() =>
       expect(screen.getByText(/Failed to load module sources/i)).toBeInTheDocument(),
     );
+  });
+
+  it("formats the location per source type", () => {
+    expect(sourceLocation({ type: "oci", oci: { url: "ghcr.io/x", modules: [] } })).toBe("ghcr.io/x");
+    expect(sourceLocation({ oci: { url: "ghcr.io/y", modules: [] } })).toBe("ghcr.io/y"); // type defaults to oci
+    expect(sourceLocation({ type: "git", git: { url: "https://g/x.git", ref: "main" } })).toBe(
+      "https://g/x.git@main",
+    );
+    expect(sourceLocation({ type: "git", git: { url: "https://g/x.git" } })).toBe("https://g/x.git");
+    expect(sourceLocation({ type: "http", http: { url: "https://e/m.tar.gz" } })).toBe("https://e/m.tar.gz");
+    expect(sourceLocation({ type: "local", local: { path: "bundles" } })).toBe("local:bundles");
+    expect(sourceLocation({ type: "local", local: {} })).toBe("local");
+    expect(sourceLocation({ type: "upload" })).toBe("uploaded bundles");
+    expect(sourceLocation({ type: "git" })).toBe(""); // malformed spec degrades to empty
+    expect(sourceLocation({ type: "http" })).toBe("");
+  });
+
+  it("renders a git source row with type badge", async () => {
+    server.use(
+      http.get("/modules/sources", () =>
+        HttpResponse.json({
+          items: [
+            makeModuleSource({
+              metadata: { name: "community" },
+              spec: { type: "git", git: { url: "https://github.com/x/mods", ref: "stable" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    expect(await screen.findByText("community")).toBeInTheDocument();
+    expect(screen.getByText("git")).toBeInTheDocument();
+    expect(screen.getByText("https://github.com/x/mods@stable")).toBeInTheDocument();
   });
 
   it("renders the insecure pill when set", async () => {
