@@ -340,7 +340,7 @@ function ErrorLine({ error }: { error: unknown }) {
     error instanceof APIError
       ? error.body || `Request failed (${error.status})`
       : (error as Error).message;
-  return <div className="pt-2 text-xs text-destructive">{text}</div>;
+  return <div className="pt-2 text-xs text-danger">{text}</div>;
 }
 
 function InviteModal({
@@ -418,7 +418,7 @@ function InviteModal({
               />
             </FieldLabel>
             {passwordTooShort && (
-              <div className="pt-1 text-[11px] text-destructive">
+              <div className="pt-1 text-[11px] text-danger">
                 At least {MIN_PASSWORD_LEN} characters.
               </div>
             )}
@@ -515,7 +515,7 @@ function EditUserModal({
             />
           </FieldLabel>
           {wouldDemoteSelf && (
-            <div className="pt-1 text-[11px] text-destructive">
+            <div className="pt-1 text-[11px] text-danger">
               You can’t demote yourself out of admin.
             </div>
           )}
@@ -573,7 +573,7 @@ function ResetPasswordModal({
             />
           </FieldLabel>
           {tooShort && (
-            <div className="pt-1 text-[11px] text-destructive">
+            <div className="pt-1 text-[11px] text-danger">
               At least {MIN_PASSWORD_LEN} characters.
             </div>
           )}
@@ -608,7 +608,7 @@ function DeleteUserDialog({
     onSuccess: onDeleted,
   });
   const description = isMe ? (
-    <span className="text-destructive">You can’t delete your own account.</span>
+    <span className="text-danger">You can’t delete your own account.</span>
   ) : (
     <>
       Their sessions will be revoked and they’ll lose access immediately. This

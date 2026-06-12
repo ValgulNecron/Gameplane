@@ -211,11 +211,11 @@ function ErrorAlert({ title, body }: { title: string; body: string }) {
   return (
     <div
       role="alert"
-      className="mx-6 mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm"
+      className="mx-6 mb-4 rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm"
       data-testid="create-error"
     >
-      <div className="font-medium text-destructive">{title}</div>
-      <div className="pt-1 text-xs text-destructive/80">{body}</div>
+      <div className="font-medium text-danger">{title}</div>
+      <div className="pt-1 text-xs text-danger/80">{body}</div>
     </div>
   );
 }
