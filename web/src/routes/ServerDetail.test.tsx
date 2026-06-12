@@ -5,14 +5,16 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeServer } from "@/test/factories";
+import { makeServer, makeUser } from "@/test/factories";
 
 // Router APIs the route reaches into.
+const navigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>{children}</a>
   ),
   useParams: () => ({ name: "alpha" }),
+  useNavigate: () => navigate,
 }));
 
 // Heavy lazy tabs (xterm / Monaco) — replace with stubs so jsdom doesn't
@@ -67,5 +69,79 @@ describe("ServerDetailPage", () => {
     const filesTab = await screen.findByRole("button", { name: /Files/i });
     await userEvent.click(filesTab);
     await waitFor(() => expect(screen.getByText("files-tab")).toBeInTheDocument());
+  });
+});
+
+describe("ServerDetailPage clone action", () => {
+  async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ metadata: { name: "alpha" } }))),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await user.click(await screen.findByRole("button", { name: "More actions" }));
+  }
+
+  it("shows Clone server in the More menu", async () => {
+    const user = userEvent.setup();
+    await openMenu(user);
+    expect(screen.getByText("Clone server")).toBeInTheDocument();
+  });
+
+  it("disables Clone server for viewers", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))),
+    );
+    const user = userEvent.setup();
+    await openMenu(user);
+    const item = screen.getByText("Clone server").closest("[role='menuitem']");
+    await waitFor(() => expect(item).toHaveAttribute("aria-disabled", "true"));
+    expect(item).toHaveAttribute("title", "Requires operator role");
+  });
+
+  it("opens the dialog prefilled and validates the name", async () => {
+    const user = userEvent.setup();
+    await openMenu(user);
+    await user.click(screen.getByText("Clone server"));
+    const input = await screen.findByLabelText("New name");
+    expect(input).toHaveValue("alpha-copy");
+
+    await user.clear(input);
+    await user.type(input, "Bad_Name");
+    expect(
+      screen.getByText("Name must be lowercase letters, digits, dashes (max 63)"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clone server" })).toBeDisabled();
+  });
+
+  it("clones and navigates to the new server", async () => {
+    const user = userEvent.setup();
+    await openMenu(user);
+    await user.click(screen.getByText("Clone server"));
+    await screen.findByLabelText("New name");
+    await user.click(screen.getByRole("button", { name: "Clone server" }));
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/servers/$name",
+        params: { name: "alpha-copy" },
+      }),
+    );
+    expect(screen.queryByLabelText("New name")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a 409 conflict and keeps the dialog open", async () => {
+    server.use(
+      http.post(/\/servers\/[^/]+:clone$/, () =>
+        new HttpResponse("already exists", { status: 409 }),
+      ),
+    );
+    const user = userEvent.setup();
+    await openMenu(user);
+    await user.click(screen.getByText("Clone server"));
+    await screen.findByLabelText("New name");
+    await user.click(screen.getByRole("button", { name: "Clone server" }));
+    expect(
+      await screen.findByText("A server named alpha-copy already exists."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("New name")).toBeInTheDocument();
   });
 });

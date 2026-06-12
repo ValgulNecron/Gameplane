@@ -61,7 +61,7 @@ export function DropdownMenuItem({
       title={hint}
       className={cn(
         "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-none",
-        destructive ? "text-destructive" : "text-fg",
+        destructive ? "text-danger" : "text-fg",
         disabled
           ? "opacity-50 cursor-not-allowed"
           : "data-[highlighted]:bg-surface/70",

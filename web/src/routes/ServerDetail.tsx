@@ -1,7 +1,9 @@
-import { lazy, Suspense, useState } from "react";
-import { useParams } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
+  Copy,
   MoreHorizontal,
   Play,
   RotateCw,
@@ -9,9 +11,19 @@ import {
   Terminal,
 } from "lucide-react";
 import { Servers, type LifecycleVerb } from "@/lib/endpoints";
+import { APIError } from "@/lib/api";
+import { useMe, hasRole } from "@/lib/auth";
+import { isValidK8sName } from "@/lib/validation";
 import { PhaseBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { GameIcon } from "@/components/ui/game-icon";
+import { Input } from "@/components/ui/input";
 import { cn, formatUptime } from "@/lib/utils";
 
 import { OverviewTab } from "./tabs/Overview";
@@ -44,7 +56,10 @@ export function ServerDetailPage() {
   const { name } = useParams({ from: "/app-layout/servers/$name" });
   const [tab, setTab] = useState<TabKey>("overview");
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [cloneOpen, setCloneOpen] = useState(false);
   const qc = useQueryClient();
+  const { data: me } = useMe();
+  const canClone = hasRole(me, ["admin", "operator"]);
 
   const { data: gs } = useQuery({
     queryKey: ["server", name],
@@ -96,9 +111,22 @@ export function ServerDetailPage() {
             <Button onClick={() => setTab("console")}>
               <Terminal className="h-4 w-4" /> Open console
             </Button>
-            <Button variant="ghost" size="icon" title="More">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  icon={<Copy className="h-4 w-4" />}
+                  label="Clone server"
+                  onSelect={() => setCloneOpen(true)}
+                  disabled={!canClone}
+                  hint={canClone ? undefined : "Requires operator role"}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -133,7 +161,104 @@ export function ServerDetailPage() {
           )}
         </Suspense>
       </div>
+
+      <CloneDialog open={cloneOpen} onOpenChange={setCloneOpen} sourceName={name} />
     </div>
+  );
+}
+
+function cloneErrorMessage(err: unknown, name: string): string {
+  if (err instanceof APIError) {
+    if (err.status === 409) return `A server named ${name} already exists.`;
+    if (err.status === 403) return "Your role does not allow cloning servers.";
+    return err.body.slice(0, 240) || `Clone failed (${err.status}).`;
+  }
+  return err instanceof Error ? err.message : "Unknown error";
+}
+
+function CloneDialog({
+  open,
+  onOpenChange,
+  sourceName,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sourceName: string;
+}) {
+  const qc = useQueryClient();
+  const nav = useNavigate();
+  const [newName, setNewName] = useState("");
+
+  useEffect(() => {
+    if (open) setNewName(`${sourceName.slice(0, 58)}-copy`);
+  }, [open, sourceName]);
+
+  const clone = useMutation({
+    mutationFn: () => Servers.clone(sourceName, newName),
+    onSuccess: async (created) => {
+      await qc.invalidateQueries({ queryKey: ["servers"] });
+      onOpenChange(false);
+      await nav({ to: "/servers/$name", params: { name: created.metadata.name } });
+    },
+  });
+
+  const valid = isValidK8sName(newName);
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[440px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
+          <Dialog.Title className="text-base font-semibold">Clone server</Dialog.Title>
+          <Dialog.Description asChild>
+            <div className="pt-2 text-sm text-muted">
+              Creates a new server with the same configuration. World data is not copied.
+            </div>
+          </Dialog.Description>
+
+          <div className="pt-4">
+            <label className="block pb-1 text-xs text-muted" htmlFor="clone-new-name">
+              New name
+            </label>
+            <Input
+              id="clone-new-name"
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              spellCheck={false}
+            />
+            {!valid && (
+              <p className="pt-1 text-xs text-danger">
+                Name must be lowercase letters, digits, dashes (max 63)
+              </p>
+            )}
+            {clone.isError && (
+              <p className="pt-1 text-xs text-danger">
+                {cloneErrorMessage(clone.error, newName)}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={clone.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!valid || clone.isPending}
+              onClick={() => clone.mutate()}
+            >
+              {clone.isPending ? "Cloning…" : "Clone server"}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
