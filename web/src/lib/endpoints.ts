@@ -24,7 +24,7 @@ import type {
 // shape is declared here once; callers reference these instead of restating
 // path strings. The generic api<T>() remains available as an escape hatch.
 
-export type LifecycleVerb = "start" | "stop" | "restart" | "clone";
+export type LifecycleVerb = "start" | "stop" | "restart";
 export type ModerateAction = "kick" | "ban" | "unban";
 
 export interface ServerCreate {
@@ -62,6 +62,8 @@ export const Servers = {
     api<void>(`/servers/${name}`, { method: "DELETE" }),
   lifecycle: (name: string, verb: LifecycleVerb) =>
     api<void>(`/servers/${name}:${verb}`, { method: "POST" }),
+  clone: (name: string, newName: string) =>
+    api<GameServer>(`/servers/${name}:clone`, { method: "POST", body: { newName } }),
 };
 
 export const Templates = {

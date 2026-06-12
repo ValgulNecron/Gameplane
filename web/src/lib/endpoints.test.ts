@@ -44,6 +44,14 @@ describe("endpoints", () => {
     expect(called().init.method).toBe("POST");
   });
 
+  it("Servers.clone POSTs the new name to the clone verb path", async () => {
+    await Servers.clone("mc-survival", "mc-survival-copy");
+    const c = called();
+    expect(c.url).toBe("/servers/mc-survival:clone");
+    expect(c.init.method).toBe("POST");
+    expect(c.init.body).toBe(JSON.stringify({ newName: "mc-survival-copy" }));
+  });
+
   it("Servers.create POSTs JSON body", async () => {
     await Servers.create({
       name: "x",
