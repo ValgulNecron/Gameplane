@@ -55,14 +55,19 @@ func ForSource(ctx context.Context, c client.Client, namespace string, src *kest
 			}
 		}
 		return NewOCI(oci.New(creds, spec.Insecure), spec.URL, names), nil
+	case kestrelv1alpha1.ModuleSourceTypeGit:
+		spec := src.Spec.Git
+		if spec == nil {
+			return nil, fmt.Errorf("spec.git is required when spec.type is git")
+		}
+		return newGit(ctx, c, namespace, spec, src.Spec.Allow)
 	case kestrelv1alpha1.ModuleSourceTypeLocal:
 		spec := src.Spec.Local
 		if spec == nil {
 			return nil, fmt.Errorf("spec.local is required when spec.type is local")
 		}
 		return newLocal(opts.LocalRoot, spec.Path, src.Spec.Allow)
-	case kestrelv1alpha1.ModuleSourceTypeGit,
-		kestrelv1alpha1.ModuleSourceTypeHTTP,
+	case kestrelv1alpha1.ModuleSourceTypeHTTP,
 		kestrelv1alpha1.ModuleSourceTypeUpload:
 		return nil, fmt.Errorf("source type %q is not implemented yet", src.Spec.Type)
 	default:
