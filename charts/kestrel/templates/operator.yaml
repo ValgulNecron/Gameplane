@@ -190,6 +190,9 @@ spec:
             - --agent-ca-secret-name={{ .Values.api.agentMTLS.caSecretRef.name }}
             - --agent-ca-secret-namespace={{ .Release.Namespace }}
             - --module-namespace={{ .Release.Namespace }}
+            {{- if .Values.operator.localModules.enabled }}
+            - --module-local-root={{ .Values.operator.localModules.mountPath }}
+            {{- end }}
           ports:
             - { name: metrics, containerPort: 8080 }
             - { name: health,  containerPort: 8081 }
@@ -203,11 +206,27 @@ spec:
           volumeMounts:
             - { name: agent-ca, mountPath: /etc/kestrel/agent-ca, readOnly: true }
             - { name: agent-client, mountPath: /etc/kestrel/agent-client, readOnly: true }
+            {{- if .Values.operator.localModules.enabled }}
+            - { name: local-modules, mountPath: {{ .Values.operator.localModules.mountPath }}, readOnly: true }
+            {{- end }}
       volumes:
         - name: agent-ca
           secret: { secretName: {{ .Values.api.agentMTLS.caSecretRef.name }} }
         - name: agent-client
           secret: { secretName: {{ .Values.api.agentMTLS.clientCertRef.name }} }
+        {{- if .Values.operator.localModules.enabled }}
+        - name: local-modules
+          {{- if .Values.operator.localModules.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.operator.localModules.existingClaim }}
+          {{- else if .Values.operator.localModules.hostPath }}
+          hostPath:
+            path: {{ .Values.operator.localModules.hostPath }}
+            type: Directory
+          {{- else }}
+          {{- fail "operator.localModules.enabled requires existingClaim or hostPath" }}
+          {{- end }}
+        {{- end }}
       {{- with .Values.image.pullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}

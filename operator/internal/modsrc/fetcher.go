@@ -35,7 +35,7 @@ type Options struct {
 // ForSource builds the Fetcher for a ModuleSource based on its type.
 // c and namespace are used to resolve credential Secrets living in the
 // operator namespace.
-func ForSource(ctx context.Context, c client.Client, namespace string, src *kestrelv1alpha1.ModuleSource, _ Options) (Fetcher, error) {
+func ForSource(ctx context.Context, c client.Client, namespace string, src *kestrelv1alpha1.ModuleSource, opts Options) (Fetcher, error) {
 	switch src.Spec.Type {
 	// Empty matches pre-defaulting objects constructed in Go (the API
 	// server always defaults type to "oci").
@@ -55,9 +55,14 @@ func ForSource(ctx context.Context, c client.Client, namespace string, src *kest
 			}
 		}
 		return NewOCI(oci.New(creds, spec.Insecure), spec.URL, names), nil
+	case kestrelv1alpha1.ModuleSourceTypeLocal:
+		spec := src.Spec.Local
+		if spec == nil {
+			return nil, fmt.Errorf("spec.local is required when spec.type is local")
+		}
+		return newLocal(opts.LocalRoot, spec.Path, src.Spec.Allow)
 	case kestrelv1alpha1.ModuleSourceTypeGit,
 		kestrelv1alpha1.ModuleSourceTypeHTTP,
-		kestrelv1alpha1.ModuleSourceTypeLocal,
 		kestrelv1alpha1.ModuleSourceTypeUpload:
 		return nil, fmt.Errorf("source type %q is not implemented yet", src.Spec.Type)
 	default:

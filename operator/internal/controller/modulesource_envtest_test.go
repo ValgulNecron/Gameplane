@@ -5,9 +5,12 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -226,6 +229,117 @@ func TestModuleSource_KeepsPartialCatalogOnError(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// TestModuleSource_LocalDirectory exercises the REAL local fetcher
+// (no fake): module dirs dropped under the operator's local root are
+// indexed into the catalog, and a Module install materializes a
+// GameTemplate from them.
+func TestModuleSource_LocalDirectory(t *testing.T) {
+	_ = newNamespace(t)
+	root := t.TempDir()
+	writeLocalModule(t, filepath.Join(root, "bundles", "terraria"), "terraria", "1.4.0")
+
+	opts := modsrc.Options{LocalRoot: root}
+	startMgr(t, "kestrel-system",
+		func(mgr manager.Manager) error {
+			return (&ModuleSourceReconciler{
+				Client:       mgr.GetClient(),
+				Scheme:       mgr.GetScheme(),
+				FetchOptions: opts,
+			}).SetupWithManager(mgr)
+		},
+		func(mgr manager.Manager) error {
+			return (&ModuleReconciler{
+				Client:       mgr.GetClient(),
+				Scheme:       mgr.GetScheme(),
+				FetchOptions: opts,
+			}).SetupWithManager(mgr)
+		},
+	)
+
+	src := &kestrelv1alpha1.ModuleSource{
+		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("local")},
+		Spec: kestrelv1alpha1.ModuleSourceSpec{
+			Type:  kestrelv1alpha1.ModuleSourceTypeLocal,
+			Local: &kestrelv1alpha1.LocalSourceSpec{Path: "bundles"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), src); err != nil {
+		t.Fatalf("create modulesource: %v", err)
+	}
+	deleteCleanup(t, src)
+
+	eventually(t, func() (bool, string) {
+		got := getModuleSource(t, src.Name)
+		entry := byName(got.Status.Modules, "terraria")
+		if entry == nil {
+			return false, fmt.Sprintf("catalog = %+v", got.Status.Modules)
+		}
+		if entry.LatestVersion != "1.4.0" || entry.Digest == "" {
+			return false, fmt.Sprintf("entry = %+v", entry)
+		}
+		return conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced),
+			"Synced condition not True yet"
+	})
+
+	modName := uniqueName("local-mod")
+	mod := &kestrelv1alpha1.Module{
+		ObjectMeta: metav1.ObjectMeta{Name: modName},
+		Spec: kestrelv1alpha1.ModuleSpec{
+			Source: corev1.LocalObjectReference{Name: src.Name},
+			Name:   "terraria",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), mod); err != nil {
+		t.Fatalf("create module: %v", err)
+	}
+	deleteCleanup(t, mod)
+
+	eventually(t, func() (bool, string) {
+		var got kestrelv1alpha1.Module
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
+			return false, err.Error()
+		}
+		if got.Status.Phase != kestrelv1alpha1.ModulePhaseReady {
+			return false, "phase=" + got.Status.Phase + " err=" + got.Status.LastError
+		}
+		if got.Status.AppliedVersion != "1.4.0" || got.Status.AppliedDigest == "" {
+			return false, fmt.Sprintf("applied %q digest %q", got.Status.AppliedVersion, got.Status.AppliedDigest)
+		}
+		return true, ""
+	})
+
+	var tmpl kestrelv1alpha1.GameTemplate
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err != nil {
+		t.Fatalf("get materialized template: %v", err)
+	}
+	if tmpl.Spec.Game != "terraria" {
+		t.Errorf("template spec.game = %q", tmpl.Spec.Game)
+	}
+}
+
+// writeLocalModule drops a minimal module dir (module.yaml +
+// template.yaml) on disk for local-source tests.
+func writeLocalModule(t *testing.T, dir, name, version string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	meta := "apiVersion: kestrel.gg/module/v1\nname: " + name +
+		"\ndisplayName: " + name + "\nversion: " + version +
+		"\ngame: " + name + "\nsummary: local fixture\n"
+	tmplYAML := "apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+		"  displayName: " + name + "\n  game: " + name + "\n  version: " + version +
+		"\n  image: ghcr.io/test/" + name + ":" + version + "\n"
+	for file, content := range map[string]string{
+		"module.yaml":   meta,
+		"template.yaml": tmplYAML,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", file, err)
+		}
+	}
 }
 
 func getModuleSource(t *testing.T, name string) *kestrelv1alpha1.ModuleSource {

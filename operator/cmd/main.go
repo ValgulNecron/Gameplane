@@ -18,6 +18,7 @@ import (
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 	"github.com/kestrel-gg/kestrel/operator/internal/agent"
 	"github.com/kestrel-gg/kestrel/operator/internal/controller"
+	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
 )
 
 var scheme = runtime.NewScheme()
@@ -39,6 +40,7 @@ func main() {
 		agentCASecretName      string
 		agentCASecretNamespace string
 		moduleNamespace        string
+		moduleLocalRoot        string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the probe endpoint binds to.")
@@ -46,7 +48,9 @@ func main() {
 	flag.StringVar(&agentImage, "agent-image", "ghcr.io/kestrel/agent:dev",
 		"Image to use for the Kestrel agent sidecar injected into game pods.")
 	flag.StringVar(&moduleNamespace, "module-namespace", "kestrel-system",
-		"Namespace where ModuleSource pull-secret Secrets live.")
+		"Namespace where ModuleSource credential Secrets live.")
+	flag.StringVar(&moduleLocalRoot, "module-local-root", "",
+		"Base directory that local-type ModuleSources resolve their paths under. Empty disables local sources.")
 	flag.StringVar(&agentCABundle, "agent-ca-bundle", "",
 		"CA bundle that signs agent server certs (for operator → agent calls).")
 	flag.StringVar(&agentClientCert, "agent-client-cert", "",
@@ -127,18 +131,21 @@ func main() {
 		setupLog.Error(err, "unable to set up controller", "controller", "Restore")
 		os.Exit(1)
 	}
+	fetchOptions := modsrc.Options{LocalRoot: moduleLocalRoot}
 	if err := (&controller.ModuleSourceReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Namespace: moduleNamespace,
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Namespace:    moduleNamespace,
+		FetchOptions: fetchOptions,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "ModuleSource")
 		os.Exit(1)
 	}
 	if err := (&controller.ModuleReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Namespace: moduleNamespace,
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Namespace:    moduleNamespace,
+		FetchOptions: fetchOptions,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "Module")
 		os.Exit(1)
