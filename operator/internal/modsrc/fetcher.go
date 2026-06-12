@@ -67,8 +67,13 @@ func ForSource(ctx context.Context, c client.Client, namespace string, src *kest
 			return nil, fmt.Errorf("spec.local is required when spec.type is local")
 		}
 		return newLocal(opts.LocalRoot, spec.Path, src.Spec.Allow)
-	case kestrelv1alpha1.ModuleSourceTypeHTTP,
-		kestrelv1alpha1.ModuleSourceTypeUpload:
+	case kestrelv1alpha1.ModuleSourceTypeHTTP:
+		spec := src.Spec.HTTP
+		if spec == nil {
+			return nil, fmt.Errorf("spec.http is required when spec.type is http")
+		}
+		return newHTTP(ctx, c, namespace, spec, src.Spec.Allow)
+	case kestrelv1alpha1.ModuleSourceTypeUpload:
 		return nil, fmt.Errorf("source type %q is not implemented yet", src.Spec.Type)
 	default:
 		return nil, fmt.Errorf("unknown source type %q", src.Spec.Type)
