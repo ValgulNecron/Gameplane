@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
@@ -42,6 +46,7 @@ type ModuleSourceReconciler struct {
 // +kubebuilder:rbac:groups=kestrel.gg,resources=modulesources,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kestrel.gg,resources=modulesources/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 
 func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -148,5 +153,30 @@ func refreshInterval(src *kestrelv1alpha1.ModuleSource) time.Duration {
 func (r *ModuleSourceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kestrelv1alpha1.ModuleSource{}).
+		Watches(&corev1.ConfigMap{}, enqueueUploadSourcesForConfigMap(r.Client)).
 		Complete(r)
+}
+
+// enqueueUploadSourcesForConfigMap re-indexes every upload-type source
+// when a labeled bundle ConfigMap changes, so uploads land in the
+// catalog immediately instead of on the next refresh tick.
+func enqueueUploadSourcesForConfigMap(c client.Client) handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+		if obj.GetLabels()[kestrelv1alpha1.LabelModuleUpload] != "true" {
+			return nil
+		}
+		var sources kestrelv1alpha1.ModuleSourceList
+		if err := c.List(ctx, &sources); err != nil {
+			return nil
+		}
+		var reqs []reconcile.Request
+		for i := range sources.Items {
+			if sources.Items[i].Spec.Type == kestrelv1alpha1.ModuleSourceTypeUpload {
+				reqs = append(reqs, reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: sources.Items[i].Name},
+				})
+			}
+		}
+		return reqs
+	})
 }

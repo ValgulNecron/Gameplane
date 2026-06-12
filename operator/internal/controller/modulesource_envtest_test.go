@@ -319,6 +319,113 @@ func TestModuleSource_LocalDirectory(t *testing.T) {
 	}
 }
 
+// TestModuleSource_UploadConfigMap is the kubectl-apply-parity check:
+// a hand-applied labeled ConfigMap must index into an upload-type
+// source and install exactly like a dashboard upload would.
+func TestModuleSource_UploadConfigMap(t *testing.T) {
+	// The test namespace stands in for the operator namespace where
+	// upload ConfigMaps live.
+	ns := newNamespace(t)
+	startMgr(t, ns,
+		func(mgr manager.Manager) error {
+			return (&ModuleSourceReconciler{
+				Client:    mgr.GetClient(),
+				Scheme:    mgr.GetScheme(),
+				Namespace: ns,
+			}).SetupWithManager(mgr)
+		},
+		func(mgr manager.Manager) error {
+			return (&ModuleReconciler{
+				Client:    mgr.GetClient(),
+				Scheme:    mgr.GetScheme(),
+				Namespace: ns,
+			}).SetupWithManager(mgr)
+		},
+	)
+
+	src := &kestrelv1alpha1.ModuleSource{
+		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("uploads")},
+		Spec:       kestrelv1alpha1.ModuleSourceSpec{Type: kestrelv1alpha1.ModuleSourceTypeUpload},
+	}
+	if err := k8sClient.Create(context.Background(), src); err != nil {
+		t.Fatalf("create modulesource: %v", err)
+	}
+	deleteCleanup(t, src)
+
+	// The source starts healthy but empty.
+	eventually(t, func() (bool, string) {
+		got := getModuleSource(t, src.Name)
+		return conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced),
+			"Synced not True yet"
+	})
+
+	// Apply the bundle ConfigMap; the watch should index it without
+	// waiting for the refresh interval.
+	cmName := uniqueName("bundle-factorio")
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmName,
+			Namespace: ns,
+			Labels:    map[string]string{kestrelv1alpha1.LabelModuleUpload: "true"},
+		},
+		BinaryData: map[string][]byte{
+			"module.yaml": []byte("apiVersion: kestrel.gg/module/v1\nname: factorio\n" +
+				"displayName: Factorio\nversion: 2.0.0\ngame: factorio\nsummary: upload fixture\n"),
+			"template.yaml": []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+				"  displayName: Factorio\n  game: factorio\n  version: 2.0.0\n  image: factoriotools/factorio:stable\n"),
+		},
+	}
+	if err := k8sClient.Create(context.Background(), cm); err != nil {
+		t.Fatalf("create upload configmap: %v", err)
+	}
+	deleteCleanup(t, cm)
+
+	eventually(t, func() (bool, string) {
+		got := getModuleSource(t, src.Name)
+		entry := byName(got.Status.Modules, "factorio")
+		if entry == nil {
+			return false, fmt.Sprintf("catalog = %+v", got.Status.Modules)
+		}
+		if entry.LatestVersion != "2.0.0" || entry.Reference != "upload:"+cmName || entry.Digest == "" {
+			return false, fmt.Sprintf("entry = %+v", entry)
+		}
+		return true, ""
+	})
+
+	// Install from the upload and confirm materialization.
+	modName := uniqueName("upload-mod")
+	mod := &kestrelv1alpha1.Module{
+		ObjectMeta: metav1.ObjectMeta{Name: modName},
+		Spec: kestrelv1alpha1.ModuleSpec{
+			Source: corev1.LocalObjectReference{Name: src.Name},
+			Name:   "factorio",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), mod); err != nil {
+		t.Fatalf("create module: %v", err)
+	}
+	deleteCleanup(t, mod)
+
+	eventually(t, func() (bool, string) {
+		var got kestrelv1alpha1.Module
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
+			return false, err.Error()
+		}
+		if got.Status.Phase != kestrelv1alpha1.ModulePhaseReady {
+			return false, "phase=" + got.Status.Phase + " err=" + got.Status.LastError
+		}
+		return got.Status.AppliedVersion == "2.0.0", "appliedVersion=" + got.Status.AppliedVersion
+	})
+
+	var tmpl kestrelv1alpha1.GameTemplate
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err != nil {
+		t.Fatalf("get materialized template: %v", err)
+	}
+	if tmpl.Spec.Image != "factoriotools/factorio:stable" {
+		t.Errorf("template image = %q", tmpl.Spec.Image)
+	}
+}
+
 // writeLocalModule drops a minimal module dir (module.yaml +
 // template.yaml) on disk for local-source tests.
 func writeLocalModule(t *testing.T, dir, name, version string) {

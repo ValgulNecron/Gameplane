@@ -74,7 +74,7 @@ func ForSource(ctx context.Context, c client.Client, namespace string, src *kest
 		}
 		return newHTTP(ctx, c, namespace, spec, src.Spec.Allow)
 	case kestrelv1alpha1.ModuleSourceTypeUpload:
-		return nil, fmt.Errorf("source type %q is not implemented yet", src.Spec.Type)
+		return newUpload(c, namespace, src.Spec.Allow), nil
 	default:
 		return nil, fmt.Errorf("unknown source type %q", src.Spec.Type)
 	}

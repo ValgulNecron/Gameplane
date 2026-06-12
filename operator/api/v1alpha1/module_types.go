@@ -101,6 +101,15 @@ const (
 	ManagedByModule = "Module"
 )
 
+// LabelModuleUpload marks a ConfigMap in the operator namespace as an
+// uploaded module bundle (value "true"). upload-type ModuleSources
+// index every ConfigMap carrying it; the bundle files live in the
+// ConfigMap's data/binaryData under their canonical names
+// (module.yaml, template.yaml, README.md, icon.png). `kubectl apply`
+// of such a ConfigMap is equivalent to uploading through the
+// dashboard.
+const LabelModuleUpload = "kestrel.gg/module-upload"
+
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=mod
 // +kubebuilder:printcolumn:name="Source",type=string,JSONPath=`.spec.source.name`
