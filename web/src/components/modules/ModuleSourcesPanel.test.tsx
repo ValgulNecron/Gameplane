@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 // (waitFor used for both the timing path and the empty-state DOM scan.)
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -100,6 +100,59 @@ describe("ModuleSourcesPanel", () => {
     expect(await screen.findByText("community")).toBeInTheDocument();
     expect(screen.getByText("git")).toBeInTheDocument();
     expect(screen.getByText("https://github.com/x/mods@stable")).toBeInTheDocument();
+  });
+
+  it("creates a source through the dialog", async () => {
+    let created: unknown = null;
+    server.use(
+      http.get("/modules/sources", () => HttpResponse.json({ items: [] })),
+      http.post("/modules/sources", async ({ request }) => {
+        created = await request.json();
+        return HttpResponse.json({ metadata: { name: "uploads" }, spec: { type: "upload" } }, { status: 201 });
+      }),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: /Add source/ }));
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "uploads" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "upload" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => expect(created).not.toBeNull());
+    expect(created).toMatchObject({ name: "uploads", type: "upload" });
+  });
+
+  it("opens the edit dialog prefilled for a row", async () => {
+    server.use(
+      http.get("/modules/sources", () =>
+        HttpResponse.json({
+          items: [
+            makeModuleSource({
+              metadata: { name: "community" },
+              spec: { type: "git", git: { url: "https://g/x.git", ref: "main" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit community" }));
+    expect(await screen.findByText("Edit source community")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://g/x.git")).toBeInTheDocument();
+  });
+
+  it("surfaces a delete conflict on the panel", async () => {
+    server.use(
+      http.get("/modules/sources", () =>
+        HttpResponse.json({ items: [makeModuleSource({ metadata: { name: "upstream" } })] }),
+      ),
+      http.delete("/modules/sources/upstream", () =>
+        HttpResponse.text('source "upstream" is still used by installed module(s): mc', {
+          status: 409,
+        }),
+      ),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete upstream" }));
+    expect(await screen.findByText(/still used by installed module/)).toBeInTheDocument();
   });
 
   it("renders the insecure pill when set", async () => {

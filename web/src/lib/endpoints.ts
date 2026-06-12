@@ -15,6 +15,7 @@ import type {
   List,
   Module,
   ModuleSource,
+  ModuleSourceSpec,
   PlayersResp,
   Restore,
   User,
@@ -359,6 +360,48 @@ export const Modules = {
     api<void>(`/modules/${name}`, { method: "DELETE" }),
 };
 
+// UploadedModule is the parsed-metadata echo from a bundle upload
+// (used as the dry-run preview before committing).
+export interface UploadedModule {
+  module: {
+    name: string;
+    displayName: string;
+    version: string;
+    game: string;
+    summary?: string;
+  };
+  configMap?: string;
+  dryRun?: boolean;
+}
+
+async function uploadBundle(
+  source: string,
+  file: Blob,
+  opts: { dryRun?: boolean } = {},
+): Promise<UploadedModule> {
+  const path = `/modules/sources/${source}/upload${opts.dryRun ? "?dryRun=true" : ""}`;
+  const res = await fetch(path, {
+    method: "POST",
+    headers: csrfHeaders(),
+    credentials: "include",
+    body: file,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new APIError(res.status, text);
+  }
+  return res.json() as Promise<UploadedModule>;
+}
+
 export const ModuleSources = {
   list: () => api<List<ModuleSource>>("/modules/sources"),
+  create: (name: string, spec: ModuleSourceSpec) =>
+    api<ModuleSource>("/modules/sources", { method: "POST", body: { name, ...spec } }),
+  update: (name: string, spec: ModuleSourceSpec) =>
+    api<ModuleSource>(`/modules/sources/${name}`, { method: "PUT", body: spec }),
+  remove: (name: string) =>
+    api<void>(`/modules/sources/${name}`, { method: "DELETE" }),
+  upload: uploadBundle,
+  removeUpload: (source: string, module: string) =>
+    api<void>(`/modules/sources/${source}/upload/${module}`, { method: "DELETE" }),
 };
