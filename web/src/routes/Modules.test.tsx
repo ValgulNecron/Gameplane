@@ -14,12 +14,16 @@ const catalog = vi.fn();
 const install = vi.fn();
 const upgrade = vi.fn();
 const uninstall = vi.fn();
+const listSources = vi.fn();
 vi.mock("@/lib/endpoints", () => ({
   Modules: {
     catalog: () => catalog(),
     install: (body: unknown) => install(body),
     upgrade: (name: string, version: string) => upgrade(name, version),
     uninstall: (name: string) => uninstall(name),
+  },
+  ModuleSources: {
+    list: () => listSources(),
   },
 }));
 
@@ -80,6 +84,7 @@ afterEach(() => {
   install.mockReset();
   upgrade.mockReset();
   uninstall.mockReset();
+  listSources.mockReset();
 });
 
 describe("ModulesPage", () => {
@@ -145,5 +150,31 @@ describe("ModulesPage", () => {
     await userEvent.click(buttons[buttons.length - 1]);
 
     await waitFor(() => expect(uninstall).toHaveBeenCalledWith("valheim"));
+  });
+
+  it("shows the upload action only when an upload-type source exists", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT] });
+    listSources.mockResolvedValue({
+      items: [
+        { metadata: { name: "default" }, spec: { type: "oci" } },
+        { metadata: { name: "uploads" }, spec: { type: "upload" } },
+      ],
+    });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    const uploadBtn = await screen.findByRole("button", { name: /upload module/i });
+    await userEvent.click(uploadBtn);
+    expect(await screen.findByText(/Choose a bundle archive/)).toBeInTheDocument();
+  });
+
+  it("hides the upload action without upload sources", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT] });
+    listSources.mockResolvedValue({
+      items: [{ metadata: { name: "default" }, spec: { type: "oci" } }],
+    });
+    renderPage();
+    await screen.findByText("Minecraft (Java)");
+    expect(screen.queryByRole("button", { name: /upload module/i })).not.toBeInTheDocument();
   });
 });

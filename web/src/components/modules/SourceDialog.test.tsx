@@ -88,6 +88,58 @@ describe("SourceDialog", () => {
     expect(screen.getByText(/Indexes bundles uploaded/)).toBeInTheDocument();
   });
 
+  it("renders the git, http and local field sets", () => {
+    renderDialog();
+    const typeSelect = screen.getByRole("combobox");
+
+    fireEvent.change(typeSelect, { target: { value: "git" } });
+    expect(screen.getByText("Clone URL")).toBeInTheDocument();
+    expect(screen.getByText("Ref")).toBeInTheDocument();
+    expect(screen.getByText("Subdirectory")).toBeInTheDocument();
+
+    fireEvent.change(typeSelect, { target: { value: "http" } });
+    expect(screen.getByText("Archive URL")).toBeInTheDocument();
+    expect(screen.getByText(/Allow plain HTTP/)).toBeInTheDocument();
+
+    fireEvent.change(typeSelect, { target: { value: "local" } });
+    expect(screen.getByText("Path")).toBeInTheDocument();
+    expect(screen.queryByText("Archive URL")).not.toBeInTheDocument();
+  });
+
+  it("prefills edit forms for oci and local sources", () => {
+    const oci = makeModuleSource({
+      metadata: { name: "upstream" },
+      spec: {
+        type: "oci",
+        oci: {
+          url: "ghcr.io/x",
+          modules: [{ name: "mc" }, { name: "valheim" }],
+          insecure: true,
+          pullSecretRef: { name: "creds" },
+        },
+        allow: ["mc"],
+        refreshInterval: "15m",
+      },
+    });
+    const { unmount } = renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={oci} onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByDisplayValue("ghcr.io/x")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("mc, valheim")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("creds")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("15m")).toBeInTheDocument();
+    unmount();
+
+    const local = makeModuleSource({
+      metadata: { name: "disk" },
+      spec: { type: "local", local: { path: "bundles" } },
+    });
+    renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={local} onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByDisplayValue("bundles")).toBeInTheDocument();
+  });
+
   it("validates before submitting", async () => {
     const onConfirm = renderDialog();
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));

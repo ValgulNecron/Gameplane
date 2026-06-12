@@ -1,22 +1,23 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Settings2 } from "lucide-react";
+import { Search, Settings2, Upload } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { InstallDialog } from "@/components/modules/InstallDialog";
+import { UploadModuleDialog } from "@/components/modules/UploadModuleDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
-import { Modules } from "@/lib/endpoints";
+import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
 // ModulesPage renders the catalog merged across every ModuleSource. The
 // install/upgrade/uninstall actions all hit /modules — install creates
-// a Module CR, the operator's Module reconciler does the OCI pull and
+// a Module CR, the operator's Module reconciler pulls the bundle and
 // materializes the GameTemplate.
 export function ModulesPage() {
   const qc = useQueryClient();
@@ -25,12 +26,25 @@ export function ModulesPage() {
     queryFn: () => Modules.catalog(),
     refetchInterval: 5_000, // pick up phase transitions promptly
   });
+  const { data: sourcesData } = useQuery({
+    queryKey: ["module-sources"],
+    queryFn: () => ModuleSources.list(),
+  });
 
   const [q, setQ] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [installTarget, setInstallTarget] = useState<CatalogEntry | null>(null);
   const [uninstallTarget, setUninstallTarget] = useState<CatalogEntry | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+
+  const uploadSources = useMemo(
+    () =>
+      (sourcesData?.items ?? [])
+        .filter((s) => s.spec.type === "upload")
+        .map((s) => s.metadata.name),
+    [sourcesData],
+  );
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const sources = useMemo(() => {
@@ -82,13 +96,20 @@ export function ModulesPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Modules"
-        subtitle="Pre-packaged game-server templates pulled from your configured OCI registries."
+        subtitle="Pre-packaged game-server templates pulled from your configured module sources."
         actions={
-          <Button variant="outline" asChild>
-            <Link to="/admin" hash="modules">
-              <Settings2 className="h-4 w-4" /> Manage sources
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {uploadSources.length > 0 && (
+              <Button variant="outline" onClick={() => setUploadOpen(true)}>
+                <Upload className="h-4 w-4" /> Upload module
+              </Button>
+            )}
+            <Button variant="outline" asChild>
+              <Link to="/admin" hash="modules">
+                <Settings2 className="h-4 w-4" /> Manage sources
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -165,6 +186,16 @@ export function ModulesPage() {
             name,
             version,
           });
+        }}
+      />
+
+      <UploadModuleDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        sources={uploadSources}
+        onUploaded={async () => {
+          setPageError(null);
+          await qc.invalidateQueries({ queryKey: ["modules-catalog"] });
         }}
       />
 

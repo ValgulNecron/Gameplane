@@ -62,26 +62,34 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
             Install {entry.displayName ?? entry.name}
           </Dialog.Title>
           <Dialog.Description className="pt-1 text-xs text-muted">
-            Pulls the OCI bundle and creates a Module resource. The cluster
+            Pulls the module bundle and creates a Module resource. The cluster
             operator materializes the GameTemplate in the background.
           </Dialog.Description>
 
           <div className="space-y-3 pt-4">
             <Field label="Source">
-              <Select
-                value={source}
-                onValueChange={setSource}
-                options={entry.sources.map((s) => ({ value: s.name, label: `${s.name} (${s.type})` }))}
-                disabled={entry.sources.length <= 1}
-              />
+              {entry.sources.length > 1 ? (
+                <Select
+                  value={source}
+                  onValueChange={setSource}
+                  options={entry.sources.map((s) => ({ value: s.name, label: `${s.name} (${s.type})` }))}
+                />
+              ) : (
+                <StaticValue>
+                  {entry.sources[0] ? `${entry.sources[0].name} (${entry.sources[0].type})` : "—"}
+                </StaticValue>
+              )}
             </Field>
             <Field label="Version">
-              <Select
-                value={version}
-                onValueChange={setVersion}
-                options={versions.map((v) => ({ value: v, label: v }))}
-                disabled={versions.length <= 1}
-              />
+              {versions.length > 1 ? (
+                <Select
+                  value={version}
+                  onValueChange={setVersion}
+                  options={versions.map((v) => ({ value: v, label: v }))}
+                />
+              ) : (
+                <StaticValue>{versions[0] ?? "—"}</StaticValue>
+              )}
             </Field>
             <Field
               label="Install as"
@@ -113,6 +121,17 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+// StaticValue stands in for a Select when there's nothing to choose —
+// single-version sources read better as plain text than a disabled
+// dropdown.
+function StaticValue({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-9 w-full items-center rounded-md border border-border bg-card/40 px-3 font-mono text-sm text-fg">
+      {children}
+    </div>
   );
 }
 

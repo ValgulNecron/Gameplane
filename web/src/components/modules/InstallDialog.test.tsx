@@ -28,9 +28,11 @@ describe("InstallDialog", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: /Install / })).toBeInTheDocument();
+    // Single source renders as static text; two versions render a select.
+    expect(screen.getByText("upstream (oci)")).toBeInTheDocument();
     const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-    expect(selects[0].value).toBe("upstream");
-    expect(selects[1].value).toBe("1.21");
+    expect(selects).toHaveLength(1);
+    expect(selects[0].value).toBe("1.21");
   });
 
   it("Install button submits source/version/name", async () => {
@@ -98,18 +100,18 @@ describe("InstallDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("disables source/version dropdowns when only one is available", () => {
+  it("collapses source/version to static text when only one is available", () => {
     render(
       <InstallDialog
         open
         onOpenChange={() => {}}
-        entry={makeCatalog({ sources: [{ name: "only", type: "oci" }], versions: ["1.0"], latestVersion: "1.0" })}
+        entry={makeCatalog({ sources: [{ name: "only", type: "upload" }], versions: ["1.0"], latestVersion: "1.0" })}
         onConfirm={() => {}}
       />,
     );
-    for (const c of screen.getAllByRole("combobox")) {
-      expect(c).toBeDisabled();
-    }
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByText("only (upload)")).toBeInTheDocument();
+    expect(screen.getByText("1.0")).toBeInTheDocument();
   });
 
   it("lower-cases the typed name", () => {
