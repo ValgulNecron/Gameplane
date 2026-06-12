@@ -78,10 +78,40 @@ manage Kestrel with `kubectl apply` — the operator is authoritative.
 
 ## Module system
 
-A game module is a directory under `modules/` containing a
-`GameTemplate` YAML and (optionally) a README + samples. Templates are
-distributed as plain CRDs for v1 — users apply them with `kubectl
-apply`. OCI artifact distribution is a v1.1 goal.
+A game module is a bundle of `module.yaml` (catalog metadata) +
+`template.yaml` (a GameTemplate spec) + optional README/icon. Modules
+can be loaded from anywhere:
+
+- **ModuleSource** (cluster-scoped CRD) declares one store via a typed
+  spec: `oci` (registry artifacts, explicit module list), `git`
+  (auto-discovered module dirs at a ref), `http` (a tar.gz/zip
+  archive), `local` (a directory mounted into the operator —
+  `--module-local-root`, Helm `operator.localModules`), or `upload`
+  (ConfigMaps labeled `kestrel.gg/module-upload=true` in the operator
+  namespace, written by the dashboard's upload endpoint or applied by
+  hand).
+- The **ModuleSource controller** indexes each source through a
+  `modsrc.Fetcher` (operator/internal/modsrc — one implementation per
+  type over a shared fs scanner) and caches the catalog into
+  `status.modules`, each entry carrying a content digest (OCI manifest
+  digest, git commit, or sha256 over the module dir).
+- A **Module** CR installs one entry: the controller pulls the bundle
+  and materializes an owned **GameTemplate**; the digest comparison
+  re-applies bundles whose content changed behind an unchanged version
+  (moving git branch, re-uploaded ConfigMap). A finalizer blocks
+  uninstall while GameServers reference the template.
+- Templates can also be `kubectl apply`'d directly — module-managed
+  ones are distinguished by the `kestrel.gg/managed-by=Module` label.
+- `template.yaml#spec.capabilities` declares per-game console commands
+  (player moderation, backup quiesce); the operator serializes it onto
+  the agent sidecar (`KESTREL_CAPABILITIES`), which interprets the
+  commands at runtime — new games get full feature support without
+  agent code changes.
+
+The API's `/modules` surface (catalog merge, install, source CRUD,
+bundle upload) only reads and writes these CRs/ConfigMaps; the
+operator owns all reconciliation, so the dashboard and kubectl always
+converge on the same outcome. Format spec: `docs/module-authoring.md`.
 
 ## Security boundaries
 
