@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -40,10 +41,19 @@ func TestRefreshInterval(t *testing.T) {
 	})
 }
 
-func TestModuleSourceReconciler_NewClient_DefaultPath(t *testing.T) {
+func TestModuleSourceReconciler_FetcherFor_DefaultPath(t *testing.T) {
 	r := &ModuleSourceReconciler{}
-	c := r.newClient(nil, true)
-	if c == nil {
-		t.Fatal("expected non-nil client from default path")
+	src := &kestrelv1alpha1.ModuleSource{
+		Spec: kestrelv1alpha1.ModuleSourceSpec{
+			URL:     "localhost:5001/modules",
+			Modules: []kestrelv1alpha1.ModuleRef{{Name: "valheim"}},
+		},
+	}
+	f, err := r.fetcherFor(context.Background(), src)
+	if err != nil {
+		t.Fatalf("fetcherFor: %v", err)
+	}
+	if f == nil {
+		t.Fatal("expected non-nil fetcher from default path")
 	}
 }

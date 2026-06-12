@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -8,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/oci"
 )
 
 func TestByCatalogName(t *testing.T) {
@@ -78,12 +78,21 @@ func TestOwnedBy(t *testing.T) {
 	})
 }
 
-func TestModuleReconciler_NewClient_DefaultPath(t *testing.T) {
-	// When NewClient hook is unset, newClient must build a real oci client.
+func TestModuleReconciler_FetcherFor_DefaultPath(t *testing.T) {
+	// When the NewFetcher hook is unset, fetcherFor must build a real
+	// fetcher from the source spec. No PullSecretRef → no client call.
 	r := &ModuleReconciler{}
-	c := r.newClient(nil, false)
-	if c == nil {
-		t.Fatal("expected non-nil client from default path")
+	src := &kestrelv1alpha1.ModuleSource{
+		Spec: kestrelv1alpha1.ModuleSourceSpec{
+			URL:     "ghcr.io/test/modules",
+			Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft-java"}},
+		},
 	}
-	_ = oci.CredentialFunc(nil) // silence unused-import in case of refactor
+	f, err := r.fetcherFor(context.Background(), src)
+	if err != nil {
+		t.Fatalf("fetcherFor: %v", err)
+	}
+	if f == nil {
+		t.Fatal("expected non-nil fetcher from default path")
+	}
 }

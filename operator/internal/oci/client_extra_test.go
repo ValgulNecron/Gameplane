@@ -53,36 +53,26 @@ func TestListTags_RepositoryDoesNotExist(t *testing.T) {
 func TestPull_TagNotFound(t *testing.T) {
 	reg := newFakeRegistry(t)
 	c := New(nil, true)
-	_, err := c.Pull(context.Background(), reg.host()+"/no-repo", "1.0.0")
+	_, _, err := c.Pull(context.Background(), reg.host()+"/no-repo", "1.0.0")
 	if err == nil || !strings.Contains(err.Error(), "fetch") {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestPull_MissingMetadataLayer(t *testing.T) {
+func TestPull_SkipsUntitledLayers(t *testing.T) {
 	reg := newFakeRegistry(t)
-	repo := "kestrel/no-meta"
-	// Push a bundle without the metadata layer.
+	repo := "kestrel/partial"
+	// Bundle parsing (missing module.yaml etc.) is modsrc's job; the
+	// client just returns whatever titled layers exist.
 	reg.pushBundle(repo, "1.0.0", map[string][]byte{
 		LayerNameTemplate: []byte("apiVersion: x"),
 	})
 	c := New(nil, true)
-	_, err := c.Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
-	if err == nil || !strings.Contains(err.Error(), "module.yaml") {
-		t.Fatalf("got %v", err)
+	_, files, err := c.Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
+	if err != nil {
+		t.Fatalf("Pull: %v", err)
 	}
-}
-
-func TestPull_BadMetadataYAML(t *testing.T) {
-	reg := newFakeRegistry(t)
-	repo := "kestrel/bad-meta"
-	reg.pushBundle(repo, "1.0.0", map[string][]byte{
-		LayerNameMetadata: []byte("not: : valid : yaml: ::"),
-		LayerNameTemplate: []byte("apiVersion: x"),
-	})
-	c := New(nil, true)
-	_, err := c.Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
-	if err == nil {
-		t.Fatal("expected parse error")
+	if len(files) != 1 || string(files[LayerNameTemplate]) != "apiVersion: x" {
+		t.Fatalf("files = %v", files)
 	}
 }

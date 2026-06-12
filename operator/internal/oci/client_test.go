@@ -33,24 +33,21 @@ func TestClient_Pull(t *testing.T) {
 	})
 
 	c := New(nil, true)
-	bundle, err := c.Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
+	gotDigest, files, err := c.Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
 	if err != nil {
 		t.Fatalf("Pull: %v", err)
 	}
-	if bundle.Digest != digest {
-		t.Errorf("Digest = %q, want %q", bundle.Digest, digest)
+	if gotDigest != digest {
+		t.Errorf("digest = %q, want %q", gotDigest, digest)
 	}
-	if bundle.Metadata.Name != "minecraft-java" {
-		t.Errorf("metadata.name = %q, want minecraft-java", bundle.Metadata.Name)
+	if !strings.Contains(string(files[LayerNameMetadata]), "name: minecraft-java") {
+		t.Errorf("metadata layer missing name; got %q", files[LayerNameMetadata])
 	}
-	if bundle.Metadata.Version != "1.0.0" {
-		t.Errorf("metadata.version = %q, want 1.0.0", bundle.Metadata.Version)
+	if !strings.Contains(string(files[LayerNameTemplate]), "itzg/minecraft-server") {
+		t.Errorf("template missing image line; got %q", files[LayerNameTemplate])
 	}
-	if !strings.Contains(string(bundle.TemplateYAML), "itzg/minecraft-server") {
-		t.Errorf("template missing image line; got %q", bundle.TemplateYAML)
-	}
-	if !strings.Contains(string(bundle.Readme), "Minecraft") {
-		t.Errorf("readme missing; got %q", bundle.Readme)
+	if !strings.Contains(string(files[LayerNameReadme]), "Minecraft") {
+		t.Errorf("readme missing; got %q", files[LayerNameReadme])
 	}
 }
 
@@ -65,7 +62,7 @@ func TestClient_Pull_RejectsForeignArtifact(t *testing.T) {
 	reg.pushManifest(repo, "1.0.0", manifest)
 	_ = reg.putBlob([]byte(`{}`))
 
-	_, err := New(nil, true).Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
+	_, _, err := New(nil, true).Pull(context.Background(), reg.host()+"/"+repo, "1.0.0")
 	if err == nil || !strings.Contains(err.Error(), "artifactType") {
 		t.Fatalf("want artifactType rejection, got %v", err)
 	}

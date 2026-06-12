@@ -3,7 +3,6 @@ package oci
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -88,36 +87,36 @@ func (c *Client) ListTags(ctx context.Context, ref string) ([]string, error) {
 	return versions, nil
 }
 
-// Pull fetches the bundle at ref (which must include a tag or digest)
-// and returns its parsed contents. Layers are addressed by their
-// LayerName* annotations.
-func (c *Client) Pull(ctx context.Context, ref, reference string) (*Bundle, error) {
+// Pull fetches the artifact at ref (which must include a tag or
+// digest) and returns its manifest digest plus the layer blobs keyed
+// by their title annotation. Untitled layers are skipped. Parsing the
+// layers into a module bundle is the caller's job (modsrc.FromFiles).
+func (c *Client) Pull(ctx context.Context, ref, reference string) (string, map[string][]byte, error) {
 	r, err := c.repo(ref)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	manifestDesc, manifestRC, err := r.FetchReference(ctx, reference)
 	if err != nil {
-		return nil, fmt.Errorf("fetch %s@%s: %w", ref, reference, err)
+		return "", nil, fmt.Errorf("fetch %s@%s: %w", ref, reference, err)
 	}
 	defer manifestRC.Close()
 
 	manifestBytes, err := io.ReadAll(manifestRC)
 	if err != nil {
-		return nil, fmt.Errorf("read manifest %s@%s: %w", ref, reference, err)
+		return "", nil, fmt.Errorf("read manifest %s@%s: %w", ref, reference, err)
 	}
 
 	var manifest ocispec.Manifest
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("parse manifest %s@%s: %w", ref, reference, err)
+		return "", nil, fmt.Errorf("parse manifest %s@%s: %w", ref, reference, err)
 	}
 	if manifest.ArtifactType != "" && manifest.ArtifactType != ArtifactType {
-		return nil, fmt.Errorf("unexpected artifactType %q at %s@%s; want %q",
+		return "", nil, fmt.Errorf("unexpected artifactType %q at %s@%s; want %q",
 			manifest.ArtifactType, ref, reference, ArtifactType)
 	}
 
-	bundle := &Bundle{Digest: manifestDesc.Digest.String()}
-
+	files := map[string][]byte{}
 	for _, layer := range manifest.Layers {
 		title := layer.Annotations[AnnotationTitle]
 		if title == "" {
@@ -125,28 +124,11 @@ func (c *Client) Pull(ctx context.Context, ref, reference string) (*Bundle, erro
 		}
 		blob, err := readBlob(ctx, r, layer)
 		if err != nil {
-			return nil, fmt.Errorf("read layer %s: %w", title, err)
+			return "", nil, fmt.Errorf("read layer %s: %w", title, err)
 		}
-		switch title {
-		case LayerNameMetadata:
-			if err := unmarshalYAML(blob, &bundle.Metadata); err != nil {
-				return nil, fmt.Errorf("parse module.yaml: %w", err)
-			}
-		case LayerNameTemplate:
-			bundle.TemplateYAML = blob
-		case LayerNameReadme:
-			bundle.Readme = blob
-		case LayerNameIcon:
-			bundle.Icon = blob
-		}
+		files[title] = blob
 	}
-	if bundle.Metadata.Name == "" {
-		return nil, errors.New("bundle missing module.yaml metadata layer")
-	}
-	if len(bundle.TemplateYAML) == 0 {
-		return nil, errors.New("bundle missing template.yaml layer")
-	}
-	return bundle, nil
+	return manifestDesc.Digest.String(), files, nil
 }
 
 func readBlob(ctx context.Context, r *remote.Repository, desc ocispec.Descriptor) ([]byte, error) {

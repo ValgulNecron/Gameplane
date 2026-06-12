@@ -15,17 +15,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/oci"
 )
 
 func withModuleReconciler(fake *fakeOCI) setupReconciler {
 	return func(mgr manager.Manager) error {
 		return (&ModuleReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			NewClient: func(_ oci.CredentialFunc, _ bool) ociClient {
-				return fake
-			},
+			Client:     mgr.GetClient(),
+			Scheme:     mgr.GetScheme(),
+			NewFetcher: fakeOCIFetcher(fake),
 		}).SetupWithManager(mgr)
 	}
 }

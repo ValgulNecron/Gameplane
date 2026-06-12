@@ -13,25 +13,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/oci"
+	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
 )
 
-// fakeOCI is an in-process replacement for the OCI client used by the
-// ModuleSource and Module reconcilers. Tests pre-populate Tags +
-// Bundles by reference, and inspect call counts to verify the
-// reconciler's caching/back-off behavior.
+// fakeOCI is an in-process modsrc.OCIClient used by the ModuleSource
+// and Module reconcilers through the real OCI fetcher. Tests
+// pre-populate tags + bundle files by reference, and inspect call
+// counts to verify the reconciler's caching/back-off behavior.
 type fakeOCI struct {
 	mu      sync.Mutex
 	tags    map[string][]string
-	bundles map[string]map[string]*oci.Bundle // ref → version → bundle
+	bundles map[string]map[string]fakeArtifact // ref → version → artifact
 	pulls   int
 	errOn   map[string]error
+}
+
+type fakeArtifact struct {
+	digest string
+	files  map[string][]byte
 }
 
 func newFakeOCI() *fakeOCI {
 	return &fakeOCI{
 		tags:    map[string][]string{},
-		bundles: map[string]map[string]*oci.Bundle{},
+		bundles: map[string]map[string]fakeArtifact{},
 		errOn:   map[string]error{},
 	}
 }
@@ -58,28 +63,28 @@ func sortSemverDescending(tags []string) {
 	}
 }
 
-func (f *fakeOCI) Pull(_ context.Context, ref, version string) (*oci.Bundle, error) {
+func (f *fakeOCI) Pull(_ context.Context, ref, version string) (string, map[string][]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pulls++
 	if err, ok := f.errOn["pull:"+ref+":"+version]; ok {
-		return nil, err
+		return "", nil, err
 	}
 	if m, ok := f.bundles[ref]; ok {
-		if b, ok := m[version]; ok {
-			return b, nil
+		if a, ok := m[version]; ok {
+			return a.digest, a.files, nil
 		}
 	}
-	return nil, fmt.Errorf("fakeOCI: no bundle at %s:%s", ref, version)
+	return "", nil, fmt.Errorf("fakeOCI: no bundle at %s:%s", ref, version)
 }
 
-func (f *fakeOCI) putBundle(ref, version string, b *oci.Bundle) {
+func (f *fakeOCI) putBundle(ref, version string, a fakeArtifact) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, ok := f.bundles[ref]; !ok {
-		f.bundles[ref] = map[string]*oci.Bundle{}
+		f.bundles[ref] = map[string]fakeArtifact{}
 	}
-	f.bundles[ref][version] = b
+	f.bundles[ref][version] = a
 	// Append tag if new.
 	for _, t := range f.tags[ref] {
 		if t == version {
@@ -89,34 +94,44 @@ func (f *fakeOCI) putBundle(ref, version string, b *oci.Bundle) {
 	f.tags[ref] = append(f.tags[ref], version)
 }
 
+// fakeOCIFetcher wires the fake transport through the real OCI fetcher
+// so envtests exercise the production index/pull logic.
+func fakeOCIFetcher(fake *fakeOCI) func(context.Context, *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+	return func(_ context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+		names := make([]string, 0, len(src.Spec.Modules))
+		for _, m := range src.Spec.Modules {
+			names = append(names, m.Name)
+		}
+		return modsrc.NewOCI(fake, src.Spec.URL, names), nil
+	}
+}
+
 func withModuleSourceReconciler(fake *fakeOCI) setupReconciler {
 	return func(mgr manager.Manager) error {
 		return (&ModuleSourceReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-			NewClient: func(_ oci.CredentialFunc, _ bool) ociClient {
-				return fake
-			},
+			Client:     mgr.GetClient(),
+			Scheme:     mgr.GetScheme(),
+			NewFetcher: fakeOCIFetcher(fake),
 		}).SetupWithManager(mgr)
 	}
 }
 
-// fixtureBundle constructs a Bundle whose Metadata matches the given
-// name+version. Just enough to populate ModuleEntry status fields.
-func fixtureBundle(name, version, displayName string) *oci.Bundle {
-	return &oci.Bundle{
-		Digest: "sha256:" + name + "-" + version,
-		Metadata: oci.Metadata{
-			APIVersion:  "kestrel.gg/module/v1",
-			Name:        name,
-			DisplayName: displayName,
-			Version:     version,
-			Game:        name,
-			Summary:     displayName + " — test fixture",
+// fixtureBundle constructs bundle files whose metadata matches the
+// given name+version. Just enough to populate ModuleEntry status fields.
+func fixtureBundle(name, version, displayName string) fakeArtifact {
+	return fakeArtifact{
+		digest: "sha256:" + name + "-" + version,
+		files: map[string][]byte{
+			modsrc.FileMetadata: []byte("apiVersion: kestrel.gg/module/v1\n" +
+				"name: " + name + "\n" +
+				"displayName: " + displayName + "\n" +
+				"version: " + version + "\n" +
+				"game: " + name + "\n" +
+				"summary: " + displayName + " — test fixture\n"),
+			modsrc.FileTemplate: []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\n" +
+				"spec:\n  displayName: " + displayName + "\n  game: " + name +
+				"\n  version: " + version + "\n  image: ghcr.io/test/" + name + ":" + version + "\n"),
 		},
-		TemplateYAML: []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\n" +
-			"spec:\n  displayName: " + displayName + "\n  game: " + name +
-			"\n  version: " + version + "\n  image: ghcr.io/test/" + name + ":" + version + "\n"),
 	}
 }
 

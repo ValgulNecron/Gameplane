@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"path"
 	"slices"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,7 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/oci"
+	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
 )
 
 // ModuleReconciler materializes Module CRs into GameTemplate CRs. The
@@ -30,8 +29,12 @@ type ModuleReconciler struct {
 	Scheme    *runtime.Scheme
 	Namespace string
 
-	// NewClient is overridden in tests with a fakeOCI.
-	NewClient func(creds oci.CredentialFunc, insecure bool) ociClient
+	// FetchOptions carries operator-level fetcher config (CLI flags).
+	FetchOptions modsrc.Options
+
+	// NewFetcher is overridden in tests with an in-process fake. nil →
+	// the real per-source-type fetcher from modsrc.ForSource.
+	NewFetcher func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error)
 }
 
 // +kubebuilder:rbac:groups=kestrel.gg,resources=modules,verbs=get;list;watch;update;patch
@@ -89,17 +92,15 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Pull bundle.
-	creds, err := oci.CredentialFromSecret(ctx, r.Client, r.Namespace, src.Spec.PullSecretRef)
+	fetcher, err := r.fetcherFor(ctx, src)
 	if err != nil {
-		return r.markFailed(ctx, &mod, "Credentials", err)
+		return r.markFailed(ctx, &mod, "SourceConfig", err)
 	}
-	cli := r.newClient(creds, src.Spec.Insecure)
-	ref := path.Join(src.Spec.URL, mod.Spec.Name)
 
 	if err := r.markPullingTransition(ctx, &mod, desiredVersion); err != nil {
 		return ctrl.Result{}, err
 	}
-	bundle, err := cli.Pull(ctx, ref, desiredVersion)
+	bundle, err := fetcher.Pull(ctx, mod.Spec.Name, desiredVersion)
 	if err != nil {
 		return r.markFailed(ctx, &mod, "PullFailed", err)
 	}
@@ -135,7 +136,7 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alpha1.Module, bundle *oci.Bundle, version, sourceName string) error {
+func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alpha1.Module, bundle *modsrc.Bundle, version, sourceName string) error {
 	parsed := &kestrelv1alpha1.GameTemplate{}
 	if err := yaml.Unmarshal(bundle.TemplateYAML, parsed); err != nil {
 		return fmt.Errorf("parse template.yaml: %w", err)
@@ -306,11 +307,11 @@ func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *kestr
 	return r.Status().Update(ctx, mod)
 }
 
-func (r *ModuleReconciler) newClient(creds oci.CredentialFunc, insecure bool) ociClient {
-	if r.NewClient != nil {
-		return r.NewClient(creds, insecure)
+func (r *ModuleReconciler) fetcherFor(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+	if r.NewFetcher != nil {
+		return r.NewFetcher(ctx, src)
 	}
-	return oci.New(creds, insecure)
+	return modsrc.ForSource(ctx, r.Client, r.Namespace, src, r.FetchOptions)
 }
 
 func byCatalogName(entries []kestrelv1alpha1.ModuleEntry, name string) *kestrelv1alpha1.ModuleEntry {

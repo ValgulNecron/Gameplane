@@ -164,16 +164,3 @@ func TestBase64Decode(t *testing.T) {
 		t.Fatalf("err=%v got=%q", err, got)
 	}
 }
-
-func TestUnmarshalYAML(t *testing.T) {
-	type S struct {
-		Name string `json:"name"`
-	}
-	var s S
-	if err := unmarshalYAML([]byte("name: foo"), &s); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if s.Name != "foo" {
-		t.Fatalf("got %+v", s)
-	}
-}
