@@ -111,8 +111,61 @@ oras push \
 
 Private registries: log in once with `oras login <registry>`. The cluster
 side uses a `kubernetes.io/dockerconfigjson` secret (referenced from
-`ModuleSource.spec.pullSecretRef`) — the same kind kubelet uses for
+`ModuleSource.spec.oci.pullSecretRef`) — the same kind kubelet uses for
 private images.
+
+## Module sources
+
+`ModuleSource` declares where modules come from. `spec.type` selects
+the store; everything except OCI auto-discovers any directory holding
+a `module.yaml` (use `spec.allow` to filter by name or glob). Sources
+can be managed from the dashboard (admin) or applied as CRs:
+
+```yaml
+apiVersion: kestrel.gg/v1alpha1
+kind: ModuleSource
+metadata: { name: community }
+spec:
+  type: git                  # oci | git | http | local | upload
+  git:
+    url: https://github.com/example/kestrel-modules
+    ref: main                # branch or tag; the resolved commit is the digest
+    subPath: modules         # optional scan root inside the repo
+    secretRef: { name: gh-creds }   # optional, in the operator namespace
+  allow: ["minecraft-*"]     # optional name filter (all types)
+  refreshInterval: 30m
+```
+
+Per-type config:
+
+| type | config | versioning | auth secret keys |
+|---|---|---|---|
+| `oci` | `oci.url` + explicit `oci.modules` list | registry tags (semver) | dockerconfigjson via `oci.pullSecretRef` |
+| `git` | `git.url`, `ref`, `subPath` | one stream: `module.yaml#version` at the ref; digest = commit | `token` or `username`+`password` (https); `ssh-privatekey` + `known_hosts` (ssh, both required) |
+| `http` | `http.url` to a `.tar.gz`/`.zip` | one stream; digest = content hash | `token` (Bearer) or `username`+`password` (Basic) |
+| `local` | `local.path` under the operator's `--module-local-root` mount (Helm: `operator.localModules`) | one stream; digest = content hash | — |
+| `upload` | none — indexes uploaded bundles | one stream; digest = content hash | — |
+
+### Uploaded bundles
+
+`type: upload` sources index ConfigMaps in the operator namespace
+labeled `kestrel.gg/module-upload: "true"`, each holding one bundle's
+files under their canonical names. The dashboard's **Upload module**
+flow creates these via `POST /modules/sources/{name}/upload`
+(tar.gz/zip, ≤ 900 KiB), but a hand-applied ConfigMap indexes exactly
+the same way:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: module-upload-mygame
+  namespace: kestrel-system
+  labels: { kestrel.gg/module-upload: "true" }
+binaryData:        # or stringData for plain YAML
+  module.yaml: <base64>
+  template.yaml: <base64>
+```
 
 ## Installing a module
 
@@ -262,6 +315,39 @@ agent. The dashboard's console tab then works automatically.
 For games without RCON (e.g. Valheim) set `protocol: none` — the agent
 won't try to connect, and the console tab degrades to "server doesn't
 support a live console" rather than failing.
+
+### Capabilities (moderation + backup quiesce)
+
+`spec.capabilities` declares the console commands behind agent
+features, so a module adds full Players-tab moderation and safe
+backups without any agent code. All commands run over RCON, so this
+requires `rcon.protocol` ≠ `none`.
+
+```yaml
+capabilities:
+  players:
+    kick: "kick {{.Player}}{{if .Reason}} {{.Reason}}{{end}}"
+    ban: "ban {{.Player}}{{if .Reason}} {{.Reason}}{{end}}"
+    unban: "pardon {{.Player}}"
+    banList:
+      command: "banlist players"
+      entryRegex: '^\s*(?P<name>\w+)\s+was banned by\s+(?P<source>[^:]+?)(?::\s*(?P<reason>.*))?\s*$'
+  quiesce:
+    quiesce: ["save-off", "save-all flush"]   # run before a backup snapshot
+    unquiesce: ["save-on"]                    # run after
+    failurePattern: "saving failed"           # output regex that fails the step
+```
+
+- Moderation commands are Go `text/template`s rendered with `.Player`
+  and `.Reason` (reason may be empty — guard with `{{if .Reason}}`).
+  Unset actions are reported as unsupported and the UI hides them.
+- `banList.entryRegex` matches one banned player per output line via
+  the named groups `name` (required), `source` and `reason`.
+- The quiesce sequence runs in order; any command error — or output
+  matching `failurePattern` (case-insensitive) — aborts the backup and
+  best-effort runs `unquiesce` so the game is never left paused.
+  Games that can't quiesce simply omit the block; backups proceed
+  without pausing.
 
 ### Probes
 

@@ -68,6 +68,22 @@ spec:
     # PasswordSecretRef left unset — operator will generate a password
     # and store it in a managed Secret named "<gameserver>-rcon".
 
+  # Console commands behind agent features. The agent interprets these
+  # at runtime — moderation templates render with .Player/.Reason; the
+  # quiesce sequences run around backup snapshots.
+  capabilities:
+    players:
+      kick: "kick {{.Player}}{{if .Reason}} {{.Reason}}{{end}}"
+      ban: "ban {{.Player}}{{if .Reason}} {{.Reason}}{{end}}"
+      unban: "pardon {{.Player}}"
+      banList:
+        command: "banlist players"
+        entryRegex: '^\s*(?P<name>[A-Za-z0-9_]{1,32})\s+was banned by\s+(?P<source>[^:]+?)(?::\s*(?P<reason>.*))?\s*$'
+    quiesce:
+      quiesce: ["save-off", "save-all flush"]
+      unquiesce: ["save-on"]
+      failurePattern: "saving failed"
+
   probes:
     readiness:
       exec:

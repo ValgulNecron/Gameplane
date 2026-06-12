@@ -56,15 +56,20 @@ Top-level knobs (see `values.yaml` for the full list):
 - `ingress.host` — dashboard hostname
 - `networkPolicies.enabled` — default-deny in games namespace (recommended on)
 - `podSecurity.enforceRestricted` — label games namespace for Pod Security Standards
+- `defaultModuleSource.*` — the OCI registry catalog shipped by default
+- `uploadModuleSource.enabled` — the `uploads` source backing dashboard bundle uploads (default on)
+- `operator.localModules.{enabled,hostPath,existingClaim,mountPath}` — mount a
+  directory of module bundles into the operator for `local`-type sources
 
 ## Installing a module
 
-Modules ship as CRDs. Apply whichever games you want:
-
-```sh
-kubectl apply -f modules/minecraft-java/template.yaml
-kubectl apply -f modules/valheim/template.yaml
-```
+The chart ships two `ModuleSource`s: `default` (the official OCI
+registry catalog) and `uploads` (dashboard bundle uploads). Install
+games from the dashboard's **Modules** page, or add more sources —
+git repositories, http archives, a local directory — under
+**Modules → Manage sources** (admin) or by applying `ModuleSource`
+CRs. See `docs/module-authoring.md` for the source types and the
+bundle format.
 
 ## Upgrading
 
