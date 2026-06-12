@@ -25,8 +25,11 @@ func seedModuleSource(t *testing.T, name string, modules []map[string]any) {
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{
-			"url":     "registry.example.com/" + name,
-			"modules": []map[string]any{{"name": "demo"}},
+			"type": "oci",
+			"oci": map[string]any{
+				"url":     "registry.example.com/" + name,
+				"modules": []map[string]any{{"name": "demo"}},
+			},
 		},
 	}}
 	created, err := kubeC.Dynamic.Resource(kube.GVRModuleSource).Create(

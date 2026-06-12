@@ -74,7 +74,7 @@ func TestMain(m *testing.M) {
 	MountResources(mountedR, kubeC)
 	MountLifecycle(mountedR, kubeC)
 	MountDestinations(mountedR, kubeC)
-	MountModules(mountedR, kubeC)
+	MountModules(mountedR, kubeC, "default")
 
 	apiSrv = httptest.NewServer(mountedR)
 	apiBase = apiSrv.URL
