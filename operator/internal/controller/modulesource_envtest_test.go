@@ -424,6 +424,42 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 	if tmpl.Spec.Image != "factoriotools/factorio:stable" {
 		t.Errorf("template image = %q", tmpl.Spec.Image)
 	}
+
+	var digestBefore string
+	{
+		var got kestrelv1alpha1.Module
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
+			t.Fatalf("get module: %v", err)
+		}
+		digestBefore = got.Status.AppliedDigest
+	}
+
+	// Re-upload changed content under the SAME version: the digest
+	// change alone must drive a re-apply.
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: ns}, cm); err != nil {
+		t.Fatalf("re-get configmap: %v", err)
+	}
+	cm.BinaryData["template.yaml"] = []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+		"  displayName: Factorio\n  game: factorio\n  version: 2.0.0\n  image: factoriotools/factorio:1.1.110\n")
+	if err := k8sClient.Update(context.Background(), cm); err != nil {
+		t.Fatalf("update configmap: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var got kestrelv1alpha1.Module
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
+			return false, err.Error()
+		}
+		if got.Status.AppliedDigest == digestBefore {
+			return false, "appliedDigest unchanged"
+		}
+		var tmpl kestrelv1alpha1.GameTemplate
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err != nil {
+			return false, err.Error()
+		}
+		return tmpl.Spec.Image == "factoriotools/factorio:1.1.110",
+			"template image=" + tmpl.Spec.Image
+	})
 }
 
 // writeLocalModule drops a minimal module dir (module.yaml +

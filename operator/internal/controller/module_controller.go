@@ -86,8 +86,11 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if mod.Status.AppliedVersion == desiredVersion && mod.Status.AppliedTemplate == mod.Name &&
-		mod.Status.Phase == kestrelv1alpha1.ModulePhaseReady {
-		// Already converged. Nothing to do.
+		mod.Status.Phase == kestrelv1alpha1.ModulePhaseReady &&
+		(entry.Digest == "" || mod.Status.AppliedDigest == entry.Digest) {
+		// Already converged. Non-OCI sources publish a single version
+		// stream, so the digest comparison is what catches content
+		// changes hiding behind an unchanged version string.
 		return ctrl.Result{}, nil
 	}
 
