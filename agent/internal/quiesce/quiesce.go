@@ -2,21 +2,26 @@
 // Backup controller to flush in-flight game state to disk before a
 // snapshot is taken (and resume it after).
 //
-// The implementation is per-game: Minecraft toggles auto-save with
-// "save-off" + "save-all flush" / "save-on" over RCON. Games that have
-// no equivalent (Valheim, Factorio, raw Source servers) get a
-// best-effort no-op so the backup pipeline can proceed unconditionally
-// — backups should never fail because a game can't be paused.
+// The command sequences are per-game and declared by the module's
+// template (spec.capabilities.quiesce), e.g. Minecraft toggles
+// auto-save with "save-off" + "save-all flush" / "save-on" over RCON.
+// Games that declare nothing get a best-effort no-op so the backup
+// pipeline can proceed unconditionally — backups should never fail
+// because a game can't be paused.
 package quiesce
 
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/kestrel-gg/kestrel/agent/internal/caps"
 )
 
 // Rcon is the slice of *rcon.Client we actually use. Defined here as
@@ -36,9 +41,14 @@ type Quiescer interface {
 	Unquiesce(rc Rcon) error
 }
 
-// Pick returns a Quiescer for the given game identifier. Unknown
-// games fall through to the unsupported quiescer.
-func Pick(game string) Quiescer {
+// Pick prefers the module's declared quiesce sequences. The hardcoded
+// minecraft fallback covers GameTemplates materialized before
+// capabilities existed; it goes away once the bundled modules all
+// declare their commands. Everything else is unsupported (no-op).
+func Pick(game string, spec *caps.Quiesce) Quiescer {
+	if spec != nil && len(spec.Quiesce) > 0 && len(spec.Unquiesce) > 0 {
+		return newDeclaredQuiescer(spec)
+	}
 	switch strings.ToLower(strings.TrimSpace(game)) {
 	case "minecraft", "minecraft-java":
 		return minecraftQuiescer{}
@@ -53,8 +63,8 @@ type response struct {
 }
 
 // Mount registers POST /quiesce and POST /unquiesce on r.
-func Mount(r chi.Router, rc Rcon, game string) {
-	q := Pick(game)
+func Mount(r chi.Router, rc Rcon, game string, spec *caps.Quiesce) {
+	q := Pick(game, spec)
 	r.Post("/quiesce", func(w http.ResponseWriter, _ *http.Request) {
 		if !q.Supported() {
 			writeJSON(w, http.StatusOK, response{Quiesced: false, Reason: "game does not support quiesce"})
@@ -118,6 +128,61 @@ func (minecraftQuiescer) Quiesce(rc Rcon) error {
 func (minecraftQuiescer) Unquiesce(rc Rcon) error {
 	_, err := rc.Exec("save-on")
 	return err
+}
+
+// --- Declared (module-driven) ------------------------------------------
+
+type declaredQuiescer struct {
+	quiesce   []string
+	unquiesce []string
+	failRE    *regexp.Regexp
+}
+
+// newDeclaredQuiescer compiles the declared sequences. An invalid
+// FailurePattern is logged and ignored — the commands still run, the
+// output check just can't.
+func newDeclaredQuiescer(spec *caps.Quiesce) Quiescer {
+	q := declaredQuiescer{quiesce: spec.Quiesce, unquiesce: spec.Unquiesce}
+	if spec.FailurePattern != "" {
+		re, err := regexp.Compile("(?i)" + spec.FailurePattern)
+		if err != nil {
+			slog.Warn("invalid quiesce failurePattern; output check disabled", "err", err)
+		} else {
+			q.failRE = re
+		}
+	}
+	return q
+}
+
+func (declaredQuiescer) Supported() bool { return true }
+
+func (q declaredQuiescer) Quiesce(rc Rcon) error {
+	for i, cmd := range q.quiesce {
+		out, err := rc.Exec(cmd)
+		if err == nil && q.failRE != nil && q.failRE.MatchString(out) {
+			err = fmt.Errorf("quiesce command %q reported failure", cmd)
+		}
+		if err != nil {
+			// Roll auto-save (or whatever the game paused) back on so we
+			// don't leave the world frozen — but only if any pausing
+			// command already ran.
+			if i > 0 {
+				_ = q.Unquiesce(rc)
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (q declaredQuiescer) Unquiesce(rc Rcon) error {
+	var firstErr error
+	for _, cmd := range q.unquiesce {
+		if _, err := rc.Exec(cmd); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // --- Default ----------------------------------------------------------

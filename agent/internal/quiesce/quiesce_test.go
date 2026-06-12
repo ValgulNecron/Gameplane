@@ -58,7 +58,7 @@ func TestPick(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.game, func(t *testing.T) {
-			if got := Pick(tc.game).Supported(); got != tc.support {
+			if got := Pick(tc.game, nil).Supported(); got != tc.support {
 				t.Errorf("Pick(%q).Supported() = %v, want %v", tc.game, got, tc.support)
 			}
 		})
@@ -136,7 +136,7 @@ func TestUnsupportedQuiescerNoOp(t *testing.T) {
 
 func newTestRouter(rc Rcon, game string) *chi.Mux {
 	r := chi.NewRouter()
-	Mount(r, rc, game)
+	Mount(r, rc, game, nil)
 	return r
 }
 

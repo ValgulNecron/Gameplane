@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/kestrel-gg/kestrel/agent/internal/auth"
+	"github.com/kestrel-gg/kestrel/agent/internal/caps"
 	"github.com/kestrel-gg/kestrel/agent/internal/console"
 	"github.com/kestrel-gg/kestrel/agent/internal/files"
 	"github.com/kestrel-gg/kestrel/agent/internal/heartbeat"
@@ -44,6 +45,7 @@ func main() {
 		serverName   string
 		templateName string
 		gameName     string
+		capsJSON     string
 	)
 	flag.StringVar(&addr, "addr", ":8090", "HTTP listen address")
 	flag.StringVar(&dataRoot, "data-root", "/data", "path under which file ops are rooted")
@@ -60,6 +62,8 @@ func main() {
 	flag.StringVar(&serverName, "server-name", envOr("KESTREL_SERVER_NAME", ""), "owning GameServer name")
 	flag.StringVar(&templateName, "template", envOr("KESTREL_TEMPLATE", ""), "GameTemplate name")
 	flag.StringVar(&gameName, "game", envOr("KESTREL_GAME", ""), "game identifier")
+	flag.StringVar(&capsJSON, "capabilities", envOr("KESTREL_CAPABILITIES", ""),
+		"declared game capabilities (JSON, from GameTemplate spec.capabilities)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -72,6 +76,21 @@ func main() {
 	if err != nil {
 		logger.Error("auth setup", "err", err)
 		os.Exit(1)
+	}
+
+	// Declared capabilities drive players/quiesce. A malformed blob
+	// degrades to "nothing declared" (built-in fallbacks for known
+	// games) rather than crashing the sidecar.
+	capSpec, err := caps.Parse(capsJSON)
+	if err != nil {
+		logger.Warn("capabilities ignored", "err", err)
+		capSpec = nil
+	}
+	var playerActions *caps.PlayerActions
+	var quiesceSpec *caps.Quiesce
+	if capSpec != nil {
+		playerActions = capSpec.Players
+		quiesceSpec = capSpec.Quiesce
 	}
 
 	var rconClient interface {
@@ -98,8 +117,8 @@ func main() {
 		files.Mount(protected, dataRoot)
 		logs.Mount(protected, gameLogPath)
 		console.Mount(protected, rconClient)
-		players.Mount(protected, rconClient, gameName)
-		quiesce.Mount(protected, rconClient, gameName)
+		players.Mount(protected, rconClient, gameName, playerActions)
+		quiesce.Mount(protected, rconClient, gameName, quiesceSpec)
 	})
 
 	srv := &http.Server{

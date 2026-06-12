@@ -118,7 +118,7 @@ func TestPickCommander(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.game, func(t *testing.T) {
-			c := pickCommander(tc.game)
+			c := pickCommander(tc.game, nil)
 			got := c.Capabilities().Kick
 			if got != tc.wantSupport {
 				t.Errorf("pickCommander(%q).Kick = %v, want %v", tc.game, got, tc.wantSupport)
@@ -200,7 +200,7 @@ func (f *fakeRcon) Exec(cmd string) (string, error) {
 func newTestRouter(t *testing.T, game string, rc Rcon) *chi.Mux {
 	t.Helper()
 	r := chi.NewRouter()
-	Mount(r, rc, game)
+	Mount(r, rc, game, nil)
 	return r
 }
 

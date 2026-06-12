@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/kestrel-gg/kestrel/agent/internal/caps"
 	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
 )
 
@@ -60,8 +61,11 @@ type BannedPlayer struct {
 	Source string `json:"source,omitempty"`
 }
 
-func Mount(r chi.Router, rc Rcon, game string) {
-	h := &handler{rcon: rc, cmdr: pickCommander(game), game: game}
+// Mount wires the player endpoints. actions carries the module's
+// declared moderation commands (nil when the template declares none —
+// known games then fall back to built-in commands).
+func Mount(r chi.Router, rc Rcon, game string, actions *caps.PlayerActions) {
+	h := &handler{rcon: rc, cmdr: pickCommander(game, actions), game: game}
 	r.Get("/players", h.serve)
 	r.Get("/players/banned", h.banned)
 	r.Post("/players/kick", h.kick)

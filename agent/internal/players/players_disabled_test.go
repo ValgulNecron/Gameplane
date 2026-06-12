@@ -17,7 +17,7 @@ import (
 // list, and 501s for moderation — never a 502.
 func TestPlayers_DisabledRcon(t *testing.T) {
 	r := chi.NewRouter()
-	Mount(r, rcon.Disabled{}, "busybox")
+	Mount(r, rcon.Disabled{}, "busybox", nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
