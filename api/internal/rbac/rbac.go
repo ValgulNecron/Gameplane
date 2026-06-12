@@ -85,11 +85,12 @@ var rules = []rule{
 	{method: "PUT", segment: "backup-destinations", role: RoleAdmin},
 	{method: "DELETE", segment: "backup-destinations", role: RoleAdmin},
 
-	// Module install/upgrade/uninstall are admin-only — they pull
-	// arbitrary OCI artifacts and create cluster-scoped GameTemplates.
-	// Reads (catalog, sources, installed list) follow the global
-	// viewer+ rule below.
+	// Module install/upgrade/uninstall and module-source management are
+	// admin-only — they make the cluster pull arbitrary bundles and
+	// create cluster-scoped GameTemplates. Reads (catalog, sources,
+	// installed list) follow the global viewer+ rule below.
 	{method: "POST", segment: "modules", role: RoleAdmin},
+	{method: "PUT", segment: "modules", role: RoleAdmin},
 	{method: "PATCH", segment: "modules", role: RoleAdmin},
 	{method: "DELETE", segment: "modules", role: RoleAdmin},
 

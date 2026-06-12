@@ -61,6 +61,18 @@ func TestAllow(t *testing.T) {
 		{RoleOperator, "POST", "/servers/foo/players/unban", true},
 		{RoleViewer, "GET", "/servers/foo/players/banned", true},
 		{RoleViewer, "GET", "/servers/foo/players", true},
+		// Module + module-source management is admin-only; reads stay
+		// viewer-accessible.
+		{RoleViewer, "GET", "/modules/catalog", true},
+		{RoleViewer, "GET", "/modules/sources", true},
+		{RoleOperator, "POST", "/modules", false},
+		{RoleAdmin, "POST", "/modules", true},
+		{RoleOperator, "POST", "/modules/sources", false},
+		{RoleAdmin, "POST", "/modules/sources", true},
+		{RoleOperator, "PUT", "/modules/sources/upstream", false},
+		{RoleAdmin, "PUT", "/modules/sources/upstream", true},
+		{RoleOperator, "DELETE", "/modules/sources/upstream", false},
+		{RoleAdmin, "DELETE", "/modules/sources/upstream", true},
 	}
 	for _, tc := range cases {
 		got := allow(tc.role, tc.method, tc.path)

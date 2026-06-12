@@ -24,6 +24,9 @@ rules:
   - apiGroups: ["kestrel.gg"]
     resources: [modules]
     verbs: [create, update, patch, delete]      # modules are cluster-scoped; install/upgrade/uninstall from the dashboard
+  - apiGroups: ["kestrel.gg"]
+    resources: [modulesources]
+    verbs: [create, update, patch, delete]      # source management (add/edit/remove sources) from the dashboard
   - apiGroups: [""]
     resources: [nodes, events]
     verbs: [get, list, watch]
