@@ -5,7 +5,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
-import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
   FileText,
   KeyRound,
@@ -21,6 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FieldLabel } from "@/components/ui/field";
 import { TabBar } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
@@ -259,87 +265,41 @@ function UserRow({
       <td className="px-4 py-3 text-muted">{u.provider ?? "local"}</td>
       <td className="px-4 py-3 text-muted">{formatRelative(u.createdAt)}</td>
       <td className="px-4 py-3 text-right">
-        <Menu.Root>
-          <Menu.Trigger asChild>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
               className="rounded p-1 text-muted hover:bg-border hover:text-fg focus:outline-none focus:ring-1 focus:ring-primary"
               aria-label={`Actions for ${u.username}`}
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
-          </Menu.Trigger>
-          <Menu.Portal>
-            <Menu.Content
-              align="end"
-              sideOffset={4}
-              className="z-50 min-w-[180px] rounded-md border border-border bg-card p-1 text-sm shadow-lg"
-            >
-              <RowMenuItem
-                icon={<Pencil className="h-4 w-4" />}
-                onSelect={onEdit}
-                label="Edit user"
-              />
-              <RowMenuItem
-                icon={<KeyRound className="h-4 w-4" />}
-                onSelect={onResetPassword}
-                label="Reset password"
-                disabled={u.provider === "oidc"}
-                hint={u.provider === "oidc" ? "Account is OIDC-managed" : undefined}
-              />
-              <Menu.Separator className="my-1 h-px bg-border" />
-              <RowMenuItem
-                icon={<Trash2 className="h-4 w-4" />}
-                onSelect={onDelete}
-                label="Delete user"
-                destructive
-                disabled={isMe}
-                hint={isMe ? "You can’t delete your own account" : undefined}
-              />
-            </Menu.Content>
-          </Menu.Portal>
-        </Menu.Root>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
+              icon={<Pencil className="h-4 w-4" />}
+              onSelect={onEdit}
+              label="Edit user"
+            />
+            <DropdownMenuItem
+              icon={<KeyRound className="h-4 w-4" />}
+              onSelect={onResetPassword}
+              label="Reset password"
+              disabled={u.provider === "oidc"}
+              hint={u.provider === "oidc" ? "Account is OIDC-managed" : undefined}
+            />
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              icon={<Trash2 className="h-4 w-4" />}
+              onSelect={onDelete}
+              label="Delete user"
+              destructive
+              disabled={isMe}
+              hint={isMe ? "You can’t delete your own account" : undefined}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
-  );
-}
-
-function RowMenuItem({
-  icon,
-  label,
-  onSelect,
-  destructive,
-  disabled,
-  hint,
-}: {
-  icon: ReactNode;
-  label: string;
-  onSelect: () => void;
-  destructive?: boolean;
-  disabled?: boolean;
-  hint?: string;
-}) {
-  return (
-    <Menu.Item
-      onSelect={(e) => {
-        if (disabled) {
-          e.preventDefault();
-          return;
-        }
-        onSelect();
-      }}
-      disabled={disabled}
-      title={hint}
-      className={cn(
-        "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-none",
-        destructive ? "text-destructive" : "text-fg",
-        disabled
-          ? "opacity-50 cursor-not-allowed"
-          : "data-[highlighted]:bg-surface/70",
-      )}
-    >
-      {icon}
-      <span>{label}</span>
-    </Menu.Item>
   );
 }
 
