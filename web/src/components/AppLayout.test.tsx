@@ -63,6 +63,13 @@ describe("AppLayout", () => {
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
   });
 
+  it("notifications bell toggles a panel", async () => {
+    renderWithQuery(<AppLayout />);
+    const bell = await screen.findByRole("button", { name: /notifications/i });
+    await userEvent.click(bell);
+    expect(await screen.findByText("Recent activity")).toBeInTheDocument();
+  });
+
   it("global search filters servers by name and links to detail", async () => {
     server.use(
       http.get("/servers", () =>

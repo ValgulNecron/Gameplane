@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useMatches } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   Bell,
@@ -20,6 +20,7 @@ import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
 import { useMe } from "@/lib/auth";
 import type { ClusterInfo, User } from "@/types";
 import { cn } from "@/lib/utils";
+import { openEventStream, queryKeyForKind, type KestrelEvent } from "@/lib/sse";
 import { useEffect, useState } from "react";
 
 function useClusterInfo() {
@@ -189,20 +190,91 @@ function Topbar({ user }: { user?: User }) {
       <Breadcrumbs items={crumbs} />
       <div className="flex items-center gap-3">
         <GlobalSearch />
-        <button
-          type="button"
-          aria-label="Notifications"
-          title="Notifications"
-          className="relative rounded-md p-2 text-muted hover:bg-surface hover:text-fg"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
-        </button>
+        <Notifications />
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
           {initials}
         </div>
       </div>
     </header>
+  );
+}
+
+interface Notice {
+  id: number;
+  text: string;
+  at: string;
+}
+
+// Notifications opens the /events SSE stream once for the app: each watch
+// event invalidates the matching TanStack Query cache (so views refresh
+// without waiting for the next poll) and is buffered into a dropdown
+// panel. The badge shows the unread count.
+function Notifications() {
+  const qc = useQueryClient();
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let seq = 0;
+    const dispose = openEventStream({
+      onEvent: (ev: KestrelEvent) => {
+        const key = queryKeyForKind(ev.kind);
+        if (key) void qc.invalidateQueries({ queryKey: key });
+        const name = ev.object?.metadata?.name ?? "";
+        const verb = ev.eventType.toLowerCase();
+        seq += 1;
+        const notice: Notice = {
+          id: seq,
+          text: `${verb} ${ev.kind.replace(/s$/, "")} ${name}`.trim(),
+          at: new Date().toLocaleTimeString(),
+        };
+        setNotices((prev) => [notice, ...prev].slice(0, 50));
+        setUnread((u) => u + 1);
+      },
+    });
+    return dispose;
+  }, [qc]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Notifications"
+        title="Notifications"
+        onClick={() => {
+          setOpen((o) => !o);
+          setUnread(0);
+        }}
+        className="relative rounded-md p-2 text-muted hover:bg-surface hover:text-fg"
+      >
+        <Bell className="h-[18px] w-[18px]" />
+        {unread > 0 && (
+          <span className="absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-fg">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-72 overflow-hidden rounded-md border border-border bg-background shadow-lg">
+          <div className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
+            Recent activity
+          </div>
+          {notices.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-muted">No recent activity.</div>
+          ) : (
+            <ul className="max-h-80 overflow-auto">
+              {notices.map((n) => (
+                <li key={n.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="truncate font-mono text-xs">{n.text}</span>
+                  <span className="shrink-0 text-[10px] text-muted">{n.at}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
