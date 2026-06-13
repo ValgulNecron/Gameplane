@@ -13,10 +13,11 @@ spec:
   policyTypes: [Ingress]
   ingress: []
 ---
-# Default-deny egress. Game pods only need DNS resolution and outbound
-# access the game itself requires (Steam, Mojang auth, mod repos). We
-# don't know those targets in advance, so the allow rule below opens
-# only DNS; operators add game-specific allow policies as needed.
+# Default-deny egress. This rule opens only DNS; outbound access to the
+# public internet (game binary / asset / mod downloads) is granted by the
+# allow-game-public-egress policy below, and apiserver access by
+# allow-agent-to-apiserver. Operators can add further game-specific allow
+# policies as needed.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -131,4 +132,35 @@ spec:
         {{- end }}
       ports:
         - { protocol: TCP, port: 8090 }
+{{- if .Values.networkPolicies.gameEgress.enabled }}
+---
+# Allow game pods to reach the public internet for binary/asset/mod
+# downloads on startup. Without this, the default-deny egress policy
+# above blocks the download and the server hangs in "Starting" forever.
+# Private ranges are excepted so game pods still can't reach in-cluster
+# services or link-local metadata (anti-SSRF / tenant isolation).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-game-public-egress
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "kestrel.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kestrel-game
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              {{- range .Values.networkPolicies.gameEgress.privateCIDRs }}
+              - {{ . | quote }}
+              {{- end }}
+      ports:
+        {{- range .Values.networkPolicies.gameEgress.ports }}
+        - { protocol: {{ .protocol }}, port: {{ .port }} }
+        {{- end }}
+{{- end }}
 {{- end }}
