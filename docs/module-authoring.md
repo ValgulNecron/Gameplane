@@ -433,6 +433,41 @@ doesn't match this cycle is shown with an empty value rather than
 dropped, so the panel layout stays stable. When the game has no RCON the
 endpoint returns nothing and the dashboard omits the panel.
 
+#### Mods
+
+`capabilities.mods` declares where this game's mods/plugins live and how
+the dashboard may install new ones. Mods are plain files under a
+directory on the data volume; the dashboard lists, installs, and removes
+them generically by calling the agent — no RCON required.
+
+```yaml
+capabilities:
+  mods:
+    path: mods                      # relative to storage.mountPath
+    extensions: [".jar"]            # optional: what counts as a mod
+    install:                        # omit to offer listing/removal only
+      allowedHosts:                 # SSRF allowlist (required for installs)
+        - cdn.modrinth.com
+        - ".curseforge.com"         # leading dot → host + subdomains
+      maxSizeMB: 256                # default 256
+```
+
+- **Listing/removal** operate directly on `path`; they work with or
+  without an `install` block.
+- **Install** downloads a user-supplied URL into `path`. It is refused
+  unless the URL's host matches `allowedHosts` (exact host or a
+  `.suffix` for a domain + subdomains) *and* the resolved address is
+  publicly routable — the agent blocks loopback, private (RFC1918/ULA),
+  link-local, and metadata addresses so it can't be tricked into
+  fetching cluster-internal services. Downloads are size-capped and
+  redirects are re-checked against the allowlist.
+- Filenames are sanitized against path traversal. `path` itself must be
+  relative to the data mount with no `..`.
+
+> The mods directory is game- and often flavor-specific (Forge/Fabric use
+> `mods`, Bukkit/Paper use `plugins`). Pick the one your image and
+> default server type expect.
+
 ### Probes
 
 ```yaml
