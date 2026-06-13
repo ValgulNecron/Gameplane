@@ -19,26 +19,20 @@ func minecraftQuiesceSpec() *caps.Quiesce {
 	}
 }
 
-func TestPick_PrefersDeclared(t *testing.T) {
-	if !Pick("factorio", minecraftQuiesceSpec()).Supported() {
-		t.Fatal("declared spec should be supported for any game")
-	}
-	if Pick("factorio", nil).Supported() {
-		t.Fatal("undeclared unknown game should be unsupported")
-	}
-	if !Pick("minecraft-java", nil).Supported() {
-		t.Fatal("minecraft fallback lost")
-	}
+func TestPick_HalfDeclaredIgnored(t *testing.T) {
 	// A half-declared spec (missing unquiesce) is ignored — never pause
 	// a game we can't resume.
-	if Pick("factorio", &caps.Quiesce{Quiesce: []string{"pause"}}).Supported() {
+	if Pick(&caps.Quiesce{Quiesce: []string{"pause"}}).Supported() {
 		t.Fatal("spec without unquiesce should be unsupported")
+	}
+	if Pick(&caps.Quiesce{Unquiesce: []string{"resume"}}).Supported() {
+		t.Fatal("spec without quiesce should be unsupported")
 	}
 }
 
 func TestDeclaredQuiescer_HappyPath(t *testing.T) {
 	rc := &fakeRcon{}
-	q := Pick("any", minecraftQuiesceSpec())
+	q := Pick(minecraftQuiesceSpec())
 	if err := q.Quiesce(rc); err != nil {
 		t.Fatalf("Quiesce: %v", err)
 	}
@@ -53,7 +47,7 @@ func TestDeclaredQuiescer_HappyPath(t *testing.T) {
 
 func TestDeclaredQuiescer_CommandErrorRollsBack(t *testing.T) {
 	rc := &fakeRcon{failNext: map[string]error{"save-all flush": errors.New("connection reset")}}
-	q := Pick("any", minecraftQuiesceSpec())
+	q := Pick(minecraftQuiesceSpec())
 	if err := q.Quiesce(rc); err == nil {
 		t.Fatal("expected error")
 	}
@@ -66,7 +60,7 @@ func TestDeclaredQuiescer_CommandErrorRollsBack(t *testing.T) {
 
 func TestDeclaredQuiescer_FirstCommandErrorSkipsRollback(t *testing.T) {
 	rc := &fakeRcon{failNext: map[string]error{"save-off": errors.New("boom")}}
-	q := Pick("any", minecraftQuiesceSpec())
+	q := Pick(minecraftQuiesceSpec())
 	if err := q.Quiesce(rc); err == nil {
 		t.Fatal("expected error")
 	}
@@ -83,7 +77,7 @@ func TestDeclaredQuiescer_FailurePattern(t *testing.T) {
 		}
 		return "ok", nil
 	}}
-	q := Pick("any", minecraftQuiesceSpec())
+	q := Pick(minecraftQuiesceSpec())
 	err := q.Quiesce(rc)
 	if err == nil || !strings.Contains(err.Error(), "reported failure") {
 		t.Fatalf("err = %v", err)
@@ -98,7 +92,7 @@ func TestDeclaredQuiescer_InvalidFailurePatternIgnored(t *testing.T) {
 	rc := &fakeRcon{respond: func(string) (string, error) { return "saving failed", nil }}
 	spec := minecraftQuiesceSpec()
 	spec.FailurePattern = "(unclosed"
-	q := Pick("any", spec)
+	q := Pick(spec)
 	if !q.Supported() {
 		t.Fatal("bad pattern must not disable quiesce entirely")
 	}
@@ -111,7 +105,7 @@ func TestDeclaredQuiescer_InvalidFailurePatternIgnored(t *testing.T) {
 
 func TestDeclaredQuiescer_UnquiesceReportsFirstError(t *testing.T) {
 	rc := &fakeRcon{failNext: map[string]error{"resume-a": errors.New("boom")}}
-	q := Pick("any", &caps.Quiesce{
+	q := Pick(&caps.Quiesce{
 		Quiesce:   []string{"pause"},
 		Unquiesce: []string{"resume-a", "resume-b"},
 	})

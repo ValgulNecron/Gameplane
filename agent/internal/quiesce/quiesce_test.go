@@ -6,11 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/kestrel-gg/kestrel/agent/internal/caps"
 )
 
 type fakeRcon struct {
@@ -45,73 +46,18 @@ func (f *fakeRcon) calls() []string {
 }
 
 func TestPick(t *testing.T) {
-	cases := []struct {
-		game    string
-		support bool
-	}{
-		{"minecraft", true},
-		{"minecraft-java", true},
-		{"  Minecraft-Java ", true},
-		{"valheim", false},
-		{"", false},
-		{"unknown", false},
+	// Quiesce is entirely module-driven: a declared sequence is
+	// supported, nothing declared is a no-op, regardless of game.
+	if !Pick(minecraftQuiesceSpec()).Supported() {
+		t.Error("declared spec should be supported")
 	}
-	for _, tc := range cases {
-		t.Run(tc.game, func(t *testing.T) {
-			if got := Pick(tc.game, nil).Supported(); got != tc.support {
-				t.Errorf("Pick(%q).Supported() = %v, want %v", tc.game, got, tc.support)
-			}
-		})
+	if Pick(nil).Supported() {
+		t.Error("nil spec should be unsupported")
 	}
-}
-
-func TestMinecraftQuiesceSequence(t *testing.T) {
-	rc := &fakeRcon{}
-	q := minecraftQuiescer{}
-	if err := q.Quiesce(rc); err != nil {
-		t.Fatalf("Quiesce: %v", err)
-	}
-	want := []string{"save-off", "save-all flush"}
-	if !reflect.DeepEqual(rc.calls(), want) {
-		t.Errorf("Quiesce calls = %v, want %v", rc.calls(), want)
-	}
-}
-
-func TestMinecraftQuiesceSaveAllFailureRollsBack(t *testing.T) {
-	rc := &fakeRcon{failNext: map[string]error{"save-all flush": errors.New("connection reset")}}
-	q := minecraftQuiescer{}
-	if err := q.Quiesce(rc); err == nil {
-		t.Fatal("expected error from save-all flush failure")
-	}
-	want := []string{"save-off", "save-all flush", "save-on"}
-	if !reflect.DeepEqual(rc.calls(), want) {
-		t.Errorf("Quiesce rollback calls = %v, want %v", rc.calls(), want)
-	}
-}
-
-func TestMinecraftQuiesceFailureFromSavingFailedString(t *testing.T) {
-	rc := &fakeRcon{respond: func(cmd string) (string, error) {
-		if cmd == "save-all flush" {
-			return "Saving failed: nothing to save", nil
-		}
-		return "", nil
-	}}
-	q := minecraftQuiescer{}
-	if err := q.Quiesce(rc); err == nil {
-		t.Fatal("expected quiesce error when server reports saving failed")
-	}
-	if calls := rc.calls(); calls[len(calls)-1] != "save-on" {
-		t.Errorf("expected rollback save-on, got calls=%v", calls)
-	}
-}
-
-func TestMinecraftUnquiesce(t *testing.T) {
-	rc := &fakeRcon{}
-	if err := (minecraftQuiescer{}).Unquiesce(rc); err != nil {
-		t.Fatalf("Unquiesce: %v", err)
-	}
-	if got := rc.calls(); len(got) != 1 || got[0] != "save-on" {
-		t.Errorf("Unquiesce calls = %v, want [save-on]", got)
+	// A half-declared spec (missing unquiesce) is ignored — never pause
+	// a game we can't resume.
+	if Pick(&caps.Quiesce{Quiesce: []string{"pause"}}).Supported() {
+		t.Error("spec without unquiesce should be unsupported")
 	}
 }
 
@@ -134,9 +80,9 @@ func TestUnsupportedQuiescerNoOp(t *testing.T) {
 
 // --- HTTP-level smoke tests --------------------------------------------------
 
-func newTestRouter(rc Rcon, game string) *chi.Mux {
+func newTestRouter(rc Rcon, spec *caps.Quiesce) *chi.Mux {
 	r := chi.NewRouter()
-	Mount(r, rc, game, nil)
+	Mount(r, rc, "testgame", spec)
 	return r
 }
 
@@ -170,7 +116,7 @@ func doPOST(t *testing.T, srv *httptest.Server, path string) (int, []byte) {
 
 func TestQuiesceHandlerMinecraftHappyPath(t *testing.T) {
 	rc := &fakeRcon{}
-	srv := httptest.NewServer(newTestRouter(rc, "minecraft-java"))
+	srv := httptest.NewServer(newTestRouter(rc, minecraftQuiesceSpec()))
 	defer srv.Close()
 
 	status, body := doPOST(t, srv, "/quiesce")
@@ -185,7 +131,7 @@ func TestQuiesceHandlerMinecraftHappyPath(t *testing.T) {
 
 func TestQuiesceHandlerUnsupportedGameDegrades(t *testing.T) {
 	rc := &fakeRcon{}
-	srv := httptest.NewServer(newTestRouter(rc, "valheim"))
+	srv := httptest.NewServer(newTestRouter(rc, nil))
 	defer srv.Close()
 
 	status, body := doPOST(t, srv, "/quiesce")
@@ -206,7 +152,7 @@ func TestQuiesceHandlerUnsupportedGameDegrades(t *testing.T) {
 
 func TestQuiesceHandlerRconErrorIs502(t *testing.T) {
 	rc := &fakeRcon{failNext: map[string]error{"save-off": errors.New("connection refused")}}
-	srv := httptest.NewServer(newTestRouter(rc, "minecraft"))
+	srv := httptest.NewServer(newTestRouter(rc, minecraftQuiesceSpec()))
 	defer srv.Close()
 
 	status, _ := doPOST(t, srv, "/quiesce")
@@ -217,7 +163,7 @@ func TestQuiesceHandlerRconErrorIs502(t *testing.T) {
 
 func TestUnquiesceHandlerHappyPath(t *testing.T) {
 	rc := &fakeRcon{}
-	srv := httptest.NewServer(newTestRouter(rc, "minecraft-java"))
+	srv := httptest.NewServer(newTestRouter(rc, minecraftQuiesceSpec()))
 	defer srv.Close()
 
 	status, body := doPOST(t, srv, "/unquiesce")

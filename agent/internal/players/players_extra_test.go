@@ -16,7 +16,7 @@ import (
 func newSrv(t *testing.T, game string, rc Rcon) *httptest.Server {
 	t.Helper()
 	r := chi.NewRouter()
-	Mount(r, rc, game, nil)
+	Mount(r, rc, game, minecraftActions())
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 	return srv

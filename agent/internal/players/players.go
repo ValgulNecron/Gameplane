@@ -62,10 +62,11 @@ type BannedPlayer struct {
 }
 
 // Mount wires the player endpoints. actions carries the module's
-// declared moderation commands (nil when the template declares none —
-// known games then fall back to built-in commands).
+// declared moderation commands (nil when the template declares none, in
+// which case moderation is reported unsupported). game is retained only
+// for log/error context.
 func Mount(r chi.Router, rc Rcon, game string, actions *caps.PlayerActions) {
-	h := &handler{rcon: rc, cmdr: pickCommander(game, actions), game: game}
+	h := &handler{rcon: rc, cmdr: pickCommander(actions), game: game}
 	r.Get("/players", h.serve)
 	r.Get("/players/banned", h.banned)
 	r.Post("/players/kick", h.kick)

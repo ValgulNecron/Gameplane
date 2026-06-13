@@ -9,7 +9,7 @@ import (
 
 func TestUnquiesceHandler_UnsupportedGame(t *testing.T) {
 	rc := &fakeRcon{}
-	srv := httptest.NewServer(newTestRouter(rc, "valheim"))
+	srv := httptest.NewServer(newTestRouter(rc, nil))
 	defer srv.Close()
 
 	status, body := doPOST(t, srv, "/unquiesce")
@@ -24,7 +24,7 @@ func TestUnquiesceHandler_UnsupportedGame(t *testing.T) {
 
 func TestUnquiesceHandler_RconError(t *testing.T) {
 	rc := &fakeRcon{failNext: map[string]error{"save-on": errors.New("connection reset")}}
-	srv := httptest.NewServer(newTestRouter(rc, "minecraft"))
+	srv := httptest.NewServer(newTestRouter(rc, minecraftQuiesceSpec()))
 	defer srv.Close()
 
 	status, _ := doPOST(t, srv, "/unquiesce")

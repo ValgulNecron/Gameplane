@@ -21,49 +21,39 @@ func minecraftActions() *caps.PlayerActions {
 	}
 }
 
-func TestPickCommander_PrefersDeclared(t *testing.T) {
-	// Declared actions win even for unknown games.
-	c := pickCommander("factorio", minecraftActions())
+func TestPickCommander_Declared(t *testing.T) {
+	// Declared actions are the sole source of moderation support.
+	c := pickCommander(minecraftActions())
 	if caps := c.Capabilities(); !caps.Kick || !caps.Ban || !caps.Unban {
 		t.Fatalf("capabilities = %+v", caps)
 	}
-	// Without declarations, only known games keep working.
-	if caps := pickCommander("factorio", nil).Capabilities(); caps.Kick {
-		t.Fatal("undeclared unknown game should be unsupported")
-	}
-	if caps := pickCommander("minecraft-java", nil).Capabilities(); !caps.Kick {
-		t.Fatal("minecraft fallback lost")
+	// Nothing declared → unsupported, regardless of game.
+	if caps := pickCommander(nil).Capabilities(); caps.Kick || caps.Ban || caps.Unban {
+		t.Fatal("undeclared game should be unsupported")
 	}
 }
 
-func TestTemplateCommander_MatchesHardcodedMinecraft(t *testing.T) {
-	declared := pickCommander("minecraft-java", minecraftActions())
-	hardcoded := minecraftCommander{}
+func TestTemplateCommander_Minecraft(t *testing.T) {
+	c := pickCommander(minecraftActions())
 
 	cases := []struct {
-		name, reason string
+		name, reason, wantKick, wantBan string
 	}{
-		{"griefer", ""},
-		{"griefer", "stop that"},
+		{"griefer", "", "kick griefer", "ban griefer"},
+		{"griefer", "stop that", "kick griefer stop that", "ban griefer stop that"},
 	}
 	for _, tc := range cases {
-		dk, _ := declared.Kick(tc.name, tc.reason)
-		hk, _ := hardcoded.Kick(tc.name, tc.reason)
-		if dk != hk {
-			t.Errorf("Kick(%q,%q): declared %q != hardcoded %q", tc.name, tc.reason, dk, hk)
+		if dk, _ := c.Kick(tc.name, tc.reason); dk != tc.wantKick {
+			t.Errorf("Kick(%q,%q) = %q, want %q", tc.name, tc.reason, dk, tc.wantKick)
 		}
-		db, _ := declared.Ban(tc.name, tc.reason)
-		hb, _ := hardcoded.Ban(tc.name, tc.reason)
-		if db != hb {
-			t.Errorf("Ban(%q,%q): declared %q != hardcoded %q", tc.name, tc.reason, db, hb)
+		if db, _ := c.Ban(tc.name, tc.reason); db != tc.wantBan {
+			t.Errorf("Ban(%q,%q) = %q, want %q", tc.name, tc.reason, db, tc.wantBan)
 		}
 	}
-	du, _ := declared.Unban("griefer")
-	if du != "pardon griefer" {
+	if du, _ := c.Unban("griefer"); du != "pardon griefer" {
 		t.Errorf("Unban = %q", du)
 	}
-	dCmd, ok := declared.BanList()
-	if !ok || dCmd != "banlist players" {
+	if dCmd, ok := c.BanList(); !ok || dCmd != "banlist players" {
 		t.Errorf("BanList = %q ok=%v", dCmd, ok)
 	}
 
@@ -71,13 +61,18 @@ func TestTemplateCommander_MatchesHardcodedMinecraft(t *testing.T) {
 		"griefer2 was banned by alice: <no reason given>\n" +
 		"griefer3 was banned by Server\n" +
 		"not a ban line\n"
-	if got, want := declared.ParseBanList(raw), hardcoded.ParseBanList(raw); !reflect.DeepEqual(got, want) {
-		t.Errorf("ParseBanList: declared %+v != hardcoded %+v", got, want)
+	want := []BannedPlayer{
+		{Name: "griefer1", Source: "Server", Reason: "Cheating"},
+		{Name: "griefer2", Source: "alice"},
+		{Name: "griefer3", Source: "Server"},
+	}
+	if got := c.ParseBanList(raw); !reflect.DeepEqual(got, want) {
+		t.Errorf("ParseBanList = %+v, want %+v", got, want)
 	}
 }
 
 func TestTemplateCommander_PartialDeclarations(t *testing.T) {
-	c := pickCommander("valheim", &caps.PlayerActions{Kick: "kick {{.Player}}"})
+	c := pickCommander(&caps.PlayerActions{Kick: "kick {{.Player}}"})
 	if caps := c.Capabilities(); !caps.Kick || caps.Ban || caps.Unban {
 		t.Fatalf("capabilities = %+v", caps)
 	}
@@ -98,7 +93,7 @@ func TestTemplateCommander_PartialDeclarations(t *testing.T) {
 
 func TestTemplateCommander_BadDeclarationsDegrade(t *testing.T) {
 	t.Run("broken template disables one action", func(t *testing.T) {
-		c := pickCommander("g", &caps.PlayerActions{
+		c := pickCommander(&caps.PlayerActions{
 			Kick: "kick {{.Player", // unparsable
 			Ban:  "ban {{.Player}}",
 		})
@@ -111,7 +106,7 @@ func TestTemplateCommander_BadDeclarationsDegrade(t *testing.T) {
 	})
 
 	t.Run("bad banlist regex disables banlist", func(t *testing.T) {
-		c := pickCommander("g", &caps.PlayerActions{
+		c := pickCommander(&caps.PlayerActions{
 			BanList: &caps.BanList{Command: "banlist", EntryRegex: "(unclosed"},
 		})
 		if _, ok := c.BanList(); ok {
@@ -120,7 +115,7 @@ func TestTemplateCommander_BadDeclarationsDegrade(t *testing.T) {
 	})
 
 	t.Run("regex without name group disables banlist", func(t *testing.T) {
-		c := pickCommander("g", &caps.PlayerActions{
+		c := pickCommander(&caps.PlayerActions{
 			BanList: &caps.BanList{Command: "banlist", EntryRegex: `^(\w+)$`},
 		})
 		if _, ok := c.BanList(); ok {
@@ -129,7 +124,7 @@ func TestTemplateCommander_BadDeclarationsDegrade(t *testing.T) {
 	})
 
 	t.Run("template rendering to empty is unsupported", func(t *testing.T) {
-		c := pickCommander("g", &caps.PlayerActions{Kick: "{{if .Reason}}kick {{.Player}}{{end}}"})
+		c := pickCommander(&caps.PlayerActions{Kick: "{{if .Reason}}kick {{.Player}}{{end}}"})
 		if _, ok := c.Kick("x", ""); ok {
 			t.Error("empty render should be unsupported")
 		}

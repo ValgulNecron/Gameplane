@@ -21,20 +21,15 @@ type commander interface {
 	ParseBanList(raw string) []BannedPlayer
 }
 
-// pickCommander prefers commands declared by the module's template
-// (spec.capabilities.players). The hardcoded minecraft fallback covers
-// GameTemplates materialized before capabilities existed; it goes away
-// once the bundled modules all declare their commands.
-func pickCommander(game string, actions *caps.PlayerActions) commander {
-	if actions != nil {
-		return newTemplateCommander(actions)
-	}
-	switch strings.ToLower(strings.TrimSpace(game)) {
-	case "minecraft", "minecraft-java":
-		return minecraftCommander{}
-	default:
+// pickCommander builds the moderation commander entirely from the
+// module's declared commands (spec.capabilities.players). A template
+// that declares nothing reports every action unsupported — moderation
+// is module-driven, with no per-game special-casing in the agent.
+func pickCommander(actions *caps.PlayerActions) commander {
+	if actions == nil {
 		return unsupportedCommander{}
 	}
+	return newTemplateCommander(actions)
 }
 
 // --- Declared (template-driven) commanders --------------------------------
@@ -149,68 +144,7 @@ func (c templateCommander) ParseBanList(raw string) []BannedPlayer {
 	return out
 }
 
-// --- Minecraft (vanilla / paper / spigot / forge / fabric) ---------------
-
-type minecraftCommander struct{}
-
-func (minecraftCommander) Capabilities() Capabilities {
-	return Capabilities{Kick: true, Ban: true, Unban: true}
-}
-
-func (minecraftCommander) Kick(name, reason string) (string, bool) {
-	if reason == "" {
-		return "kick " + name, true
-	}
-	return "kick " + name + " " + reason, true
-}
-
-func (minecraftCommander) Ban(name, reason string) (string, bool) {
-	if reason == "" {
-		return "ban " + name, true
-	}
-	return "ban " + name + " " + reason, true
-}
-
-func (minecraftCommander) Unban(name string) (string, bool) {
-	return "pardon " + name, true
-}
-
-func (minecraftCommander) BanList() (string, bool) {
-	return "banlist players", true
-}
-
-// banlistEntryRE matches lines of the form
-//
-//	griefer1 was banned by Server: Cheating
-//	griefer2 was banned by alice: <no reason given>
-//
-// Older servers omit the reason segment entirely:
-//
-//	griefer3 was banned by Server
-var banlistEntryRE = regexp.MustCompile(
-	`^\s*([A-Za-z0-9_]{1,32})\s+was banned by\s+([^:]+?)(?::\s*(.*))?\s*$`,
-)
-
-func (minecraftCommander) ParseBanList(raw string) []BannedPlayer {
-	out := []BannedPlayer{}
-	for _, line := range strings.Split(strings.ReplaceAll(raw, "\r", ""), "\n") {
-		m := banlistEntryRE.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		entry := BannedPlayer{Name: m[1], Source: strings.TrimSpace(m[2])}
-		if len(m) > 3 {
-			r := strings.TrimSpace(m[3])
-			if r != "" && r != "<no reason given>" {
-				entry.Reason = r
-			}
-		}
-		out = append(out, entry)
-	}
-	return out
-}
-
-// --- Default (RCON-less or untyped games) --------------------------------
+// --- Default (RCON-less or undeclared games) -----------------------------
 
 type unsupportedCommander struct{}
 

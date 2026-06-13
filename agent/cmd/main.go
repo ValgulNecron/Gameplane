@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/kestrel-gg/kestrel/agent/internal/actions"
 	"github.com/kestrel-gg/kestrel/agent/internal/auth"
 	"github.com/kestrel-gg/kestrel/agent/internal/caps"
 	"github.com/kestrel-gg/kestrel/agent/internal/console"
@@ -24,6 +25,7 @@ import (
 	"github.com/kestrel-gg/kestrel/agent/internal/players"
 	"github.com/kestrel-gg/kestrel/agent/internal/quiesce"
 	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
+	"github.com/kestrel-gg/kestrel/agent/internal/status"
 )
 
 // Version is overridden at build time via -ldflags.
@@ -88,9 +90,13 @@ func main() {
 	}
 	var playerActions *caps.PlayerActions
 	var quiesceSpec *caps.Quiesce
+	var actionSpecs []caps.ServerAction
+	var statusSpec *caps.Status
 	if capSpec != nil {
 		playerActions = capSpec.Players
 		quiesceSpec = capSpec.Quiesce
+		actionSpecs = capSpec.Actions
+		statusSpec = capSpec.Status
 	}
 
 	var rconClient interface {
@@ -119,6 +125,8 @@ func main() {
 		console.Mount(protected, rconClient)
 		players.Mount(protected, rconClient, gameName, playerActions)
 		quiesce.Mount(protected, rconClient, gameName, quiesceSpec)
+		actions.Mount(protected, rconClient, gameName, actionSpecs)
+		status.Mount(protected, rconClient, statusSpec)
 	})
 
 	srv := &http.Server{

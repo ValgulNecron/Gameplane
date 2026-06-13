@@ -14,6 +14,49 @@ import (
 type Spec struct {
 	Players *PlayerActions `json:"players,omitempty"`
 	Quiesce *Quiesce       `json:"quiesce,omitempty"`
+	Actions []ServerAction `json:"actions,omitempty"`
+	Status  *Status        `json:"status,omitempty"`
+}
+
+// ServerAction mirrors GameTemplate spec.capabilities.actions[]: a named
+// operator action whose Command (a Go text/template rendered with
+// .Params) is sent over RCON.
+type ServerAction struct {
+	ID          string        `json:"id"`
+	DisplayName string        `json:"displayName,omitempty"`
+	Description string        `json:"description,omitempty"`
+	Icon        string        `json:"icon,omitempty"`
+	Command     string        `json:"command"`
+	Params      []ActionParam `json:"params,omitempty"`
+	Confirm     bool          `json:"confirm,omitempty"`
+	Danger      bool          `json:"danger,omitempty"`
+}
+
+// ActionParam is one declared input for a ServerAction.
+type ActionParam struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName,omitempty"`
+	Description string `json:"description,omitempty"`
+	// Type is one of "string", "int", "bool", "enum" (default "string").
+	Type     string   `json:"type,omitempty"`
+	Default  string   `json:"default,omitempty"`
+	Enum     []string `json:"enum,omitempty"`
+	Required bool     `json:"required,omitempty"`
+}
+
+// Status mirrors spec.capabilities.status: live metrics read over RCON.
+type Status struct {
+	Metrics []StatusMetric `json:"metrics,omitempty"`
+}
+
+// StatusMetric reads one live readout from an RCON command's output via a
+// named-group regex (group "value").
+type StatusMetric struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName,omitempty"`
+	Command     string `json:"command"`
+	Regex       string `json:"regex"`
+	Unit        string `json:"unit,omitempty"`
 }
 
 // PlayerActions maps moderation actions to console command templates

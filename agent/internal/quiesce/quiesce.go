@@ -12,12 +12,10 @@ package quiesce
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -41,20 +39,16 @@ type Quiescer interface {
 	Unquiesce(rc Rcon) error
 }
 
-// Pick prefers the module's declared quiesce sequences. The hardcoded
-// minecraft fallback covers GameTemplates materialized before
-// capabilities existed; it goes away once the bundled modules all
-// declare their commands. Everything else is unsupported (no-op).
-func Pick(game string, spec *caps.Quiesce) Quiescer {
+// Pick builds the quiescer from the module's declared sequences
+// (spec.capabilities.quiesce). A template that declares no sequence (or
+// only half of one) gets a no-op quiescer: backups proceed
+// unconditionally and we never pause a game we can't resume. Quiesce is
+// module-driven, with no per-game special-casing in the agent.
+func Pick(spec *caps.Quiesce) Quiescer {
 	if spec != nil && len(spec.Quiesce) > 0 && len(spec.Unquiesce) > 0 {
 		return newDeclaredQuiescer(spec)
 	}
-	switch strings.ToLower(strings.TrimSpace(game)) {
-	case "minecraft", "minecraft-java":
-		return minecraftQuiescer{}
-	default:
-		return unsupportedQuiescer{}
-	}
+	return unsupportedQuiescer{}
 }
 
 type response struct {
@@ -64,7 +58,7 @@ type response struct {
 
 // Mount registers POST /quiesce and POST /unquiesce on r.
 func Mount(r chi.Router, rc Rcon, game string, spec *caps.Quiesce) {
-	q := Pick(game, spec)
+	q := Pick(spec)
 	r.Post("/quiesce", func(w http.ResponseWriter, _ *http.Request) {
 		if !q.Supported() {
 			writeJSON(w, http.StatusOK, response{Quiesced: false, Reason: "game does not support quiesce"})
@@ -99,35 +93,6 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
-}
-
-// --- Minecraft (vanilla / paper / spigot / forge / fabric) ---------------
-
-type minecraftQuiescer struct{}
-
-func (minecraftQuiescer) Supported() bool { return true }
-
-func (minecraftQuiescer) Quiesce(rc Rcon) error {
-	if _, err := rc.Exec("save-off"); err != nil {
-		return err
-	}
-	out, err := rc.Exec("save-all flush")
-	if err != nil {
-		// Try to flip auto-save back on so we don't leave the world
-		// frozen if the second step explodes.
-		_, _ = rc.Exec("save-on")
-		return err
-	}
-	if strings.Contains(strings.ToLower(out), "saving failed") {
-		_, _ = rc.Exec("save-on")
-		return errors.New("save-all flush reported failure")
-	}
-	return nil
-}
-
-func (minecraftQuiescer) Unquiesce(rc Rcon) error {
-	_, err := rc.Exec("save-on")
-	return err
 }
 
 // --- Declared (module-driven) ------------------------------------------

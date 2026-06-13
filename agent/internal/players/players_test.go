@@ -54,8 +54,8 @@ func TestParseList(t *testing.T) {
 	}
 }
 
-func TestMinecraftCommander(t *testing.T) {
-	c := minecraftCommander{}
+func TestDeclaredMinecraftCommander(t *testing.T) {
+	c := newTemplateCommander(minecraftActions())
 	caps := c.Capabilities()
 	if !caps.Kick || !caps.Ban || !caps.Unban {
 		t.Fatalf("minecraft caps want all true, got %+v", caps)
@@ -105,25 +105,13 @@ func TestUnsupportedCommander(t *testing.T) {
 }
 
 func TestPickCommander(t *testing.T) {
-	cases := []struct {
-		game        string
-		wantSupport bool
-	}{
-		{"minecraft-java", true},
-		{"minecraft", true},
-		{"  Minecraft-Java ", true},
-		{"valheim", false},
-		{"", false},
-		{"unknown", false},
+	// Moderation support comes only from declared actions; nothing
+	// declared is always unsupported.
+	if got := pickCommander(minecraftActions()).Capabilities().Kick; !got {
+		t.Error("declared actions should be supported")
 	}
-	for _, tc := range cases {
-		t.Run(tc.game, func(t *testing.T) {
-			c := pickCommander(tc.game, nil)
-			got := c.Capabilities().Kick
-			if got != tc.wantSupport {
-				t.Errorf("pickCommander(%q).Kick = %v, want %v", tc.game, got, tc.wantSupport)
-			}
-		})
+	if got := pickCommander(nil).Capabilities().Kick; got {
+		t.Error("nil actions should be unsupported")
 	}
 }
 
@@ -135,7 +123,7 @@ func TestParseBanList(t *testing.T) {
 		"griefer3 was banned by Server",
 		"",
 	}, "\n")
-	got := minecraftCommander{}.ParseBanList(raw)
+	got := newTemplateCommander(minecraftActions()).ParseBanList(raw)
 	want := []BannedPlayer{
 		{Name: "griefer1", Source: "Server", Reason: "Cheating"},
 		{Name: "griefer2", Source: "alice"},
@@ -200,7 +188,7 @@ func (f *fakeRcon) Exec(cmd string) (string, error) {
 func newTestRouter(t *testing.T, game string, rc Rcon) *chi.Mux {
 	t.Helper()
 	r := chi.NewRouter()
-	Mount(r, rc, game, nil)
+	Mount(r, rc, game, minecraftActions())
 	return r
 }
 
@@ -286,7 +274,9 @@ func TestKickValidation(t *testing.T) {
 
 func TestKickUnsupportedGame(t *testing.T) {
 	rc := &fakeRcon{}
-	srv := httptest.NewServer(newTestRouter(t, "valheim", rc))
+	r := chi.NewRouter()
+	Mount(r, rc, "valheim", nil) // no declared actions → moderation unsupported
+	srv := httptest.NewServer(r)
 	defer srv.Close()
 
 	status, _ := doJSON(t, srv, "POST", "/players/kick", modReq{Name: "alice"})
@@ -317,7 +307,9 @@ func TestKickRconError(t *testing.T) {
 
 func TestBannedListEmptyForUnsupported(t *testing.T) {
 	rc := &fakeRcon{}
-	srv := httptest.NewServer(newTestRouter(t, "valheim", rc))
+	r := chi.NewRouter()
+	Mount(r, rc, "valheim", nil) // no declared actions → ban list unsupported
+	srv := httptest.NewServer(r)
 	defer srv.Close()
 
 	status, body := doJSON(t, srv, "GET", "/players/banned", nil)
