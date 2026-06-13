@@ -13,7 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -337,6 +337,43 @@ func freePort() (int, error) {
 
 // APIClient is a minimal authenticated session against the API service.
 // Mutations attach the X-Kestrel-CSRF header that the session
+// insecureCookieJar is a minimal http.CookieJar that ignores the Secure
+// attribute so the e2e client can carry the API's Secure session/CSRF cookies
+// over the plain-HTTP port-forward. The standard net/http/cookiejar filters
+// Secure cookies out of HTTP requests, which would drop the session and make
+// every authenticated call 401. Production still sets Secure:true; this is a
+// test-only accommodation for talking to a single localhost host.
+type insecureCookieJar struct {
+	mu      sync.Mutex
+	cookies map[string]*http.Cookie
+}
+
+func newInsecureCookieJar() *insecureCookieJar {
+	return &insecureCookieJar{cookies: map[string]*http.Cookie{}}
+}
+
+func (j *insecureCookieJar) SetCookies(_ *url.URL, cookies []*http.Cookie) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	for _, c := range cookies {
+		if c.MaxAge < 0 {
+			delete(j.cookies, c.Name)
+			continue
+		}
+		j.cookies[c.Name] = c
+	}
+}
+
+func (j *insecureCookieJar) Cookies(_ *url.URL) []*http.Cookie {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	out := make([]*http.Cookie, 0, len(j.cookies))
+	for _, c := range j.cookies {
+		out = append(out, c)
+	}
+	return out
+}
+
 // middleware demands; reads pass through unchanged.
 type APIClient struct {
 	BaseURL string
@@ -353,12 +390,7 @@ func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 	local, stop := e.PortForward(t, "kestrel-system", "svc/kestrel-api", 80)
 	base := fmt.Sprintf("http://127.0.0.1:%d", local)
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		stop()
-		t.Fatalf("cookie jar: %v", err)
-	}
-	cli := &http.Client{Jar: jar, Timeout: 15 * time.Second}
+	cli := &http.Client{Jar: newInsecureCookieJar(), Timeout: 15 * time.Second}
 
 	body, err := json.Marshal(map[string]string{
 		"username": username,
