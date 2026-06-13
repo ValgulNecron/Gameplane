@@ -23,6 +23,7 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/handlers"
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
 	"github.com/kestrel-gg/kestrel/api/internal/rbac"
+	"github.com/kestrel-gg/kestrel/api/internal/telemetry"
 	"github.com/kestrel-gg/kestrel/api/internal/ws"
 )
 
@@ -145,6 +146,10 @@ func main() {
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 
+	// Opt-in, off-by-default anonymous usage telemetry. No-op unless an
+	// endpoint is configured AND the admin enabled the sendMetrics toggle.
+	go telemetry.New(store, k8s, cfg.telemetryEndpoint, Version, 24*time.Hour).Run(ctx)
+
 	srv := &http.Server{
 		Addr:              cfg.addr,
 		Handler:           r,
@@ -179,6 +184,8 @@ type config struct {
 	oidcRedirectURL  string
 	oidcDisplayName  string
 
+	telemetryEndpoint string
+
 	agentCABundle   string
 	agentClientCert string
 	agentClientKey  string
@@ -195,6 +202,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("KESTREL_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
 	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("KESTREL_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("KESTREL_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
+	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("KESTREL_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("KESTREL_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("KESTREL_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("KESTREL_AGENT_CLIENT_KEY", ""), "client key presented to agents")
