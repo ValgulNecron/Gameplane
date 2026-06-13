@@ -114,7 +114,7 @@ describe("ModuleSourcesPanel", () => {
     renderWithQuery(<ModuleSourcesPanel />);
     fireEvent.click(await screen.findByRole("button", { name: /Add source/ }));
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "uploads" } });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "upload" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), { target: { value: "upload" } });
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await waitFor(() => expect(created).not.toBeNull());
     expect(created).toMatchObject({ name: "uploads", type: "upload" });
@@ -169,5 +169,72 @@ describe("ModuleSourcesPanel", () => {
     );
     renderWithQuery(<ModuleSourcesPanel />);
     expect(await screen.findByText(/insecure/)).toBeInTheDocument();
+  });
+
+  it("renders a keyless verify pill for a signed oci source", async () => {
+    server.use(
+      http.get("/modules/sources", () =>
+        HttpResponse.json({
+          items: [
+            makeModuleSource({
+              metadata: { name: "upstream" },
+              spec: {
+                type: "oci",
+                oci: { url: "ghcr.io/x", modules: [{ name: "mc" }] },
+                verify: { keyless: { issuer: "https://issuer", identity: "id@example.com" } },
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    expect(await screen.findByText("keyless")).toBeInTheDocument();
+  });
+
+  it("renders a keyed verify pill for a key-pinned source", async () => {
+    server.use(
+      http.get("/modules/sources", () =>
+        HttpResponse.json({
+          items: [
+            makeModuleSource({
+              metadata: { name: "upstream" },
+              spec: {
+                type: "oci",
+                oci: { url: "ghcr.io/x", modules: [{ name: "mc" }] },
+                verify: { key: { name: "cosign-pub" } },
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    expect(await screen.findByText("keyed")).toBeInTheDocument();
+  });
+
+  it("flags a source serving a stale catalog", async () => {
+    server.use(
+      http.get("/modules/sources", () =>
+        HttpResponse.json({
+          items: [
+            makeModuleSource({
+              metadata: { name: "community" },
+              spec: { type: "git", git: { url: "https://g/x.git", ref: "main" } },
+              status: {
+                lastSync: "2026-01-01T00:00:00Z",
+                modules: [{ name: "mc" }],
+                conditions: [
+                  { type: "Synced", status: "False", reason: "IndexFailed" },
+                  { type: "Ready", status: "True", reason: "ServingStaleCatalog" },
+                ],
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ModuleSourcesPanel />);
+    expect(await screen.findByText("serving stale catalog")).toBeInTheDocument();
   });
 });

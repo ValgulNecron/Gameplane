@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, CircleAlert, Circle, Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CircleAlert,
+  Circle,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { APIError } from "@/lib/api";
 import { ModuleSources } from "@/lib/endpoints";
 import { formatRelative } from "@/lib/utils";
+import { verifyMode } from "@/lib/verify";
 import type { ModuleSource, ModuleSourceSpec } from "@/types";
 import { SourceDialog } from "./SourceDialog";
 
@@ -151,10 +162,18 @@ function SourceRow({
   onDelete: () => void;
   deleting: boolean;
 }) {
-  const synced = source.status?.conditions?.find((c) => c.type === "Synced");
+  // Three sync states: healthy (Synced=True), serving a stale catalog after
+  // a transient failure (Synced=False but Ready=True/ServingStaleCatalog),
+  // and unreachable (Synced=False, never indexed). Stale is a warning, not a
+  // hard failure — the cached catalog is still being served.
+  const conditions = source.status?.conditions ?? [];
+  const synced = conditions.find((c) => c.type === "Synced");
+  const ready = conditions.find((c) => c.type === "Ready");
   const ok = synced?.status === "True";
-  const Icon = ok ? CheckCircle2 : synced ? CircleAlert : Circle;
-  const tone = ok ? "text-success" : synced ? "text-danger" : "text-muted";
+  const stale = !ok && ready?.status === "True" && ready.reason === "ServingStaleCatalog";
+  const Icon = ok ? CheckCircle2 : stale ? AlertTriangle : synced ? CircleAlert : Circle;
+  const tone = ok ? "text-success" : stale ? "text-warning" : synced ? "text-danger" : "text-muted";
+  const vmode = verifyMode(source.spec.verify);
   const refresh = source.spec.refreshInterval ?? "1h";
   const insecure = source.spec.oci?.insecure ?? source.spec.http?.insecure ?? false;
   const moduleCount =
@@ -169,6 +188,12 @@ function SourceRow({
           <span className="ml-2 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted">
             {source.spec.type ?? "oci"}
           </span>
+          {vmode !== "none" && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded bg-success/15 px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase text-success">
+              <ShieldCheck className="h-3 w-3" />
+              {vmode}
+            </span>
+          )}
         </div>
         <div className="truncate text-xs text-muted">
           <span className="font-mono">{sourceLocation(source.spec)}</span>
@@ -190,6 +215,7 @@ function SourceRow({
             <> · synced {formatRelative(source.status.lastSync)}</>
           )}
         </div>
+        {stale && <div className="text-warning">serving stale catalog</div>}
       </div>
       <div className="flex items-center gap-1">
         <Button size="sm" variant="ghost" onClick={onEdit} aria-label={`Edit ${source.metadata.name}`}>
