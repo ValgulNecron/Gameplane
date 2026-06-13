@@ -37,6 +37,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# web/.env.mock is e2e-only (opts the SPA into MSW) and contains no
+# secrets — it must be tracked so the CI mock-mode job can load it.
+!.env.mock
 *.pem
 *.key
 kubeconfig
