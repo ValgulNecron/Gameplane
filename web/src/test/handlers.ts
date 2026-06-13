@@ -25,7 +25,17 @@ import {
 
 export const handlers = [
   // Auth
-  http.get("/users/me", () => HttpResponse.json(makeUser())),
+  http.get("/users/me", ({ cookies }) => {
+    // e2e affordance: a 401 on /users/me must bounce the SPA to /login,
+    // but the browser-mode service worker answers before Playwright's
+    // page.route can inject a status. A cookie the test sets (and which
+    // survives the navigation) lets it force the unauthorized path
+    // deterministically. No-op for the unit suite (no cookie set).
+    if (cookies.e2e_force_401 === "1") {
+      return new HttpResponse("unauthorized\n", { status: 401 });
+    }
+    return HttpResponse.json(makeUser());
+  }),
   // Mock-mode Playwright login: accept any non-empty credentials and set
   // the CSRF cookie the SPA's mutation path reads on every later POST.
   // Real backend rate-limiting and argon2id verification are out of
