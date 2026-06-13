@@ -89,21 +89,24 @@ func Run(ctx context.Context, cfg Config) {
 }
 
 func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
-	online, err := queryOnline(cfg.RCON)
-	if err != nil {
-		// A failing "list" is common on startup; heartbeat still
-		// advances so the operator sees the pod as alive.
-		online = -1
+	agent := map[string]any{
+		"lastHeartbeat": metav1.Now().UTC().Format(time.RFC3339),
+		"version":       cfg.Version,
+		"gameVersion":   cfg.Game,
+	}
+	// playersOnline is null ("unknown") unless the game actually answered
+	// a player-count query. A failing "list" is common on startup and for
+	// games without RCON; emitting a sentinel like -1 here is wrong
+	// because the dashboard sums playersOnline across servers (-1 + -1 =
+	// -2). null/absent is the contract for "unknown" — a JSON merge patch
+	// with null clears any prior value.
+	if online, err := queryOnline(cfg.RCON); err == nil {
+		agent["playersOnline"] = online
+	} else {
+		agent["playersOnline"] = nil
 	}
 	patch := map[string]any{
-		"status": map[string]any{
-			"agent": map[string]any{
-				"lastHeartbeat": metav1.Now().UTC().Format(time.RFC3339),
-				"playersOnline": online,
-				"version":       cfg.Version,
-				"gameVersion":   cfg.Game,
-			},
-		},
+		"status": map[string]any{"agent": agent},
 	}
 	body, err := json.Marshal(patch)
 	if err != nil {
@@ -118,7 +121,7 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 func queryOnline(rc Rcon) (int, error) {
 	raw, err := rc.Exec("list")
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	// Very loose parse — the full parser lives in internal/players.
 	// We only care about the first number.
@@ -133,7 +136,7 @@ func queryOnline(rc Rcon) (int, error) {
 		}
 		return n, nil
 	}
-	return -1, fmt.Errorf("no player count in %q", raw)
+	return 0, fmt.Errorf("no player count in %q", raw)
 }
 
 // readNamespace reads the SA-projected namespace file written into
