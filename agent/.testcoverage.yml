@@ -9,12 +9,18 @@ github-action-output: false
 
 # Agent has no envtest tier — unit profile is the whole truth. Gate is set
 # at floor(measured) - 1 so a regression below baseline fails CI.
+#
+# Re-baselined 91 -> 90 when the SSRF dial guard moved to the shared
+# ./netguard module: that code was ~100% covered, so moving it nudged the
+# agent's (cmd-excluded) total from ~92% to 91.5%. Its coverage now lives in
+# and is gated by netguard/.testcoverage.yml, so total project coverage is
+# preserved — this is a 1-point margin adjustment, not a regression.
 threshold:
   file: 0
   package: 0
-  total: 91
+  total: 90
 
-# Final ~8% gap is in heartbeat.Run's in-cluster path (reaches
+# The remaining gap is in heartbeat.Run's in-cluster path (reaches
 # rest.InClusterConfig — only meaningful in a real pod) and a couple of
 # sleep/return bookkeeping branches in logs.streamFile. Both are
 # exercised by the e2e tier on a real cluster.
