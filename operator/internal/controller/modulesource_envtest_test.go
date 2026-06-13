@@ -512,10 +512,37 @@ func conditionTrue(conds []metav1.Condition, t string) bool {
 	return false
 }
 
-// TestModuleSource_ReportsFailureWhenAllModulesError — when every
-// module fails to index (registry unreachable), the source must not
-// publish a catalog of empty stubs as if it were healthy: modules stay
-// empty, lastSync records the attempt, and Synced/Ready go False.
+func hasCondition(conds []metav1.Condition, t string) bool {
+	for _, c := range conds {
+		if c.Type == t {
+			return true
+		}
+	}
+	return false
+}
+
+// patchSourceAnnotation mutates an annotation to force the controller to
+// re-reconcile a source immediately instead of at its refresh interval.
+func patchSourceAnnotation(t *testing.T, name, key, val string) {
+	t.Helper()
+	var src kestrelv1alpha1.ModuleSource
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &src); err != nil {
+		t.Fatalf("get source for patch: %v", err)
+	}
+	if src.Annotations == nil {
+		src.Annotations = map[string]string{}
+	}
+	src.Annotations[key] = val
+	if err := k8sClient.Update(context.Background(), &src); err != nil {
+		t.Fatalf("patch source: %v", err)
+	}
+}
+
+// TestModuleSource_ReportsFailureWhenAllModulesError — when a source that
+// has never indexed fails (registry unreachable), it must not publish a
+// catalog of empty stubs as if it were healthy: modules stay empty, lastSync
+// stays unset (it tracks the last *successful* index), and Synced/Ready go
+// False.
 func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
@@ -540,17 +567,84 @@ func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getModuleSource(t, src.Name)
-		if got.Status.LastSync == nil {
-			return false, "lastSync not recorded"
+		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+			return false, "Synced should be False"
+		}
+		// Synced=False only counts once the failure was actually observed.
+		if !hasCondition(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+			return false, "Synced condition not yet set"
+		}
+		if got.Status.LastSync != nil {
+			return false, "lastSync set despite never indexing successfully"
 		}
 		if len(got.Status.Modules) != 0 {
 			return false, fmt.Sprintf("modules unexpectedly populated: %d", len(got.Status.Modules))
 		}
-		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
-			return false, "Synced should be False"
-		}
 		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionReady) {
 			return false, "Ready should be False"
+		}
+		return true, ""
+	})
+}
+
+// TestModuleSource_PreservesStaleCatalogOnFailure — once a source has
+// indexed, a later transient failure must keep the cached catalog (so
+// installs of known versions still resolve), flip Synced=False but hold
+// Ready=True (ServingStaleCatalog), and leave LastSync at the last success.
+func TestModuleSource_PreservesStaleCatalogOnFailure(t *testing.T) {
+	_ = newNamespace(t)
+	fake := newFakeOCI()
+	startMgr(t, "kestrel-system", withModuleSourceReconciler(fake))
+
+	fake.putBundle("local/test/good", "1.0.0", fixtureBundle("good", "1.0.0", "Good Mod"))
+
+	src := &kestrelv1alpha1.ModuleSource{
+		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("stale")},
+		Spec: kestrelv1alpha1.ModuleSourceSpec{
+			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+			OCI: &kestrelv1alpha1.OCISourceSpec{
+				URL:     "local/test",
+				Modules: []kestrelv1alpha1.ModuleRef{{Name: "good"}},
+			},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), src); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	deleteCleanup(t, src)
+
+	// Wait for the first successful index and capture LastSync.
+	var firstSync *metav1.Time
+	eventually(t, func() (bool, string) {
+		got := getModuleSource(t, src.Name)
+		if len(got.Status.Modules) != 1 {
+			return false, fmt.Sprintf("modules = %d", len(got.Status.Modules))
+		}
+		if !conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+			return false, "Synced not yet True"
+		}
+		firstSync = got.Status.LastSync
+		return firstSync != nil, "lastSync nil after success"
+	})
+
+	// Break the registry, then nudge the source so it re-reconciles now
+	// instead of an hour from now.
+	fake.errOn["tags:local/test/good"] = fmt.Errorf("dial tcp: connection refused")
+	patchSourceAnnotation(t, src.Name, "kestrel.gg/test-nudge", "1")
+
+	eventually(t, func() (bool, string) {
+		got := getModuleSource(t, src.Name)
+		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+			return false, "Synced should have flipped False"
+		}
+		if len(got.Status.Modules) != 1 {
+			return false, fmt.Sprintf("stale catalog dropped: %d modules", len(got.Status.Modules))
+		}
+		if !conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionReady) {
+			return false, "Ready should stay True (serving stale catalog)"
+		}
+		if got.Status.LastSync == nil || !got.Status.LastSync.Time.Equal(firstSync.Time) {
+			return false, fmt.Sprintf("lastSync moved: %v want %v", got.Status.LastSync, firstSync)
 		}
 		return true, ""
 	})

@@ -66,16 +66,15 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Info("module index warning", "source", src.Name, "warning", w)
 	}
 
-	now := metav1.Now()
-	src.Status.LastSync = &now
 	src.Status.ObservedGeneration = src.Generation
 
-	// Total index failure: the source is unreachable. Don't publish a
-	// catalog of empty stubs as if it were healthy — report the failure
-	// and back off.
+	// Total index failure: the source is unreachable. Preserve the
+	// last-good catalog so a transient outage doesn't make already-installed
+	// modules unresolvable — mark the sync stale instead of blanking it.
+	// LastSync is deliberately NOT bumped here, so it always means "time of
+	// the last successful index."
 	if err != nil {
 		logger.Error(err, "indexing source", "source", src.Name)
-		src.Status.Modules = nil
 		src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
 			Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
 			Status:             metav1.ConditionFalse,
@@ -83,10 +82,22 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			Message:            err.Error(),
 			ObservedGeneration: src.Generation,
 		})
+		// Keep Ready=True while a previously-indexed catalog is still being
+		// served; only a source that has never indexed reports Ready=False.
+		readyStatus := metav1.ConditionFalse
+		readyReason := "SourceUnreachable"
+		readyMsg := err.Error()
+		if len(src.Status.Modules) > 0 {
+			readyStatus = metav1.ConditionTrue
+			readyReason = "ServingStaleCatalog"
+			readyMsg = fmt.Sprintf("serving %d cached module(s); last index failed: %v",
+				len(src.Status.Modules), err)
+		}
 		src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
 			Type:               kestrelv1alpha1.ModuleSourceConditionReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             "SourceUnreachable",
+			Status:             readyStatus,
+			Reason:             readyReason,
+			Message:            readyMsg,
 			ObservedGeneration: src.Generation,
 		})
 		if uerr := r.Status().Update(ctx, &src); uerr != nil {
@@ -95,6 +106,8 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{RequeueAfter: minRefreshInterval}, nil
 	}
 
+	now := metav1.Now()
+	src.Status.LastSync = &now
 	src.Status.Modules = entries
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
 		Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
