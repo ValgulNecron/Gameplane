@@ -19,7 +19,7 @@ export function ScheduleForm({ serverName, onClose }: Props) {
   const [form, setForm] = useState({
     schedule: "0 */6 * * *",
     repoName: "",
-    repoKey: "url",
+    repoKey: "repo",
     keepLast: 7,
   });
   // Default the destination to the first one once the list resolves.

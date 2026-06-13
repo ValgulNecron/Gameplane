@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -97,6 +98,25 @@ func TestDestinations_Create(t *testing.T) {
 		rr := do(t, r, "POST", "/backup-destinations/", body)
 		if rr.Code != 200 {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
+		}
+	})
+
+	t.Run("writes the operator-compatible repo key", func(t *testing.T) {
+		body := map[string]any{"name": "repokey", "url": "s3://r", "password": "p"}
+		if rr := do(t, r, "POST", "/backup-destinations/", body); rr.Code != 200 {
+			t.Fatalf("create: %d %s", rr.Code, rr.Body)
+		}
+		sec, err := k.Typed.CoreV1().Secrets("kestrel-games").Get(context.Background(), "repokey", metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("get secret: %v", err)
+		}
+		// The operator's restic Jobs read RESTIC_REPOSITORY from key "repo";
+		// writing "url" here is what broke the whole backup subsystem.
+		if got := sec.StringData["repo"]; got != "s3://r" {
+			t.Fatalf("secret key repo = %q, want s3://r (data=%v stringData=%v)", got, sec.Data, sec.StringData)
+		}
+		if _, ok := sec.StringData["url"]; ok {
+			t.Fatal("secret must not use the legacy url key for the repo URL")
 		}
 	})
 

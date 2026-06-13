@@ -119,7 +119,7 @@ function BackupsTabPanel() {
     mutationFn: () =>
       Backups.create({
         serverRef: { name: createServer },
-        repoRef: { name: createDest, key: "url" },
+        repoRef: { name: createDest, key: "repo" },
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["backups"] });

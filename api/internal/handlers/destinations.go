@@ -137,8 +137,12 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 			Labels:    map[string]string{destinationLabel: "true"},
 		},
 		Type: corev1.SecretTypeOpaque,
+		// Key is "repo" (not "url"): the operator's Backup/Restore Jobs read
+		// RESTIC_REPOSITORY from secret key "repo" (see backup_controller.go /
+		// restore_controller.go and test/e2e/fixtures). The API keeps "url"
+		// as its external field name; only the on-Secret key changes.
 		StringData: map[string]string{
-			"url":      in.URL,
+			"repo":     in.URL,
 			"password": in.Password,
 		},
 	}
@@ -168,7 +172,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 	}
 	patch := map[string]any{
 		"stringData": map[string]string{
-			"url":      in.URL,
+			"repo":     in.URL,
 			"password": in.Password,
 		},
 	}
@@ -209,8 +213,16 @@ func (h destinationHandler) del(w http.ResponseWriter, req *http.Request) {
 }
 
 func project(s *corev1.Secret) destinationView {
-	url := string(s.Data["url"])
-	if v, ok := s.StringData["url"]; ok {
+	// Prefer the operator key "repo"; fall back to the legacy "url" key so
+	// destinations written before the key rename still display their URL
+	// (re-saving migrates them to "repo").
+	url := string(s.Data["repo"])
+	if url == "" {
+		url = string(s.Data["url"])
+	}
+	if v, ok := s.StringData["repo"]; ok {
+		url = v
+	} else if v, ok := s.StringData["url"]; ok {
 		url = v
 	}
 	_, hasPwData := s.Data["password"]
