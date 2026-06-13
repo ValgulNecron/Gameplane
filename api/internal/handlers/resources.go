@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +21,14 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
 	"github.com/kestrel-gg/kestrel/api/internal/scope"
 )
+
+// heartbeatStaleTTL is how long the agent's reported status.agent values
+// (playersOnline, gameVersion) are trusted. It matches the operator's
+// heartbeatFreshness window. Once a heartbeat is older than this, the
+// counts are no longer current — a crashed agent would otherwise show
+// its last player count forever — so the API blanks playersOnline and
+// flags status.agent.stale on read.
+const heartbeatStaleTTL = 60 * time.Second
 
 // MountResources wires /servers, /templates, /backups, /schedules.
 //
@@ -68,6 +77,11 @@ func listHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFu
 			}
 			list, err = k.Dynamic.Resource(gvr).Namespace(ns).List(req.Context(), metav1.ListOptions{})
 		}
+		if err == nil && list != nil && gvr.Resource == "gameservers" {
+			for i := range list.Items {
+				gateStaleAgent(&list.Items[i])
+			}
+		}
 		writeOrErr(w, req, list, err)
 	}
 }
@@ -87,6 +101,9 @@ func getHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFun
 				return
 			}
 			obj, err = k.Dynamic.Resource(gvr).Namespace(ns).Get(req.Context(), name, metav1.GetOptions{})
+		}
+		if err == nil && obj != nil && gvr.Resource == "gameservers" {
+			gateStaleAgent(obj)
 		}
 		writeOrErr(w, req, obj, err)
 	}
@@ -110,7 +127,13 @@ func createHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 			obj.SetNamespace(ns)
 			created, err = k.Dynamic.Resource(gvr).Namespace(ns).Create(req.Context(), obj, metav1.CreateOptions{})
 		}
-		writeOrErr(w, req, created, err)
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(created)
 	}
 }
 
@@ -202,6 +225,30 @@ func managedTemplateBlocked(req *http.Request, k *kube.Client, name string) (str
 
 func cluster(gvr schema.GroupVersionResource) bool {
 	return gvr.Resource == "gametemplates"
+}
+
+// gateStaleAgent blanks the agent-reported counts on a GameServer whose
+// heartbeat has gone stale (or never arrived), so the dashboard renders
+// "unknown" instead of a frozen-forever value from a dead agent. It
+// mutates obj's status.agent in place: drops playersOnline and sets
+// stale=true. Fresh heartbeats are left untouched.
+func gateStaleAgent(obj *unstructured.Unstructured) {
+	agent, found, err := unstructured.NestedMap(obj.Object, "status", "agent")
+	if !found || err != nil || agent == nil {
+		return
+	}
+	fresh := false
+	if lh, ok := agent["lastHeartbeat"].(string); ok && lh != "" {
+		if t, perr := time.Parse(time.RFC3339, lh); perr == nil {
+			fresh = time.Since(t) < heartbeatStaleTTL
+		}
+	}
+	if fresh {
+		return
+	}
+	agent["stale"] = true
+	delete(agent, "playersOnline")
+	_ = unstructured.SetNestedMap(obj.Object, agent, "status", "agent")
 }
 
 // maxBodyBytes caps request body size in JSON decoders. CRD objects

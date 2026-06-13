@@ -37,8 +37,8 @@ func TestResources_GameServerCRUDRoundTrip(t *testing.T) {
 
 	// CREATE.
 	resp := doJSON(t, http.MethodPost, "/servers", body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST /servers status = %d, want 200; body=%s", resp.StatusCode, readBody(t, resp))
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /servers status = %d, want 201; body=%s", resp.StatusCode, readBody(t, resp))
 	}
 
 	// GET.
@@ -105,8 +105,8 @@ func TestResources_TemplateIsClusterScoped(t *testing.T) {
 	})
 
 	resp := doJSON(t, http.MethodPost, "/templates", body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST /templates status = %d; body=%s", resp.StatusCode, readBody(t, resp))
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /templates status = %d, want 201; body=%s", resp.StatusCode, readBody(t, resp))
 	}
 
 	resp = doJSON(t, http.MethodGet, "/templates/"+name, nil)
