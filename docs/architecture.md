@@ -61,12 +61,29 @@ manage Kestrel with `kubectl apply` — the operator is authoritative.
 6. Operator observes heartbeat → sets `status.phase=Running`
 7. Dashboard SSE stream receives the status update, re-renders
 
+> **What `Running` means.** The phase flips to `Running` once the pod is
+> Ready *and* the agent heartbeat is fresh. That signals the pod and
+> sidecar are healthy — **not** that the game protocol (RCON / server
+> query) is responsive. `status.agent.playersOnline` stays unknown until
+> the game answers a player-count query, and the Console is unavailable
+> until RCON is provisioned. Games needing stricter, protocol-level
+> readiness should express it through the template's readiness probe.
+>
+> The operator updates only the phase/conditions/endpoints it owns via a
+> JSON merge patch, while the agent independently patches `status.agent`;
+> the two never clobber each other.
+
 ### Tail logs
 
 1. Dashboard opens WS `/ws/servers/foo/logs`
 2. API verifies session, RBAC → dials `wss://foo-0.foo.kestrel-games:8090/logs/tail` using mTLS
 3. Agent tails the game container's log file and streams each line as a text WS frame
 4. API proxies frames back to the browser; xterm.js renders them
+
+The Logs tab can also stream the game container's stdout directly via the
+Kubernetes pod-log API (`/ws/servers/foo/logs/pod`, no agent mTLS needed).
+This is the default source and surfaces download/config output during
+startup, before the game's own log file exists.
 
 ### Back up
 
