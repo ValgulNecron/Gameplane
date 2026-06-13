@@ -559,3 +559,40 @@ func TestBackup_FailsFastOnMissingRepoSecret(t *testing.T) {
 		t.Error("no Job must be created for a Backup with a missing repo Secret")
 	}
 }
+
+// TestBackup_FailsFastOnSecretMissingKeys — a repo Secret that exists but
+// lacks the "repo" key (e.g. an old destination written under "url")
+// must fail the Backup with a clear message, not stall it Pending while
+// the Job pod sits in CreateContainerConfigError.
+func TestBackup_FailsFastOnSecretMissingKeys(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withBackupReconciler())
+	seedGameServer(t, ns, "smp")
+
+	// password present, repo absent.
+	badSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "legacy-url", Namespace: ns},
+		StringData: map[string]string{"url": "rest:http://restic.local/repo", "password": "p"},
+	}
+	if err := k8sClient.Create(context.Background(), badSecret); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildBackup(ns, "smp-badkey", "smp", "legacy-url")); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got := getBackup(t, ns, "smp-badkey")
+		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+			return false, "phase=" + string(got.Status.Phase)
+		}
+		if !strings.Contains(got.Status.Message, "repo") {
+			return false, "message should name the missing key: " + got.Status.Message
+		}
+		return true, ""
+	})
+
+	if _, ok := getJob(t, ns, "smp-badkey"); ok {
+		t.Error("no Job must be created for a Backup whose repo Secret lacks required keys")
+	}
+}
