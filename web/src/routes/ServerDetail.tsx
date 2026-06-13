@@ -29,6 +29,7 @@ import { cn, formatUptime } from "@/lib/utils";
 
 import { OverviewTab } from "./tabs/Overview";
 import { LogsTab } from "./tabs/Logs";
+import { ModsTab } from "./tabs/Mods";
 import { PlayersTab } from "./tabs/Players";
 import { BackupsTab } from "./tabs/Backups";
 import { SettingsTab } from "./tabs/Settings";
@@ -41,13 +42,14 @@ const FilesTab = lazy(() =>
   import("./tabs/Files").then((m) => ({ default: m.FilesTab })),
 );
 
-type TabKey = "overview" | "console" | "logs" | "files" | "players" | "backups" | "settings";
+type TabKey = "overview" | "console" | "logs" | "files" | "mods" | "players" | "backups" | "settings";
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "overview", label: "Overview" },
   { key: "console",  label: "Console" },
   { key: "logs",     label: "Logs" },
   { key: "files",    label: "Files" },
+  { key: "mods",     label: "Mods" },
   { key: "players",  label: "Players" },
   { key: "backups",  label: "Backups" },
   { key: "settings", label: "Settings" },
@@ -91,9 +93,13 @@ export function ServerDetailPage() {
   // still loading we show everything to avoid a flicker.
   const consoleAvailable = !tmpl || resolveConsoleMode(tmpl) !== "none";
   const logsAvailable = !tmpl || !!tmpl.spec.logPath;
+  // Mods only appears when the template declares the capability — it's an
+  // opt-in surface, so hide it until the template resolves.
+  const modsAvailable = !!tmpl?.spec.capabilities?.mods;
   const visibleTabs = tabs.filter((t) => {
     if (t.key === "console") return consoleAvailable;
     if (t.key === "logs") return logsAvailable;
+    if (t.key === "mods") return modsAvailable;
     return true;
   });
 
@@ -186,6 +192,7 @@ export function ServerDetailPage() {
           {tab === "console"  && <ConsoleTab name={name} />}
           {tab === "logs"     && <LogsTab    name={name} />}
           {tab === "files"    && <FilesTab   name={name} />}
+          {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} />}
           {tab === "players"  && <PlayersTab name={name} />}
           {tab === "backups"  && <BackupsTab name={name} />}
           {tab === "settings" && (

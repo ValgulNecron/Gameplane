@@ -12,6 +12,7 @@ import type {
   ExtendedUser,
   GameServer,
   GameTemplate,
+  InstalledMod,
   List,
   Module,
   ModuleSource,
@@ -75,6 +76,16 @@ export const Servers = {
     api<{ ok: boolean; raw?: string }>(`/servers/${name}/actions/run`, {
       method: "POST",
       body,
+    }),
+  // Mod/plugin management (spec.capabilities.mods). The agent enforces
+  // the install policy (host allowlist, size cap); the dashboard just
+  // lists, installs by URL, and removes by name.
+  mods: (name: string) => api<InstalledMod[]>(`/servers/${name}/mods`),
+  installMod: (name: string, body: { url: string; name?: string }) =>
+    api<InstalledMod>(`/servers/${name}/mods/install`, { method: "POST", body }),
+  removeMod: (name: string, mod: string) =>
+    api<void>(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, {
+      method: "DELETE",
     }),
 };
 

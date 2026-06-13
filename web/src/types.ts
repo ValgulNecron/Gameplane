@@ -43,6 +43,21 @@ export interface StatusMetricDecl {
   unit?: string;
 }
 
+// Install policy for the mods capability (spec.capabilities.mods.install).
+export interface ModInstallPolicy {
+  allowedHosts: string[];
+  maxSizeMB?: number;
+}
+
+// spec.capabilities.mods — declares the mod directory and (optionally)
+// the URL-install policy. Listing/removal need only `path`; install is
+// offered only when `install` is set.
+export interface ModsCapability {
+  path: string;
+  extensions?: string[];
+  install?: ModInstallPolicy;
+}
+
 // spec.capabilities — only the surfaces the dashboard renders are typed;
 // players/quiesce are agent-side and left opaque here.
 export interface GameCapabilities {
@@ -50,6 +65,14 @@ export interface GameCapabilities {
   quiesce?: unknown;
   actions?: ServerActionDecl[];
   status?: { metrics?: StatusMetricDecl[] };
+  mods?: ModsCapability;
+}
+
+// One installed mod file, as returned by GET /servers/{name}/mods.
+export interface InstalledMod {
+  name: string;
+  size: number;
+  modTime?: string;
 }
 
 // One reading from GET /servers/{name}/status (the agent resolves each

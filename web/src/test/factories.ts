@@ -57,7 +57,17 @@ export function makeServer(over: Partial<GameServer> = {}): GameServer {
   };
 }
 
-export function makeTemplate(over: Partial<GameTemplate> = {}): GameTemplate {
+// Override allows pinning only the nested fields a test cares about (a
+// partial spec/metadata/status), unlike a flat Partial<GameTemplate>
+// which would demand a complete spec. The nested objects are deep-merged
+// over the defaults below.
+type TemplateOverride = {
+  metadata?: Partial<GameTemplate["metadata"]>;
+  spec?: Partial<GameTemplate["spec"]>;
+  status?: Partial<NonNullable<GameTemplate["status"]>>;
+};
+
+export function makeTemplate(over: TemplateOverride = {}): GameTemplate {
   return {
     metadata: { name: "minecraft-vanilla", ...(over.metadata ?? {}) },
     spec: {
@@ -71,7 +81,6 @@ export function makeTemplate(over: Partial<GameTemplate> = {}): GameTemplate {
       ...(over.spec ?? {}),
     },
     status: { inUseCount: 1, ...(over.status ?? {}) },
-    ...over,
   };
 }
 

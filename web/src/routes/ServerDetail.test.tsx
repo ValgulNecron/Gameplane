@@ -22,6 +22,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("./tabs/Console", () => ({ ConsoleTab: () => <div>console-tab</div> }));
 vi.mock("./tabs/Files", () => ({ FilesTab: () => <div>files-tab</div> }));
 vi.mock("./tabs/Logs", () => ({ LogsTab: () => <div>logs-tab</div> }));
+vi.mock("./tabs/Mods", () => ({ ModsTab: () => <div>mods-tab</div> }));
 vi.mock("./tabs/Players", () => ({ PlayersTab: () => <div>players-tab</div> }));
 vi.mock("./tabs/Backups", () => ({ BackupsTab: () => <div>backups-tab</div> }));
 vi.mock("./tabs/Overview", () => ({ OverviewTab: () => <div>overview-tab</div> }));
@@ -91,6 +92,36 @@ describe("ServerDetailPage dynamic tabs", () => {
       expect(screen.queryByRole("button", { name: "Console" })).not.toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: /Open console/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the Mods tab unless the template declares the capability", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      // default template has no capabilities.mods
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("button", { name: "Console" });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Mods" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows the Mods tab when the template declares mods", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { capabilities: { mods: { path: "mods" } } },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const modsTab = await screen.findByRole("button", { name: "Mods" });
+    await userEvent.click(modsTab);
+    await waitFor(() => expect(screen.getByText("mods-tab")).toBeInTheDocument());
   });
 
   it("hides the Logs tab when the template logs only to stdout", async () => {
