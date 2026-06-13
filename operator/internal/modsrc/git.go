@@ -4,15 +4,20 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-git/go-billy/v5/helper/iofs"
 	"github.com/go-git/go-billy/v5/memfs"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	gitclient "github.com/go-git/go-git/v5/plumbing/transport/client"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/memory"
@@ -23,7 +28,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/kestrel-gg/kestrel/operator/internal/netguard"
 )
+
+// registerGuardedGitHTTP installs an SSRF-guarded http client as go-git's
+// https transport so a clone cannot be redirected at the cloud metadata
+// endpoint (see internal/netguard). It is process-global go-git state, set
+// once on the first real clone; tests stub gitClone and never reach it.
+var registerGuardedGitHTTP = sync.OnceFunc(func() {
+	gitclient.InstallProtocol("https", githttp.NewClient(netguard.HTTPClient(2*time.Minute)))
+})
 
 // scpLikeURL matches git's scp-style syntax ("git@github.com:org/repo").
 var scpLikeURL = regexp.MustCompile(`^[\w.~-]+@[\w.-]+:`)
@@ -34,6 +48,13 @@ var scpLikeURL = regexp.MustCompile(`^[\w.~-]+@[\w.-]+:`)
 // (scheme checks, auth resolution, subPath, scanning, digest stamping)
 // runs for real.
 var gitClone = func(ctx context.Context, url, ref string, auth transport.AuthMethod) (fs.FS, string, error) {
+	registerGuardedGitHTTP()
+	// Pre-flight the destination so an ssh clone (whose dial we can't wrap
+	// with a Control hook) can't be aimed at link-local/metadata. https
+	// clones are additionally guarded at dial time by the transport above.
+	if err := netguard.CheckHostAllowed(ctx, gitHost(url)); err != nil {
+		return nil, "", fmt.Errorf("git host for %q: %w", url, err)
+	}
 	clone := func(refName plumbing.ReferenceName) (*gogit.Repository, fs.FS, error) {
 		wt := memfs.New()
 		repo, err := gogit.CloneContext(ctx, memory.NewStorage(), wt, &gogit.CloneOptions{
@@ -105,15 +126,42 @@ func newGit(ctx context.Context, c client.Client, namespace string, spec *kestre
 // checkGitURL allows https and ssh transports only. Plain http and
 // git:// move bytes unauthenticated and unverified; file: would read
 // the operator's own filesystem (that's what local sources are for).
-func checkGitURL(url string) error {
+func checkGitURL(raw string) error {
 	switch {
-	case strings.HasPrefix(url, "https://"),
-		strings.HasPrefix(url, "ssh://"),
-		scpLikeURL.MatchString(url):
-		return nil
+	case strings.HasPrefix(raw, "https://"),
+		strings.HasPrefix(raw, "ssh://"),
+		scpLikeURL.MatchString(raw):
 	default:
-		return fmt.Errorf("git url %q: only https://, ssh:// or git@host: URLs are supported", url)
+		return fmt.Errorf("git url %q: only https://, ssh:// or git@host: URLs are supported", raw)
 	}
+	// Reject an obviously-internal host literal up front (link-local /
+	// metadata). DNS names are re-checked against the resolved IP at clone
+	// time by gitClone. Private/loopback literals are allowed: self-hosted
+	// git servers legitimately live there.
+	host := gitHost(raw)
+	if netguard.HostIsMetadata(host) {
+		return fmt.Errorf("git url %q: metadata endpoints are not allowed", raw)
+	}
+	if ip := net.ParseIP(host); ip != nil && !netguard.IsAllowed(ip) {
+		return fmt.Errorf("git url %q: %s is a blocked address (link-local/metadata/multicast)", raw, ip)
+	}
+	return nil
+}
+
+// gitHost extracts the hostname from an https://, ssh:// or scp-like
+// (git@host:org/repo) git URL.
+func gitHost(raw string) string {
+	if scpLikeURL.MatchString(raw) {
+		rest := raw[strings.IndexByte(raw, '@')+1:]
+		if i := strings.IndexByte(rest, ':'); i >= 0 {
+			return rest[:i]
+		}
+		return rest
+	}
+	if u, err := url.Parse(raw); err == nil {
+		return u.Hostname()
+	}
+	return ""
 }
 
 // gitAuth resolves the source's credential Secret into a go-git auth

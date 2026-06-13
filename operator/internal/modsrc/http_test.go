@@ -188,6 +188,10 @@ func TestCheckHTTPURL(t *testing.T) {
 		{url: "ftp://example.com/m.tar.gz", wantErr: "only http(s)"},
 		{url: "http://169.254.169.254/latest/meta-data", insecure: true, wantErr: "link-local"},
 		{url: "https://metadata.google.internal/computeMetadata", wantErr: "metadata"},
+		// Self-hosted registries on private/loopback literals are allowed —
+		// only the metadata/link-local range is an SSRF target.
+		{url: "http://10.0.0.5/m.tar.gz", insecure: true},
+		{url: "http://127.0.0.1:5001/m.tar.gz", insecure: true},
 	}
 	for _, tc := range cases {
 		err := checkHTTPURL(tc.url, tc.insecure)

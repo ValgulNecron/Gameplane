@@ -62,6 +62,9 @@ func TestCheckGitURL(t *testing.T) {
 		"https://github.com/kestrel-gg/modules.git",
 		"ssh://git@github.com/kestrel-gg/modules.git",
 		"git@github.com:kestrel-gg/modules.git",
+		// Self-hosted git on a private literal is legitimate, not SSRF.
+		"https://10.0.0.5/internal/modules.git",
+		"git@192.168.1.10:team/modules.git",
 	} {
 		if err := checkGitURL(ok); err != nil {
 			t.Errorf("%q rejected: %v", ok, err)
@@ -72,6 +75,10 @@ func TestCheckGitURL(t *testing.T) {
 		"git://github.com/x.git",
 		"file:///etc",
 		"/srv/repo",
+		// SSRF: link-local / cloud metadata are never a legitimate store.
+		"ssh://git@169.254.169.254/x.git",
+		"git@169.254.169.254:x/y.git",
+		"https://metadata.google.internal/x.git",
 	} {
 		if err := checkGitURL(bad); err == nil {
 			t.Errorf("%q accepted", bad)

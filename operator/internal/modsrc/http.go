@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/kestrel-gg/kestrel/operator/internal/netguard"
 )
 
 // Hard caps on archives an http source will accept. A module bundle is
@@ -34,7 +35,11 @@ const (
 	maxArchiveFiles      = 10_000
 )
 
-var httpFetchClient = &http.Client{Timeout: 2 * time.Minute}
+// httpFetchClient guards every archive download against being pointed at the
+// cloud metadata endpoint (see internal/netguard). Loopback and private
+// registries are still reachable — only link-local/metadata/multicast are
+// refused, at dial time so a DNS name rebinding to one is caught too.
+var httpFetchClient = netguard.HTTPClient(2 * time.Minute)
 
 // newHTTP builds a Fetcher over an archive (.tar.gz/.tgz/.zip) served
 // at an http(s) URL. The archive is downloaded fresh on each index and
@@ -99,11 +104,11 @@ func checkHTTPURL(raw string, insecure bool) error {
 		return fmt.Errorf("url %q: only http(s) is supported", raw)
 	}
 	host := u.Hostname()
-	if ip := net.ParseIP(host); ip != nil && ip.IsLinkLocalUnicast() {
-		return fmt.Errorf("url %q: link-local addresses are not allowed", raw)
-	}
-	if strings.EqualFold(host, "metadata.google.internal") {
+	if netguard.HostIsMetadata(host) {
 		return fmt.Errorf("url %q: metadata endpoints are not allowed", raw)
+	}
+	if ip := net.ParseIP(host); ip != nil && !netguard.IsAllowed(ip) {
+		return fmt.Errorf("url %q: %s is a blocked address (link-local/metadata/multicast)", raw, ip)
 	}
 	return nil
 }
