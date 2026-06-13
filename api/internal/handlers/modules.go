@@ -80,6 +80,14 @@ type CatalogEntry struct {
 	ModuleName       string      `json:"moduleName,omitempty"`    // Module CR name (= template name)
 	Phase            string      `json:"phase,omitempty"`
 	LastError        string      `json:"lastError,omitempty"`
+	// AppliedDigest is the bundle digest backing the installed version,
+	// for auditability. Mirrors Module.status.appliedDigest.
+	AppliedDigest string `json:"appliedDigest,omitempty"`
+	// PreviousVersion and PreviousDigest record the last-known-good the
+	// operator rolls back to (Module.status). Surfaced read-only so the
+	// UI can show a rollback target; the operator owns the rollback itself.
+	PreviousVersion string `json:"previousVersion,omitempty"`
+	PreviousDigest  string `json:"previousDigest,omitempty"`
 }
 
 type catalogResponse struct {
@@ -332,6 +340,9 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 		appliedVersion, _, _ := unstructured.NestedString(mod.Object, "status", "appliedVersion")
 		phase, _, _ := unstructured.NestedString(mod.Object, "status", "phase")
 		lastError, _, _ := unstructured.NestedString(mod.Object, "status", "lastError")
+		appliedDigest, _, _ := unstructured.NestedString(mod.Object, "status", "appliedDigest")
+		previousVersion, _, _ := unstructured.NestedString(mod.Object, "status", "previousVersion")
+		previousDigest, _, _ := unstructured.NestedString(mod.Object, "status", "previousDigest")
 
 		e, ok := merged[modName]
 		if !ok {
@@ -347,6 +358,9 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 		e.ModuleName = mod.GetName()
 		e.Phase = phase
 		e.LastError = lastError
+		e.AppliedDigest = appliedDigest
+		e.PreviousVersion = previousVersion
+		e.PreviousDigest = previousDigest
 	}
 
 	out := catalogResponse{Items: make([]CatalogEntry, 0, len(merged))}

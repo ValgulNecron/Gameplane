@@ -43,6 +43,12 @@ func newModule(name string, spec map[string]any) *unstructured.Unstructured {
 	}}
 }
 
+func newModuleWithStatus(name string, spec, status map[string]any) *unstructured.Unstructured {
+	m := newModule(name, spec)
+	m.Object["status"] = status
+	return m
+}
+
 func newSource(name string, modules []any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "kestrel.gg/v1alpha1",
@@ -173,10 +179,16 @@ func TestMountModules_Catalog(t *testing.T) {
 				"versions":      []any{"1.21", "1.20"},
 			},
 		}),
-		newModule("minecraft", map[string]any{
+		newModuleWithStatus("minecraft", map[string]any{
 			"source":  map[string]any{"name": "upstream"},
 			"name":    "minecraft",
 			"version": "1.21",
+		}, map[string]any{
+			"phase":           "Ready",
+			"appliedVersion":  "1.21",
+			"appliedDigest":   "sha256:aaa",
+			"previousVersion": "1.20",
+			"previousDigest":  "sha256:bbb",
 		}),
 	)
 	r := mountModulesRouter(k)
@@ -190,5 +202,17 @@ func TestMountModules_Catalog(t *testing.T) {
 	}
 	if len(resp.Items) != 1 || resp.Items[0].Name != "minecraft" {
 		t.Fatalf("got %+v", resp.Items)
+	}
+	// The rollback/digest status fields must pass through verbatim from
+	// Module.status so the dashboard can surface the pin and rollback target.
+	got := resp.Items[0]
+	if got.AppliedDigest != "sha256:aaa" {
+		t.Errorf("appliedDigest = %q, want sha256:aaa", got.AppliedDigest)
+	}
+	if got.PreviousVersion != "1.20" {
+		t.Errorf("previousVersion = %q, want 1.20", got.PreviousVersion)
+	}
+	if got.PreviousDigest != "sha256:bbb" {
+		t.Errorf("previousDigest = %q, want sha256:bbb", got.PreviousDigest)
 	}
 }
