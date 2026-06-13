@@ -32,6 +32,10 @@ describe("specFrom", () => {
     path: "",
     allow: "",
     refreshInterval: "",
+    verifyMode: "none" as const,
+    verifyKeySecret: "",
+    verifyIssuer: "",
+    verifyIdentity: "",
   };
 
   it("builds an oci spec", () => {
@@ -74,6 +78,43 @@ describe("specFrom", () => {
     expect(specFrom({ ...base, type: "local" })).toEqual({ type: "local", local: {} });
     expect(specFrom({ ...base, type: "upload" })).toEqual({ type: "upload" });
   });
+
+  it("emits keyed and keyless verify only for oci sources", () => {
+    const keyed = specFrom({
+      ...base,
+      url: "ghcr.io/x",
+      modules: "mc",
+      verifyMode: "keyed",
+      verifyKeySecret: "cosign-pub",
+    });
+    expect(keyed.verify).toEqual({ key: { name: "cosign-pub" } });
+
+    const keyless = specFrom({
+      ...base,
+      url: "ghcr.io/x",
+      modules: "mc",
+      verifyMode: "keyless",
+      verifyIssuer: "https://issuer",
+      verifyIdentity: "id@example.com",
+    });
+    expect(keyless.verify).toEqual({
+      keyless: { issuer: "https://issuer", identity: "id@example.com" },
+    });
+
+    // none → no verify block.
+    expect(specFrom({ ...base, url: "ghcr.io/x", modules: "mc" }).verify).toBeUndefined();
+
+    // A non-oci type must never carry verify, even if the form has it set.
+    const git = specFrom({
+      ...base,
+      type: "git",
+      url: "https://g/x.git",
+      verifyMode: "keyless",
+      verifyIssuer: "https://issuer",
+      verifyIdentity: "id@example.com",
+    });
+    expect(git.verify).toBeUndefined();
+  });
 });
 
 describe("SourceDialog", () => {
@@ -83,14 +124,16 @@ describe("SourceDialog", () => {
     expect(screen.getByText("Modules")).toBeInTheDocument();
 
     // Switch to upload: no url fields, just the explainer.
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "upload" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+      target: { value: "upload" },
+    });
     expect(screen.queryByText("Registry URL")).not.toBeInTheDocument();
     expect(screen.getByText(/Indexes bundles uploaded/)).toBeInTheDocument();
   });
 
   it("renders the git, http and local field sets", () => {
     renderDialog();
-    const typeSelect = screen.getByRole("combobox");
+    const typeSelect = screen.getByRole("combobox", { name: "Type" });
 
     fireEvent.change(typeSelect, { target: { value: "git" } });
     expect(screen.getByText("Clone URL")).toBeInTheDocument();
@@ -175,6 +218,61 @@ describe("SourceDialog", () => {
         oci: { url: "ghcr.io/x", modules: [{ name: "minecraft-java" }] },
       },
     });
+  });
+
+  it("reveals keyless verify fields and validates them", async () => {
+    const onConfirm = renderDialog();
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upstream" } });
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/kestrel-gg/modules"), {
+      target: { value: "ghcr.io/x" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("minecraft-java, valheim"), {
+      target: { value: "minecraft-java" },
+    });
+
+    // Keyless reveals issuer + identity inputs.
+    fireEvent.change(screen.getByRole("combobox", { name: /Signature verification/ }), {
+      target: { value: "keyless" },
+    });
+    expect(screen.getByText("OIDC issuer")).toBeInTheDocument();
+    const identity = screen.getByPlaceholderText(/release.yml/);
+    fireEvent.change(screen.getByPlaceholderText("https://token.actions.githubusercontent.com"), {
+      target: { value: "https://issuer" },
+    });
+
+    // Blank identity blocks submit.
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await screen.findByText(/keyless verification needs an issuer and identity/);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    // Filling it submits the verify block.
+    fireEvent.change(identity, { target: { value: "id@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+    expect(onConfirm).toHaveBeenCalledWith({
+      name: "upstream",
+      spec: {
+        type: "oci",
+        oci: { url: "ghcr.io/x", modules: [{ name: "minecraft-java" }] },
+        verify: { keyless: { issuer: "https://issuer", identity: "id@example.com" } },
+      },
+    });
+  });
+
+  it("prefills the verify config when editing a signed oci source", () => {
+    const signed = makeModuleSource({
+      metadata: { name: "upstream" },
+      spec: {
+        type: "oci",
+        oci: { url: "ghcr.io/x", modules: [{ name: "mc" }] },
+        verify: { keyless: { issuer: "https://issuer", identity: "id@example.com" } },
+      },
+    });
+    renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={signed} onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByDisplayValue("https://issuer")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("id@example.com")).toBeInTheDocument();
   });
 
   it("prefills when editing and surfaces API errors", async () => {

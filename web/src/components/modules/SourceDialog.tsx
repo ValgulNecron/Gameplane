@@ -24,6 +24,14 @@ const TYPE_OPTIONS: Array<{ value: ModuleSourceType; label: string }> = [
   { value: "upload", label: "Uploaded bundles" },
 ];
 
+type VerifyMode = "none" | "keyed" | "keyless";
+
+const VERIFY_OPTIONS: Array<{ value: VerifyMode; label: string }> = [
+  { value: "none", label: "None" },
+  { value: "keyed", label: "Keyed (cosign public key)" },
+  { value: "keyless", label: "Keyless (Fulcio)" },
+];
+
 // form mirrors the spec union flattened into editable strings.
 interface form {
   type: ModuleSourceType;
@@ -36,6 +44,11 @@ interface form {
   path: string;
   allow: string; // comma/space separated
   refreshInterval: string;
+  // Cosign signature policy — OCI sources only (CEL-enforced on the CRD).
+  verifyMode: VerifyMode;
+  verifyKeySecret: string;
+  verifyIssuer: string;
+  verifyIdentity: string;
 }
 
 const emptyForm: form = {
@@ -49,10 +62,15 @@ const emptyForm: form = {
   path: "",
   allow: "",
   refreshInterval: "",
+  verifyMode: "none",
+  verifyKeySecret: "",
+  verifyIssuer: "",
+  verifyIdentity: "",
 };
 
 function formFrom(source: ModuleSource): form {
   const spec = source.spec;
+  const verify = spec.verify;
   return {
     ...emptyForm,
     type: spec.type ?? "oci",
@@ -66,6 +84,10 @@ function formFrom(source: ModuleSource): form {
     path: spec.local?.path ?? "",
     allow: (spec.allow ?? []).join(", "),
     refreshInterval: spec.refreshInterval ?? "",
+    verifyMode: verify?.keyless ? "keyless" : verify?.key ? "keyed" : "none",
+    verifyKeySecret: verify?.key?.name ?? "",
+    verifyIssuer: verify?.keyless?.issuer ?? "",
+    verifyIdentity: verify?.keyless?.identity ?? "",
   };
 }
 
@@ -91,6 +113,14 @@ export function specFrom(f: form): ModuleSourceSpec {
         ...(f.insecure ? { insecure: true } : {}),
         ...(secretRef ? { pullSecretRef: secretRef } : {}),
       };
+      // verify is OCI-only (CEL-enforced); never emit it for other types.
+      if (f.verifyMode === "keyed") {
+        spec.verify = { key: { name: f.verifyKeySecret.trim() } };
+      } else if (f.verifyMode === "keyless") {
+        spec.verify = {
+          keyless: { issuer: f.verifyIssuer.trim(), identity: f.verifyIdentity.trim() },
+        };
+      }
       break;
     case "git":
       spec.git = {
@@ -144,6 +174,18 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
     }
     if (f.type === "oci" && splitList(f.modules).length === 0) {
       setError("OCI sources need at least one module name");
+      return;
+    }
+    if (f.type === "oci" && f.verifyMode === "keyed" && !f.verifyKeySecret.trim()) {
+      setError("keyed verification needs a public key secret name");
+      return;
+    }
+    if (
+      f.type === "oci" &&
+      f.verifyMode === "keyless" &&
+      (!f.verifyIssuer.trim() || !f.verifyIdentity.trim())
+    ) {
+      setError("keyless verification needs an issuer and identity");
       return;
     }
     setError(null);
@@ -211,6 +253,49 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   />
                 </Field>
                 <InsecureToggle checked={f.insecure} onChange={(insecure) => set({ insecure })} />
+                <Field
+                  label="Signature verification"
+                  hint="Require a valid cosign signature on every bundle pulled from this source."
+                >
+                  <Select
+                    value={f.verifyMode}
+                    onValueChange={(v) => set({ verifyMode: v as VerifyMode })}
+                    options={VERIFY_OPTIONS}
+                  />
+                </Field>
+                {f.verifyMode === "keyed" && (
+                  <Field
+                    label="Public key secret"
+                    hint="Secret holding the cosign public key under the cosign.pub data key."
+                  >
+                    <Input
+                      value={f.verifyKeySecret}
+                      onChange={(e) => set({ verifyKeySecret: e.target.value })}
+                      placeholder="cosign-pub"
+                    />
+                  </Field>
+                )}
+                {f.verifyMode === "keyless" && (
+                  <>
+                    <Field label="OIDC issuer" hint="Issuer embedded in the signing certificate.">
+                      <Input
+                        value={f.verifyIssuer}
+                        onChange={(e) => set({ verifyIssuer: e.target.value })}
+                        placeholder="https://token.actions.githubusercontent.com"
+                      />
+                    </Field>
+                    <Field
+                      label="Certificate identity"
+                      hint="SAN identity that must have produced the signature."
+                    >
+                      <Input
+                        value={f.verifyIdentity}
+                        onChange={(e) => set({ verifyIdentity: e.target.value })}
+                        placeholder="github.com/org/repo/.github/workflows/release.yml@refs/heads/main"
+                      />
+                    </Field>
+                  </>
+                )}
               </>
             )}
 
