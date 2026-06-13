@@ -13,6 +13,9 @@ export function verifyMode(spec?: ModuleVerifySpec): VerifyMode {
 }
 
 // EntryVerify is the catalog-card view of a module's verification posture.
+// ModuleCard's VerifyBadge maps it: enforced -> solid "verified"; mode!=none
+// && !enforced && !mixed -> outline "policy" (declared, not yet checked);
+// mixed || none -> no badge (suppressed, never over-claims).
 export interface EntryVerify {
   // mode is the representative policy to badge.
   mode: VerifyMode;
