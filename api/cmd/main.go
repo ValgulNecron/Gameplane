@@ -107,6 +107,9 @@ func main() {
 
 	// Public auth routes
 	r.Route("/auth", func(r chi.Router) {
+		// Pre-auth: which login methods are enabled (local always; OIDC
+		// only when configured). No version/host/count — login-privacy.
+		r.Get("/providers", handlers.AuthProvidersHandler(oidcAuth != nil, cfg.oidcDisplayName))
 		// Rate-limit /login specifically — argon2id is ~200 ms of
 		// single-core CPU per attempt, so an unlimited path invites a
 		// trivial DoS.
@@ -174,6 +177,7 @@ type config struct {
 	oidcClientID     string
 	oidcClientSecret string
 	oidcRedirectURL  string
+	oidcDisplayName  string
 
 	agentCABundle   string
 	agentClientCert string
@@ -190,6 +194,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcClientID, "oidc-client-id", envOr("KESTREL_OIDC_CLIENT_ID", ""), "OIDC client id")
 	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("KESTREL_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
 	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("KESTREL_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
+	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("KESTREL_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("KESTREL_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("KESTREL_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("KESTREL_AGENT_CLIENT_KEY", ""), "client key presented to agents")

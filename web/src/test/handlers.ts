@@ -61,6 +61,16 @@ export const handlers = [
     );
   }),
   http.post("/auth/logout", () => new HttpResponse(null, { status: 204 })),
+  // Pre-auth login providers. Mock mode advertises both local + OIDC so
+  // the full login UI is exercised; real installs gate OIDC on config.
+  http.get("/auth/providers", () =>
+    HttpResponse.json({
+      providers: [
+        { kind: "local", label: "Local account" },
+        { kind: "oidc", label: "OIDC" },
+      ],
+    }),
+  ),
 
   // Cluster
   http.get("/cluster", () => HttpResponse.json(makeClusterView())),
