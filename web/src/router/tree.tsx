@@ -50,6 +50,11 @@ const createServerRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/servers/new",
   component: CreateServerWizard,
+  // Lets the Modules catalog "Deploy" link pre-select a template via
+  // /servers/new?template=<name>.
+  validateSearch: (search: Record<string, unknown>): { template?: string } => ({
+    template: typeof search.template === "string" ? search.template : undefined,
+  }),
 });
 
 const modulesRoute = new Route({

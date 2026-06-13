@@ -5,8 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { GameTemplate } from "@/types";
 
 const navigate = vi.fn();
+let search: { template?: string } = {};
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
+  useSearch: () => search,
 }));
 
 import { CreateServerWizard } from "./CreateServer";
@@ -25,6 +27,7 @@ beforeEach(() => {
 afterEach(() => {
   fetchMock.mockReset();
   navigate.mockReset();
+  search = {};
   vi.unstubAllGlobals();
 });
 
@@ -109,6 +112,29 @@ describe("CreateServerWizard", () => {
     const alert = await screen.findByTestId("create-error");
     expect(alert.textContent).toMatch(/A server named mc-test already exists/);
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("pre-selects the template from the ?template= search param", async () => {
+    search = { template: "minecraft-java" };
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
+    render(withClient(<CreateServerWizard />));
+
+    // Without pre-selection, the name input (step 2) is never reachable; its
+    // presence means step 1 auto-advanced past template selection isn't
+    // needed — the template is already chosen, so Continue is enabled.
+    const continueBtn = await screen.findByRole("button", { name: /Continue to Configure/i });
+    await waitFor(() => expect(continueBtn).toBeEnabled());
+    // The preview reflects the chosen template name.
+    expect(screen.getAllByText(/Minecraft Java/i).length).toBeGreaterThan(0);
+  });
+
+  it("does not pre-select when no ?template= is present", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
+    render(withClient(<CreateServerWizard />));
+
+    await screen.findByRole("button", { name: new RegExp(template().spec.displayName, "i") });
+    const continueBtn = screen.getByRole("button", { name: /Continue to Configure/i });
+    expect(continueBtn).toBeDisabled();
   });
 
   it("sends nodeSelector when nodePlacement is 'pin'", async () => {

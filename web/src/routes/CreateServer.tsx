@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -116,6 +116,21 @@ export function CreateServerWizard() {
   const [state, setState] = useState<WizardState>(initial);
   const nav = useNavigate();
   const qc = useQueryClient();
+
+  // When arriving from the Modules catalog "Deploy" action
+  // (/servers/new?template=<name>), pre-select that template once the list
+  // loads. One-shot, so manual changes afterwards aren't clobbered.
+  const search = useSearch({ from: "/app-layout/servers/new" });
+  const { data: templates } = useQuery({ queryKey: ["templates"], queryFn: () => Templates.list() });
+  const presetApplied = useRef(false);
+  useEffect(() => {
+    if (presetApplied.current || !search.template || !templates) return;
+    const match = templates.items.find((t) => t.metadata.name === search.template);
+    if (match) {
+      presetApplied.current = true;
+      setState((s) => ({ ...s, template: match, config: {} }));
+    }
+  }, [search.template, templates]);
 
   const create = useMutation({
     mutationFn: () => Servers.create(buildCreateBody(state)),

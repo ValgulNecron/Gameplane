@@ -7,6 +7,7 @@ import type { GameTemplate } from "@/types";
 const navigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
+  useSearch: () => ({}),
 }));
 
 import { CreateServerWizard } from "./CreateServer";

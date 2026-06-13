@@ -68,7 +68,7 @@ export function ModuleCard({ entry, onInstall, onUpgrade, onUninstall, busy }: M
             <Button size="sm" variant="outline" asChild>
               <Link
                 to="/servers/new"
-                search={{ template: entry.moduleName } as never}
+                search={{ template: entry.moduleName }}
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Deploy
               </Link>
