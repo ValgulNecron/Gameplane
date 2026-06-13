@@ -11,6 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 )
 
@@ -25,6 +27,14 @@ const heartbeatFreshness = 60 * time.Second
 func (r *GameServerReconciler) reconcileStatus(
 	ctx context.Context, gs *kestrelv1alpha1.GameServer,
 ) (time.Duration, error) {
+	// base captures the object as fetched so we can issue a JSON merge
+	// patch of only the fields this reconciler owns. The agent sidecar
+	// concurrently patches status.agent (its heartbeat); a full
+	// Status().Update would carry the stale agent value we read at the
+	// start of reconcile and revert a fresher heartbeat (and race it for
+	// the resourceVersion). MergeFrom touches only changed fields, so
+	// status.agent is left untouched and there is nothing to conflict on.
+	base := gs.DeepCopy()
 	orig := gs.Status.DeepCopy()
 
 	var ss appsv1.StatefulSet
@@ -58,7 +68,7 @@ func (r *GameServerReconciler) reconcileStatus(
 	}
 
 	if !reflect.DeepEqual(orig, &gs.Status) {
-		if err := r.Status().Update(ctx, gs); err != nil {
+		if err := r.Status().Patch(ctx, gs, client.MergeFrom(base)); err != nil {
 			return 0, err
 		}
 	}

@@ -559,6 +559,9 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 func (r *GameServerReconciler) setPhase(
 	ctx context.Context, gs *kestrelv1alpha1.GameServer, phase kestrelv1alpha1.GameServerPhase, msg string,
 ) error {
+	// Patch (not Update) so we don't carry/revert the agent's concurrently
+	// written status.agent — see reconcileStatus for the full rationale.
+	base := gs.DeepCopy()
 	gs.Status.Phase = phase
 	gs.Status.Conditions = upsertCondition(gs.Status.Conditions, metav1.Condition{
 		Type:    "Ready",
@@ -566,5 +569,5 @@ func (r *GameServerReconciler) setPhase(
 		Reason:  string(phase),
 		Message: msg,
 	})
-	return r.Status().Update(ctx, gs)
+	return r.Status().Patch(ctx, gs, client.MergeFrom(base))
 }
