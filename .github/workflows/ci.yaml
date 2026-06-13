@@ -299,6 +299,8 @@ jobs:
           RUN_REGEX+='TestGameTemplate_DeletionWithLiveServer|'
           RUN_REGEX+='TestModule_FinalizerBlocksWhileTemplateInUse|'
           RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
+          RUN_REGEX+='TestModule_VerifyRejectsUnsignedBundle|'
+          RUN_REGEX+='TestModuleSource_RejectsSSRFTarget|'
           RUN_REGEX+='TestModuleSourceAndModule|'
           RUN_REGEX+='TestBackup_OperatorMaterializesJob|'
           RUN_REGEX+='TestBackup_FailsOnMissingPVC|'
