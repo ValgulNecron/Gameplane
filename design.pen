@@ -21576,7 +21576,7 @@
                                       "id": "lnyJw",
                                       "name": "vLabel",
                                       "fill": "$c:--color-success-foreground",
-                                      "content": "keyless",
+                                      "content": "verified",
                                       "fontFamily": "$c:--font-primary",
                                       "fontSize": 10,
                                       "fontWeight": "600"
@@ -22755,26 +22755,73 @@
                             },
                             {
                               "type": "frame",
-                              "id": "LwNDA",
-                              "name": "mc9Bdg",
-                              "cornerRadius": 4,
-                              "stroke": "$c:--border",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "padding": [
-                                2,
-                                8
-                              ],
+                              "id": "CZkux",
+                              "name": "mc9Badges",
+                              "gap": 6,
                               "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "text",
-                                  "id": "Wfbo4",
-                                  "fill": "$c:--muted-foreground",
-                                  "content": "available",
-                                  "fontFamily": "$c:--font-primary",
-                                  "fontSize": 10,
-                                  "fontWeight": "600"
+                                  "type": "frame",
+                                  "id": "E7obDR",
+                                  "name": "mc9Verify",
+                                  "cornerRadius": 4,
+                                  "stroke": "$c:--color-success",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "gap": 3,
+                                  "padding": [
+                                    2,
+                                    8
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "SoBzm",
+                                      "name": "vIcon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "gpp_maybe",
+                                      "library": "Material Symbols Sharp",
+                                      "weight": 400,
+                                      "fill": "$c:--color-success"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "KpuQN",
+                                      "name": "vLabel",
+                                      "fill": "$c:--color-success",
+                                      "content": "policy",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 10,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "LwNDA",
+                                  "name": "mc9Bdg",
+                                  "cornerRadius": 4,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "padding": [
+                                    2,
+                                    8
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Wfbo4",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "available",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 10,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
                                 }
                               ]
                             }
