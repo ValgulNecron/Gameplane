@@ -4,12 +4,13 @@ import userEvent from "@testing-library/user-event";
 
 // Each call to openWS pushes a new fake socket onto sockets[]; tests
 // reach into the latest one to drive messages and assert cleanup.
-type FakeSock = { close: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; sendMsg: (s: string) => void };
+type FakeSock = { path: string; close: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; sendMsg: (s: string) => void };
 const sockets: FakeSock[] = [];
 
 vi.mock("@/lib/ws", () => ({
-  openWS: vi.fn((_path: string, opts: { onMessage: (d: string) => void }) => {
+  openWS: vi.fn((path: string, opts: { onMessage: (d: string) => void }) => {
     const sock: FakeSock = {
+      path,
       close: vi.fn(),
       send: vi.fn(),
       sendMsg: opts.onMessage,
@@ -80,5 +81,17 @@ describe("LogsTab", () => {
     rerender(<LogsTab name="beta" />);
     expect(sockets[0].close).toHaveBeenCalled();
     expect(sockets).toHaveLength(2);
+  });
+
+  it("defaults to the container-output (pod) stream so startup logs show", () => {
+    render(<LogsTab name="alpha" />);
+    expect(sockets[0].path).toBe("/ws/servers/alpha/logs/pod?from=start");
+  });
+
+  it("switches to the game-log file stream when toggled", async () => {
+    render(<LogsTab name="alpha" />);
+    await userEvent.click(screen.getByRole("button", { name: /game log/i }));
+    expect(sockets[0].close).toHaveBeenCalled();
+    expect(sockets[sockets.length - 1].path).toBe("/ws/servers/alpha/logs");
   });
 });

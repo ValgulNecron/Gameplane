@@ -8,14 +8,23 @@ import { openWS } from "@/lib/ws";
 
 const MAX_LINES = 20_000;
 
+// Log sources the tab streams from. "pod" follows the game container's
+// stdout — visible while a server is still downloading/configuring during
+// "Starting" (before it writes its own log file) and works without agent
+// mTLS; "file" tails the configured game log file via the agent.
+type LogSource = "pod" | "file";
+
 export function LogsTab({ name }: { name: string }) {
   const [lines, setLines] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
+  // Default to container output so logs are never empty during startup.
+  const [source, setSource] = useState<LogSource>("pod");
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLines([]);
-    const sock = openWS(`/ws/servers/${name}/logs`, {
+    const path = source === "pod" ? Logs.podStreamPath(name) : Logs.fileStreamPath(name);
+    const sock = openWS(path, {
       onMessage: (data) =>
         setLines((prev) => {
           const next = prev.concat(typeof data === "string" ? data.split(/\r?\n/) : []);
@@ -23,7 +32,7 @@ export function LogsTab({ name }: { name: string }) {
         }),
     });
     return () => sock.close();
-  }, [name]);
+  }, [name, source]);
 
   const filtered = filter
     ? lines.filter((l) => l.toLowerCase().includes(filter.toLowerCase()))
@@ -45,6 +54,26 @@ export function LogsTab({ name }: { name: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+        <div className="flex rounded border border-border text-xs">
+          <button
+            type="button"
+            onClick={() => setSource("pod")}
+            aria-pressed={source === "pod"}
+            className={`h-8 rounded-l px-2 ${source === "pod" ? "bg-surface font-medium" : "text-muted"}`}
+            title="Follow the game container's stdout (download/config + startup)"
+          >
+            Container output
+          </button>
+          <button
+            type="button"
+            onClick={() => setSource("file")}
+            aria-pressed={source === "file"}
+            className={`h-8 rounded-r border-l border-border px-2 ${source === "file" ? "bg-surface font-medium" : "text-muted"}`}
+            title="Tail the configured game log file via the agent"
+          >
+            Game log
+          </button>
+        </div>
         <input
           placeholder="filter…"
           className="h-8 w-64 rounded border border-border bg-surface px-2 font-mono text-xs"

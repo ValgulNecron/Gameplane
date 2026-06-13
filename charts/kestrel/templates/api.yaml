@@ -71,6 +71,12 @@ rules:
   - apiGroups: [""]
     resources: [pods/attach]
     verbs: [get, create]
+  # The startup-log stream (api/internal/ws/podlogs.go) follows the game
+  # container's stdout via the pod-log subresource so download/config
+  # output is visible before the game's own log file exists.
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
   # Backup destinations are Secrets in the games namespace
   # (api/internal/handlers/destinations.go).
   - apiGroups: [""]
