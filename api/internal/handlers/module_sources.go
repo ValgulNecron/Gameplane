@@ -35,6 +35,22 @@ type sourceRequest struct {
 	Local           *localSourceSpec `json:"local,omitempty"`
 	Allow           []string         `json:"allow,omitempty"`
 	RefreshInterval string           `json:"refreshInterval,omitempty"`
+	// Verify is the cosign signature policy. The CRD restricts it to OCI
+	// sources (CEL); validate() mirrors that and the operator enforces it.
+	Verify *verifySourceSpec `json:"verify,omitempty"`
+}
+
+// verifySourceSpec mirrors ModuleSource.spec.verify: exactly one of key
+// (a Secret holding a cosign public key) or keyless (Fulcio issuer +
+// certificate identity) is set.
+type verifySourceSpec struct {
+	Key     *nameRef          `json:"key,omitempty"`
+	Keyless *keylessVerifyReq `json:"keyless,omitempty"`
+}
+
+type keylessVerifyReq struct {
+	Issuer   string `json:"issuer"`
+	Identity string `json:"identity"`
 }
 
 // nameRef is the {"name": "..."} shape shared by module lists and
@@ -111,6 +127,24 @@ func (in *sourceRequest) validate() error {
 			return fmt.Errorf("%s config is only valid for type %s", cfgType, cfgType)
 		}
 	}
+	// verify mirrors the CRD's two CEL rules (shape only; the CRD remains
+	// authoritative): it is OCI-only, and exactly one of key/keyless is set.
+	if in.Verify != nil {
+		if in.Type != "oci" {
+			return fmt.Errorf("verify is only valid for type oci, not %q", in.Type)
+		}
+		hasKey := in.Verify.Key != nil
+		hasKeyless := in.Verify.Keyless != nil
+		if hasKey == hasKeyless {
+			return errors.New("verify needs exactly one of key or keyless")
+		}
+		if hasKey && in.Verify.Key.Name == "" {
+			return errors.New("verify.key needs a secret name")
+		}
+		if hasKeyless && (in.Verify.Keyless.Issuer == "" || in.Verify.Keyless.Identity == "") {
+			return errors.New("verify.keyless needs issuer and identity")
+		}
+	}
 	return nil
 }
 
@@ -147,6 +181,10 @@ func (in *sourceRequest) spec() map[string]any {
 			oci["pullSecretRef"] = ref
 		}
 		spec["oci"] = oci
+		// verify is a sibling of oci on the spec, OCI-only (CEL-enforced).
+		if v := verifyMap(in.Verify); v != nil {
+			spec["verify"] = v
+		}
 	case "git":
 		git := map[string]any{"url": in.Git.URL}
 		if in.Git.Ref != "" {
@@ -176,6 +214,24 @@ func (in *sourceRequest) spec() map[string]any {
 		spec["local"] = local
 	}
 	return spec
+}
+
+// verifyMap renders the cosign policy as the CR's spec.verify map, or nil
+// when no policy is set. validate() guarantees exactly one of key/keyless.
+func verifyMap(v *verifySourceSpec) map[string]any {
+	if v == nil {
+		return nil
+	}
+	if v.Key != nil && v.Key.Name != "" {
+		return map[string]any{"key": map[string]any{"name": v.Key.Name}}
+	}
+	if v.Keyless != nil {
+		return map[string]any{"keyless": map[string]any{
+			"issuer":   v.Keyless.Issuer,
+			"identity": v.Keyless.Identity,
+		}}
+	}
+	return nil
 }
 
 func (h modulesHandler) createSource(w http.ResponseWriter, req *http.Request) {
