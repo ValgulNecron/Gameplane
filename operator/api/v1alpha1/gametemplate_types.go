@@ -160,6 +160,55 @@ type CapabilitiesSpec struct {
 	// Like actions, they require rcon.protocol != none.
 	// +optional
 	Status *StatusSpec `json:"status,omitempty"`
+
+	// Mods declares how the dashboard manages this game's mods/plugins.
+	// The dashboard is generic — it lists, installs, and removes mods by
+	// calling the agent; this block tells the agent where mods live and
+	// how installs are permitted. Mods are files under a directory on the
+	// game's data volume, so this needs no RCON.
+	// +optional
+	Mods *ModsSpec `json:"mods,omitempty"`
+}
+
+// ModsSpec declares the mod/plugin directory and install policy the
+// agent enforces. Listing and removal operate on Path directly; Install
+// adds a mod by downloading it into Path.
+type ModsSpec struct {
+	// Path is the mods directory, relative to storage.mountPath (e.g.
+	// "mods" for Forge/Fabric, "plugins" for Bukkit/Paper). Absolute
+	// paths and ".." segments are rejected.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="path must be relative to the data mount and must not contain '..'"
+	Path string `json:"path"`
+
+	// Extensions optionally restricts which files in Path are treated as
+	// mods (e.g. [".jar"]). Empty lists every file.
+	// +optional
+	Extensions []string `json:"extensions,omitempty"`
+
+	// Install, when set, lets the dashboard add new mods by downloading
+	// them into Path. When unset, only listing and removal are offered.
+	// +optional
+	Install *ModInstallSpec `json:"install,omitempty"`
+}
+
+// ModInstallSpec configures installing a mod by downloading it from a
+// URL into the mods directory.
+type ModInstallSpec struct {
+	// AllowedHosts is the allowlist of hosts the agent may download from:
+	// an exact hostname ("cdn.modrinth.com") or a leading-dot suffix
+	// (".modrinth.com") matching that host and its subdomains. Downloads
+	// from any other host — and any that resolve to a private, loopback,
+	// or link-local address — are refused (SSRF guard).
+	// +kubebuilder:validation:MinItems=1
+	AllowedHosts []string `json:"allowedHosts"`
+
+	// MaxSizeMB caps the download size in mebibytes. Defaults to 256.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=4096
+	// +optional
+	MaxSizeMB int32 `json:"maxSizeMB,omitempty"`
 }
 
 // ServerActionSpec declares a named operator action surfaced as a button

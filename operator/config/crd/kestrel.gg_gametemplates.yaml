@@ -254,6 +254,62 @@ spec:
                       type: object
                     maxItems: 32
                     type: array
+                  mods:
+                    description: |-
+                      Mods declares how the dashboard manages this game's mods/plugins.
+                      The dashboard is generic — it lists, installs, and removes mods by
+                      calling the agent; this block tells the agent where mods live and
+                      how installs are permitted. Mods are files under a directory on the
+                      game's data volume, so this needs no RCON.
+                    properties:
+                      extensions:
+                        description: |-
+                          Extensions optionally restricts which files in Path are treated as
+                          mods (e.g. [".jar"]). Empty lists every file.
+                        items:
+                          type: string
+                        type: array
+                      install:
+                        description: |-
+                          Install, when set, lets the dashboard add new mods by downloading
+                          them into Path. When unset, only listing and removal are offered.
+                        properties:
+                          allowedHosts:
+                            description: |-
+                              AllowedHosts is the allowlist of hosts the agent may download from:
+                              an exact hostname ("cdn.modrinth.com") or a leading-dot suffix
+                              (".modrinth.com") matching that host and its subdomains. Downloads
+                              from any other host — and any that resolve to a private, loopback,
+                              or link-local address — are refused (SSRF guard).
+                            items:
+                              type: string
+                            minItems: 1
+                            type: array
+                          maxSizeMB:
+                            description: MaxSizeMB caps the download size in mebibytes.
+                              Defaults to 256.
+                            format: int32
+                            maximum: 4096
+                            minimum: 1
+                            type: integer
+                        required:
+                        - allowedHosts
+                        type: object
+                      path:
+                        description: |-
+                          Path is the mods directory, relative to storage.mountPath (e.g.
+                          "mods" for Forge/Fabric, "plugins" for Bukkit/Paper). Absolute
+                          paths and ".." segments are rejected.
+                        maxLength: 256
+                        minLength: 1
+                        type: string
+                        x-kubernetes-validations:
+                        - message: path must be relative to the data mount and must
+                            not contain '..'
+                          rule: '!self.startsWith(''/'') && !self.contains(''..'')'
+                    required:
+                    - path
+                    type: object
                   players:
                     description: Players configures the moderation actions on the
                       Players tab.
