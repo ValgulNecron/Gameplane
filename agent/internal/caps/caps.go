@@ -16,6 +16,7 @@ type Spec struct {
 	Quiesce *Quiesce       `json:"quiesce,omitempty"`
 	Actions []ServerAction `json:"actions,omitempty"`
 	Status  *Status        `json:"status,omitempty"`
+	Mods    *Mods          `json:"mods,omitempty"`
 }
 
 // ServerAction mirrors GameTemplate spec.capabilities.actions[]: a named
@@ -47,6 +48,21 @@ type ActionParam struct {
 // Status mirrors spec.capabilities.status: live metrics read over RCON.
 type Status struct {
 	Metrics []StatusMetric `json:"metrics,omitempty"`
+}
+
+// Mods mirrors spec.capabilities.mods: the mod/plugin directory and
+// install policy the agent enforces.
+type Mods struct {
+	Path       string      `json:"path"`
+	Extensions []string    `json:"extensions,omitempty"`
+	Install    *ModInstall `json:"install,omitempty"`
+}
+
+// ModInstall configures URL-based mod installs with an SSRF host
+// allowlist and a size cap.
+type ModInstall struct {
+	AllowedHosts []string `json:"allowedHosts"`
+	MaxSizeMB    int32    `json:"maxSizeMB,omitempty"`
 }
 
 // StatusMetric reads one live readout from an RCON command's output via a

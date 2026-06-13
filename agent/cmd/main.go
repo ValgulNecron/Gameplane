@@ -22,6 +22,7 @@ import (
 	"github.com/kestrel-gg/kestrel/agent/internal/files"
 	"github.com/kestrel-gg/kestrel/agent/internal/heartbeat"
 	"github.com/kestrel-gg/kestrel/agent/internal/logs"
+	"github.com/kestrel-gg/kestrel/agent/internal/mods"
 	"github.com/kestrel-gg/kestrel/agent/internal/players"
 	"github.com/kestrel-gg/kestrel/agent/internal/quiesce"
 	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
@@ -92,11 +93,13 @@ func main() {
 	var quiesceSpec *caps.Quiesce
 	var actionSpecs []caps.ServerAction
 	var statusSpec *caps.Status
+	var modsSpec *caps.Mods
 	if capSpec != nil {
 		playerActions = capSpec.Players
 		quiesceSpec = capSpec.Quiesce
 		actionSpecs = capSpec.Actions
 		statusSpec = capSpec.Status
+		modsSpec = capSpec.Mods
 	}
 
 	var rconClient interface {
@@ -127,6 +130,7 @@ func main() {
 		quiesce.Mount(protected, rconClient, gameName, quiesceSpec)
 		actions.Mount(protected, rconClient, gameName, actionSpecs)
 		status.Mount(protected, rconClient, statusSpec)
+		mods.Mount(protected, dataRoot, modsSpec)
 	})
 
 	srv := &http.Server{
