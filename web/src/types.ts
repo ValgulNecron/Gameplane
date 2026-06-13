@@ -300,7 +300,8 @@ export interface ClusterView {
 
 export interface ClusterInfo {
   clusterName?: string;
-  version?: string;
+  version?: string; // Kubernetes server version
+  kestrelVersion?: string; // Kestrel control-plane build
 }
 
 export interface LoginProvider {

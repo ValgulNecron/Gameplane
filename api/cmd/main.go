@@ -138,7 +138,7 @@ func main() {
 		handlers.MountUsers(p, store, sessions)
 		handlers.MountAudit(p, auditor)
 		handlers.MountConfig(p, store)
-		handlers.MountCluster(p, k8s, store)
+		handlers.MountCluster(p, k8s, store, Version)
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
 		handlers.MountModules(p, k8s, cfg.namespace)
