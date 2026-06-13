@@ -20,6 +20,7 @@ import (
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
+	"github.com/kestrel-gg/kestrel/operator/internal/verify"
 )
 
 // ModuleReconciler materializes Module CRs into GameTemplate CRs. The
@@ -42,6 +43,10 @@ type ModuleReconciler struct {
 	// NewFetcher is overridden in tests with an in-process fake. nil →
 	// the real per-source-type fetcher from modsrc.ForSource.
 	NewFetcher func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error)
+
+	// NewVerifier is overridden in tests with an in-process fake. nil →
+	// the real cosign verifier from verify.Build.
+	NewVerifier func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (verify.Verifier, error)
 }
 
 // +kubebuilder:rbac:groups=kestrel.gg,resources=modules,verbs=get;list;watch;update;patch
@@ -113,6 +118,24 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	bundle, err := fetcher.Pull(ctx, mod.Spec.Name, desiredVersion)
 	if err != nil {
 		return r.markFailed(ctx, &mod, "PullFailed", err)
+	}
+
+	// Verify the bundle's signature before trusting any of its content —
+	// including the metadata read below. Nop when the source declares no
+	// verify policy.
+	verifier, err := r.verifierFor(ctx, src)
+	if err != nil {
+		return r.markFailed(ctx, &mod, "VerifyConfig", err)
+	}
+	if err := verifier.Verify(ctx, entry.Reference, bundle.Digest); err != nil {
+		return r.markFailed(ctx, &mod, "SignatureInvalid", err)
+	}
+
+	// Honor a content pin: refuse a bundle whose digest doesn't match the
+	// one the user pinned (catches a tag moved to new content).
+	if mod.Spec.Digest != "" && bundle.Digest != mod.Spec.Digest {
+		return r.markFailed(ctx, &mod, "DigestMismatch",
+			fmt.Errorf("pinned digest %s but resolved bundle is %s", mod.Spec.Digest, bundle.Digest))
 	}
 
 	// Refuse a bundle that needs a newer operator than this one — the
@@ -336,6 +359,13 @@ func (r *ModuleReconciler) fetcherFor(ctx context.Context, src *kestrelv1alpha1.
 		return r.NewFetcher(ctx, src)
 	}
 	return modsrc.ForSource(ctx, r.Client, r.Namespace, src, r.FetchOptions)
+}
+
+func (r *ModuleReconciler) verifierFor(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (verify.Verifier, error) {
+	if r.NewVerifier != nil {
+		return r.NewVerifier(ctx, src)
+	}
+	return verify.Build(ctx, r.Client, r.Namespace, src)
 }
 
 // operatorTooOld reports whether minVersion (a bundle's kestrelMinVersion)

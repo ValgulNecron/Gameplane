@@ -25,6 +25,13 @@ type ModuleSpec struct {
 	// new version appears.
 	// +optional
 	Version string `json:"version,omitempty"`
+
+	// Digest, when set, pins the exact bundle content (an OCI manifest
+	// digest like "sha256:…", "git:<sha>", or a sha256 content hash).
+	// Install fails with a DigestMismatch if the resolved bundle's digest
+	// differs, defeating a tag that was moved to point at new content.
+	// +optional
+	Digest string `json:"digest,omitempty"`
 }
 
 // ModuleStatus reports the state of a module install.

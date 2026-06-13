@@ -62,6 +62,13 @@ spec:
               reconciler pulls the referenced OCI artifact and materializes a
               GameTemplate owned by this Module.
             properties:
+              digest:
+                description: |-
+                  Digest, when set, pins the exact bundle content (an OCI manifest
+                  digest like "sha256:…", "git:<sha>", or a sha256 content hash).
+                  Install fails with a DigestMismatch if the resolved bundle's digest
+                  differs, defeating a tag that was moved to point at new content.
+                type: string
               name:
                 description: |-
                   Name is the module's logical name within the source. Must match

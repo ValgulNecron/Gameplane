@@ -15,7 +15,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/kestrel-gg/kestrel/operator/internal/verify"
 )
+
+// fakeVerifier stands in for the cosign verifier in envtests.
+type fakeVerifier struct{ err error }
+
+func (f fakeVerifier) Verify(context.Context, string, string) error { return f.err }
+
+func withModuleReconcilerVerifier(fake *fakeOCI, v verify.Verifier) setupReconciler {
+	return func(mgr manager.Manager) error {
+		return (&ModuleReconciler{
+			Client:     mgr.GetClient(),
+			Scheme:     mgr.GetScheme(),
+			NewFetcher: fakeOCIFetcher(fake),
+			NewVerifier: func(context.Context, *kestrelv1alpha1.ModuleSource) (verify.Verifier, error) {
+				return v, nil
+			},
+		}).SetupWithManager(mgr)
+	}
+}
 
 func withModuleReconciler(fake *fakeOCI) setupReconciler {
 	return func(mgr manager.Manager) error {

@@ -28,6 +28,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="!has(self.git) || self.type == 'git'",message="spec.git is only valid when spec.type is git"
 // +kubebuilder:validation:XValidation:rule="!has(self.http) || self.type == 'http'",message="spec.http is only valid when spec.type is http"
 // +kubebuilder:validation:XValidation:rule="!has(self.local) || self.type == 'local'",message="spec.local is only valid when spec.type is local"
+// +kubebuilder:validation:XValidation:rule="!has(self.verify) || self.type == 'oci'",message="spec.verify is only valid when spec.type is oci"
 type ModuleSourceSpec struct {
 	// Type selects where this source pulls modules from:
 	//   - oci:    an OCI registry holding module bundle artifacts
@@ -69,6 +70,43 @@ type ModuleSourceSpec struct {
 	// +kubebuilder:default="1h"
 	// +optional
 	RefreshInterval metav1.Duration `json:"refreshInterval,omitempty"`
+
+	// Verify, when set, requires every module bundle installed from this
+	// source to carry a valid cosign signature. Only valid for oci sources —
+	// cosign signatures are an OCI-registry concept; git/http/local/upload
+	// sources rely on the content digest plus a Module.spec.digest pin.
+	// +optional
+	Verify *VerifySpec `json:"verify,omitempty"`
+}
+
+// VerifySpec configures cosign signature verification for an oci source.
+// Exactly one of key or keyless must be set.
+//
+// +kubebuilder:validation:XValidation:rule="has(self.key) != has(self.keyless)",message="exactly one of verify.key or verify.keyless must be set"
+type VerifySpec struct {
+	// Key references a Secret in the operator namespace holding a PEM cosign
+	// public key under the "cosign.pub" data key, for keyed verification.
+	// +optional
+	Key *corev1.LocalObjectReference `json:"key,omitempty"`
+
+	// Keyless verifies a Fulcio-issued (keyless) signature against a pinned
+	// OIDC issuer and certificate identity.
+	// +optional
+	Keyless *KeylessVerifySpec `json:"keyless,omitempty"`
+}
+
+// KeylessVerifySpec pins the OIDC issuer and certificate identity a keyless
+// cosign signature must carry. Both are matched exactly.
+type KeylessVerifySpec struct {
+	// Issuer is the OIDC issuer URL embedded in the signing certificate
+	// (e.g. "https://token.actions.githubusercontent.com").
+	// +kubebuilder:validation:MinLength=1
+	Issuer string `json:"issuer"`
+
+	// Identity is the certificate SAN identity that must have produced the
+	// signature (e.g. a GitHub Actions workflow URL or a signer email).
+	// +kubebuilder:validation:MinLength=1
+	Identity string `json:"identity"`
 }
 
 // OCISourceSpec points at an OCI registry prefix that holds module
