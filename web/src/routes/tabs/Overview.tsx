@@ -50,7 +50,10 @@ export function OverviewTab({
   const memTotal = (status as unknown as { memoryTotalBytes?: number }).memoryTotalBytes ?? 0;
   const netRx = (status as unknown as { networkRxBps?: number }).networkRxBps ?? 0;
   const netTx = (status as unknown as { networkTxBps?: number }).networkTxBps ?? 0;
-  const players = agent?.playersOnline ?? 0;
+  // null/undefined playersOnline means "unknown" (RCON unavailable or a
+  // stale heartbeat the API blanked) — render "—", not a misleading 0.
+  const playersKnown = typeof agent?.playersOnline === "number" && agent.playersOnline >= 0;
+  const players = playersKnown ? (agent?.playersOnline as number) : 0;
   const playersMax = agent?.playersMax ?? 0;
   const events: Event[] = (status as unknown as { recentEvents?: Event[] }).recentEvents ?? [];
   const endpoints = status.endpoints ?? [];
@@ -86,9 +89,9 @@ export function OverviewTab({
           <MetricTile
             label="Players"
             icon={<UsersIcon className="h-4 w-4" />}
-            primary={`${players}`}
+            primary={playersKnown ? `${players}` : "—"}
             secondary={playersMax ? `of ${playersMax} slots` : "—"}
-            progress={playersMax ? (players / playersMax) * 100 : 0}
+            progress={playersKnown && playersMax ? (players / playersMax) * 100 : 0}
             accent="warning"
           />
         </div>
