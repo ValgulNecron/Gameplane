@@ -401,13 +401,25 @@ func TestHostAllowed(t *testing.T) {
 }
 
 func TestIsPublic(t *testing.T) {
-	blocked := []string{"127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.169.254", "::1", "0.0.0.0", "172.16.0.1"}
+	blocked := []string{
+		// stdlib-covered: loopback, private, link-local, unspecified
+		"127.0.0.1", "10.0.0.5", "192.168.1.1", "172.16.0.1",
+		"169.254.169.254", // cloud metadata endpoint (link-local)
+		"::1", "0.0.0.0", "fd00::1", "fc00::1", "fe80::1",
+		// IPv4-mapped IPv6 of the above must also be blocked
+		"::ffff:169.254.169.254", "::ffff:127.0.0.1", "::ffff:10.0.0.1",
+		// reserved/special-use ranges the stdlib predicates miss
+		"100.64.0.1", "100.127.255.255", // RFC 6598 CGNAT (k8s)
+		"192.0.2.1", "198.18.0.1", "198.51.100.1", "203.0.113.1",
+		"240.0.0.1", "255.255.255.255",
+		"64:ff9b::1.2.3.4", "2002::1", "2001:db8::1", "fec0::1",
+	}
 	for _, s := range blocked {
-		if isPublic(net.ParseIP(s)) {
+		if ip := net.ParseIP(s); ip == nil || isPublic(ip) {
 			t.Errorf("isPublic(%s) = true, want false", s)
 		}
 	}
-	for _, s := range []string{"8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"} {
+	for _, s := range []string{"8.8.8.8", "1.1.1.1", "9.9.9.9", "2606:4700:4700::1111"} {
 		if !isPublic(net.ParseIP(s)) {
 			t.Errorf("isPublic(%s) = false, want true", s)
 		}

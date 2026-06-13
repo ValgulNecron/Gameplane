@@ -326,7 +326,11 @@ func newSafeClient(allowed []string) *http.Client {
 	return &http.Client{
 		Timeout: 2 * time.Minute,
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
+			// No Proxy: a forward proxy from the pod env would make the
+			// Control IP guard validate only the proxy's address, letting
+			// the proxy reach an internal SSRF target. Dial directly so the
+			// guard always sees the real destination IP.
+			Proxy: nil,
 			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 				d := &net.Dialer{
 					Timeout: dialer.Timeout,
@@ -365,14 +369,60 @@ func newSafeClient(allowed []string) *http.Client {
 // permit loopback to reach an httptest server.
 var ipAllowed = isPublic
 
+// reservedBlocks are non-globally-routable ranges that Go's net.IP
+// predicates (IsPrivate/IsLoopback/…) miss but that we must still refuse:
+// most importantly RFC 6598 CGNAT (100.64.0.0/10), which several
+// Kubernetes setups (EKS custom networking, GKE, Cilium/Calico) use for
+// node/pod addressing — so a mod URL resolving there would reach
+// cluster-internal hosts. NAT64/6to4 translation prefixes and the
+// TEST-NET / reserved blocks are denied for the same defense-in-depth
+// reason.
+var reservedBlocks = func() []*net.IPNet {
+	cidrs := []string{
+		"100.64.0.0/10",   // RFC 6598 CGNAT (k8s node/pod ranges)
+		"192.0.0.0/24",    // IETF protocol assignments
+		"192.0.2.0/24",    // TEST-NET-1
+		"198.18.0.0/15",   // benchmarking
+		"198.51.100.0/24", // TEST-NET-2
+		"203.0.113.0/24",  // TEST-NET-3
+		"240.0.0.0/4",     // reserved / future use (incl. 255.255.255.255)
+		"64:ff9b::/96",    // NAT64 well-known prefix
+		"2001:db8::/32",   // documentation
+		"2002::/16",       // 6to4
+		"fec0::/10",       // deprecated site-local
+	}
+	out := make([]*net.IPNet, 0, len(cidrs))
+	for _, c := range cidrs {
+		if _, n, err := net.ParseCIDR(c); err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}()
+
 // isPublic reports whether ip is a globally routable unicast address —
-// i.e. not loopback, private (RFC1918 / ULA), link-local, multicast, or
-// unspecified. This is what blocks the agent from being tricked into
-// fetching cluster-internal services or the cloud metadata endpoint.
+// i.e. not loopback, private (RFC1918 / ULA), link-local, multicast,
+// unspecified, or one of the reserved/special-use ranges above. This is
+// what blocks the agent from being tricked into fetching cluster-internal
+// services or the cloud metadata endpoint.
 func isPublic(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
 		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() {
 		return false
+	}
+	// Normalize an IPv4-mapped IPv6 address (e.g. ::ffff:169.254.169.254)
+	// to its 4-byte form so the IPv4 reserved blocks match it.
+	norm := ip
+	if v4 := ip.To4(); v4 != nil {
+		norm = v4
+	}
+	for _, blk := range reservedBlocks {
+		if blk.Contains(norm) {
+			return false
+		}
 	}
 	return true
 }
