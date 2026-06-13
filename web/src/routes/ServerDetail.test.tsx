@@ -30,6 +30,43 @@ vi.mock("./tabs/Settings", () => ({ SettingsTab: () => <div>settings-tab</div> }
 
 import { ServerDetailPage } from "./ServerDetail";
 
+describe("ServerDetailPage lifecycle buttons", () => {
+  it("while Running: Stop/Restart enabled, Start hidden", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ status: { phase: "Running" } }))),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    // Wait for the loaded (Running) state — buttons exist but are disabled
+    // during the initial load.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Stop$/i })).not.toBeDisabled(),
+    );
+    expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Restart$/i })).not.toBeDisabled();
+  });
+
+  it("while Stopped: Start enabled, Stop/Restart disabled", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ status: { phase: "Stopped" } }))),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const start = await screen.findByRole("button", { name: /^Start$/i });
+    expect(start).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Stop$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Restart$/i })).toBeDisabled();
+  });
+
+  it("hides Start during a transitional phase (Starting)", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ status: { phase: "Starting" } }))),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("button", { name: /^Restart$/i });
+    expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Stop$/i })).toBeDisabled();
+  });
+});
+
 describe("ServerDetailPage", () => {
   it("renders the server name and overview tab by default", async () => {
     server.use(
