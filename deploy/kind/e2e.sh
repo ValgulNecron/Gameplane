@@ -61,6 +61,10 @@ EOF
     # invocation runs argon2id, which uses ~64Mi of working memory per
     # hash; the default limit OOM-kills the container under e2e's
     # frequent BootstrapAdmin/APIClient calls. 512Mi is comfortable.
+    # Disable the default upstream ModuleSource: it points at a public OCI
+    # registry the e2e cluster can't reach, so `--wait` would block on it
+    # (kstatus reports the never-indexed source as InProgress) until timeout.
+    # The module e2e tests provision their own in-cluster registry + source.
     helm upgrade --install kestrel "${CHART_DIR}" \
         --namespace kestrel-system --create-namespace \
         --set "image.registry=kestrel-test" \
@@ -68,6 +72,7 @@ EOF
         --set "ingress.enabled=false" \
         --set "operator.agentImage=kestrel-test/agent:${TAG}" \
         --set "api.resources.limits.memory=512Mi" \
+        --set "defaultModuleSource.enabled=false" \
         --wait --timeout 5m
 
     echo
