@@ -27,6 +27,17 @@ func withModuleReconciler(fake *fakeOCI) setupReconciler {
 	}
 }
 
+func withModuleReconcilerVersion(fake *fakeOCI, version string) setupReconciler {
+	return func(mgr manager.Manager) error {
+		return (&ModuleReconciler{
+			Client:          mgr.GetClient(),
+			Scheme:          mgr.GetScheme(),
+			OperatorVersion: version,
+			NewFetcher:      fakeOCIFetcher(fake),
+		}).SetupWithManager(mgr)
+	}
+}
+
 // createIndexedSource is a test helper: creates a ModuleSource and
 // directly seeds its status.modules so the Module reconciler doesn't
 // have to wait for a separate ModuleSourceReconciler in this test.

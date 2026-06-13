@@ -78,6 +78,34 @@ func TestOwnedBy(t *testing.T) {
 	})
 }
 
+func TestOperatorTooOld(t *testing.T) {
+	cases := []struct {
+		name       string
+		operator   string
+		minVersion string
+		want       bool
+	}{
+		{"older operator blocked", "0.1.0", "0.2.0", true},
+		{"older operator blocked, v-prefixed", "v0.1.0", "v0.2.0", true},
+		{"equal ok", "0.2.0", "0.2.0", false},
+		{"newer operator ok", "1.0.0", "0.2.0", false},
+		{"no requirement", "0.1.0", "", false},
+		{"dev operator skips", "dev", "9.9.9", false},
+		{"empty operator skips", "", "9.9.9", false},
+		{"unparseable requirement skips", "0.1.0", "not-semver", false},
+		{"unparseable operator skips", "weird", "0.2.0", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &ModuleReconciler{OperatorVersion: tc.operator}
+			if got := r.operatorTooOld(tc.minVersion); got != tc.want {
+				t.Errorf("operatorTooOld(%q) with operator %q = %v, want %v",
+					tc.minVersion, tc.operator, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestModuleReconciler_FetcherFor_DefaultPath(t *testing.T) {
 	// When the NewFetcher hook is unset, fetcherFor must build a real
 	// fetcher from the source spec. No PullSecretRef → no client call.

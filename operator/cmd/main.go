@@ -23,6 +23,11 @@ import (
 
 var scheme = runtime.NewScheme()
 
+// Version is the operator build version, overridden at build time via
+// -ldflags. Compared against a module bundle's kestrelMinVersion to refuse
+// modules that need a newer operator. Mirrors api/cmd and agent/cmd.
+var Version = "dev"
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(kestrelv1alpha1.AddToScheme(scheme))
@@ -142,10 +147,11 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.ModuleReconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		Namespace:    moduleNamespace,
-		FetchOptions: fetchOptions,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Namespace:       moduleNamespace,
+		OperatorVersion: Version,
+		FetchOptions:    fetchOptions,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "Module")
 		os.Exit(1)

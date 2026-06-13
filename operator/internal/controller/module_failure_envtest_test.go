@@ -4,12 +4,15 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
 )
 
 // TestModule_SourceNotFound — referencing a non-existent ModuleSource
@@ -78,6 +81,66 @@ func TestModule_VersionNotInCatalog(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// TestModule_IncompatibleOperator — a bundle whose kestrelMinVersion is
+// newer than the operator must end in Phase=Failed with a clear message, and
+// must NOT materialize a GameTemplate.
+func TestModule_IncompatibleOperator(t *testing.T) {
+	_ = newNamespace(t)
+	fake := newFakeOCI()
+	startMgr(t, "kestrel-system", withModuleReconcilerVersion(fake, "0.1.0"))
+
+	const ref = "local/test/minecraft-java"
+	fake.putBundle(ref, "1.0.0", fakeArtifact{
+		digest: "sha256:mc-1.0.0",
+		files: map[string][]byte{
+			modsrc.FileMetadata: []byte("apiVersion: kestrel.gg/module/v1\n" +
+				"name: minecraft-java\nversion: 1.0.0\ngame: minecraft-java\n" +
+				"kestrelMinVersion: 9.9.9\n"),
+			modsrc.FileTemplate: []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\n" +
+				"spec:\n  displayName: MC\n  game: minecraft-java\n  version: 1.0.0\n" +
+				"  image: ghcr.io/test/mc:1.0.0\n"),
+		},
+	})
+
+	srcName := uniqueName("modsrc")
+	createIndexedSource(t, srcName, "local/test", fake, []kestrelv1alpha1.ModuleEntry{{
+		Name:          "minecraft-java",
+		Reference:     ref,
+		Versions:      []string{"1.0.0"},
+		LatestVersion: "1.0.0",
+	}})
+
+	modName := uniqueName("mod-incompat")
+	mod := &kestrelv1alpha1.Module{
+		ObjectMeta: metav1.ObjectMeta{Name: modName},
+		Spec: kestrelv1alpha1.ModuleSpec{
+			Source: corev1.LocalObjectReference{Name: srcName},
+			Name:   "minecraft-java",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), mod); err != nil {
+		t.Fatalf("create module: %v", err)
+	}
+	deleteCleanup(t, mod)
+
+	eventually(t, func() (bool, string) {
+		got := getModule(t, modName)
+		if got.Status.Phase != kestrelv1alpha1.ModulePhaseFailed {
+			return false, "phase=" + got.Status.Phase
+		}
+		if !strings.Contains(got.Status.LastError, "requires Kestrel") {
+			return false, "lastError=" + got.Status.LastError
+		}
+		return true, ""
+	})
+
+	// The incompatible module must not have produced a GameTemplate.
+	var tmpl kestrelv1alpha1.GameTemplate
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err == nil {
+		t.Fatalf("GameTemplate %q should not exist for an incompatible module", modName)
+	}
 }
 
 // TestModule_WaitingForCatalog — the source exists but doesn't (yet)

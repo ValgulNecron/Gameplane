@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
+	"golang.org/x/mod/semver"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +30,11 @@ type ModuleReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
 	Namespace string
+
+	// OperatorVersion is this operator's build version, compared against a
+	// bundle's kestrelMinVersion to refuse modules that need a newer
+	// operator. Empty or "dev" disables the check.
+	OperatorVersion string
 
 	// FetchOptions carries operator-level fetcher config (CLI flags).
 	FetchOptions modsrc.Options
@@ -106,6 +113,15 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	bundle, err := fetcher.Pull(ctx, mod.Spec.Name, desiredVersion)
 	if err != nil {
 		return r.markFailed(ctx, &mod, "PullFailed", err)
+	}
+
+	// Refuse a bundle that needs a newer operator than this one — the
+	// reconciler can't honor capabilities it doesn't understand. Leaving the
+	// previously-applied GameTemplate untouched here is intentional.
+	if r.operatorTooOld(bundle.Metadata.KestrelMinVersion) {
+		return r.markFailed(ctx, &mod, "IncompatibleOperator",
+			fmt.Errorf("module %q requires Kestrel >= %s but this operator is %s",
+				mod.Spec.Name, bundle.Metadata.KestrelMinVersion, r.OperatorVersion))
 	}
 
 	// Materialize a GameTemplate.
@@ -315,6 +331,22 @@ func (r *ModuleReconciler) fetcherFor(ctx context.Context, src *kestrelv1alpha1.
 		return r.NewFetcher(ctx, src)
 	}
 	return modsrc.ForSource(ctx, r.Client, r.Namespace, src, r.FetchOptions)
+}
+
+// operatorTooOld reports whether minVersion (a bundle's kestrelMinVersion)
+// is newer than this operator. It is conservative: an empty requirement, a
+// "dev"/empty operator build, or either value failing to parse as semver all
+// skip the gate so local and pre-release clusters keep working.
+func (r *ModuleReconciler) operatorTooOld(minVersion string) bool {
+	if minVersion == "" || r.OperatorVersion == "" || r.OperatorVersion == "dev" {
+		return false
+	}
+	have := "v" + strings.TrimPrefix(r.OperatorVersion, "v")
+	want := "v" + strings.TrimPrefix(minVersion, "v")
+	if !semver.IsValid(have) || !semver.IsValid(want) {
+		return false
+	}
+	return semver.Compare(have, want) < 0
 }
 
 func byCatalogName(entries []kestrelv1alpha1.ModuleEntry, name string) *kestrelv1alpha1.ModuleEntry {
