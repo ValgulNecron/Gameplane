@@ -59,13 +59,27 @@ type Client struct {
 	addr     string
 	password PassFn
 
+	// execDeadline bounds a single command exchange (see Exec).
+	execDeadline time.Duration
+
 	mu     sync.Mutex
 	conn   net.Conn
 	nextID uint32
 }
 
+// defaultExecDeadline bounds a command's request/response exchange.
+// ensureLocked clears the auth deadline on success, so without a fresh
+// per-call deadline a wedged server would block readPacket forever while
+// holding c.mu — stalling every caller that shares the client
+// (heartbeat, players, quiesce, console).
+const defaultExecDeadline = 30 * time.Second
+
 func New(host string, port int, pw PassFn) *Client {
-	return &Client{addr: net.JoinHostPort(host, fmt.Sprint(port)), password: pw}
+	return &Client{
+		addr:         net.JoinHostPort(host, fmt.Sprint(port)),
+		password:     pw,
+		execDeadline: defaultExecDeadline,
+	}
 }
 
 // Exec runs one RCON command and returns the concatenated response.
@@ -76,6 +90,17 @@ func (c *Client) Exec(cmd string) (string, error) {
 	if err := c.ensureLocked(); err != nil {
 		return "", err
 	}
+
+	// Bound the whole exchange. Capture the conn locally: dropLocked may
+	// nil out c.conn on error, but resetting the deadline on the (now
+	// closed) connection is harmless.
+	conn := c.conn
+	d := c.execDeadline
+	if d <= 0 {
+		d = defaultExecDeadline
+	}
+	_ = conn.SetDeadline(time.Now().Add(d))
+	defer func() { _ = conn.SetDeadline(time.Time{}) }()
 
 	reqID := c.allocID()
 	if err := c.writePacket(reqID, typeExecCmd, cmd); err != nil {
