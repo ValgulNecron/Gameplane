@@ -129,7 +129,12 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.markFailed(ctx, &mod, "ApplyTemplate", err)
 	}
 
-	// Update Status to Ready.
+	// Update Status to Ready. Record the version being replaced as the
+	// rollback target before overwriting it (only when it actually changes).
+	if mod.Status.AppliedVersion != "" && mod.Status.AppliedVersion != desiredVersion {
+		mod.Status.PreviousVersion = mod.Status.AppliedVersion
+		mod.Status.PreviousDigest = mod.Status.AppliedDigest
+	}
 	mod.Status.Phase = kestrelv1alpha1.ModulePhaseReady
 	mod.Status.AppliedVersion = desiredVersion
 	mod.Status.AppliedDigest = bundle.Digest

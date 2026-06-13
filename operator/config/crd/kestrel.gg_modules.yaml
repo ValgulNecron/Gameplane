@@ -192,6 +192,17 @@ spec:
                 - Ready
                 - Failed
                 type: string
+              previousDigest:
+                description: PreviousDigest is the bundle digest that backed PreviousVersion.
+                type: string
+              previousVersion:
+                description: |-
+                  PreviousVersion is the version that was applied before the current
+                  AppliedVersion. It records the last-known-good to roll back to (by
+                  re-pinning spec.version) and is updated only when AppliedVersion
+                  actually changes. A failed upgrade leaves AppliedVersion — and so the
+                  running GameTemplate — untouched, so this is not overwritten then.
+                type: string
             type: object
         type: object
     served: true

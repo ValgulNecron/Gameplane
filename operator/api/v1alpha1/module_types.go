@@ -57,6 +57,18 @@ type ModuleStatus struct {
 	// +optional
 	AppliedTemplate string `json:"appliedTemplate,omitempty"`
 
+	// PreviousVersion is the version that was applied before the current
+	// AppliedVersion. It records the last-known-good to roll back to (by
+	// re-pinning spec.version) and is updated only when AppliedVersion
+	// actually changes. A failed upgrade leaves AppliedVersion — and so the
+	// running GameTemplate — untouched, so this is not overwritten then.
+	// +optional
+	PreviousVersion string `json:"previousVersion,omitempty"`
+
+	// PreviousDigest is the bundle digest that backed PreviousVersion.
+	// +optional
+	PreviousDigest string `json:"previousDigest,omitempty"`
+
 	// LastError is a short human-readable message for the most recent
 	// failed reconcile. Cleared on success.
 	// +optional
