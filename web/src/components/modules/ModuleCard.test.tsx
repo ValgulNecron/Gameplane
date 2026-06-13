@@ -103,4 +103,55 @@ describe("ModuleCard", () => {
     );
     expect(screen.getByText("3 sources")).toBeInTheDocument();
   });
+
+  it("renders a keyless verify badge", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({})}
+        verify={{ mode: "keyless", enforced: false, mixed: false }}
+        {...handlers}
+      />,
+    );
+    expect(screen.getByText("keyless")).toBeInTheDocument();
+  });
+
+  it("renders a 'signed' badge for keyed verification", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({})}
+        verify={{ mode: "keyed", enforced: true, mixed: false }}
+        {...handlers}
+      />,
+    );
+    expect(screen.getByText("signed")).toBeInTheDocument();
+  });
+
+  it("renders no verify badge when unsigned", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({})}
+        verify={{ mode: "none", enforced: false, mixed: false }}
+        {...handlers}
+      />,
+    );
+    expect(screen.queryByText("keyless")).not.toBeInTheDocument();
+    expect(screen.queryByText("signed")).not.toBeInTheDocument();
+  });
+
+  it("shows the bundle digest and rollback target", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({
+          installed: true,
+          installedVersion: "1.21",
+          phase: "Ready",
+          appliedDigest: "sha256:a1b2c3d4e5f6a7b8c9d0e1f2",
+          previousVersion: "1.20",
+        })}
+        {...handlers}
+      />,
+    );
+    expect(screen.getByText(/sha256:a1b2c3d4/)).toBeInTheDocument();
+    expect(screen.getByText(/rollback target/)).toBeInTheDocument();
+  });
 });

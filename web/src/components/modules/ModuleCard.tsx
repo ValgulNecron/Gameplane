@@ -1,13 +1,25 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpCircle, Download, ExternalLink, Loader2 } from "lucide-react";
+import {
+  ArrowUpCircle,
+  Download,
+  ExternalLink,
+  Fingerprint,
+  History,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GameIcon } from "@/components/ui/game-icon";
 import { cn } from "@/lib/utils";
+import type { EntryVerify } from "@/lib/verify";
 import type { CatalogEntry } from "@/types";
 
 interface ModuleCardProps {
   entry: CatalogEntry;
+  // Verification posture for this entry, joined client-side from the
+  // sources list by the parent (see lib/verify.verifyForEntry).
+  verify?: EntryVerify;
   onInstall: (entry: CatalogEntry) => void;
   onUpgrade: (entry: CatalogEntry) => void;
   onUninstall: (entry: CatalogEntry) => void;
@@ -20,7 +32,14 @@ interface ModuleCardProps {
 //   - installed, current → "Deploy" (navigate to /servers/new)
 //   - upgrade available → "Upgrade"
 //   - phase != Ready    → render the phase + spinner (no actions)
-export function ModuleCard({ entry, onInstall, onUpgrade, onUninstall, busy }: ModuleCardProps) {
+export function ModuleCard({
+  entry,
+  verify,
+  onInstall,
+  onUpgrade,
+  onUninstall,
+  busy,
+}: ModuleCardProps) {
   const upgradeAvailable =
     entry.installed &&
     entry.installedVersion &&
@@ -37,17 +56,36 @@ export function ModuleCard({ entry, onInstall, onUpgrade, onUninstall, busy }: M
     ? `v${entry.latestVersion}`
     : "no published versions";
 
+  // Installed entries show the digest of the running bundle; catalog
+  // entries show the latest available digest.
+  const digest = entry.appliedDigest ?? entry.digest;
+
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <GameIcon game={entry.game ?? entry.name} size="md" />
-        <StatusPill entry={entry} />
+        <div className="flex items-center gap-1.5">
+          {verify && <VerifyBadge verify={verify} />}
+          <StatusPill entry={entry} />
+        </div>
       </div>
       <div>
         <div className="font-medium text-fg">
           {entry.displayName ?? entry.name}
         </div>
         <div className="pt-0.5 font-mono text-[11px] text-muted">{versionLabel}</div>
+        {digest && (
+          <div className="flex items-center gap-1 pt-0.5 font-mono text-[10px] text-muted">
+            <Fingerprint className="h-3 w-3 shrink-0" />
+            <span className="truncate">{shortDigest(digest)}</span>
+          </div>
+        )}
+        {entry.installed && entry.previousVersion && (
+          <div className="flex items-center gap-1 pt-0.5 text-[10px] text-muted">
+            <History className="h-3 w-3 shrink-0" />
+            rollback target · v{entry.previousVersion}
+          </div>
+        )}
       </div>
       <p className="line-clamp-3 flex-1 text-xs text-muted">
         {entry.summary ?? "No summary."}
@@ -100,6 +138,30 @@ export function ModuleCard({ entry, onInstall, onUpgrade, onUninstall, busy }: M
       </div>
     </Card>
   );
+}
+
+// VerifyBadge surfaces a source's cosign policy. Absence of a badge is the
+// neutral state — we never render a red "unsigned" badge, which would be
+// noise on every community module.
+function VerifyBadge({ verify }: { verify: EntryVerify }) {
+  if (verify.mode === "none") return null;
+  const label = verify.mode === "keyless" ? "keyless" : "signed";
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 font-mono text-[10px] uppercase text-success">
+      <ShieldCheck className="h-3 w-3" />
+      {label}
+    </span>
+  );
+}
+
+// shortDigest trims a "<algo>:<hash>" digest to a glanceable form, keeping
+// the algorithm prefix and head/tail of the hash.
+function shortDigest(d: string): string {
+  const idx = d.indexOf(":");
+  const algo = idx >= 0 ? d.slice(0, idx) : "";
+  const hash = idx >= 0 ? d.slice(idx + 1) : d;
+  const short = hash.length > 16 ? `${hash.slice(0, 8)}…${hash.slice(-4)}` : hash;
+  return algo ? `${algo}:${short}` : short;
 }
 
 function StatusPill({ entry }: { entry: CatalogEntry }) {

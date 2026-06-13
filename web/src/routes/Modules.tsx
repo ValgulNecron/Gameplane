@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
+import { verifyForEntry } from "@/lib/verify";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +156,7 @@ export function ModulesPage() {
           <ModuleCard
             key={entry.name}
             entry={entry}
+            verify={verifyForEntry(entry, sourcesData?.items ?? [])}
             onInstall={setInstallTarget}
             onUpgrade={(e) => {
               if (!e.moduleName || !e.latestVersion) return;
