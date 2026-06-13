@@ -21542,24 +21542,69 @@
                             },
                             {
                               "type": "frame",
-                              "id": "roQCB",
-                              "name": "mc1Bdg",
-                              "fill": "$c:--color-success",
-                              "cornerRadius": 4,
-                              "padding": [
-                                2,
-                                8
-                              ],
+                              "id": "uJnQ8",
+                              "name": "mc1Badges",
+                              "gap": 6,
                               "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "text",
-                                  "id": "r1ZrO",
-                                  "fill": "$c:--color-success-foreground",
-                                  "content": "installed",
-                                  "fontFamily": "$c:--font-primary",
-                                  "fontSize": 10,
-                                  "fontWeight": "600"
+                                  "type": "frame",
+                                  "id": "H4UxyC",
+                                  "name": "mc1Verify",
+                                  "fill": "$c:--color-success",
+                                  "cornerRadius": 4,
+                                  "gap": 3,
+                                  "padding": [
+                                    2,
+                                    8
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "uFJFC",
+                                      "name": "vIcon",
+                                      "width": 11,
+                                      "height": 11,
+                                      "icon": "verified_user",
+                                      "library": "Material Symbols Sharp",
+                                      "weight": 400,
+                                      "fill": "$c:--color-success-foreground"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "lnyJw",
+                                      "name": "vLabel",
+                                      "fill": "$c:--color-success-foreground",
+                                      "content": "keyless",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 10,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "roQCB",
+                                  "name": "mc1Bdg",
+                                  "fill": "$c:--color-success",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    2,
+                                    8
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "r1ZrO",
+                                      "fill": "$c:--color-success-foreground",
+                                      "content": "installed",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 10,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
                                 }
                               ]
                             }
@@ -21585,6 +21630,76 @@
                           "fontFamily": "$c:--font-secondary",
                           "fontSize": 12,
                           "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "yAqcQ",
+                          "name": "mc1Meta",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 3,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "FY1pk",
+                              "name": "mc1Digest",
+                              "gap": 5,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "iw8ju",
+                                  "name": "dIcon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "icon": "fingerprint",
+                                  "library": "Material Symbols Sharp",
+                                  "weight": 400,
+                                  "fill": "$c:--muted-foreground"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "mOCZK",
+                                  "name": "dText",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "sha256:a1b2c3d4…e2f",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "KH8i4",
+                              "name": "mc1Rollback",
+                              "gap": 5,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "qUBkQ",
+                                  "name": "rIcon",
+                                  "width": 12,
+                                  "height": 12,
+                                  "icon": "history",
+                                  "library": "Material Symbols Sharp",
+                                  "weight": 400,
+                                  "fill": "$c:--muted-foreground"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "FWEM1",
+                                  "name": "rText",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "rollback target · v1.21.3",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
                         },
                         {
                           "type": "frame",
@@ -39465,6 +39580,43 @@
                               "letterSpacing": 0.5
                             }
                           ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "KfYf2",
+                          "name": "spVerify",
+                          "fill": "$c:--color-success",
+                          "cornerRadius": 4,
+                          "gap": 3,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "v7HLtk",
+                              "name": "spvIcon",
+                              "width": 10,
+                              "height": 10,
+                              "icon": "verified_user",
+                              "library": "Material Symbols Sharp",
+                              "weight": 400,
+                              "fill": "$c:--color-success-foreground"
+                            },
+                            {
+                              "type": "text",
+                              "id": "A85cr",
+                              "name": "spvLabel",
+                              "fill": "$c:--color-success-foreground",
+                              "content": "KEYLESS",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 9,
+                              "fontWeight": "600",
+                              "letterSpacing": 0.5
+                            }
+                          ]
                         }
                       ]
                     },
@@ -39586,10 +39738,10 @@
                   "name": "spStatus",
                   "width": 16,
                   "height": 16,
-                  "icon": "check_circle",
+                  "icon": "sync_problem",
                   "library": "Material Symbols Sharp",
                   "weight": 400,
-                  "fill": "$c:--color-success-foreground"
+                  "fill": "$c:--color-warning-foreground"
                 },
                 {
                   "type": "frame",
@@ -39697,8 +39849,8 @@
                       "type": "text",
                       "id": "llS7O",
                       "name": "spMetaLabel",
-                      "fill": "$c:--muted-foreground",
-                      "content": "5 modules · synced 5m ago",
+                      "fill": "$c:--color-warning-foreground",
+                      "content": "serving stale catalog · sync failed 8m ago",
                       "fontFamily": "$c:--font-secondary",
                       "fontSize": 10,
                       "fontWeight": "normal"
@@ -40467,6 +40619,201 @@
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
                   "content": "Secret with token / username+password (https) or ssh-privatekey + known_hosts (ssh). Optional.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "L0O9qc",
+              "name": "asField Verify",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 5,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zhhXM",
+                  "name": "asLabel",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Signature verification",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "H4BD3g",
+                  "name": "asBox",
+                  "width": "fill_container",
+                  "height": 38,
+                  "stroke": "$c:--input",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "mBtfT",
+                      "name": "asValue",
+                      "fill": "$c:--foreground",
+                      "content": "Keyless (Fulcio)",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "vmT1m",
+                      "name": "asChevron",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "keyboard_arrow_down",
+                      "library": "Material Symbols Sharp",
+                      "weight": 400,
+                      "fill": "$c:--muted-foreground"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "u99FZ",
+                  "name": "asHint",
+                  "fill": "$c:--muted-foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Require a valid cosign signature on every bundle. OCI sources only.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yrY3J",
+              "name": "asField Issuer",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 5,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "FkRFe",
+                  "name": "asLabel",
+                  "fill": "$c:--muted-foreground",
+                  "content": "OIDC issuer",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "CVMKY",
+                  "name": "asBox",
+                  "width": "fill_container",
+                  "height": 38,
+                  "stroke": "$c:--input",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Y7niv",
+                      "name": "asValue",
+                      "fill": "$c:--foreground",
+                      "content": "https://token.actions.githubusercontent.com",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "q3vZY",
+                  "name": "asHint",
+                  "fill": "$c:--muted-foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Issuer embedded in the signing certificate.",
+                  "lineHeight": 1.4,
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "y8TxT",
+              "name": "asField Identity",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 5,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "i3dTP",
+                  "name": "asLabel",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Certificate identity",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "bPQrH",
+                  "name": "asBox",
+                  "clip": true,
+                  "width": "fill_container",
+                  "height": 38,
+                  "stroke": "$c:--input",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XgWRM",
+                      "name": "asValue",
+                      "fill": "$c:--foreground",
+                      "content": "github.com/kestrel-gg/modules/.github/workflows/release.yml",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "UdJDJ",
+                  "name": "asHint",
+                  "fill": "$c:--muted-foreground",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "SAN identity that must have produced the signature.",
                   "lineHeight": 1.4,
                   "fontFamily": "$c:--font-secondary",
                   "fontSize": 10,
