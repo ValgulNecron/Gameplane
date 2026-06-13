@@ -357,6 +357,21 @@ export interface LocalSourceSpec {
   path?: string;
 }
 
+// Keyless (Fulcio) cosign verification: the signing certificate must carry
+// this OIDC issuer and SAN identity.
+export interface ModuleVerifyKeyless {
+  issuer: string;
+  identity: string;
+}
+
+// Cosign signature policy mirroring ModuleSource.spec.verify. Exactly one of
+// key/keyless is set. The CRD restricts verify to OCI sources via CEL.
+export interface ModuleVerifySpec {
+  // Keyed verification: a Secret holding the cosign public key (cosign.pub).
+  key?: { name: string };
+  keyless?: ModuleVerifyKeyless;
+}
+
 // Discriminated union mirroring ModuleSourceSpec on the CRD: exactly
 // the nested config matching `type` is set (upload needs none).
 export interface ModuleSourceSpec {
@@ -367,6 +382,8 @@ export interface ModuleSourceSpec {
   local?: LocalSourceSpec;
   allow?: string[];
   refreshInterval?: string;
+  // Only meaningful for OCI sources (CEL-enforced on the CRD).
+  verify?: ModuleVerifySpec;
 }
 
 export interface ModuleEntry {
@@ -418,6 +435,8 @@ export interface Module {
     appliedVersion?: string;
     appliedDigest?: string;
     appliedTemplate?: string;
+    previousVersion?: string;
+    previousDigest?: string;
     lastError?: string;
     conditions?: Array<{
       type: string;
@@ -447,4 +466,7 @@ export interface CatalogEntry {
   moduleName?: string;    // Module CR name (= GameTemplate name)
   phase?: ModulePhase;
   lastError?: string;
+  appliedDigest?: string;    // digest of the installed bundle
+  previousVersion?: string;  // rollback target (operator-owned)
+  previousDigest?: string;
 }
