@@ -16,11 +16,11 @@ import {
   Users,
 } from "lucide-react";
 import { APIError } from "@/lib/api";
-import { Auth, Cluster as ClusterAPI } from "@/lib/endpoints";
+import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
 import { useMe } from "@/lib/auth";
 import type { ClusterInfo, User } from "@/types";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 function useClusterInfo() {
   return useQuery({
@@ -188,15 +188,10 @@ function Topbar({ user }: { user?: User }) {
     <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-6">
       <Breadcrumbs items={crumbs} />
       <div className="flex items-center gap-3">
-        <div className="relative hidden w-72 md:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input
-            type="search"
-            placeholder="Search…"
-            className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-none"
-          />
-        </div>
+        <GlobalSearch />
         <button
+          type="button"
+          aria-label="Notifications"
           title="Notifications"
           className="relative rounded-md p-2 text-muted hover:bg-surface hover:text-fg"
         >
@@ -208,6 +203,76 @@ function Topbar({ user }: { user?: User }) {
         </div>
       </div>
     </header>
+  );
+}
+
+// GlobalSearch is the header search box. It filters the (cached) server
+// list by name and shows a dropdown of matches; selecting one navigates
+// to its detail page. Enter jumps to the first match.
+function GlobalSearch() {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["servers"],
+    queryFn: () => Servers.list(),
+    staleTime: 10_000,
+  });
+  const query = q.trim().toLowerCase();
+  const matches =
+    query.length > 0
+      ? (data?.items ?? [])
+          .filter((s) => s.metadata.name.toLowerCase().includes(query))
+          .slice(0, 6)
+      : [];
+
+  return (
+    <div className="relative hidden w-72 md:block">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+      <input
+        type="search"
+        aria-label="Search servers"
+        placeholder="Search servers…"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        // Delay so a result click registers before the dropdown unmounts.
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+          if (e.key === "Enter" && matches.length > 0) {
+            location.assign(`/servers/${matches[0].metadata.name}`);
+          }
+        }}
+        className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-none"
+      />
+      {open && query.length > 0 && (
+        <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
+          {matches.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted">No servers match.</li>
+          ) : (
+            matches.map((s) => (
+              <li key={s.metadata.name}>
+                <Link
+                  to="/servers/$name"
+                  params={{ name: s.metadata.name }}
+                  onClick={() => {
+                    setOpen(false);
+                    setQ("");
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-fg hover:bg-surface"
+                >
+                  <Server className="h-3.5 w-3.5 text-muted" />
+                  <span className="truncate font-mono">{s.metadata.name}</span>
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 
