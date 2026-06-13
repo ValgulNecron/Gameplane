@@ -196,6 +196,19 @@ this as a clear "still in use by N servers" message.
 
 (Most of what follows is unchanged from the pre-OCI authoring guide.)
 
+### Branding
+
+```yaml
+spec:
+  icon: icon.png            # bundle file or URL/data-URI shown in the catalog
+  accentColor: "#5b9a3e"    # CSS hex; tints this game's icon + accents
+```
+
+`accentColor` is how a module carries its own brand color into the
+dashboard — the app no longer hardcodes a per-game palette, so a new
+game shows the right color without any frontend change. Omit it for a
+neutral default.
+
 ### Config schema → wizard
 
 Declared `configSchema` fields become inputs in the "New server"
@@ -348,6 +361,77 @@ capabilities:
   best-effort runs `unquiesce` so the game is never left paused.
   Games that can't quiesce simply omit the block; backups proceed
   without pausing.
+
+> The agent has **no per-game special-casing** — every capability above
+> (and the two below) comes from this block. A template that declares
+> nothing reports those features unsupported and the UI hides them.
+
+#### Actions
+
+`capabilities.actions` declares named operator buttons on the server
+detail page. Each runs a console command built from a Go `text/template`
+rendered with the parameters the user fills in, sent over RCON.
+
+```yaml
+capabilities:
+  actions:
+    - id: broadcast                 # stable, unique within the template
+      displayName: Broadcast message
+      description: Send a chat message to everyone.   # shown in the dialog
+      icon: megaphone               # optional lucide-react icon name
+      command: "say {{.Params.message}}"
+      params:
+        - name: message             # referenced as {{.Params.message}}
+          displayName: Message
+          type: string              # string | int | bool | enum
+          required: true
+    - id: set-weather
+      displayName: Set weather
+      command: "weather {{.Params.weather}}"
+      confirm: false                # require a confirm step in the UI
+      danger: false                 # red styling for destructive actions
+      params:
+        - name: weather
+          type: enum
+          enum: ["clear", "rain", "thunder"]
+          default: clear
+    - id: save-world
+      displayName: Save world
+      command: "save-all"           # no params is fine
+```
+
+- Parameter values are validated by `type` and sanitized before
+  rendering: CR/LF and other control characters are rejected so a value
+  can never chain a second RCON command. `int`/`bool`/`enum` values must
+  parse/match; missing optional params fall back to `default`.
+- A command template that fails to parse disables only that one action
+  (logged), never the whole panel.
+
+#### Status
+
+`capabilities.status.metrics` declares live readouts on the Overview
+tab. Each runs an RCON command and extracts a value via a named-group
+regex (the group must be `value`).
+
+```yaml
+capabilities:
+  status:
+    metrics:
+      - id: seed
+        displayName: World seed
+        command: "seed"
+        regex: 'Seed: \[(?P<value>-?\d+)\]'
+      - id: difficulty
+        displayName: Difficulty
+        command: "difficulty"
+        regex: 'The difficulty is (?P<value>\w+)'
+        unit: ""                    # optional suffix, e.g. "ms", "TPS"
+```
+
+Values are cached for a few seconds. A metric whose command errors or
+doesn't match this cycle is shown with an empty value rather than
+dropped, so the panel layout stays stable. When the game has no RCON the
+endpoint returns nothing and the dashboard omits the panel.
 
 ### Probes
 

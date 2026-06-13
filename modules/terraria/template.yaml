@@ -11,6 +11,8 @@ spec:
   displayName: Terraria
   game: terraria
   version: 1.0.0
+  # Brand color the dashboard tints this game's icon/accents with.
+  accentColor: "#4a90d9"
   description: |
     Terraria dedicated server using [ryshe/terraria](https://github.com/ryshe/terraria-docker).
     Supports world generation, autosave, and console commands via the
