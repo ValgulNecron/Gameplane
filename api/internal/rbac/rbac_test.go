@@ -68,6 +68,12 @@ func TestAllow(t *testing.T) {
 		{RoleAdmin, "POST", "/servers/foo/actions/run", true},
 		{RoleViewer, "GET", "/servers/foo/status", true},
 		{RoleOperator, "GET", "/servers/foo/status", true},
+		// Mods: listing is viewer+, install/remove are operator+.
+		{RoleViewer, "GET", "/servers/foo/mods", true},
+		{RoleViewer, "POST", "/servers/foo/mods/install", false},
+		{RoleOperator, "POST", "/servers/foo/mods/install", true},
+		{RoleViewer, "DELETE", "/servers/foo/mods", false},
+		{RoleOperator, "DELETE", "/servers/foo/mods", true},
 		// Module + module-source management is admin-only; reads stay
 		// viewer-accessible.
 		{RoleViewer, "GET", "/modules/catalog", true},

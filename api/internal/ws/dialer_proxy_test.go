@@ -92,6 +92,9 @@ func TestMount_ActionsAndStatusRouted(t *testing.T) {
 	}{
 		{"POST", "/servers/alpha/actions/run"},
 		{"GET", "/servers/alpha/status"},
+		{"GET", "/servers/alpha/mods"},
+		{"POST", "/servers/alpha/mods/install"},
+		{"DELETE", "/servers/alpha/mods"},
 	}
 	for _, tc := range cases {
 		rr := httptest.NewRecorder()

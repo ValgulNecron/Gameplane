@@ -65,6 +65,12 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	// the status read is a GET → viewer+.
 	r.Post("/servers/{name}/actions/run", p.httpProxy("/actions/run"))
 	r.Get("/servers/{name}/status", p.httpProxy("/status"))
+	// Mod/plugin management. Listing is a GET → viewer+; install (POST)
+	// and remove (DELETE) are mutations → operator+, by the same rbac
+	// method+segment rules as the rest of /servers.
+	r.Get("/servers/{name}/mods", p.httpProxy("/mods"))
+	r.Post("/servers/{name}/mods/install", p.httpProxy("/mods/install"))
+	r.Delete("/servers/{name}/mods", p.httpProxy("/mods"))
 }
 
 type proxy struct {
