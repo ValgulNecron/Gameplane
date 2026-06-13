@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -70,6 +69,7 @@ export function AdminSettingsPage() {
               onClick={() => setSection(key)}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 section === key
                   ? "bg-surface text-fg"
                   : "text-muted hover:bg-surface/60 hover:text-fg",
@@ -100,8 +100,6 @@ export function AdminSettingsPage() {
           {section === "about"                     && <AboutSection />}
         </div>
       </div>
-
-      <AuditLogSection />
     </div>
   );
 }
@@ -471,7 +469,7 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
                 const next = f.draft.sinks.map((x, i) =>
                   i === idx ? { ...x, enabled: v } : x,
                 );
-                f.replace({ sinks: next });
+                f.update({ sinks: next });
               }}
             />
           </li>
@@ -531,7 +529,7 @@ function UpdatesSection({ initial }: { initial?: UpdatesCfg }) {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm">Channel</div>
-          <div className="pt-0.5 text-xs text-muted">Stable releases only.</div>
+          <div className="pt-0.5 text-xs text-muted">Which releases to offer for updates.</div>
         </div>
         <select
           value={f.draft.channel}
@@ -550,7 +548,7 @@ function UpdatesSection({ initial }: { initial?: UpdatesCfg }) {
 function AboutSection() {
   return (
     <SectionCard title="About" subtitle="This Kestrel build.">
-      <dl className="grid grid-cols-2 gap-3 text-sm">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
         <dt className="text-muted">Version</dt><dd className="font-mono">0.1.0-alpha</dd>
         <dt className="text-muted">Operator</dt><dd className="font-mono">v0.1.0</dd>
         <dt className="text-muted">API</dt><dd className="font-mono">v0.1.0</dd>
@@ -558,25 +556,6 @@ function AboutSection() {
         <dt className="text-muted">License</dt><dd>AGPL-3.0</dd>
       </dl>
     </SectionCard>
-  );
-}
-
-function AuditLogSection() {
-  return (
-    <Card className="flex items-center justify-between p-5">
-      <div>
-        <div className="font-medium">Audit log</div>
-        <div className="pt-0.5 text-xs text-muted">
-          Mutating control-plane requests, with filters and pagination.
-        </div>
-      </div>
-      <Link
-        to="/admin/audit"
-        className="rounded-md border border-border bg-surface px-4 py-2 text-sm text-fg hover:bg-border"
-      >
-        Open audit log →
-      </Link>
-    </Card>
   );
 }
 

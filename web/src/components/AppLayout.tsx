@@ -119,23 +119,31 @@ function SectionLabel({ children }: { children: ReactNode }) {
 function NavGroup({ items }: { items: NavItem[] }) {
   return (
     <ul className="flex flex-col gap-0.5">
-      {items.map(({ to, label, icon: Icon }) => (
-        <li key={to}>
-          <Link
-            to={to}
-            className={cn(
-              "group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted transition-colors",
-              "hover:bg-border/60 hover:text-fg",
-              "[&.active]:bg-primary/10 [&.active]:text-primary",
-            )}
-            activeProps={{ className: "active" }}
-            activeOptions={{ exact: to === "/" }}
-          >
-            <Icon className="h-[18px] w-[18px]" />
-            <span>{label}</span>
-          </Link>
-        </li>
-      ))}
+      {items.map(({ to, label, icon: Icon }) => {
+        // A parent link (e.g. /admin "Settings") must match exactly when a
+        // sibling links to a sub-path (e.g. /admin/audit), otherwise
+        // prefix-matching lights up both. Links with no sibling sub-path
+        // keep prefix matching, so e.g. Servers stays active on
+        // /servers/:name.
+        const exact = to === "/" || items.some((o) => o.to !== to && o.to.startsWith(to + "/"));
+        return (
+          <li key={to}>
+            <Link
+              to={to}
+              className={cn(
+                "group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted transition-colors",
+                "hover:bg-border/60 hover:text-fg",
+                "[&.active]:bg-primary/10 [&.active]:text-primary",
+              )}
+              activeProps={{ className: "active" }}
+              activeOptions={{ exact }}
+            >
+              <Icon className="h-[18px] w-[18px]" />
+              <span>{label}</span>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -238,7 +246,7 @@ function Breadcrumbs({ items }: { items: Crumb[] }) {
       {items.map((c, i) => {
         const last = i === items.length - 1;
         return (
-          <span key={i} className="flex min-w-0 items-center gap-2">
+          <span key={c.to ?? c.label} className="flex min-w-0 items-center gap-2">
             {c.to && !last ? (
               <Link to={c.to} className="hover:text-fg truncate">
                 {c.label}
@@ -246,7 +254,7 @@ function Breadcrumbs({ items }: { items: Crumb[] }) {
             ) : (
               <span className={cn("truncate", last && "text-fg")}>{c.label}</span>
             )}
-            {!last && <ChevronDown className="h-3 w-3 -rotate-90 text-muted" />}
+            {!last && <ChevronDown aria-hidden="true" className="h-3 w-3 -rotate-90 text-muted" />}
           </span>
         );
       })}
