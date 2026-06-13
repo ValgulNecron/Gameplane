@@ -68,8 +68,12 @@ spec:
   rcon:
     protocol: source
     port: 25575
-    # PasswordSecretRef left unset — operator will generate a password
-    # and store it in a managed Secret named "<gameserver>-rcon".
+    # PasswordSecretRef left unset — the operator generates a password
+    # into the managed Secret "<gameserver>-rcon". passwordEnv injects it
+    # into the game container as RCON_PASSWORD (read by
+    # itzg/minecraft-server) and mounts the same value for the agent
+    # sidecar, so the dashboard console can authenticate over RCON.
+    passwordEnv: RCON_PASSWORD
 
   # Console commands behind agent features. The agent interprets these
   # at runtime — moderation templates render with .Player/.Reason; the

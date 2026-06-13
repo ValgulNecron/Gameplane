@@ -118,6 +118,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile files Secret")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileRCONSecret(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile rcon Secret")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, mc); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
@@ -342,6 +346,20 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 				},
 			},
 		}
+		// Mount the resolved RCON password (operator-generated or the
+		// template's referenced Secret) so the agent sidecar can read it
+		// via --rcon-password-file. Added only when the game exposes RCON.
+		if rc := resolveRCON(gs, tmpl); rc.enabled {
+			volumes = append(volumes, corev1.Volume{
+				Name: "rcon-password",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: rc.secretName,
+						Items:      []corev1.KeyToPath{{Key: rc.secretKey, Path: "password"}},
+					},
+				},
+			})
+		}
 		// Volumes and InitContainers are assigned wholesale so removing
 		// configFiles from the template strips them on the next reconcile.
 		if len(mc.files) > 0 {
@@ -434,6 +452,11 @@ func buildGameContainer(
 	env := append([]corev1.EnvVar{}, tmpl.Spec.Env...)
 	env = append(env, mc.env...)
 	env = append(env, gs.Spec.Env...)
+	// The operator-managed RCON password wins, so the game and the agent
+	// sidecar always agree on it.
+	if e := rconGameEnv(gs, tmpl); e != nil {
+		env = append(env, *e)
+	}
 
 	res := tmpl.Spec.Resources
 	if gs.Spec.Resources != nil {
@@ -490,6 +513,9 @@ func buildAgentContainer(
 	if tmpl.Spec.LogPath != "" {
 		args = append(args, "--game-log-path="+tmpl.Spec.LogPath)
 	}
+	if resolveRCON(gs, tmpl).enabled {
+		args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
+	}
 	env := []corev1.EnvVar{
 		{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
 		{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
@@ -512,11 +538,8 @@ func buildAgentContainer(
 		Image: image,
 		Args:  args,
 		Env:   env,
-		VolumeMounts: []corev1.VolumeMount{
-			{Name: "data", MountPath: mountPath},
-			{Name: "agent-tls", MountPath: "/etc/kestrel/agent-tls", ReadOnly: true},
-		},
-		Ports:     []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
+		VolumeMounts: agentVolumeMounts(gs, tmpl, mountPath),
+		Ports:        []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
 		Resources: res,
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             &nonRoot,

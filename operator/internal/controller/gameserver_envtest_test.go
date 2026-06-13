@@ -184,6 +184,87 @@ func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
 	}
 }
 
+// TestGameServer_RCONProvisioning — a template that exposes RCON gets a
+// generated <gs>-rcon Secret, the password injected into the game
+// container via the declared env var, and the same value mounted for the
+// agent sidecar with --rcon-password-file.
+func TestGameServer_RCONProvisioning(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("mc"))
+	tmpl.Spec.RCON = &kestrelv1alpha1.RCONSpec{Protocol: "source", Port: 25575, PasswordEnv: "RCON_PASSWORD"}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var sec corev1.Secret
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-rcon"}, &sec); err != nil {
+			return false, "rcon secret: " + err.Error()
+		}
+		if len(sec.Data["password"]) == 0 {
+			return false, "rcon secret has no password"
+		}
+
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		var game, agent *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			c := &ss.Spec.Template.Spec.Containers[i]
+			switch c.Name {
+			case "game":
+				game = c
+			case "agent":
+				agent = c
+			}
+		}
+		if game == nil || agent == nil {
+			return false, "missing containers"
+		}
+		// Game container: RCON_PASSWORD from the rcon Secret.
+		var ok bool
+		for _, e := range game.Env {
+			if e.Name == "RCON_PASSWORD" && e.ValueFrom != nil && e.ValueFrom.SecretKeyRef != nil &&
+				e.ValueFrom.SecretKeyRef.Name == "smp-rcon" && e.ValueFrom.SecretKeyRef.Key == "password" {
+				ok = true
+			}
+		}
+		if !ok {
+			return false, "game container missing RCON_PASSWORD secret env"
+		}
+		// Agent: --rcon-password-file arg + rcon-password mount.
+		hasFlag := false
+		for _, a := range agent.Args {
+			if a == "--rcon-password-file=/etc/kestrel/rcon/password" {
+				hasFlag = true
+			}
+		}
+		if !hasFlag {
+			return false, "agent missing --rcon-password-file"
+		}
+		mounted := false
+		for _, m := range agent.VolumeMounts {
+			if m.Name == "rcon-password" {
+				mounted = true
+			}
+		}
+		if !mounted {
+			return false, "agent missing rcon-password mount"
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_TemplateNotFound_PhaseFailed — referencing a missing
 // template flips Status.Phase to Failed with a reasonable message.
 func TestGameServer_TemplateNotFound_PhaseFailed(t *testing.T) {

@@ -437,9 +437,18 @@ type RCONSpec struct {
 
 	// PasswordSecretRef references a Secret+key containing the RCON
 	// password. If unset, the operator generates a password and stores
-	// it in an auto-managed Secret.
+	// it in an auto-managed Secret (<gameserver>-rcon, key "password").
 	// +optional
 	PasswordSecretRef *SecretKeySelector `json:"passwordSecretRef,omitempty"`
+
+	// PasswordEnv is the environment variable the game container reads
+	// the RCON password from (e.g. "RCON_PASSWORD" for itzg/minecraft).
+	// When set, the operator injects the resolved password into the game
+	// container via this env var and mounts the same value for the agent
+	// sidecar, so the dashboard console can authenticate. Leave empty for
+	// games that take their RCON password some other way.
+	// +optional
+	PasswordEnv string `json:"passwordEnv,omitempty"`
 }
 
 // GameProbesSpec are the default probes for the game container.
