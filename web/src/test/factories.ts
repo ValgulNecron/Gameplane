@@ -66,6 +66,8 @@ export function makeTemplate(over: Partial<GameTemplate> = {}): GameTemplate {
       version: "1.21",
       image: "ghcr.io/kestrel/minecraft:1.21",
       consoleMode: "rcon",
+      rcon: { protocol: "source" },
+      logPath: "/data/logs/latest.log",
       ...(over.spec ?? {}),
     },
     status: { inUseCount: 1, ...(over.status ?? {}) },

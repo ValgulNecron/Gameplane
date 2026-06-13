@@ -5,7 +5,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeServer, makeUser } from "@/test/factories";
+import { makeServer, makeTemplate, makeUser } from "@/test/factories";
 
 // Router APIs the route reaches into.
 const navigate = vi.fn();
@@ -69,6 +69,48 @@ describe("ServerDetailPage", () => {
     const filesTab = await screen.findByRole("button", { name: /Files/i });
     await userEvent.click(filesTab);
     await waitFor(() => expect(screen.getByText("files-tab")).toBeInTheDocument());
+  });
+});
+
+describe("ServerDetailPage dynamic tabs", () => {
+  it("hides the Console tab and button when the template has no console", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { consoleMode: "none", rcon: { protocol: "none" } },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Console" })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("button", { name: /Open console/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the Logs tab when the template logs only to stdout", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { logPath: undefined },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    // Console stays (rcon), but Logs is gone without a logPath.
+    await screen.findByRole("button", { name: "Console" });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /^Logs$/i })).not.toBeInTheDocument(),
+    );
   });
 });
 

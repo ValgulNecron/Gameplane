@@ -18,6 +18,7 @@ import type {
   ModuleSourceSpec,
   PlayersResp,
   Restore,
+  StatusReading,
   User,
 } from "@/types";
 
@@ -65,6 +66,16 @@ export const Servers = {
     api<void>(`/servers/${name}:${verb}`, { method: "POST" }),
   clone: (name: string, newName: string) =>
     api<GameServer>(`/servers/${name}:clone`, { method: "POST", body: { newName } }),
+  // Live module-declared metrics for the Overview tab. The agent returns
+  // [] when the game has no RCON, so the UI hides the panel.
+  status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),
+  // Run a module-declared action (spec.capabilities.actions[]). params
+  // are the user-supplied values for the action's declared inputs.
+  runAction: (name: string, body: { id: string; params?: Record<string, string> }) =>
+    api<{ ok: boolean; raw?: string }>(`/servers/${name}/actions/run`, {
+      method: "POST",
+      body,
+    }),
 };
 
 export const Templates = {

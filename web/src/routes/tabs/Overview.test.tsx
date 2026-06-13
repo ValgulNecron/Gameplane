@@ -37,19 +37,19 @@ function jsonRes(body: unknown): Response {
 
 describe("OverviewTab players card", () => {
   it("shows 'No players connected.' when online is 0", async () => {
-    fetchMock.mockResolvedValue(jsonRes({
+    fetchMock.mockImplementation(() => Promise.resolve(jsonRes({
       online: 0, max: 20, players: [], asOf: "now",
       capabilities: { kick: true, ban: true, unban: true },
-    } satisfies PlayersResp));
+    } satisfies PlayersResp)));
     render(withClient(<OverviewTab gs={gs()} name="s1" />));
     expect(await screen.findByText("No players connected.")).toBeInTheDocument();
   });
 
   it("renders real player names from the snapshot", async () => {
-    fetchMock.mockResolvedValue(jsonRes({
+    fetchMock.mockImplementation(() => Promise.resolve(jsonRes({
       online: 2, max: 20, players: ["alice", "bob"], asOf: "now",
       capabilities: { kick: true, ban: true, unban: true },
-    } satisfies PlayersResp));
+    } satisfies PlayersResp)));
     render(withClient(<OverviewTab gs={gs()} name="s1" />));
     expect(await screen.findByText("alice")).toBeInTheDocument();
     expect(await screen.findByText("bob")).toBeInTheDocument();
@@ -58,10 +58,10 @@ describe("OverviewTab players card", () => {
 
   it("shows '+ N more' when there are more than 5 players", async () => {
     const players = ["a", "b", "c", "d", "e", "f", "g"];
-    fetchMock.mockResolvedValue(jsonRes({
+    fetchMock.mockImplementation(() => Promise.resolve(jsonRes({
       online: players.length, max: 20, players, asOf: "now",
       capabilities: { kick: true, ban: true, unban: true },
-    } satisfies PlayersResp));
+    } satisfies PlayersResp)));
     render(withClient(<OverviewTab gs={gs()} name="s1" />));
     expect(await screen.findByText("+ 2 more")).toBeInTheDocument();
   });

@@ -9,6 +9,58 @@ export interface ObjectMeta {
   annotations?: Record<string, string>;
 }
 
+// A single user-supplied input for a declared server action.
+export interface ActionParamDecl {
+  name: string;
+  displayName?: string;
+  description?: string;
+  type: "string" | "int" | "bool" | "enum";
+  default?: string;
+  enum?: string[];
+  required?: boolean;
+}
+
+// A module-declared operator action surfaced as a button on the server
+// detail page (spec.capabilities.actions[]). `command` is the agent's
+// concern; the UI renders displayName/params and POSTs id+params.
+export interface ServerActionDecl {
+  id: string;
+  displayName: string;
+  description?: string;
+  icon?: string;
+  command?: string;
+  params?: ActionParamDecl[];
+  confirm?: boolean;
+  danger?: boolean;
+}
+
+// A module-declared live metric (spec.capabilities.status.metrics[]).
+export interface StatusMetricDecl {
+  id: string;
+  displayName: string;
+  command?: string;
+  regex?: string;
+  unit?: string;
+}
+
+// spec.capabilities — only the surfaces the dashboard renders are typed;
+// players/quiesce are agent-side and left opaque here.
+export interface GameCapabilities {
+  players?: unknown;
+  quiesce?: unknown;
+  actions?: ServerActionDecl[];
+  status?: { metrics?: StatusMetricDecl[] };
+}
+
+// One reading from GET /servers/{name}/status (the agent resolves each
+// declared metric to a value; empty when the command didn't match).
+export interface StatusReading {
+  id: string;
+  displayName?: string;
+  value: string;
+  unit?: string;
+}
+
 export interface GameTemplate {
   metadata: ObjectMeta;
   spec: {
@@ -17,9 +69,12 @@ export interface GameTemplate {
     version: string;
     description?: string;
     icon?: string;
+    accentColor?: string;
     image: string;
+    logPath?: string;
     consoleMode?: "rcon" | "pty" | "none";
     rcon?: { protocol?: string; port?: number };
+    capabilities?: GameCapabilities;
     configSchema?: Array<{
       name: string;
       displayName?: string;

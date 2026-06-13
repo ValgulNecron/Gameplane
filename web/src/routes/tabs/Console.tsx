@@ -6,20 +6,8 @@ import "@xterm/xterm/css/xterm.css";
 
 import { api } from "@/lib/api";
 import { openWS } from "@/lib/ws";
+import { resolveConsoleMode } from "@/lib/capabilities";
 import type { GameServer, GameTemplate } from "@/types";
-
-type Mode = "rcon" | "pty" | "none";
-
-// resolveMode mirrors operator.controller.EffectiveConsoleMode so the
-// dashboard agrees with the server on which transport to open. Keep the
-// rules in sync if the operator helper changes.
-function resolveMode(tmpl: GameTemplate | undefined): Mode {
-  if (!tmpl) return "rcon";
-  if (tmpl.spec.consoleMode) return tmpl.spec.consoleMode;
-  const proto = tmpl.spec.rcon?.protocol;
-  if (proto && proto !== "none") return "rcon";
-  return "none";
-}
 
 export function ConsoleTab({ name }: { name: string }) {
   const { data: gs } = useQuery({
@@ -32,7 +20,7 @@ export function ConsoleTab({ name }: { name: string }) {
     queryFn: () => api<GameTemplate>(`/templates/${templateName}`),
     enabled: !!templateName,
   });
-  const mode = resolveMode(tmpl);
+  const mode = resolveConsoleMode(tmpl);
 
   if (!gs || !tmpl) {
     return <div className="p-4 text-sm text-muted">Loading console…</div>;

@@ -10,8 +10,9 @@ import {
   Square,
   Terminal,
 } from "lucide-react";
-import { Servers, type LifecycleVerb } from "@/lib/endpoints";
+import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
+import { resolveConsoleMode } from "@/lib/capabilities";
 import { useMe, hasRole } from "@/lib/auth";
 import { isValidK8sName } from "@/lib/validation";
 import { PhaseBadge } from "@/components/ui/badge";
@@ -67,6 +68,13 @@ export function ServerDetailPage() {
     refetchInterval: settingsDirty ? false : 5_000,
   });
 
+  const templateName = gs?.spec.templateRef.name;
+  const { data: tmpl } = useQuery({
+    queryKey: ["template", templateName],
+    queryFn: () => Templates.get(templateName as string),
+    enabled: !!templateName,
+  });
+
   const act = useMutation({
     mutationFn: (verb: LifecycleVerb) => Servers.lifecycle(name, verb),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["server", name] }),
@@ -77,12 +85,34 @@ export function ServerDetailPage() {
   const version = gs?.status?.agent?.gameVersion;
   const uptime = formatUptime(gs?.status?.startedAt);
 
+  // Tab visibility is driven by the template: a game with no console
+  // (consoleMode none / no RCON) hides the Console tab, and one that
+  // logs only to stdout (no logPath) hides Logs. While the template is
+  // still loading we show everything to avoid a flicker.
+  const consoleAvailable = !tmpl || resolveConsoleMode(tmpl) !== "none";
+  const logsAvailable = !tmpl || !!tmpl.spec.logPath;
+  const visibleTabs = tabs.filter((t) => {
+    if (t.key === "console") return consoleAvailable;
+    if (t.key === "logs") return logsAvailable;
+    return true;
+  });
+
+  // If the active tab gets hidden once the template resolves, fall back
+  // to Overview so the content area never goes blank.
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.key === tab)) setTab("overview");
+  }, [visibleTabs, tab]);
+
   return (
     <div className="flex h-full flex-col">
       <header className="border-b border-border bg-background px-6 pb-0 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-4 pb-4">
           <div className="flex items-start gap-4">
-            <GameIcon game={gs?.spec.templateRef.name} size="lg" />
+            <GameIcon
+              game={gs?.spec.templateRef.name}
+              accentColor={tmpl?.spec.accentColor}
+              size="lg"
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="truncate font-mono text-2xl font-semibold text-fg">{name}</h1>
@@ -108,9 +138,11 @@ export function ServerDetailPage() {
                 <Play className="h-4 w-4" /> Start
               </Button>
             )}
-            <Button onClick={() => setTab("console")}>
-              <Terminal className="h-4 w-4" /> Open console
-            </Button>
+            {consoleAvailable && (
+              <Button onClick={() => setTab("console")}>
+                <Terminal className="h-4 w-4" /> Open console
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="More actions">
@@ -131,7 +163,7 @@ export function ServerDetailPage() {
         </div>
 
         <nav className="-mb-px flex overflow-x-auto scrollbar-thin">
-          {tabs.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -150,7 +182,7 @@ export function ServerDetailPage() {
 
       <div className="flex-1 overflow-auto scrollbar-thin">
         <Suspense fallback={<TabFallback />}>
-          {tab === "overview" && <OverviewTab gs={gs} name={name} />}
+          {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} />}
           {tab === "console"  && <ConsoleTab name={name} />}
           {tab === "logs"     && <LogsTab    name={name} />}
           {tab === "files"    && <FilesTab   name={name} />}

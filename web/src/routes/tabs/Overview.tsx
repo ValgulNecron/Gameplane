@@ -2,19 +2,16 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
-  Bell,
   Copy,
   Cpu,
-  HardDrive,
   MemoryStick,
-  Plus,
-  Send,
-  Trash2,
   Users as UsersIcon,
 } from "lucide-react";
-import type { GameServer, PlayersResp } from "@/types";
+import type { GameServer, GameTemplate, PlayersResp } from "@/types";
 import { Players } from "@/lib/endpoints";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ServerActionsCard } from "@/components/server/ServerActionsCard";
+import { ServerStatusCard } from "@/components/server/ServerStatusCard";
 import { formatBytes, formatRelative } from "@/lib/utils";
 
 interface Event {
@@ -25,7 +22,15 @@ interface Event {
   source?: string;
 }
 
-export function OverviewTab({ gs, name }: { gs?: GameServer; name: string }) {
+export function OverviewTab({
+  gs,
+  name,
+  tmpl,
+}: {
+  gs?: GameServer;
+  name: string;
+  tmpl?: GameTemplate;
+}) {
   const { data: roster } = useQuery({
     queryKey: ["players", name, "overview"],
     queryFn: () => Players.snapshot(name),
@@ -37,6 +42,7 @@ export function OverviewTab({ gs, name }: { gs?: GameServer; name: string }) {
   if (!gs) return <div className="p-6 text-muted">Loading…</div>;
 
   const status = gs.status ?? {};
+  const running = status.phase === "Running";
   const agent = status.agent;
   const cpu = (status as unknown as { cpuPercent?: number }).cpuPercent ?? 0;
   const cpuCores = (status as unknown as { cpuCores?: number }).cpuCores ?? 2;
@@ -150,17 +156,9 @@ export function OverviewTab({ gs, name }: { gs?: GameServer; name: string }) {
 
         <PlayersCard roster={roster} fallbackOnline={players} />
 
+        <ServerStatusCard name={name} tmpl={tmpl} running={running} />
 
-        <Card>
-          <CardHeader><CardTitle>Quick actions</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <QuickAction icon={<HardDrive className="h-4 w-4" />} label="Create backup now" hint="Snapshot current world" />
-            <QuickAction icon={<Send className="h-4 w-4" />} label="Send broadcast" hint="Message all players" />
-            <QuickAction icon={<Plus className="h-4 w-4" />} label="Install plugin / mod" hint="Upload a package" />
-            <QuickAction icon={<Bell className="h-4 w-4" />} label="Alert rules" hint="Notify on failures" />
-            <QuickAction icon={<Trash2 className="h-4 w-4" />} label="Delete server" hint="Irreversible" destructive />
-          </CardContent>
-        </Card>
+        <ServerActionsCard name={name} tmpl={tmpl} />
       </div>
     </div>
   );
@@ -278,21 +276,3 @@ function PlayersCard({
   );
 }
 
-function QuickAction({
-  icon, label, hint, destructive,
-}: {
-  icon: ReactNode;
-  label: string;
-  hint?: string;
-  destructive?: boolean;
-}) {
-  return (
-    <button className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-surface">
-      <span className={destructive ? "text-danger" : "text-muted"}>{icon}</span>
-      <div className="flex-1">
-        <div className={destructive ? "text-sm text-danger" : "text-sm text-fg"}>{label}</div>
-        {hint && <div className="pt-0.5 text-[11px] text-muted">{hint}</div>}
-      </div>
-    </button>
-  );
-}
