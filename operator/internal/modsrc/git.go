@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kestrel-gg/kestrel/netguard"
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/netguard"
 )
 
 // registerGuardedGitHTTP installs an SSRF-guarded http client as go-git's
@@ -36,7 +36,7 @@ import (
 // endpoint (see internal/netguard). It is process-global go-git state, set
 // once on the first real clone; tests stub gitClone and never reach it.
 var registerGuardedGitHTTP = sync.OnceFunc(func() {
-	gitclient.InstallProtocol("https", githttp.NewClient(netguard.HTTPClient(2*time.Minute)))
+	gitclient.InstallProtocol("https", githttp.NewClient(netguard.HTTPClient(2*time.Minute, netguard.IsAllowed)))
 })
 
 // scpLikeURL matches git's scp-style syntax ("git@github.com:org/repo").
@@ -52,7 +52,7 @@ var gitClone = func(ctx context.Context, url, ref string, auth transport.AuthMet
 	// Pre-flight the destination so an ssh clone (whose dial we can't wrap
 	// with a Control hook) can't be aimed at link-local/metadata. https
 	// clones are additionally guarded at dial time by the transport above.
-	if err := netguard.CheckHostAllowed(ctx, gitHost(url)); err != nil {
+	if err := netguard.CheckHostAllowed(ctx, gitHost(url), netguard.IsAllowed); err != nil {
 		return nil, "", fmt.Errorf("git host for %q: %w", url, err)
 	}
 	clone := func(refName plumbing.ReferenceName) (*gogit.Repository, fs.FS, error) {

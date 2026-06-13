@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [operator, api, agent]
+        module: [netguard, operator, api, agent]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

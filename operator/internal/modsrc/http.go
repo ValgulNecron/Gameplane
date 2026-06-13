@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kestrel-gg/kestrel/netguard"
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/netguard"
 )
 
 // Hard caps on archives an http source will accept. A module bundle is
@@ -39,7 +39,7 @@ const (
 // cloud metadata endpoint (see internal/netguard). Loopback and private
 // registries are still reachable — only link-local/metadata/multicast are
 // refused, at dial time so a DNS name rebinding to one is caught too.
-var httpFetchClient = netguard.HTTPClient(2 * time.Minute)
+var httpFetchClient = netguard.HTTPClient(2*time.Minute, netguard.IsAllowed)
 
 // newHTTP builds a Fetcher over an archive (.tar.gz/.tgz/.zip) served
 // at an http(s) URL. The archive is downloaded fresh on each index and

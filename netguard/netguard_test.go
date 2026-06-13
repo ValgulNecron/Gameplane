@@ -47,6 +47,45 @@ func TestIsAllowed(t *testing.T) {
 	}
 }
 
+// TestIsPublic locks in the agent's strict policy. The split with IsAllowed is
+// intentional: IsPublic blocks RFC1918/loopback/CGNAT that IsAllowed permits,
+// so a future refactor cannot silently collapse the two.
+func TestIsPublic(t *testing.T) {
+	blocked := []string{
+		// stdlib-covered: loopback, private, link-local, unspecified
+		"127.0.0.1", "10.0.0.5", "192.168.1.1", "172.16.0.1",
+		"169.254.169.254", // cloud metadata endpoint (link-local)
+		"::1", "0.0.0.0", "fd00::1", "fc00::1", "fe80::1",
+		// IPv4-mapped IPv6 of the above must also be blocked
+		"::ffff:169.254.169.254", "::ffff:127.0.0.1", "::ffff:10.0.0.1",
+		// reserved/special-use ranges the stdlib predicates miss
+		"100.64.0.1", "100.127.255.255", // RFC 6598 CGNAT (k8s)
+		"192.0.2.1", "198.18.0.1", "198.51.100.1", "203.0.113.1",
+		"240.0.0.1", "255.255.255.255",
+		"64:ff9b::1.2.3.4", "2002::1", "2001:db8::1", "fec0::1",
+	}
+	for _, s := range blocked {
+		if ip := net.ParseIP(s); ip == nil || IsPublic(ip) {
+			t.Errorf("IsPublic(%s) = true, want false", s)
+		}
+	}
+	for _, s := range []string{"8.8.8.8", "1.1.1.1", "9.9.9.9", "2606:4700:4700::1111"} {
+		if !IsPublic(net.ParseIP(s)) {
+			t.Errorf("IsPublic(%s) = false, want true", s)
+		}
+	}
+	if IsPublic(nil) {
+		t.Error("IsPublic(nil) = true, want false")
+	}
+	// The two policies must genuinely differ: a private address is fine for
+	// the operator but never for the agent.
+	priv := net.ParseIP("10.0.0.1")
+	if !IsAllowed(priv) || IsPublic(priv) {
+		t.Errorf("policy split broken: IsAllowed(10.0.0.1)=%v IsPublic=%v, want true/false",
+			IsAllowed(priv), IsPublic(priv))
+	}
+}
+
 func TestHostIsMetadata(t *testing.T) {
 	for _, h := range []string{"metadata.google.internal", "METADATA.GOOGLE.INTERNAL", "metadata", "metadata.google.internal."} {
 		if !HostIsMetadata(h) {
@@ -62,20 +101,26 @@ func TestHostIsMetadata(t *testing.T) {
 
 func TestCheckHostAllowed(t *testing.T) {
 	ctx := context.Background()
-	// IP literals resolve without DNS.
+	// Operator policy: IP literals resolve without DNS; private/loopback OK.
 	for _, h := range []string{"8.8.8.8", "10.0.0.1", "127.0.0.1"} {
-		if err := CheckHostAllowed(ctx, h); err != nil {
-			t.Errorf("CheckHostAllowed(%q) = %v, want nil", h, err)
+		if err := CheckHostAllowed(ctx, h, IsAllowed); err != nil {
+			t.Errorf("CheckHostAllowed(%q, IsAllowed) = %v, want nil", h, err)
 		}
 	}
 	for _, h := range []string{"169.254.169.254", "metadata.google.internal", "0.0.0.0", ""} {
-		if err := CheckHostAllowed(ctx, h); !errors.Is(err, ErrBlockedAddr) {
-			t.Errorf("CheckHostAllowed(%q) = %v, want ErrBlockedAddr", h, err)
+		if err := CheckHostAllowed(ctx, h, IsAllowed); !errors.Is(err, ErrBlockedAddr) {
+			t.Errorf("CheckHostAllowed(%q, IsAllowed) = %v, want ErrBlockedAddr", h, err)
 		}
 	}
-	// "localhost" resolves to loopback, which is allowed.
-	if err := CheckHostAllowed(ctx, "localhost"); err != nil {
-		t.Errorf("CheckHostAllowed(localhost) = %v, want nil", err)
+	// "localhost" resolves to loopback, which IsAllowed permits.
+	if err := CheckHostAllowed(ctx, "localhost", IsAllowed); err != nil {
+		t.Errorf("CheckHostAllowed(localhost, IsAllowed) = %v, want nil", err)
+	}
+	// Agent policy rejects loopback/private even though they resolve.
+	for _, h := range []string{"127.0.0.1", "10.0.0.1"} {
+		if err := CheckHostAllowed(ctx, h, IsPublic); !errors.Is(err, ErrBlockedAddr) {
+			t.Errorf("CheckHostAllowed(%q, IsPublic) = %v, want ErrBlockedAddr", h, err)
+		}
 	}
 }
 
@@ -94,19 +139,17 @@ func TestHTTPClientGuardsDial(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Loopback is normally allowed, so the guarded client reaches the server.
-	resp, err := get(t, HTTPClient(5*time.Second), srv.URL)
+	// Loopback is allowed by IsAllowed, so the guarded client reaches it.
+	resp, err := get(t, HTTPClient(5*time.Second, IsAllowed), srv.URL)
 	if err != nil {
 		t.Fatalf("guarded GET of loopback failed: %v", err)
 	}
 	_ = resp.Body.Close()
 
-	// Flip the classifier to reject everything and confirm the dial Control
-	// hook short-circuits the connection with ErrBlockedAddr.
-	prev := ipAllowed
-	ipAllowed = func(net.IP) bool { return false }
-	defer func() { ipAllowed = prev }()
-	resp, err = get(t, HTTPClient(5*time.Second), srv.URL)
+	// A deny-all classifier makes the dial Control hook short-circuit with
+	// ErrBlockedAddr. (IsPublic would also reject loopback, but a deny-all
+	// func exercises the hook directly.)
+	resp, err = get(t, HTTPClient(5*time.Second, func(net.IP) bool { return false }), srv.URL)
 	if resp != nil {
 		_ = resp.Body.Close()
 	}
@@ -116,7 +159,7 @@ func TestHTTPClientGuardsDial(t *testing.T) {
 }
 
 func TestHTTPClientNoProxy(t *testing.T) {
-	tr, ok := HTTPClient(time.Minute).Transport.(*http.Transport)
+	tr, ok := HTTPClient(time.Minute, IsAllowed).Transport.(*http.Transport)
 	if !ok {
 		t.Fatal("transport is not *http.Transport")
 	}

@@ -2,6 +2,12 @@ module github.com/kestrel-gg/kestrel/operator
 
 go 1.25.0
 
+require github.com/kestrel-gg/kestrel/netguard v0.0.0
+
+// netguard is an in-repo module (no published version); resolve it locally
+// both inside the workspace (go.work) and in standalone module/Docker builds.
+replace github.com/kestrel-gg/kestrel/netguard => ../netguard
+
 require (
 	github.com/go-git/go-billy/v5 v5.9.0
 	github.com/go-git/go-git/v5 v5.19.1
