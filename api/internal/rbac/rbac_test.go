@@ -61,6 +61,13 @@ func TestAllow(t *testing.T) {
 		{RoleOperator, "POST", "/servers/foo/players/unban", true},
 		{RoleViewer, "GET", "/servers/foo/players/banned", true},
 		{RoleViewer, "GET", "/servers/foo/players", true},
+		// Module-declared actions run console commands → operator+, same
+		// as the RCON console. Live status is a read → viewer+.
+		{RoleViewer, "POST", "/servers/foo/actions/run", false},
+		{RoleOperator, "POST", "/servers/foo/actions/run", true},
+		{RoleAdmin, "POST", "/servers/foo/actions/run", true},
+		{RoleViewer, "GET", "/servers/foo/status", true},
+		{RoleOperator, "GET", "/servers/foo/status", true},
 		// Module + module-source management is admin-only; reads stay
 		// viewer-accessible.
 		{RoleViewer, "GET", "/modules/catalog", true},

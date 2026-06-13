@@ -59,6 +59,12 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 		r.Post("/ban", p.httpProxy("/players/ban"))
 		r.Post("/unban", p.httpProxy("/players/unban"))
 	})
+	// Module-declared operator actions and live status metrics. RBAC
+	// (api/internal/rbac) gates these by the same method+segment rules as
+	// the rest of /servers: the action run is a POST → operator+, while
+	// the status read is a GET → viewer+.
+	r.Post("/servers/{name}/actions/run", p.httpProxy("/actions/run"))
+	r.Get("/servers/{name}/status", p.httpProxy("/status"))
 }
 
 type proxy struct {

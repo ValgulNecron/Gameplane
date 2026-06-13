@@ -80,6 +80,29 @@ func TestMount_LogsDownloadRouted(t *testing.T) {
 	}
 }
 
+// TestMount_ActionsAndStatusRouted proves Mount registers the action-run
+// and status proxy routes. With no mTLS material the handler answers 503
+// (dev-mode fallback); an unregistered path would 404, and a registered
+// route with the wrong method would 405.
+func TestMount_ActionsAndStatusRouted(t *testing.T) {
+	r := chi.NewRouter()
+	Mount(r, nil, "", "", "")
+	cases := []struct {
+		method, path string
+	}{
+		{"POST", "/servers/alpha/actions/run"},
+		{"GET", "/servers/alpha/status"},
+	}
+	for _, tc := range cases {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		r.ServeHTTP(rr, req)
+		if rr.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s %s: got %d, want 503 (registered but no mTLS)", tc.method, tc.path, rr.Code)
+		}
+	}
+}
+
 // the agent FQDN constructor must include the standard 8090 port so
 // callers can derive the right URL even without a real client.
 func TestAgentHost_Format(t *testing.T) {
