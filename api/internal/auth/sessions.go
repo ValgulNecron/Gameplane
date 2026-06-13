@@ -117,6 +117,10 @@ func (s *SessionStore) Authenticate(next http.Handler) http.Handler {
 			}
 		}
 		ctx := context.WithValue(req.Context(), userCtxKey, u)
+		// Record the actor on any audit holder the outer audit middleware
+		// installed, so the audit log attributes this request to the user
+		// (the user ctx below doesn't propagate back up to that middleware).
+		SetActor(req.Context(), u.Username)
 		next.ServeHTTP(w, req.WithContext(ctx))
 	})
 }

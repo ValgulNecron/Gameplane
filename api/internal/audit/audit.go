@@ -27,14 +27,20 @@ func New(store *db.Store) *Auditor { return &Auditor{db: store} }
 func Middleware(a *Auditor) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			// Install an actor holder before the chain runs. Authenticate
+			// sets it on this same context; the user it puts on a child
+			// context never propagates back up here, which is why audit
+			// rows used to record "anonymous" for authenticated actions.
+			ctx, holder := auth.WithActorHolder(req.Context())
+			req = req.WithContext(ctx)
 			rw := &responseRecorder{ResponseWriter: w, status: 200}
 			next.ServeHTTP(rw, req)
 			if !shouldLog(req) {
 				return
 			}
 			actor := "anonymous"
-			if u := auth.UserFromContext(req.Context()); u != nil {
-				actor = u.Username
+			if name := holder.Name(); name != "" {
+				actor = name
 			}
 			_, _ = a.db.DB.ExecContext(req.Context(),
 				`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
