@@ -48,8 +48,10 @@ Field rules:
   with the same `name` in the same `ModuleSource` are an error.
 - `version` is the canonical version string and **must** match the OCI tag
   the bundle is pushed under.
-- `kestrelMinVersion` is checked at install time; mismatches fail the
-  `Module` reconcile with a clear `Conditions` entry.
+- `kestrelMinVersion` is checked at install time against the operator's
+  build version; a module that needs a newer operator fails the `Module`
+  reconcile with an `IncompatibleOperator` condition. The check is skipped
+  for `dev`/unversioned operator builds.
 
 ## Bundle format (OCI artifact)
 
@@ -146,6 +148,13 @@ Per-type config:
 | `local` | `local.path` under the operator's `--module-local-root` mount (Helm: `operator.localModules`) | one stream; digest = content hash | — |
 | `upload` | none — indexes uploaded bundles | one stream; digest = content hash | — |
 
+**Network safety.** The operator fetches `git`/`http` sources through a
+guard that refuses link-local, cloud-metadata (`169.254.169.254`),
+unspecified, and multicast destinations — so a source can't be aimed at the
+instance-metadata endpoint to steal the operator's credentials. Private and
+loopback addresses are allowed, because self-hosted GitLab/Harbor and a
+local kind registry legitimately live there.
+
 ### Uploaded bundles
 
 `type: upload` sources index ConfigMaps in the operator namespace
@@ -191,6 +200,61 @@ and creates a `GameTemplate` owned by this `Module`. Deleting the
 `Module` deletes the `GameTemplate`. The operator refuses to delete the
 module while any `GameServer` references the template; the UI surfaces
 this as a clear "still in use by N servers" message.
+
+If a `Module` fails to upgrade (pull error, bad signature, incompatible
+operator), the previously-installed `GameTemplate` keeps running unchanged;
+`status.previousVersion` records the last-known-good to roll back to by
+re-pinning `spec.version`.
+
+### Verifying and pinning bundles
+
+Two independent, opt-in controls harden the supply chain for OCI modules:
+
+**Digest pin** (`Module.spec.digest`) refuses to install unless the resolved
+bundle's digest matches exactly — defeating a tag that was moved to point at
+new content. Set it to the OCI manifest digest shown in the catalog:
+
+```yaml
+spec:
+  source: { name: default }
+  name: minecraft-java
+  version: 1.0.0
+  digest: sha256:abc123…        # install fails (DigestMismatch) on any drift
+```
+
+**Signature verification** (`ModuleSource.spec.verify`, OCI sources only)
+requires every bundle from the source to carry a valid [cosign][cosign]
+signature before it is installed. A bundle that is unsigned or signed by the
+wrong key/identity fails the install with a `SignatureInvalid` condition.
+Keyed:
+
+```yaml
+apiVersion: kestrel.gg/v1alpha1
+kind: ModuleSource
+metadata: { name: trusted }
+spec:
+  type: oci
+  oci: { url: ghcr.io/kestrel-gg/modules, modules: [{ name: minecraft-java }] }
+  verify:
+    key: { name: cosign-pub }    # Secret in the operator namespace,
+                                 # public key under data "cosign.pub"
+```
+
+Keyless (Fulcio certificate identity) — the operator needs outbound access to
+the sigstore trust root and Rekor:
+
+```yaml
+  verify:
+    keyless:
+      issuer: https://token.actions.githubusercontent.com
+      identity: https://github.com/kestrel-gg/modules/.github/workflows/release.yml@refs/heads/main
+```
+
+`spec.verify` is rejected on non-OCI sources (cosign signatures are an OCI
+concept); `git`/`http`/`local`/`upload` rely on the content digest plus a
+`Module.spec.digest` pin instead.
+
+[cosign]: https://docs.sigstore.dev/cosign/overview/
 
 ## Anatomy of a `GameTemplate` spec
 

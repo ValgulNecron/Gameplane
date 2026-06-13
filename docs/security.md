@@ -66,6 +66,31 @@ Game pods are shaped per-template. For a hostile game module, enable
 Pod Security Standards `restricted` on the games namespace via
 `podSecurity.enforceRestricted=true`.
 
+## Module supply chain
+
+A `GameTemplate` materialized from a module chooses the container image,
+command, and config a game pod runs — so a module source is a trust
+boundary. Three controls protect it:
+
+- **Fetch SSRF guard.** The operator's `git`/`http` source fetchers refuse
+  link-local, cloud-metadata (`169.254.169.254`), unspecified, and multicast
+  destinations, at dial time (so a DNS name rebinding to one is caught). This
+  blocks a source from being aimed at the instance-metadata endpoint to steal
+  the operator's IAM credentials. Private/loopback addresses stay reachable
+  for self-hosted registries. `ModuleSource` mutation is admin-only, so this
+  is defense-in-depth.
+- **Signature verification.** `ModuleSource.spec.verify` (OCI sources) makes
+  the operator refuse any bundle without a valid cosign signature — keyed (a
+  public key) or keyless (a pinned Fulcio issuer + identity). Use it for any
+  source you don't fully control.
+- **Digest pinning.** `Module.spec.digest` pins exact bundle content; a moved
+  tag fails the install with `DigestMismatch`.
+
+Verification and pinning are opt-in. A source with neither is trusted to
+serve a `GameTemplate` whose image/command runs in your cluster — only point
+Kestrel at module sources you trust, and prefer signed, pinned installs for
+third-party games. Authoring details: [`module-authoring.md`](module-authoring.md).
+
 ## Secrets
 
 Secrets Kestrel reads or creates, by convention:
