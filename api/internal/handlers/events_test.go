@@ -32,3 +32,17 @@ func TestEvents_StreamingUnsupported(t *testing.T) {
 		t.Fatalf("got %d", w.code)
 	}
 }
+
+// TestEvents_RejectsForbiddenNamespace — the stream must run requests
+// through scope.Resolve before watching anything. A namespace the caller
+// may not use is rejected (403) rather than silently watched, closing the
+// old metav1.NamespaceAll cross-namespace leak.
+func TestEvents_RejectsForbiddenNamespace(t *testing.T) {
+	k := fakeKubeClient()
+	rr := httptest.NewRecorder() // implements http.Flusher → past the 500 branch
+	req := httptest.NewRequest("GET", "/events?namespace=forbidden", nil)
+	eventsHandler(k)(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("got %d, want 403 for a non-permitted namespace", rr.Code)
+	}
+}
