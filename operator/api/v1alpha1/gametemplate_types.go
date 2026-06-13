@@ -29,6 +29,15 @@ type GameTemplateSpec struct {
 	// +optional
 	Icon string `json:"icon,omitempty"`
 
+	// AccentColor is an optional brand color (CSS hex, e.g. "#3b82f6")
+	// the dashboard uses to tint this game's icon and accents. When
+	// empty the dashboard falls back to a neutral default. This replaces
+	// the previously hardcoded per-game color palette in the web app, so
+	// new games carry their own color without a frontend change.
+	// +kubebuilder:validation:Pattern=`^#[0-9a-fA-F]{6}$`
+	// +optional
+	AccentColor string `json:"accentColor,omitempty"`
+
 	// Description is free-form markdown describing the template.
 	// +optional
 	Description string `json:"description,omitempty"`
@@ -138,6 +147,132 @@ type CapabilitiesSpec struct {
 	// before a backup snapshot (and resumed afterwards).
 	// +optional
 	Quiesce *QuiesceSpec `json:"quiesce,omitempty"`
+
+	// Actions declares named operator actions surfaced as buttons on the
+	// server detail page. Each runs a templated console command over the
+	// template's RCON connection, so they require rcon.protocol != none.
+	// +kubebuilder:validation:MaxItems=32
+	// +optional
+	Actions []ServerActionSpec `json:"actions,omitempty"`
+
+	// Status declares game-specific live metrics shown on the Overview
+	// tab, each read via an RCON command parsed by a named-group regex.
+	// Like actions, they require rcon.protocol != none.
+	// +optional
+	Status *StatusSpec `json:"status,omitempty"`
+}
+
+// ServerActionSpec declares a named operator action surfaced as a button
+// on the server detail page. Running it renders Command (a Go
+// text/template) with the collected parameters and sends the result over
+// the template's RCON connection.
+type ServerActionSpec struct {
+	// ID is a stable identifier, unique within the template's actions.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=63
+	ID string `json:"id"`
+
+	// DisplayName is the button label.
+	// +kubebuilder:validation:MinLength=1
+	DisplayName string `json:"displayName"`
+
+	// Description explains the action; shown in the confirmation dialog.
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// Icon is an optional lucide-react icon name (e.g. "megaphone").
+	// +optional
+	Icon string `json:"icon,omitempty"`
+
+	// Command is a Go text/template rendered with .Params (each declared
+	// parameter name mapped to its resolved value) and sent over RCON,
+	// e.g. "say {{.Params.message}}". Parameter values are sanitized for
+	// console-injection before rendering.
+	// +kubebuilder:validation:MinLength=1
+	Command string `json:"command"`
+
+	// Params declares inputs collected from the user before running.
+	// +kubebuilder:validation:MaxItems=16
+	// +optional
+	Params []ActionParamSpec `json:"params,omitempty"`
+
+	// Confirm, when true, makes the dashboard require explicit
+	// confirmation before running the action.
+	// +optional
+	Confirm bool `json:"confirm,omitempty"`
+
+	// Danger marks a destructive action so the dashboard styles it
+	// distinctly (e.g. a red button).
+	// +optional
+	Danger bool `json:"danger,omitempty"`
+}
+
+// ActionParamSpec is a single input collected before running an action.
+type ActionParamSpec struct {
+	// Name is the parameter identifier referenced in the command
+	// template as {{.Params.<name>}}.
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z_][a-zA-Z0-9_]*$`
+	// +kubebuilder:validation:MaxLength=63
+	Name string `json:"name"`
+
+	// DisplayName labels the input in the UI.
+	// +optional
+	DisplayName string `json:"displayName,omitempty"`
+
+	// Description explains the input.
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// Type controls the input widget and validation.
+	// +kubebuilder:validation:Enum=string;int;bool;enum
+	// +kubebuilder:default=string
+	Type string `json:"type"`
+
+	// Default is the pre-filled value (as a string).
+	// +optional
+	Default string `json:"default,omitempty"`
+
+	// Enum restricts valid values when Type=enum.
+	// +optional
+	Enum []string `json:"enum,omitempty"`
+
+	// Required, when true, blocks running until the input is set.
+	// +optional
+	Required bool `json:"required,omitempty"`
+}
+
+// StatusSpec declares game-specific live metrics for the Overview tab.
+type StatusSpec struct {
+	// Metrics are the per-game readouts. Each runs an RCON command and
+	// extracts a value via a named-group regex.
+	// +kubebuilder:validation:MaxItems=16
+	// +optional
+	Metrics []StatusMetricSpec `json:"metrics,omitempty"`
+}
+
+// StatusMetricSpec reads one live metric from an RCON command's output.
+type StatusMetricSpec struct {
+	// ID is a stable identifier, unique within the template's metrics.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=63
+	ID string `json:"id"`
+
+	// DisplayName labels the metric in the UI.
+	// +kubebuilder:validation:MinLength=1
+	DisplayName string `json:"displayName"`
+
+	// Command is the RCON command whose output is parsed.
+	// +kubebuilder:validation:MinLength=1
+	Command string `json:"command"`
+
+	// Regex extracts the value via the named group "value", e.g.
+	// `TPS: (?P<value>[0-9.]+)`.
+	// +kubebuilder:validation:MinLength=1
+	Regex string `json:"regex"`
+
+	// Unit is an optional suffix shown after the value (e.g. "ms", "TPS").
+	// +optional
+	Unit string `json:"unit,omitempty"`
 }
 
 // PlayerActionsSpec maps moderation actions to console commands. Each

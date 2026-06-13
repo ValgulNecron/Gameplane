@@ -61,6 +61,15 @@ spec:
               Users instantiate a GameTemplate by creating a GameServer that
               references it.
             properties:
+              accentColor:
+                description: |-
+                  AccentColor is an optional brand color (CSS hex, e.g. "#3b82f6")
+                  the dashboard uses to tint this game's icon and accents. When
+                  empty the dashboard falls back to a neutral default. This replaces
+                  the previously hardcoded per-game color palette in the web app, so
+                  new games carry their own color without a frontend change.
+                pattern: ^#[0-9a-fA-F]{6}$
+                type: string
               agent:
                 description: Agent tunes the sidecar deployed alongside the game container.
                 properties:
@@ -142,6 +151,109 @@ spec:
                   changes. All commands run over the template's RCON connection,
                   so they require rcon.protocol != none.
                 properties:
+                  actions:
+                    description: |-
+                      Actions declares named operator actions surfaced as buttons on the
+                      server detail page. Each runs a templated console command over the
+                      template's RCON connection, so they require rcon.protocol != none.
+                    items:
+                      description: |-
+                        ServerActionSpec declares a named operator action surfaced as a button
+                        on the server detail page. Running it renders Command (a Go
+                        text/template) with the collected parameters and sends the result over
+                        the template's RCON connection.
+                      properties:
+                        command:
+                          description: |-
+                            Command is a Go text/template rendered with .Params (each declared
+                            parameter name mapped to its resolved value) and sent over RCON,
+                            e.g. "say {{.Params.message}}". Parameter values are sanitized for
+                            console-injection before rendering.
+                          minLength: 1
+                          type: string
+                        confirm:
+                          description: |-
+                            Confirm, when true, makes the dashboard require explicit
+                            confirmation before running the action.
+                          type: boolean
+                        danger:
+                          description: |-
+                            Danger marks a destructive action so the dashboard styles it
+                            distinctly (e.g. a red button).
+                          type: boolean
+                        description:
+                          description: Description explains the action; shown in the
+                            confirmation dialog.
+                          type: string
+                        displayName:
+                          description: DisplayName is the button label.
+                          minLength: 1
+                          type: string
+                        icon:
+                          description: Icon is an optional lucide-react icon name
+                            (e.g. "megaphone").
+                          type: string
+                        id:
+                          description: ID is a stable identifier, unique within the
+                            template's actions.
+                          maxLength: 63
+                          pattern: ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$
+                          type: string
+                        params:
+                          description: Params declares inputs collected from the user
+                            before running.
+                          items:
+                            description: ActionParamSpec is a single input collected
+                              before running an action.
+                            properties:
+                              default:
+                                description: Default is the pre-filled value (as a
+                                  string).
+                                type: string
+                              description:
+                                description: Description explains the input.
+                                type: string
+                              displayName:
+                                description: DisplayName labels the input in the UI.
+                                type: string
+                              enum:
+                                description: Enum restricts valid values when Type=enum.
+                                items:
+                                  type: string
+                                type: array
+                              name:
+                                description: |-
+                                  Name is the parameter identifier referenced in the command
+                                  template as {{.Params.<name>}}.
+                                maxLength: 63
+                                pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                                type: string
+                              required:
+                                description: Required, when true, blocks running until
+                                  the input is set.
+                                type: boolean
+                              type:
+                                default: string
+                                description: Type controls the input widget and validation.
+                                enum:
+                                - string
+                                - int
+                                - bool
+                                - enum
+                                type: string
+                            required:
+                            - name
+                            - type
+                            type: object
+                          maxItems: 16
+                          type: array
+                      required:
+                      - command
+                      - displayName
+                      - id
+                      type: object
+                    maxItems: 32
+                    type: array
                   players:
                     description: Players configures the moderation actions on the
                       Players tab.
@@ -205,6 +317,54 @@ spec:
                     required:
                     - quiesce
                     - unquiesce
+                    type: object
+                  status:
+                    description: |-
+                      Status declares game-specific live metrics shown on the Overview
+                      tab, each read via an RCON command parsed by a named-group regex.
+                      Like actions, they require rcon.protocol != none.
+                    properties:
+                      metrics:
+                        description: |-
+                          Metrics are the per-game readouts. Each runs an RCON command and
+                          extracts a value via a named-group regex.
+                        items:
+                          description: StatusMetricSpec reads one live metric from
+                            an RCON command's output.
+                          properties:
+                            command:
+                              description: Command is the RCON command whose output
+                                is parsed.
+                              minLength: 1
+                              type: string
+                            displayName:
+                              description: DisplayName labels the metric in the UI.
+                              minLength: 1
+                              type: string
+                            id:
+                              description: ID is a stable identifier, unique within
+                                the template's metrics.
+                              maxLength: 63
+                              pattern: ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$
+                              type: string
+                            regex:
+                              description: |-
+                                Regex extracts the value via the named group "value", e.g.
+                                `TPS: (?P<value>[0-9.]+)`.
+                              minLength: 1
+                              type: string
+                            unit:
+                              description: Unit is an optional suffix shown after
+                                the value (e.g. "ms", "TPS").
+                              type: string
+                          required:
+                          - command
+                          - displayName
+                          - id
+                          - regex
+                          type: object
+                        maxItems: 16
+                        type: array
                     type: object
                 type: object
               command:
