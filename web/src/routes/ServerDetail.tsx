@@ -84,6 +84,11 @@ export function ServerDetailPage() {
 
   const phase = gs?.status?.phase;
   const running = phase === "Running";
+  // Gate lifecycle actions on phase so they aren't fired during a
+  // transition (Starting/Stopping/Pending): Start only from a stopped
+  // state, Stop/Restart only while Running. act.isPending blocks
+  // duplicate mutations from a double-click.
+  const canStart = phase === "Stopped" || phase === "Suspended" || phase === "Failed";
   const version = gs?.status?.agent?.gameVersion;
   const uptime = formatUptime(gs?.status?.startedAt);
 
@@ -133,14 +138,22 @@ export function ServerDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => act.mutate("restart")}>
+            <Button
+              variant="outline"
+              onClick={() => act.mutate("restart")}
+              disabled={!running || act.isPending}
+            >
               <RotateCw className="h-4 w-4" /> Restart
             </Button>
-            <Button variant="outline" onClick={() => act.mutate("stop")} disabled={!running}>
+            <Button
+              variant="outline"
+              onClick={() => act.mutate("stop")}
+              disabled={!running || act.isPending}
+            >
               <Square className="h-4 w-4" /> Stop
             </Button>
-            {!running && (
-              <Button variant="outline" onClick={() => act.mutate("start")}>
+            {canStart && (
+              <Button variant="outline" onClick={() => act.mutate("start")} disabled={act.isPending}>
                 <Play className="h-4 w-4" /> Start
               </Button>
             )}
