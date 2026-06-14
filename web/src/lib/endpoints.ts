@@ -76,6 +76,9 @@ export const Servers = {
   // `confirm` must equal the server name.
   wipeData: (name: string, confirm: string) =>
     api<void>(`/servers/${name}:wipe-data`, { method: "POST", body: { confirm } }),
+  // Reassigns the server's (informational) owner to another user.
+  transfer: (name: string, userId: number) =>
+    api<void>(`/servers/${name}:transfer`, { method: "POST", body: { userId } }),
   // Live module-declared metrics for the Overview tab. The agent returns
   // [] when the game has no RCON, so the UI hides the panel.
   status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),

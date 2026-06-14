@@ -116,6 +116,10 @@ func createHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 			httperr.Write(w, req, err)
 			return
 		}
+		// Record the creating user as the server's owner (informational).
+		if gvr.Resource == "gameservers" {
+			stampOwner(obj, req)
+		}
 		var created *unstructured.Unstructured
 		if cluster(gvr) {
 			created, err = k.Dynamic.Resource(gvr).Create(req.Context(), obj, metav1.CreateOptions{})
