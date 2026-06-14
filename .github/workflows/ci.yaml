@@ -42,11 +42,16 @@ jobs:
       - name: go vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
+      # NOTE: -race is omitted on purpose. It multiplies memory use several-
+      # fold and OOM-kills the larger modules on the memory-constrained
+      # self-hosted runner (netguard passes, operator/api/agent get killed).
+      # Coverage uses -covermode=atomic, which is valid without -race.
+      # Restore -race (or a separate race-only job) once the runner has more RAM.
       - name: unit test + coverage
         working-directory: ${{ matrix.module }}
         run: |
           mkdir -p coverage
-          go test -race -covermode=atomic -coverpkg=./... \
+          go test -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/unit.out ./...
       - name: integration (envtest) test + coverage
         if: matrix.module == 'operator' || matrix.module == 'api'
@@ -54,7 +59,7 @@ jobs:
         run: |
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
           export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.31.0 -p path)
-          go test -race -tags=envtest -timeout 10m \
+          go test -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/envtest.out ./...
       - name: merge profiles + threshold gate
