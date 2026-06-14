@@ -9,6 +9,11 @@ permissions:
   contents: read
 
 jobs:
+  # Unit tests, envtest integration (operator/api), and the coverage
+  # gate run in ONE job per module. Folding them together removes the
+  # cross-job artifact hand-off (upload/download-artifact), which the
+  # self-hosted Forgejo runner's artifact backend doesn't support — the
+  # gate now reads the profiles it just produced, on the same runner.
   go:
     name: go (${{ matrix.module }})
     runs-on: ubuntu-latest
@@ -20,101 +25,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version: "1.25" }
-      - name: Cache modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: go mod download
         working-directory: ${{ matrix.module }}
         run: go mod download
       - name: go vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
-      - name: go test (unit + coverage)
+      - name: unit test + coverage
         working-directory: ${{ matrix.module }}
         run: |
           mkdir -p coverage
           go test -race -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/unit.out ./...
-      - name: upload unit coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-unit-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage/unit.out
-          retention-days: 7
-          if-no-files-found: error
-
-  integration:
-    name: integration (${{ matrix.module }})
-    runs-on: ubuntu-latest
-    needs: [go]
-    strategy:
-      fail-fast: false
-      matrix:
-        module: [operator, api]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.25" }
-      - name: Cache modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: install setup-envtest
-        run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-      - name: fetch envtest binaries
-        run: |
-          echo "KUBEBUILDER_ASSETS=$($HOME/go/bin/setup-envtest use 1.31.0 -p path)" >> $GITHUB_ENV
-      - name: integration test (envtest + coverage)
+      - name: integration (envtest) test + coverage
+        if: matrix.module == 'operator' || matrix.module == 'api'
         working-directory: ${{ matrix.module }}
         run: |
-          mkdir -p coverage
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.31.0 -p path)
           go test -race -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/envtest.out ./...
-      - name: upload envtest coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-envtest-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage/envtest.out
-          retention-days: 7
-          if-no-files-found: error
-
-  coverage-go:
-    name: coverage gate (${{ matrix.module }})
-    runs-on: ubuntu-latest
-    needs: [go, integration]
-    # Don't gate the build on a coverage flake when one of the upstream jobs
-    # is allowed to skip (e.g., agent has no integration job).
-    if: always() && needs.go.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        module: [netguard, operator, api, agent]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.25" }
-      - name: download unit coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-unit-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage
-      - name: download envtest coverage (operator/api only)
-        if: matrix.module != 'agent' && matrix.module != 'netguard'
-        # If integration failed, the artifact won't exist — that's its own
-        # red signal in CI. Tolerate it here and gate on unit-only data.
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-envtest-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage
-      - name: merge profiles
-        run: make cover-go-merge
-      - name: threshold check
-        run: make cover-go-check
+      - name: merge profiles + threshold gate
+        run: make cover-go-merge && make cover-go-check
 
   web:
     name: web
@@ -128,7 +61,10 @@ jobs:
       - run: npm run build
       - run: npm run test:cover
       - name: upload web coverage
+        # Best-effort: the vitest thresholds in the step above are the gate.
+        # Don't fail the job if the runner's artifact backend is unavailable.
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: coverage-web
