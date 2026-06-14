@@ -137,6 +137,7 @@ func main() {
 		handlers.MountResources(p, k8s)
 		handlers.MountLifecycle(p, k8s)
 		handlers.MountUsers(p, store, sessions)
+		handlers.MountRoles(p, store)
 		handlers.MountAudit(p, auditor)
 		handlers.MountConfig(p, store)
 		handlers.MountCluster(p, k8s, store, Version)
