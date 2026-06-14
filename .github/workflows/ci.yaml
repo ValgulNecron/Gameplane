@@ -7,6 +7,10 @@ on:
 
 permissions:
   contents: read
+  # Lets the coverage steps publish a per-module commit status carrying the
+  # measured % (readable via the API, since this runner has no artifact
+  # backend and job logs need a web session).
+  statuses: write
 
 jobs:
   # Unit tests, envtest integration (operator/api), and the coverage
@@ -48,6 +52,27 @@ jobs:
             -coverprofile=coverage/envtest.out ./...
       - name: merge profiles + threshold gate
         run: make cover-go-merge && make cover-go-check
+      - name: report coverage (commit status)
+        if: always()
+        env:
+          GJ_TOKEN: ${{ github.token }}
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set +e
+          PROF=${{ matrix.module }}/coverage/merged.out
+          [ -f "$PROF" ] || PROF=${{ matrix.module }}/coverage/unit.out
+          [ -f "$PROF" ] || exit 0
+          TOTAL=$(go tool cover -func="$PROF" | tail -1 | awk '{print $NF}')
+          LOW=$(go tool cover -func="$PROF" | grep -v '^total:' \
+                | awk '$NF!="100.0%"{print $2"="$NF}' | sort -t= -k2 -n | head -6 | tr '\n' ' ')
+          DESC=$(printf 'total %s | low: %s' "$TOTAL" "$LOW" | tr -d '"\r\n' | cut -c1-240)
+          SHA="$HEAD_SHA"; [ -z "$SHA" ] && SHA="$RUN_SHA"
+          curl -sS -X POST -H "Authorization: token $GJ_TOKEN" -H "Content-Type: application/json" \
+            "$SERVER/api/v1/repos/$REPO/statuses/$SHA" \
+            -d "{\"context\":\"coverage/${{ matrix.module }}\",\"state\":\"success\",\"description\":\"$DESC\"}" >/dev/null || true
 
   web:
     name: web
@@ -60,6 +85,22 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:cover
+      - name: report coverage (commit status)
+        if: always()
+        env:
+          GJ_TOKEN: ${{ github.token }}
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set +e
+          [ -f coverage/coverage-summary.json ] || exit 0
+          DESC=$(node -e "const t=require('./coverage/coverage-summary.json').total;console.log('L'+t.lines.pct+' S'+t.statements.pct+' B'+t.branches.pct+' F'+t.functions.pct)")
+          SHA="$HEAD_SHA"; [ -z "$SHA" ] && SHA="$RUN_SHA"
+          curl -sS -X POST -H "Authorization: token $GJ_TOKEN" -H "Content-Type: application/json" \
+            "$SERVER/api/v1/repos/$REPO/statuses/$SHA" \
+            -d "{\"context\":\"coverage/web\",\"state\":\"success\",\"description\":\"$DESC\"}" >/dev/null || true
       - name: upload web coverage
         # Best-effort: the vitest thresholds in the step above are the gate.
         # Don't fail the job if the runner's artifact backend is unavailable.
