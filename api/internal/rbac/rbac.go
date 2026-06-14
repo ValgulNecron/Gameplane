@@ -1,13 +1,12 @@
-// Package rbac enforces role-based access control on API routes.
+// Package rbac enforces permission-based access control on API routes.
 //
-// Roles:
-//   - admin    — full access, including users/RBAC + admin settings
-//   - operator — create/update/delete GameServers + backups + templates
-//   - viewer   — read-only access
-//
-// Scope granularity past the top-level role (per-namespace, per-server)
-// is expressed in a future users.scope JSON column — v1 ships with
-// coarse cluster-wide roles, which matches the Users & RBAC screen.
+// Roles are named sets of permissions (see catalog.go); users are bound
+// to roles per namespace ("*" = cluster-wide). The rule table below maps
+// each request to the single permission required to perform it, and the
+// middleware checks the caller's resolved permission set — within the
+// request's target namespace for namespaced permissions, cluster-wide
+// for the rest. The built-in admin/operator/viewer roles are seeded so
+// this reproduces the historical role matrix exactly.
 package rbac
 
 import (
@@ -15,17 +14,20 @@ import (
 	"strings"
 
 	"github.com/kestrel-gg/kestrel/api/internal/auth"
+	"github.com/kestrel-gg/kestrel/api/internal/scope"
 )
 
+// Built-in role names. Custom roles may take any other (valid) name.
 const (
 	RoleAdmin    = "admin"
 	RoleOperator = "operator"
 	RoleViewer   = "viewer"
 )
 
-// Middleware blocks requests based on the caller's role. The route
-// table below maps method+firstSegment to a minimum role; if no rule
-// matches, access is denied (fail-closed).
+// Middleware blocks requests the caller isn't permitted to make. It
+// finds the matching rule, resolves the target namespace for namespaced
+// permissions, and checks the caller's permission set. No matching rule
+// means deny (fail-closed).
 func Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -34,7 +36,25 @@ func Middleware() func(http.Handler) http.Handler {
 				http.Error(w, "unauthenticated", http.StatusUnauthorized)
 				return
 			}
-			if !allow(u.Role, req.Method, req.URL.Path) {
+			r, ok := match(req.Method, req.URL.Path)
+			if !ok {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			if r.perm == "" { // any authenticated user
+				next.ServeHTTP(w, req)
+				return
+			}
+			ns := ""
+			if Namespaced(r.perm) {
+				resolved, err := scope.Resolve(req)
+				if err != nil {
+					http.Error(w, "namespace not permitted", http.StatusBadRequest)
+					return
+				}
+				ns = resolved
+			}
+			if !u.Can(r.perm, Namespaced(r.perm), ns) {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
@@ -43,80 +63,76 @@ func Middleware() func(http.Handler) http.Handler {
 	}
 }
 
-// rule matches on the first path segment (e.g. "servers" from
-// "/servers/foo") rather than on a free-form prefix — "/servers" no
-// longer matches "/serverz" or "/servers2". pathSuffix narrows further
-// when a single first-segment isn't specific enough — WS routes share
-// segment "ws" but differ in behavior between console (writes via RCON)
-// and logs (read-only).
+// rule maps a request shape to the permission required to perform it.
+// The first matching rule wins. method "" matches any method; segment ""
+// matches any first path segment; prefix/suffix narrow further when a
+// first segment isn't specific enough (e.g. /admin/audit vs /admin/config,
+// or the write-capable WS /console vs the read-only logs tail).
 type rule struct {
-	method     string // "" = any
-	segment    string // "" = any first segment (used for the catch-all read rule)
-	pathSuffix string // "" = any; otherwise strings.HasSuffix(path, pathSuffix)
-	role       string
+	method  string
+	segment string
+	prefix  string // strings.HasPrefix(path, prefix)
+	suffix  string // strings.HasSuffix(path, suffix)
+	perm    string // required permission; "" = any authenticated user
 }
 
 var rules = []rule{
-	// Admin-only
-	{method: "", segment: "admin", role: RoleAdmin},
-	// Own profile: any authenticated role may read /users/me (the
-	// dashboard loads it after login). Must precede the admin-only
-	// catch-all for the rest of /users.
-	{method: "GET", segment: "users", pathSuffix: "/users/me", role: RoleViewer},
-	{method: "", segment: "users", role: RoleAdmin},
+	// Own profile: every authenticated user reads /users/me. The rest of
+	// /users is gated; must precede the segment-wide users rules.
+	{method: "GET", segment: "users", suffix: "/users/me", perm: ""},
+	{method: "GET", segment: "users", perm: "users:read"},
+	{segment: "users", perm: "users:manage"},
 
-	// Writes on server/template/backup resources → operator+
-	{method: "POST", segment: "servers", role: RoleOperator},
-	{method: "PUT", segment: "servers", role: RoleOperator},
-	{method: "PATCH", segment: "servers", role: RoleOperator},
-	{method: "DELETE", segment: "servers", role: RoleOperator},
-	{method: "POST", segment: "templates", role: RoleOperator},
-	{method: "DELETE", segment: "templates", role: RoleOperator},
-	{method: "POST", segment: "backups", role: RoleOperator},
-	{method: "DELETE", segment: "backups", role: RoleOperator},
-	{method: "POST", segment: "schedules", role: RoleOperator},
-	{method: "PUT", segment: "schedules", role: RoleOperator},
-	{method: "DELETE", segment: "schedules", role: RoleOperator},
+	// Roles + the permission catalog.
+	{method: "GET", segment: "roles", perm: "roles:read"},
+	{segment: "roles", perm: "roles:manage"},
 
-	// Backup destinations are restic-repo Secrets. Reads expose only
-	// the (already-public) URL plus a hasPassword bool, so viewers can
-	// see what's configured. Writes touch live credentials → admin only.
-	{method: "POST", segment: "backup-destinations", role: RoleAdmin},
-	{method: "PUT", segment: "backup-destinations", role: RoleAdmin},
-	{method: "DELETE", segment: "backup-destinations", role: RoleAdmin},
+	// Admin area. Audit is a read; config splits read vs manage; anything
+	// else under /admin defaults to the admin wildcard (fail-closed-ish).
+	{method: "GET", segment: "admin", prefix: "/admin/audit", perm: "audit:read"},
+	{method: "GET", segment: "admin", prefix: "/admin/config", perm: "config:read"},
+	{segment: "admin", prefix: "/admin/config", perm: "config:manage"},
+	{segment: "admin", perm: "*"},
 
-	// Module install/upgrade/uninstall and module-source management are
-	// admin-only — they make the cluster pull arbitrary bundles and
-	// create cluster-scoped GameTemplates. Reads (catalog, sources,
-	// installed list) follow the global viewer+ rule below.
-	{method: "POST", segment: "modules", role: RoleAdmin},
-	{method: "PUT", segment: "modules", role: RoleAdmin},
-	{method: "PATCH", segment: "modules", role: RoleAdmin},
-	{method: "DELETE", segment: "modules", role: RoleAdmin},
+	// Namespaced game resources. Reads vs writes; the catch-all GET below
+	// never fires for these because the explicit read rule matches first.
+	{method: "GET", segment: "servers", perm: "servers:read"},
+	{segment: "servers", perm: "servers:write"},
+	{method: "GET", segment: "templates", perm: "templates:read"},
+	{segment: "templates", perm: "templates:write"},
+	{method: "GET", segment: "backups", perm: "backups:read"},
+	{segment: "backups", perm: "backups:write"},
+	{method: "GET", segment: "schedules", perm: "schedules:read"},
+	{segment: "schedules", perm: "schedules:write"},
+	{method: "GET", segment: "restores", perm: "backups:read"},
+	{segment: "restores", perm: "backups:restore"},
 
-	// Cluster operations (Add node, Download kubeconfig) mint cluster
-	// credentials — admin only. GET /cluster* reads fall through to the
-	// viewer catch-all below.
-	{method: "POST", segment: "cluster", role: RoleAdmin},
+	// Backup destinations are restic-repo Secrets: reads expose only the
+	// (already-public) URL + a hasPassword bool; writes touch credentials.
+	{method: "GET", segment: "backup-destinations", perm: "destinations:read"},
+	{segment: "backup-destinations", perm: "destinations:manage"},
 
-	// WebSocket console executes RCON commands (/stop, /op, /ban, …).
-	// The upgrade is an HTTP GET but the stream is read-write, so it
-	// doesn't fit the usual "GET = safe" shape. Require operator+.
-	// Must come before the generic segment:"ws" rule below.
-	{method: "GET", segment: "ws", pathSuffix: "/console", role: RoleOperator},
-	// PTY console attaches the user to the game container's stdin via
-	// kubectl-attach. Same write-capability profile as RCON console.
-	{method: "GET", segment: "ws", pathSuffix: "/console-pty", role: RoleOperator},
-	// Other WS endpoints (logs tail) are read-only — viewer is fine.
-	{method: "GET", segment: "ws", role: RoleViewer},
+	// Module install/upgrade/uninstall + source management are cluster-wide.
+	{method: "GET", segment: "modules", perm: "modules:read"},
+	{segment: "modules", perm: "modules:manage"},
 
-	// Everyone else (including viewer) can read. Empty segment matches
-	// any top-level resource.
-	{method: "GET", segment: "", role: RoleViewer},
-	{method: "HEAD", segment: "", role: RoleViewer},
+	// Cluster reads (nodes, version, storage) vs credential-minting ops.
+	{method: "GET", segment: "cluster", perm: "cluster:read"},
+	{segment: "cluster", perm: "cluster:manage"},
+
+	// Events SSE is a namespaced, multiplexed read.
+	{method: "GET", segment: "events", perm: "servers:read"},
+
+	// WebSocket console runs RCON/PTY commands (write-capable, despite the
+	// GET upgrade); the logs tail is read-only.
+	{method: "GET", segment: "ws", suffix: "/console", perm: "servers:console"},
+	{method: "GET", segment: "ws", suffix: "/console-pty", perm: "servers:console"},
+	{method: "GET", segment: "ws", perm: "servers:read"},
+
+	// Any other authenticated read of an unlisted path.
+	{method: "GET", segment: "", perm: ""},
+	{method: "HEAD", segment: "", perm: ""},
 }
-
-var rank = map[string]int{RoleViewer: 0, RoleOperator: 1, RoleAdmin: 2}
 
 // firstSegment returns the first path segment, stripping any trailing
 // verb suffix ("/servers/foo:start" → "servers").
@@ -128,7 +144,8 @@ func firstSegment(path string) string {
 	return trimmed
 }
 
-func allow(role, method, path string) bool {
+// match returns the first rule that applies to (method, path).
+func match(method, path string) (rule, bool) {
 	seg := firstSegment(path)
 	for _, r := range rules {
 		if r.method != "" && r.method != method {
@@ -137,10 +154,27 @@ func allow(role, method, path string) bool {
 		if r.segment != "" && r.segment != seg {
 			continue
 		}
-		if r.pathSuffix != "" && !strings.HasSuffix(path, r.pathSuffix) {
+		if r.prefix != "" && !strings.HasPrefix(path, r.prefix) {
 			continue
 		}
-		return rank[role] >= rank[r.role]
+		if r.suffix != "" && !strings.HasSuffix(path, r.suffix) {
+			continue
+		}
+		return r, true
 	}
-	return false
+	return rule{}, false
+}
+
+// allow is the pure authorization check, factored out for testing. ns is
+// the already-resolved target namespace (ignored for cluster-scoped
+// permissions).
+func allow(u *auth.User, method, path, ns string) bool {
+	r, ok := match(method, path)
+	if !ok {
+		return false
+	}
+	if r.perm == "" {
+		return true
+	}
+	return u.Can(r.perm, Namespaced(r.perm), ns)
 }
