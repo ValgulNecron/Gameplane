@@ -59,26 +59,6 @@ jobs:
             -coverprofile=coverage/envtest.out ./...
       - name: merge profiles + threshold gate
         run: make cover-go-merge && make cover-go-check
-      - name: report coverage (commit status)
-        if: always()
-        continue-on-error: true
-        env:
-          GJ_TOKEN: ${{ github.token }}
-          SERVER: ${{ github.server_url }}
-          REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_SHA: ${{ github.sha }}
-          MODULE: ${{ matrix.module }}
-        run: |
-          go tool cover -func="$MODULE/coverage/merged.out" > /tmp/cov.txt 2>/dev/null \
-            || go tool cover -func="$MODULE/coverage/unit.out" > /tmp/cov.txt 2>/dev/null || true
-          TOTAL=$(tail -1 /tmp/cov.txt | awk '{print $NF}')
-          LOW=$(grep -v '^total:' /tmp/cov.txt | awk '$NF!="100.0%"{print $2"="$NF}' | sort -t= -k2 -n | head -6 | tr '\n' ' ')
-          DESC=$(printf 'total %s | %s' "$TOTAL" "$LOW" | tr -d '"\r\n' | cut -c1-240)
-          SHA="${HEAD_SHA:-$RUN_SHA}"
-          curl -sS -X POST -H "Authorization: token $GJ_TOKEN" -H "Content-Type: application/json" \
-            "$SERVER/api/v1/repos/$REPO/statuses/$SHA" \
-            -d "{\"context\":\"coverage/$MODULE\",\"state\":\"success\",\"description\":\"$DESC\"}" >/dev/null || true
 
   web:
     name: web
