@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 )
@@ -407,10 +408,14 @@ func TestGameServer_BackupPolicyRemovedDeletesSchedule(t *testing.T) {
 		return err == nil, "waiting for managed schedule"
 	})
 
-	// Now drop the policy.
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.BackupPolicy = nil
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// Now drop the policy. Retry on conflict — the reconciler updates the
+	// GameServer concurrently, so a bare Get+Update races its resourceVersion
+	// (envtest flake: "the object has been modified").
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs := getGameServer(t, ns, "smp")
+		gs.Spec.BackupPolicy = nil
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 
