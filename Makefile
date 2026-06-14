@@ -12,7 +12,7 @@ CHART_DIR      ?= charts/kestrel
 CHART_RELEASE  ?= kestrel
 NAMESPACE      ?= kestrel-system
 
-GO_MODULES     := operator api agent
+GO_MODULES     := netguard operator api agent
 GO_INTEGRATION_MODULES := operator api
 GO_BUILDFLAGS  ?= -trimpath
 

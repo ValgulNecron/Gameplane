@@ -18,19 +18,18 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/kestrel-gg/kestrel/agent/internal/caps"
+	"github.com/kestrel-gg/kestrel/netguard"
 )
 
 const defaultMaxBytes = 256 << 20 // 256 MiB
@@ -167,7 +166,7 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 	case errors.Is(err, errTooLarge):
 		writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
 		return
-	case errors.Is(err, errBlockedAddr) || errors.Is(err, errHostNotAllowed):
+	case errors.Is(err, netguard.ErrBlockedAddr) || errors.Is(err, errHostNotAllowed):
 		writeErr(w, http.StatusForbidden, "download was redirected to a disallowed address")
 		return
 	case err != nil:
@@ -313,118 +312,30 @@ func hostAllowed(host string, allowed []string) bool {
 
 var (
 	errTooLarge       = errors.New("download exceeds size limit")
-	errBlockedAddr    = errors.New("address is not publicly routable")
 	errHostNotAllowed = errors.New("redirect host not allowed")
 )
 
-// newSafeClient builds an HTTP client that refuses to connect to
-// non-public addresses (the core SSRF guard, applied to the actual
-// dialed IP so DNS rebinding can't slip past the host allowlist) and
-// re-checks the host allowlist on every redirect.
+// ssrfPolicy decides whether the agent may dial an address. It defaults to
+// the shared public-only policy (netguard.IsPublic) and is a package var only
+// so tests can permit loopback to reach an httptest server.
+var ssrfPolicy = netguard.IsPublic
+
+// newSafeClient builds an HTTP client that refuses to connect to non-public
+// addresses (the shared SSRF guard, applied to the actual dialed IP so DNS
+// rebinding can't slip past the host allowlist) and re-checks the host
+// allowlist on every redirect (which the shared client leaves to the caller).
 func newSafeClient(allowed []string) *http.Client {
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	return &http.Client{
-		Timeout: 2 * time.Minute,
-		Transport: &http.Transport{
-			// No Proxy: a forward proxy from the pod env would make the
-			// Control IP guard validate only the proxy's address, letting
-			// the proxy reach an internal SSRF target. Dial directly so the
-			// guard always sees the real destination IP.
-			Proxy: nil,
-			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-				d := &net.Dialer{
-					Timeout: dialer.Timeout,
-					Control: func(_, addr string, _ syscall.RawConn) error {
-						host, _, err := net.SplitHostPort(addr)
-						if err != nil {
-							return err
-						}
-						ip := net.ParseIP(host)
-						if ip == nil || !ipAllowed(ip) {
-							return errBlockedAddr
-						}
-						return nil
-					},
-				}
-				return d.DialContext(ctx, network, address)
-			},
-			TLSHandshakeTimeout:   15 * time.Second,
-			ResponseHeaderTimeout: 30 * time.Second,
-			MaxIdleConns:          2,
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 {
-				return errors.New("too many redirects")
-			}
-			if !hostAllowed(req.URL.Hostname(), allowed) {
-				return errHostNotAllowed
-			}
-			return nil
-		},
-	}
-}
-
-// ipAllowed decides whether the agent may dial an address. It defaults
-// to isPublic (the SSRF guard) and is a package var only so tests can
-// permit loopback to reach an httptest server.
-var ipAllowed = isPublic
-
-// reservedBlocks are non-globally-routable ranges that Go's net.IP
-// predicates (IsPrivate/IsLoopback/…) miss but that we must still refuse:
-// most importantly RFC 6598 CGNAT (100.64.0.0/10), which several
-// Kubernetes setups (EKS custom networking, GKE, Cilium/Calico) use for
-// node/pod addressing — so a mod URL resolving there would reach
-// cluster-internal hosts. NAT64/6to4 translation prefixes and the
-// TEST-NET / reserved blocks are denied for the same defense-in-depth
-// reason.
-var reservedBlocks = func() []*net.IPNet {
-	cidrs := []string{
-		"100.64.0.0/10",   // RFC 6598 CGNAT (k8s node/pod ranges)
-		"192.0.0.0/24",    // IETF protocol assignments
-		"192.0.2.0/24",    // TEST-NET-1
-		"198.18.0.0/15",   // benchmarking
-		"198.51.100.0/24", // TEST-NET-2
-		"203.0.113.0/24",  // TEST-NET-3
-		"240.0.0.0/4",     // reserved / future use (incl. 255.255.255.255)
-		"64:ff9b::/96",    // NAT64 well-known prefix
-		"2001:db8::/32",   // documentation
-		"2002::/16",       // 6to4
-		"fec0::/10",       // deprecated site-local
-	}
-	out := make([]*net.IPNet, 0, len(cidrs))
-	for _, c := range cidrs {
-		if _, n, err := net.ParseCIDR(c); err == nil {
-			out = append(out, n)
+	client := netguard.HTTPClient(2*time.Minute, ssrfPolicy)
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return errors.New("too many redirects")
 		}
-	}
-	return out
-}()
-
-// isPublic reports whether ip is a globally routable unicast address —
-// i.e. not loopback, private (RFC1918 / ULA), link-local, multicast,
-// unspecified, or one of the reserved/special-use ranges above. This is
-// what blocks the agent from being tricked into fetching cluster-internal
-// services or the cloud metadata endpoint.
-func isPublic(ip net.IP) bool {
-	if ip == nil {
-		return false
-	}
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
-		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() {
-		return false
-	}
-	// Normalize an IPv4-mapped IPv6 address (e.g. ::ffff:169.254.169.254)
-	// to its 4-byte form so the IPv4 reserved blocks match it.
-	norm := ip
-	if v4 := ip.To4(); v4 != nil {
-		norm = v4
-	}
-	for _, blk := range reservedBlocks {
-		if blk.Contains(norm) {
-			return false
+		if !hostAllowed(req.URL.Hostname(), allowed) {
+			return errHostNotAllowed
 		}
+		return nil
 	}
-	return true
+	return client
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

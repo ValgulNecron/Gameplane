@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [operator, api, agent]
+        module: [netguard, operator, api, agent]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -92,7 +92,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [operator, api, agent]
+        module: [netguard, operator, api, agent]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -103,7 +103,7 @@ jobs:
           name: coverage-unit-${{ matrix.module }}
           path: ${{ matrix.module }}/coverage
       - name: download envtest coverage (operator/api only)
-        if: matrix.module != 'agent'
+        if: matrix.module != 'agent' && matrix.module != 'netguard'
         # If integration failed, the artifact won't exist — that's its own
         # red signal in CI. Tolerate it here and gate on unit-only data.
         continue-on-error: true

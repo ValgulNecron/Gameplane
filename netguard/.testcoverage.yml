@@ -1,0 +1,15 @@
+# Coverage threshold gate for the shared netguard module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# netguard holds the SSRF dial-guard shared by the operator and agent. It is
+# pure stdlib with a thorough table test (TestIsAllowed/TestIsPublic) plus
+# dial/host-check tests; gate at floor(measured) - 1. The small remaining gap
+# is in error branches of dialControl and CheckHostAllowed (malformed addr /
+# DNS-failure paths).
+profile: coverage/unit.out
+github-action-output: false
+
+threshold:
+  file: 0
+  package: 0
+  total: 91
