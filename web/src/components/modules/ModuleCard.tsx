@@ -7,6 +7,7 @@ import {
   History,
   Loader2,
   ShieldCheck,
+  ShieldQuestion,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -140,16 +141,40 @@ export function ModuleCard({
   );
 }
 
-// VerifyBadge surfaces a source's cosign policy. Absence of a badge is the
-// neutral state — we never render a red "unsigned" badge, which would be
-// noise on every community module.
+// VerifyBadge surfaces a module's cosign posture in three states, taking
+// care never to over-claim (absence of a badge is the neutral state — we
+// never render a red "unsigned" pill, which would be noise on community
+// modules):
+//   - enforced   → the installed bytes were signature-checked: a solid
+//                  "verified" badge.
+//   - policy     → a source declares a signature policy but nothing is
+//                  installed yet (enforced=false): a softer outline "policy"
+//                  badge, so it reads as "declared", not "checked".
+//   - mixed/none → suppressed. Mixed candidate sources disagree, so a single
+//                  badge would over-claim; none is the neutral default.
+// The keyed-vs-keyless distinction lives in the tooltip, not the label — the
+// confident badge is about the running-bytes fact, not the policy flavor.
 function VerifyBadge({ verify }: { verify: EntryVerify }) {
-  if (verify.mode === "none") return null;
-  const label = verify.mode === "keyless" ? "keyless" : "signed";
+  if (verify.mode === "none" || verify.mixed) return null;
+  const keyless = verify.mode === "keyless";
+  if (verify.enforced) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 font-mono text-[10px] uppercase text-success"
+        title={keyless ? "keyless (Fulcio) signature verified" : "signature verified"}
+      >
+        <ShieldCheck className="h-3 w-3" />
+        verified
+      </span>
+    );
+  }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 font-mono text-[10px] uppercase text-success">
-      <ShieldCheck className="h-3 w-3" />
-      {label}
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-transparent px-2 py-0.5 font-mono text-[10px] uppercase text-success/80"
+      title={keyless ? "keyless (Fulcio) signature policy declared" : "signature policy declared"}
+    >
+      <ShieldQuestion className="h-3 w-3" />
+      policy
     </span>
   );
 }

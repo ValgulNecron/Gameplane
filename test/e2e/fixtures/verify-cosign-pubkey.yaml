@@ -1,0 +1,17 @@
+# A cosign public key for the e2e signature-rejection test. Only the public
+# half is committed (no signing material): the test pushes an UNSIGNED bundle
+# and asserts a verify-enabled ModuleSource refuses to install it, so any
+# valid public key drives cosign to "no matching signatures". The matching
+# private key was discarded after generation.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: e2e-cosign-pubkey
+  namespace: kestrel-system
+type: Opaque
+stringData:
+  cosign.pub: |
+    -----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEf2jLLPNrxiS8ZLWLfYK0mJi3nibO
+    1YbK0Nu6ch3Jv+NcDihkXcoZjYZobGrpVlg+E/V6i9vwvzjJThAfwV434w==
+    -----END PUBLIC KEY-----

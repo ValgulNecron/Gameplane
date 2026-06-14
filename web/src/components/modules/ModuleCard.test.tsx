@@ -104,18 +104,7 @@ describe("ModuleCard", () => {
     expect(screen.getByText("3 sources")).toBeInTheDocument();
   });
 
-  it("renders a keyless verify badge", () => {
-    render(
-      <ModuleCard
-        entry={makeCatalog({})}
-        verify={{ mode: "keyless", enforced: false, mixed: false }}
-        {...handlers}
-      />,
-    );
-    expect(screen.getByText("keyless")).toBeInTheDocument();
-  });
-
-  it("renders a 'signed' badge for keyed verification", () => {
+  it("enforced verification renders a solid 'verified' badge (keyed)", () => {
     render(
       <ModuleCard
         entry={makeCatalog({})}
@@ -123,7 +112,65 @@ describe("ModuleCard", () => {
         {...handlers}
       />,
     );
-    expect(screen.getByText("signed")).toBeInTheDocument();
+    const badge = screen.getByText("verified");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("bg-success/15");
+    expect(badge).toHaveAttribute("title", "signature verified");
+    expect(screen.queryByText("policy")).not.toBeInTheDocument();
+  });
+
+  it("enforced keyless verification keeps the 'verified' label, with keyless in the tooltip", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({})}
+        verify={{ mode: "keyless", enforced: true, mixed: false }}
+        {...handlers}
+      />,
+    );
+    expect(screen.getByText("verified")).toBeInTheDocument();
+    expect(screen.getByTitle(/keyless/i)).toBeInTheDocument();
+  });
+
+  it("policy-declared (not installed) renders a softer outline 'policy' badge", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({})}
+        verify={{ mode: "keyed", enforced: false, mixed: false }}
+        {...handlers}
+      />,
+    );
+    const badge = screen.getByText("policy");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("border-success/40");
+    expect(badge).not.toHaveClass("bg-success/15");
+    expect(screen.queryByText("verified")).not.toBeInTheDocument();
+  });
+
+  it("keyless policy carries keyless in the tooltip", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({})}
+        verify={{ mode: "keyless", enforced: false, mixed: false }}
+        {...handlers}
+      />,
+    );
+    expect(screen.getByText("policy")).toBeInTheDocument();
+    expect(screen.getByTitle(/keyless/i)).toBeInTheDocument();
+  });
+
+  it("mixed candidate sources suppress the badge (no over-claim)", () => {
+    for (const mode of ["keyless", "keyed"] as const) {
+      const { unmount } = render(
+        <ModuleCard
+          entry={makeCatalog({})}
+          verify={{ mode, enforced: false, mixed: true }}
+          {...handlers}
+        />,
+      );
+      expect(screen.queryByText("verified")).not.toBeInTheDocument();
+      expect(screen.queryByText("policy")).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("renders no verify badge when unsigned", () => {
@@ -134,8 +181,8 @@ describe("ModuleCard", () => {
         {...handlers}
       />,
     );
-    expect(screen.queryByText("keyless")).not.toBeInTheDocument();
-    expect(screen.queryByText("signed")).not.toBeInTheDocument();
+    expect(screen.queryByText("verified")).not.toBeInTheDocument();
+    expect(screen.queryByText("policy")).not.toBeInTheDocument();
   });
 
   it("shows the bundle digest and rollback target", () => {
