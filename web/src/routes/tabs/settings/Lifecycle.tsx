@@ -1,13 +1,50 @@
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import type { Probe, ProbeKind, ProbeSet } from "@/types";
 import { Field } from "./Field";
 import { GRACE_PERIOD_ANNOTATION, type SectionProps } from "./types";
+
+const PROBE_FIELDS: { key: keyof Probe; label: string }[] = [
+  { key: "initialDelaySeconds", label: "Initial delay" },
+  { key: "periodSeconds", label: "Period" },
+  { key: "timeoutSeconds", label: "Timeout" },
+  { key: "failureThreshold", label: "Failure threshold" },
+  { key: "successThreshold", label: "Success threshold" },
+];
+
+const PROBE_KINDS: ProbeKind[] = ["readiness", "liveness", "startup"];
 
 export function LifecycleSection({ draft, onChange, template }: SectionProps) {
   const annotations = draft.metadata.annotations ?? {};
   const autoRestart = !(draft.spec.suspend ?? false);
   const grace = annotations[GRACE_PERIOD_ANNOTATION] ?? "";
-  const probesAvailable = !!template?.spec.rcon || !!template?.spec.consoleMode;
+  const templateProbes = template?.spec.probes;
+  const overrides = draft.spec.probes;
+
+  // setProbe writes a per-server override for `kind`, seeded from the
+  // template probe so the action (httpGet/tcpSocket/exec) is preserved.
+  const setProbe = (kind: ProbeKind, field: keyof Probe, raw: string) => {
+    const base = overrides?.[kind] ?? templateProbes?.[kind] ?? {};
+    const next: Probe = { ...base };
+    if (raw === "") delete next[field];
+    else next[field] = Number(raw);
+    const probes: ProbeSet = { ...overrides, [kind]: next };
+    onChange({ ...draft, spec: { ...draft.spec, probes } });
+  };
+
+  const resetProbe = (kind: ProbeKind) => {
+    if (!overrides) return;
+    const probes: ProbeSet = { ...overrides };
+    delete probes[kind];
+    onChange({
+      ...draft,
+      spec: {
+        ...draft.spec,
+        probes: Object.keys(probes).length ? probes : undefined,
+      },
+    });
+  };
 
   const setSuspend = (suspend: boolean) => {
     onChange({
@@ -70,15 +107,58 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
       </Field>
 
       <Field
-        label="Liveness probe"
-        hint={
-          probesAvailable
-            ? "Liveness defaults come from the GameTemplate. Per-server overrides will arrive in a future iteration."
-            : "Template does not declare probes."
-        }
+        label="Health probes"
+        hint="Per-server overrides for the template's readiness/liveness/startup probe timing. The probe action is inherited from the template."
       >
-        <div className="rounded border border-dashed border-border bg-surface/20 px-3 py-2 text-xs text-muted">
-          Editing probes per-server is not yet supported.
+        <div className="space-y-4">
+          {PROBE_KINDS.map((kind) => {
+            const tmplProbe = templateProbes?.[kind];
+            const override = overrides?.[kind];
+            const effective = override ?? tmplProbe;
+            if (!tmplProbe && !override) {
+              return (
+                <div key={kind} className="text-xs text-muted">
+                  <span className="font-medium capitalize text-fg">{kind}</span>: not
+                  defined by the template.
+                </div>
+              );
+            }
+            return (
+              <div key={kind} className="rounded border border-border p-3">
+                <div className="flex items-center justify-between pb-2">
+                  <span className="text-sm font-medium capitalize">{kind}</span>
+                  {override ? (
+                    <Button
+                      variant="ghost"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => resetProbe(kind)}
+                    >
+                      Reset to template
+                    </Button>
+                  ) : (
+                    <span className="text-[11px] text-muted">from template</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {PROBE_FIELDS.map((f) => (
+                    <label key={String(f.key)} className="text-[11px] text-muted">
+                      {f.label}
+                      <Input
+                        className="mt-0.5"
+                        inputMode="numeric"
+                        value={String((effective?.[f.key] as number | undefined) ?? "")}
+                        onChange={(e) =>
+                          setProbe(kind, f.key, e.target.value.replace(/[^0-9]/g, ""))
+                        }
+                        placeholder="—"
+                        aria-label={`${kind} ${f.label}`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Field>
     </div>

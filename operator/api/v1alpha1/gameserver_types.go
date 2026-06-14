@@ -49,6 +49,12 @@ type GameServerSpec struct {
 	// +optional
 	Config map[string]string `json:"config,omitempty"`
 
+	// Probes overrides the template's readiness/liveness/startup probes.
+	// Each set probe replaces the corresponding template probe; unset
+	// probes fall back to the template.
+	// +optional
+	Probes *GameProbesSpec `json:"probes,omitempty"`
+
 	// Resources overrides compute resources from the template.
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`

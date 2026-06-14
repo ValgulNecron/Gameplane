@@ -478,6 +478,18 @@ func buildGameContainer(
 		c.LivenessProbe = tmpl.Spec.Probes.Liveness
 		c.StartupProbe = tmpl.Spec.Probes.Startup
 	}
+	// Per-server probe overrides win over the template, one probe at a time.
+	if p := gs.Spec.Probes; p != nil {
+		if p.Readiness != nil {
+			c.ReadinessProbe = p.Readiness
+		}
+		if p.Liveness != nil {
+			c.LivenessProbe = p.Liveness
+		}
+		if p.Startup != nil {
+			c.StartupProbe = p.Startup
+		}
+	}
 	// PTY console mode requires the kubelet to allocate a TTY for the
 	// container at start time. These fields are immutable once the pod
 	// exists, so changing ConsoleMode forces a pod recreate (handled by

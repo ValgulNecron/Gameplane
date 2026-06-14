@@ -84,6 +84,26 @@ export interface StatusReading {
   unit?: string;
 }
 
+// A Kubernetes probe. Only the timing fields are edited per-server; the
+// action (httpGet / tcpSocket / exec) and anything else is carried through
+// unchanged via the index signature.
+export interface Probe {
+  initialDelaySeconds?: number;
+  periodSeconds?: number;
+  timeoutSeconds?: number;
+  failureThreshold?: number;
+  successThreshold?: number;
+  [key: string]: unknown;
+}
+
+export interface ProbeSet {
+  readiness?: Probe;
+  liveness?: Probe;
+  startup?: Probe;
+}
+
+export type ProbeKind = "readiness" | "liveness" | "startup";
+
 export interface GameTemplate {
   metadata: ObjectMeta;
   spec: {
@@ -97,6 +117,7 @@ export interface GameTemplate {
     logPath?: string;
     consoleMode?: "rcon" | "pty" | "none";
     rcon?: { protocol?: string; port?: number };
+    probes?: ProbeSet;
     capabilities?: GameCapabilities;
     configSchema?: Array<{
       name: string;
@@ -163,6 +184,7 @@ export interface GameServer {
     image?: string;
     config?: Record<string, string>;
     env?: EnvVar[];
+    probes?: ProbeSet;
     resources?: ResourceRequirements;
     storage?: GameServerStorage;
     networking?: GameServerNetworking;
