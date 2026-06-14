@@ -2,9 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeUser } from "@/test/factories";
+import { makeServer, makeUser } from "@/test/factories";
 
 // TanStack Router APIs the layout reaches into.
 vi.mock("@tanstack/react-router", () => ({
@@ -60,5 +61,28 @@ describe("AppLayout", () => {
   it("renders the outlet for child routes", async () => {
     renderWithQuery(<AppLayout />);
     expect(screen.getByTestId("outlet")).toBeInTheDocument();
+  });
+
+  it("notifications bell toggles a panel", async () => {
+    renderWithQuery(<AppLayout />);
+    const bell = await screen.findByRole("button", { name: /notifications/i });
+    await userEvent.click(bell);
+    expect(await screen.findByText("Recent activity")).toBeInTheDocument();
+  });
+
+  it("global search filters servers by name and links to detail", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [makeServer({ metadata: { name: "alpha" } }), makeServer({ metadata: { name: "beta" } })],
+        }),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    const search = await screen.findByLabelText(/search servers/i);
+    await userEvent.type(search, "alph");
+    const link = await screen.findByRole("link", { name: /alpha/i });
+    expect(link).toHaveAttribute("href", "/servers/$name");
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
   });
 });

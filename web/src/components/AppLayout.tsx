@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useMatches } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   Bell,
@@ -16,11 +16,12 @@ import {
   Users,
 } from "lucide-react";
 import { APIError } from "@/lib/api";
-import { Auth, Cluster as ClusterAPI } from "@/lib/endpoints";
+import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
 import { useMe } from "@/lib/auth";
 import type { ClusterInfo, User } from "@/types";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { openEventStream, queryKeyForKind, type KestrelEvent } from "@/lib/sse";
+import { useEffect, useState } from "react";
 
 function useClusterInfo() {
   return useQuery({
@@ -188,26 +189,162 @@ function Topbar({ user }: { user?: User }) {
     <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-6">
       <Breadcrumbs items={crumbs} />
       <div className="flex items-center gap-3">
-        <div className="relative hidden w-72 md:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input
-            type="search"
-            placeholder="Search…"
-            className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-none"
-          />
-        </div>
-        <button
-          title="Notifications"
-          className="relative rounded-md p-2 text-muted hover:bg-surface hover:text-fg"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
-        </button>
+        <GlobalSearch />
+        <Notifications />
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
           {initials}
         </div>
       </div>
     </header>
+  );
+}
+
+interface Notice {
+  id: number;
+  text: string;
+  at: string;
+}
+
+// Notifications opens the /events SSE stream once for the app: each watch
+// event invalidates the matching TanStack Query cache (so views refresh
+// without waiting for the next poll) and is buffered into a dropdown
+// panel. The badge shows the unread count.
+function Notifications() {
+  const qc = useQueryClient();
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let seq = 0;
+    const dispose = openEventStream({
+      onEvent: (ev: KestrelEvent) => {
+        const key = queryKeyForKind(ev.kind);
+        if (key) void qc.invalidateQueries({ queryKey: key });
+        const name = ev.object?.metadata?.name ?? "";
+        const verb = ev.eventType.toLowerCase();
+        seq += 1;
+        const notice: Notice = {
+          id: seq,
+          text: `${verb} ${ev.kind.replace(/s$/, "")} ${name}`.trim(),
+          at: new Date().toLocaleTimeString(),
+        };
+        setNotices((prev) => [notice, ...prev].slice(0, 50));
+        setUnread((u) => u + 1);
+      },
+    });
+    return dispose;
+  }, [qc]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Notifications"
+        title="Notifications"
+        onClick={() => {
+          setOpen((o) => !o);
+          setUnread(0);
+        }}
+        className="relative rounded-md p-2 text-muted hover:bg-surface hover:text-fg"
+      >
+        <Bell className="h-[18px] w-[18px]" />
+        {unread > 0 && (
+          <span className="absolute right-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-fg">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-72 overflow-hidden rounded-md border border-border bg-background shadow-lg">
+          <div className="border-b border-border px-3 py-2 text-xs font-medium text-muted">
+            Recent activity
+          </div>
+          {notices.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-muted">No recent activity.</div>
+          ) : (
+            <ul className="max-h-80 overflow-auto">
+              {notices.map((n) => (
+                <li key={n.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="truncate font-mono text-xs">{n.text}</span>
+                  <span className="shrink-0 text-[10px] text-muted">{n.at}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// GlobalSearch is the header search box. It filters the (cached) server
+// list by name and shows a dropdown of matches; selecting one navigates
+// to its detail page. Enter jumps to the first match.
+function GlobalSearch() {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["servers"],
+    queryFn: () => Servers.list(),
+    staleTime: 10_000,
+  });
+  const query = q.trim().toLowerCase();
+  const matches =
+    query.length > 0
+      ? (data?.items ?? [])
+          .filter((s) => s.metadata.name.toLowerCase().includes(query))
+          .slice(0, 6)
+      : [];
+
+  return (
+    <div className="relative hidden w-72 md:block">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+      <input
+        type="search"
+        aria-label="Search servers"
+        placeholder="Search servers…"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        // Delay so a result click registers before the dropdown unmounts.
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+          if (e.key === "Enter" && matches.length > 0) {
+            location.assign(`/servers/${matches[0].metadata.name}`);
+          }
+        }}
+        className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-none"
+      />
+      {open && query.length > 0 && (
+        <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
+          {matches.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted">No servers match.</li>
+          ) : (
+            matches.map((s) => (
+              <li key={s.metadata.name}>
+                <Link
+                  to="/servers/$name"
+                  params={{ name: s.metadata.name }}
+                  onClick={() => {
+                    setOpen(false);
+                    setQ("");
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-fg hover:bg-surface"
+                >
+                  <Server className="h-3.5 w-3.5 text-muted" />
+                  <span className="truncate font-mono">{s.metadata.name}</span>
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 
