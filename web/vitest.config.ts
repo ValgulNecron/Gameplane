@@ -32,10 +32,10 @@ export default defineConfig({
       ],
       // Ratchet up via follow-up PRs as more tests land.
       thresholds: {
-        lines: 90,
-        functions: 71,
-        branches: 81,
-        statements: 90,
+        lines: 92,
+        functions: 76,
+        branches: 82,
+        statements: 92,
       },
     },
   },
