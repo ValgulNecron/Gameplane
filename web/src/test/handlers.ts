@@ -73,6 +73,26 @@ export const handlers = [
   ),
 
   // Cluster
+  // Server-sent events stream the layout opens. Browser mock mode has a
+  // real EventSource, so without this it falls through to the dev proxy
+  // and logs a 500; keep an open, idle stream instead. (jsdom has no
+  // EventSource, so the vitest suite never reaches this handler.)
+  http.get("/events", () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(": connected\n\n"));
+        // Intentionally left open — an SSE connection stays alive.
+      },
+    });
+    return new HttpResponse(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }),
+
   http.get("/cluster", () => HttpResponse.json(makeClusterView())),
   http.get("/cluster/info", () =>
     HttpResponse.json({ clusterName: "homelab", version: "v1.31.0" }),
