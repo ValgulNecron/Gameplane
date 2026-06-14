@@ -5,116 +5,65 @@ on:
     branches: [main]
   pull_request:
 
+# One self-hosted runner: cancel superseded runs so rapid pushes don't
+# stack overlapping runs and starve the heavy jobs (go -race, chromium).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
+  # Lets the coverage steps publish a per-module commit status carrying the
+  # measured % (readable via the API, since this runner has no artifact
+  # backend and job logs need a web session).
+  statuses: write
 
 jobs:
+  # Unit tests, envtest integration (operator/api), and the coverage
+  # gate run in ONE job per module. Folding them together removes the
+  # cross-job artifact hand-off (upload/download-artifact), which the
+  # self-hosted Forgejo runner's artifact backend doesn't support — the
+  # gate now reads the profiles it just produced, on the same runner.
   go:
     name: go (${{ matrix.module }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         module: [netguard, operator, api, agent]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version: "1.25" }
-      - name: Cache modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: go mod download
         working-directory: ${{ matrix.module }}
         run: go mod download
       - name: go vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
-      - name: go test (unit + coverage)
+      # NOTE: -race is omitted on purpose. It multiplies memory use several-
+      # fold and OOM-kills the larger modules on the memory-constrained
+      # self-hosted runner (netguard passes, operator/api/agent get killed).
+      # Coverage uses -covermode=atomic, which is valid without -race.
+      # Restore -race (or a separate race-only job) once the runner has more RAM.
+      - name: unit test + coverage
         working-directory: ${{ matrix.module }}
         run: |
           mkdir -p coverage
-          go test -race -covermode=atomic -coverpkg=./... \
+          go test -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/unit.out ./...
-      - name: upload unit coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-unit-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage/unit.out
-          retention-days: 7
-          if-no-files-found: error
-
-  integration:
-    name: integration (${{ matrix.module }})
-    runs-on: ubuntu-latest
-    needs: [go]
-    strategy:
-      fail-fast: false
-      matrix:
-        module: [operator, api]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.25" }
-      - name: Cache modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: install setup-envtest
-        run: go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
-      - name: fetch envtest binaries
-        run: |
-          echo "KUBEBUILDER_ASSETS=$($HOME/go/bin/setup-envtest use 1.31.0 -p path)" >> $GITHUB_ENV
-      - name: integration test (envtest + coverage)
+      - name: integration (envtest) test + coverage
+        if: matrix.module == 'operator' || matrix.module == 'api'
         working-directory: ${{ matrix.module }}
         run: |
-          mkdir -p coverage
-          go test -race -tags=envtest -timeout 10m \
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.31.0 -p path)
+          go test -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/envtest.out ./...
-      - name: upload envtest coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-envtest-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage/envtest.out
-          retention-days: 7
-          if-no-files-found: error
-
-  coverage-go:
-    name: coverage gate (${{ matrix.module }})
-    runs-on: ubuntu-latest
-    needs: [go, integration]
-    # Don't gate the build on a coverage flake when one of the upstream jobs
-    # is allowed to skip (e.g., agent has no integration job).
-    if: always() && needs.go.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        module: [netguard, operator, api, agent]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.25" }
-      - name: download unit coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-unit-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage
-      - name: download envtest coverage (operator/api only)
-        if: matrix.module != 'agent' && matrix.module != 'netguard'
-        # If integration failed, the artifact won't exist — that's its own
-        # red signal in CI. Tolerate it here and gate on unit-only data.
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-envtest-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage
-      - name: merge profiles
-        run: make cover-go-merge
-      - name: threshold check
-        run: make cover-go-check
+      - name: merge profiles + threshold gate
+        run: make cover-go-merge && make cover-go-check
 
   web:
     name: web
@@ -127,8 +76,28 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:cover
-      - name: upload web coverage
+      - name: report coverage (commit status)
         if: always()
+        continue-on-error: true
+        env:
+          GJ_TOKEN: ${{ github.token }}
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set +e
+          [ -f coverage/coverage-summary.json ] || exit 0
+          DESC=$(node -e "const t=require('./coverage/coverage-summary.json').total;console.log('L'+t.lines.pct+' S'+t.statements.pct+' B'+t.branches.pct+' F'+t.functions.pct)")
+          SHA="$HEAD_SHA"; [ -z "$SHA" ] && SHA="$RUN_SHA"
+          curl -sS -X POST -H "Authorization: token $GJ_TOKEN" -H "Content-Type: application/json" \
+            "$SERVER/api/v1/repos/$REPO/statuses/$SHA" \
+            -d "{\"context\":\"coverage/web\",\"state\":\"success\",\"description\":\"$DESC\"}" >/dev/null || true
+      - name: upload web coverage
+        # Best-effort: the vitest thresholds in the step above are the gate.
+        # Don't fail the job if the runner's artifact backend is unavailable.
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: coverage-web
