@@ -332,14 +332,24 @@ export const handlers = [
   // Roles + permission catalog (custom RBAC).
   http.get("/roles", () =>
     HttpResponse.json([
-      { name: "admin", description: "Full access.", builtin: true, permissions: ["*"] },
+      {
+        name: "admin",
+        description: "Full access to all resources, including users, roles, and global config.",
+        builtin: true,
+        permissions: ["*"],
+      },
       {
         name: "operator",
-        description: "Manage servers, backups, templates.",
+        description: "Manage game servers, backups, templates, and schedules.",
         builtin: true,
         permissions: ["servers:read", "servers:write"],
       },
-      { name: "viewer", description: "Read-only.", builtin: true, permissions: ["servers:read"] },
+      {
+        name: "viewer",
+        description: "Read-only access across the control panel.",
+        builtin: true,
+        permissions: ["servers:read"],
+      },
     ]),
   ),
   http.get("/roles/permissions", () =>
