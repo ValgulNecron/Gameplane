@@ -99,6 +99,26 @@ networkPolicies:
   # patches its status heartbeat through. Same fallback semantics as
   # kubeletCIDRs: unset means RFC1918 + link-local on TCP 443/6443.
   apiServerCIDRs: []
+  # Egress allowance for game pods to reach the public internet. Game
+  # servers download their binaries, assets, and mods on first start
+  # (Fabric meta, Mojang, Steam, mod registries); without this the
+  # default-deny egress policy blocks the download and the server hangs
+  # in "Starting" forever. Private ranges are excepted so game pods still
+  # cannot reach in-cluster services or link-local metadata (anti-SSRF).
+  gameEgress:
+    enabled: true
+    # Ports opened to the public internet (downloads are HTTP/HTTPS).
+    ports:
+      - { protocol: TCP, port: 443 }
+      - { protocol: TCP, port: 80 }
+    # CIDRs excluded from the public-egress allowance. Defaults to
+    # RFC1918 + link-local; add your pod/service CIDRs if they sit
+    # outside these ranges so game pods can't reach them.
+    privateCIDRs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 169.254.0.0/16
 
 serviceMonitors:
   enabled: false

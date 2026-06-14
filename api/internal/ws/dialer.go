@@ -43,6 +43,10 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	// doesn't need mTLS material — it uses the API's existing in-cluster
 	// kubeconfig. Mounted unconditionally.
 	mountAttach(r, k)
+	// Startup logs stream the game container's stdout via the pod-log API
+	// (also no agent mTLS needed), so download/config output is visible
+	// before the game's own log file exists. Mounted unconditionally.
+	mountPodLogs(r, k)
 	r.Route("/servers/{name}/files", func(r chi.Router) {
 		r.Get("/list", p.httpProxy("/files/list"))
 		r.Get("/read", p.httpProxy("/files/read"))

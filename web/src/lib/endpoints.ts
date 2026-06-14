@@ -351,12 +351,20 @@ export const Files = {
     `${filesBase(server)}/download?path=${encodeURIComponent(path)}`,
 };
 
-// Historical log access. Live tailing goes over the WebSocket at
-// /ws/servers/{name}/logs; download fetches the whole current log file
-// from the agent as an attachment.
+// Historical + live log access. download fetches the whole current log
+// file from the agent as an attachment; the two stream paths are the
+// live WebSocket sources the Logs tab toggles between.
 export const Logs = {
   downloadURL: (server: string) =>
     `/servers/${encodeURIComponent(server)}/logs/download`,
+  // Live tail of the configured game log file, via the agent (mTLS).
+  fileStreamPath: (server: string) =>
+    `/ws/servers/${encodeURIComponent(server)}/logs`,
+  // Live stream of the game container's stdout via the pod-log API.
+  // Shows download/config output during startup — before the game's own
+  // log file exists — and works even when agent mTLS isn't configured.
+  podStreamPath: (server: string) =>
+    `/ws/servers/${encodeURIComponent(server)}/logs/pod?from=start`,
 };
 
 // Module catalog and install/uninstall surface. The dashboard reads

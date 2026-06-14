@@ -13,6 +13,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
@@ -120,6 +121,67 @@ func TestGameServer_AgentSidecarInjected(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// TestGameServer_StatusPatchPreservesAgentHeartbeat — the reconciler must
+// not clobber status.agent (written by the sidecar's heartbeat) when it
+// updates phase/conditions. We reproduce the lost-update race
+// deterministically: seed status.agent in the cluster, then drive
+// reconcileStatus with a stale in-memory copy whose Agent is nil (as if
+// the reconciler had read the object before the heartbeat landed). The
+// MergeFrom status patch touches only changed fields, so the seeded
+// heartbeat survives; a full Status().Update would have reverted it.
+func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(ctx, tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	if err := k8sClient.Create(ctx, gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	// Seed status.agent as the in-pod sidecar's heartbeat would.
+	var seeded kestrelv1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "smp"}, &seeded); err != nil {
+		t.Fatalf("get for seed: %v", err)
+	}
+	players := int32(7)
+	now := metav1.Now()
+	seeded.Status.Agent = &kestrelv1alpha1.AgentStatus{LastHeartbeat: &now, PlayersOnline: &players}
+	if err := k8sClient.Status().Update(ctx, &seeded); err != nil {
+		t.Fatalf("seed agent status: %v", err)
+	}
+
+	// Drive reconcileStatus with a STALE copy whose Agent is nil — the
+	// reconciler's pre-heartbeat view. No manager runs, so this is the
+	// only writer and the test is deterministic.
+	stale := seeded.DeepCopy()
+	stale.Status.Agent = nil
+	r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+	if _, err := r.reconcileStatus(ctx, stale); err != nil {
+		t.Fatalf("reconcileStatus: %v", err)
+	}
+
+	var got kestrelv1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "smp"}, &got); err != nil {
+		t.Fatalf("get after reconcile: %v", err)
+	}
+	if got.Status.Agent == nil || got.Status.Agent.PlayersOnline == nil {
+		t.Fatal("reconciler clobbered status.agent — heartbeat lost")
+	}
+	if *got.Status.Agent.PlayersOnline != 7 {
+		t.Fatalf("playersOnline = %d, want 7 (heartbeat clobbered)", *got.Status.Agent.PlayersOnline)
+	}
+	// And it still did its own job: phase was derived and written.
+	if got.Status.Phase == "" {
+		t.Fatal("reconciler did not set phase")
+	}
 }
 
 // TestGameServer_TemplateNotFound_PhaseFailed — referencing a missing
