@@ -94,6 +94,11 @@ var rules = []rule{
 	{method: "PATCH", segment: "modules", role: RoleAdmin},
 	{method: "DELETE", segment: "modules", role: RoleAdmin},
 
+	// Cluster operations (Add node, Download kubeconfig) mint cluster
+	// credentials — admin only. GET /cluster* reads fall through to the
+	// viewer catch-all below.
+	{method: "POST", segment: "cluster", role: RoleAdmin},
+
 	// WebSocket console executes RCON commands (/stop, /op, /ban, …).
 	// The upgrade is an HTTP GET but the stream is read-write, so it
 	// doesn't fit the usual "GET = safe" shape. Require operator+.

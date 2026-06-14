@@ -16,6 +16,7 @@ import type {
   List,
   LoginProvidersResp,
   Module,
+  NodeJoinInfo,
   ModuleSource,
   ModuleSourceSpec,
   PlayersResp,
@@ -99,6 +100,18 @@ export const Cluster = {
   info: () => api<ClusterInfo>("/cluster/info"),
   stats: () => api<ClusterStats>("/cluster/stats"),
   view: () => api<ClusterView>("/cluster"),
+  // Credential-minting ops (admin-only; 501 unless clusterOps is enabled).
+  addNode: () => api<NodeJoinInfo>("/cluster/nodes:join", { method: "POST" }),
+  // kubeconfig is a file download, so it bypasses api()'s JSON handling.
+  kubeconfig: async (): Promise<Blob> => {
+    const res = await fetch("/cluster/kubeconfig", {
+      method: "POST",
+      credentials: "include",
+      headers: csrfHeaders(),
+    });
+    if (!res.ok) throw new APIError(res.status, await res.text().catch(() => ""));
+    return res.blob();
+  },
 };
 
 // envelope wraps a typed `spec` in the unstructured Kubernetes envelope the

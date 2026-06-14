@@ -304,6 +304,14 @@ export interface ClusterInfo {
   kestrelVersion?: string; // Kestrel control-plane build
 }
 
+export interface NodeJoinInfo {
+  command: string;
+  token: string;
+  caCertHash: string;
+  endpoint: string;
+  expiresAt: string;
+}
+
 export interface LoginProvider {
   kind: "local" | "oidc" | string;
   label: string;

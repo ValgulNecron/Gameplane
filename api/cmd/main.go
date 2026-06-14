@@ -140,6 +140,7 @@ func main() {
 		handlers.MountAudit(p, auditor)
 		handlers.MountConfig(p, store)
 		handlers.MountCluster(p, k8s, store, Version)
+		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
 		handlers.MountModules(p, k8s, cfg.namespace)
@@ -185,6 +186,7 @@ type config struct {
 	oidcDisplayName  string
 
 	telemetryEndpoint string
+	clusterOps        bool
 
 	agentCABundle   string
 	agentClientCert string
@@ -203,6 +205,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("KESTREL_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("KESTREL_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("KESTREL_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
+	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("KESTREL_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("KESTREL_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("KESTREL_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("KESTREL_AGENT_CLIENT_KEY", ""), "client key presented to agents")

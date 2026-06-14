@@ -1,11 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Plus, Server as ServerIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatBytes, formatUptime } from "@/lib/utils";
-import type { ClusterNode, ClusterView } from "@/types";
+import { APIError } from "@/lib/api";
+import type { ClusterNode, ClusterView, NodeJoinInfo } from "@/types";
 import { Cluster } from "@/lib/endpoints";
+
+// opMessage turns a cluster-op error into user copy — 501 means the
+// operator hasn't enabled clusterOps.
+function opMessage(e: unknown): string {
+  if (e instanceof APIError && e.status === 501) {
+    return "Cluster operations aren't enabled on this install (set clusterOps.enabled).";
+  }
+  if (e instanceof APIError && e.status === 403) return "You don't have permission to do that.";
+  return "That operation failed. Check the API logs.";
+}
 
 export function ClusterPage() {
   const { data } = useQuery({
@@ -15,6 +27,34 @@ export function ClusterPage() {
   });
 
   const nodes = data?.nodes ?? [];
+  const [joinInfo, setJoinInfo] = useState<NodeJoinInfo | null>(null);
+  const [opError, setOpError] = useState<string | null>(null);
+
+  const addNode = useMutation({
+    mutationFn: () => Cluster.addNode(),
+    onSuccess: (info) => {
+      setOpError(null);
+      setJoinInfo(info);
+    },
+    onError: (e) => setOpError(opMessage(e)),
+  });
+
+  async function downloadKubeconfig() {
+    setOpError(null);
+    try {
+      const blob = await Cluster.kubeconfig();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "kestrel-kubeconfig.yaml";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setOpError(opMessage(e));
+    }
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -27,15 +67,49 @@ export function ClusterPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => void downloadKubeconfig()}>
               <Download className="h-4 w-4" /> Download kubeconfig
             </Button>
-            <Button>
+            <Button onClick={() => addNode.mutate()} disabled={addNode.isPending}>
               <Plus className="h-4 w-4" /> Add node
             </Button>
           </div>
         }
       />
+
+      {opError && (
+        <Card className="border-danger/40 bg-danger/5 p-4 text-sm text-danger">{opError}</Card>
+      )}
+
+      {joinInfo && (
+        <Card className="space-y-2 p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium">Join a node</div>
+            <button
+              type="button"
+              onClick={() => setJoinInfo(null)}
+              className="text-xs text-muted hover:text-fg"
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="text-xs text-muted">
+            Run this on the machine you want to join (token expires {joinInfo.expiresAt}):
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-auto rounded bg-[#0b0b0d] px-3 py-2 font-mono text-xs text-fg">
+              {joinInfo.command}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void navigator.clipboard?.writeText(joinInfo.command)}
+            >
+              Copy
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {nodes.length === 0 && (
         <Card className="flex flex-col items-center justify-center gap-3 p-12 text-center">
