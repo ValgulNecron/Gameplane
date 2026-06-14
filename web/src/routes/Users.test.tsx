@@ -6,14 +6,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UsersPage } from "./Users";
 import type { ExtendedUser } from "@/types";
 
-// The page calls Users.list/.update/.remove/.resetPassword from
-// `@/lib/endpoints`. Stub the whole module so we can assert the right
-// calls were made without spinning up a fetch mock.
+// The page calls Users.* and Roles.* from `@/lib/endpoints`. Stub the
+// whole module so we can assert the right calls were made without
+// spinning up a fetch mock.
 const list = vi.fn();
 const update = vi.fn();
 const remove = vi.fn();
 const resetPassword = vi.fn();
 const create = vi.fn();
+const bindings = vi.fn();
+const addBinding = vi.fn();
+const removeBinding = vi.fn();
+const rolesList = vi.fn();
+const catalog = vi.fn();
+const rolesCreate = vi.fn();
+const rolesUpdate = vi.fn();
+const rolesRemove = vi.fn();
 vi.mock("@/lib/endpoints", () => ({
   Users: {
     list: () => list(),
@@ -21,11 +29,43 @@ vi.mock("@/lib/endpoints", () => ({
     remove: (id: number) => remove(id),
     resetPassword: (id: number, pw: string) => resetPassword(id, pw),
     create: (body: unknown) => create(body),
+    bindings: (id: number) => bindings(id),
+    addBinding: (id: number, body: unknown) => addBinding(id, body),
+    removeBinding: (id: number, r: string, ns: string) => removeBinding(id, r, ns),
+  },
+  Roles: {
+    list: () => rolesList(),
+    catalog: () => catalog(),
+    create: (body: unknown) => rolesCreate(body),
+    update: (name: string, body: unknown) => rolesUpdate(name, body),
+    remove: (name: string) => rolesRemove(name),
   },
 }));
 
 const useMeMock = vi.fn();
-vi.mock("@/lib/auth", () => ({ useMe: () => useMeMock() }));
+// Keep the real can(); only stub useMe.
+vi.mock("@/lib/auth", async (orig) => ({
+  ...(await orig<typeof import("@/lib/auth")>()),
+  useMe: () => useMeMock(),
+}));
+
+const ROLE_DEFS = [
+  { name: "admin", description: "Full access.", builtin: true, permissions: ["*"] },
+  { name: "operator", description: "Manage servers.", builtin: true, permissions: ["servers:read", "servers:write"] },
+  { name: "viewer", description: "Read-only.", builtin: true, permissions: ["servers:read"] },
+];
+const CATALOG = {
+  groups: [
+    {
+      resource: "servers",
+      label: "Game servers",
+      permissions: [
+        { key: "servers:read", label: "View", namespaced: true },
+        { key: "servers:write", label: "Manage", namespaced: true },
+      ],
+    },
+  ],
+};
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => (
@@ -50,6 +90,7 @@ const ME: ExtendedUser = {
   role: "admin",
   provider: "local",
   createdAt: "2026-01-01T00:00:00Z",
+  permissions: { "*": ["*"] },
 };
 
 function renderPage() {
@@ -63,6 +104,9 @@ function renderPage() {
 
 beforeEach(() => {
   list.mockResolvedValue([ME, ALICE]);
+  rolesList.mockResolvedValue(ROLE_DEFS);
+  catalog.mockResolvedValue(CATALOG);
+  bindings.mockResolvedValue([]);
   useMeMock.mockReturnValue({ data: ME, error: null, isLoading: false });
 });
 
@@ -139,5 +183,49 @@ describe("UsersPage", () => {
     expect(await screen.findByText("Delete alice?")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete user" }));
     await waitFor(() => expect(remove).toHaveBeenCalledWith(2));
+  });
+});
+
+describe("UsersPage roles tab", () => {
+  async function openRolesTab() {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /Roles/i }));
+    return user;
+  }
+
+  it("lists roles with a built-in badge", async () => {
+    await openRolesTab();
+    expect(await screen.findByText("operator")).toBeInTheDocument();
+    expect(screen.getAllByText("built-in").length).toBeGreaterThan(0);
+  });
+
+  it("creates a custom role with selected permissions", async () => {
+    rolesCreate.mockResolvedValue({
+      name: "support",
+      description: "",
+      builtin: false,
+      permissions: ["servers:read"],
+    });
+    const user = await openRolesTab();
+    await user.click(await screen.findByRole("button", { name: /New role/i }));
+    await user.type(await screen.findByPlaceholderText("support"), "support");
+    await user.click(await screen.findByLabelText(/servers:read/));
+    await user.click(screen.getByRole("button", { name: /Create role/i }));
+    await waitFor(() =>
+      expect(rolesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "support", permissions: ["servers:read"] }),
+      ),
+    );
+  });
+
+  it("does not offer to delete a built-in role", async () => {
+    await openRolesTab();
+    // operator is built-in: it can be edited but not deleted.
+    await screen.findByText("operator");
+    expect(screen.queryByLabelText("Remove operator in")).toBeNull();
+    // The admin card offers neither edit nor delete.
+    const cards = screen.getAllByText(/^built-in$/);
+    expect(cards.length).toBe(3);
   });
 });

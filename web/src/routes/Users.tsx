@@ -29,21 +29,36 @@ import { FieldLabel } from "@/components/ui/field";
 import { TabBar } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { APIError } from "@/lib/api";
-import { useMe } from "@/lib/auth";
-import { Users as UsersAPI, type UserCreate, type UserUpdate } from "@/lib/endpoints";
+import { useMe, can } from "@/lib/auth";
+import {
+  Users as UsersAPI,
+  Roles as RolesAPI,
+  type UserCreate,
+  type UserUpdate,
+} from "@/lib/endpoints";
 import { cn, formatRelative } from "@/lib/utils";
-import type { ExtendedUser, UserRole } from "@/types";
+import type { ExtendedUser, PermissionGroup, Role, RoleBinding } from "@/types";
 
 type Tab = "users" | "roles" | "service" | "idp";
 
-const ROLES: UserRole[] = ["viewer", "operator", "admin"];
 const MIN_PASSWORD_LEN = 12; // mirrors api/internal/handlers/users.go
 
-const roleColor: Record<UserRole, string> = {
+const roleColor: Record<string, string> = {
   admin: "bg-primary/15 text-primary",
   operator: "bg-violet/15 text-violet",
   viewer: "bg-muted/20 text-muted",
 };
+
+function useRolesQuery() {
+  return useQuery({ queryKey: ["roles"], queryFn: () => RolesAPI.list() });
+}
+
+// roleGrantsUserManagement mirrors the server guard: a role can manage
+// users if it holds users:manage or the "*" wildcard.
+function roleGrantsUserManagement(roles: Role[], name: string): boolean {
+  const r = roles.find((x) => x.name === name);
+  return !!r && (r.permissions.includes("*") || r.permissions.includes("users:manage"));
+}
 
 export function UsersPage() {
   const qc = useQueryClient();
@@ -59,15 +74,16 @@ export function UsersPage() {
     queryKey: ["users"],
     queryFn: () => UsersAPI.list(),
   });
+  const { data: roles = [] } = useRolesQuery();
 
   const counts = useMemo(
     () => ({
       users: users.length,
-      roles: ROLES.length,
+      roles: roles.length,
       service: 0,
       idp: 0,
     }),
-    [users],
+    [users, roles],
   );
 
   const visible = users.filter((u) => {
@@ -169,6 +185,7 @@ export function UsersPage() {
 
       {inviting && (
         <InviteModal
+          roles={roles}
           onClose={() => setInviting(false)}
           onCreated={() => {
             invalidate();
@@ -179,6 +196,7 @@ export function UsersPage() {
       {editing && (
         <EditUserModal
           user={editing}
+          roles={roles}
           isMe={!!me && me.id === editing.id}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -337,9 +355,11 @@ function ErrorLine({ error }: { error: unknown }) {
 }
 
 function InviteModal({
+  roles,
   onClose,
   onCreated,
 }: {
+  roles: Role[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -419,8 +439,8 @@ function InviteModal({
           <FieldLabel label="Role">
             <Select
               value={form.role}
-              onValueChange={(v) => setForm({ ...form, role: v as UserRole })}
-              options={ROLES.map((r) => ({ value: r, label: r }))}
+              onValueChange={(v) => setForm({ ...form, role: v })}
+              options={roles.map((r) => ({ value: r.name, label: r.name }))}
             />
           </FieldLabel>
         </div>
@@ -440,18 +460,20 @@ function InviteModal({
 
 function EditUserModal({
   user,
+  roles,
   isMe,
   onClose,
   onSaved,
 }: {
   user: ExtendedUser;
+  roles: Role[];
   isMe: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [email, setEmail] = useState(user.email ?? "");
-  const [role, setRole] = useState<UserRole>(user.role);
+  const [role, setRole] = useState<string>(user.role);
 
   useEffect(() => {
     setDisplayName(user.displayName ?? "");
@@ -472,9 +494,10 @@ function EditUserModal({
     onSuccess: onSaved,
   });
 
-  // Demoting yourself out of admin would lock you out; the API rejects
-  // it too — disable client-side so the path is obvious.
-  const wouldDemoteSelf = isMe && user.role === "admin" && role !== "admin";
+  // Switching your own primary role to one that can't manage users would
+  // lock you out of RBAC; the API rejects it too — surface it here.
+  const wouldDemoteSelf =
+    isMe && role !== user.role && !roleGrantsUserManagement(roles, role);
   const noChanges = Object.keys(dirty).length === 0;
 
   return (
@@ -500,16 +523,16 @@ function EditUserModal({
           />
         </FieldLabel>
         <div>
-          <FieldLabel label="Role">
+          <FieldLabel label="Primary role (cluster-wide)">
             <Select
               value={role}
-              onValueChange={(v) => setRole(v as UserRole)}
-              options={ROLES.map((r) => ({ value: r, label: r }))}
+              onValueChange={(v) => setRole(v)}
+              options={roles.map((r) => ({ value: r.name, label: r.name }))}
             />
           </FieldLabel>
           {wouldDemoteSelf && (
             <div className="pt-1 text-[11px] text-danger">
-              You can’t demote yourself out of admin.
+              You can’t remove your own ability to manage users.
             </div>
           )}
         </div>
@@ -525,6 +548,8 @@ function EditUserModal({
             {save.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>
+
+        <NamespaceGrants userId={user.id} roles={roles} />
       </div>
     </ModalShell>
   );
@@ -626,21 +651,312 @@ function DeleteUserDialog({
 }
 
 function RolesTab() {
-  const roles = [
-    { name: "admin", desc: "Full access to all resources, including users and global config." },
-    { name: "operator", desc: "Manage game servers, backups, and templates." },
-    { name: "viewer", desc: "Read-only access across the control panel." },
-  ];
+  const qc = useQueryClient();
+  const { data: me } = useMe();
+  const { data: roles = [] } = useRolesQuery();
+  const { data: catalog } = useQuery({
+    queryKey: ["permission-catalog"],
+    queryFn: () => RolesAPI.catalog(),
+  });
+  const canManage = can(me, "roles:manage");
+  const [editing, setEditing] = useState<Role | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<Role | null>(null);
+
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["roles"] });
+  const groups = catalog?.groups ?? [];
+
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {roles.map((r) => (
-        <Card key={r.name} className="space-y-2 p-4">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-sm">{r.name}</span>
-          </div>
-          <p className="text-xs text-muted">{r.desc}</p>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        {canManage && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> New role
+          </Button>
+        )}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {roles.map((r) => (
+          <Card key={r.name} className="flex flex-col gap-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-sm">{r.name}</span>
+              {r.builtin && (
+                <span className="rounded bg-muted/20 px-1.5 py-0.5 text-[10px] uppercase text-muted">
+                  built-in
+                </span>
+              )}
+            </div>
+            <p className="min-h-8 text-xs text-muted">{r.description || "—"}</p>
+            <div className="text-[11px] text-muted">
+              {r.permissions.includes("*")
+                ? "all permissions"
+                : `${r.permissions.length} permission${r.permissions.length === 1 ? "" : "s"}`}
+            </div>
+            {canManage && (
+              <div className="flex gap-2 pt-1">
+                {/* The admin role's wildcard is immutable; everything else
+                    is editable. Only custom roles can be deleted. */}
+                {r.name !== "admin" && (
+                  <Button variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(r)}>
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                )}
+                {!r.builtin && (
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-danger"
+                    onClick={() => setDeleting(r)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                )}
+              </div>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      {(creating || editing) && (
+        <RoleEditorModal
+          role={editing}
+          groups={groups}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            refresh();
+            setCreating(false);
+            setEditing(null);
+          }}
+        />
+      )}
+      {deleting && (
+        <DeleteRoleDialog
+          role={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            refresh();
+            setDeleting(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function RoleEditorModal({
+  role,
+  groups,
+  onClose,
+  onSaved,
+}: {
+  role: Role | null;
+  groups: PermissionGroup[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const creating = role === null;
+  const [name, setName] = useState(role?.name ?? "");
+  const [description, setDescription] = useState(role?.description ?? "");
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(role?.permissions ?? []),
+  );
+
+  const toggle = (key: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const save = useMutation({
+    mutationFn: () => {
+      const permissions = [...selected];
+      return role
+        ? RolesAPI.update(role.name, { description, permissions })
+        : RolesAPI.create({ name, description, permissions });
+    },
+    onSuccess: onSaved,
+  });
+
+  const nameValid = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(name);
+  const submitDisabled = (creating && !nameValid) || save.isPending;
+
+  return (
+    <ModalShell
+      open
+      onOpenChange={(v) => !v && onClose()}
+      title={role ? `Edit role: ${role.name}` : "New role"}
+      description="Grant a curated set of permissions."
+    >
+      <div className="space-y-3">
+        {creating && (
+          <FieldLabel label="Name">
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="support"
+            />
+          </FieldLabel>
+        )}
+        <FieldLabel label="Description">
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What this role is for"
+          />
+        </FieldLabel>
+        <div className="max-h-72 space-y-3 overflow-auto rounded-md border border-border p-3">
+          {groups.map((g) => (
+            <div key={g.resource}>
+              <div className="pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                {g.label}
+              </div>
+              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {g.permissions.map((p) => (
+                  <label
+                    key={p.key}
+                    className="flex cursor-pointer items-center gap-2 text-xs text-fg"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-primary"
+                      checked={selected.has(p.key)}
+                      onChange={() => toggle(p.key)}
+                    />
+                    <span className="font-mono">{p.key}</span>
+                    {p.namespaced && (
+                      <span className="rounded bg-muted/15 px-1 text-[9px] text-muted">ns</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <ErrorLine error={save.error} />
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={onClose} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={() => save.mutate()} disabled={submitDisabled}>
+            {save.isPending ? "Saving…" : creating ? "Create role" : "Save role"}
+          </Button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function DeleteRoleDialog({
+  role,
+  onClose,
+  onDeleted,
+}: {
+  role: Role;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const remove = useMutation({
+    mutationFn: () => RolesAPI.remove(role.name),
+    onSuccess: onDeleted,
+  });
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(v) => !v && onClose()}
+      title={`Delete role ${role.name}?`}
+      description={
+        <>
+          This can’t be undone. Roles assigned to a user can’t be deleted.
+          {remove.error && <ErrorLine error={remove.error} />}
+        </>
+      }
+      confirmLabel="Delete role"
+      destructive
+      busy={remove.isPending}
+      onConfirm={() => remove.mutate()}
+    />
+  );
+}
+
+// NamespaceGrants edits a user's per-namespace role bindings (the
+// cluster-wide grant is the primary role, edited above).
+function NamespaceGrants({ userId, roles }: { userId: number; roles: Role[] }) {
+  const qc = useQueryClient();
+  const [roleName, setRoleName] = useState(roles[0]?.name ?? "");
+  const [namespace, setNamespace] = useState("");
+
+  const { data: bindings = [] } = useQuery({
+    queryKey: ["user-bindings", userId],
+    queryFn: () => UsersAPI.bindings(userId),
+  });
+  const scoped = bindings.filter((b) => b.namespace !== "*");
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["user-bindings", userId] });
+
+  const add = useMutation({
+    mutationFn: (b: RoleBinding) => UsersAPI.addBinding(userId, b),
+    onSuccess: () => {
+      setNamespace("");
+      refresh();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (b: RoleBinding) => UsersAPI.removeBinding(userId, b.roleName, b.namespace),
+    onSuccess: refresh,
+  });
+
+  return (
+    <div className="space-y-2 border-t border-border pt-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+        Namespace grants
+      </div>
+      {scoped.length === 0 && (
+        <div className="text-xs text-muted">No per-namespace grants.</div>
+      )}
+      <ul className="space-y-1">
+        {scoped.map((b) => (
+          <li key={`${b.roleName}/${b.namespace}`} className="flex items-center gap-2 text-xs">
+            <span className="font-mono">{b.roleName}</span>
+            <span className="text-muted">in</span>
+            <span className="font-mono">{b.namespace}</span>
+            <button
+              className="ml-auto rounded p-1 text-muted hover:text-danger"
+              aria-label={`Remove ${b.roleName} in ${b.namespace}`}
+              onClick={() => remove.mutate(b)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-end gap-2">
+        <div className="w-32">
+          <Select
+            value={roleName}
+            onValueChange={setRoleName}
+            options={roles.map((r) => ({ value: r.name, label: r.name }))}
+          />
+        </div>
+        <Input
+          className="flex-1"
+          value={namespace}
+          onChange={(e) => setNamespace(e.target.value)}
+          placeholder="namespace"
+          aria-label="Grant namespace"
+        />
+        <Button
+          variant="ghost"
+          disabled={!roleName || !namespace || add.isPending}
+          onClick={() => add.mutate({ roleName, namespace })}
+        >
+          Add
+        </Button>
+      </div>
+      <ErrorLine error={add.error || remove.error} />
     </div>
   );
 }

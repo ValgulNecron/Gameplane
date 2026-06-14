@@ -19,8 +19,11 @@ import type {
   NodeJoinInfo,
   ModuleSource,
   ModuleSourceSpec,
+  PermissionGroup,
   PlayersResp,
   Restore,
+  Role,
+  RoleBinding,
   StatusReading,
   User,
 } from "@/types";
@@ -239,7 +242,7 @@ export interface UserCreate {
   username: string;
   displayName?: string;
   email?: string;
-  role: User["role"];
+  role: string;
   password?: string;
 }
 
@@ -249,7 +252,7 @@ export interface UserCreate {
 export interface UserUpdate {
   displayName?: string;
   email?: string;
-  role?: User["role"];
+  role?: string;
 }
 
 export const Users = {
@@ -266,6 +269,30 @@ export const Users = {
       method: "POST",
       body: { password },
     }),
+  bindings: (id: number) => api<RoleBinding[]>(`/users/${id}/bindings`),
+  addBinding: (id: number, body: RoleBinding) =>
+    api<RoleBinding>(`/users/${id}/bindings`, { method: "POST", body }),
+  removeBinding: (id: number, roleName: string, namespace: string) =>
+    api<void>(`/users/${id}/bindings/${roleName}/${namespace}`, {
+      method: "DELETE",
+    }),
+};
+
+export interface RoleWrite {
+  name?: string;
+  description?: string;
+  permissions: string[];
+}
+
+export const Roles = {
+  list: () => api<Role[]>("/roles"),
+  catalog: () => api<{ groups: PermissionGroup[] }>("/roles/permissions"),
+  create: (body: RoleWrite & { name: string }) =>
+    api<Role>("/roles", { method: "POST", body }),
+  update: (name: string, body: Omit<RoleWrite, "name">) =>
+    api<Role>(`/roles/${name}`, { method: "PATCH", body }),
+  remove: (name: string) =>
+    api<void>(`/roles/${name}`, { method: "DELETE" }),
 };
 
 export const Auth = {

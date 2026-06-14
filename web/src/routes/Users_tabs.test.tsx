@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UsersPage } from "./Users";
 
 const list = vi.fn();
+const rolesList = vi.fn();
 vi.mock("@/lib/endpoints", () => ({
   Users: {
     list: () => list(),
@@ -13,11 +14,25 @@ vi.mock("@/lib/endpoints", () => ({
     remove: vi.fn(),
     resetPassword: vi.fn(),
     create: vi.fn(),
+    bindings: () => Promise.resolve([]),
+    addBinding: vi.fn(),
+    removeBinding: vi.fn(),
+  },
+  Roles: {
+    list: () => rolesList(),
+    catalog: () => Promise.resolve({ groups: [] }),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
   },
 }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth", async (orig) => ({
+  ...(await orig<typeof import("@/lib/auth")>()),
   useMe: () => ({
-    data: { id: 1, username: "root", displayName: "Root", email: "r@x", role: "admin" },
+    data: {
+      id: 1, username: "root", displayName: "Root", email: "r@x",
+      role: "admin", permissions: { "*": ["*"] },
+    },
     error: null,
     isLoading: false,
   }),
@@ -40,6 +55,26 @@ function renderPage() {
 beforeEach(() => {
   list.mockResolvedValue([
     { id: 1, username: "root", displayName: "Root", email: "r@x", role: "admin", provider: "local" },
+  ]);
+  rolesList.mockResolvedValue([
+    {
+      name: "admin",
+      description: "Full access to all resources, including users and global config.",
+      builtin: true,
+      permissions: ["*"],
+    },
+    {
+      name: "operator",
+      description: "Manage game servers, backups, and templates.",
+      builtin: true,
+      permissions: ["servers:read", "servers:write"],
+    },
+    {
+      name: "viewer",
+      description: "Read-only access across the control panel.",
+      builtin: true,
+      permissions: ["servers:read"],
+    },
   ]);
 });
 

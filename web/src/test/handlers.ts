@@ -329,6 +329,80 @@ export const handlers = [
   http.delete("/users/:id", () => new HttpResponse(null, { status: 204 })),
   http.post("/users/:id/reset-password", () => new HttpResponse(null, { status: 204 })),
 
+  // Roles + permission catalog (custom RBAC).
+  http.get("/roles", () =>
+    HttpResponse.json([
+      { name: "admin", description: "Full access.", builtin: true, permissions: ["*"] },
+      {
+        name: "operator",
+        description: "Manage servers, backups, templates.",
+        builtin: true,
+        permissions: ["servers:read", "servers:write"],
+      },
+      { name: "viewer", description: "Read-only.", builtin: true, permissions: ["servers:read"] },
+    ]),
+  ),
+  http.get("/roles/permissions", () =>
+    HttpResponse.json({
+      groups: [
+        {
+          resource: "servers",
+          label: "Game servers",
+          permissions: [
+            { key: "servers:read", label: "View servers", namespaced: true },
+            { key: "servers:write", label: "Manage servers", namespaced: true },
+          ],
+        },
+        {
+          resource: "users",
+          label: "Users",
+          permissions: [{ key: "users:manage", label: "Manage users", namespaced: false }],
+        },
+      ],
+    }),
+  ),
+  http.post("/roles", async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as {
+      name?: string;
+      description?: string;
+      permissions?: string[];
+    } | null;
+    return HttpResponse.json(
+      {
+        name: body?.name ?? "new-role",
+        description: body?.description ?? "",
+        builtin: false,
+        permissions: body?.permissions ?? [],
+      },
+      { status: 201 },
+    );
+  }),
+  http.patch("/roles/:name", async ({ params, request }) => {
+    const body = (await request.json().catch(() => null)) as {
+      description?: string;
+      permissions?: string[];
+    } | null;
+    return HttpResponse.json({
+      name: String(params.name),
+      description: body?.description ?? "",
+      builtin: false,
+      permissions: body?.permissions ?? [],
+    });
+  }),
+  http.delete("/roles/:name", () => new HttpResponse(null, { status: 204 })),
+  http.get("/users/:id/bindings", () => HttpResponse.json([])),
+  http.post("/users/:id/bindings", async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as {
+      roleName?: string;
+      namespace?: string;
+    } | null;
+    return HttpResponse.json(
+      { roleName: body?.roleName ?? "viewer", namespace: body?.namespace ?? "team-a" },
+      { status: 201 },
+    );
+  }),
+  http.delete("/users/:id/bindings/:role/:namespace", () => new HttpResponse(null, { status: 204 })),
+
   // Admin
   http.get("/admin/audit", ({ request }) => {
     const url = new URL(request.url);
