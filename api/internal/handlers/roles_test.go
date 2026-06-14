@@ -164,6 +164,53 @@ func TestRoles_OperatorEditable(t *testing.T) {
 	}
 }
 
+func TestRoles_UpdateDescriptionOnly(t *testing.T) {
+	srv, store := newRolesServer(t)
+	if _, err := store.DB.Exec(
+		`INSERT INTO roles(name, builtin, description) VALUES ('support', 0, 'old')`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if _, err := store.DB.Exec(
+		`INSERT INTO role_permissions(role_name, permission) VALUES ('support', 'servers:read')`); err != nil {
+		t.Fatalf("seed perm: %v", err)
+	}
+	status, body := doReq(t, "PATCH", srv.URL+"/roles/support", map[string]any{
+		"description": "new desc",
+	})
+	if status != 200 {
+		t.Fatalf("update want 200 got %d body=%s", status, body)
+	}
+	var got roleDTO
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Description != "new desc" {
+		t.Errorf("description = %q, want 'new desc'", got.Description)
+	}
+	// Permissions are untouched when only the description changes.
+	if len(got.Permissions) != 1 || got.Permissions[0] != "servers:read" {
+		t.Errorf("permissions changed unexpectedly: %v", got.Permissions)
+	}
+}
+
+func TestRoles_UpdateNotFound(t *testing.T) {
+	srv, _ := newRolesServer(t)
+	status, _ := doReq(t, "PATCH", srv.URL+"/roles/ghost", map[string]any{
+		"description": "x",
+	})
+	if status != 404 {
+		t.Fatalf("update missing role want 404 got %d", status)
+	}
+}
+
+func TestRoles_DeleteNotFound(t *testing.T) {
+	srv, _ := newRolesServer(t)
+	status, _ := doReq(t, "DELETE", srv.URL+"/roles/ghost", nil)
+	if status != 404 {
+		t.Fatalf("delete missing role want 404 got %d", status)
+	}
+}
+
 func TestRoles_DeleteBuiltinRejected(t *testing.T) {
 	srv, _ := newRolesServer(t)
 	status, _ := doReq(t, "DELETE", srv.URL+"/roles/viewer", nil)
