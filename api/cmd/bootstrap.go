@@ -64,11 +64,19 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 	row := store.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE username = ?`, bf.username)
 	switch err := row.Scan(&existingID); {
 	case errors.Is(err, sql.ErrNoRows):
-		if _, err := store.DB.ExecContext(ctx,
+		res, err := store.DB.ExecContext(ctx,
 			`INSERT INTO users(username, display_name, email, role, pw_hash) VALUES (?, ?, ?, 'admin', ?)`,
 			bf.username, display, bf.email, hash,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("insert user: %w", err)
+		}
+		newID, _ := res.LastInsertId()
+		// Mirror the admin role into a cluster-wide role binding so RBAC
+		// resolves the user's permissions (this runs after Migrate, so the
+		// migration's backfill never saw this row).
+		if err := store.SetClusterRoleBinding(ctx, nil, newID, "admin"); err != nil {
+			return fmt.Errorf("bind admin role: %w", err)
 		}
 		fmt.Fprintf(stderr, "bootstrap-admin: created user %q\n", bf.username)
 		return nil
@@ -86,6 +94,9 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 		hash, display, bf.email, existingID,
 	); err != nil {
 		return fmt.Errorf("update user: %w", err)
+	}
+	if err := store.SetClusterRoleBinding(ctx, nil, existingID, "admin"); err != nil {
+		return fmt.Errorf("bind admin role: %w", err)
 	}
 	fmt.Fprintf(stderr, "bootstrap-admin: updated user %q\n", bf.username)
 	return nil

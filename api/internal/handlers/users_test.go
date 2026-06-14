@@ -110,6 +110,57 @@ func TestUsers_CreatePersistsAndLists(t *testing.T) {
 	}
 }
 
+// Creating a user mirrors their primary role into a cluster-wide ("*")
+// role binding — without it the user would resolve to no permissions.
+func TestUsers_CreateBindsClusterRole(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	status, body := doReq(t, "POST", srv.URL+"/users", map[string]any{
+		"username": "ivy",
+		"password": "longenoughpw1",
+		"role":     "operator",
+	})
+	if status != 200 {
+		t.Fatalf("create want 200 got %d body=%s", status, body)
+	}
+	var created userDTO
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	var role string
+	err := store.DB.QueryRow(
+		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND namespace = '*'`,
+		created.ID).Scan(&role)
+	if err != nil || role != "operator" {
+		t.Fatalf("cluster binding = %q err=%v, want operator", role, err)
+	}
+}
+
+// A custom role can be assigned to a user once it exists in the roles table.
+func TestUsers_CreateAcceptsCustomRole(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	if _, err := store.DB.Exec(`INSERT INTO roles(name, builtin) VALUES ('support', 0)`); err != nil {
+		t.Fatalf("seed role: %v", err)
+	}
+	status, _ := doReq(t, "POST", srv.URL+"/users", map[string]any{
+		"username": "jo",
+		"password": "longenoughpw1",
+		"role":     "support",
+	})
+	if status != 200 {
+		t.Fatalf("create with custom role want 200 got %d", status)
+	}
+}
+
+// Deleting the only user who can manage users is refused.
+func TestUsers_DeleteLastManagerRejected(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 999, Role: "admin"})
+	id := seedUser(t, store, "onlyadmin", "admin", "longenoughpw1")
+	status, body := doReq(t, "DELETE", srv.URL+"/users/"+strconv.FormatInt(id, 10), nil)
+	if status != 400 {
+		t.Fatalf("want 400 deleting last manager got %d body=%s", status, body)
+	}
+}
+
 func TestUsers_PatchEditsAllFields(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 999, Role: "admin"})
 	id := seedUser(t, store, "bob", "viewer", "longenoughpw1")

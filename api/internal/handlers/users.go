@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/mail"
 	"regexp"
+	"sort"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -43,11 +44,29 @@ type userDTO struct {
 	Role        string `json:"role"`
 	Provider    string `json:"provider"`
 	CreatedAt   string `json:"createdAt"`
+	// Permissions is the caller's effective permission set, keyed by
+	// namespace ("*" = cluster-wide). Populated only on /users/me; it
+	// drives the dashboard's can()-based UI gating.
+	Permissions map[string][]string `json:"permissions,omitempty"`
 }
 
-// validRoles is the closed set the RBAC middleware understands. Any
-// other string silently evaluates to "less than viewer" and breaks.
-var validRoles = map[string]bool{"admin": true, "operator": true, "viewer": true}
+// permsToJSON flattens the in-memory permission set into a
+// JSON-friendly namespace→permissions map.
+func permsToJSON(perms map[string]map[string]struct{}) map[string][]string {
+	if len(perms) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(perms))
+	for ns, set := range perms {
+		keys := make([]string, 0, len(set))
+		for p := range set {
+			keys = append(keys, p)
+		}
+		sort.Strings(keys)
+		out[ns] = keys
+	}
+	return out
+}
 
 // usernameRE constrains usernames to a conservative DNS-label-ish set.
 // This also stops homoglyph tricks and keeps URLs clean since usernames
@@ -108,7 +127,10 @@ func (h *userHandler) create(w http.ResponseWriter, req *http.Request) {
 	if body.Role == "" {
 		body.Role = "viewer"
 	}
-	if !validRoles[body.Role] {
+	if ok, err := h.db.RoleExists(req.Context(), body.Role); err != nil {
+		httperr.Write(w, req, err)
+		return
+	} else if !ok {
 		http.Error(w, "invalid role", http.StatusBadRequest)
 		return
 	}
@@ -134,6 +156,13 @@ func (h *userHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
+	// Mirror the primary role into a cluster-wide ("*") role binding so
+	// RBAC resolves the new user's permissions. Without this the user has
+	// no effective permissions at all.
+	if err := h.db.SetClusterRoleBinding(req.Context(), nil, id, body.Role); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
 	provider := "pending"
 	if hash != "" {
 		provider = "local"
@@ -152,7 +181,7 @@ func (h *userHandler) me(w http.ResponseWriter, req *http.Request) {
 	}
 	writeJSON(w, userDTO{
 		ID: u.ID, Username: u.Username, DisplayName: u.DisplayName,
-		Email: u.Email, Role: u.Role,
+		Email: u.Email, Role: u.Role, Permissions: permsToJSON(u.Perms),
 	})
 }
 
@@ -167,9 +196,28 @@ func (h *userHandler) del(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "cannot delete self", http.StatusBadRequest)
 		return
 	}
+	// Don't delete the last user who can manage users.
+	if managesNow, err := h.db.UserManagesUsers(req.Context(), id); err != nil {
+		httperr.Write(w, req, err)
+		return
+	} else if managesNow {
+		count, err := h.db.UserManagerCount(req.Context())
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		if count <= 1 {
+			http.Error(w, "cannot delete the last user who can manage users", http.StatusBadRequest)
+			return
+		}
+	}
 	if _, err := h.db.DB.ExecContext(req.Context(), `DELETE FROM users WHERE id = ?`, id); err != nil {
 		httperr.Write(w, req, err)
 		return
+	}
+	// sqlite runs without FK cascade, so clear the user's bindings too.
+	if err := h.db.DeleteUserBindings(req.Context(), nil, id); err != nil {
+		slog.Warn("delete user bindings", "err", err, "user", id)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -200,17 +248,48 @@ func (h *userHandler) update(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	if body.Role != nil && !validRoles[*body.Role] {
-		http.Error(w, "invalid role", http.StatusBadRequest)
-		return
+	if body.Role != nil {
+		if ok, err := h.db.RoleExists(req.Context(), *body.Role); err != nil {
+			httperr.Write(w, req, err)
+			return
+		} else if !ok {
+			http.Error(w, "invalid role", http.StatusBadRequest)
+			return
+		}
 	}
 	caller := auth.UserFromContext(req.Context())
-	roleChanging := body.Role != nil && caller != nil && caller.ID == id && *body.Role != caller.Role
-	// Safety net: don't let an admin accidentally demote themselves and
-	// lock the cluster out of admin operations.
-	if roleChanging && *body.Role != "admin" {
-		http.Error(w, "cannot demote self", http.StatusBadRequest)
-		return
+	if body.Role != nil {
+		newGrantsManage, err := h.db.RoleGrantsUserManagement(req.Context(), *body.Role)
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		selfChanging := caller != nil && caller.ID == id && *body.Role != caller.Role
+		// Safety net: don't let a user strip their own ability to manage
+		// users (the generalization of the old "don't demote yourself out
+		// of admin" guard) — someone else must do it.
+		if selfChanging && !newGrantsManage {
+			http.Error(w, "cannot remove your own user-management access", http.StatusBadRequest)
+			return
+		}
+		// System-wide safety net: never demote the last user who can manage
+		// users, or the cluster loses all user administration.
+		if !newGrantsManage {
+			if managesNow, err := h.db.UserManagesUsers(req.Context(), id); err != nil {
+				httperr.Write(w, req, err)
+				return
+			} else if managesNow {
+				count, err := h.db.UserManagerCount(req.Context())
+				if err != nil {
+					httperr.Write(w, req, err)
+					return
+				}
+				if count <= 1 {
+					http.Error(w, "cannot demote the last user who can manage users", http.StatusBadRequest)
+					return
+				}
+			}
+		}
 	}
 
 	tx, err := h.db.DB.BeginTx(req.Context(), nil)
@@ -247,6 +326,12 @@ func (h *userHandler) update(w http.ResponseWriter, req *http.Request) {
 		n, _ := res.RowsAffected()
 		if n == 0 {
 			httperr.Write(w, req, sql.ErrNoRows)
+			return
+		}
+		// Keep the cluster-wide ("*") role binding in sync with the primary
+		// role; per-namespace bindings are left untouched.
+		if err := h.db.SetClusterRoleBinding(req.Context(), tx, id, *body.Role); err != nil {
+			httperr.Write(w, req, err)
 			return
 		}
 	}

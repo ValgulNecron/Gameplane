@@ -188,6 +188,14 @@ func (o *OIDC) resolveOrLinkUser(
 	); err != nil {
 		return nil, err
 	}
+	// Mirror the default role into a cluster-wide role binding so RBAC
+	// resolves the new SSO user's permissions.
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, 'viewer', '*')`,
+		uid,
+	); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
