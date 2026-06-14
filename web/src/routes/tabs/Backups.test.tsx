@@ -104,6 +104,8 @@ describe("BackupsTab", () => {
   });
 
   it("opens the restore dialog from a restorable backup", async () => {
+    // A single succeeded backup → exactly one (enabled) Restore button.
+    server.use(http.get("/backups", () => HttpResponse.json({ items: [makeBackup()] })));
     renderWithQuery(<BackupsTab name="alpha" />);
     await screen.findByText("alpha-2026-05-07");
     const restoreBtn = screen.getByRole("button", { name: /^restore$/i });
