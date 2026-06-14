@@ -34,8 +34,61 @@ func TestOpen_SQLiteAndMigrate(t *testing.T) {
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if n < 2 {
-		t.Fatalf("expected >=2 migrations applied, got %d", n)
+	if n < 3 {
+		t.Fatalf("expected >=3 migrations applied, got %d", n)
+	}
+}
+
+func TestMigrate_SeedsBuiltinRoles(t *testing.T) {
+	s, err := Open(context.Background(), "sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	// The three built-in roles exist and are flagged builtin.
+	for _, name := range []string{"admin", "operator", "viewer"} {
+		var builtin int
+		if err := s.DB.QueryRow(`SELECT builtin FROM roles WHERE name = ?`, name).Scan(&builtin); err != nil {
+			t.Fatalf("role %q missing: %v", name, err)
+		}
+		if builtin != 1 {
+			t.Errorf("role %q builtin=%d, want 1", name, builtin)
+		}
+	}
+
+	// admin holds the wildcard; viewer is read-only; operator can write servers.
+	for _, tc := range []struct {
+		role, perm string
+	}{
+		{"admin", "*"},
+		{"operator", "servers:write"},
+		{"operator", "backups:restore"},
+		{"viewer", "servers:read"},
+	} {
+		var got int
+		if err := s.DB.QueryRow(
+			`SELECT COUNT(*) FROM role_permissions WHERE role_name = ? AND permission = ?`,
+			tc.role, tc.perm).Scan(&got); err != nil {
+			t.Fatalf("query %s/%s: %v", tc.role, tc.perm, err)
+		}
+		if got != 1 {
+			t.Errorf("role %q missing permission %q", tc.role, tc.perm)
+		}
+	}
+
+	// viewer must not hold any write/admin permission.
+	var writes int
+	if err := s.DB.QueryRow(
+		`SELECT COUNT(*) FROM role_permissions WHERE role_name = 'viewer'
+		   AND permission NOT LIKE '%:read'`).Scan(&writes); err != nil {
+		t.Fatalf("viewer writes query: %v", err)
+	}
+	if writes != 0 {
+		t.Errorf("viewer holds %d non-read permissions, want 0", writes)
 	}
 }
 
