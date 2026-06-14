@@ -14,6 +14,7 @@ import type {
   GameTemplate,
   InstalledMod,
   List,
+  LoginProvidersResp,
   Module,
   ModuleSource,
   ModuleSourceSpec,
@@ -259,6 +260,8 @@ export const Auth = {
     api<User>("/auth/login", { method: "POST", body }),
   logout: () => api<void>("/auth/logout", { method: "POST" }),
   oidcStartURL: () => "/auth/oidc/start",
+  // Public, pre-auth: which login methods are enabled + their labels.
+  providers: () => api<LoginProvidersResp>("/auth/providers"),
 };
 
 export const Audit = {

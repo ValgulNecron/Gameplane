@@ -10,7 +10,59 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/kestrel-gg/kestrel/api/internal/audit"
+	"github.com/kestrel-gg/kestrel/api/internal/auth"
 )
+
+// TestAudit_RecordsAuthenticatedActor — the audit middleware must record
+// the acting user (set on the actor holder by Authenticate), not
+// "anonymous". Regression test for the context-propagation bug.
+func TestAudit_RecordsAuthenticatedActor(t *testing.T) {
+	store := newTestStore(t)
+	a := audit.New(store)
+
+	// Stand in for Authenticate: set the actor on the holder the audit
+	// middleware installed into the request context.
+	setActor := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			auth.SetActor(r.Context(), "alice")
+			next.ServeHTTP(w, r)
+		})
+	}
+	final := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusCreated) })
+	h := audit.Middleware(a)(setActor(final))
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/servers", nil))
+
+	evs, err := a.Page(httptest.NewRequest(http.MethodGet, "/x", nil), 10, 0)
+	if err != nil {
+		t.Fatalf("page: %v", err)
+	}
+	if len(evs) != 1 {
+		t.Fatalf("want 1 audit row, got %d", len(evs))
+	}
+	if evs[0].Actor != "alice" {
+		t.Fatalf("actor = %q, want alice", evs[0].Actor)
+	}
+}
+
+// TestAudit_AnonymousWhenUnauthenticated — a request with no
+// authenticated actor (e.g. a login attempt) still logs as "anonymous".
+func TestAudit_AnonymousWhenUnauthenticated(t *testing.T) {
+	store := newTestStore(t)
+	a := audit.New(store)
+	final := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
+	h := audit.Middleware(a)(final)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/auth/login", nil))
+
+	evs, err := a.Page(httptest.NewRequest(http.MethodGet, "/x", nil), 10, 0)
+	if err != nil {
+		t.Fatalf("page: %v", err)
+	}
+	if len(evs) != 1 || evs[0].Actor != "anonymous" {
+		t.Fatalf("want one anonymous row, got %+v", evs)
+	}
+}
 
 func TestMountAudit_HappyPath(t *testing.T) {
 	store := newTestStore(t)

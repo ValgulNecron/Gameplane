@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Archive,
   Cpu,
@@ -11,15 +11,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { APIError } from "@/lib/api";
 import { Auth } from "@/lib/endpoints";
+import type { LoginProvider } from "@/types";
 
 // IMPORTANT: This pre-auth surface must not display any internal
-// cluster metrics, server counts, or hostnames. The right panel is
-// static product-marketing content only.
+// cluster metrics, server counts, hostnames, or version strings. The
+// right panel is static product-marketing content only.
 export function LoginPage() {
   const [u, setU] = useState("");
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Enabled login methods, fetched pre-auth. Defaults to local-only so a
+  // failed/slow fetch never blocks password sign-in.
+  const [oidc, setOidc] = useState<LoginProvider | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void Auth.providers()
+      .then((r) => {
+        if (active) setOidc(r.providers.find((x) => x.kind === "oidc") ?? null);
+      })
+      .catch(() => {
+        /* local-only fallback — leave oidc null */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="grid h-full grid-cols-1 md:grid-cols-2">
@@ -67,10 +85,7 @@ export function LoginPage() {
               />
             </label>
             <label className="block space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">Password</span>
-                <a href="#" className="text-primary hover:underline">Forgot?</a>
-              </div>
+              <span className="text-xs text-muted">Password</span>
               <Input
                 type="password"
                 name="password"
@@ -83,24 +98,28 @@ export function LoginPage() {
             <Button type="submit" className="w-full" size="lg" disabled={busy}>
               Sign in →
             </Button>
-            <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
-              <span className="relative z-10 bg-background px-2">or</span>
-              <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              size="lg"
-              onClick={() => location.assign(Auth.oidcStartURL())}
-            >
-              <KeyRound className="h-4 w-4" />
-              Continue with OIDC (Keycloak)
-            </Button>
+            {oidc && (
+              <>
+                <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
+                  <span className="relative z-10 bg-background px-2">or</span>
+                  <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                  onClick={() => location.assign(Auth.oidcStartURL())}
+                >
+                  <KeyRound className="h-4 w-4" />
+                  Continue with {oidc.label}
+                </Button>
+              </>
+            )}
           </form>
 
           <p className="mt-10 text-center text-[11px] text-muted">
-            v0.1.0-alpha · apache-2.0 licensed
+            AGPL-3.0 licensed
           </p>
         </div>
       </section>
@@ -108,7 +127,7 @@ export function LoginPage() {
       <section className="hidden border-l border-border bg-surface/40 p-12 md:flex md:flex-col md:justify-center">
         <div className="max-w-md">
           <div className="mb-2 text-[11px] uppercase tracking-widest text-muted">
-            v0.1.0-alpha · AGPL-3.0
+            AGPL-3.0
           </div>
           <h2 className="text-3xl font-semibold leading-tight">
             Kubernetes-native<br />game server hosting.

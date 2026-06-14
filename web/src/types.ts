@@ -303,6 +303,15 @@ export interface ClusterInfo {
   version?: string;
 }
 
+export interface LoginProvider {
+  kind: "local" | "oidc" | string;
+  label: string;
+}
+
+export interface LoginProvidersResp {
+  providers: LoginProvider[];
+}
+
 export interface PlayerCapabilities {
   kick: boolean;
   ban: boolean;
