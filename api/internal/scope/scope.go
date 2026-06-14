@@ -55,6 +55,12 @@ func Resolve(req *http.Request) (string, error) {
 	return requested, nil
 }
 
+// Allowed reports whether ns is one of the namespaces the API will act
+// in. Used when assigning per-namespace role bindings.
+func Allowed(ns string) bool {
+	return contains(AllowedNamespaces, ns)
+}
+
 func contains(ss []string, s string) bool {
 	for _, v := range ss {
 		if v == s {

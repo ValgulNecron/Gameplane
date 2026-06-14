@@ -12,6 +12,7 @@ import (
 
 	"github.com/kestrel-gg/kestrel/api/internal/auth"
 	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/kestrel-gg/kestrel/api/internal/scope"
 )
 
 // newUsersServer wires MountUsers behind a test middleware that injects
@@ -158,6 +159,57 @@ func TestUsers_DeleteLastManagerRejected(t *testing.T) {
 	status, body := doReq(t, "DELETE", srv.URL+"/users/"+strconv.FormatInt(id, 10), nil)
 	if status != 400 {
 		t.Fatalf("want 400 deleting last manager got %d body=%s", status, body)
+	}
+}
+
+// Per-namespace role bindings: add, list, reject bad namespace, delete.
+func TestUsers_RoleBindings(t *testing.T) {
+	saved := scope.AllowedNamespaces
+	t.Cleanup(func() { scope.AllowedNamespaces = saved })
+	scope.AllowedNamespaces = []string{scope.DefaultNamespace, "team-a"}
+
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	id := seedUser(t, store, "ned", "viewer", "longenoughpw1")
+	base := srv.URL + "/users/" + strconv.FormatInt(id, 10) + "/bindings"
+
+	// Cluster-wide ("*") is reserved for the primary role.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "*"}); status != 400 {
+		t.Fatalf("'*' namespace want 400 got %d", status)
+	}
+	// Unknown namespace rejected.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "nope"}); status != 400 {
+		t.Fatalf("unknown ns want 400 got %d", status)
+	}
+	// Unknown role rejected.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "ghost", "namespace": "team-a"}); status != 400 {
+		t.Fatalf("unknown role want 400 got %d", status)
+	}
+	// Valid grant.
+	if status, body := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "team-a"}); status != 201 {
+		t.Fatalf("add binding want 201 got %d body=%s", status, body)
+	}
+	// Duplicate rejected.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "team-a"}); status != 409 {
+		t.Fatalf("duplicate binding want 409 got %d", status)
+	}
+	// List shows it.
+	status, body := doReq(t, "GET", base, nil)
+	if status != 200 {
+		t.Fatalf("list want 200 got %d", status)
+	}
+	var bindings []bindingDTO
+	if err := json.Unmarshal(body, &bindings); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(bindings) != 1 || bindings[0].RoleName != "operator" || bindings[0].Namespace != "team-a" {
+		t.Fatalf("unexpected bindings: %+v", bindings)
+	}
+	// Delete it.
+	if status, _ := doReq(t, "DELETE", base+"/operator/team-a", nil); status != 204 {
+		t.Fatalf("delete binding want 204 got %d", status)
+	}
+	if status, _ := doReq(t, "DELETE", base+"/operator/team-a", nil); status != 404 {
+		t.Fatalf("delete missing binding want 404 got %d", status)
 	}
 }
 

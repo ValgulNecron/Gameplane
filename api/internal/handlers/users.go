@@ -17,6 +17,7 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/auth"
 	"github.com/kestrel-gg/kestrel/api/internal/db"
 	"github.com/kestrel-gg/kestrel/api/internal/httperr"
+	"github.com/kestrel-gg/kestrel/api/internal/scope"
 )
 
 func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore) {
@@ -28,6 +29,11 @@ func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore) {
 		r.Delete("/{id}", h.del)
 		r.Patch("/{id}", h.update)
 		r.Post("/{id}/reset-password", h.resetPassword)
+		// Per-namespace role grants (the cluster-wide role is the primary
+		// role, set via PATCH above).
+		r.Get("/{id}/bindings", h.listBindings)
+		r.Post("/{id}/bindings", h.addBinding)
+		r.Delete("/{id}/bindings/{role}/{namespace}", h.deleteBinding)
 	})
 }
 
@@ -407,6 +413,146 @@ func (h *userHandler) resetPassword(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type bindingDTO struct {
+	RoleName  string `json:"roleName"`
+	Namespace string `json:"namespace"`
+}
+
+func (h *userHandler) listBindings(w http.ResponseWriter, req *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	rows, err := h.db.DB.QueryContext(req.Context(),
+		`SELECT role_name, namespace FROM user_role_bindings WHERE user_id = ? ORDER BY namespace, role_name`, id)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	defer rows.Close()
+	out := []bindingDTO{}
+	for rows.Next() {
+		var b bindingDTO
+		if err := rows.Scan(&b.RoleName, &b.Namespace); err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	writeJSON(w, out)
+}
+
+type addBindingReq struct {
+	RoleName  string `json:"roleName"`
+	Namespace string `json:"namespace"`
+}
+
+func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	var body addBindingReq
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	// The cluster-wide role is the user's primary role (set via PATCH); this
+	// endpoint only grants additional per-namespace roles.
+	if body.Namespace == "*" || !scope.Allowed(body.Namespace) {
+		http.Error(w, "namespace not permitted", http.StatusBadRequest)
+		return
+	}
+	if ok, err := h.db.RoleExists(req.Context(), body.RoleName); err != nil {
+		httperr.Write(w, req, err)
+		return
+	} else if !ok {
+		http.Error(w, "invalid role", http.StatusBadRequest)
+		return
+	}
+	if ok, err := h.userExists(req.Context(), id); err != nil {
+		httperr.Write(w, req, err)
+		return
+	} else if !ok {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	var dup int
+	if err := h.db.DB.QueryRowContext(req.Context(),
+		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND role_name = ? AND namespace = ?`,
+		id, body.RoleName, body.Namespace).Scan(&dup); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	if dup > 0 {
+		http.Error(w, "binding already exists", http.StatusConflict)
+		return
+	}
+	if _, err := h.db.DB.ExecContext(req.Context(),
+		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, ?, ?)`,
+		id, body.RoleName, body.Namespace); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	h.invalidateSessions(req, id, "role binding added")
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, bindingDTO{RoleName: body.RoleName, Namespace: body.Namespace})
+}
+
+func (h *userHandler) deleteBinding(w http.ResponseWriter, req *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	role := chi.URLParam(req, "role")
+	namespace := chi.URLParam(req, "namespace")
+	if namespace == "*" {
+		http.Error(w, "the cluster-wide role is managed via the primary role", http.StatusBadRequest)
+		return
+	}
+	res, err := h.db.DB.ExecContext(req.Context(),
+		`DELETE FROM user_role_bindings WHERE user_id = ? AND role_name = ? AND namespace = ?`,
+		id, role, namespace)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		http.Error(w, "binding not found", http.StatusNotFound)
+		return
+	}
+	h.invalidateSessions(req, id, "role binding removed")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *userHandler) userExists(ctx context.Context, id int64) (bool, error) {
+	var x int
+	err := h.db.DB.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = ?`, id).Scan(&x)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// invalidateSessions clears the target user's sessions so a binding change
+// takes effect immediately. Permissions are resolved per request, so this
+// is belt-and-suspenders — it forces a clean re-auth under the new grants.
+func (h *userHandler) invalidateSessions(req *http.Request, id int64, reason string) {
+	if h.sessions == nil {
+		return
+	}
+	if err := h.sessions.DeleteForUser(req.Context(), id); err != nil {
+		slog.Warn("invalidate sessions", "err", err, "user", id, "reason", reason)
+	}
 }
 
 func (h *userHandler) fetchByID(ctx context.Context, id int64) (userDTO, error) {
