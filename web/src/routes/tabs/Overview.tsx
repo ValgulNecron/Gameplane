@@ -147,12 +147,6 @@ export function OverviewTab({
               <InfoRow label="Port">
                 <span className="font-mono">{primary?.port ?? "—"}</span>
               </InfoRow>
-              <div className="flex items-center justify-between rounded-md border border-border bg-surface/60 px-3 py-2 text-sm">
-                <span className="text-muted">Auto-restart on OOM</span>
-                <div className="relative h-5 w-9 rounded-full bg-primary">
-                  <span className="absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-primary-fg" />
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>

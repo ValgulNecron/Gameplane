@@ -121,6 +121,13 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 			_ = upResp.Body.Close()
 		}
 		if err != nil {
+			// The upgrade to the browser already succeeded (Console.tsx
+			// printed "— connected —"), so the close reason below isn't
+			// visible to it. Send a structured error frame first, matching
+			// the agent's {kind,body} envelope, so the console shows a real
+			// message instead of a bare disconnect.
+			_ = downConn.Write(req.Context(), websocket.MessageText,
+				[]byte(`{"kind":"err","body":"agent unreachable"}`))
 			_ = downConn.Close(websocket.StatusBadGateway, "agent dial failed")
 			return
 		}

@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  FileText,
   KeyRound,
   MoreHorizontal,
   Pencil,
@@ -14,7 +13,6 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -96,11 +94,6 @@ export function UsersPage() {
         subtitle="Manage access to the Kestrel control plane."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" asChild>
-              <Link to="/admin/audit">
-                <FileText className="h-4 w-4" /> Audit log
-              </Link>
-            </Button>
             <Button onClick={() => setInviting(true)}>
               <Plus className="h-4 w-4" /> Invite user
             </Button>

@@ -63,7 +63,10 @@ function RconConsole({ name }: { name: string }) {
             term.writeln(env.body);
           }
         } catch {
-          term.writeln(String(data));
+          // Non-JSON frame — e.g. an HTML/redirect body from a WS upgrade
+          // that didn't reach the agent. Don't echo it verbatim (that's
+          // what surfaced a raw URL in the console); real failures arrive
+          // as a {kind:"err"} envelope and onClose reports the disconnect.
         }
       },
       onOpen: () => term.writeln("\x1b[90m— connected —\x1b[0m"),
