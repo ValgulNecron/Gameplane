@@ -21,8 +21,8 @@ export function ClusterPage() {
       <PageHeader
         title="Cluster"
         subtitle={
-          data
-            ? `${data.name ?? "homelab-01"} · ${data.version ?? "v1.32"} · ${data.ready ?? nodes.filter(n => n.status === "Ready").length}/${data.total ?? nodes.length} nodes healthy`
+          data && (data.name || data.version || nodes.length > 0)
+            ? `${data.name || "—"} · ${data.version || "—"} · ${data.ready ?? nodes.filter(n => n.status === "Ready").length}/${data.total ?? nodes.length} nodes healthy`
             : "Node inventory and health across the control plane."
         }
         actions={

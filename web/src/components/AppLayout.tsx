@@ -87,7 +87,7 @@ function Sidebar({ role, me, clusterName }: { role?: User["role"]; me?: User; cl
         </div>
         <div className="leading-tight">
           <div className="font-mono text-base font-semibold text-fg">kestrel</div>
-          <div className="text-[11px] text-muted">{clusterName || "homelab-01"}</div>
+          <div className="text-[11px] text-muted">{clusterName || "—"}</div>
         </div>
       </div>
 

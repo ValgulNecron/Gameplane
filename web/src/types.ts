@@ -174,9 +174,14 @@ export interface GameServer {
     endpoints?: Array<{ name: string; host: string; port: number; protocol?: string }>;
     agent?: {
       lastHeartbeat?: string;
-      playersOnline?: number;
+      // null/absent means "unknown" (agent couldn't query the game, or
+      // the heartbeat is stale and the API blanked it).
+      playersOnline?: number | null;
       playersMax?: number;
       gameVersion?: string;
+      // Set by the API when the heartbeat is older than the freshness
+      // window — the reported values are no longer current.
+      stale?: boolean;
     };
     startedAt?: string;
   };

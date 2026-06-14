@@ -50,8 +50,8 @@ func TestResources_NamespacedCRUD(t *testing.T) {
 			"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}},
 		}
 		rr := do(t, r, "POST", "/servers/", body)
-		if rr.Code != 200 {
-			t.Fatalf("got %d %s", rr.Code, rr.Body)
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("got %d %s, want 201", rr.Code, rr.Body)
 		}
 	})
 
@@ -83,8 +83,8 @@ func TestResources_ClusterScoped(t *testing.T) {
 	k := fakeKubeClient()
 	r := mountResourcesRouter(k)
 	rr := do(t, r, "POST", "/templates/", body)
-	if rr.Code != 200 {
-		t.Fatalf("create: %d %s", rr.Code, rr.Body)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s, want 201", rr.Code, rr.Body)
 	}
 	rr = do(t, r, "GET", "/templates/minecraft", nil)
 	if rr.Code != 200 {

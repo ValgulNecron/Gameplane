@@ -78,6 +78,42 @@ func TestExec_ReadFailsAfterSentinel(t *testing.T) {
 	}
 }
 
+// TestExec_DeadlineOnHungServer — a server that authenticates then never
+// answers the command must not block Exec forever. With a short
+// execDeadline, Exec returns a timeout error promptly instead of holding
+// the client mutex (and every caller that shares it) indefinitely.
+func TestExec_DeadlineOnHungServer(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		// Complete AUTH, then go silent — never answer the command.
+		id, _, _, _ := readOne(conn)
+		writeOne(conn, id, typeAuthResponse, "")
+		time.Sleep(2 * time.Second)
+		_ = conn.Close()
+	}()
+
+	host, port, _ := net.SplitHostPort(ln.Addr().String())
+	c := New(host, mustAtoi(port), func() (string, error) { return "x", nil })
+	c.execDeadline = 100 * time.Millisecond
+	defer c.Close()
+
+	start := time.Now()
+	if _, err := c.Exec("hi"); err == nil {
+		t.Fatal("expected Exec to time out against a hung server")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("Exec blocked %v, expected to return near the 100ms deadline", elapsed)
+	}
+}
+
 // TestExec_ReuseConnectionAcrossCalls confirms the second Exec doesn't
 // re-AUTH (covered branch in ensureLocked when c.conn != nil).
 func TestExec_ReuseConnectionAcrossCalls(t *testing.T) {

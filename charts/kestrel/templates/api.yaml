@@ -30,6 +30,11 @@ rules:
   - apiGroups: [""]
     resources: [nodes, events]
     verbs: [get, list, watch]
+  # Cluster storage stats (api/internal/handlers/cluster.go) sum
+  # PersistentVolume capacity (cluster-scoped) for the dashboard.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch]
   - apiGroups: ["storage.k8s.io"]
     resources: [storageclasses]
     verbs: [get, list, watch]

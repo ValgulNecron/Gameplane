@@ -74,7 +74,7 @@ func TestSendOnce(t *testing.T) {
 	}
 }
 
-func TestSendOnce_RconFailureFallsBackToMinusOne(t *testing.T) {
+func TestSendOnce_RconFailureEmitsNullPlayers(t *testing.T) {
 	scheme := runtime.NewScheme()
 	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
@@ -96,8 +96,15 @@ func TestSendOnce_RconFailureFallsBackToMinusOne(t *testing.T) {
 	var got map[string]any
 	_ = json.Unmarshal(captured, &got)
 	agent := got["status"].(map[string]any)["agent"].(map[string]any)
-	if agent["playersOnline"].(float64) != -1 {
-		t.Fatalf("want -1, got %v", agent["playersOnline"])
+	// Unknown player count must be null ("unknown"), never a -1 sentinel
+	// the dashboard would sum into a negative total. The key is present
+	// with a null value so the merge patch clears any prior count.
+	v, present := agent["playersOnline"]
+	if !present {
+		t.Fatalf("playersOnline key missing from patch: %+v", agent)
+	}
+	if v != nil {
+		t.Fatalf("want null playersOnline on rcon failure, got %v", v)
 	}
 }
 
@@ -127,10 +134,10 @@ func TestQueryOnline(t *testing.T) {
 		ok   bool
 	}{
 		{"basic count", "There are 7 of a max of 20", nil, 7, true},
-		{"no digits", "Server starting...", nil, -1, false},
+		{"no digits", "Server starting...", nil, 0, false},
 		{"leading zero", "0 players", nil, 0, true},
 		{"multi-digit", "There are 132 players", nil, 132, true},
-		{"rcon error", "", errors.New("boom"), -1, false},
+		{"rcon error", "", errors.New("boom"), 0, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

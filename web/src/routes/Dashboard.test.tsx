@@ -56,6 +56,25 @@ describe("DashboardPage", () => {
     expect(screen.getByText("alpha")).toBeInTheDocument();
   });
 
+  it("never sums unknown player counts into a negative total", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            // legacy -1 sentinel and the new null "unknown" — neither may
+            // drag the aggregate below zero.
+            makeServer({ metadata: { name: "a" }, status: { phase: "Running", agent: { playersOnline: -1 } } }),
+            makeServer({ metadata: { name: "b" }, status: { phase: "Running", agent: { playersOnline: null } } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("a");
+    expect(screen.queryByText("-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("-2")).not.toBeInTheDocument();
+  });
+
   it("renders empty stats gracefully when /cluster/stats fails", async () => {
     server.use(
       http.get("/servers", () => HttpResponse.json({ items: [] })),

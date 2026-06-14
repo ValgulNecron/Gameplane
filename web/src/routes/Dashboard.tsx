@@ -274,7 +274,10 @@ function countByState(items: GameServer[]): Counts {
     const p: GameServerPhase = gs.status?.phase ?? "Pending";
     if (p === "Running") result.running += 1;
     if (p === "Stopped" || p === "Suspended" || p === "Failed") result.stopped += 1;
-    result.players += gs.status?.agent?.playersOnline ?? 0;
+    // Only count a known, non-negative player count. null/undefined means
+    // "unknown"; clamp guards against any legacy -1 sentinel so the total
+    // can never go negative.
+    result.players += Math.max(0, gs.status?.agent?.playersOnline ?? 0);
     result.playersMax += gs.status?.agent?.playersMax ?? 0;
   }
   return result;
