@@ -28,11 +28,17 @@ interface Routes {
 
 function route(r: Routes) {
   const role = r.role ?? "operator";
+  // Mods management is gated on servers:write; mirror that in the mocked
+  // permission set so the role still drives what the UI offers.
+  const permissions =
+    role === "operator"
+      ? { "*": ["servers:read", "servers:write"] }
+      : { "*": ["servers:read"] };
   const mods = r.mods ?? [];
   fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
     const method = opts?.method ?? "GET";
     if (url.endsWith("/users/me")) {
-      return Promise.resolve(jsonRes({ id: 1, username: "u", displayName: "U", email: "", role }));
+      return Promise.resolve(jsonRes({ id: 1, username: "u", displayName: "U", email: "", role, permissions }));
     }
     if (url.includes("/mods/install")) {
       const body = JSON.parse(opts?.body ?? "{}") as { url: string; name?: string };
@@ -129,7 +135,10 @@ describe("ModsTab", () => {
     expect(removed[0]).toContain("name=old.jar");
   });
 
-  const operator = { id: 1, username: "u", displayName: "U", email: "", role: "operator" };
+  const operator = {
+    id: 1, username: "u", displayName: "U", email: "", role: "operator",
+    permissions: { "*": ["servers:read", "servers:write"] },
+  };
 
   async function openInstall() {
     const open = await screen.findByRole("button", { name: /install mod/i });

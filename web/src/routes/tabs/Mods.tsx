@@ -6,7 +6,7 @@ import { Package, Plus, RotateCw, Trash2 } from "lucide-react";
 import type { GameTemplate, InstalledMod } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
-import { useMe, hasRole } from "@/lib/auth";
+import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -21,7 +21,7 @@ type Banner = { kind: "ok" | "err"; text: string };
 export function ModsTab({ name, tmpl }: { name: string; tmpl?: GameTemplate }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const canManage = hasRole(me, ["admin", "operator"]);
+  const canManage = can(me, "servers:write");
 
   const caps = tmpl?.spec.capabilities?.mods;
   const canInstall = !!caps?.install;

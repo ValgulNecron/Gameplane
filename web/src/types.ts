@@ -249,7 +249,11 @@ export interface BackupDestination {
   createdAt?: string;
 }
 
-export type UserRole = "admin" | "operator" | "viewer";
+// Role names are open-ended now that custom roles exist. BuiltinRole is
+// kept for the few places that special-case the seeded roles (e.g. the
+// role badge colors).
+export type UserRole = string;
+export type BuiltinRole = "admin" | "operator" | "viewer";
 
 // "pending" = local account that has never set a password (e.g. created
 // before the admin attached one); "oidc" = bound to an external IdP via
@@ -264,6 +268,38 @@ export interface User {
   role: UserRole;
   provider?: UserProvider;
   createdAt?: string;
+  // Effective permission set keyed by namespace ("*" = cluster-wide; a "*"
+  // permission means all). Present on /users/me; drives can()-based UI
+  // gating. Absent elsewhere.
+  permissions?: Record<string, string[]>;
+}
+
+// A named set of catalog permissions.
+export interface Role {
+  name: string;
+  description: string;
+  builtin: boolean;
+  permissions: string[];
+}
+
+// One grantable permission and whether it is namespaced.
+export interface Permission {
+  key: string;
+  label: string;
+  namespaced: boolean;
+}
+
+// Permissions grouped by resource, for the permission picker.
+export interface PermissionGroup {
+  resource: string;
+  label: string;
+  permissions: Permission[];
+}
+
+// A user's role grant in a namespace ("*" = cluster-wide).
+export interface RoleBinding {
+  roleName: string;
+  namespace: string;
 }
 
 export type ExtendedUser = User;
