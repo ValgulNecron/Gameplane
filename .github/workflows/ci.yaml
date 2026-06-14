@@ -117,6 +117,16 @@ jobs:
       - run: npm ci
       - name: install chromium
         run: npx playwright install --with-deps chromium
+      - name: free dev-server port (clear vite leaked by a cancelled run)
+        run: |
+          # CI sets reuseExistingServer:false, so Playwright aborts if :5173
+          # is taken. On this non-ephemeral runner a vite orphaned by a
+          # cancel-in-progress run can still hold it. Killing a free port is a
+          # no-op, so this is safe to run unconditionally.
+          (command -v fuser >/dev/null && fuser -k 5173/tcp) 2>/dev/null || true
+          (command -v lsof  >/dev/null && lsof -ti tcp:5173 | xargs -r kill -9) 2>/dev/null || true
+          pkill -f 'vite.*5173' 2>/dev/null || true
+          true
       - name: playwright (mock)
         run: npm run test:e2e:mock
       - name: upload playwright report
@@ -216,6 +226,16 @@ jobs:
       - name: install playwright browser
         run: |
           cd web && npm ci && npx playwright install --with-deps chromium
+      - name: free dev-server port (clear vite leaked by a cancelled run)
+        run: |
+          # CI sets reuseExistingServer:false, so Playwright aborts if :5173
+          # is taken. On this non-ephemeral runner a vite orphaned by a
+          # cancel-in-progress run can still hold it. Killing a free port is a
+          # no-op, so this is safe to run unconditionally.
+          (command -v fuser >/dev/null && fuser -k 5173/tcp) 2>/dev/null || true
+          (command -v lsof  >/dev/null && lsof -ti tcp:5173 | xargs -r kill -9) 2>/dev/null || true
+          pkill -f 'vite.*5173' 2>/dev/null || true
+          true
       - name: run playwright (live)
         env:
           KESTREL_E2E_TARGET: live
@@ -244,7 +264,9 @@ jobs:
   e2e-extended:
     name: e2e extended (kind)
     runs-on: ubuntu-latest
-    needs: [go, helm]
+    # Serialized after e2e-core: the memory-limited self-hosted runner OOM-kills
+    # a kind apiserver when both e2e jobs bring up clusters concurrently.
+    needs: [go, helm, e2e-core]
     timeout-minutes: 32
     steps:
       - uses: actions/checkout@v4
