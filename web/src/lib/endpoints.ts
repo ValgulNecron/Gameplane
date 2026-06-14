@@ -72,6 +72,10 @@ export const Servers = {
     api<void>(`/servers/${name}:${verb}`, { method: "POST" }),
   clone: (name: string, newName: string) =>
     api<GameServer>(`/servers/${name}:clone`, { method: "POST", body: { newName } }),
+  // Suspends the server and asks the operator to wipe its data volume.
+  // `confirm` must equal the server name.
+  wipeData: (name: string, confirm: string) =>
+    api<void>(`/servers/${name}:wipe-data`, { method: "POST", body: { confirm } }),
   // Live module-declared metrics for the Overview tab. The agent returns
   // [] when the game has no RCON, so the UI hides the panel.
   status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),

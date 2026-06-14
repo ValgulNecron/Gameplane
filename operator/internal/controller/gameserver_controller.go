@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -55,6 +56,7 @@ type GameServerReconciler struct {
 // +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers/finalizers,verbs=update
 // +kubebuilder:rbac:groups=kestrel.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
@@ -130,6 +132,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile BackupSchedule")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileWipe(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile data wipe")
+		return ctrl.Result{}, err
+	}
 
 	requeue, err := r.reconcileStatus(ctx, &gs)
 	if err != nil {
@@ -142,6 +148,7 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kestrelv1alpha1.GameServer{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&kestrelv1alpha1.BackupSchedule{}).

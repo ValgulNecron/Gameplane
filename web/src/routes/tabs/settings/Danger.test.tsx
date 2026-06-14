@@ -41,6 +41,22 @@ describe("DangerSection", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/servers" }));
   });
 
+  it("Wipe button confirms and posts the wipe request", async () => {
+    let body: unknown;
+    server.use(
+      http.post("/servers/alpha:wipe-data", async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 202 });
+      }),
+    );
+    renderWithQuery(<DangerSection name="alpha" />);
+    await userEvent.click(screen.getByRole("button", { name: /Wipe world…/i }));
+    expect(await screen.findByText(/Wipe alpha.s world data/i)).toBeInTheDocument();
+    await userEvent.type(await screen.findByRole("textbox"), "alpha");
+    await userEvent.click(await screen.findByRole("button", { name: /Wipe world data/i }));
+    await waitFor(() => expect(body).toEqual({ confirm: "alpha" }));
+  });
+
   it("delete failure surfaces the error", async () => {
     server.use(
       http.delete("/servers/alpha", () =>

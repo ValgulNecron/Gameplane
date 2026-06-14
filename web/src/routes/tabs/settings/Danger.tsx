@@ -13,6 +13,7 @@ interface Props {
 export function DangerSection({ name }: Props) {
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [wipeOpen, setWipeOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const del = useMutation({
@@ -26,13 +27,29 @@ export function DangerSection({ name }: Props) {
     },
   });
 
+  const wipe = useMutation({
+    mutationFn: () => Servers.wipeData(name, name),
+    onSuccess: () => setWipeOpen(false),
+    onError: (err) => {
+      setWipeOpen(false);
+      setError(errMsg(err));
+    },
+  });
+
   return (
     <div className="space-y-3">
       <Row
         title="Wipe world data"
-        body="Deletes the contents of the persistent volume but keeps the GameServer. Restarts back to a fresh install."
+        body="Suspends the server and deletes the contents of its persistent volume, then you can restart into a fresh install. Keeps the GameServer."
         action={
-          <Button variant="outline" size="sm" disabled title="Coming soon">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setWipeOpen(true);
+            }}
+          >
             Wipe world…
           </Button>
         }
@@ -67,6 +84,23 @@ export function DangerSection({ name }: Props) {
           {error}
         </div>
       )}
+      <ConfirmDialog
+        open={wipeOpen}
+        onOpenChange={setWipeOpen}
+        title={`Wipe ${name}'s world data?`}
+        description={
+          <>
+            The server will be suspended and the contents of its data volume
+            permanently deleted. The GameServer itself is kept; re-enable
+            auto-restart to start fresh. This cannot be undone.
+          </>
+        }
+        confirmPhrase={name}
+        confirmLabel="Wipe world data"
+        destructive
+        busy={wipe.isPending}
+        onConfirm={() => wipe.mutate()}
+      />
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
