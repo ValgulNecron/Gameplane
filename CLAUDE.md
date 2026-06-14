@@ -203,13 +203,12 @@ Commit the regenerated files in the same change:
 
 Note: Helm only installs `crds/` on first install — `helm upgrade` never updates CRDs, so e2e/dev clusters must be recreated after CRD schema changes.
 
-### 8. Pre-flight every PR
+### 8. Do NOT run the test or lint suites locally — CI is the source of truth
 
-```sh
-make lint && make test
-```
+**This project's tests must run on GitHub Actions, not on the maintainer's machine.** Do not run `make test`, `make lint`, `make cover`, `go test`, `npm test`/`vitest`, or any envtest/kind/e2e suite locally. Instead: write the code, commit per logical unit, push to a feature branch, and let GitHub Actions run the full suite. Watch the run with the `gh` CLI and fix failures with follow-up commits.
 
-Both must pass locally before pushing. Sign commits (`git commit -s`). For UI work, include the Pencil node id(s) you touched in the PR description.
+- A quick **compile** check is fine — `go build ./...` or `tsc --noEmit` is a compilation, not a test — to avoid pushing obviously-broken code. Running the *test/lint suites* is not.
+- Sign commits (`git commit -s`). For UI work, include the Pencil node id(s) you touched in the PR description.
 
 ### 9. K8s-native by default
 
@@ -228,7 +227,7 @@ This project standing-orders agents to commit after each logical unit of work. T
 
 - *Why:* without this rule, agents accumulate hundreds of mixed-concern files into a single mega-commit (it has happened on this repo). That destroys reviewability, makes `git bisect` useless, and turns rollbacks into a research project.
 - **A "logical unit" is**: one bug fix, one feature slice, one refactor step, one CRD/codegen pair, one passing test addition. Roughly: if you can describe it in one short conventional-commit subject line, commit it.
-- **Cadence**: commit before switching topics, before starting a risky change, and whenever `make lint && make test` is green at a meaningful checkpoint. Don't end a working session with > ~10 modified files staged but uncommitted.
+- **Cadence**: commit before switching topics, before starting a risky change, and at meaningful checkpoints (a compiling, logically-complete unit — see rule 8, tests run on CI not locally). Don't end a working session with > ~10 modified files staged but uncommitted.
 - **Mechanics**: sign every commit (`git commit -s`), use conventional-commit prefixes (`feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `ci:`). Never `--amend` a commit you've already pushed; never `--no-verify` to skip hooks. If a pre-commit hook fails, fix the underlying issue and create a new commit. Codegen output goes in the same commit as the source change that triggered it (rule 7).
 - **When *not* to commit**: known-broken state (compile errors, failing tests you haven't addressed), partial CRD edits without their regenerated artifacts, anything containing secrets/credentials, or unreviewed bulk reformatting. In those cases, finish the unit first.
 - **Pushing**: push at natural checkpoints so work isn't stranded locally, but do **not** force-push `main` and do **not** push obviously broken commits.
