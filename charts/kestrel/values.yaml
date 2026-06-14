@@ -120,6 +120,14 @@ networkPolicies:
       - 192.168.0.0/16
       - 169.254.0.0/16
 
+# Credential-minting cluster operations surfaced in the dashboard's
+# Cluster page (Add node = create a bootstrap token; Download kubeconfig =
+# mint a short-lived client cert). Off by default: enabling grants the API
+# powerful kube-system + CSR-approval RBAC. Downloaded kubeconfigs carry
+# the group "kestrel:dashboard", bound to the read-only "view" ClusterRole.
+clusterOps:
+  enabled: false
+
 serviceMonitors:
   enabled: false
   labels: {}

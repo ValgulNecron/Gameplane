@@ -26,9 +26,35 @@ role `viewer`. Admins must promote new OIDC users manually.
 
 ## Authorization
 
-Three cluster-scoped roles: `admin`, `operator`, `viewer`. Role-to-route
-mapping lives in `api/internal/rbac/rbac.go`. Per-namespace and
-per-GameServer scopes are planned for v1.1.
+RBAC is **permission-based**. A *permission* is a fixed `resource:action`
+string from the server-defined catalog (`api/internal/rbac/catalog.go`,
+e.g. `servers:write`, `backups:restore`, `users:manage`). A *role* is a
+named set of permissions, and a user is bound to roles **per namespace**.
+
+- **Roles** live in the API database (`roles` / `role_permissions`). The
+  built-in `admin`, `operator`, and `viewer` roles are seeded so their
+  cluster-wide grants reproduce the historical role matrix exactly. `admin`
+  holds the `*` wildcard and is immutable; `operator`/`viewer` are editable
+  templates; custom roles can be created with any subset of the catalog (the
+  `*` wildcard is never grantable through the API). Built-in roles and roles
+  still assigned to a user cannot be deleted.
+- **Bindings** (`user_role_bindings`) grant a role in a namespace; `*` means
+  cluster-wide. A user's primary role (`PATCH /users/{id}`) is their
+  cluster-wide binding; additional per-namespace grants are managed via
+  `…/users/{id}/bindings`. Allowed namespaces are the `KESTREL_EXTRA_NAMESPACES`
+  allow-list plus the default `kestrel-games`.
+- **Enforcement** (`api/internal/rbac/rbac.go`): each route maps to one
+  required permission; the middleware resolves the request's target namespace
+  and checks the caller's resolved permission set. A *namespaced* permission
+  is granted by a cluster-wide binding **or** a binding in the target
+  namespace; a *cluster-scoped* permission requires a cluster-wide binding —
+  the same Role vs ClusterRole split Kubernetes uses. Unmatched routes fail
+  closed.
+- **Lockout guards.** The API refuses to demote or delete the last user who
+  can manage users, and refuses self-demotion below `users:manage`.
+
+Per-GameServer (owner-based) authorization remains future work; server
+ownership today is informational only.
 
 ## API → Agent
 

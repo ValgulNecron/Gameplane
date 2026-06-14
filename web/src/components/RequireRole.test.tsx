@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
-import { RequireRole } from "./RequireRole";
+import { RequireRole, RequirePermission } from "./RequireRole";
 import { APIError } from "@/lib/api";
 
 const useMeMock = vi.fn();
-vi.mock("@/lib/auth", () => ({ useMe: () => useMeMock() }));
+// Keep the real can(); only stub useMe.
+vi.mock("@/lib/auth", async (orig) => ({
+  ...(await orig<typeof import("@/lib/auth")>()),
+  useMe: () => useMeMock(),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => (
@@ -67,5 +71,36 @@ describe("RequireRole", () => {
     });
     renderGuard(["admin"]);
     expect(assignMock).toHaveBeenCalledWith("/login");
+  });
+});
+
+describe("RequirePermission", () => {
+  function renderPerm(perm: string) {
+    return render(
+      <RequirePermission perm={perm}>
+        <div>secret</div>
+      </RequirePermission>,
+    );
+  }
+
+  it("renders children when the permission is held", () => {
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "a", role: "admin", permissions: { "*": ["*"] } },
+      error: null,
+      isLoading: false,
+    });
+    renderPerm("users:manage");
+    expect(screen.getByText("secret")).toBeInTheDocument();
+  });
+
+  it("renders Forbidden when the permission is missing", () => {
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "v", role: "viewer", permissions: { "*": ["servers:read"] } },
+      error: null,
+      isLoading: false,
+    });
+    renderPerm("users:manage");
+    expect(screen.getByText("Access denied")).toBeInTheDocument();
+    expect(screen.queryByText("secret")).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ import type { ActionParamDecl, GameTemplate, ServerActionDecl } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { rconAvailable } from "@/lib/capabilities";
 import { APIError } from "@/lib/api";
-import { useMe, hasRole } from "@/lib/auth";
+import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -46,7 +46,7 @@ type RunStatus = { kind: "ok" | "err"; text: string };
 export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTemplate }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const canRun = hasRole(me, ["admin", "operator"]);
+  const canRun = can(me, "servers:write");
   const [active, setActive] = useState<ServerActionDecl | null>(null);
   const [status, setStatus] = useState<RunStatus | null>(null);
 

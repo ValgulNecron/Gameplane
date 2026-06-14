@@ -32,6 +32,13 @@ type User struct {
 	DisplayName string
 	Email       string
 	Role        string
+
+	// Perms is the caller's resolved permission set, keyed by namespace.
+	// The "*" namespace holds cluster-wide grants; a permission value of
+	// "*" within a namespace means "all permissions in that scope". It is
+	// loaded from the user's role bindings at authentication time. Nil for
+	// Users built outside the session path (treated as holding nothing).
+	Perms map[string]map[string]struct{}
 }
 
 type SessionStore struct {
@@ -139,6 +146,11 @@ func (s *SessionStore) lookup(ctx context.Context, token string) (*User, string,
 	if err != nil {
 		return nil, "", err
 	}
+	perms, perr := s.LoadPerms(ctx, u.ID)
+	if perr != nil {
+		return nil, "", perr
+	}
+	u.Perms = perms
 	exp, perr := time.Parse(time.RFC3339, expires)
 	if perr != nil {
 		// A corrupt expires_at row is indistinguishable from an expired

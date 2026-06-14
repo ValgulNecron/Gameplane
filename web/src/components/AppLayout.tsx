@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { APIError } from "@/lib/api";
 import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
-import { useMe } from "@/lib/auth";
+import { useMe, can } from "@/lib/auth";
 import type { ClusterInfo, User } from "@/types";
 import { cn } from "@/lib/utils";
 import { openEventStream, queryKeyForKind, type KestrelEvent } from "@/lib/sse";
@@ -44,7 +44,7 @@ export function AppLayout() {
 
   return (
     <div className="flex h-full bg-background text-fg">
-      <Sidebar role={me?.role} me={me} clusterName={cluster?.clusterName} />
+      <Sidebar me={me} clusterName={cluster?.clusterName} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={me} />
         <main className="flex-1 overflow-auto scrollbar-thin">
@@ -61,7 +61,7 @@ interface NavItem {
   icon: typeof LayoutDashboard;
 }
 
-function Sidebar({ role, me, clusterName }: { role?: User["role"]; me?: User; clusterName?: string }) {
+function Sidebar({ me, clusterName }: { me?: User; clusterName?: string }) {
   const general: NavItem[] = [
     { to: "/",        label: "Dashboard", icon: LayoutDashboard },
     { to: "/servers", label: "Servers",   icon: Server },
@@ -69,15 +69,17 @@ function Sidebar({ role, me, clusterName }: { role?: User["role"]; me?: User; cl
     { to: "/backups", label: "Backups",   icon: Archive },
   ];
   const admin: NavItem[] = [];
-  if (role === "admin" || role === "operator") {
+  if (can(me, "servers:write")) {
     admin.push({ to: "/cluster", label: "Cluster", icon: Server });
   }
-  if (role === "admin") {
-    admin.push(
-      { to: "/users",       label: "Users & RBAC", icon: Users },
-      { to: "/admin/audit", label: "Audit log",    icon: ScrollText },
-      { to: "/admin",       label: "Settings",     icon: Settings },
-    );
+  if (can(me, "users:manage")) {
+    admin.push({ to: "/users", label: "Users & RBAC", icon: Users });
+  }
+  if (can(me, "audit:read")) {
+    admin.push({ to: "/admin/audit", label: "Audit log", icon: ScrollText });
+  }
+  if (can(me, "config:manage")) {
+    admin.push({ to: "/admin", label: "Settings", icon: Settings });
   }
 
   return (

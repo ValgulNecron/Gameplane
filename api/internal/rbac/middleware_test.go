@@ -20,6 +20,15 @@ func TestMiddleware_Unauthenticated(t *testing.T) {
 	}
 }
 
+// clusterWide builds a User holding perms as a cluster-wide ("*") binding.
+func clusterWide(role string, perms ...string) *auth.User {
+	set := map[string]struct{}{}
+	for _, p := range perms {
+		set[p] = struct{}{}
+	}
+	return &auth.User{Role: role, Perms: map[string]map[string]struct{}{"*": set}}
+}
+
 func TestMiddleware_AllowsViewerRead(t *testing.T) {
 	called := false
 	h := Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -28,7 +37,7 @@ func TestMiddleware_AllowsViewerRead(t *testing.T) {
 	}))
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/servers", nil)
-	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Role: RoleViewer}))
+	req = req.WithContext(auth.WithUser(req.Context(), clusterWide(RoleViewer, "servers:read")))
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 || !called {
 		t.Fatalf("code=%d called=%v", rr.Code, called)
@@ -41,7 +50,8 @@ func TestMiddleware_DeniesViewerWrite(t *testing.T) {
 	}))
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/servers", nil)
-	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Role: RoleViewer}))
+	// Viewer holds reads but not servers:write.
+	req = req.WithContext(auth.WithUser(req.Context(), clusterWide(RoleViewer, "servers:read")))
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("code=%d", rr.Code)

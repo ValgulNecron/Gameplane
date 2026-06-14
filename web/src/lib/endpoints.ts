@@ -16,10 +16,14 @@ import type {
   List,
   LoginProvidersResp,
   Module,
+  NodeJoinInfo,
   ModuleSource,
   ModuleSourceSpec,
+  PermissionGroup,
   PlayersResp,
   Restore,
+  Role,
+  RoleBinding,
   StatusReading,
   User,
 } from "@/types";
@@ -68,6 +72,13 @@ export const Servers = {
     api<void>(`/servers/${name}:${verb}`, { method: "POST" }),
   clone: (name: string, newName: string) =>
     api<GameServer>(`/servers/${name}:clone`, { method: "POST", body: { newName } }),
+  // Suspends the server and asks the operator to wipe its data volume.
+  // `confirm` must equal the server name.
+  wipeData: (name: string, confirm: string) =>
+    api<void>(`/servers/${name}:wipe-data`, { method: "POST", body: { confirm } }),
+  // Reassigns the server's (informational) owner to another user.
+  transfer: (name: string, userId: number) =>
+    api<void>(`/servers/${name}:transfer`, { method: "POST", body: { userId } }),
   // Live module-declared metrics for the Overview tab. The agent returns
   // [] when the game has no RCON, so the UI hides the panel.
   status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),
@@ -99,6 +110,18 @@ export const Cluster = {
   info: () => api<ClusterInfo>("/cluster/info"),
   stats: () => api<ClusterStats>("/cluster/stats"),
   view: () => api<ClusterView>("/cluster"),
+  // Credential-minting ops (admin-only; 501 unless clusterOps is enabled).
+  addNode: () => api<NodeJoinInfo>("/cluster/nodes:join", { method: "POST" }),
+  // kubeconfig is a file download, so it bypasses api()'s JSON handling.
+  kubeconfig: async (): Promise<Blob> => {
+    const res = await fetch("/cluster/kubeconfig", {
+      method: "POST",
+      credentials: "include",
+      headers: csrfHeaders(),
+    });
+    if (!res.ok) throw new APIError(res.status, await res.text().catch(() => ""));
+    return res.blob();
+  },
 };
 
 // envelope wraps a typed `spec` in the unstructured Kubernetes envelope the
@@ -226,7 +249,7 @@ export interface UserCreate {
   username: string;
   displayName?: string;
   email?: string;
-  role: User["role"];
+  role: string;
   password?: string;
 }
 
@@ -236,7 +259,7 @@ export interface UserCreate {
 export interface UserUpdate {
   displayName?: string;
   email?: string;
-  role?: User["role"];
+  role?: string;
 }
 
 export const Users = {
@@ -253,6 +276,30 @@ export const Users = {
       method: "POST",
       body: { password },
     }),
+  bindings: (id: number) => api<RoleBinding[]>(`/users/${id}/bindings`),
+  addBinding: (id: number, body: RoleBinding) =>
+    api<RoleBinding>(`/users/${id}/bindings`, { method: "POST", body }),
+  removeBinding: (id: number, roleName: string, namespace: string) =>
+    api<void>(`/users/${id}/bindings/${roleName}/${namespace}`, {
+      method: "DELETE",
+    }),
+};
+
+export interface RoleWrite {
+  name?: string;
+  description?: string;
+  permissions: string[];
+}
+
+export const Roles = {
+  list: () => api<Role[]>("/roles"),
+  catalog: () => api<{ groups: PermissionGroup[] }>("/roles/permissions"),
+  create: (body: RoleWrite & { name: string }) =>
+    api<Role>("/roles", { method: "POST", body }),
+  update: (name: string, body: Omit<RoleWrite, "name">) =>
+    api<Role>(`/roles/${name}`, { method: "PATCH", body }),
+  remove: (name: string) =>
+    api<void>(`/roles/${name}`, { method: "DELETE" }),
 };
 
 export const Auth = {

@@ -587,6 +587,11 @@ func (in *GameServerSpec) DeepCopyInto(out *GameServerSpec) {
 			(*out)[key] = val
 		}
 	}
+	if in.Probes != nil {
+		in, out := &in.Probes, &out.Probes
+		*out = new(GameProbesSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
 		*out = new(corev1.ResourceRequirements)

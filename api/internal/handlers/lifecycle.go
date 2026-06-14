@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +15,11 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/httperr"
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
 )
+
+// wipeRequestedAnnotation matches the operator's
+// controller.WipeRequestedAnnotation (a different, internal package, so the
+// string is duplicated here deliberately).
+const wipeRequestedAnnotation = "kestrel.gg/wipe-data-requested"
 
 // MountLifecycle wires start/stop/restart/clone verbs on GameServers.
 //
@@ -25,6 +32,48 @@ func MountLifecycle(r chi.Router, k *kube.Client) {
 	r.Post("/servers/{name}:stop", patchSuspend(k, true))
 	r.Post("/servers/{name}:restart", restartHandler(k))
 	r.Post("/servers/{name}:clone", cloneHandler(k))
+	r.Post("/servers/{name}:wipe-data", wipeDataHandler(k))
+}
+
+type wipeDataReq struct {
+	Confirm string `json:"confirm"`
+}
+
+// wipeDataHandler suspends the server and stamps a wipe-request annotation;
+// the operator runs a one-shot Job that empties the data PVC while the pod
+// is down, then acks. Destructive, so it requires the server name typed
+// back as confirmation.
+func wipeDataHandler(k *kube.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		name := chi.URLParam(req, "name")
+		ns, ok := resolveNS(w, req)
+		if !ok {
+			return
+		}
+		var body wipeDataReq
+		if err := json.NewDecoder(io.LimitReader(req.Body, 1<<16)).Decode(&body); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if body.Confirm != name {
+			http.Error(w, "confirmation does not match server name", http.StatusBadRequest)
+			return
+		}
+		token := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+		patch, _ := json.Marshal(map[string]any{
+			"metadata": map[string]any{
+				"annotations": map[string]any{wipeRequestedAnnotation: token},
+			},
+			"spec": map[string]any{"suspend": true},
+		})
+		if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+			Namespace(ns).
+			Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}
 }
 
 func patchSuspend(k *kube.Client, suspend bool) http.HandlerFunc {

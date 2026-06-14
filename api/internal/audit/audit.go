@@ -41,6 +41,13 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			actor := "anonymous"
 			if name := holder.Name(); name != "" {
 				actor = name
+			} else if u := auth.UserFromContext(req.Context()); u != nil && u.Username != "" {
+				// Fallback for callers that put the user directly on this
+				// context instead of via the actor holder. In the normal
+				// chain Authenticate fills the holder, so this never overrides
+				// it; in production the authenticated user lives on a child
+				// context the audit middleware can't see, so this stays nil.
+				actor = u.Username
 			}
 			_, _ = a.db.DB.ExecContext(req.Context(),
 				`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)

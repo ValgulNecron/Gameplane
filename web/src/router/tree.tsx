@@ -2,7 +2,7 @@ import {
   RootRoute, Route, Outlet,
 } from "@tanstack/react-router";
 import { AppLayout } from "@/components/AppLayout";
-import { RequireRole } from "@/components/RequireRole";
+import { RequirePermission } from "@/components/RequireRole";
 import { LoginPage } from "@/routes/Login";
 import { DashboardPage } from "@/routes/Dashboard";
 import { ServerDetailPage } from "@/routes/ServerDetail";
@@ -67,9 +67,9 @@ const clusterRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/cluster",
   component: () => (
-    <RequireRole roles={["admin", "operator"]}>
+    <RequirePermission perm="servers:write">
       <ClusterPage />
-    </RequireRole>
+    </RequirePermission>
   ),
 });
 
@@ -77,9 +77,9 @@ const usersRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/users",
   component: () => (
-    <RequireRole roles={["admin"]}>
+    <RequirePermission perm="users:manage">
       <UsersPage />
-    </RequireRole>
+    </RequirePermission>
   ),
 });
 
@@ -87,9 +87,9 @@ const adminRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/admin",
   component: () => (
-    <RequireRole roles={["admin"]}>
+    <RequirePermission perm="config:manage">
       <AdminSettingsPage />
-    </RequireRole>
+    </RequirePermission>
   ),
 });
 
@@ -97,9 +97,9 @@ const auditLogRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/admin/audit",
   component: () => (
-    <RequireRole roles={["admin"]}>
+    <RequirePermission perm="audit:read">
       <AuditLogPage />
-    </RequireRole>
+    </RequirePermission>
   ),
 });
 

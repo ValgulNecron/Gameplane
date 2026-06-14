@@ -12,6 +12,7 @@ import (
 
 	"github.com/kestrel-gg/kestrel/api/internal/auth"
 	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/kestrel-gg/kestrel/api/internal/scope"
 )
 
 // newUsersServer wires MountUsers behind a test middleware that injects
@@ -107,6 +108,108 @@ func TestUsers_CreatePersistsAndLists(t *testing.T) {
 	}
 	if len(listed) != 1 || listed[0].Username != "alice" {
 		t.Fatalf("unexpected list: %+v", listed)
+	}
+}
+
+// Creating a user mirrors their primary role into a cluster-wide ("*")
+// role binding — without it the user would resolve to no permissions.
+func TestUsers_CreateBindsClusterRole(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	status, body := doReq(t, "POST", srv.URL+"/users", map[string]any{
+		"username": "ivy",
+		"password": "longenoughpw1",
+		"role":     "operator",
+	})
+	if status != 200 {
+		t.Fatalf("create want 200 got %d body=%s", status, body)
+	}
+	var created userDTO
+	if err := json.Unmarshal(body, &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	var role string
+	err := store.DB.QueryRow(
+		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND namespace = '*'`,
+		created.ID).Scan(&role)
+	if err != nil || role != "operator" {
+		t.Fatalf("cluster binding = %q err=%v, want operator", role, err)
+	}
+}
+
+// A custom role can be assigned to a user once it exists in the roles table.
+func TestUsers_CreateAcceptsCustomRole(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	if _, err := store.DB.Exec(`INSERT INTO roles(name, builtin) VALUES ('support', 0)`); err != nil {
+		t.Fatalf("seed role: %v", err)
+	}
+	status, _ := doReq(t, "POST", srv.URL+"/users", map[string]any{
+		"username": "jo",
+		"password": "longenoughpw1",
+		"role":     "support",
+	})
+	if status != 200 {
+		t.Fatalf("create with custom role want 200 got %d", status)
+	}
+}
+
+// Deleting the only user who can manage users is refused.
+func TestUsers_DeleteLastManagerRejected(t *testing.T) {
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 999, Role: "admin"})
+	id := seedUser(t, store, "onlyadmin", "admin", "longenoughpw1")
+	status, body := doReq(t, "DELETE", srv.URL+"/users/"+strconv.FormatInt(id, 10), nil)
+	if status != 400 {
+		t.Fatalf("want 400 deleting last manager got %d body=%s", status, body)
+	}
+}
+
+// Per-namespace role bindings: add, list, reject bad namespace, delete.
+func TestUsers_RoleBindings(t *testing.T) {
+	saved := scope.AllowedNamespaces
+	t.Cleanup(func() { scope.AllowedNamespaces = saved })
+	scope.AllowedNamespaces = []string{scope.DefaultNamespace, "team-a"}
+
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	id := seedUser(t, store, "ned", "viewer", "longenoughpw1")
+	base := srv.URL + "/users/" + strconv.FormatInt(id, 10) + "/bindings"
+
+	// Cluster-wide ("*") is reserved for the primary role.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "*"}); status != 400 {
+		t.Fatalf("'*' namespace want 400 got %d", status)
+	}
+	// Unknown namespace rejected.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "nope"}); status != 400 {
+		t.Fatalf("unknown ns want 400 got %d", status)
+	}
+	// Unknown role rejected.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "ghost", "namespace": "team-a"}); status != 400 {
+		t.Fatalf("unknown role want 400 got %d", status)
+	}
+	// Valid grant.
+	if status, body := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "team-a"}); status != 201 {
+		t.Fatalf("add binding want 201 got %d body=%s", status, body)
+	}
+	// Duplicate rejected.
+	if status, _ := doReq(t, "POST", base, map[string]any{"roleName": "operator", "namespace": "team-a"}); status != 409 {
+		t.Fatalf("duplicate binding want 409 got %d", status)
+	}
+	// List shows it.
+	status, body := doReq(t, "GET", base, nil)
+	if status != 200 {
+		t.Fatalf("list want 200 got %d", status)
+	}
+	var bindings []bindingDTO
+	if err := json.Unmarshal(body, &bindings); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(bindings) != 1 || bindings[0].RoleName != "operator" || bindings[0].Namespace != "team-a" {
+		t.Fatalf("unexpected bindings: %+v", bindings)
+	}
+	// Delete it.
+	if status, _ := doReq(t, "DELETE", base+"/operator/team-a", nil); status != 204 {
+		t.Fatalf("delete binding want 204 got %d", status)
+	}
+	if status, _ := doReq(t, "DELETE", base+"/operator/team-a", nil); status != 404 {
+		t.Fatalf("delete missing binding want 404 got %d", status)
 	}
 }
 

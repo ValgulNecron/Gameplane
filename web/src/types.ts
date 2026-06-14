@@ -84,6 +84,26 @@ export interface StatusReading {
   unit?: string;
 }
 
+// A Kubernetes probe. Only the timing fields are edited per-server; the
+// action (httpGet / tcpSocket / exec) and anything else is carried through
+// unchanged via the index signature.
+export interface Probe {
+  initialDelaySeconds?: number;
+  periodSeconds?: number;
+  timeoutSeconds?: number;
+  failureThreshold?: number;
+  successThreshold?: number;
+  [key: string]: unknown;
+}
+
+export interface ProbeSet {
+  readiness?: Probe;
+  liveness?: Probe;
+  startup?: Probe;
+}
+
+export type ProbeKind = "readiness" | "liveness" | "startup";
+
 export interface GameTemplate {
   metadata: ObjectMeta;
   spec: {
@@ -97,6 +117,7 @@ export interface GameTemplate {
     logPath?: string;
     consoleMode?: "rcon" | "pty" | "none";
     rcon?: { protocol?: string; port?: number };
+    probes?: ProbeSet;
     capabilities?: GameCapabilities;
     configSchema?: Array<{
       name: string;
@@ -163,6 +184,7 @@ export interface GameServer {
     image?: string;
     config?: Record<string, string>;
     env?: EnvVar[];
+    probes?: ProbeSet;
     resources?: ResourceRequirements;
     storage?: GameServerStorage;
     networking?: GameServerNetworking;
@@ -249,7 +271,11 @@ export interface BackupDestination {
   createdAt?: string;
 }
 
-export type UserRole = "admin" | "operator" | "viewer";
+// Role names are open-ended now that custom roles exist. BuiltinRole is
+// kept for the few places that special-case the seeded roles (e.g. the
+// role badge colors).
+export type UserRole = string;
+export type BuiltinRole = "admin" | "operator" | "viewer";
 
 // "pending" = local account that has never set a password (e.g. created
 // before the admin attached one); "oidc" = bound to an external IdP via
@@ -264,6 +290,38 @@ export interface User {
   role: UserRole;
   provider?: UserProvider;
   createdAt?: string;
+  // Effective permission set keyed by namespace ("*" = cluster-wide; a "*"
+  // permission means all). Present on /users/me; drives can()-based UI
+  // gating. Absent elsewhere.
+  permissions?: Record<string, string[]>;
+}
+
+// A named set of catalog permissions.
+export interface Role {
+  name: string;
+  description: string;
+  builtin: boolean;
+  permissions: string[];
+}
+
+// One grantable permission and whether it is namespaced.
+export interface Permission {
+  key: string;
+  label: string;
+  namespaced: boolean;
+}
+
+// Permissions grouped by resource, for the permission picker.
+export interface PermissionGroup {
+  resource: string;
+  label: string;
+  permissions: Permission[];
+}
+
+// A user's role grant in a namespace ("*" = cluster-wide).
+export interface RoleBinding {
+  roleName: string;
+  namespace: string;
 }
 
 export type ExtendedUser = User;
@@ -300,7 +358,16 @@ export interface ClusterView {
 
 export interface ClusterInfo {
   clusterName?: string;
-  version?: string;
+  version?: string; // Kubernetes server version
+  kestrelVersion?: string; // Kestrel control-plane build
+}
+
+export interface NodeJoinInfo {
+  command: string;
+  token: string;
+  caCertHash: string;
+  endpoint: string;
+  expiresAt: string;
 }
 
 export interface LoginProvider {

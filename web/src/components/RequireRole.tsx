@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { ShieldAlert } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { APIError } from "@/lib/api";
-import { useMe, type Role } from "@/lib/auth";
+import { useMe, can, type Role } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 
 interface Props {
@@ -22,6 +22,31 @@ export function RequireRole({ roles, children }: Props) {
   if (isLoading) return <RoleSkeleton />;
   if (error instanceof APIError && error.status === 401) return <RoleSkeleton />;
   if (!me || !roles.includes(me.role)) return <Forbidden />;
+  return <>{children}</>;
+}
+
+interface PermProps {
+  perm: string;
+  children: ReactNode;
+}
+
+/**
+ * RequirePermission gates a page on a single permission instead of a fixed
+ * role list, so custom roles that hold the permission get access. Cluster-
+ * scoped pages (Users, Settings, Audit) are the natural fit.
+ */
+export function RequirePermission({ perm, children }: PermProps) {
+  const { data: me, error, isLoading } = useMe();
+
+  useEffect(() => {
+    if (error instanceof APIError && error.status === 401) {
+      location.assign("/login");
+    }
+  }, [error]);
+
+  if (isLoading) return <RoleSkeleton />;
+  if (error instanceof APIError && error.status === 401) return <RoleSkeleton />;
+  if (!can(me, perm)) return <Forbidden />;
   return <>{children}</>;
 }
 

@@ -73,6 +73,26 @@ export const handlers = [
   ),
 
   // Cluster
+  // Server-sent events stream the layout opens. Browser mock mode has a
+  // real EventSource, so without this it falls through to the dev proxy
+  // and logs a 500; keep an open, idle stream instead. (jsdom has no
+  // EventSource, so the vitest suite never reaches this handler.)
+  http.get("/events", () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(": connected\n\n"));
+        // Intentionally left open — an SSE connection stays alive.
+      },
+    });
+    return new HttpResponse(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }),
+
   http.get("/cluster", () => HttpResponse.json(makeClusterView())),
   http.get("/cluster/info", () =>
     HttpResponse.json({ clusterName: "homelab", version: "v1.31.0" }),
@@ -328,6 +348,90 @@ export const handlers = [
   ),
   http.delete("/users/:id", () => new HttpResponse(null, { status: 204 })),
   http.post("/users/:id/reset-password", () => new HttpResponse(null, { status: 204 })),
+
+  // Roles + permission catalog (custom RBAC).
+  http.get("/roles", () =>
+    HttpResponse.json([
+      {
+        name: "admin",
+        description: "Full access to all resources, including users, roles, and global config.",
+        builtin: true,
+        permissions: ["*"],
+      },
+      {
+        name: "operator",
+        description: "Manage game servers, backups, templates, and schedules.",
+        builtin: true,
+        permissions: ["servers:read", "servers:write"],
+      },
+      {
+        name: "viewer",
+        description: "Read-only access across the control panel.",
+        builtin: true,
+        permissions: ["servers:read"],
+      },
+    ]),
+  ),
+  http.get("/roles/permissions", () =>
+    HttpResponse.json({
+      groups: [
+        {
+          resource: "servers",
+          label: "Game servers",
+          permissions: [
+            { key: "servers:read", label: "View servers", namespaced: true },
+            { key: "servers:write", label: "Manage servers", namespaced: true },
+          ],
+        },
+        {
+          resource: "users",
+          label: "Users",
+          permissions: [{ key: "users:manage", label: "Manage users", namespaced: false }],
+        },
+      ],
+    }),
+  ),
+  http.post("/roles", async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as {
+      name?: string;
+      description?: string;
+      permissions?: string[];
+    } | null;
+    return HttpResponse.json(
+      {
+        name: body?.name ?? "new-role",
+        description: body?.description ?? "",
+        builtin: false,
+        permissions: body?.permissions ?? [],
+      },
+      { status: 201 },
+    );
+  }),
+  http.patch("/roles/:name", async ({ params, request }) => {
+    const body = (await request.json().catch(() => null)) as {
+      description?: string;
+      permissions?: string[];
+    } | null;
+    return HttpResponse.json({
+      name: String(params.name),
+      description: body?.description ?? "",
+      builtin: false,
+      permissions: body?.permissions ?? [],
+    });
+  }),
+  http.delete("/roles/:name", () => new HttpResponse(null, { status: 204 })),
+  http.get("/users/:id/bindings", () => HttpResponse.json([])),
+  http.post("/users/:id/bindings", async ({ request }) => {
+    const body = (await request.json().catch(() => null)) as {
+      roleName?: string;
+      namespace?: string;
+    } | null;
+    return HttpResponse.json(
+      { roleName: body?.roleName ?? "viewer", namespace: body?.namespace ?? "team-a" },
+      { status: 201 },
+    );
+  }),
+  http.delete("/users/:id/bindings/:role/:namespace", () => new HttpResponse(null, { status: 204 })),
 
   // Admin
   http.get("/admin/audit", ({ request }) => {

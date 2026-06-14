@@ -180,8 +180,8 @@ func TestResources_ListReturnsCreated(t *testing.T) {
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "x"}},
 	}
 	resp := doJSON(t, http.MethodPost, "/servers", body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST status = %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST status = %d, want 201; body=%s", resp.StatusCode, readBody(t, resp))
 	}
 	t.Cleanup(func() {
 		_ = kubeC.Dynamic.Resource(gvrServers()).

@@ -27,10 +27,13 @@ interface RunCall {
 // routeFetch answers /users/me with the given role and records POSTs to
 // the action-run endpoint.
 function routeFetch(role: "operator" | "viewer", runs: RunCall[]) {
+  // Running module actions is gated on servers:write; mirror that here.
+  const permissions =
+    role === "operator" ? { "*": ["servers:read", "servers:write"] } : { "*": ["servers:read"] };
   fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
     if (url.endsWith("/users/me")) {
       return Promise.resolve(
-        jsonRes({ id: 1, username: "u", displayName: "U", email: "", role }),
+        jsonRes({ id: 1, username: "u", displayName: "U", email: "", role, permissions }),
       );
     }
     if (url.endsWith("/actions/run")) {

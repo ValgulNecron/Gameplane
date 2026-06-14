@@ -21,16 +21,17 @@ import (
 // state via the API's in-cluster client — no caching, no side effects —
 // keeping the operator authoritative. All routes are GETs (viewer+ under
 // the RBAC rules in api/internal/rbac).
-func MountCluster(r chi.Router, k *kube.Client, store *db.Store) {
-	h := &clusterHandler{k: k, store: store}
+func MountCluster(r chi.Router, k *kube.Client, store *db.Store, kestrelVersion string) {
+	h := &clusterHandler{k: k, store: store, kestrelVersion: kestrelVersion}
 	r.Get("/cluster", h.view)
 	r.Get("/cluster/info", h.info)
 	r.Get("/cluster/stats", h.stats)
 }
 
 type clusterHandler struct {
-	k     *kube.Client
-	store *db.Store
+	k              *kube.Client
+	store          *db.Store
+	kestrelVersion string
 }
 
 type clusterNode struct {
@@ -61,8 +62,9 @@ type clusterView struct {
 }
 
 type clusterInfo struct {
-	ClusterName string `json:"clusterName,omitempty"`
-	Version     string `json:"version,omitempty"`
+	ClusterName    string `json:"clusterName,omitempty"`
+	Version        string `json:"version,omitempty"`        // Kubernetes server version
+	KestrelVersion string `json:"kestrelVersion,omitempty"` // Kestrel control-plane build
 }
 
 type clusterStats struct {
@@ -95,8 +97,9 @@ func (h *clusterHandler) view(w http.ResponseWriter, req *http.Request) {
 
 func (h *clusterHandler) info(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, clusterInfo{
-		ClusterName: h.clusterName(req.Context()),
-		Version:     h.serverVersion(),
+		ClusterName:    h.clusterName(req.Context()),
+		Version:        h.serverVersion(),
+		KestrelVersion: h.kestrelVersion,
 	})
 }
 

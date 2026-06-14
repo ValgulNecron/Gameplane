@@ -13,7 +13,7 @@ import {
 import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { resolveConsoleMode } from "@/lib/capabilities";
-import { useMe, hasRole } from "@/lib/auth";
+import { useMe, can } from "@/lib/auth";
 import { isValidK8sName } from "@/lib/validation";
 import { PhaseBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ export function ServerDetailPage() {
   const [cloneOpen, setCloneOpen] = useState(false);
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const canClone = hasRole(me, ["admin", "operator"]);
+  const canClone = can(me, "servers:write");
 
   const { data: gs } = useQuery({
     queryKey: ["server", name],

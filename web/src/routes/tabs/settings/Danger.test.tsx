@@ -41,6 +41,50 @@ describe("DangerSection", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/servers" }));
   });
 
+  it("Wipe button confirms and posts the wipe request", async () => {
+    let body: unknown;
+    server.use(
+      http.post("/servers/alpha:wipe-data", async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 202 });
+      }),
+    );
+    renderWithQuery(<DangerSection name="alpha" />);
+    await userEvent.click(screen.getByRole("button", { name: /Wipe world…/i }));
+    expect(await screen.findByText(/Wipe alpha.s world data/i)).toBeInTheDocument();
+    await userEvent.type(await screen.findByRole("textbox"), "alpha");
+    await userEvent.click(await screen.findByRole("button", { name: /Wipe world data/i }));
+    await waitFor(() => expect(body).toEqual({ confirm: "alpha" }));
+  });
+
+  it("Transfer dialog shows the owner and posts the chosen user", async () => {
+    let body: unknown;
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json({
+          metadata: { name: "alpha", annotations: { "kestrel.gg/owner": "root" } },
+          spec: { templateRef: { name: "mc" } },
+        }),
+      ),
+      http.get("/users", () =>
+        HttpResponse.json([
+          { id: 1, username: "root", displayName: "Root", email: "", role: "admin", provider: "local" },
+          { id: 2, username: "bob", displayName: "Bob", email: "", role: "viewer", provider: "local" },
+        ]),
+      ),
+      http.post("/servers/alpha:transfer", async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithQuery(<DangerSection name="alpha" />);
+    await userEvent.click(screen.getByRole("button", { name: /Transfer…/i }));
+    expect(await screen.findByText(/Current owner: root/i)).toBeInTheDocument();
+    await userEvent.selectOptions(await screen.findByRole("combobox"), "2");
+    await userEvent.click(screen.getByRole("button", { name: /^Transfer$/i }));
+    await waitFor(() => expect(body).toEqual({ userId: 2 }));
+  });
+
   it("delete failure surfaces the error", async () => {
     server.use(
       http.delete("/servers/alpha", () =>

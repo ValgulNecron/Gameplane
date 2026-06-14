@@ -61,7 +61,7 @@ func TestCluster_View(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil)
+	MountCluster(r, k, nil, "v9.9.9-test")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
@@ -104,7 +104,7 @@ func TestCluster_Stats(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil)
+	MountCluster(r, k, nil, "v9.9.9-test")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/stats", nil))
@@ -133,7 +133,7 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil)
+	MountCluster(r, k, nil, "v9.9.9-test")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
@@ -146,6 +146,9 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	}
 	if info.Version != "v1.30.0" {
 		t.Fatalf("version = %q", info.Version)
+	}
+	if info.KestrelVersion != "v9.9.9-test" {
+		t.Fatalf("kestrelVersion = %q, want v9.9.9-test", info.KestrelVersion)
 	}
 	if info.ClusterName != "" {
 		t.Fatalf("clusterName = %q, want empty with nil store", info.ClusterName)

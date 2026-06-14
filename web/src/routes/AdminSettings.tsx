@@ -20,7 +20,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { cn, formatRelative } from "@/lib/utils";
-import { BackupDestinations } from "@/lib/endpoints";
+import { BackupDestinations, Cluster } from "@/lib/endpoints";
+import type { ClusterInfo } from "@/types";
 import {
   useConfig,
   useUpdateConfigSection,
@@ -546,13 +547,18 @@ function UpdatesSection({ initial }: { initial?: UpdatesCfg }) {
 }
 
 function AboutSection() {
+  // Real versions from the API (the control plane is built and released as
+  // one unit, so a single Kestrel version is honest); "—" until loaded.
+  const { data } = useQuery({
+    queryKey: ["cluster-info"],
+    queryFn: () => Cluster.info().catch(() => ({} as ClusterInfo)),
+    staleTime: 60_000,
+  });
   return (
     <SectionCard title="About" subtitle="This Kestrel build.">
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
-        <dt className="text-muted">Version</dt><dd className="font-mono">0.1.0-alpha</dd>
-        <dt className="text-muted">Operator</dt><dd className="font-mono">v0.1.0</dd>
-        <dt className="text-muted">API</dt><dd className="font-mono">v0.1.0</dd>
-        <dt className="text-muted">Agent</dt><dd className="font-mono">v0.1.0</dd>
+        <dt className="text-muted">Kestrel</dt><dd className="font-mono">{data?.kestrelVersion || "—"}</dd>
+        <dt className="text-muted">Kubernetes</dt><dd className="font-mono">{data?.version || "—"}</dd>
         <dt className="text-muted">License</dt><dd>AGPL-3.0</dd>
       </dl>
     </SectionCard>

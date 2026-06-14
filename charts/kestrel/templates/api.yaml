@@ -183,6 +183,10 @@ spec:
             - name: KESTREL_NAMESPACE
               valueFrom:
                 fieldRef: { fieldPath: metadata.namespace }
+            {{- if .Values.clusterOps.enabled }}
+            - name: KESTREL_CLUSTER_OPS
+              value: "true"
+            {{- end }}
             {{- if .Values.api.oidc.enabled }}
             - name: KESTREL_OIDC_CLIENT_SECRET
               valueFrom:

@@ -22,15 +22,35 @@ import type {
 import type { AllConfig } from "@/lib/config";
 import type { FileEntry } from "@/lib/endpoints";
 
+// Built-in role permission sets, mirroring the server seed, so makeUser
+// produces a permission set consistent with the requested role and
+// can()-based UI gating behaves in tests as it would against the API.
+const builtinPerms: Record<string, string[]> = {
+  admin: ["*"],
+  operator: [
+    "servers:read", "servers:write", "servers:console",
+    "backups:read", "backups:write", "backups:restore",
+    "schedules:read", "schedules:write",
+    "templates:read", "templates:write",
+    "modules:read", "destinations:read", "cluster:read", "roles:read",
+  ],
+  viewer: [
+    "servers:read", "backups:read", "schedules:read", "templates:read",
+    "modules:read", "destinations:read", "cluster:read", "roles:read",
+  ],
+};
+
 export function makeUser(over: Partial<User> = {}): User {
+  const role = over.role ?? "admin";
   return {
     id: 1,
     username: "admin",
     displayName: "Admin",
     email: "admin@example.com",
-    role: "admin",
+    role,
     provider: "local",
     createdAt: "2026-01-01T00:00:00Z",
+    permissions: { "*": builtinPerms[role] ?? [] },
     ...over,
   };
 }
