@@ -27,23 +27,20 @@ test.describe("error handling", () => {
     "error injection requires controlled responses; mock mode is the deterministic path",
   );
 
-  test("401 on a protected route bounces to /login", async ({ page }) => {
+  test("401 on a protected route bounces to /login", async ({ page, context }) => {
     // First, log in normally so we have a session.
     await loginIfNeeded(page);
 
-    // Now arm the next /servers fetch to come back as 401.
-    await page.route(/\/servers$/, async (route) => {
-      await route.fulfill({ status: 401, body: "unauthorized\n" });
-    });
-    // Same for /users/me — the bounce-to-login logic typically lives
-    // there. If the 401 surfaces on either, the SPA must redirect.
-    await page.route(/\/users\/me$/, async (route) => {
-      await route.fulfill({ status: 401, body: "unauthorized\n" });
-    });
+    // Arm the next /users/me to come back 401. page.route can't help in
+    // mock mode — MSW's service worker answers before the request hits
+    // the network — so we set the cookie the /users/me handler checks.
+    // It survives the navigation below, so the refetch after reload sees
+    // it and the SPA's AppLayout 401 hook redirects to /login.
+    await context.addCookies([
+      { name: "e2e_force_401", value: "1", url: "http://localhost:5173" },
+    ]);
 
     await page.goto("/servers");
-    // Either the page route handler or the global 401 hook fires.
-    // We allow up to 10s for the redirect.
     await page.waitForURL((u) => u.pathname.startsWith("/login"), { timeout: 10_000 });
   });
 

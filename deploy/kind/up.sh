@@ -84,17 +84,15 @@ if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
         --timeout=180s
 fi
 
-# Namespaces Kestrel uses
+# Control-plane namespace. The games namespace (Values.gamesNamespace)
+# is created and owned by the Helm chart's templates/namespaces.yaml —
+# pre-creating it here makes `helm install` fail, because Helm refuses to
+# adopt a namespace that lacks its ownership label/annotations.
 kubectl apply -f - <<'EOF'
 apiVersion: v1
 kind: Namespace
 metadata:
   name: kestrel-system
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: kestrel-games
 EOF
 
 echo

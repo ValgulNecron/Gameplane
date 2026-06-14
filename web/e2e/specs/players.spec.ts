@@ -52,23 +52,21 @@ test.describe("players tab", () => {
     const tabNav = page.locator("header nav.scrollbar-thin");
     await tabNav.getByRole("button", { name: /^players$/i }).click();
 
+    // Wait for the player list to load — the per-player Kick action is an
+    // icon button whose accessible name comes from its title="Kick".
     const kickBtn = page.getByRole("button", { name: /^kick$/i }).first();
-    if (!(await kickBtn.isVisible().catch(() => false))) {
-      test.skip(true, "Kick button not surfaced in current Players tab layout");
-      return;
-    }
+    await expect(kickBtn).toBeVisible({ timeout: 10_000 });
 
     const kicked = page.waitForRequest(
       (req) =>
         /\/servers\/alpha\/players\/kick$/.test(req.url()) && req.method() === "POST",
     );
     await kickBtn.click();
-    // Players tab may pop a confirm dialog for kick — if it does, click
-    // confirm. Otherwise the click immediately fires the POST.
-    const confirmInDialog = page.getByRole("dialog").getByRole("button", { name: /^kick$/i });
-    if (await confirmInDialog.isVisible().catch(() => false)) {
-      await confirmInDialog.click();
-    }
+    // The Kick button opens an inline confirm panel (a plain div, not a
+    // role=dialog). Its confirm button is the only button with the
+    // visible text "Kick" — the trigger above is icon-only. Clicking it
+    // fires the POST.
+    await page.getByRole("button").filter({ hasText: /^Kick$/ }).click();
     await kicked;
   });
 });

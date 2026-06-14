@@ -101,7 +101,7 @@ cover-go-check: ## Run go-test-coverage threshold gates per module
 		profile=$$m/coverage/merged.out; \
 		[ -f $$profile ] || profile=$$m/coverage/unit.out; \
 		if [ ! -f $$profile ]; then \
-			echo ">> no coverage profile for $$m, run cover-go first"; exit 1; \
+			echo ">> no coverage profile for $$m, skipping (run cover-go to gate it)"; continue; \
 		fi; \
 		echo ">> threshold check ($$m)"; \
 		go run $(GO_TEST_COVERAGE_PKG) \

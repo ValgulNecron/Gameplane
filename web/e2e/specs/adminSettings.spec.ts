@@ -34,7 +34,7 @@ test.describe("admin settings page", () => {
   });
 
   test("renders the page header and General section", async ({ page }) => {
-    await page.goto("/admin/settings");
+    await page.goto("/admin");
     await page.waitForLoadState("domcontentloaded");
 
     await expect(page.getByRole("heading", { name: /admin settings/i })).toBeVisible();
@@ -43,12 +43,13 @@ test.describe("admin settings page", () => {
   });
 
   test("saving General section sends PUT /admin/config/general", async ({ page }) => {
-    await page.goto("/admin/settings");
+    await page.goto("/admin");
     await page.waitForLoadState("domcontentloaded");
 
-    // Update the Instance name input. It's the first textbox in the
-    // General section per the form order.
-    const instanceInput = page.locator("input").first();
+    // Update the Instance name input. Target it by its field label —
+    // page.locator("input").first() would grab the global header search
+    // box, which renders before the General form.
+    const instanceInput = page.getByLabel(/instance name/i);
     await instanceInput.fill("e2e-mock-instance");
 
     const saved = page.waitForRequest(
@@ -61,7 +62,7 @@ test.describe("admin settings page", () => {
   });
 
   test("navigates between sections", async ({ page }) => {
-    await page.goto("/admin/settings");
+    await page.goto("/admin");
     await page.waitForLoadState("domcontentloaded");
 
     // Click Telemetry — its toggle row appears.
