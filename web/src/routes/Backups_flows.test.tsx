@@ -5,7 +5,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeBackup, makeSchedule, makeServer, makeRestore, makeDestination } from "@/test/factories";
+import { makeBackup, makeSchedule, makeServer, makeRestore } from "@/test/factories";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
