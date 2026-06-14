@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -113,6 +114,14 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				fmt.Sprintf("repo Secret %q not found in namespace %s", b.Spec.RepoRef.Name, b.Namespace))
 		}
 		return ctrl.Result{}, err
+	}
+	// The Job mounts RESTIC_REPOSITORY / RESTIC_PASSWORD from keys "repo"
+	// and "password". If either is missing the pod hits
+	// CreateContainerConfigError and the Backup stalls Pending forever;
+	// fail fast with a clear message instead.
+	if missing := missingRepoSecretKeys(&repoSecret); len(missing) > 0 {
+		return r.fail(ctx, &b, fmt.Sprintf("repo Secret %q is missing required key(s): %s",
+			b.Spec.RepoRef.Name, strings.Join(missing, ", ")))
 	}
 
 	if err := r.maybeQuiesce(ctx, &b); err != nil {
@@ -280,19 +289,66 @@ func (r *BackupReconciler) mirrorJobStatus(
 
 	if phase == kestrelv1alpha1.BackupPhaseSucceeded || phase == kestrelv1alpha1.BackupPhaseFailed {
 		if err := r.maybeUnquiesce(ctx, b); err != nil {
-			// Best-effort: log via ctrl logger and return; the next
-			// requeue (driven by external events) won't bring us
-			// back here because we're already terminal — accept
-			// auto-save staying off rather than blocking the user's
-			// view of a "Succeeded" backup. The unquiesced-at
-			// annotation will be missing, signalling a manual
-			// follow-up is needed.
-			ctrllog := ctrl.LoggerFrom(ctx)
-			ctrllog.Error(err, "unquiesce failed (best-effort)", "backup", b.Name)
+			// A failed unquiesce can leave the game world frozen with
+			// auto-save off. Surface it as an Unquiesced=False condition
+			// (visible in `kubectl describe` and the dashboard) and
+			// requeue to retry — the unquiesced-at annotation makes the
+			// retry idempotent and stops the requeue loop once it lands.
+			ctrl.LoggerFrom(ctx).Error(err, "unquiesce failed; will retry", "backup", b.Name)
+			if cerr := r.setUnquiescedCondition(ctx, b, false, err.Error()); cerr != nil {
+				return ctrl.Result{}, cerr
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		// When an unquiesce was actually performed, record success so the
+		// "world might be frozen" signal clears.
+		if _, ok := b.Annotations[annoUnquiescedAt]; ok {
+			if cerr := r.setUnquiescedCondition(ctx, b, true, ""); cerr != nil {
+				return ctrl.Result{}, cerr
+			}
 		}
 		return ctrl.Result{}, nil
 	}
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+}
+
+// setUnquiescedCondition upserts the Unquiesced condition on the Backup.
+// ok=false (Reason=Failed) flags that the post-backup unquiesce hasn't
+// completed — the world may still be frozen with auto-save off.
+func (r *BackupReconciler) setUnquiescedCondition(
+	ctx context.Context, b *kestrelv1alpha1.Backup, ok bool, msg string,
+) error {
+	cond := metav1.Condition{Type: "Unquiesced", ObservedGeneration: b.Generation}
+	if ok {
+		cond.Status = metav1.ConditionTrue
+		cond.Reason = "Unquiesced"
+	} else {
+		cond.Status = metav1.ConditionFalse
+		cond.Reason = "Failed"
+		cond.Message = msg
+	}
+	newConds := upsertCondition(b.Status.Conditions, cond)
+	if sameConditions(b.Status.Conditions, newConds) {
+		return nil
+	}
+	b.Status.Conditions = newConds
+	return r.Status().Update(ctx, b)
+}
+
+// missingRepoSecretKeys returns the restic Secret keys the backup/restore
+// Jobs require (repo, password) that are absent from s.
+func missingRepoSecretKeys(s *corev1.Secret) []string {
+	var missing []string
+	for _, k := range []string{"repo", "password"} {
+		if len(s.Data[k]) > 0 {
+			continue
+		}
+		if _, ok := s.StringData[k]; ok {
+			continue
+		}
+		missing = append(missing, k)
+	}
+	return missing
 }
 
 // maybeUnquiesce reverses the earlier quiesce. It is only called once
