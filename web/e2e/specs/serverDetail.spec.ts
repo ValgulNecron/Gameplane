@@ -92,13 +92,16 @@ test.describe("server detail tabs", () => {
 });
 
 // isExpectedDevWarning filters out noisy dev-mode warnings that aren't
-// regressions: HMR notices, React strict-mode double-render notes,
-// WebSocket-handshake failures from the Console/Logs tabs (mock mode
-// has no WS server), and xterm.js's FitAddon dimensions error which
-// fires when xterm initializes inside a hidden tab before its
-// container is sized. None of these indicate a code regression in the
-// dashboard itself; they're environment artifacts of mock mode.
-// Add to this allow-list deliberately.
+// regressions: HMR notices, React strict-mode double-render notes, and
+// WebSocket-handshake failures from the Console/Logs tabs (mock mode has
+// no WS server). These are genuine environment artifacts of mock mode.
+//
+// Note: the xterm.js FitAddon "reading 'dimensions'" error used to be
+// allow-listed here as a mock-mode artifact. It is no longer — the Console
+// tab now guards fit() (useConsoleTerminal: deferred rAF fit, a disposed
+// flag, an isConnected check, and a host-scoped ResizeObserver), so the
+// crash must not fire. Walking the tabs is now a live regression guard for
+// it; do not re-add it.
 function isExpectedDevWarning(text: string): boolean {
   const lower = text.toLowerCase();
   return (
@@ -107,8 +110,6 @@ function isExpectedDevWarning(text: string): boolean {
     lower.includes("[mocks]") ||
     lower.includes("hydration") ||
     lower.includes("websocket connection to") ||
-    lower.includes("ws://localhost") ||
-    lower.includes("reading 'dimensions'") ||
-    lower.includes("fitaddon")
+    lower.includes("ws://localhost")
   );
 }

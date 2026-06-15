@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { openWS } from "./ws";
+import { openWS, type WSStatus, type WSStatusInfo } from "./ws";
 
 // Minimal in-process WebSocket double used for unit tests. Records
 // every instance so the test can drive open/message/close from the
@@ -102,5 +102,42 @@ describe("openWS", () => {
     openWS("/ws/x", { onMessage: () => {}, onClose, reconnect: false });
     FakeSocket.instances[0].triggerClose();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("emits connecting then open on a successful connect", () => {
+    const seen: WSStatus[] = [];
+    openWS("/ws/x", { onMessage: () => {}, onStatus: (s) => seen.push(s) });
+    expect(seen).toEqual(["connecting"]);
+    FakeSocket.instances[0].triggerOpen();
+    expect(seen).toEqual(["connecting", "open"]);
+  });
+
+  it("emits reconnecting with attempt and backoff delay on a retryable close", () => {
+    const events: Array<{ s: WSStatus; info: WSStatusInfo }> = [];
+    openWS("/ws/x", { onMessage: () => {}, onStatus: (s, info) => events.push({ s, info }) });
+    FakeSocket.instances[0].triggerClose();
+    const last = events[events.length - 1];
+    expect(last.s).toBe("reconnecting");
+    expect(last.info).toEqual({ attempt: 1, nextRetryMs: 1000 });
+    // The scheduled retry re-emits "connecting" for the next attempt.
+    vi.advanceTimersByTime(1000);
+    expect(events[events.length - 1].s).toBe("connecting");
+    expect(events[events.length - 1].info.attempt).toBe(1);
+  });
+
+  it("emits closed (not reconnecting) when the user closes", () => {
+    const seen: WSStatus[] = [];
+    const handle = openWS("/ws/x", { onMessage: () => {}, onStatus: (s) => seen.push(s) });
+    handle.close();
+    expect(seen[seen.length - 1]).toBe("closed");
+    vi.advanceTimersByTime(60_000);
+    expect(seen).not.toContain("reconnecting");
+  });
+
+  it("emits closed when reconnect is disabled", () => {
+    const seen: WSStatus[] = [];
+    openWS("/ws/x", { onMessage: () => {}, reconnect: false, onStatus: (s) => seen.push(s) });
+    FakeSocket.instances[0].triggerClose();
+    expect(seen[seen.length - 1]).toBe("closed");
   });
 });
