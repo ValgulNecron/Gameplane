@@ -315,7 +315,11 @@ describe("ConsoleTab", () => {
   it("toggles fullscreen on and off", async () => {
     const reqFs = vi.fn(() => Promise.resolve());
     const exitFs = vi.fn(() => Promise.resolve());
-    HTMLElement.prototype.requestFullscreen = reqFs;
+    Object.defineProperty(HTMLElement.prototype, "requestFullscreen", {
+      configurable: true,
+      writable: true,
+      value: reqFs,
+    });
     Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exitFs });
     Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
     await renderConsole("rcon");
