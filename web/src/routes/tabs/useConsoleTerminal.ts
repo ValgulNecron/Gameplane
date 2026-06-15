@@ -36,7 +36,7 @@ export interface ConsoleProtocol {
 }
 
 export interface ConsoleHandle {
-  hostRef: RefObject<HTMLDivElement | null>;
+  hostRef: RefObject<HTMLDivElement>;
   status: WSStatus;
   clear: () => void;
   download: () => void;
@@ -45,7 +45,7 @@ export interface ConsoleHandle {
 }
 
 export function useConsoleTerminal(proto: ConsoleProtocol): ConsoleHandle {
-  const hostRef = useRef<HTMLDivElement | null>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const sockRef = useRef<{ send: Send; close: () => void } | null>(null);
