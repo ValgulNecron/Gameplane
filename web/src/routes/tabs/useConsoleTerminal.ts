@@ -110,6 +110,10 @@ export function useConsoleTerminal(proto: ConsoleProtocol): ConsoleHandle {
         if (typeof data === "string") attRef.current?.onMessage(data);
       },
       onStatus: (s) => {
+        // A reconnect/close can land after teardown (sock.close() during
+        // cleanup fires onclose); don't touch a disposed terminal or set
+        // state on an unmounted component.
+        if (disposedRef.current) return;
         setStatus(s);
         if (s === "open" && prevConnected !== true) {
           term.writeln(`\x1b[90m${protoRef.current.connectLabel}\x1b[0m`);

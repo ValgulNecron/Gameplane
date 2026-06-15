@@ -273,6 +273,14 @@ describe("ConsoleTab", () => {
     expect(term.writeln).toHaveBeenCalledWith(expect.stringContaining("— connected —"));
   });
 
+  it("ignores status changes after teardown (B2)", async () => {
+    const { opts, term, unmount } = await renderConsole("rcon");
+    unmount();
+    term.writeln.mockClear();
+    act(() => opts.onStatus?.("open", { attempt: 0 }));
+    expect(term.writeln).not.toHaveBeenCalled();
+  });
+
   it("reflects connection state in the toolbar indicator", async () => {
     const { opts } = await renderConsole("rcon");
     expect(screen.getByText("connecting…")).toBeInTheDocument();
