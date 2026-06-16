@@ -53,11 +53,12 @@ describe("DashboardPage", () => {
       ),
     );
     renderWithQuery(<DashboardPage />);
-    await screen.findByText("Needs attention");
-
-    expect(screen.getByText("Failed 1")).toBeInTheDocument();
-    const failedLink = screen.getByRole("link", { name: /broken-srv/i });
+    // "Needs attention" is a static header that renders before /servers
+    // resolves, so wait on a data-dependent element (the attention-row link)
+    // before the synchronous assertions, otherwise the fleet is still empty.
+    const failedLink = await screen.findByRole("link", { name: /broken-srv/i });
     expect(failedLink).toHaveAttribute("href", "/servers/$name");
+    expect(screen.getByText("Failed 1")).toBeInTheDocument();
     expect(screen.getByText("Failed — check logs")).toBeInTheDocument();
     // Stale agent is flagged even though the phase is Running.
     expect(screen.getByRole("link", { name: /stale-srv/i })).toBeInTheDocument();
