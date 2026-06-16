@@ -88,10 +88,18 @@ describe("LogsTab", () => {
     expect(sockets[0].path).toBe("/ws/servers/alpha/logs/pod?from=start");
   });
 
-  it("switches to the game-log file stream when toggled", async () => {
-    render(<LogsTab name="alpha" />);
+  it("switches to the game-log file stream when toggled (template has a logPath)", async () => {
+    render(<LogsTab name="alpha" logPath="/data/logs/latest.log" />);
     await userEvent.click(screen.getByRole("button", { name: /game log/i }));
     expect(sockets[0].close).toHaveBeenCalled();
     expect(sockets[sockets.length - 1].path).toBe("/ws/servers/alpha/logs");
+  });
+
+  it("offers only container output (no toggle) when the template has no logPath", () => {
+    render(<LogsTab name="alpha" />);
+    // The "Game log" toggle is absent and only the pod stream is opened.
+    expect(screen.queryByRole("button", { name: /game log/i })).not.toBeInTheDocument();
+    expect(sockets).toHaveLength(1);
+    expect(sockets[0].path).toBe("/ws/servers/alpha/logs/pod?from=start");
   });
 });

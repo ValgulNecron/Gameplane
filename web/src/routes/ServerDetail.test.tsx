@@ -161,7 +161,7 @@ describe("ServerDetailPage dynamic tabs", () => {
     await waitFor(() => expect(screen.getByText("mods-tab")).toBeInTheDocument());
   });
 
-  it("hides the Logs tab when the template logs only to stdout", async () => {
+  it("keeps the Logs tab available even when the template logs only to stdout", async () => {
     server.use(
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
       http.get("/templates/:name", ({ params }) =>
@@ -174,11 +174,10 @@ describe("ServerDetailPage dynamic tabs", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    // Console stays (rcon), but Logs is gone without a logPath.
+    // Container stdout (install/startup output) is always streamable via
+    // the pod-log API, so Logs stays even without a configured logPath.
     await screen.findByRole("button", { name: "Console" });
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /^Logs$/i })).not.toBeInTheDocument(),
-    );
+    expect(screen.getByRole("button", { name: /^Logs$/i })).toBeInTheDocument();
   });
 });
 

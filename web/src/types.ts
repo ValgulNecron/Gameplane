@@ -205,6 +205,16 @@ export interface GameServer {
       // window — the reported values are no longer current.
       stale?: boolean;
     };
+    // Ready / Progressing / Healthy. The operator refines Progressing's
+    // message while Starting (e.g. "pulling the game image") — the
+    // dashboard surfaces it as a provisioning sub-status.
+    conditions?: Array<{
+      type: string;
+      status: string;
+      reason?: string;
+      message?: string;
+      lastTransitionTime?: string;
+    }>;
     startedAt?: string;
   };
 }

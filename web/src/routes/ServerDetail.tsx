@@ -93,17 +93,17 @@ export function ServerDetailPage() {
   const uptime = formatUptime(gs?.status?.startedAt);
 
   // Tab visibility is driven by the template: a game with no console
-  // (consoleMode none / no RCON) hides the Console tab, and one that
-  // logs only to stdout (no logPath) hides Logs. While the template is
-  // still loading we show everything to avoid a flicker.
+  // (consoleMode none / no RCON) hides the Console tab. Logs is always
+  // available — the tab streams the container's stdout (install/startup
+  // output) via the pod-log API, which needs no logPath; the configured
+  // game-log file is just an extra source the tab offers when logPath is
+  // set. While the template is still loading we show everything.
   const consoleAvailable = !tmpl || resolveConsoleMode(tmpl) !== "none";
-  const logsAvailable = !tmpl || !!tmpl.spec.logPath;
   // Mods only appears when the template declares the capability — it's an
   // opt-in surface, so hide it until the template resolves.
   const modsAvailable = !!tmpl?.spec.capabilities?.mods;
   const visibleTabs = tabs.filter((t) => {
     if (t.key === "console") return consoleAvailable;
-    if (t.key === "logs") return logsAvailable;
     if (t.key === "mods") return modsAvailable;
     return true;
   });
@@ -203,7 +203,7 @@ export function ServerDetailPage() {
         <Suspense fallback={<TabFallback />}>
           {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} />}
           {tab === "console"  && <ConsoleTab name={name} />}
-          {tab === "logs"     && <LogsTab    name={name} />}
+          {tab === "logs"     && <LogsTab    name={name} logPath={tmpl?.spec.logPath} />}
           {tab === "files"    && <FilesTab   name={name} />}
           {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} />}
           {tab === "players"  && <PlayersTab name={name} />}

@@ -14,16 +14,22 @@ const MAX_LINES = 20_000;
 // mTLS; "file" tails the configured game log file via the agent.
 type LogSource = "pod" | "file";
 
-export function LogsTab({ name }: { name: string }) {
+export function LogsTab({ name, logPath }: { name: string; logPath?: string }) {
   const [lines, setLines] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
   // Default to container output so logs are never empty during startup.
   const [source, setSource] = useState<LogSource>("pod");
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
+  // The game-log file is only an option when the template declares a
+  // logPath; otherwise the only source is the container's stdout, which
+  // is always available via the pod-log API.
+  const effectiveSource: LogSource = logPath ? source : "pod";
+
   useEffect(() => {
     setLines([]);
-    const path = source === "pod" ? Logs.podStreamPath(name) : Logs.fileStreamPath(name);
+    const path =
+      effectiveSource === "pod" ? Logs.podStreamPath(name) : Logs.fileStreamPath(name);
     const sock = openWS(path, {
       onMessage: (data) =>
         setLines((prev) => {
@@ -32,7 +38,7 @@ export function LogsTab({ name }: { name: string }) {
         }),
     });
     return () => sock.close();
-  }, [name, source]);
+  }, [name, effectiveSource]);
 
   const filtered = filter
     ? lines.filter((l) => l.toLowerCase().includes(filter.toLowerCase()))
@@ -54,26 +60,35 @@ export function LogsTab({ name }: { name: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-        <div className="flex rounded border border-border text-xs">
-          <button
-            type="button"
-            onClick={() => setSource("pod")}
-            aria-pressed={source === "pod"}
-            className={`h-8 rounded-l px-2 ${source === "pod" ? "bg-surface font-medium" : "text-muted"}`}
-            title="Follow the game container's stdout (download/config + startup)"
+        {logPath ? (
+          <div className="flex rounded border border-border text-xs">
+            <button
+              type="button"
+              onClick={() => setSource("pod")}
+              aria-pressed={effectiveSource === "pod"}
+              className={`h-8 rounded-l px-2 ${effectiveSource === "pod" ? "bg-surface font-medium" : "text-muted"}`}
+              title="Follow the game container's stdout (download/config + startup)"
+            >
+              Container output
+            </button>
+            <button
+              type="button"
+              onClick={() => setSource("file")}
+              aria-pressed={effectiveSource === "file"}
+              className={`h-8 rounded-r border-l border-border px-2 ${effectiveSource === "file" ? "bg-surface font-medium" : "text-muted"}`}
+              title="Tail the configured game log file via the agent"
+            >
+              Game log
+            </button>
+          </div>
+        ) : (
+          <span
+            className="text-xs font-medium text-muted"
+            title="Follow the game container's stdout (download/install + startup)"
           >
             Container output
-          </button>
-          <button
-            type="button"
-            onClick={() => setSource("file")}
-            aria-pressed={source === "file"}
-            className={`h-8 rounded-r border-l border-border px-2 ${source === "file" ? "bg-surface font-medium" : "text-muted"}`}
-            title="Tail the configured game log file via the agent"
-          >
-            Game log
-          </button>
-        </div>
+          </span>
+        )}
         <input
           placeholder="filter…"
           className="h-8 w-64 rounded border border-border bg-surface px-2 font-mono text-xs"
