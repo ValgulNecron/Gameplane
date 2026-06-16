@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeServer, makeBackup, makeClusterView, makeClusterStats, makeUser } from "@/test/factories";
+import { makeServer, makeBackup, makeAudit, makeClusterView, makeClusterStats, makeUser } from "@/test/factories";
 
 // TanStack Router's Link needs a router context the test doesn't supply.
 // Replace it with a plain anchor — the attention/feed links keep the same
@@ -125,6 +125,57 @@ describe("DashboardPage", () => {
     await screen.findByText("Recent backups");
     expect(await screen.findByText("valheim-01")).toBeInTheDocument();
     expect(screen.getByText("2.1 GiB")).toBeInTheDocument();
+  });
+
+  it("humanizes audit events across action types", async () => {
+    server.use(
+      http.get("/admin/audit", () =>
+        HttpResponse.json([
+          makeAudit({ id: 1, actor: "ada", method: "POST", path: "/api/v1/servers/mc:start", target: "mc" }),
+          makeAudit({ id: 2, actor: "ada", method: "POST", path: "/api/v1/servers/mc:stop", target: "mc" }),
+          makeAudit({ id: 3, actor: "ada", method: "POST", path: "/api/v1/servers/mc:restart", target: "mc" }),
+          makeAudit({ id: 4, actor: "ada", method: "POST", path: "/api/v1/backups", target: "mc" }),
+          makeAudit({ id: 5, actor: "ada", method: "POST", path: "/api/v1/users", target: "liam" }),
+          makeAudit({ id: 6, actor: "ada", method: "DELETE", path: "/api/v1/servers/old", target: "old" }),
+          makeAudit({ id: 7, actor: "ada", method: "POST", path: "/api/v1/servers", target: "new" }),
+          makeAudit({ id: 8, actor: "ada", method: "PUT", path: "/api/v1/servers/mc", target: "mc" }),
+        ]),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("ada started mc");
+    for (const text of [
+      "ada stopped mc",
+      "ada restarted mc",
+      "ada backed up mc",
+      "ada updated a user liam",
+      "ada deleted old",
+      "ada created new",
+      "ada updated mc",
+    ]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+  });
+
+  it("renders empty states for activity and backups", async () => {
+    server.use(
+      http.get("/admin/audit", () => HttpResponse.json([])),
+      http.get("/backups", () => HttpResponse.json({ items: [] })),
+    );
+    renderWithQuery(<DashboardPage />);
+    expect(await screen.findByText("No recent activity.")).toBeInTheDocument();
+    expect(screen.getByText("No backups yet.")).toBeInTheDocument();
+  });
+
+  it("handles missing cluster data without nodes", async () => {
+    server.use(
+      http.get("/cluster", () => HttpResponse.json({})),
+      http.get("/cluster/stats", () => HttpResponse.json({})),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("Cluster resources");
+    // Nodes KPI tile falls back to "no node data" and the node list is omitted.
+    expect(screen.getByText("no node data")).toBeInTheDocument();
   });
 
   it("hides recent activity from users without audit:read", async () => {
