@@ -375,7 +375,7 @@ function buildCrumbs(pathname: string, _matches: unknown[]): Crumb[] {
     acc += "/" + p;
     crumbs.push({ label: labels[p] ?? p, to: acc });
   }
-  if (parts.length === 0) crumbs.push({ label: "Servers" });
+  if (parts.length === 0) crumbs.push({ label: "Dashboard" });
   return crumbs;
 }
 
