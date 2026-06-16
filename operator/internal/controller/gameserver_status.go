@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -53,9 +54,29 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	phase := derivePhase(gs, ssExists, ss.Status.ReadyReplicas > 0, heartbeatFresh(gs))
 
+	// While Starting, explain *why* — pulling the image, creating the
+	// container, downloading game files on first boot, or waiting for the
+	// agent's first heartbeat — by reading the pod's container states.
+	// This feeds the dashboard's provisioning sub-status; the phase itself
+	// stays Starting (derivePhase is unchanged).
+	var prov *provisioningInfo
+	if phase == kestrelv1alpha1.GameServerPhaseStarting {
+		var pod corev1.Pod
+		podErr := r.Get(ctx, types.NamespacedName{Name: gs.Name + "-0", Namespace: gs.Namespace}, &pod)
+		switch {
+		case apierrors.IsNotFound(podErr):
+			prov = &provisioningInfo{reason: "Pending", message: "scheduling the pod"}
+		case podErr != nil:
+			return 0, fmt.Errorf("get pod %s-0: %w", gs.Name, podErr)
+		default:
+			reason, message := provisioningReason(&pod, heartbeatFresh(gs))
+			prov = &provisioningInfo{reason: reason, message: message}
+		}
+	}
+
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
-	gs.Status.Conditions = computeConditions(gs, phase)
+	gs.Status.Conditions = computeConditions(gs, phase, prov)
 	if svcExists {
 		gs.Status.Endpoints = endpointsFromService(&svc)
 	}
@@ -112,7 +133,9 @@ func heartbeatFresh(gs *kestrelv1alpha1.GameServer) bool {
 }
 
 func computeConditions(
-	gs *kestrelv1alpha1.GameServer, phase kestrelv1alpha1.GameServerPhase,
+	gs *kestrelv1alpha1.GameServer,
+	phase kestrelv1alpha1.GameServerPhase,
+	prov *provisioningInfo,
 ) []metav1.Condition {
 	conds := gs.Status.Conditions
 
@@ -135,6 +158,15 @@ func computeConditions(
 		ready.Reason = "Starting"
 		progressing.Status = metav1.ConditionTrue
 		progressing.Reason = "Starting"
+		// Refine the generic "Starting" with what the pod is actually
+		// doing, so the dashboard can show "Pulling image" /
+		// "Installing server files" / "Waiting for agent".
+		if prov != nil {
+			if prov.reason != "" {
+				progressing.Reason = prov.reason
+			}
+			progressing.Message = prov.message
+		}
 		healthy.Status = metav1.ConditionFalse
 		healthy.Reason = "AgentStale"
 	case kestrelv1alpha1.GameServerPhaseStopping:
@@ -171,6 +203,94 @@ func computeConditions(
 	conds = upsertCondition(conds, progressing)
 	conds = upsertCondition(conds, healthy)
 	return conds
+}
+
+// gameContainerName is the name the controller gives the game container in
+// every pod (see buildGameContainer). The pod-log proxy keys off the same
+// name — keep them in sync.
+const gameContainerName = "game"
+
+// provisioningInfo is the human-facing refinement of the Starting phase:
+// a short Reason and a sentence-long Message describing what the pod is
+// currently doing. It surfaces on the Progressing condition.
+type provisioningInfo struct {
+	reason  string
+	message string
+}
+
+// provisioningReason inspects a Starting pod's container states to explain
+// why it isn't Running yet — image pull, container creation, first-run
+// install (game container up but not Ready), or waiting for the agent's
+// first heartbeat. It's a pure function so it can be unit-tested without a
+// live kubelet (envtest never runs one). hbFresh is the heartbeat result
+// the caller already computed.
+func provisioningReason(pod *corev1.Pod, hbFresh bool) (reason, message string) {
+	// Init containers (config-init) run before the game container; if one
+	// is stuck pulling/creating, surface that first.
+	for i := range pod.Status.InitContainerStatuses {
+		if w := pod.Status.InitContainerStatuses[i].State.Waiting; w != nil {
+			if r, m := waitingReason(w.Reason); r != "" {
+				return r, m
+			}
+		}
+	}
+
+	var game *corev1.ContainerStatus
+	for i := range pod.Status.ContainerStatuses {
+		if pod.Status.ContainerStatuses[i].Name == gameContainerName {
+			game = &pod.Status.ContainerStatuses[i]
+			break
+		}
+	}
+	if game == nil {
+		// Pod scheduled but the kubelet hasn't reported the game container
+		// yet — still being created.
+		return "ContainerCreating", "creating the container"
+	}
+
+	switch {
+	case game.State.Waiting != nil:
+		if r, m := waitingReason(game.State.Waiting.Reason); r != "" {
+			return r, m
+		}
+		return "ContainerCreating", "creating the container"
+	case game.State.Terminated != nil:
+		// Exited during startup — a failed install or crash before ready.
+		return "ContainerExited", "the container exited during startup; check the logs"
+	case game.State.Running != nil:
+		if podReady(pod) && !hbFresh {
+			return "WaitingForAgent", "server is up; waiting for the agent's first heartbeat"
+		}
+		// Running but not Ready: the entrypoint is still installing/
+		// generating before the readiness probe passes.
+		return "InstallingServerFiles", "downloading game files / waiting for readiness"
+	default:
+		return "Starting", "starting up"
+	}
+}
+
+// waitingReason maps a container's Waiting.Reason to a Kestrel reason +
+// message, or ("", "") if it's not one we specifically explain.
+func waitingReason(reason string) (string, string) {
+	switch reason {
+	case "ImagePullBackOff", "ErrImagePull":
+		return "PullingImage", "pulling the game image"
+	case "ContainerCreating", "PodInitializing":
+		return "ContainerCreating", "creating the container"
+	case "CrashLoopBackOff":
+		return "CrashLoopBackOff", "the container is crash-looping during startup; check the logs"
+	}
+	return "", ""
+}
+
+// podReady reports whether the pod's Ready condition is true.
+func podReady(pod *corev1.Pod) bool {
+	for _, c := range pod.Status.Conditions {
+		if c.Type == corev1.PodReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
 
 // endpointsFromService lists the per-port externally reachable address
