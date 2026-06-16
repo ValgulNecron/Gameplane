@@ -77,6 +77,30 @@ describe("ServerDetailPage", () => {
     expect(await screen.findByText("overview-tab")).toBeInTheDocument();
   });
 
+  it("shows the provisioning sub-status under the phase badge while starting", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Starting",
+              conditions: [
+                {
+                  type: "Progressing",
+                  status: "True",
+                  reason: "PullingImage",
+                  message: "pulling the game image",
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(await screen.findByText("Pulling the game image")).toBeInTheDocument();
+  });
+
   it("switches to Logs tab on click", async () => {
     server.use(
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),

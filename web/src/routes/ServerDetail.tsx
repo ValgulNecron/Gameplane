@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Copy,
+  Loader2,
   MoreHorizontal,
   Play,
   RotateCw,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GameIcon } from "@/components/ui/game-icon";
 import { Input } from "@/components/ui/input";
-import { cn, formatUptime } from "@/lib/utils";
+import { capitalize, cn, formatUptime } from "@/lib/utils";
 
 import { OverviewTab } from "./tabs/Overview";
 import { LogsTab } from "./tabs/Logs";
@@ -84,6 +85,13 @@ export function ServerDetailPage() {
 
   const phase = gs?.status?.phase;
   const running = phase === "Running";
+  // While provisioning, the operator refines the Progressing condition
+  // with what the pod is doing (pulling image, installing server files,
+  // waiting for the agent) — surface it under the phase badge.
+  const provisioning = phase === "Starting" || phase === "Pending";
+  const progressMessage = gs?.status?.conditions?.find(
+    (c) => c.type === "Progressing",
+  )?.message;
   // Gate lifecycle actions on phase so they aren't fired during a
   // transition (Starting/Stopping/Pending): Start only from a stopped
   // state, Stop/Restart only while Running. act.isPending blocks
@@ -129,6 +137,12 @@ export function ServerDetailPage() {
                 <h1 className="truncate font-mono text-2xl font-semibold text-fg">{name}</h1>
                 <PhaseBadge phase={phase} />
               </div>
+              {provisioning && progressMessage && (
+                <div className="pt-1 flex items-center gap-1.5 text-xs text-warning">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>{capitalize(progressMessage)}</span>
+                </div>
+              )}
               <div className="pt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                 {gs?.spec.templateRef.name && <span>{gs.spec.templateRef.name}</span>}
                 {version && <Dot />}{version && <span>{version}</span>}
@@ -203,7 +217,14 @@ export function ServerDetailPage() {
         <Suspense fallback={<TabFallback />}>
           {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} />}
           {tab === "console"  && <ConsoleTab name={name} />}
-          {tab === "logs"     && <LogsTab    name={name} logPath={tmpl?.spec.logPath} />}
+          {tab === "logs"     && (
+            <LogsTab
+              name={name}
+              logPath={tmpl?.spec.logPath}
+              phase={phase}
+              progressMessage={progressMessage}
+            />
+          )}
           {tab === "files"    && <FilesTab   name={name} />}
           {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} />}
           {tab === "players"  && <PlayersTab name={name} />}

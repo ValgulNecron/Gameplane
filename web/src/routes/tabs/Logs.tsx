@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Logs } from "@/lib/endpoints";
 import { openWS } from "@/lib/ws";
+import { capitalize } from "@/lib/utils";
+import type { GameServerPhase } from "@/types";
 
 const MAX_LINES = 20_000;
 
@@ -14,11 +16,22 @@ const MAX_LINES = 20_000;
 // mTLS; "file" tails the configured game log file via the agent.
 type LogSource = "pod" | "file";
 
-export function LogsTab({ name, logPath }: { name: string; logPath?: string }) {
+export function LogsTab({
+  name,
+  logPath,
+  phase,
+  progressMessage,
+}: {
+  name: string;
+  logPath?: string;
+  phase?: GameServerPhase;
+  progressMessage?: string;
+}) {
   const [lines, setLines] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
   // Default to container output so logs are never empty during startup.
   const [source, setSource] = useState<LogSource>("pod");
+  const [connected, setConnected] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   // The game-log file is only an option when the template declares a
@@ -28,9 +41,12 @@ export function LogsTab({ name, logPath }: { name: string; logPath?: string }) {
 
   useEffect(() => {
     setLines([]);
+    setConnected(false);
     const path =
       effectiveSource === "pod" ? Logs.podStreamPath(name) : Logs.fileStreamPath(name);
     const sock = openWS(path, {
+      onOpen: () => setConnected(true),
+      onClose: () => setConnected(false),
       onMessage: (data) =>
         setLines((prev) => {
           const next = prev.concat(typeof data === "string" ? data.split(/\r?\n/) : []);
@@ -56,6 +72,13 @@ export function LogsTab({ name, logPath }: { name: string; logPath?: string }) {
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines.length]);
+
+  // No output yet. While the server is still coming up (image pull /
+  // first-boot install), the pod-log stream stays closed (the API replies
+  // StatusTryAgainLater and openWS retries), so an empty black panel reads
+  // as "broken". Show what's actually happening instead.
+  const noOutput = lines.length === 0;
+  const provisioning = phase !== undefined && phase !== "Running";
 
   return (
     <div className="flex h-full flex-col">
@@ -109,20 +132,41 @@ export function LogsTab({ name, logPath }: { name: string; logPath?: string }) {
         </div>
       </div>
       <div ref={scrollerRef} className="flex-1 overflow-auto bg-[#0b0b0d] font-mono text-xs">
-        <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-          {rowVirtualizer.getVirtualItems().map((v) => (
-            <div
-              key={v.key}
-              style={{
-                position: "absolute", top: 0, left: 0, right: 0,
-                transform: `translateY(${v.start}px)`, height: v.size,
-              }}
-              className="whitespace-pre px-4 leading-[18px]"
-            >
-              {filtered[v.index]}
-            </div>
-          ))}
-        </div>
+        {noOutput ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            {provisioning ? (
+              <>
+                <div className="text-sm font-medium text-fg">
+                  {progressMessage ? capitalize(progressMessage) : "Starting the server…"}
+                </div>
+                <div className="max-w-md text-xs text-muted">
+                  Downloading game files and starting up. The first start can take a few
+                  minutes — install output appears here as it streams from the container.
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-muted">
+                {connected ? "Connected — waiting for output…" : "Connecting to the log stream…"}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+            {rowVirtualizer.getVirtualItems().map((v) => (
+              <div
+                key={v.key}
+                style={{
+                  position: "absolute", top: 0, left: 0, right: 0,
+                  transform: `translateY(${v.start}px)`, height: v.size,
+                }}
+                className="whitespace-pre px-4 leading-[18px]"
+              >
+                {filtered[v.index]}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

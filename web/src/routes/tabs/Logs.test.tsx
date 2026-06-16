@@ -3,21 +3,35 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Each call to openWS pushes a new fake socket onto sockets[]; tests
-// reach into the latest one to drive messages and assert cleanup.
-type FakeSock = { path: string; close: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; sendMsg: (s: string) => void };
+// reach into the latest one to drive messages/lifecycle and assert cleanup.
+type FakeSock = {
+  path: string;
+  close: ReturnType<typeof vi.fn>;
+  send: ReturnType<typeof vi.fn>;
+  sendMsg: (s: string) => void;
+  open: () => void;
+  closeEv: () => void;
+};
 const sockets: FakeSock[] = [];
 
 vi.mock("@/lib/ws", () => ({
-  openWS: vi.fn((path: string, opts: { onMessage: (d: string) => void }) => {
-    const sock: FakeSock = {
-      path,
-      close: vi.fn(),
-      send: vi.fn(),
-      sendMsg: opts.onMessage,
-    };
-    sockets.push(sock);
-    return { send: sock.send, close: sock.close };
-  }),
+  openWS: vi.fn(
+    (
+      path: string,
+      opts: { onMessage: (d: string) => void; onOpen?: () => void; onClose?: () => void },
+    ) => {
+      const sock: FakeSock = {
+        path,
+        close: vi.fn(),
+        send: vi.fn(),
+        sendMsg: opts.onMessage,
+        open: () => opts.onOpen?.(),
+        closeEv: () => opts.onClose?.(),
+      };
+      sockets.push(sock);
+      return { send: sock.send, close: sock.close };
+    },
+  ),
 }));
 
 import { LogsTab } from "./Logs";
@@ -101,5 +115,32 @@ describe("LogsTab", () => {
     expect(screen.queryByRole("button", { name: /game log/i })).not.toBeInTheDocument();
     expect(sockets).toHaveLength(1);
     expect(sockets[0].path).toBe("/ws/servers/alpha/logs/pod?from=start");
+  });
+
+  it("shows the provisioning placeholder with the operator message while starting", () => {
+    render(<LogsTab name="alpha" phase="Starting" progressMessage="pulling the game image" />);
+    // Lowercase operator message is capitalized for display.
+    expect(screen.getByText("Pulling the game image")).toBeInTheDocument();
+    expect(screen.getByText(/install output appears here/i)).toBeInTheDocument();
+  });
+
+  it("hides the placeholder once log lines arrive", async () => {
+    render(<LogsTab name="alpha" phase="Starting" progressMessage="installing server files" />);
+    expect(screen.getByText("Installing server files")).toBeInTheDocument();
+    sockets[0].sendMsg("Downloading server-1.21.jar…\n");
+    await waitFor(() =>
+      expect(screen.queryByText("Installing server files")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows a connecting message when running with no output yet", () => {
+    render(<LogsTab name="alpha" phase="Running" />);
+    expect(screen.getByText(/connecting to the log stream/i)).toBeInTheDocument();
+  });
+
+  it("switches to waiting-for-output once the socket opens while running", async () => {
+    render(<LogsTab name="alpha" phase="Running" />);
+    sockets[0].open();
+    await waitFor(() => expect(screen.getByText(/waiting for output/i)).toBeInTheDocument());
   });
 });
