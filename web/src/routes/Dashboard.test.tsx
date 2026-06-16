@@ -179,6 +179,20 @@ describe("DashboardPage", () => {
     expect(screen.getByText("no node data")).toBeInTheDocument();
   });
 
+  it("renders gracefully when cluster and backup endpoints fail", async () => {
+    server.use(
+      http.get("/servers", () => HttpResponse.json({ items: [] })),
+      http.get("/cluster", () => HttpResponse.error()),
+      http.get("/cluster/stats", () => HttpResponse.error()),
+      http.get("/backups", () => HttpResponse.error()),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("Dashboard");
+    // The .catch() fallbacks leave no nodes/backups and an empty fleet.
+    expect(await screen.findByText(/Everything looks healthy/i)).toBeInTheDocument();
+    expect(screen.getByText("No backups yet.")).toBeInTheDocument();
+  });
+
   it("hides recent activity from users without audit:read", async () => {
     server.use(
       http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))),
