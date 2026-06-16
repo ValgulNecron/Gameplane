@@ -24,6 +24,7 @@ import type {
   Restore,
   Role,
   RoleBinding,
+  ServerEvent,
   StatusReading,
   User,
 } from "@/types";
@@ -82,6 +83,10 @@ export const Servers = {
   // Live module-declared metrics for the Overview tab. The agent returns
   // [] when the game has no RCON, so the UI hides the panel.
   status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),
+  // Recent Kubernetes events for the server's pod/StatefulSet/GameServer
+  // (image pull, scheduling, crash-loop) — feeds the Overview events feed,
+  // most useful while a new server is still provisioning.
+  events: (name: string) => api<ServerEvent[]>(`/servers/${name}/events`),
   // Run a module-declared action (spec.capabilities.actions[]). params
   // are the user-supplied values for the action's declared inputs.
   runAction: (name: string, body: { id: string; params?: Record<string, string> }) =>

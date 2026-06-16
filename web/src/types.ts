@@ -219,6 +219,19 @@ export interface GameServer {
   };
 }
 
+// A Kubernetes Event about a server's pod/StatefulSet/GameServer, as
+// returned by GET /servers/{name}/events. Mirrors the API's PodEvent DTO.
+export interface ServerEvent {
+  id: string;
+  time: string;
+  type: string; // Normal | Warning
+  reason: string;
+  message: string;
+  source: string;
+  object: string;
+  count: number;
+}
+
 export interface Backup {
   metadata: ObjectMeta;
   spec: { serverRef: { name: string } };

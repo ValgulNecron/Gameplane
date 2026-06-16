@@ -35,6 +35,31 @@ function jsonRes(body: unknown): Response {
   });
 }
 
+describe("OverviewTab recent events", () => {
+  it("renders mapped Kubernetes events including a Warning", async () => {
+    fetchMock.mockImplementation((path: string) => {
+      if (String(path).includes("/events")) {
+        return Promise.resolve(jsonRes([
+          {
+            id: "e1", time: "2026-01-01T00:00:00Z", type: "Warning",
+            reason: "Failed", message: "Back-off pulling image",
+            source: "kubelet", object: "Pod/s1-0", count: 3,
+          },
+          {
+            id: "e2", time: "2026-01-01T00:00:00Z", type: "Normal",
+            reason: "Pulling", message: "pulling image itzg/minecraft",
+            source: "kubelet", object: "Pod/s1-0", count: 1,
+          },
+        ]));
+      }
+      return Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" }));
+    });
+    render(withClient(<OverviewTab gs={gs({ phase: "Starting" })} name="s1" />));
+    expect(await screen.findByText("Failed: Back-off pulling image")).toBeInTheDocument();
+    expect(screen.getByText("Pulling: pulling image itzg/minecraft")).toBeInTheDocument();
+  });
+});
+
 describe("OverviewTab players card", () => {
   it("shows 'No players connected.' when online is 0", async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonRes({

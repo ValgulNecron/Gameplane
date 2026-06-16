@@ -7,8 +7,8 @@ import {
   MemoryStick,
   Users as UsersIcon,
 } from "lucide-react";
-import type { GameServer, GameTemplate, PlayersResp } from "@/types";
-import { Players } from "@/lib/endpoints";
+import type { GameServer, GameTemplate, PlayersResp, ServerEvent } from "@/types";
+import { Players, Servers } from "@/lib/endpoints";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
@@ -20,6 +20,19 @@ interface Event {
   kind: "info" | "warn" | "error";
   message: string;
   source?: string;
+}
+
+// Maps a Kubernetes event onto the card's view model: Warning → warn,
+// everything else → info; the reason prefixes the message ("Pulling:
+// pulling image…") and the reporting component is the source.
+function mapServerEvent(e: ServerEvent): Event {
+  return {
+    id: e.id,
+    ts: e.time,
+    kind: e.type === "Warning" ? "warn" : "info",
+    message: e.reason ? `${e.reason}: ${e.message}` : e.message,
+    source: e.source || undefined,
+  };
 }
 
 export function OverviewTab({
@@ -39,6 +52,17 @@ export function OverviewTab({
     retry: false,
   });
 
+  // Kubernetes events for the pod/StatefulSet/GameServer — image pull,
+  // scheduling, crash-loops. Poll faster while not Running so provisioning
+  // diagnostics stay fresh; back off once the server is up.
+  const { data: rawEvents } = useQuery({
+    queryKey: ["events", name],
+    queryFn: () => Servers.events(name),
+    enabled: !!name,
+    refetchInterval: gs?.status?.phase === "Running" ? 30_000 : 5_000,
+    retry: false,
+  });
+
   if (!gs) return <div className="p-6 text-muted">Loading…</div>;
 
   const status = gs.status ?? {};
@@ -55,7 +79,7 @@ export function OverviewTab({
   const playersKnown = typeof agent?.playersOnline === "number" && agent.playersOnline >= 0;
   const players = playersKnown ? (agent?.playersOnline as number) : 0;
   const playersMax = agent?.playersMax ?? 0;
-  const events: Event[] = (status as unknown as { recentEvents?: Event[] }).recentEvents ?? [];
+  const events: Event[] = (Array.isArray(rawEvents) ? rawEvents : []).map(mapServerEvent);
   const endpoints = status.endpoints ?? [];
   const primary = endpoints[0];
 
