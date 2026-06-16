@@ -77,6 +77,26 @@ describe("ServerDetailPage", () => {
     expect(await screen.findByText("overview-tab")).toBeInTheDocument();
   });
 
+  it("opens the Logs tab by default for a freshly provisioning server", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(makeServer({ status: { phase: "Starting", startedAt: undefined } })),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    // Never been Running (no startedAt) → land on the install logs.
+    expect(await screen.findByText("logs-tab")).toBeInTheDocument();
+  });
+
+  it("stays on Overview for a restart (Starting but already started before)", async () => {
+    server.use(
+      // makeServer keeps the default startedAt, so this reads as a restart.
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ status: { phase: "Starting" } }))),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(await screen.findByText("overview-tab")).toBeInTheDocument();
+  });
+
   it("shows the provisioning sub-status under the phase badge while starting", async () => {
     server.use(
       http.get("/servers/alpha", () =>

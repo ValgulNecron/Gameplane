@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -121,6 +121,21 @@ export function ServerDetailPage() {
   useEffect(() => {
     if (!visibleTabs.some((t) => t.key === tab)) setTab("overview");
   }, [visibleTabs, tab]);
+
+  // A freshly-created server is provisioning — land the user on Logs so
+  // they can watch the install stream, rather than an empty Overview.
+  // "Never been Running" = Pending/Starting with no startedAt (the
+  // operator sets startedAt only on first reaching Running). Fires once,
+  // after gs first loads, and never fights a manual tab click.
+  const autoTabApplied = useRef(false);
+  useEffect(() => {
+    if (autoTabApplied.current || !gs) return;
+    autoTabApplied.current = true;
+    const st = gs.status;
+    if ((st?.phase === "Pending" || st?.phase === "Starting") && !st.startedAt) {
+      setTab("logs");
+    }
+  }, [gs]);
 
   return (
     <div className="flex h-full flex-col">
