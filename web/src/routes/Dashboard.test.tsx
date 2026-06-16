@@ -23,10 +23,11 @@ describe("DashboardPage", () => {
   it("renders the overview shell: KPIs and section cards", async () => {
     renderWithQuery(<DashboardPage />);
     await screen.findByText("Dashboard");
-    // KPI tiles
+    // KPI tiles ("Storage" also appears as a cluster-resources meter label,
+    // so assert at least one match rather than a unique one).
     expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getByText("Players online")).toBeInTheDocument();
-    expect(screen.getByText("Storage")).toBeInTheDocument();
+    expect(screen.getAllByText("Storage").length).toBeGreaterThan(0);
     expect(screen.getByText("Nodes ready")).toBeInTheDocument();
     // Section cards
     expect(screen.getByText("Fleet status")).toBeInTheDocument();
