@@ -135,6 +135,7 @@ func main() {
 		p.Use(rbac.Middleware())
 
 		handlers.MountResources(p, k8s)
+		handlers.MountPodEvents(p, k8s)
 		handlers.MountLifecycle(p, k8s)
 		handlers.MountOwnership(p, k8s, store)
 		handlers.MountUsers(p, store, sessions)
