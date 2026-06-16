@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Plus, Server as ServerIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Meter } from "@/components/ui/meter";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatBytes, formatUptime } from "@/lib/utils";
 import { APIError } from "@/lib/api";
@@ -169,8 +170,8 @@ function NodeCard({ node }: { node: ClusterNode }) {
       </div>
 
       <div className="space-y-2">
-        <Bar label="CPU" pct={cpuPct} accent="primary" />
-        <Bar
+        <Meter label="CPU" pct={cpuPct} accent="primary" />
+        <Meter
           label="Memory"
           pct={memPct}
           sub={
@@ -200,24 +201,6 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-border bg-surface/60 p-2">
       <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
       <div className="pt-0.5 font-mono text-xs text-fg">{value}</div>
-    </div>
-  );
-}
-
-function Bar({
-  label, pct, sub, accent,
-}: { label: string; pct: number; sub?: string; accent: "primary" | "violet" }) {
-  const color = accent === "primary" ? "bg-primary" : "bg-violet";
-  return (
-    <div>
-      <div className="flex items-center justify-between text-[11px]">
-        <span className="text-muted">{label}</span>
-        <span className="font-mono text-fg">{Math.round(pct)}%</span>
-      </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface">
-        <div className={`h-full ${color}`} style={{ width: `${Math.min(100, pct)}%` }} />
-      </div>
-      {sub && <div className="pt-1 text-[10px] text-muted">{sub}</div>}
     </div>
   );
 }

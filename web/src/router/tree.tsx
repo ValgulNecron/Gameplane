@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { RequirePermission } from "@/components/RequireRole";
 import { LoginPage } from "@/routes/Login";
 import { DashboardPage } from "@/routes/Dashboard";
+import { ServersPage } from "@/routes/Servers";
 import { ServerDetailPage } from "@/routes/ServerDetail";
 import { ModulesPage } from "@/routes/Modules";
 import { ClusterPage } from "@/routes/Cluster";
@@ -37,7 +38,7 @@ const dashboardRoute = new Route({
 const serversRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/servers",
-  component: DashboardPage,
+  component: ServersPage,
 });
 
 const serverDetailRoute = new Route({
