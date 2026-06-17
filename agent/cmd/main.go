@@ -27,6 +27,7 @@ import (
 	"github.com/kestrel-gg/kestrel/agent/internal/quiesce"
 	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
 	"github.com/kestrel-gg/kestrel/agent/internal/status"
+	"github.com/kestrel-gg/kestrel/agent/internal/usage"
 )
 
 // Version is overridden at build time via -ldflags.
@@ -157,6 +158,7 @@ func main() {
 		Version:    Version,
 		RCON:       rconClient,
 		Interval:   20 * time.Second,
+		Usage:      usage.New(usage.Config{DataDir: dataRoot}),
 	})
 
 	go func() {

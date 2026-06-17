@@ -1,6 +1,8 @@
 // Package heartbeat periodically patches the owning GameServer's
-// status.agent.{lastHeartbeat, playersOnline, gameVersion} so the
-// control plane can distinguish "pod ready" from "game actually up".
+// status.agent.{lastHeartbeat, playersOnline, gameVersion} — plus the
+// agent's own cpu/memory/disk usage — so the control plane can
+// distinguish "pod ready" from "game actually up" and surface live
+// resource usage without a cluster metrics pipeline.
 //
 // The agent uses its in-pod ServiceAccount to authenticate to the
 // Kubernetes API directly; no traffic flows through the Kestrel API
@@ -21,10 +23,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+
+	"github.com/kestrel-gg/kestrel/agent/internal/usage"
 )
 
 type Rcon interface {
 	Exec(cmd string) (string, error)
+}
+
+// UsageReader yields the agent's own resource consumption. It never
+// errors; unknown values are flagged on the Sample so they can be
+// reported as null.
+type UsageReader interface {
+	Read() usage.Sample
 }
 
 type Config struct {
@@ -35,6 +46,7 @@ type Config struct {
 	Version    string
 	Interval   time.Duration
 	RCON       Rcon
+	Usage      UsageReader
 }
 
 var gvr = schema.GroupVersionResource{
@@ -105,6 +117,19 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 	} else {
 		agent["playersOnline"] = nil
 	}
+	// Resource usage follows the same null-on-unknown contract: an
+	// unreadable source patches null so the dashboard renders "—" rather
+	// than a frozen value. The keys are always present so a merge patch
+	// clears a prior reading once a source goes away.
+	if cfg.Usage != nil {
+		s := cfg.Usage.Read()
+		agent["cpuMillicores"] = nullable(s.CPUMillicores, s.CPUKnown)
+		agent["cpuLimitMillicores"] = nullable(s.CPULimitMillicores, s.CPULimitKnown)
+		agent["memoryBytes"] = nullable(s.MemoryBytes, s.MemoryKnown)
+		agent["memoryLimitBytes"] = nullable(s.MemoryLimitBytes, s.MemoryLimitKnown)
+		agent["diskUsedBytes"] = nullable(s.DiskUsedBytes, s.DiskKnown)
+		agent["diskTotalBytes"] = nullable(s.DiskTotalBytes, s.DiskKnown)
+	}
 	patch := map[string]any{
 		"status": map[string]any{"agent": agent},
 	}
@@ -116,6 +141,15 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 		Namespace(cfg.Namespace).
 		Patch(ctx, cfg.ServerName, types.MergePatchType, body, metav1.PatchOptions{}, "status")
 	return err
+}
+
+// nullable returns v when known, else nil, so a JSON merge patch with a
+// null clears any stale value the dashboard would otherwise show forever.
+func nullable(v int64, known bool) any {
+	if !known {
+		return nil
+	}
+	return v
 }
 
 func queryOnline(rc Rcon) (int, error) {

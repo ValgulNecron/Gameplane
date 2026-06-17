@@ -14,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
+
+	"github.com/kestrel-gg/kestrel/agent/internal/usage"
 )
 
 func TestRun_DisabledPaths(t *testing.T) {
@@ -71,6 +73,90 @@ func TestSendOnce(t *testing.T) {
 	}
 	if _, ok := agent["lastHeartbeat"].(string); !ok {
 		t.Fatalf("lastHeartbeat missing or wrong type: %+v", agent)
+	}
+}
+
+func TestSendOnce_EmitsKnownUsage(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+
+	err := sendOnce(context.Background(), dyn, Config{
+		ServerName: "srv",
+		Namespace:  "ns",
+		RCON:       fakeRcon{out: "0"},
+		Usage: fakeUsage{s: usage.Sample{
+			CPUMillicores: 500, CPUKnown: true,
+			CPULimitMillicores: 2000, CPULimitKnown: true,
+			MemoryBytes: 1024, MemoryKnown: true,
+			MemoryLimitBytes: 4096, MemoryLimitKnown: true,
+			DiskUsedBytes: 10, DiskTotalBytes: 100, DiskKnown: true,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(captured, &got); err != nil {
+		t.Fatalf("unmarshal patch: %v", err)
+	}
+	agent := got["status"].(map[string]any)["agent"].(map[string]any)
+	for k, want := range map[string]float64{
+		"cpuMillicores":      500,
+		"cpuLimitMillicores": 2000,
+		"memoryBytes":        1024,
+		"memoryLimitBytes":   4096,
+		"diskUsedBytes":      10,
+		"diskTotalBytes":     100,
+	} {
+		if v, ok := agent[k].(float64); !ok || v != want {
+			t.Fatalf("%s = %v, want %v", k, agent[k], want)
+		}
+	}
+}
+
+func TestSendOnce_EmitsNullForUnknownUsage(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+
+	// A zero-value Sample: every Known flag false → every key present and
+	// null, so a merge patch clears any prior reading.
+	err := sendOnce(context.Background(), dyn, Config{
+		ServerName: "srv",
+		Namespace:  "ns",
+		RCON:       fakeRcon{out: "0"},
+		Usage:      fakeUsage{},
+	})
+	if err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(captured, &got)
+	agent := got["status"].(map[string]any)["agent"].(map[string]any)
+	for _, k := range []string{
+		"cpuMillicores", "cpuLimitMillicores", "memoryBytes",
+		"memoryLimitBytes", "diskUsedBytes", "diskTotalBytes",
+	} {
+		v, present := agent[k]
+		if !present {
+			t.Fatalf("%s key missing from patch: %+v", k, agent)
+		}
+		if v != nil {
+			t.Fatalf("want null %s, got %v", k, v)
+		}
 	}
 }
 
@@ -191,6 +277,10 @@ type fakeRcon struct {
 }
 
 func (f fakeRcon) Exec(string) (string, error) { return f.out, f.err }
+
+type fakeUsage struct{ s usage.Sample }
+
+func (f fakeUsage) Read() usage.Sample { return f.s }
 
 func fakeGameServer() runtime.Object {
 	o := &unstructured.Unstructured{}
