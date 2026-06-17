@@ -242,6 +242,36 @@ type AgentStatus struct {
 	// GameVersion is the version string the running game reports.
 	// +optional
 	GameVersion string `json:"gameVersion,omitempty"`
+
+	// CPUMillicores is the agent's own cgroup CPU usage averaged over the
+	// last heartbeat interval, in millicores. nil means "unknown".
+	// +optional
+	CPUMillicores *int64 `json:"cpuMillicores,omitempty"`
+
+	// CPULimitMillicores is the pod's cgroup CPU limit in millicores, or
+	// nil when unlimited / unknown.
+	// +optional
+	CPULimitMillicores *int64 `json:"cpuLimitMillicores,omitempty"`
+
+	// MemoryBytes is the pod's current cgroup memory usage in bytes. nil
+	// means "unknown".
+	// +optional
+	MemoryBytes *int64 `json:"memoryBytes,omitempty"`
+
+	// MemoryLimitBytes is the pod's cgroup memory limit in bytes, or nil
+	// when unlimited / unknown.
+	// +optional
+	MemoryLimitBytes *int64 `json:"memoryLimitBytes,omitempty"`
+
+	// DiskUsedBytes is the used space on the game data volume (statfs).
+	// nil means "unknown".
+	// +optional
+	DiskUsedBytes *int64 `json:"diskUsedBytes,omitempty"`
+
+	// DiskTotalBytes is the total size of the game data volume (statfs).
+	// nil means "unknown".
+	// +optional
+	DiskTotalBytes *int64 `json:"diskTotalBytes,omitempty"`
 }
 
 // +kubebuilder:object:root=true
