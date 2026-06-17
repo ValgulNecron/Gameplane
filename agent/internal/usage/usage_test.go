@@ -66,6 +66,24 @@ func TestRead_CPUNoWallAdvance(t *testing.T) {
 	}
 }
 
+// TestRead_CPUCounterReset covers the guard where the cumulative counter
+// goes backwards (a cgroup/container reset) — no rate is emitted rather
+// than a wild negative-turned-huge value.
+func TestRead_CPUCounterReset(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "cpu.stat", "usage_usec 5000000\n")
+	clock := &fakeClock{t: time.Unix(100, 0)}
+	r := New(Config{Root: dir, now: clock.now})
+
+	r.Read() // seed prev at 5,000,000
+	clock.t = clock.t.Add(2 * time.Second)
+	writeFile(t, dir, "cpu.stat", "usage_usec 1000000\n") // counter went backwards
+	s := r.Read()
+	if s.CPUKnown {
+		t.Fatalf("a backwards usage counter should leave CPU unknown, got %d", s.CPUMillicores)
+	}
+}
+
 func TestRead_CPUMaxUnlimited(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "cpu.max", "max 100000\n")
