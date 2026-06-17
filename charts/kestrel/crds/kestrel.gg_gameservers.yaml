@@ -1904,6 +1904,30 @@ spec:
                 description: Agent reports runtime info sourced from the in-pod agent
                   sidecar.
                 properties:
+                  cpuLimitMillicores:
+                    description: |-
+                      CPULimitMillicores is the pod's cgroup CPU limit in millicores, or
+                      nil when unlimited / unknown.
+                    format: int64
+                    type: integer
+                  cpuMillicores:
+                    description: |-
+                      CPUMillicores is the agent's own cgroup CPU usage averaged over the
+                      last heartbeat interval, in millicores. nil means "unknown".
+                    format: int64
+                    type: integer
+                  diskTotalBytes:
+                    description: |-
+                      DiskTotalBytes is the total size of the game data volume (statfs).
+                      nil means "unknown".
+                    format: int64
+                    type: integer
+                  diskUsedBytes:
+                    description: |-
+                      DiskUsedBytes is the used space on the game data volume (statfs).
+                      nil means "unknown".
+                    format: int64
+                    type: integer
                   gameVersion:
                     description: GameVersion is the version string the running game
                       reports.
@@ -1911,6 +1935,18 @@ spec:
                   lastHeartbeat:
                     format: date-time
                     type: string
+                  memoryBytes:
+                    description: |-
+                      MemoryBytes is the pod's current cgroup memory usage in bytes. nil
+                      means "unknown".
+                    format: int64
+                    type: integer
+                  memoryLimitBytes:
+                    description: |-
+                      MemoryLimitBytes is the pod's cgroup memory limit in bytes, or nil
+                      when unlimited / unknown.
+                    format: int64
+                    type: integer
                   playersMax:
                     description: PlayersMax is the configured max player count, if
                       known.

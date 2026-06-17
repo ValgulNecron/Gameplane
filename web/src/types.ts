@@ -201,6 +201,15 @@ export interface GameServer {
       playersOnline?: number | null;
       playersMax?: number;
       gameVersion?: string;
+      // Resource usage the agent reads from its own cgroup + a statfs of
+      // the data volume. null/absent means "unknown" (unreadable source,
+      // or a stale heartbeat the API blanked) — render "—", not a zero.
+      cpuMillicores?: number | null;
+      cpuLimitMillicores?: number | null;
+      memoryBytes?: number | null;
+      memoryLimitBytes?: number | null;
+      diskUsedBytes?: number | null;
+      diskTotalBytes?: number | null;
       // Set by the API when the heartbeat is older than the freshness
       // window — the reported values are no longer current.
       stale?: boolean;

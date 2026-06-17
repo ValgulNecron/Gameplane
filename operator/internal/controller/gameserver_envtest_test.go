@@ -312,10 +312,13 @@ func TestGameServer_SuspendScalesToZero(t *testing.T) {
 		return ss.Spec.Replicas != nil && *ss.Spec.Replicas == 1, ""
 	})
 
-	// Flip Suspend=true.
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Suspend = true
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// Flip Suspend=true. Retry on conflict — the reconciler patches
+	// status concurrently, racing a bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Suspend = true
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 
@@ -847,9 +850,13 @@ func TestGameServer_InvalidConfigFailsThenRecovers(t *testing.T) {
 		t.Fatalf("StatefulSet should not exist while config is invalid, get err = %v", err)
 	}
 
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config["MODE"] = "creative"
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// Retry on conflict — the reconciler patches status concurrently,
+	// racing a bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config["MODE"] = "creative"
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 
@@ -919,10 +926,14 @@ func TestGameServer_PasswordConfigStoredInSecret(t *testing.T) {
 		return true, ""
 	})
 
-	// Dropping the password must clean the Secret up.
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config = nil
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// Dropping the password must clean the Secret up. Retry on conflict —
+	// the reconciler patches status concurrently, racing a bare
+	// Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config = nil
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 
@@ -1015,10 +1026,14 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 	})
 
 	// Changing a file-target value must re-render the Secret and roll
-	// the pod template hash.
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config["MOTD"] = "welcome"
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// the pod template hash. Retry on conflict — the reconciler patches
+	// status concurrently, so a bare Get+Update races its resourceVersion
+	// (envtest flake: "the object has been modified").
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config["MOTD"] = "welcome"
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 	eventually(t, func() (bool, string) {
@@ -1044,19 +1059,25 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 	// Dropping configFiles from the template must delete the Secret and
 	// strip the init container + volume. Template edits don't trigger a
 	// GameServer reconcile (no cross-watch), so poke the GameServer.
-	tmplNow := &kestrelv1alpha1.GameTemplate{}
-	if err := k8sClient.Get(context.Background(),
-		types.NamespacedName{Name: tmpl.Name}, tmplNow); err != nil {
-		t.Fatalf("get template: %v", err)
-	}
-	tmplNow.Spec.ConfigSchema = nil
-	tmplNow.Spec.ConfigFiles = nil
-	if err := k8sClient.Update(context.Background(), tmplNow); err != nil {
+	// Retry on conflict — reconcilers patch status concurrently, racing a
+	// bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		tmplNow := &kestrelv1alpha1.GameTemplate{}
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Name: tmpl.Name}, tmplNow); err != nil {
+			return err
+		}
+		tmplNow.Spec.ConfigSchema = nil
+		tmplNow.Spec.ConfigFiles = nil
+		return k8sClient.Update(context.Background(), tmplNow)
+	}); err != nil {
 		t.Fatalf("update template: %v", err)
 	}
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config = nil
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config = nil
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 	eventually(t, func() (bool, string) {
@@ -1169,9 +1190,13 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 		return firstHash != "", "config-hash annotation missing"
 	})
 
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config = map[string]string{"DIFFICULTY": "hard"}
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// Retry on conflict — the reconciler patches status concurrently,
+	// racing a bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config = map[string]string{"DIFFICULTY": "hard"}
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 

@@ -60,6 +60,70 @@ describe("OverviewTab recent events", () => {
   });
 });
 
+describe("OverviewTab metric tiles", () => {
+  it("renders real CPU, memory and disk usage from the heartbeat", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    render(withClient(<OverviewTab name="s1" gs={gs({
+      agent: {
+        lastHeartbeat: "now",
+        cpuMillicores: 500, cpuLimitMillicores: 2000, // 25%
+        memoryBytes: 536870912, memoryLimitBytes: 1073741824, // 512 MB / 1.0 GB = 50%
+        diskUsedBytes: 2147483648, diskTotalBytes: 10737418240, // 2.0 GB / 10 GB = 20%
+      },
+    })} />));
+    expect(await screen.findByText("Disk")).toBeInTheDocument();
+    expect(screen.getByText("25%")).toBeInTheDocument(); // CPU 500/2000
+    expect(screen.getByText("0.5 / 2.0 cores")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    // formatBytes gives one decimal below 10 units: 1 GiB → "1.0 GB".
+    expect(screen.getByText("512 MB / 1.0 GB")).toBeInTheDocument();
+    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(screen.getByText("2.0 GB / 10 GB")).toBeInTheDocument();
+    // No Network tile (no stock-K8s per-pod source), and Players lives in
+    // the sidebar card, not the metric row.
+    expect(screen.queryByText("Network")).toBeNull();
+  });
+
+  it("renders '—' for usage when the agent heartbeat is stale/absent", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    // A stale heartbeat: the API drops the usage readings and flags stale,
+    // so the tiles must render "—" rather than a frozen value or NaN.
+    render(withClient(<OverviewTab name="s1" gs={gs({
+      agent: { lastHeartbeat: "old", stale: true },
+    })} />));
+    expect(await screen.findByText("Disk")).toBeInTheDocument();
+    // CPU, Memory and Disk all unknown → at least three em-dashes.
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("shows cores/bytes and '—' limits when usage is known but limits are absent", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    // phase Starting disables the roster query, so the Players card falls
+    // back to status.agent.playersOnline. Usage values are set but the
+    // limits/total are absent/0, exercising the no-limit tile branches.
+    render(withClient(<OverviewTab name="s1" gs={gs({
+      phase: "Starting",
+      agent: {
+        lastHeartbeat: "now",
+        cpuMillicores: 1500,                          // no limit → "1.50 cores", no bar
+        memoryBytes: 536870912,                       // no limit → "512 MB" primary + "512 MB / —"
+        diskUsedBytes: 1073741824, diskTotalBytes: 0, // no total → "1.0 GB" primary + "1.0 GB / —"
+        playersOnline: 3,                             // exercises the players fallback branch
+      },
+    })} />));
+    expect(await screen.findByText("1.50 cores")).toBeInTheDocument();
+    expect(screen.getByText("512 MB")).toBeInTheDocument();
+    expect(screen.getByText("512 MB / —")).toBeInTheDocument();
+    expect(screen.getByText("1.0 GB")).toBeInTheDocument();
+    expect(screen.getByText("1.0 GB / —")).toBeInTheDocument();
+    // Players fallback (phase != Running) feeds the sidebar card.
+    expect(screen.getByText(/names not yet available/)).toBeInTheDocument();
+  });
+});
+
 describe("OverviewTab players card", () => {
   it("shows 'No players connected.' when online is 0", async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonRes({

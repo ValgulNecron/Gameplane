@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
@@ -525,15 +526,19 @@ func hasCondition(conds []metav1.Condition, t string) bool {
 // re-reconcile a source immediately instead of at its refresh interval.
 func patchSourceAnnotation(t *testing.T, name, key, val string) {
 	t.Helper()
-	var src kestrelv1alpha1.ModuleSource
-	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &src); err != nil {
-		t.Fatalf("get source for patch: %v", err)
-	}
-	if src.Annotations == nil {
-		src.Annotations = map[string]string{}
-	}
-	src.Annotations[key] = val
-	if err := k8sClient.Update(context.Background(), &src); err != nil {
+	// Retry on conflict — the reconciler patches status concurrently,
+	// racing a bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var src kestrelv1alpha1.ModuleSource
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &src); err != nil {
+			return err
+		}
+		if src.Annotations == nil {
+			src.Annotations = map[string]string{}
+		}
+		src.Annotations[key] = val
+		return k8sClient.Update(context.Background(), &src)
+	}); err != nil {
 		t.Fatalf("patch source: %v", err)
 	}
 }

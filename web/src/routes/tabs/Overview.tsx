@@ -1,12 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Activity,
-  Copy,
-  Cpu,
-  MemoryStick,
-  Users as UsersIcon,
-} from "lucide-react";
+import { Copy, Cpu, HardDrive, MemoryStick } from "lucide-react";
 import type { GameServer, GameTemplate, PlayersResp, ServerEvent } from "@/types";
 import { Players, Servers } from "@/lib/endpoints";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -68,17 +62,34 @@ export function OverviewTab({
   const status = gs.status ?? {};
   const running = status.phase === "Running";
   const agent = status.agent;
-  const cpu = (status as unknown as { cpuPercent?: number }).cpuPercent ?? 0;
-  const cpuCores = (status as unknown as { cpuCores?: number }).cpuCores ?? 2;
-  const memUsed = (status as unknown as { memoryBytes?: number }).memoryBytes ?? 0;
-  const memTotal = (status as unknown as { memoryTotalBytes?: number }).memoryTotalBytes ?? 0;
-  const netRx = (status as unknown as { networkRxBps?: number }).networkRxBps ?? 0;
-  const netTx = (status as unknown as { networkTxBps?: number }).networkTxBps ?? 0;
-  // null/undefined playersOnline means "unknown" (RCON unavailable or a
-  // stale heartbeat the API blanked) — render "—", not a misleading 0.
-  const playersKnown = typeof agent?.playersOnline === "number" && agent.playersOnline >= 0;
-  const players = playersKnown ? (agent?.playersOnline as number) : 0;
-  const playersMax = agent?.playersMax ?? 0;
+  // Resource usage comes from the agent's heartbeat (cgroup + statfs).
+  // null/undefined means "unknown" (unreadable source, or a stale
+  // heartbeat the API blanked) — render "—", not a misleading 0.
+  const cpuKnown = typeof agent?.cpuMillicores === "number";
+  const cpuMilli = cpuKnown ? (agent?.cpuMillicores as number) : 0;
+  const cpuLimitMilli =
+    typeof agent?.cpuLimitMillicores === "number" ? (agent?.cpuLimitMillicores as number) : 0;
+  const cpuPct = cpuKnown && cpuLimitMilli ? (cpuMilli / cpuLimitMilli) * 100 : 0;
+
+  const memKnown = typeof agent?.memoryBytes === "number";
+  const memUsed = memKnown ? (agent?.memoryBytes as number) : 0;
+  const memLimit =
+    typeof agent?.memoryLimitBytes === "number" ? (agent?.memoryLimitBytes as number) : 0;
+  const memPct = memKnown && memLimit ? (memUsed / memLimit) * 100 : 0;
+
+  const diskKnown =
+    typeof agent?.diskUsedBytes === "number" && typeof agent?.diskTotalBytes === "number";
+  const diskUsed = diskKnown ? (agent?.diskUsedBytes as number) : 0;
+  const diskTotal = diskKnown ? (agent?.diskTotalBytes as number) : 0;
+  const diskPct = diskKnown && diskTotal ? (diskUsed / diskTotal) * 100 : 0;
+
+  // Player count is shown in the Players card (sidebar). null/undefined
+  // means "unknown" (RCON unavailable or a stale heartbeat the API
+  // blanked); fall back to 0 for the card's header.
+  const players =
+    typeof agent?.playersOnline === "number" && agent.playersOnline >= 0
+      ? (agent.playersOnline as number)
+      : 0;
   const events: Event[] = (Array.isArray(rawEvents) ? rawEvents : []).map(mapServerEvent);
   const endpoints = status.endpoints ?? [];
   const primary = endpoints[0];
@@ -86,37 +97,40 @@ export function OverviewTab({
   return (
     <div className="grid gap-5 p-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3">
           <MetricTile
             label="CPU"
             icon={<Cpu className="h-4 w-4" />}
-            primary={`${cpu.toFixed(0)}%`}
-            secondary={`of ${cpuCores} cores`}
-            progress={cpu}
+            primary={
+              cpuKnown ? (cpuLimitMilli ? `${cpuPct.toFixed(0)}%` : `${(cpuMilli / 1000).toFixed(2)} cores`) : "—"
+            }
+            secondary={
+              cpuKnown && cpuLimitMilli
+                ? `${(cpuMilli / 1000).toFixed(1)} / ${(cpuLimitMilli / 1000).toFixed(1)} cores`
+                : undefined
+            }
+            progress={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
             accent="primary"
           />
           <MetricTile
             label="Memory"
             icon={<MemoryStick className="h-4 w-4" />}
-            primary={`${memTotal ? Math.round((memUsed / memTotal) * 100) : 0}%`}
-            secondary={`${formatBytes(memUsed)} / ${memTotal ? formatBytes(memTotal) : "—"}`}
-            progress={memTotal ? (memUsed / memTotal) * 100 : 0}
+            primary={memKnown ? (memLimit ? `${memPct.toFixed(0)}%` : formatBytes(memUsed)) : "—"}
+            secondary={
+              memKnown ? `${formatBytes(memUsed)} / ${memLimit ? formatBytes(memLimit) : "—"}` : undefined
+            }
+            progress={memKnown && memLimit ? memPct : undefined}
             accent="violet"
           />
           <MetricTile
-            label="Network"
-            icon={<Activity className="h-4 w-4" />}
-            primary={`${formatBytes(netRx)}/s`}
-            secondary={`↓ ${formatBytes(netRx)} / ↑ ${formatBytes(netTx)}`}
+            label="Disk"
+            icon={<HardDrive className="h-4 w-4" />}
+            primary={diskKnown ? (diskTotal ? `${diskPct.toFixed(0)}%` : formatBytes(diskUsed)) : "—"}
+            secondary={
+              diskKnown ? `${formatBytes(diskUsed)} / ${diskTotal ? formatBytes(diskTotal) : "—"}` : undefined
+            }
+            progress={diskKnown && diskTotal ? diskPct : undefined}
             accent="success"
-          />
-          <MetricTile
-            label="Players"
-            icon={<UsersIcon className="h-4 w-4" />}
-            primary={playersKnown ? `${players}` : "—"}
-            secondary={playersMax ? `of ${playersMax} slots` : "—"}
-            progress={playersKnown && playersMax ? (players / playersMax) * 100 : 0}
-            accent="warning"
           />
         </div>
 
