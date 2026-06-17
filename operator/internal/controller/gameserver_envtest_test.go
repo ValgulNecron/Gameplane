@@ -1059,19 +1059,25 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 	// Dropping configFiles from the template must delete the Secret and
 	// strip the init container + volume. Template edits don't trigger a
 	// GameServer reconcile (no cross-watch), so poke the GameServer.
-	tmplNow := &kestrelv1alpha1.GameTemplate{}
-	if err := k8sClient.Get(context.Background(),
-		types.NamespacedName{Name: tmpl.Name}, tmplNow); err != nil {
-		t.Fatalf("get template: %v", err)
-	}
-	tmplNow.Spec.ConfigSchema = nil
-	tmplNow.Spec.ConfigFiles = nil
-	if err := k8sClient.Update(context.Background(), tmplNow); err != nil {
+	// Retry on conflict — reconcilers patch status concurrently, racing a
+	// bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		tmplNow := &kestrelv1alpha1.GameTemplate{}
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Name: tmpl.Name}, tmplNow); err != nil {
+			return err
+		}
+		tmplNow.Spec.ConfigSchema = nil
+		tmplNow.Spec.ConfigFiles = nil
+		return k8sClient.Update(context.Background(), tmplNow)
+	}); err != nil {
 		t.Fatalf("update template: %v", err)
 	}
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config = nil
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config = nil
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 	eventually(t, func() (bool, string) {
@@ -1184,9 +1190,13 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 		return firstHash != "", "config-hash annotation missing"
 	})
 
-	gs = getGameServer(t, ns, "smp")
-	gs.Spec.Config = map[string]string{"DIFFICULTY": "hard"}
-	if err := k8sClient.Update(context.Background(), gs); err != nil {
+	// Retry on conflict — the reconciler patches status concurrently,
+	// racing a bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		gs.Spec.Config = map[string]string{"DIFFICULTY": "hard"}
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
 		t.Fatalf("update gameserver: %v", err)
 	}
 

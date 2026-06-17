@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 )
@@ -18,12 +19,16 @@ import (
 // to converge on a different bundle.
 func patchModuleVersion(t *testing.T, name, version string) {
 	t.Helper()
-	var mod kestrelv1alpha1.Module
-	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &mod); err != nil {
-		t.Fatalf("get module: %v", err)
-	}
-	mod.Spec.Version = version
-	if err := k8sClient.Update(context.Background(), &mod); err != nil {
+	// Retry on conflict — the reconciler patches status concurrently,
+	// racing a bare Get+Update's resourceVersion.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var mod kestrelv1alpha1.Module
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &mod); err != nil {
+			return err
+		}
+		mod.Spec.Version = version
+		return k8sClient.Update(context.Background(), &mod)
+	}); err != nil {
 		t.Fatalf("patch module version: %v", err)
 	}
 }
