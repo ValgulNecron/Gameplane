@@ -49,11 +49,15 @@ func TestGateStaleAgent_KeepsFresh(t *testing.T) {
 	gs := gsWithHeartbeat(2*time.Second, 5)
 	gateStaleAgent(gs)
 	agent, _, _ := unstructured.NestedMap(gs.Object, "status", "agent")
-	if agent["playersOnline"] == nil {
+	// "Preserved" means the key is still present — gateStaleAgent leaves a
+	// fresh agent block untouched. A present-but-null value is valid (the
+	// agent patches null for an unknown reading), so assert presence, not
+	// non-nil.
+	if _, ok := agent["playersOnline"]; !ok {
 		t.Fatal("fresh playersOnline should be preserved")
 	}
 	for _, k := range usageKeys {
-		if agent[k] == nil {
+		if _, ok := agent[k]; !ok {
 			t.Fatalf("fresh %s should be preserved", k)
 		}
 	}
