@@ -471,7 +471,7 @@ func buildGameContainer(
 	}
 
 	c := corev1.Container{
-		Name:         "game",
+		Name:         gameContainerName,
 		Image:        image,
 		Command:      tmpl.Spec.Command,
 		Args:         tmpl.Spec.Args,

@@ -5,6 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Upper-cases the first character. The operator's provisioning messages
+// are lowercase sentence fragments ("pulling the game image"); this makes
+// them presentable as a status line without mangling the rest.
+export function capitalize(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
 export function formatBytes(n: number): string {
   if (!n) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];

@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Copy,
+  Loader2,
   MoreHorizontal,
   Play,
   RotateCw,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GameIcon } from "@/components/ui/game-icon";
 import { Input } from "@/components/ui/input";
-import { cn, formatUptime } from "@/lib/utils";
+import { capitalize, cn, formatUptime } from "@/lib/utils";
 
 import { OverviewTab } from "./tabs/Overview";
 import { LogsTab } from "./tabs/Logs";
@@ -84,6 +85,13 @@ export function ServerDetailPage() {
 
   const phase = gs?.status?.phase;
   const running = phase === "Running";
+  // While provisioning, the operator refines the Progressing condition
+  // with what the pod is doing (pulling image, installing server files,
+  // waiting for the agent) — surface it under the phase badge.
+  const provisioning = phase === "Starting" || phase === "Pending";
+  const progressMessage = gs?.status?.conditions?.find(
+    (c) => c.type === "Progressing",
+  )?.message;
   // Gate lifecycle actions on phase so they aren't fired during a
   // transition (Starting/Stopping/Pending): Start only from a stopped
   // state, Stop/Restart only while Running. act.isPending blocks
@@ -93,17 +101,17 @@ export function ServerDetailPage() {
   const uptime = formatUptime(gs?.status?.startedAt);
 
   // Tab visibility is driven by the template: a game with no console
-  // (consoleMode none / no RCON) hides the Console tab, and one that
-  // logs only to stdout (no logPath) hides Logs. While the template is
-  // still loading we show everything to avoid a flicker.
+  // (consoleMode none / no RCON) hides the Console tab. Logs is always
+  // available — the tab streams the container's stdout (install/startup
+  // output) via the pod-log API, which needs no logPath; the configured
+  // game-log file is just an extra source the tab offers when logPath is
+  // set. While the template is still loading we show everything.
   const consoleAvailable = !tmpl || resolveConsoleMode(tmpl) !== "none";
-  const logsAvailable = !tmpl || !!tmpl.spec.logPath;
   // Mods only appears when the template declares the capability — it's an
   // opt-in surface, so hide it until the template resolves.
   const modsAvailable = !!tmpl?.spec.capabilities?.mods;
   const visibleTabs = tabs.filter((t) => {
     if (t.key === "console") return consoleAvailable;
-    if (t.key === "logs") return logsAvailable;
     if (t.key === "mods") return modsAvailable;
     return true;
   });
@@ -113,6 +121,21 @@ export function ServerDetailPage() {
   useEffect(() => {
     if (!visibleTabs.some((t) => t.key === tab)) setTab("overview");
   }, [visibleTabs, tab]);
+
+  // A freshly-created server is provisioning — land the user on Logs so
+  // they can watch the install stream, rather than an empty Overview.
+  // "Never been Running" = Pending/Starting with no startedAt (the
+  // operator sets startedAt only on first reaching Running). Fires once,
+  // after gs first loads, and never fights a manual tab click.
+  const autoTabApplied = useRef(false);
+  useEffect(() => {
+    if (autoTabApplied.current || !gs) return;
+    autoTabApplied.current = true;
+    const st = gs.status;
+    if ((st?.phase === "Pending" || st?.phase === "Starting") && !st.startedAt) {
+      setTab("logs");
+    }
+  }, [gs]);
 
   return (
     <div className="flex h-full flex-col">
@@ -129,6 +152,12 @@ export function ServerDetailPage() {
                 <h1 className="truncate font-mono text-2xl font-semibold text-fg">{name}</h1>
                 <PhaseBadge phase={phase} />
               </div>
+              {provisioning && progressMessage && (
+                <div className="pt-1 flex items-center gap-1.5 text-xs text-warning">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>{capitalize(progressMessage)}</span>
+                </div>
+              )}
               <div className="pt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                 {gs?.spec.templateRef.name && <span>{gs.spec.templateRef.name}</span>}
                 {version && <Dot />}{version && <span>{version}</span>}
@@ -203,7 +232,14 @@ export function ServerDetailPage() {
         <Suspense fallback={<TabFallback />}>
           {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} />}
           {tab === "console"  && <ConsoleTab name={name} />}
-          {tab === "logs"     && <LogsTab    name={name} />}
+          {tab === "logs"     && (
+            <LogsTab
+              name={name}
+              logPath={tmpl?.spec.logPath}
+              phase={phase}
+              progressMessage={progressMessage}
+            />
+          )}
           {tab === "files"    && <FilesTab   name={name} />}
           {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} />}
           {tab === "players"  && <PlayersTab name={name} />}

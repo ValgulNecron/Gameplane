@@ -205,8 +205,31 @@ export interface GameServer {
       // window — the reported values are no longer current.
       stale?: boolean;
     };
+    // Ready / Progressing / Healthy. The operator refines Progressing's
+    // message while Starting (e.g. "pulling the game image") — the
+    // dashboard surfaces it as a provisioning sub-status.
+    conditions?: Array<{
+      type: string;
+      status: string;
+      reason?: string;
+      message?: string;
+      lastTransitionTime?: string;
+    }>;
     startedAt?: string;
   };
+}
+
+// A Kubernetes Event about a server's pod/StatefulSet/GameServer, as
+// returned by GET /servers/{name}/events. Mirrors the API's PodEvent DTO.
+export interface ServerEvent {
+  id: string;
+  time: string;
+  type: string; // Normal | Warning
+  reason: string;
+  message: string;
+  source: string;
+  object: string;
+  count: number;
 }
 
 export interface Backup {

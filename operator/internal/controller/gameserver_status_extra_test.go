@@ -25,7 +25,7 @@ func TestComputeConditions(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.phase), func(t *testing.T) {
 			gs := &kestrelv1alpha1.GameServer{}
-			conds := computeConditions(gs, tc.phase)
+			conds := computeConditions(gs, tc.phase, nil)
 			byType := map[string]metav1.Condition{}
 			for _, c := range conds {
 				byType[c.Type] = c
@@ -35,6 +35,114 @@ func TestComputeConditions(t *testing.T) {
 			}
 			if byType["Healthy"].Status != tc.health {
 				t.Errorf("Healthy=%v want %v", byType["Healthy"].Status, tc.health)
+			}
+		})
+	}
+}
+
+func TestComputeConditions_ProvisioningRefinement(t *testing.T) {
+	gs := &kestrelv1alpha1.GameServer{}
+	prov := &provisioningInfo{reason: "PullingImage", message: "pulling the game image"}
+	conds := computeConditions(gs, kestrelv1alpha1.GameServerPhaseStarting, prov)
+
+	var prog metav1.Condition
+	for _, c := range conds {
+		if c.Type == "Progressing" {
+			prog = c
+		}
+	}
+	if prog.Reason != "PullingImage" {
+		t.Errorf("Progressing.Reason = %q, want PullingImage", prog.Reason)
+	}
+	if prog.Message != "pulling the game image" {
+		t.Errorf("Progressing.Message = %q, want the provisioning message", prog.Message)
+	}
+
+	// nil prov leaves the generic Starting reason and no message.
+	conds = computeConditions(gs, kestrelv1alpha1.GameServerPhaseStarting, nil)
+	for _, c := range conds {
+		if c.Type == "Progressing" && (c.Reason != "Starting" || c.Message != "") {
+			t.Errorf("nil prov: Progressing = %+v, want generic Starting/no message", c)
+		}
+	}
+}
+
+func TestProvisioningReason(t *testing.T) {
+	waiting := func(reason string) corev1.ContainerState {
+		return corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: reason}}
+	}
+	gameStatus := func(state corev1.ContainerState) corev1.ContainerStatus {
+		return corev1.ContainerStatus{Name: "game", State: state}
+	}
+	ready := func(v corev1.ConditionStatus) []corev1.PodCondition {
+		return []corev1.PodCondition{{Type: corev1.PodReady, Status: v}}
+	}
+
+	cases := []struct {
+		name    string
+		pod     corev1.Pod
+		hbFresh bool
+		reason  string
+	}{
+		{
+			name:   "image pull backoff",
+			pod:    corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{gameStatus(waiting("ImagePullBackOff"))}}},
+			reason: "PullingImage",
+		},
+		{
+			name:   "container creating",
+			pod:    corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{gameStatus(waiting("ContainerCreating"))}}},
+			reason: "ContainerCreating",
+		},
+		{
+			name: "init container pulling",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				InitContainerStatuses: []corev1.ContainerStatus{{Name: "config-init", State: waiting("PodInitializing")}},
+				ContainerStatuses:     []corev1.ContainerStatus{gameStatus(waiting("PodInitializing"))},
+			}},
+			reason: "ContainerCreating",
+		},
+		{
+			name: "running but not ready installs files",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				ContainerStatuses: []corev1.ContainerStatus{gameStatus(corev1.ContainerState{Running: &corev1.ContainerStateRunning{}})},
+				Conditions:        ready(corev1.ConditionFalse),
+			}},
+			reason: "InstallingServerFiles",
+		},
+		{
+			name: "ready but stale agent waits for heartbeat",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				ContainerStatuses: []corev1.ContainerStatus{gameStatus(corev1.ContainerState{Running: &corev1.ContainerStateRunning{}})},
+				Conditions:        ready(corev1.ConditionTrue),
+			}},
+			hbFresh: false,
+			reason:  "WaitingForAgent",
+		},
+		{
+			name:   "crash loop",
+			pod:    corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{gameStatus(waiting("CrashLoopBackOff"))}}},
+			reason: "CrashLoopBackOff",
+		},
+		{
+			name:   "terminated during startup",
+			pod:    corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{gameStatus(corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{}})}}},
+			reason: "ContainerExited",
+		},
+		{
+			name:   "no container status yet",
+			pod:    corev1.Pod{Status: corev1.PodStatus{}},
+			reason: "ContainerCreating",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reason, message := provisioningReason(&tc.pod, tc.hbFresh)
+			if reason != tc.reason {
+				t.Errorf("reason = %q, want %q", reason, tc.reason)
+			}
+			if message == "" {
+				t.Error("message should not be empty")
 			}
 		})
 	}

@@ -301,6 +301,9 @@ export const handlers = [
     HttpResponse.json({ items: [makeModuleSource()] }),
   ),
 
+  // Pod/StatefulSet/GameServer Kubernetes events (Overview events feed).
+  http.get("/servers/:name/events", () => HttpResponse.json([])),
+
   // Players
   http.get("/servers/:name/players", () => HttpResponse.json(makePlayers())),
   http.get("/servers/:name/players/banned", () =>

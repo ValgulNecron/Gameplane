@@ -77,6 +77,50 @@ describe("ServerDetailPage", () => {
     expect(await screen.findByText("overview-tab")).toBeInTheDocument();
   });
 
+  it("opens the Logs tab by default for a freshly provisioning server", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(makeServer({ status: { phase: "Starting", startedAt: undefined } })),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    // Never been Running (no startedAt) → land on the install logs.
+    expect(await screen.findByText("logs-tab")).toBeInTheDocument();
+  });
+
+  it("stays on Overview for a restart (Starting but already started before)", async () => {
+    server.use(
+      // makeServer keeps the default startedAt, so this reads as a restart.
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer({ status: { phase: "Starting" } }))),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(await screen.findByText("overview-tab")).toBeInTheDocument();
+  });
+
+  it("shows the provisioning sub-status under the phase badge while starting", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Starting",
+              conditions: [
+                {
+                  type: "Progressing",
+                  status: "True",
+                  reason: "PullingImage",
+                  message: "pulling the game image",
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(await screen.findByText("Pulling the game image")).toBeInTheDocument();
+  });
+
   it("switches to Logs tab on click", async () => {
     server.use(
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
@@ -161,7 +205,7 @@ describe("ServerDetailPage dynamic tabs", () => {
     await waitFor(() => expect(screen.getByText("mods-tab")).toBeInTheDocument());
   });
 
-  it("hides the Logs tab when the template logs only to stdout", async () => {
+  it("keeps the Logs tab available even when the template logs only to stdout", async () => {
     server.use(
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
       http.get("/templates/:name", ({ params }) =>
@@ -174,11 +218,10 @@ describe("ServerDetailPage dynamic tabs", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    // Console stays (rcon), but Logs is gone without a logPath.
+    // Container stdout (install/startup output) is always streamable via
+    // the pod-log API, so Logs stays even without a configured logPath.
     await screen.findByRole("button", { name: "Console" });
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /^Logs$/i })).not.toBeInTheDocument(),
-    );
+    expect(screen.getByRole("button", { name: /^Logs$/i })).toBeInTheDocument();
   });
 });
 
