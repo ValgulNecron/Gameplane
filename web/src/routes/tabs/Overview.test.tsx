@@ -60,6 +60,44 @@ describe("OverviewTab recent events", () => {
   });
 });
 
+describe("OverviewTab metric tiles", () => {
+  it("renders real CPU, memory and disk usage from the heartbeat", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    render(withClient(<OverviewTab name="s1" gs={gs({
+      agent: {
+        lastHeartbeat: "now",
+        cpuMillicores: 500, cpuLimitMillicores: 2000, // 25%
+        memoryBytes: 536870912, memoryLimitBytes: 1073741824, // 512 MB / 1 GB = 50%
+        diskUsedBytes: 2147483648, diskTotalBytes: 10737418240, // 2 GB / 10 GB = 20%
+      },
+    })} />));
+    expect(await screen.findByText("Disk")).toBeInTheDocument();
+    expect(screen.getByText("25%")).toBeInTheDocument(); // CPU 500/2000
+    expect(screen.getByText("0.5 / 2.0 cores")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("512 MB / 1 GB")).toBeInTheDocument();
+    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(screen.getByText("2 GB / 10 GB")).toBeInTheDocument();
+    // No Network tile (no stock-K8s per-pod source), and Players lives in
+    // the sidebar card, not the metric row.
+    expect(screen.queryByText("Network")).toBeNull();
+  });
+
+  it("renders '—' for usage when the agent heartbeat is stale/absent", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    // A stale heartbeat: the API drops the usage readings and flags stale,
+    // so the tiles must render "—" rather than a frozen value or NaN.
+    render(withClient(<OverviewTab name="s1" gs={gs({
+      agent: { lastHeartbeat: "old", stale: true },
+    })} />));
+    expect(await screen.findByText("Disk")).toBeInTheDocument();
+    // CPU, Memory and Disk all unknown → at least three em-dashes.
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe("OverviewTab players card", () => {
   it("shows 'No players connected.' when online is 0", async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonRes({
