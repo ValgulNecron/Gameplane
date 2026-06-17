@@ -23,13 +23,12 @@ test.describe("authenticated navigation", () => {
     await loginIfNeeded(page);
   });
 
-  test("dashboard at / lists servers", async ({ page }) => {
+  test("dashboard at / renders the overview", async ({ page }) => {
     await page.goto("/");
-    // Dashboard route renders the server list. The mock handler returns
-    // a single makeServer() entry; live mode lists whatever's in the
-    // cluster, which after a fresh bootstrap is empty. Either way, the
-    // AppLayout sidebar always renders the "Modules" nav link once the
-    // SPA has hydrated — that's a stable signal the dashboard mounted.
+    // The "/" route renders the dashboard overview (the server list lives
+    // at /servers). We don't pin overview content — the AppLayout sidebar
+    // always renders the "Modules" nav link once the SPA has hydrated,
+    // which is a stable signal the dashboard mounted.
     await expect(page).toHaveURL(/\/(servers)?$/);
     await expect(page.getByRole("link", { name: /modules/i }).first()).toBeVisible();
   });
