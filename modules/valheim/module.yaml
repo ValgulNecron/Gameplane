@@ -1,9 +1,9 @@
 apiVersion: kestrel.gg/module/v1
 name: valheim
 displayName: Valheim (Dedicated)
-version: 1.0.0
+version: 2.0.0
 game: valheim
-summary: Valheim dedicated server (lloesche/valheim-server). Crossplay-friendly.
+summary: Valheim dedicated server (lloesche/valheim-server) with a stable/public-test channel picker and a BepInEx mod volume. Crossplay-friendly.
 homepage: https://www.valheimgame.com/
 license: MIT
-kestrelMinVersion: 0.1.0
+kestrelMinVersion: 0.2.0

@@ -1,9 +1,16 @@
 # Kestrel GameTemplate for Valheim (dedicated server).
 #
-# Backed by lloesche/valheim-server — a community-maintained image that
-# understands SERVER_NAME, SERVER_PASS, WORLD_NAME env vars.
+# Backed by lloesche/valheim-server, which installs the game via SteamCMD on
+# start — that install output streams to the dashboard's Logs tab (source
+# "pod"). There is no persistent logfile, so logPath is intentionally unset.
+# No RCON — the Console tab attaches to container stdin/stdout (pty).
 #
-#   kubectl apply -f modules/valheim/template.yaml
+# Version choice is the Steam channel (stable vs public-test) via the
+# PUBLIC_TEST env, surfaced as a version picker; each channel gets its own
+# BepInEx mod volume.
+#
+# Cluster-scoped; apply once per cluster:
+#     kubectl apply -f modules/valheim/template.yaml
 
 apiVersion: kestrel.gg/v1alpha1
 kind: GameTemplate
@@ -14,12 +21,14 @@ metadata:
 spec:
   displayName: Valheim (Dedicated)
   game: valheim
-  version: 1.0.0
+  version: 2.0.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#d99a2b"
   description: |
-    Valheim dedicated server using [lloesche/valheim-server](https://github.com/lloesche/valheim-server-docker).
-    Supports world persistence, password, crossplay, and BepInEx mods.
+    Valheim dedicated server using
+    [lloesche/valheim-server](https://github.com/lloesche/valheim-server-docker).
+    World persistence, password, crossplay, and BepInEx mods. Choose the
+    stable or public-test channel in the New Server wizard.
 
   image: lloesche/valheim-server:latest
 
@@ -59,16 +68,34 @@ spec:
       cpu: "2"
       memory: 6Gi
 
-  # Valheim doesn't speak RCON — player count + kicks flow through the
-  # status HTTP endpoint, so the agent uses `protocol: none`.
+  # Valheim doesn't speak RCON — player count flows through the status HTTP
+  # endpoint, so the agent uses `protocol: none`.
   rcon:
     protocol: none
 
-  # No RCON, but the server logs lots of useful state to stdout. Expose
-  # it via the kubelet's pod-attach API so the dashboard's Console tab
-  # streams stdout (and accepts stdin) directly. The operator sets
-  # tty/stdin on the game container when consoleMode is "pty".
+  # No RCON, but the server logs useful state to stdout. Expose it via the
+  # kubelet's pod-attach API so the Console tab streams stdout (and accepts
+  # stdin). The operator sets tty/stdin on the game container for "pty".
   consoleMode: pty
+
+  # Steam release channel as the "version" axis. Both entries run the same
+  # image; PUBLIC_TEST selects which Steam build SteamCMD installs. Each
+  # channel carries the "bepinex" loader so its mod set lives on its own
+  # volume (a public-test mod set never leaks into stable).
+  versions:
+    - id: stable
+      displayName: "Stable"
+      image: lloesche/valheim-server:latest
+      loader: bepinex
+      default: true
+      env:
+        - { name: PUBLIC_TEST, value: "false" }
+    - id: public-test
+      displayName: "Public Test (beta)"
+      image: lloesche/valheim-server:latest
+      loader: bepinex
+      env:
+        - { name: PUBLIC_TEST, value: "true" }
 
   probes:
     readiness:
@@ -78,6 +105,25 @@ spec:
       initialDelaySeconds: 60
       periodSeconds: 15
       failureThreshold: 10
+
+  # No RCON, so no players/quiesce/actions/status capabilities — mods only.
+  # BepInEx plugins live under /config/bepinex/plugins; the image loads them
+  # when BEPINEX is enabled (see the config field below).
+  capabilities:
+    mods:
+      loaders:
+        bepinex:
+          displayName: BepInEx plugins
+          path: bepinex/plugins
+          extensions: [".dll"]
+      install:
+        allowedHosts:
+          - thunderstore.io
+          - gcdn.thunderstore.io
+          - .thunderstore.io
+          - github.com
+          - .githubusercontent.com
+        maxSizeMB: 256
 
   configSchema:
     - name: SERVER_NAME
@@ -98,6 +144,11 @@ spec:
       displayName: List publicly
       type: bool
       default: "true"
+    - name: BEPINEX
+      displayName: Enable BepInEx mods
+      description: Turn on the BepInEx mod loader. Required to use the Mods tab.
+      type: bool
+      default: "false"
     - name: UPDATE_CRON
       displayName: Auto-update cron
       description: When to check Steam for a game update. Blank disables.
@@ -105,6 +156,6 @@ spec:
       default: "0 1 * * *"
     - name: BACKUPS
       displayName: In-container backups
-      description: lloesche image also rolls backups. Kestrel Backup CRD is the preferred path; leave off.
+      description: lloesche image also rolls backups. The Kestrel Backup CRD is the preferred path; leave off.
       type: bool
       default: "false"
