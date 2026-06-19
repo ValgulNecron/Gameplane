@@ -43,9 +43,21 @@ type GameTemplateSpec struct {
 	Description string `json:"description,omitempty"`
 
 	// Image is the default container image (e.g.
-	// "itzg/minecraft-server:2025.1.0"). Can be overridden by GameServer.
+	// "itzg/minecraft-server:2025.1.0"). Used as the fallback when the
+	// server selects no version (see Versions) and sets no spec.image
+	// override. Can be overridden by GameServer.
 	// +kubebuilder:validation:MinLength=1
 	Image string `json:"image"`
+
+	// Versions is an optional catalog of selectable game versions surfaced
+	// in the Create Server wizard. Each entry maps a user choice to a
+	// concrete image (and optional per-version env / mod loader). When empty
+	// there is no version choice: a server runs spec.image (override) or this
+	// template's Image, exactly as before. At most one entry should set
+	// default=true; otherwise the first entry is the wizard's default.
+	// +kubebuilder:validation:MaxItems=64
+	// +optional
+	Versions []GameVersion `json:"versions,omitempty"`
 
 	// Command / Args override the container image entrypoint when set.
 	// +optional
@@ -136,6 +148,56 @@ type GameTemplateSpec struct {
 	Capabilities *CapabilitiesSpec `json:"capabilities,omitempty"`
 }
 
+// GameVersion is one selectable entry in a template's version catalog.
+// Selecting it (via GameServer.spec.version) pins the container image,
+// appends this entry's env, and — when Loader names a capabilities.mods
+// loader — provisions and mounts that loader's per-(version+loader) mod
+// volume.
+type GameVersion struct {
+	// ID is the stable selector stored in GameServer.spec.version. It is
+	// also folded into the per-version mod volume/PVC names, so keep it short
+	// and DNS-ish (dots and hyphens allowed; sanitized to a DNS label for
+	// volume names). E.g. "1.21.4-paper", "tmodloader-latest".
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=40
+	ID string `json:"id"`
+
+	// DisplayName labels the entry in the version picker, e.g.
+	// "1.21.4 (Paper)".
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	DisplayName string `json:"displayName"`
+
+	// Image is the full container reference for this version. For
+	// env-versioned games (e.g. itzg/minecraft-server, which picks software
+	// via TYPE/VERSION env) this is usually one pinned image shared across
+	// entries, differentiated only by Loader/Env. For tag-versioned games
+	// (e.g. Terraria) each entry pins a distinct tag.
+	// +kubebuilder:validation:MinLength=1
+	Image string `json:"image"`
+
+	// Loader is the mod-loader / server-type key (e.g. "paper", "forge",
+	// "fabric", "vanilla", "bepinex", "tmodloader"). It keys into
+	// capabilities.mods.loaders to select this combo's mod volume. Empty
+	// means this version has no loader dimension (mods, if any, live on the
+	// shared data volume).
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=40
+	// +optional
+	Loader string `json:"loader,omitempty"`
+
+	// Env is appended when this version is selected (e.g. TYPE=PAPER,
+	// VERSION=1.21.4 for itzg). It is applied after the template's Env and
+	// before GameServer.spec.env, so an explicit user override still wins.
+	// +optional
+	Env []corev1.EnvVar `json:"env,omitempty"`
+
+	// Default marks the wizard's pre-selected entry. At most one entry should
+	// set it; if none (or several) do, the first entry is the default.
+	// +optional
+	Default bool `json:"default,omitempty"`
+}
+
 // CapabilitiesSpec declares the per-game command surface the agent
 // interprets.
 type CapabilitiesSpec struct {
@@ -171,26 +233,65 @@ type CapabilitiesSpec struct {
 }
 
 // ModsSpec declares the mod/plugin directory and install policy the
-// agent enforces. Listing and removal operate on Path directly; Install
-// adds a mod by downloading it into Path.
+// agent enforces. A template uses EITHER the single shared Path (legacy,
+// one mods dir on the data volume) OR Loaders (a per-(version+loader) mod
+// volume selected by the active GameVersion.loader). Listing and removal
+// operate on the resolved directory; Install adds a mod by downloading it
+// there.
+// +kubebuilder:validation:XValidation:rule="has(self.path) || (has(self.loaders) && size(self.loaders) > 0)",message="mods requires either path or at least one loaders entry"
 type ModsSpec struct {
-	// Path is the mods directory, relative to storage.mountPath (e.g.
-	// "mods" for Forge/Fabric, "plugins" for Bukkit/Paper). Absolute
-	// paths and ".." segments are rejected.
+	// Path is the single shared mods directory, relative to
+	// storage.mountPath (e.g. "mods" for Forge/Fabric, "plugins" for
+	// Bukkit/Paper). Used when Loaders is empty. Absolute paths and ".."
+	// segments are rejected.
+	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="path must be relative to the data mount and must not contain '..'"
+	// +optional
+	Path string `json:"path,omitempty"`
+
+	// Loaders maps a loader id (from GameVersion.loader) to its mods
+	// directory. When the active version's loader has an entry here, the
+	// operator provisions a per-(version+loader) PVC, mounts it at
+	// storage.mountPath/<path> on the game and agent containers, and points
+	// the agent's mod manager at it — so each version+loader keeps its own
+	// mod set. When empty, Path is the single shared mods dir (legacy).
+	// +optional
+	Loaders map[string]ModLoaderSpec `json:"loaders,omitempty"`
+
+	// Extensions optionally restricts which files in Path are treated as
+	// mods (e.g. [".jar"]). Empty lists every file. Used with Path; per-
+	// loader extensions are set on each ModLoaderSpec instead.
+	// +optional
+	Extensions []string `json:"extensions,omitempty"`
+
+	// Install, when set, lets the dashboard add new mods by downloading
+	// them into the resolved mods directory. When unset, only listing and
+	// removal are offered. Shared across all loaders.
+	// +optional
+	Install *ModInstallSpec `json:"install,omitempty"`
+}
+
+// ModLoaderSpec is the mods directory for one loader / server-type,
+// selected by the active GameVersion.loader. The operator provisions a
+// per-(version+loader) PVC and mounts it at storage.mountPath/<Path> on
+// both the game container (where the image reads mods) and the agent.
+type ModLoaderSpec struct {
+	// Path is this loader's mods/plugins directory, relative to
+	// storage.mountPath (e.g. "plugins", "mods", "bepinex/plugins",
+	// "ModPacks"). Absolute paths and ".." segments are rejected.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
 	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="path must be relative to the data mount and must not contain '..'"
 	Path string `json:"path"`
 
-	// Extensions optionally restricts which files in Path are treated as
-	// mods (e.g. [".jar"]). Empty lists every file.
+	// DisplayName labels this volume in the Mods tab, e.g. "Plugins (Paper)".
+	// +optional
+	DisplayName string `json:"displayName,omitempty"`
+
+	// Extensions optionally restricts which files are treated as mods for
+	// this loader (e.g. [".jar"], [".dll"]). Empty lists every file.
 	// +optional
 	Extensions []string `json:"extensions,omitempty"`
-
-	// Install, when set, lets the dashboard add new mods by downloading
-	// them into Path. When unset, only listing and removal are offered.
-	// +optional
-	Install *ModInstallSpec `json:"install,omitempty"`
 }
 
 // ModInstallSpec configures installing a mod by downloading it from a

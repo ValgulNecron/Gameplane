@@ -265,14 +265,16 @@ spec:
                       extensions:
                         description: |-
                           Extensions optionally restricts which files in Path are treated as
-                          mods (e.g. [".jar"]). Empty lists every file.
+                          mods (e.g. [".jar"]). Empty lists every file. Used with Path; per-
+                          loader extensions are set on each ModLoaderSpec instead.
                         items:
                           type: string
                         type: array
                       install:
                         description: |-
                           Install, when set, lets the dashboard add new mods by downloading
-                          them into Path. When unset, only listing and removal are offered.
+                          them into the resolved mods directory. When unset, only listing and
+                          removal are offered. Shared across all loaders.
                         properties:
                           allowedHosts:
                             description: |-
@@ -295,21 +297,65 @@ spec:
                         required:
                         - allowedHosts
                         type: object
+                      loaders:
+                        additionalProperties:
+                          description: |-
+                            ModLoaderSpec is the mods directory for one loader / server-type,
+                            selected by the active GameVersion.loader. The operator provisions a
+                            per-(version+loader) PVC and mounts it at storage.mountPath/<Path> on
+                            both the game container (where the image reads mods) and the agent.
+                          properties:
+                            displayName:
+                              description: DisplayName labels this volume in the Mods
+                                tab, e.g. "Plugins (Paper)".
+                              type: string
+                            extensions:
+                              description: |-
+                                Extensions optionally restricts which files are treated as mods for
+                                this loader (e.g. [".jar"], [".dll"]). Empty lists every file.
+                              items:
+                                type: string
+                              type: array
+                            path:
+                              description: |-
+                                Path is this loader's mods/plugins directory, relative to
+                                storage.mountPath (e.g. "plugins", "mods", "bepinex/plugins",
+                                "ModPacks"). Absolute paths and ".." segments are rejected.
+                              maxLength: 256
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: path must be relative to the data mount and
+                                  must not contain '..'
+                                rule: '!self.startsWith(''/'') && !self.contains(''..'')'
+                          required:
+                          - path
+                          type: object
+                        description: |-
+                          Loaders maps a loader id (from GameVersion.loader) to its mods
+                          directory. When the active version's loader has an entry here, the
+                          operator provisions a per-(version+loader) PVC, mounts it at
+                          storage.mountPath/<path> on the game and agent containers, and points
+                          the agent's mod manager at it — so each version+loader keeps its own
+                          mod set. When empty, Path is the single shared mods dir (legacy).
+                        type: object
                       path:
                         description: |-
-                          Path is the mods directory, relative to storage.mountPath (e.g.
-                          "mods" for Forge/Fabric, "plugins" for Bukkit/Paper). Absolute
-                          paths and ".." segments are rejected.
+                          Path is the single shared mods directory, relative to
+                          storage.mountPath (e.g. "mods" for Forge/Fabric, "plugins" for
+                          Bukkit/Paper). Used when Loaders is empty. Absolute paths and ".."
+                          segments are rejected.
                         maxLength: 256
-                        minLength: 1
                         type: string
                         x-kubernetes-validations:
                         - message: path must be relative to the data mount and must
                             not contain '..'
                           rule: '!self.startsWith(''/'') && !self.contains(''..'')'
-                    required:
-                    - path
                     type: object
+                    x-kubernetes-validations:
+                    - message: mods requires either path or at least one loaders entry
+                      rule: has(self.path) || (has(self.loaders) && size(self.loaders)
+                        > 0)
                   players:
                     description: Players configures the moderation actions on the
                       Players tab.
@@ -730,7 +776,9 @@ spec:
               image:
                 description: |-
                   Image is the default container image (e.g.
-                  "itzg/minecraft-server:2025.1.0"). Can be overridden by GameServer.
+                  "itzg/minecraft-server:2025.1.0"). Used as the fallback when the
+                  server selects no version (see Versions) and sets no spec.image
+                  override. Can be overridden by GameServer.
                 minLength: 1
                 type: string
               logPath:
@@ -1375,6 +1423,230 @@ spec:
                   defaults in ways that existing GameServers should opt into.
                 minLength: 1
                 type: string
+              versions:
+                description: |-
+                  Versions is an optional catalog of selectable game versions surfaced
+                  in the Create Server wizard. Each entry maps a user choice to a
+                  concrete image (and optional per-version env / mod loader). When empty
+                  there is no version choice: a server runs spec.image (override) or this
+                  template's Image, exactly as before. At most one entry should set
+                  default=true; otherwise the first entry is the wizard's default.
+                items:
+                  description: |-
+                    GameVersion is one selectable entry in a template's version catalog.
+                    Selecting it (via GameServer.spec.version) pins the container image,
+                    appends this entry's env, and — when Loader names a capabilities.mods
+                    loader — provisions and mounts that loader's per-(version+loader) mod
+                    volume.
+                  properties:
+                    default:
+                      description: |-
+                        Default marks the wizard's pre-selected entry. At most one entry should
+                        set it; if none (or several) do, the first entry is the default.
+                      type: boolean
+                    displayName:
+                      description: |-
+                        DisplayName labels the entry in the version picker, e.g.
+                        "1.21.4 (Paper)".
+                      maxLength: 128
+                      minLength: 1
+                      type: string
+                    env:
+                      description: |-
+                        Env is appended when this version is selected (e.g. TYPE=PAPER,
+                        VERSION=1.21.4 for itzg). It is applied after the template's Env and
+                        before GameServer.spec.env, so an explicit user override still wins.
+                      items:
+                        description: EnvVar represents an environment variable present
+                          in a Container.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the environment variable.
+                              May consist of any printable ASCII characters except '='.
+                            type: string
+                          value:
+                            description: |-
+                              Variable references $(VAR_NAME) are expanded
+                              using the previously defined environment variables in the container and
+                              any service environment variables. If a variable cannot be resolved,
+                              the reference in the input string will be unchanged. Double $$ are reduced
+                              to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                              "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                              Escaped references will never be expanded, regardless of whether the variable
+                              exists or not.
+                              Defaults to "".
+                            type: string
+                          valueFrom:
+                            description: Source for the environment variable's value.
+                              Cannot be used if value is not empty.
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    default: ""
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              fieldRef:
+                                description: |-
+                                  Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                  spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                properties:
+                                  apiVersion:
+                                    description: Version of the schema the FieldPath
+                                      is written in terms of, defaults to "v1".
+                                    type: string
+                                  fieldPath:
+                                    description: Path of the field to select in the
+                                      specified API version.
+                                    type: string
+                                required:
+                                - fieldPath
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              fileKeyRef:
+                                description: |-
+                                  FileKeyRef selects a key of the env file.
+                                  Requires the EnvFiles feature gate to be enabled.
+                                properties:
+                                  key:
+                                    description: |-
+                                      The key within the env file. An invalid key will prevent the pod from starting.
+                                      The keys defined within a source may consist of any printable ASCII characters except '='.
+                                      During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                    type: string
+                                  optional:
+                                    default: false
+                                    description: |-
+                                      Specify whether the file or its key must be defined. If the file or key
+                                      does not exist, then the env var is not published.
+                                      If optional is set to true and the specified key does not exist,
+                                      the environment variable will not be set in the Pod's containers.
+
+                                      If optional is set to false and the specified key does not exist,
+                                      an error will be returned during Pod creation.
+                                    type: boolean
+                                  path:
+                                    description: |-
+                                      The path within the volume from which to select the file.
+                                      Must be relative and may not contain the '..' path or start with '..'.
+                                    type: string
+                                  volumeName:
+                                    description: The name of the volume mount containing
+                                      the env file.
+                                    type: string
+                                required:
+                                - key
+                                - path
+                                - volumeName
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              resourceFieldRef:
+                                description: |-
+                                  Selects a resource of the container: only resources limits and requests
+                                  (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                properties:
+                                  containerName:
+                                    description: 'Container name: required for volumes,
+                                      optional for env vars'
+                                    type: string
+                                  divisor:
+                                    anyOf:
+                                    - type: integer
+                                    - type: string
+                                    description: Specifies the output format of the
+                                      exposed resources, defaults to "1"
+                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                    x-kubernetes-int-or-string: true
+                                  resource:
+                                    description: 'Required: resource to select'
+                                    type: string
+                                required:
+                                - resource
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    default: ""
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    id:
+                      description: |-
+                        ID is the stable selector stored in GameServer.spec.version. It is
+                        also folded into the per-version mod volume/PVC names, so keep it short
+                        and DNS-ish (dots and hyphens allowed; sanitized to a DNS label for
+                        volume names). E.g. "1.21.4-paper", "tmodloader-latest".
+                      maxLength: 40
+                      pattern: ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$
+                      type: string
+                    image:
+                      description: |-
+                        Image is the full container reference for this version. For
+                        env-versioned games (e.g. itzg/minecraft-server, which picks software
+                        via TYPE/VERSION env) this is usually one pinned image shared across
+                        entries, differentiated only by Loader/Env. For tag-versioned games
+                        (e.g. Terraria) each entry pins a distinct tag.
+                      minLength: 1
+                      type: string
+                    loader:
+                      description: |-
+                        Loader is the mod-loader / server-type key (e.g. "paper", "forge",
+                        "fabric", "vanilla", "bepinex", "tmodloader"). It keys into
+                        capabilities.mods.loaders to select this combo's mod volume. Empty
+                        means this version has no loader dimension (mods, if any, live on the
+                        shared data volume).
+                      maxLength: 40
+                      pattern: ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$
+                      type: string
+                  required:
+                  - displayName
+                  - id
+                  - image
+                  type: object
+                maxItems: 64
+                type: array
             required:
             - displayName
             - game
