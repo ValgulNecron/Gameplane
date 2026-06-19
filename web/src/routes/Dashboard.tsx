@@ -5,6 +5,7 @@ import {
   Activity,
   Archive,
   CheckCircle2,
+  Cpu,
   HardDrive,
   Pencil,
   Play,
@@ -83,6 +84,7 @@ export function DashboardPage() {
   const nodesTotal = clusterView?.total ?? stats?.nodes ?? nodes.length;
   const cpu = sumUsage(nodes, "cpu");
   const mem = sumUsage(nodes, "memory");
+  const vcpus = nodes.reduce((sum, n) => sum + (n.cpu?.capacity ?? 0), 0);
   const storagePct = stats?.totalStorageBytes
     ? ((stats.usedStorageBytes ?? 0) / stats.totalStorageBytes) * 100
     : 0;
@@ -99,7 +101,7 @@ export function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Running"
           icon={<Activity className="h-4 w-4" />}
@@ -113,6 +115,13 @@ export function DashboardPage() {
           value={counts.players}
           sub={`peak ${counts.playersMax}`}
           accent="primary"
+        />
+        <StatCard
+          label="vCPUs"
+          icon={<Cpu className="h-4 w-4" />}
+          value={vcpus > 0 ? vcpus : "—"}
+          sub="cluster cores"
+          accent="warning"
         />
         <StatCard
           label="Storage"

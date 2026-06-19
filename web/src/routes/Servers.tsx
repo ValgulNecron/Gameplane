@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  Cpu,
   Filter,
   HardDrive,
   MoreHorizontal,
@@ -23,7 +24,7 @@ import { TabBar } from "@/components/ui/tabs";
 import { GameIcon } from "@/components/ui/game-icon";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatBytes } from "@/lib/utils";
-import type { ClusterStats, GameServer } from "@/types";
+import type { ClusterStats, ClusterView, GameServer } from "@/types";
 import { Cluster, Servers, type LifecycleVerb } from "@/lib/endpoints";
 import { countByState } from "@/lib/servers";
 
@@ -42,6 +43,11 @@ export function ServersPage() {
     queryFn: () => Cluster.stats().catch(() => ({} as ClusterStats)),
     staleTime: 30_000,
   });
+  const { data: clusterView } = useQuery({
+    queryKey: ["cluster"],
+    queryFn: () => Cluster.view().catch(() => ({} as ClusterView)),
+    staleTime: 30_000,
+  });
 
   const act = useMutation({
     mutationFn: (args: { name: string; verb: LifecycleVerb }) =>
@@ -54,6 +60,7 @@ export function ServersPage() {
 
   const servers = useMemo(() => data?.items ?? [], [data?.items]);
   const counts = useMemo(() => countByState(servers), [servers]);
+  const vcpus = (clusterView?.nodes ?? []).reduce((s, n) => s + (n.cpu?.capacity ?? 0), 0);
 
   const visible = servers.filter((gs) => {
     if (query && !gs.metadata.name.toLowerCase().includes(query.toLowerCase())) return false;
@@ -75,7 +82,7 @@ export function ServersPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Running"
           icon={<Activity className="h-4 w-4" />}
@@ -89,6 +96,13 @@ export function ServersPage() {
           value={counts.players}
           sub={`peak ${counts.playersMax}`}
           accent="primary"
+        />
+        <StatCard
+          label="vCPUs"
+          icon={<Cpu className="h-4 w-4" />}
+          value={vcpus > 0 ? vcpus : "—"}
+          sub="cluster cores"
+          accent="warning"
         />
         <StatCard
           label="Storage"
