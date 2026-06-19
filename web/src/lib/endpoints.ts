@@ -40,6 +40,8 @@ export interface ServerCreate {
   name: string;
   description?: string;
   templateRef: { name: string };
+  // Selects a GameTemplate.spec.versions[].id; flows into spec.version.
+  version?: string;
   config?: Record<string, string>;
   storage?: { size?: string };
   networking?: { expose?: string; hostname?: string };

@@ -49,11 +49,21 @@ export interface ModInstallPolicy {
   maxSizeMB?: number;
 }
 
+// spec.capabilities.mods.loaders[<loader>] — the mods directory for one
+// loader/server-type, selected by the active version's loader.
+export interface ModLoaderDecl {
+  path: string;
+  displayName?: string;
+  extensions?: string[];
+}
+
 // spec.capabilities.mods — declares the mod directory and (optionally)
-// the URL-install policy. Listing/removal need only `path`; install is
+// the URL-install policy. A template uses either a single `path` (legacy)
+// or a per-loader `loaders` map keyed by GameVersion.loader; install is
 // offered only when `install` is set.
 export interface ModsCapability {
-  path: string;
+  path?: string;
+  loaders?: Record<string, ModLoaderDecl>;
   extensions?: string[];
   install?: ModInstallPolicy;
 }
@@ -104,6 +114,18 @@ export interface ProbeSet {
 
 export type ProbeKind = "readiness" | "liveness" | "startup";
 
+// One entry in a template's version catalog (spec.versions[]). Selecting it
+// (GameServer.spec.version = id) pins the image and, when `loader` keys into
+// capabilities.mods.loaders, that loader's per-(version+loader) mod volume.
+// `env` is operator-side only and intentionally not surfaced here.
+export interface GameVersion {
+  id: string;
+  displayName: string;
+  image?: string;
+  loader?: string;
+  default?: boolean;
+}
+
 export interface GameTemplate {
   metadata: ObjectMeta;
   spec: {
@@ -114,6 +136,7 @@ export interface GameTemplate {
     icon?: string;
     accentColor?: string;
     image: string;
+    versions?: GameVersion[];
     logPath?: string;
     consoleMode?: "rcon" | "pty" | "none";
     rcon?: { protocol?: string; port?: number };
@@ -182,6 +205,9 @@ export interface GameServer {
     templateRef: { name: string };
     suspend?: boolean;
     image?: string;
+    // Selects a GameTemplate.spec.versions[].id (image + per-loader mod
+    // volume). Omit to use the template's default version.
+    version?: string;
     config?: Record<string, string>;
     env?: EnvVar[];
     probes?: ProbeSet;
