@@ -320,8 +320,10 @@ spec:
                               description: |-
                                 Path is this loader's mods/plugins directory, relative to
                                 storage.mountPath (e.g. "plugins", "mods", "bepinex/plugins",
-                                "ModPacks"). Absolute paths and ".." segments are rejected.
-                              maxLength: 256
+                                "ModPacks"). Absolute paths and ".." segments are rejected. MaxLength
+                                is kept small to bound the per-entry CEL validation cost (this rule
+                                lives inside the loaders map, so its cost is multiplied per entry).
+                              maxLength: 128
                               minLength: 1
                               type: string
                               x-kubernetes-validations:
@@ -338,6 +340,9 @@ spec:
                           storage.mountPath/<path> on the game and agent containers, and points
                           the agent's mod manager at it — so each version+loader keeps its own
                           mod set. When empty, Path is the single shared mods dir (legacy).
+                          MaxProperties bounds the per-entry CEL validation cost (the apiserver
+                          rejects the CRD otherwise).
+                        maxProperties: 16
                         type: object
                       path:
                         description: |-

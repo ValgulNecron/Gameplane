@@ -255,6 +255,9 @@ type ModsSpec struct {
 	// storage.mountPath/<path> on the game and agent containers, and points
 	// the agent's mod manager at it — so each version+loader keeps its own
 	// mod set. When empty, Path is the single shared mods dir (legacy).
+	// MaxProperties bounds the per-entry CEL validation cost (the apiserver
+	// rejects the CRD otherwise).
+	// +kubebuilder:validation:MaxProperties=16
 	// +optional
 	Loaders map[string]ModLoaderSpec `json:"loaders,omitempty"`
 
@@ -278,9 +281,11 @@ type ModsSpec struct {
 type ModLoaderSpec struct {
 	// Path is this loader's mods/plugins directory, relative to
 	// storage.mountPath (e.g. "plugins", "mods", "bepinex/plugins",
-	// "ModPacks"). Absolute paths and ".." segments are rejected.
+	// "ModPacks"). Absolute paths and ".." segments are rejected. MaxLength
+	// is kept small to bound the per-entry CEL validation cost (this rule
+	// lives inside the loaders map, so its cost is multiplied per entry).
 	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:MaxLength=128
 	// +kubebuilder:validation:XValidation:rule="!self.startsWith('/') && !self.contains('..')",message="path must be relative to the data mount and must not contain '..'"
 	Path string `json:"path"`
 

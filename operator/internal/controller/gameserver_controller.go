@@ -581,13 +581,13 @@ func buildAgentContainer(
 		}
 	}
 	return corev1.Container{
-		Name:  "agent",
-		Image: image,
-		Args:  args,
-		Env:   env,
+		Name:         "agent",
+		Image:        image,
+		Args:         args,
+		Env:          env,
 		VolumeMounts: agentVolumeMounts(gs, tmpl, ver, mountPath),
 		Ports:        []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
-		Resources: res,
+		Resources:    res,
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             &nonRoot,
 			RunAsUser:                &uid,
