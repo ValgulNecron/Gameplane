@@ -1,34 +1,37 @@
-# Kestrel GameTemplate for Terraria.
+# Kestrel GameTemplate for Terraria (vanilla + tModLoader).
 #
-# Backed by ryshe/terraria — a community-maintained Terraria server image
-# that supports world creation, autosave, and command stdin.
+# Backed by passivelemon/terraria-docker. Vanilla vs tModLoader (and the
+# build) is chosen in the New Server wizard from spec.versions — the choice
+# maps to an image TAG (there is no VERSION env for Terraria). The server
+# installs/extracts on first boot and logs to stdout, so the install output
+# streams to the dashboard's Logs tab (source "pod"); there is no persistent
+# logfile. No RCON — the Console tab attaches to container stdin (pty).
+#
+# Cluster-scoped; apply once per cluster:
+#     kubectl apply -f modules/terraria/template.yaml
 
 apiVersion: kestrel.gg/v1alpha1
 kind: GameTemplate
 metadata:
   name: terraria
+  labels:
+    kestrel.gg/module: terraria
 spec:
   displayName: Terraria
   game: terraria
-  version: 1.0.0
+  version: 2.0.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#4a90d9"
   description: |
-    Terraria dedicated server using [ryshe/terraria](https://github.com/ryshe/terraria-docker).
-    Supports world generation, autosave, and console commands via the
-    container's tty (Console tab uses pty mode).
+    Terraria + tModLoader dedicated server using
+    [passivelemon/terraria-docker](https://github.com/PassiveLemon/terraria-docker).
+    Choose vanilla or tModLoader (and the build) in the wizard — the choice
+    maps to an image tag. tModLoader modpacks are managed from the Mods tab.
+    Console attaches to container stdin (pty); no RCON.
 
-  image: ryshe/terraria:latest
-
-  env:
-    - name: WORLD_FILENAME
-      value: "world.wld"
-    - name: AUTOCREATE
-      value: "2"          # 1 = small, 2 = medium, 3 = large
-    - name: WORLDNAME
-      value: "Kestrel"
-    - name: DIFFICULTY
-      value: "1"          # 0 classic, 1 expert, 2 master, 3 journey
+  # Fallback image when a server selects no version. versions[] below is the
+  # authoritative source for the wizard's picker.
+  image: passivelemon/terraria-docker:terraria-latest
 
   ports:
     - name: game
@@ -37,8 +40,8 @@ spec:
       advertise: true
 
   storage:
-    size: 2Gi
-    mountPath: /world
+    size: 4Gi
+    mountPath: /opt/terraria/config
 
   resources:
     requests:
@@ -48,11 +51,30 @@ spec:
       cpu: "1"
       memory: 2Gi
 
-  # Terraria's command interface is the container stdin (no RCON), so
-  # the Console tab attaches via the kubelet's pod-attach API.
+  # Terraria's command interface is the container stdin (no RCON), so the
+  # Console tab attaches via the kubelet's pod-attach API.
   rcon:
     protocol: none
   consoleMode: pty
+
+  # Version catalog. For Terraria the version IS the image tag (vanilla vs
+  # tModLoader and the build). tModLoader entries carry the "tmodloader"
+  # loader, which keys into capabilities.mods.loaders for the ModPacks
+  # volume; vanilla has no loader, so vanilla servers show no Mods tab.
+  versions:
+    - id: vanilla-latest
+      displayName: "Vanilla · latest"
+      image: passivelemon/terraria-docker:terraria-latest
+      loader: vanilla
+      default: true
+    - id: tmodloader-latest
+      displayName: "tModLoader · latest"
+      image: passivelemon/terraria-docker:tmodloader-latest
+      loader: tmodloader
+    - id: tmodloader-preview
+      displayName: "tModLoader · latest preview"
+      image: passivelemon/terraria-docker:tmodloader-latest-pre
+      loader: tmodloader
 
   probes:
     readiness:
@@ -62,6 +84,23 @@ spec:
       periodSeconds: 10
       failureThreshold: 30
 
+  capabilities:
+    # tModLoader modpacks live under <config>/ModPacks; the active modpack is
+    # picked with the MODPACK config field. Vanilla has no loaders entry, so
+    # vanilla servers show no Mods tab.
+    mods:
+      loaders:
+        tmodloader:
+          displayName: tModLoader ModPacks
+          path: ModPacks
+          extensions: [".zip", ".tmod"]
+      install:
+        allowedHosts:
+          - github.com
+          - .githubusercontent.com
+        maxSizeMB: 512
+
+  # Field names match passivelemon/terraria-docker env vars exactly.
   configSchema:
     - name: WORLDNAME
       displayName: World name
@@ -70,13 +109,13 @@ spec:
       required: true
     - name: AUTOCREATE
       displayName: World size
-      description: 1 small, 2 medium, 3 large.
+      description: World size to generate if the world doesn't exist. 1 small, 2 medium, 3 large.
       type: enum
       enum: ["1", "2", "3"]
       default: "2"
     - name: DIFFICULTY
       displayName: Difficulty
-      description: 0 classic, 1 expert, 2 master, 3 journey.
+      description: "0 classic, 1 expert, 2 master, 3 journey."
       type: enum
       enum: ["0", "1", "2", "3"]
       default: "1"
@@ -85,7 +124,7 @@ spec:
       description: Leave blank for an open server.
       type: password
       default: ""
-    - name: MAX_PLAYERS
+    - name: MAXPLAYERS
       displayName: Max players
       type: int
       default: "8"
@@ -93,3 +132,23 @@ spec:
       displayName: MOTD
       type: string
       default: "Welcome to a Kestrel-hosted Terraria server"
+    - name: SEED
+      displayName: World seed
+      description: Used when a new world is generated. Leave blank for random.
+      type: string
+      default: ""
+    - name: SECURE
+      displayName: Cheat protection
+      type: enum
+      enum: ["0", "1"]
+      default: "1"
+    - name: LANGUAGE
+      displayName: Language
+      type: enum
+      enum: ["en-US", "de-DE", "es-ES", "fr-FR", "it-IT", "ja-JP", "pl-PL", "pt-BR", "ru-RU", "zh-Hans"]
+      default: "en-US"
+    - name: MODPACK
+      displayName: Active modpack
+      description: tModLoader only — a modpack folder name under ModPacks. Leave blank for none.
+      type: string
+      default: ""
