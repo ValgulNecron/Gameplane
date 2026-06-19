@@ -121,6 +121,32 @@ describe("ServerDetailPage", () => {
     expect(await screen.findByText("Pulling the game image")).toBeInTheDocument();
   });
 
+  it("shows the failure reason under the phase badge when Failed", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Failed",
+              conditions: [
+                {
+                  type: "Ready",
+                  status: "False",
+                  reason: "ImagePullFailed",
+                  message: "cannot pull the image — check the image reference",
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(
+      await screen.findByText("Cannot pull the image — check the image reference"),
+    ).toBeInTheDocument();
+  });
+
   it("switches to Logs tab on click", async () => {
     server.use(
       http.get("/servers/alpha", () => HttpResponse.json(makeServer())),

@@ -124,6 +124,16 @@ describe("LogsTab", () => {
     expect(screen.getByText(/install output appears here/i)).toBeInTheDocument();
   });
 
+  it("shows a failure placeholder (no spinner) when the server has Failed", () => {
+    render(
+      <LogsTab name="alpha" phase="Failed" progressMessage="cannot pull the image — check the image reference" />,
+    );
+    expect(screen.getByText("Cannot pull the image — check the image reference")).toBeInTheDocument();
+    expect(screen.getByText(/check the overview events/i)).toBeInTheDocument();
+    // Not the "starting" install copy.
+    expect(screen.queryByText(/install output appears here/i)).not.toBeInTheDocument();
+  });
+
   it("hides the placeholder once log lines arrive", async () => {
     render(<LogsTab name="alpha" phase="Starting" progressMessage="installing server files" />);
     expect(screen.getByText("Installing server files")).toBeInTheDocument();
