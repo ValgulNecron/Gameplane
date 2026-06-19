@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { ModsTab } from "./Mods";
-import type { GameTemplate, InstalledMod, ModsCapability } from "@/types";
+import type { GameServer, GameTemplate, InstalledMod, ModsCapability } from "@/types";
 
 const fetchMock = vi.fn();
 
@@ -76,6 +76,32 @@ const withInstall: ModsCapability = {
 };
 const listOnly: ModsCapability = { path: "mods" };
 
+function versionedTmpl(): GameTemplate {
+  return {
+    metadata: { name: "minecraft-java" },
+    spec: {
+      displayName: "Minecraft",
+      game: "minecraft-java",
+      version: "2",
+      image: "img",
+      versions: [
+        { id: "1.21.4-paper", displayName: "1.21.4 · Paper", loader: "paper", default: true },
+        { id: "1.21.4-forge", displayName: "1.21.4 · Forge", loader: "forge" },
+      ],
+      capabilities: {
+        mods: {
+          loaders: { paper: { path: "plugins" }, forge: { path: "mods" } },
+          install: { allowedHosts: ["cdn.modrinth.com"] },
+        },
+      },
+    },
+  };
+}
+
+function gsVer(version: string): GameServer {
+  return { metadata: { name: "s1" }, spec: { templateRef: { name: "minecraft-java" }, version } };
+}
+
 describe("ModsTab", () => {
   it("lists installed mods", async () => {
     route({ mods: [{ name: "sodium.jar", size: 1024 }, { name: "lithium.jar", size: 2048 }] });
@@ -89,6 +115,12 @@ describe("ModsTab", () => {
     route({ mods: [] });
     renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
     expect(await screen.findByText("No mods installed.")).toBeInTheDocument();
+  });
+
+  it("shows the active version+loader+path header for the per-loader model", async () => {
+    route({ mods: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={versionedTmpl()} gs={gsVer("1.21.4-forge")} />);
+    expect(await screen.findByTestId("mods-active")).toHaveTextContent("1.21.4 · Forge · mods");
   });
 
   it("hides Install when the module declares no install policy", async () => {

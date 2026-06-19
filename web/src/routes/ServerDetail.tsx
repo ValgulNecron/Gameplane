@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
-import { resolveConsoleMode } from "@/lib/capabilities";
+import { resolveConsoleMode, serverHasMods } from "@/lib/capabilities";
 import { useMe, can } from "@/lib/auth";
 import { isValidK8sName } from "@/lib/validation";
 import { PhaseBadge } from "@/components/ui/badge";
@@ -116,9 +116,10 @@ export function ServerDetailPage() {
   // game-log file is just an extra source the tab offers when logPath is
   // set. While the template is still loading we show everything.
   const consoleAvailable = !tmpl || resolveConsoleMode(tmpl) !== "none";
-  // Mods only appears when the template declares the capability — it's an
-  // opt-in surface, so hide it until the template resolves.
-  const modsAvailable = !!tmpl?.spec.capabilities?.mods;
+  // Mods only appears when this server actually has a mod directory — the
+  // template declares the capability AND (for the per-loader model) the
+  // active version's loader maps to one. Hidden for e.g. vanilla servers.
+  const modsAvailable = serverHasMods(tmpl, gs);
   const visibleTabs = tabs.filter((t) => {
     if (t.key === "console") return consoleAvailable;
     if (t.key === "mods") return modsAvailable;
@@ -258,7 +259,7 @@ export function ServerDetailPage() {
             />
           )}
           {tab === "files"    && <FilesTab   name={name} />}
-          {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} />}
+          {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} gs={gs} />}
           {tab === "players"  && <PlayersTab name={name} />}
           {tab === "backups"  && <BackupsTab name={name} />}
           {tab === "settings" && (

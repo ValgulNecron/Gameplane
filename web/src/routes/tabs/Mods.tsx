@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Package, Plus, RotateCw, Trash2 } from "lucide-react";
 
-import type { GameTemplate, InstalledMod } from "@/types";
+import type { GameServer, GameTemplate, InstalledMod } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
+import { resolveModVolume } from "@/lib/capabilities";
 import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +19,21 @@ type Banner = { kind: "ok" | "err"; text: string };
 // template declares spec.capabilities.mods; everything game-specific
 // (the mods directory, what installs are allowed) lives server-side. The
 // dashboard just lists, installs by URL, and removes by name.
-export function ModsTab({ name, tmpl }: { name: string; tmpl?: GameTemplate }) {
+export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate; gs?: GameServer }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const canManage = can(me, "servers:write");
 
   const caps = tmpl?.spec.capabilities?.mods;
   const canInstall = !!caps?.install;
+
+  // The active version+loader fully implies which mod volume this server
+  // manages — surface it as a header label (no selector). For the legacy
+  // single-path model this is just the path.
+  const active = resolveModVolume(tmpl, gs);
+  const activeLabel = active
+    ? [active.versionLabel ?? active.loader, active.path].filter(Boolean).join(" · ")
+    : null;
 
   const [installOpen, setInstallOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<InstalledMod | null>(null);
@@ -61,9 +70,14 @@ export function ModsTab({ name, tmpl }: { name: string; tmpl?: GameTemplate }) {
   return (
     <div className="space-y-6 p-6">
       <header className="flex items-center justify-between gap-3">
-        <h2 className="text-sm text-muted">
-          {mods ? `${mods.length} installed` : isError ? "Couldn’t load mods" : "Loading…"}
-        </h2>
+        <div className="space-y-0.5">
+          <h2 className="text-sm text-muted">
+            {mods ? `${mods.length} installed` : isError ? "Couldn’t load mods" : "Loading…"}
+          </h2>
+          {activeLabel && (
+            <p className="text-[11px] text-muted" data-testid="mods-active">{activeLabel}</p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
             <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
