@@ -90,8 +90,11 @@ func (r *GameServerReconciler) reconcileRCONSecret(
 }
 
 // agentVolumeMounts returns the agent sidecar's volume mounts, adding the
-// RCON password mount when the game exposes RCON.
-func agentVolumeMounts(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, dataMount string) []corev1.VolumeMount {
+// RCON password mount when the game exposes RCON and the per-(version+
+// loader) mod volume when the active version selects one — the agent must
+// see the same mounted mod dir the game reads so the Mods tab operates on
+// it.
+func agentVolumeMounts(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion, dataMount string) []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
 		{Name: "data", MountPath: dataMount},
 		{Name: "agent-tls", MountPath: "/etc/kestrel/agent-tls", ReadOnly: true},
@@ -100,6 +103,9 @@ func agentVolumeMounts(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.Gam
 		mounts = append(mounts, corev1.VolumeMount{
 			Name: "rcon-password", MountPath: rconPasswordPath, ReadOnly: true,
 		})
+	}
+	if m := modVolumeMount(tmpl, ver); m != nil {
+		mounts = append(mounts, *m)
 	}
 	return mounts
 }

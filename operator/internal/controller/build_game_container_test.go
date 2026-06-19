@@ -33,7 +33,7 @@ func TestBuildGameContainer_ProbeOverride(t *testing.T) {
 		Startup:   probe(30),
 	}
 
-	c := buildGameContainer(gs, tmpl, "busybox:1.36", &materializedConfig{})
+	c := buildGameContainer(gs, tmpl, "busybox:1.36", nil, &materializedConfig{})
 
 	if c.ReadinessProbe == nil || c.ReadinessProbe.InitialDelaySeconds != 10 {
 		t.Errorf("ReadinessProbe = %+v, want per-server (delay 10)", c.ReadinessProbe)
@@ -58,7 +58,7 @@ func TestBuildGameContainer_NoServerProbes(t *testing.T) {
 	gs := &kestrelv1alpha1.GameServer{}
 	gs.Name = "alpha"
 
-	c := buildGameContainer(gs, tmpl, "busybox:1.36", &materializedConfig{})
+	c := buildGameContainer(gs, tmpl, "busybox:1.36", nil, &materializedConfig{})
 	if c.LivenessProbe == nil || c.LivenessProbe.InitialDelaySeconds != 7 {
 		t.Errorf("LivenessProbe = %+v, want template (delay 7)", c.LivenessProbe)
 	}
