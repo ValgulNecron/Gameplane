@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Download, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Logs } from "@/lib/endpoints";
@@ -78,7 +78,8 @@ export function LogsTab({
   // StatusTryAgainLater and openWS retries), so an empty black panel reads
   // as "broken". Show what's actually happening instead.
   const noOutput = lines.length === 0;
-  const provisioning = phase !== undefined && phase !== "Running";
+  const failed = phase === "Failed";
+  const provisioning = phase !== undefined && phase !== "Running" && !failed;
 
   return (
     <div className="flex h-full flex-col">
@@ -134,21 +135,36 @@ export function LogsTab({
       <div ref={scrollerRef} className="flex-1 overflow-auto bg-[#0b0b0d] font-mono text-xs">
         {noOutput ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            {provisioning ? (
+            {failed ? (
               <>
+                <AlertTriangle className="h-8 w-8 text-danger" />
                 <div className="text-sm font-medium text-fg">
-                  {progressMessage ? capitalize(progressMessage) : "Starting the server…"}
+                  {progressMessage ? capitalize(progressMessage) : "The server failed to start."}
                 </div>
                 <div className="max-w-md text-xs text-muted">
-                  Downloading game files and starting up. The first start can take a few
-                  minutes — install output appears here as it streams from the container.
+                  No container output was captured. Check the Overview events for image-pull
+                  or scheduling errors.
                 </div>
               </>
             ) : (
-              <div className="text-sm text-muted">
-                {connected ? "Connected — waiting for output…" : "Connecting to the log stream…"}
-              </div>
+              <>
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                {provisioning ? (
+                  <>
+                    <div className="text-sm font-medium text-fg">
+                      {progressMessage ? capitalize(progressMessage) : "Starting the server…"}
+                    </div>
+                    <div className="max-w-md text-xs text-muted">
+                      Downloading game files and starting up. The first start can take a few
+                      minutes — install output appears here as it streams from the container.
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-muted">
+                    {connected ? "Connected — waiting for output…" : "Connecting to the log stream…"}
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : (

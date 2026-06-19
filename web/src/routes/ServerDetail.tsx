@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
+  AlertTriangle,
   Copy,
   Loader2,
   MoreHorizontal,
@@ -92,6 +93,14 @@ export function ServerDetailPage() {
   const progressMessage = gs?.status?.conditions?.find(
     (c) => c.type === "Progressing",
   )?.message;
+  // When startup terminally fails the operator sets phase=Failed and puts
+  // the reason on the Ready condition (image pull, crash-loop, exit). Both
+  // the operator's escalation and a build-error setPhase write Ready, so
+  // read the failure message from there.
+  const failed = phase === "Failed";
+  const failureMessage = gs?.status?.conditions?.find(
+    (c) => c.type === "Ready",
+  )?.message;
   // Gate lifecycle actions on phase so they aren't fired during a
   // transition (Starting/Stopping/Pending): Start only from a stopped
   // state, Stop/Restart only while Running. act.isPending blocks
@@ -156,6 +165,14 @@ export function ServerDetailPage() {
                 <div className="pt-1 flex items-center gap-1.5 text-xs text-warning">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   <span>{capitalize(progressMessage)}</span>
+                </div>
+              )}
+              {failed && (
+                <div className="pt-1 flex items-center gap-1.5 text-xs text-danger">
+                  <AlertTriangle className="h-3 w-3" />
+                  <span>
+                    {failureMessage ? capitalize(failureMessage) : "The server failed to start."}
+                  </span>
                 </div>
               )}
               <div className="pt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
