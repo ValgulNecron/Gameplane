@@ -148,6 +148,91 @@ func TestProvisioningReason(t *testing.T) {
 	}
 }
 
+func TestStartupFailure(t *testing.T) {
+	waiting := func(reason string) corev1.ContainerState {
+		return corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: reason}}
+	}
+	terminated := func(code int32) corev1.ContainerState {
+		return corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: code}}
+	}
+	game := func(state corev1.ContainerState, restarts int32) corev1.ContainerStatus {
+		return corev1.ContainerStatus{Name: "game", State: state, RestartCount: restarts}
+	}
+	pod := func(cs ...corev1.ContainerStatus) corev1.Pod {
+		return corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: cs}}
+	}
+
+	cases := []struct {
+		name       string
+		pod        corev1.Pod
+		wantFailed bool
+		wantReason string
+	}{
+		{"image pull backoff fails", pod(game(waiting("ImagePullBackOff"), 0)), true, "ImagePullFailed"},
+		{"transient ErrImagePull keeps starting", pod(game(waiting("ErrImagePull"), 0)), false, ""},
+		{"crash loop at threshold fails", pod(game(waiting("CrashLoopBackOff"), 3)), true, "CrashLoopBackOff"},
+		{"crash loop below threshold keeps starting", pod(game(waiting("CrashLoopBackOff"), 2)), false, ""},
+		{"terminated non-zero fails", pod(game(terminated(1), 0)), true, "ContainerExited"},
+		{"terminated zero keeps starting", pod(game(terminated(0), 0)), false, ""},
+		{"creating keeps starting", pod(game(waiting("ContainerCreating"), 0)), false, ""},
+		{"running keeps starting", pod(game(corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}, 0)), false, ""},
+		{"no game container keeps starting", corev1.Pod{Status: corev1.PodStatus{}}, false, ""},
+		{
+			name: "init image pull backoff fails before game container",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				InitContainerStatuses: []corev1.ContainerStatus{{Name: "config-init", State: waiting("ImagePullBackOff")}},
+				ContainerStatuses:     []corev1.ContainerStatus{game(waiting("PodInitializing"), 0)},
+			}},
+			wantFailed: true, wantReason: "ImagePullFailed",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reason, message, failed := startupFailure(&tc.pod)
+			if failed != tc.wantFailed {
+				t.Fatalf("failed = %v, want %v (reason %q)", failed, tc.wantFailed, reason)
+			}
+			if failed {
+				if reason != tc.wantReason {
+					t.Errorf("reason = %q, want %q", reason, tc.wantReason)
+				}
+				if message == "" {
+					t.Error("failure message should not be empty")
+				}
+			}
+		})
+	}
+}
+
+func TestComputeConditions_FailedCarriesReason(t *testing.T) {
+	gs := &kestrelv1alpha1.GameServer{}
+	prov := &provisioningInfo{
+		reason:  "CrashLoopBackOff",
+		message: "the container has crash-looped 3 times during startup; check the logs",
+	}
+	byType := func(conds []metav1.Condition) map[string]metav1.Condition {
+		m := map[string]metav1.Condition{}
+		for _, c := range conds {
+			m[c.Type] = c
+		}
+		return m
+	}
+
+	m := byType(computeConditions(gs, kestrelv1alpha1.GameServerPhaseFailed, prov))
+	if m["Ready"].Reason != "CrashLoopBackOff" || m["Ready"].Message != prov.message {
+		t.Errorf("Ready = %+v, want CrashLoopBackOff reason + the failure message", m["Ready"])
+	}
+	if m["Progressing"].Reason != "CrashLoopBackOff" {
+		t.Errorf("Progressing.Reason = %q, want CrashLoopBackOff", m["Progressing"].Reason)
+	}
+
+	// nil prov leaves the generic Failed reason and no message.
+	m = byType(computeConditions(gs, kestrelv1alpha1.GameServerPhaseFailed, nil))
+	if m["Ready"].Reason != "Failed" || m["Ready"].Message != "" {
+		t.Errorf("nil prov: Ready = %+v, want generic Failed/no message", m["Ready"])
+	}
+}
+
 func TestEndpointsFromService_ClusterIP(t *testing.T) {
 	svc := &corev1.Service{
 		Spec: corev1.ServiceSpec{

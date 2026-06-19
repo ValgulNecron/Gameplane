@@ -54,11 +54,11 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	phase := derivePhase(gs, ssExists, ss.Status.ReadyReplicas > 0, heartbeatFresh(gs))
 
-	// While Starting, explain *why* — pulling the image, creating the
-	// container, downloading game files on first boot, or waiting for the
-	// agent's first heartbeat — by reading the pod's container states.
-	// This feeds the dashboard's provisioning sub-status; the phase itself
-	// stays Starting (derivePhase is unchanged).
+	// While Starting, read the pod's container states to either explain
+	// *why* it isn't Running yet (pulling the image, creating the
+	// container, installing on first boot, waiting for the agent) — feeding
+	// the dashboard's provisioning sub-status — or, if startup has
+	// terminally failed, escalate the phase to Failed.
 	var prov *provisioningInfo
 	if phase == kestrelv1alpha1.GameServerPhaseStarting {
 		var pod corev1.Pod
@@ -69,8 +69,18 @@ func (r *GameServerReconciler) reconcileStatus(
 		case podErr != nil:
 			return 0, fmt.Errorf("get pod %s-0: %w", gs.Name, podErr)
 		default:
-			reason, message := provisioningReason(&pod, heartbeatFresh(gs))
-			prov = &provisioningInfo{reason: reason, message: message}
+			if fr, fm, failed := startupFailure(&pod); failed {
+				// A terminal startup failure (unpullable image, persistent
+				// crash-loop, non-zero exit) — escalate to Failed so the
+				// dashboard stops showing a perpetual "Starting". Not sticky:
+				// derivePhase re-evaluates every reconcile, so a later
+				// recovery returns the phase to Running.
+				phase = kestrelv1alpha1.GameServerPhaseFailed
+				prov = &provisioningInfo{reason: fr, message: fm}
+			} else {
+				reason, message := provisioningReason(&pod, heartbeatFresh(gs))
+				prov = &provisioningInfo{reason: reason, message: message}
+			}
 		}
 	}
 
@@ -190,6 +200,14 @@ func computeConditions(
 		progressing.Reason = "Failed"
 		healthy.Status = metav1.ConditionFalse
 		healthy.Reason = "Failed"
+		// Carry the specific startup-failure reason (image pull, crash-loop,
+		// exit) so the dashboard can explain *why* it failed.
+		if prov != nil && prov.reason != "" {
+			ready.Reason = prov.reason
+			ready.Message = prov.message
+			progressing.Reason = prov.reason
+			progressing.Message = prov.message
+		}
 	default:
 		ready.Status = metav1.ConditionUnknown
 		ready.Reason = "Unknown"
@@ -281,6 +299,59 @@ func waitingReason(reason string) (string, string) {
 		return "CrashLoopBackOff", "the container is crash-looping during startup; check the logs"
 	}
 	return "", ""
+}
+
+// crashLoopFailureThreshold is how many restarts of the game container we
+// tolerate during startup before declaring the server Failed. A first boot
+// that crashes once or twice and then succeeds stays Starting; a persistent
+// crash-loop escalates so the dashboard stops showing a perpetual
+// "Starting".
+const crashLoopFailureThreshold = 3
+
+// startupFailure reports whether a Starting pod has hit a terminal startup
+// failure that will not clear on its own — an unpullable image, a persistent
+// crash-loop, or a container that exited non-zero — with a human-facing
+// reason and message. It's a pure function (envtest has no kubelet, so the
+// container states are supplied by the test). The result is advisory only:
+// derivePhase re-evaluates every reconcile, so a pod that later recovers
+// returns to Running.
+func startupFailure(pod *corev1.Pod) (reason, message string, failed bool) {
+	// Init containers (config-init) gate the game container; a stuck image
+	// pull there is just as terminal.
+	for i := range pod.Status.InitContainerStatuses {
+		if r, m, f := containerFailure(&pod.Status.InitContainerStatuses[i]); f {
+			return r, m, true
+		}
+	}
+	for i := range pod.Status.ContainerStatuses {
+		if pod.Status.ContainerStatuses[i].Name == gameContainerName {
+			return containerFailure(&pod.Status.ContainerStatuses[i])
+		}
+	}
+	return "", "", false
+}
+
+// containerFailure classifies a single container status as a terminal
+// startup failure (true) or a state still worth waiting on (false).
+func containerFailure(cs *corev1.ContainerStatus) (reason, message string, failed bool) {
+	if w := cs.State.Waiting; w != nil {
+		switch {
+		case w.Reason == "ImagePullBackOff":
+			// The kubelet already retried the pull and is backing off — a
+			// bad image reference, not a transient first-attempt blip.
+			return "ImagePullFailed", "cannot pull the image — check the image reference", true
+		case w.Reason == "CrashLoopBackOff" && cs.RestartCount >= crashLoopFailureThreshold:
+			return "CrashLoopBackOff", fmt.Sprintf(
+				"the container has crash-looped %d times during startup; check the logs",
+				cs.RestartCount), true
+		}
+	}
+	if t := cs.State.Terminated; t != nil && t.ExitCode != 0 {
+		return "ContainerExited", fmt.Sprintf(
+			"the container exited with code %d during startup; check the logs",
+			t.ExitCode), true
+	}
+	return "", "", false
 }
 
 // podReady reports whether the pod's Ready condition is true.
