@@ -11,37 +11,50 @@ kubectl apply -f modules/minecraft-java/template.yaml
 The template is cluster-scoped — install once per cluster. The Kestrel
 dashboard will then show Minecraft in the catalog.
 
-## Usage
+## Version & loader choice
 
-Either create a server from the dashboard ("New Server" → "Minecraft
-Java Edition"), or apply a GameServer manifest directly:
+The New Server wizard shows a version picker populated from `spec.versions`
+— e.g. `1.21.4 · Paper`, `1.21.4 · Forge`, `Latest · Vanilla`. Each entry
+selects the [`itzg/minecraft-server`](https://github.com/itzg/docker-minecraft-server)
+image plus the `TYPE`/`VERSION` env that pick the server software, so you
+never set those by hand. To pin an exact image build, set
+`GameServer.spec.image` (Settings → Image override).
 
-```sh
-kubectl apply -f modules/minecraft-java/samples/gameserver.yaml
-```
+## Mod manager
 
-## Image
+Mods and plugins are managed from the **Mods** tab. Each *(version + loader)*
+combination has its own volume, so a Paper plugin set and a Forge mod set
+never collide and survive switching versions. Plugin loaders
+(Paper/Spigot/Bukkit/Purpur) store under `plugins/`; mod loaders
+(Forge/Fabric/Quilt) under `mods/`. Vanilla servers have no mod loader, so
+the tab is hidden for them. Installs are allowed from Modrinth, CurseForge,
+Hangar, and GitHub (max 512 MiB), subject to the agent's SSRF guard.
 
-Uses [`itzg/minecraft-server`](https://github.com/itzg/docker-minecraft-server)
-— the de-facto community image for Minecraft Java servers. Understands
-`TYPE`, `VERSION`, `DIFFICULTY`, `MODE`, `MAX_PLAYERS`, `MOTD`, etc.
+## Logs (including install)
+
+itzg downloads the selected server jar on first boot; that output streams to
+the **Logs** tab's *Container output* source, so you can watch the install
+even before the game has started. Once running, the persistent logfile at
+`/data/logs/latest.log` feeds the *Game log* toggle.
 
 ## Ports
 
-| Name | Port   | Protocol | Advertised |
-| ---- | ------ | -------- | ---------- |
-| game | 25565  | TCP      | yes        |
-| rcon | 25575  | TCP      | no         |
+| Name | Port  | Protocol | Advertised |
+| ---- | ----- | -------- | ---------- |
+| game | 25565 | TCP      | yes        |
+| rcon | 25575 | TCP      | no         |
 
-RCON stays inside the pod network — the Kestrel agent sidecar connects
-to it locally for console stdin and player queries.
+RCON stays inside the pod network — the Kestrel agent uses it for the
+Console tab, player moderation, backup quiesce, and Overview metrics.
 
 ## Storage
 
-Default PVC is 10 GiB mounted at `/data`. Override via `GameServer.spec.storage`.
+Default data PVC is 10 GiB mounted at `/data` (override via
+`GameServer.spec.storage`). Each version+loader mod volume is a separate PVC
+the operator provisions on demand and retains across version switches.
 
 ## Backups
 
 World data lives under `/data/world` (and `world_nether`, `world_the_end`
-for vanilla). A `restic-snapshot` backup of the whole `/data` volume is
-sufficient to restore.
+for vanilla). A backup of the whole `/data` volume restores the world; mod
+volumes are separate PVCs.

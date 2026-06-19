@@ -1,7 +1,13 @@
 # Kestrel GameTemplate for Minecraft: Java Edition.
 #
-# Backed by the community itzg/minecraft-server image, which understands
-# the env vars declared below (VERSION, TYPE, DIFFICULTY, …).
+# Backed by the community itzg/minecraft-server image, which downloads the
+# selected server jar on first boot — the install output streams to the
+# dashboard's Logs tab (source "pod") before the game's own logfile exists.
+#
+# Version+loader is chosen in the New Server wizard from spec.versions:
+# each entry pins the itzg image (Java runtime) and injects the TYPE/VERSION
+# env that select the server software. Each loader's mods/plugins live on
+# their own per-(version+loader) volume, so switching never clobbers another.
 #
 # Cluster-scoped; apply once per cluster:
 #     kubectl apply -f modules/minecraft-java/template.yaml
@@ -15,17 +21,20 @@ metadata:
 spec:
   displayName: Minecraft (Java Edition)
   game: minecraft-java
-  version: 1.0.0
-  # Brand color the dashboard tints this game's icon/accents with,
-  # replacing the old hardcoded per-game color palette.
+  version: 2.0.0
+  # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#5b9a3e"
   description: |
-    Vanilla, Paper, Spigot, Forge, Fabric, or Quilt Minecraft: Java Edition
-    servers. Uses the community [itzg/minecraft-server](https://github.com/itzg/docker-minecraft-server)
-    image, which understands the same env var interface (TYPE, VERSION,
-    DIFFICULTY, …).
+    Vanilla, Paper, Spigot, Bukkit, Purpur, Forge, Fabric, or Quilt
+    Minecraft: Java Edition servers using the community
+    [itzg/minecraft-server](https://github.com/itzg/docker-minecraft-server)
+    image. Pick a version+loader in the New Server wizard; each loader's
+    mods/plugins live on their own volume so switching never clobbers another.
 
-  image: itzg/minecraft-server:2025.1.0
+  # Fallback image when a server selects no version (versions[] is the
+  # authoritative source for the wizard). The tag only pins the itzg
+  # release / Java runtime — TYPE and VERSION env select the software.
+  image: itzg/minecraft-server:java21
 
   env:
     - name: EULA
@@ -54,7 +63,9 @@ spec:
     mountPath: /data
 
   # itzg/minecraft-server writes the server log under the data volume,
-  # where the agent sidecar can tail it for the dashboard's Logs tab.
+  # where the agent sidecar can tail it for the "Game log" toggle. (The
+  # install/first-boot download is visible via the "Container output"
+  # source even before this file exists.)
   logPath: /data/logs/latest.log
 
   resources:
@@ -69,15 +80,82 @@ spec:
     protocol: source
     port: 25575
     # PasswordSecretRef left unset — the operator generates a password
-    # into the managed Secret "<gameserver>-rcon". passwordEnv injects it
-    # into the game container as RCON_PASSWORD (read by
-    # itzg/minecraft-server) and mounts the same value for the agent
-    # sidecar, so the dashboard console can authenticate over RCON.
+    # into "<gameserver>-rcon" and injects it as RCON_PASSWORD.
     passwordEnv: RCON_PASSWORD
 
-  # Console commands behind agent features. The agent interprets these
-  # at runtime — moderation templates render with .Player/.Reason; the
-  # quiesce sequences run around backup snapshots.
+  # Version+loader catalog surfaced in the wizard. itzg selects software via
+  # TYPE+VERSION env, so entries inject those rather than swapping the tag
+  # (the tag pins only the itzg release / Java runtime). The loader keys into
+  # capabilities.mods.loaders below to pick the per-combo mod volume.
+  versions:
+    - id: "1.21.4-paper"
+      displayName: "1.21.4 · Paper"
+      image: itzg/minecraft-server:java21
+      loader: paper
+      default: true
+      env:
+        - { name: TYPE, value: PAPER }
+        - { name: VERSION, value: "1.21.4" }
+    - id: "1.21.4-fabric"
+      displayName: "1.21.4 · Fabric"
+      image: itzg/minecraft-server:java21
+      loader: fabric
+      env:
+        - { name: TYPE, value: FABRIC }
+        - { name: VERSION, value: "1.21.4" }
+    - id: "1.21.4-forge"
+      displayName: "1.21.4 · Forge"
+      image: itzg/minecraft-server:java21
+      loader: forge
+      env:
+        - { name: TYPE, value: FORGE }
+        - { name: VERSION, value: "1.21.4" }
+    - id: "1.21.4-vanilla"
+      displayName: "1.21.4 · Vanilla"
+      image: itzg/minecraft-server:java21
+      loader: vanilla
+      env:
+        - { name: TYPE, value: VANILLA }
+        - { name: VERSION, value: "1.21.4" }
+    - id: "1.20.4-paper"
+      displayName: "1.20.4 · Paper"
+      image: itzg/minecraft-server:java17
+      loader: paper
+      env:
+        - { name: TYPE, value: PAPER }
+        - { name: VERSION, value: "1.20.4" }
+    - id: "1.20.4-forge"
+      displayName: "1.20.4 · Forge"
+      image: itzg/minecraft-server:java17
+      loader: forge
+      env:
+        - { name: TYPE, value: FORGE }
+        - { name: VERSION, value: "1.20.4" }
+    - id: "1.20.1-fabric"
+      displayName: "1.20.1 · Fabric"
+      image: itzg/minecraft-server:java17
+      loader: fabric
+      env:
+        - { name: TYPE, value: FABRIC }
+        - { name: VERSION, value: "1.20.1" }
+    - id: "latest-paper"
+      displayName: "Latest · Paper"
+      image: itzg/minecraft-server:java21
+      loader: paper
+      env:
+        - { name: TYPE, value: PAPER }
+        - { name: VERSION, value: LATEST }
+    - id: "latest-vanilla"
+      displayName: "Latest · Vanilla"
+      image: itzg/minecraft-server:java21
+      loader: vanilla
+      env:
+        - { name: TYPE, value: VANILLA }
+        - { name: VERSION, value: LATEST }
+
+  # Console commands behind agent features. The agent interprets these at
+  # runtime — moderation templates render with .Player/.Reason; the quiesce
+  # sequences run around backup snapshots.
   capabilities:
     players:
       kick: "kick {{.Player}}{{if .Reason}} {{.Reason}}{{end}}"
@@ -90,8 +168,6 @@ spec:
       quiesce: ["save-off", "save-all flush"]
       unquiesce: ["save-on"]
       failurePattern: "saving failed"
-    # Operator buttons on the server detail page. Each renders its
-    # command template with the collected params and runs it over RCON.
     actions:
       - id: broadcast
         displayName: Broadcast message
@@ -146,8 +222,6 @@ spec:
         description: Flush the world to disk now.
         icon: save
         command: "save-all"
-    # Live readouts on the Overview tab, each parsed from an RCON
-    # command's output via the (?P<value>…) capture group.
     status:
       metrics:
         - id: seed
@@ -158,6 +232,30 @@ spec:
           displayName: Difficulty
           command: "difficulty"
           regex: 'The difficulty is (?P<value>\w+)'
+    # Per-(version+loader) mod volumes. The active version's loader selects
+    # which directory the dashboard's Mods tab manages and which volume the
+    # operator provisions+mounts. Bukkit-family loaders use plugins/; mod
+    # loaders use mods/. Vanilla has no entry, so vanilla servers show no
+    # Mods tab.
+    mods:
+      loaders:
+        paper:  { displayName: Plugins (Paper),  path: plugins, extensions: [".jar"] }
+        spigot: { displayName: Plugins (Spigot), path: plugins, extensions: [".jar"] }
+        bukkit: { displayName: Plugins (Bukkit), path: plugins, extensions: [".jar"] }
+        purpur: { displayName: Plugins (Purpur), path: plugins, extensions: [".jar"] }
+        forge:  { displayName: Mods (Forge),     path: mods,    extensions: [".jar"] }
+        fabric: { displayName: Mods (Fabric),    path: mods,    extensions: [".jar"] }
+        quilt:  { displayName: Mods (Quilt),     path: mods,    extensions: [".jar"] }
+      install:
+        allowedHosts:
+          - cdn.modrinth.com
+          - .modrinth.com
+          - .curseforge.com
+          - mediafilez.forgecdn.net
+          - hangarcdn.papermc.io
+          - github.com
+          - .githubusercontent.com
+        maxSizeMB: 512
 
   probes:
     readiness:
@@ -179,22 +277,9 @@ spec:
       periodSeconds: 10
       failureThreshold: 60
 
+  # TYPE and VERSION are driven by the versions[] picker above, so they are
+  # NOT config fields here (avoids asking twice / double-binding).
   configSchema:
-    - name: TYPE
-      displayName: Server type
-      description: Server flavor. PAPER recommended for most plugin setups.
-      type: enum
-      enum: ["VANILLA", "PAPER", "SPIGOT", "BUKKIT", "FORGE", "FABRIC", "QUILT", "PURPUR"]
-      default: VANILLA
-      required: true
-
-    - name: VERSION
-      displayName: Minecraft version
-      description: Exact version (e.g. "1.21.4") or "LATEST".
-      type: string
-      default: LATEST
-      required: true
-
     - name: DIFFICULTY
       displayName: Difficulty
       type: enum

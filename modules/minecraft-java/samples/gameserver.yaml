@@ -12,9 +12,11 @@ spec:
   templateRef:
     name: minecraft-java
 
+  # Picks the image + TYPE/VERSION env + the paper->plugins mod volume.
+  # Omit to use the template's default version (1.21.4 · Paper).
+  version: "1.21.4-paper"
+
   config:
-    TYPE: PAPER
-    VERSION: "1.21.4"
     DIFFICULTY: normal
     MODE: survival
     MAX_PLAYERS: "20"
