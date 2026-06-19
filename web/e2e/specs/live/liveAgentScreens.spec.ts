@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
 import { loginIfNeeded, seedServer, seedTemplate } from "./_seed";
 
 // Live: prove the agent-backed Server Detail tabs render REAL pod data. This
@@ -22,7 +23,7 @@ test.describe("live: agent-backed screens render real pod data", () => {
   const stamp = Date.now().toString(36);
   const tmplName = `e2e-pw-agent-tmpl-${stamp}`;
   const serverName = `e2e-pw-agent-${stamp}`;
-  let cleanups: Array<() => Promise<void>> = [];
+  let cleanups: Array<(request: APIRequestContext) => Promise<void>> = [];
 
   test.beforeAll(async ({ request }) => {
     const tmpl = await seedTemplate(request, tmplName);
@@ -30,8 +31,9 @@ test.describe("live: agent-backed screens render real pod data", () => {
     cleanups = [server.cleanup, tmpl.cleanup];
   });
 
-  test.afterAll(async () => {
-    for (const c of cleanups) await c();
+  // afterAll gets its own live `request` — beforeAll's is disposed by now.
+  test.afterAll(async ({ request }) => {
+    for (const c of cleanups) await c(request);
   });
 
   test.beforeEach(async ({ page }) => {

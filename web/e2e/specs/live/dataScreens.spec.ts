@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
 import { loginIfNeeded, seedServer, seedTemplate } from "./_seed";
 
 // Live: prove the data-bearing dashboard screens render REAL backend data,
@@ -23,7 +24,7 @@ test.describe("live: data screens render real backend data", () => {
   const stamp = Date.now().toString(36);
   const tmplName = `e2e-pw-data-tmpl-${stamp}`;
   const serverName = `e2e-pw-data-${stamp}`;
-  let cleanups: Array<() => Promise<void>> = [];
+  let cleanups: Array<(request: APIRequestContext) => Promise<void>> = [];
 
   test.beforeAll(async ({ request }) => {
     const tmpl = await seedTemplate(request, tmplName);
@@ -36,8 +37,10 @@ test.describe("live: data screens render real backend data", () => {
     cleanups = [server.cleanup, tmpl.cleanup];
   });
 
-  test.afterAll(async () => {
-    for (const c of cleanups) await c();
+  // afterAll gets its own live `request` — the one from beforeAll is already
+  // disposed by the time teardown runs.
+  test.afterAll(async ({ request }) => {
+    for (const c of cleanups) await c(request);
   });
 
   test.beforeEach(async ({ page }) => {
@@ -60,9 +63,13 @@ test.describe("live: data screens render real backend data", () => {
     await expect(page.getByText("e2e-admin").first()).toBeVisible();
 
     await page.getByRole("button", { name: /^roles/i }).first().click();
-    // Builtin role descriptions seeded by migration 003_roles.sql.
-    await expect(page.getByText(/full access to all resources/i)).toBeVisible();
-    await expect(page.getByText(/read-only access/i)).toBeVisible();
+    // RolesTab renders one card per role from GET /roles. Assert the real
+    // builtin role names + the built-in badge — unambiguous real RBAC data,
+    // not an MSW fixture. Generous timeout for the live roles query. (Role
+    // names are more robust than the description copy, which is muted text.)
+    await expect(page.getByText("operator", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("viewer", { exact: true })).toBeVisible();
+    await expect(page.getByText("built-in").first()).toBeVisible();
   });
 
   test("servers list shows the seeded GameServer", async ({ page }) => {

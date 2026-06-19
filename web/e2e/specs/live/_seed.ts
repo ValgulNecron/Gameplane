@@ -58,7 +58,10 @@ async function expectSeedOk(res: APIResponse, what: string): Promise<void> {
 export interface Seeded {
   name: string;
   // Best-effort teardown — safe to call even if the object is already gone.
-  cleanup: () => Promise<void>;
+  // Takes a live request context: Playwright disposes the beforeAll request
+  // before afterAll runs, so the cleanup must use afterAll's own `request`
+  // rather than closing over the (now-closed) one used to seed.
+  cleanup: (request: APIRequestContext) => Promise<void>;
 }
 
 // seedTemplate creates a minimal, schema-valid busybox GameTemplate
@@ -85,9 +88,9 @@ export async function seedTemplate(request: APIRequestContext, name: string): Pr
   await expectSeedOk(res, `seed template ${name}`);
   return {
     name,
-    cleanup: async () => {
-      await request
-        .delete(`/templates/${name}`, { headers: await seedHeaders(request) })
+    cleanup: async (req: APIRequestContext) => {
+      await req
+        .delete(`/templates/${name}`, { headers: await seedHeaders(req) })
         .catch(() => undefined);
     },
   };
@@ -122,9 +125,9 @@ export async function seedServer(request: APIRequestContext, opts: SeedServerOpt
   await expectSeedOk(res, `seed server ${opts.name}`);
   return {
     name: opts.name,
-    cleanup: async () => {
-      await request
-        .delete(`/servers/${opts.name}`, { headers: await seedHeaders(request) })
+    cleanup: async (req: APIRequestContext) => {
+      await req
+        .delete(`/servers/${opts.name}`, { headers: await seedHeaders(req) })
         .catch(() => undefined);
     },
   };
