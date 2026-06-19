@@ -7,17 +7,39 @@ import { Input } from "@/components/ui/input";
 import { GameIcon } from "@/components/ui/game-icon";
 import { APIError } from "@/lib/api";
 import { Servers, Templates, type ServerCreate } from "@/lib/endpoints";
-import { isValidK8sName, isValidQuantity, validateConfig } from "@/lib/validation";
+import {
+  defaultVersionId,
+  isValidK8sName,
+  isValidQuantity,
+  isValidVersion,
+  validateConfig,
+} from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import type { GameTemplate } from "@/types";
 
-type Step = 1 | 2 | 3 | 4;
-const STEP_LABELS = ["Template", "Configure", "Network", "Review"] as const;
+// Wizard steps are derived per-template: the "version" step only appears when
+// the template declares a version catalog (spec.versions). Templates without
+// one keep the original 4-step flow.
+type StepKey = "template" | "version" | "configure" | "network" | "review";
+const STEP_TITLES: Record<StepKey, string> = {
+  template: "Template",
+  version: "Version",
+  configure: "Configure",
+  network: "Network",
+  review: "Review",
+};
+
+function stepsFor(template: GameTemplate | null): StepKey[] {
+  const base: StepKey[] = ["template", "configure", "network", "review"];
+  if ((template?.spec.versions?.length ?? 0) > 0) base.splice(1, 0, "version");
+  return base;
+}
 
 interface WizardState {
   name: string;
   description: string;
   template: GameTemplate | null;
+  version: string;
   config: Record<string, string>;
   cpuLimit: string;
   memoryLimit: string;
@@ -29,7 +51,7 @@ interface WizardState {
 
 const initial: WizardState = {
   name: "", description: "",
-  template: null, config: {},
+  template: null, version: "", config: {},
   cpuLimit: "4", memoryLimit: "8",
   storageSize: "50Gi", nodePlacement: "auto",
   expose: "NodePort", hostname: "",
@@ -43,6 +65,7 @@ function buildCreateBody(state: WizardState): ServerCreate {
     name: state.name,
     description: state.description || undefined,
     templateRef: { name: state.template!.metadata.name },
+    ...(state.version ? { version: state.version } : {}),
     config: state.config,
     storage: { size: state.storageSize },
     networking: {
@@ -58,11 +81,16 @@ function buildCreateBody(state: WizardState): ServerCreate {
 
 type StepCheck = { ok: true } | { ok: false; reason: string };
 
-function validateStep(step: Step, state: WizardState): StepCheck {
-  if (step === 1) {
+function validateStep(key: StepKey, state: WizardState): StepCheck {
+  if (key === "template") {
     return state.template ? { ok: true } : { ok: false, reason: "Pick a game template to continue" };
   }
-  if (step === 2) {
+  if (key === "version") {
+    return isValidVersion(state.template ?? undefined, state.version)
+      ? { ok: true }
+      : { ok: false, reason: "Choose a version to continue" };
+  }
+  if (key === "configure") {
     if (!isValidK8sName(state.name)) {
       return {
         ok: false,
@@ -112,7 +140,7 @@ function errorMessage(err: unknown, name: string): { title: string; body: string
 }
 
 export function CreateServerWizard() {
-  const [step, setStep] = useState<Step>(1);
+  const [stepIndex, setStepIndex] = useState(0);
   const [state, setState] = useState<WizardState>(initial);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -128,7 +156,7 @@ export function CreateServerWizard() {
     const match = templates.items.find((t) => t.metadata.name === search.template);
     if (match) {
       presetApplied.current = true;
-      setState((s) => ({ ...s, template: match, config: {} }));
+      setState((s) => ({ ...s, template: match, config: {}, version: defaultVersionId(match) ?? "" }));
     }
   }, [search.template, templates]);
 
@@ -140,9 +168,15 @@ export function CreateServerWizard() {
     },
   });
 
-  const stepCheck = validateStep(step, state);
-  const finalCheck =
-    validateStep(1, state).ok && validateStep(2, state).ok ? { ok: true } as const : { ok: false } as const;
+  const steps = stepsFor(state.template);
+  const currentKey: StepKey = steps[stepIndex] ?? "template";
+  const isLast = stepIndex === steps.length - 1;
+  const stepCheck = validateStep(currentKey, state);
+  const finalCheck = steps
+    .filter((k) => k !== "review")
+    .every((k) => validateStep(k, state).ok)
+    ? ({ ok: true } as const)
+    : ({ ok: false } as const);
 
   return (
     <div className="grid min-h-full place-items-center bg-background p-6">
@@ -151,7 +185,7 @@ export function CreateServerWizard() {
           <div>
             <div className="text-lg font-semibold">New game server</div>
             <div className="pt-0.5 text-xs text-muted">
-              Step {step} of 4 · {STEP_LABELS[step - 1]}
+              Step {stepIndex + 1} of {steps.length} · {STEP_TITLES[currentKey]}
             </div>
           </div>
           <button
@@ -163,14 +197,15 @@ export function CreateServerWizard() {
           </button>
         </div>
 
-        <StepBar step={step} />
+        <StepBar steps={steps} stepIndex={stepIndex} />
 
         <div className="grid gap-6 px-6 py-6 md:grid-cols-[1fr_260px]">
           <div>
-            {step === 1 && <PickTemplate state={state} setState={setState} />}
-            {step === 2 && <Configure    state={state} setState={setState} />}
-            {step === 3 && <Network      state={state} setState={setState} />}
-            {step === 4 && <Review       state={state} />}
+            {currentKey === "template" && <PickTemplate state={state} setState={setState} />}
+            {currentKey === "version" && <PickVersion state={state} setState={setState} />}
+            {currentKey === "configure" && <Configure state={state} setState={setState} />}
+            {currentKey === "network" && <Network state={state} setState={setState} />}
+            {currentKey === "review" && <Review state={state} />}
           </div>
           <Preview state={state} />
         </div>
@@ -184,24 +219,24 @@ export function CreateServerWizard() {
             <ExternalLink className="h-3 w-3" /> Docs: Creating game servers
           </a>
           <div className="flex items-center gap-3">
-            {!stepCheck.ok && step < 4 && (
+            {!stepCheck.ok && !isLast && (
               <span className="text-[11px] text-muted" data-testid="step-reason">
                 {stepCheck.reason}
               </span>
             )}
             <Button
               variant="ghost"
-              disabled={step === 1}
-              onClick={() => setStep((s) => (s - 1) as Step)}
+              disabled={stepIndex === 0}
+              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
             >
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
-            {step < 4 ? (
+            {!isLast ? (
               <Button
                 disabled={!stepCheck.ok}
-                onClick={() => setStep((s) => (s + 1) as Step)}
+                onClick={() => setStepIndex((i) => Math.min(steps.length - 1, i + 1))}
               >
-                Continue to {(STEP_LABELS as readonly string[])[step] ?? "Review"} <ArrowRight className="h-4 w-4" />
+                Continue to {STEP_TITLES[steps[stepIndex + 1]]} <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
               <Button
@@ -235,15 +270,14 @@ function ErrorAlert({ title, body }: { title: string; body: string }) {
   );
 }
 
-function StepBar({ step }: { step: Step }) {
+function StepBar({ steps, stepIndex }: { steps: StepKey[]; stepIndex: number }) {
   return (
     <ol className="flex items-center gap-2 border-b border-border px-6 py-3 text-xs">
-      {STEP_LABELS.map((l, i) => {
-        const idx = (i + 1) as Step;
-        const active = idx === step;
-        const done = idx < step;
+      {steps.map((key, i) => {
+        const active = i === stepIndex;
+        const done = i < stepIndex;
         return (
-          <li key={l} className="flex items-center gap-2">
+          <li key={key} className="flex items-center gap-2">
             <span
               className={cn(
                 "flex h-5 w-5 items-center justify-center rounded-full border font-mono text-[10px]",
@@ -252,9 +286,9 @@ function StepBar({ step }: { step: Step }) {
                        ? "border-success bg-success/15 text-success"
                        : "border-border text-muted",
               )}
-            >{done ? <Check className="h-3 w-3" /> : idx}</span>
-            <span className={cn(active ? "text-fg" : "text-muted")}>{l}</span>
-            {i < STEP_LABELS.length - 1 && <span className="text-muted">·</span>}
+            >{done ? <Check className="h-3 w-3" /> : i + 1}</span>
+            <span className={cn(active ? "text-fg" : "text-muted")}>{STEP_TITLES[key]}</span>
+            {i < steps.length - 1 && <span className="text-muted">·</span>}
           </li>
         );
       })}
@@ -276,7 +310,7 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
           return (
             <button
               key={t.metadata.name}
-              onClick={() => setState({ ...state, template: t, config: {} })}
+              onClick={() => setState({ ...state, template: t, config: {}, version: defaultVersionId(t) ?? "" })}
               className={cn(
                 "rounded-lg border p-4 text-left transition-colors",
                 active ? "border-primary bg-primary/5"
@@ -293,6 +327,45 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
               <p className="pt-2 text-xs text-muted line-clamp-2">
                 {t.spec.description ?? "No description."}
               </p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PickVersion({ state, setState }: { state: WizardState; setState: (s: WizardState) => void }) {
+  const versions = state.template?.spec.versions ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="text-sm font-medium">Choose a version</div>
+      <p className="text-xs text-muted">
+        Pick the version and loader for this server. Each loader keeps its own mods on a separate
+        volume, so switching never clobbers another.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {versions.map((v) => {
+          const active = state.version === v.id;
+          return (
+            <button
+              key={v.id}
+              onClick={() => setState({ ...state, version: v.id })}
+              className={cn(
+                "rounded-lg border p-4 text-left transition-colors",
+                active ? "border-primary bg-primary/5"
+                       : "border-border hover:bg-surface/60",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium">{v.displayName}</div>
+                {v.default && (
+                  <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">
+                    Default
+                  </span>
+                )}
+              </div>
+              {v.loader && <div className="pt-1 text-[11px] text-muted">Loader: {v.loader}</div>}
             </button>
           );
         })}
@@ -467,8 +540,10 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
 }
 
 function Review({ state }: { state: WizardState }) {
+  const hasVersions = (state.template?.spec.versions?.length ?? 0) > 0;
   const rows: Array<[string, string]> = [
     ["Template",    state.template?.spec.displayName ?? "—"],
+    ...(hasVersions ? [["Version", state.version || "—"] as [string, string]] : []),
     ["Name",        state.name || "—"],
     ["CPU",         `${state.cpuLimit} cores`],
     ["Memory",      `${state.memoryLimit} GiB`],
@@ -507,7 +582,7 @@ metadata:
 spec:
   templateRef:
     name: ${state.template.metadata.name}
-  resources:
+${state.version ? `  version: ${state.version}\n` : ""}  resources:
     cpu: ${state.cpuLimit}
     memory: ${state.memoryLimit}Gi
     storage: ${state.storageSize}

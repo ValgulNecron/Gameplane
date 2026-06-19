@@ -61,6 +61,15 @@ async function pickTemplate(t: GameTemplate) {
   fireEvent.click(screen.getByRole("button", { name: /Continue to Configure/i }));
 }
 
+function versionedTemplate(): GameTemplate {
+  return template({
+    versions: [
+      { id: "1.21.4-paper", displayName: "1.21.4 Paper", loader: "paper", default: true },
+      { id: "1.21.4-forge", displayName: "1.21.4 Forge", loader: "forge" },
+    ],
+  });
+}
+
 describe("CreateServerWizard", () => {
   it("blocks Continue with a reason when the name is invalid", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
@@ -158,5 +167,47 @@ describe("CreateServerWizard", () => {
     const body = JSON.parse((postCall[1] as FetchInit).body as string);
     expect(body.kind).toBe("GameServer");
     expect(body.spec.nodeSelector).toEqual({ "kestrel.gg/pinned": "true" });
+  });
+
+  it("keeps the 4-step flow when the template declares no versions", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
+    render(withClient(<CreateServerWizard />));
+    fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
+    expect(screen.getByRole("button", { name: /Continue to Configure/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Continue to Version/i })).not.toBeInTheDocument();
+  });
+
+  it("inserts a Version step and pre-selects the default for versioned templates", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [versionedTemplate()] }));
+    render(withClient(<CreateServerWizard />));
+    fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
+    // The step after Template is Version, not Configure.
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Version/i }));
+    expect(screen.getByText("1.21.4 Paper")).toBeInTheDocument();
+    expect(screen.getByText("Default")).toBeInTheDocument();
+    // The default seeds a valid selection, so Configure is reachable.
+    expect(screen.getByRole("button", { name: /Continue to Configure/i })).toBeEnabled();
+  });
+
+  it("includes the selected version in the create body", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonRes(200, { items: [versionedTemplate()] }))
+      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+
+    render(withClient(<CreateServerWizard />));
+    fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Version/i }));
+    // Switch from the default (paper) to forge.
+    fireEvent.click(screen.getByRole("button", { name: /1\.21\.4 Forge/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Configure/i }));
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.version).toBe("1.21.4-forge");
   });
 });
