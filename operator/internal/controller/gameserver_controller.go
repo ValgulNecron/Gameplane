@@ -416,6 +416,13 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		if gs.Spec.ServiceAccountName != "" {
 			ss.Spec.Template.Spec.ServiceAccountName = gs.Spec.ServiceAccountName
 		}
+		// Share the pod's PID namespace so the agent sidecar can read the
+		// game process's CPU/memory from /proc. cgroup v2 files are
+		// per-container, so without this the agent only sees its own
+		// (idle) usage. The pod stays non-privileged; /proc/<pid>/stat and
+		// /statm are world-readable, so no extra capabilities are needed.
+		shareProcess := true
+		ss.Spec.Template.Spec.ShareProcessNamespace = &shareProcess
 		return controllerutil.SetControllerReference(gs, ss, r.Scheme)
 	})
 	return err
@@ -569,6 +576,10 @@ func buildAgentContainer(
 		// agent dialing a console port that doesn't exist — players
 		// and moderation endpoints degrade instead.
 		{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+		// The pod shares its PID namespace (ShareProcessNamespace), so the
+		// agent reports the GAME process's CPU/memory from /proc rather than
+		// its own per-container cgroup (which shows only the idle sidecar).
+		{Name: "KESTREL_USAGE_PROC", Value: "1"},
 	}
 	// Declared capability commands travel to the agent as one JSON blob;
 	// the env change rolls the StatefulSet, so capability edits apply on the

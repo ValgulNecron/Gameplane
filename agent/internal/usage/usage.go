@@ -1,12 +1,23 @@
-// Package usage reads the agent's own resource consumption from inside
-// the game pod and exposes it as a Sample for the heartbeat to report.
+// Package usage reads the game server's resource consumption from inside
+// the pod and exposes it as a Sample for the heartbeat to report.
 //
 // Everything is sourced in-pod with no cluster-level metrics pipeline
-// (Kestrel deliberately has no metrics-server dependency): CPU and memory
-// come from the pod's cgroup v2 files, disk from a statfs of the game
-// data volume. Each value carries a "known" flag so callers can patch
-// null ("unknown") rather than a misleading zero when a source is
-// unreadable — which is normal in dev environments and on cgroup v1.
+// (Kestrel deliberately has no metrics-server dependency). There are two
+// modes:
+//
+//   - proc mode (default in production): the pod shares its PID namespace
+//     (operator sets ShareProcessNamespace), so the agent sums CPU/memory
+//     of the game process(es) from /proc — every process except the agent's
+//     own subtree and the pause process. This reports the GAME's usage, not
+//     the sidecar's. CPU/memory LIMITS come from the operator (the game
+//     container's resource limits, passed as env).
+//   - cgroup mode (fallback / older pods): CPU and memory come from the
+//     pod's cgroup v2 files. Inside a per-container cgroup namespace this
+//     reflects only the agent container, so it's a fallback.
+//
+// Disk is a statfs of the game data volume in both modes. Each value carries
+// a "known" flag so callers can patch null ("unknown") rather than a
+// misleading zero when a source is unreadable.
 package usage
 
 import (
@@ -24,9 +35,16 @@ import (
 // every modern pod (Kubernetes 1.28+ defaults to cgroup v2).
 const defaultCgroupRoot = "/sys/fs/cgroup"
 
-// Config selects where the reader looks. Root and DataDir are the public
-// knobs; now and statfs are injected only by tests so they can feed
-// fixtures and a deterministic clock instead of touching the real host.
+// defaultProcRoot is the procfs mount.
+const defaultProcRoot = "/proc"
+
+// userHZ is the kernel clock-tick rate (CLOCK_TCK) used to convert
+// /proc/<pid>/stat jiffies to time. It is 100 on effectively all Linux
+// builds; tests override it via Config.clkTck.
+const userHZ = 100
+
+// Config selects where the reader looks. Root, DataDir, ProcMode, and the
+// limit hints are the public knobs; the rest are injected only by tests.
 type Config struct {
 	// Root is the cgroup v2 mount point. Empty means defaultCgroupRoot.
 	Root string
@@ -34,8 +52,23 @@ type Config struct {
 	// disables the disk reading.
 	DataDir string
 
-	now    func() time.Time
-	statfs func(string, *unix.Statfs_t) error
+	// ProcMode reads CPU/memory usage from /proc (the game process) instead
+	// of the agent's own cgroup. Enabled when the pod shares its PID
+	// namespace.
+	ProcMode bool
+	// CPULimitMillicores / MemLimitBytes are the game container's limits,
+	// supplied by the operator in proc mode (the agent can't read another
+	// container's cgroup limit). Zero means unknown.
+	CPULimitMillicores int64
+	MemLimitBytes      int64
+
+	// ProcRoot is the procfs mount; empty means defaultProcRoot.
+	ProcRoot string
+	// selfPID, clkTck, now and statfs are injected only by tests.
+	selfPID int
+	clkTck  int64
+	now     func() time.Time
+	statfs  func(string, *unix.Statfs_t) error
 }
 
 // Sample is one point-in-time reading. Each *Known flag reports whether
@@ -58,9 +91,9 @@ type Sample struct {
 }
 
 // Reader produces Samples. It holds the previous CPU usage counter so it
-// can turn cgroup's cumulative usage_usec into a rate; keeping that state
-// here (not in the heartbeat loop) lets the heartbeat's sendOnce stay a
-// pure function of its Config. Read is safe for concurrent use.
+// can turn cumulative CPU time into a rate; keeping that state here (not in
+// the heartbeat loop) lets the heartbeat's sendOnce stay a pure function of
+// its Config. Read is safe for concurrent use.
 type Reader struct {
 	cfg Config
 
@@ -76,6 +109,16 @@ func New(cfg Config) *Reader {
 		cfg.Root = defaultCgroupRoot
 	}
 	cfg.Root = filepath.Clean(cfg.Root)
+	if cfg.ProcRoot == "" {
+		cfg.ProcRoot = defaultProcRoot
+	}
+	cfg.ProcRoot = filepath.Clean(cfg.ProcRoot)
+	if cfg.clkTck == 0 {
+		cfg.clkTck = userHZ
+	}
+	if cfg.selfPID == 0 {
+		cfg.selfPID = os.Getpid()
+	}
 	if cfg.now == nil {
 		cfg.now = time.Now
 	}
@@ -98,14 +141,15 @@ func (r *Reader) Read() Sample {
 }
 
 func (r *Reader) readCPU(s *Sample) {
-	if usageUsec, ok := r.cpuUsageUsec(); ok {
+	usageUsec, ok := r.cpuUsageUsec()
+	if ok {
 		r.mu.Lock()
 		now := r.cfg.now()
 		if r.havePrev {
 			dWall := now.Sub(r.prevAt).Microseconds()
-			// Guard against a clock that didn't advance and a counter
-			// that went backwards (shouldn't happen, but a reset would
-			// otherwise yield a wild rate).
+			// Guard against a clock that didn't advance and a counter that
+			// went backwards (a process set changing under proc mode, or a
+			// counter reset) which would otherwise yield a wild rate.
 			if dWall > 0 && usageUsec >= r.prevUsageUsec {
 				dUsage := int64(usageUsec - r.prevUsageUsec)
 				s.CPUMillicores = dUsage * 1000 / dWall
@@ -118,15 +162,35 @@ func (r *Reader) readCPU(s *Sample) {
 		r.mu.Unlock()
 	}
 
+	if r.cfg.ProcMode {
+		if r.cfg.CPULimitMillicores > 0 {
+			s.CPULimitMillicores = r.cfg.CPULimitMillicores
+			s.CPULimitKnown = true
+		}
+		return
+	}
 	if lim, ok := r.cpuLimitMillicores(); ok {
 		s.CPULimitMillicores = lim
 		s.CPULimitKnown = true
 	}
 }
 
-// cpuUsageUsec returns the cumulative CPU time in microseconds from the
-// first "usage_usec" line of cgroup v2's cpu.stat.
+// cpuUsageUsec returns cumulative CPU time in microseconds — summed across
+// the game process(es) in proc mode, or the cgroup's cpu.stat otherwise.
 func (r *Reader) cpuUsageUsec() (uint64, bool) {
+	if r.cfg.ProcMode {
+		ticks, _, ok := r.procUsage()
+		if !ok {
+			return 0, false
+		}
+		return ticks * 1_000_000 / uint64(r.cfg.clkTck), true
+	}
+	return r.cgroupCPUUsageUsec()
+}
+
+// cgroupCPUUsageUsec reads the first "usage_usec" line of cgroup v2's
+// cpu.stat.
+func (r *Reader) cgroupCPUUsageUsec() (uint64, bool) {
 	b, err := os.ReadFile(filepath.Join(r.cfg.Root, "cpu.stat"))
 	if err != nil {
 		return 0, false
@@ -167,6 +231,17 @@ func (r *Reader) cpuLimitMillicores() (int64, bool) {
 }
 
 func (r *Reader) readMemory(s *Sample) {
+	if r.cfg.ProcMode {
+		if _, rss, ok := r.procUsage(); ok {
+			s.MemoryBytes = rss
+			s.MemoryKnown = true
+		}
+		if r.cfg.MemLimitBytes > 0 {
+			s.MemoryLimitBytes = r.cfg.MemLimitBytes
+			s.MemoryLimitKnown = true
+		}
+		return
+	}
 	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.current")); ok {
 		s.MemoryBytes = int64(v)
 		s.MemoryKnown = true
@@ -177,6 +252,114 @@ func (r *Reader) readMemory(s *Sample) {
 		s.MemoryLimitBytes = int64(v)
 		s.MemoryLimitKnown = true
 	}
+}
+
+// procUsage sums CPU jiffies and resident memory across every process in
+// the shared PID namespace except the agent's own subtree and pid 1 (the
+// pause container) — i.e. the game server's processes. ok is false when
+// procfs can't be read.
+func (r *Reader) procUsage() (cpuTicks uint64, rssBytes int64, ok bool) {
+	entries, err := os.ReadDir(r.cfg.ProcRoot)
+	if err != nil {
+		return 0, 0, false
+	}
+	type rec struct {
+		ppid     int
+		ticks    uint64
+		rssPages int64
+	}
+	recs := make(map[int]rec, len(entries))
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue // not a pid dir
+		}
+		ppid, ticks, sok := readProcStat(filepath.Join(r.cfg.ProcRoot, e.Name(), "stat"))
+		if !sok {
+			continue // process exited between ReadDir and read
+		}
+		rss := readProcStatmRSS(filepath.Join(r.cfg.ProcRoot, e.Name(), "statm"))
+		recs[pid] = rec{ppid: ppid, ticks: ticks, rssPages: rss}
+	}
+	if len(recs) == 0 {
+		return 0, 0, false
+	}
+
+	// Exclude the pause process (pid 1) and the agent's own subtree.
+	excluded := map[int]bool{1: true, r.cfg.selfPID: true}
+	children := map[int][]int{}
+	for pid, rc := range recs {
+		children[rc.ppid] = append(children[rc.ppid], pid)
+	}
+	for queue := []int{r.cfg.selfPID}; len(queue) > 0; {
+		p := queue[0]
+		queue = queue[1:]
+		for _, c := range children[p] {
+			if !excluded[c] {
+				excluded[c] = true
+				queue = append(queue, c)
+			}
+		}
+	}
+
+	var pages int64
+	for pid, rc := range recs {
+		if excluded[pid] {
+			continue
+		}
+		cpuTicks += rc.ticks
+		pages += rc.rssPages
+	}
+	return cpuTicks, pages * int64(os.Getpagesize()), true
+}
+
+// readProcStat parses ppid and utime+stime (jiffies) from /proc/<pid>/stat.
+// The comm field (2nd) is wrapped in parens and may contain spaces and
+// parens, so fields are taken relative to the final ')'.
+func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	s := string(b)
+	close := strings.LastIndexByte(s, ')')
+	if close < 0 || close+2 > len(s) {
+		return 0, 0, false
+	}
+	// Fields after comm; field 3 (state) is index 0 here, so stat field N is
+	// index N-3: ppid=4→[1], utime=14→[11], stime=15→[12].
+	f := strings.Fields(s[close+1:])
+	if len(f) < 13 {
+		return 0, 0, false
+	}
+	ppid, err = strconv.Atoi(f[1])
+	if err != nil {
+		return 0, 0, false
+	}
+	ut, err1 := strconv.ParseUint(f[11], 10, 64)
+	st, err2 := strconv.ParseUint(f[12], 10, 64)
+	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	return ppid, ut + st, true
+}
+
+// readProcStatmRSS returns the resident set size in pages (field 2 of
+// /proc/<pid>/statm), or 0 when unreadable.
+func readProcStatmRSS(path string) int64 {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	f := strings.Fields(string(b))
+	if len(f) < 2 {
+		return 0
+	}
+	rss, err := strconv.ParseInt(f[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return rss
 }
 
 func (r *Reader) readDisk(s *Sample) {
