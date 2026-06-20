@@ -70,6 +70,7 @@ func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
 		Loader:      loader,
 		GameVersion: gameVersion,
 		ProjectType: req.URL.Query().Get("type"),
+		Category:    req.URL.Query().Get("category"),
 		Sort:        req.URL.Query().Get("sort"),
 		Limit:       limit,
 		Offset:      offset,

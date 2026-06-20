@@ -65,6 +65,9 @@ type SearchQuery struct {
 	// ProjectType is "modpack" for the modpacks browser; empty (or "mod")
 	// is the regular mod/plugin browser, which excludes modpacks.
 	ProjectType string
+	// Category narrows the browse to a provider category (e.g. Modrinth
+	// "optimization"). Empty means all categories.
+	Category string
 	// Sort is the provider ordering key for browse: "downloads" (popular),
 	// "updated", "newest", or "relevance" (the default when Term is set).
 	Sort   string

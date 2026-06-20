@@ -31,6 +31,9 @@ func (m *Modrinth) Search(ctx context.Context, q SearchQuery) ([]Project, error)
 	if q.Loader != "" {
 		facets = append(facets, []string{"categories:" + q.Loader})
 	}
+	if q.Category != "" {
+		facets = append(facets, []string{"categories:" + q.Category})
+	}
 	if q.GameVersion != "" {
 		facets = append(facets, []string{"versions:" + q.GameVersion})
 	}
