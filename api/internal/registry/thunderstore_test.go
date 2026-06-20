@@ -18,7 +18,7 @@ const tsCatalog = `[
 	]},
 	{"name":"OldMod","full_name":"x-OldMod","owner":"x","package_url":"u","rating_score":1,"is_deprecated":true,"versions":[]},
 	{"name":"MegaPack","full_name":"packer-MegaPack","owner":"packer","package_url":"https://thunderstore.io/c/valheim/p/packer/MegaPack/","rating_score":700,"is_deprecated":false,"categories":["Modpacks"],"versions":[
-		{"name":"MegaPack","full_name":"packer-MegaPack-1.0.0","version_number":"1.0.0","description":"Curated pack","icon":"https://gcdn.thunderstore.io/m.png","download_url":"https://thunderstore.io/package/download/packer/MegaPack/1.0.0/","downloads":50000,"file_size":1024}
+		{"name":"MegaPack","full_name":"packer-MegaPack-1.0.0","version_number":"1.0.0","description":"Curated pack","icon":"https://gcdn.thunderstore.io/m.png","download_url":"https://thunderstore.io/package/download/packer/MegaPack/1.0.0/","downloads":50000,"file_size":1024,"dependencies":["valheimPlus-ValheimPlus-0.9.9","denikson-BepInExPack_Valheim-5.4.2202"]}
 	]}
 ]`
 
@@ -61,6 +61,27 @@ func TestThunderstoreModpackFilter(t *testing.T) {
 	}
 	if len(packs) != 1 || packs[0].Title != "MegaPack" {
 		t.Fatalf("modpack search = %+v, want [MegaPack]", packs)
+	}
+}
+
+func TestThunderstoreModpackDeps(t *testing.T) {
+	srv := newTSServer(t, nil)
+	defer srv.Close()
+	c := testThunderstore(srv.URL)
+
+	files, err := c.ModpackDeps(context.Background(), "packer-MegaPack")
+	if err != nil {
+		t.Fatalf("ModpackDeps: %v", err)
+	}
+	// BepInExPack dep is skipped (the image ships it) → only ValheimPlus.
+	if len(files) != 1 {
+		t.Fatalf("deps = %+v, want 1 (BepInExPack skipped)", files)
+	}
+	if files[0].Filename != "valheimPlus-ValheimPlus-0.9.9.zip" {
+		t.Errorf("dep file = %q", files[0].Filename)
+	}
+	if files[0].DownloadURL == "" {
+		t.Error("dep download url empty")
 	}
 }
 

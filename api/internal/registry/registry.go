@@ -85,6 +85,11 @@ type Filter struct {
 type Provider interface {
 	Search(ctx context.Context, q SearchQuery) ([]Project, error)
 	Versions(ctx context.Context, projectID string, f Filter) ([]Version, error)
+	// ModpackDeps resolves a modpack's dependency mods into installable
+	// files — used by games that install a modpack by installing its
+	// dependencies (e.g. Thunderstore/BepInEx). Providers whose modpacks
+	// install via a game-image env (e.g. Modrinth on itzg) return nil.
+	ModpackDeps(ctx context.Context, projectID string) ([]File, error)
 }
 
 // Config is the per-game registry selection, mirroring the CRD's

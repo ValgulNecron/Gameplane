@@ -61,6 +61,7 @@ type tsVersion struct {
 	VersionNumber string
 	DownloadURL   string
 	FileSize      int64
+	Dependencies  []string // "Owner-Pkg-1.2.3" refs, for modpack resolution
 }
 
 // tsRawPackage mirrors only the v1 fields we read. encoding/json drops
@@ -75,13 +76,14 @@ type tsRawPackage struct {
 	IsDeprecated bool     `json:"is_deprecated"`
 	Categories   []string `json:"categories"`
 	Versions     []struct {
-		FullName      string `json:"full_name"`
-		VersionNumber string `json:"version_number"`
-		Description   string `json:"description"`
-		Icon          string `json:"icon"`
-		DownloadURL   string `json:"download_url"`
-		Downloads     int64  `json:"downloads"`
-		FileSize      int64  `json:"file_size"`
+		FullName      string   `json:"full_name"`
+		VersionNumber string   `json:"version_number"`
+		Description   string   `json:"description"`
+		Icon          string   `json:"icon"`
+		DownloadURL   string   `json:"download_url"`
+		Downloads     int64    `json:"downloads"`
+		FileSize      int64    `json:"file_size"`
+		Dependencies  []string `json:"dependencies"`
 	} `json:"versions"`
 }
 
@@ -189,12 +191,19 @@ func compactPackage(raw tsRawPackage) tsPackage {
 	for i := range raw.Versions {
 		p.Downloads += raw.Versions[i].Downloads
 		if i < tsMaxVersionsPerPackage {
-			p.Versions = append(p.Versions, tsVersion{
+			v := tsVersion{
 				FullName:      raw.Versions[i].FullName,
 				VersionNumber: raw.Versions[i].VersionNumber,
 				DownloadURL:   raw.Versions[i].DownloadURL,
 				FileSize:      raw.Versions[i].FileSize,
-			})
+			}
+			// Only modpacks need their dependency list (for install
+			// resolution); keeping it for every package would bloat the
+			// cached index.
+			if p.IsModpack {
+				v.Dependencies = raw.Versions[i].Dependencies
+			}
+			p.Versions = append(p.Versions, v)
 		}
 	}
 	return p
@@ -297,4 +306,60 @@ func (c *thunderstoreCommunity) Versions(ctx context.Context, projectID string, 
 		return out, nil
 	}
 	return nil, fmt.Errorf("thunderstore: package %q not found in community %q", projectID, c.community)
+}
+
+// ModpackDeps resolves a Thunderstore modpack into the files to install:
+// the modpack's latest version's dependencies, each mapped to a package
+// version's download. The BepInEx loader itself is skipped (the server
+// image already ships it). Deps pinned to a version we no longer cache
+// fall back to the package's latest version.
+func (c *thunderstoreCommunity) ModpackDeps(ctx context.Context, projectID string) ([]File, error) {
+	pkgs, err := c.ts.packages(ctx, c.community)
+	if err != nil {
+		return nil, err
+	}
+	byFull := make(map[string]*tsPackage, len(pkgs))
+	byVersion := make(map[string]File, len(pkgs))
+	var modpack *tsPackage
+	for i := range pkgs {
+		p := &pkgs[i]
+		byFull[p.FullName] = p
+		if p.FullName == projectID {
+			modpack = p
+		}
+		for _, v := range p.Versions {
+			byVersion[v.FullName] = tsFile(v)
+		}
+	}
+	if modpack == nil || len(modpack.Versions) == 0 {
+		return nil, fmt.Errorf("thunderstore: modpack %q not found in community %q", projectID, c.community)
+	}
+
+	out := make([]File, 0, len(modpack.Versions[0].Dependencies))
+	for _, dep := range modpack.Versions[0].Dependencies {
+		if strings.Contains(dep, "BepInExPack") {
+			continue // the loader; the server image already has it
+		}
+		if f, ok := byVersion[dep]; ok {
+			out = append(out, f)
+			continue
+		}
+		// Pinned version not cached — fall back to the package's latest.
+		if cut := strings.LastIndexByte(dep, '-'); cut > 0 {
+			if p, ok := byFull[dep[:cut]]; ok && len(p.Versions) > 0 {
+				out = append(out, tsFile(p.Versions[0]))
+			}
+		}
+	}
+	return out, nil
+}
+
+// tsFile maps a cached version to a downloadable File.
+func tsFile(v tsVersion) File {
+	return File{
+		Filename:    v.FullName + ".zip",
+		DownloadURL: v.DownloadURL,
+		Size:        v.FileSize,
+		Primary:     true,
+	}
 }

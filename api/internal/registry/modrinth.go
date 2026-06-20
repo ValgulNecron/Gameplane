@@ -162,6 +162,13 @@ func (m *Modrinth) Versions(ctx context.Context, projectID string, f Filter) ([]
 	return out, nil
 }
 
+// ModpackDeps is a no-op for Modrinth: on the supported game (Minecraft via
+// itzg) a modpack installs through the MODRINTH_MODPACK env, not by
+// installing dependency files.
+func (m *Modrinth) ModpackDeps(_ context.Context, _ string) ([]File, error) {
+	return nil, nil
+}
+
 // clampLimit bounds a caller-supplied result limit to a sane range.
 func clampLimit(n int) int {
 	if n <= 0 || n > 100 {

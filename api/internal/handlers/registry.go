@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,6 +42,10 @@ func MountRegistry(r chi.Router, k *kube.Client, reg registrySet) {
 	h := &registryHandler{k: k, reg: reg}
 	r.Get("/servers/{name}/mods/registry/search", h.search)
 	r.Get("/servers/{name}/mods/registry/projects/{project}/versions", h.versions)
+	// Modpacks: resolve a pack's dependency files (deps-mode games install
+	// each via /mods/install), and apply an env-mode modpack to the server.
+	r.Get("/servers/{name}/mods/registry/projects/{project}/modpack", h.modpackDeps)
+	r.Post("/servers/{name}/modpack", h.installModpack)
 }
 
 type registryHandler struct {
@@ -93,6 +100,80 @@ func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	writeJSON(w, res)
+}
+
+// modpackDeps resolves a modpack into the dependency files the dashboard
+// then installs one-by-one via /mods/install (deps-mode games, e.g.
+// Valheim/Thunderstore).
+func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	p, _, _, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"))
+	if err != nil {
+		h.writeResolveErr(w, req, err)
+		return
+	}
+	files, err := p.ModpackDeps(req.Context(), chi.URLParam(req, "project"))
+	if err != nil {
+		httperr.WriteCode(w, req, http.StatusBadGateway, fmt.Errorf("resolve modpack: %w", err))
+		return
+	}
+	writeJSON(w, files)
+}
+
+// installModpack applies an env-mode modpack (e.g. Modrinth on itzg): it
+// patches the GameServer's env to pin the chosen pack, which the operator
+// rolls out. Deps-mode games (no refEnv) are installed via modpackDeps +
+// /mods/install instead, so they get a 409 here.
+func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(req, "name")
+	gs, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Get(req.Context(), name, metav1.GetOptions{})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	tmplName, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
+	tmpl, err := h.k.Dynamic.Resource(kube.GVRs["templates"]).Get(req.Context(), tmplName, metav1.GetOptions{})
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	refEnv, staticEnv, ok := modpackConfig(tmpl)
+	if !ok {
+		httperr.WriteCode(w, req, http.StatusNotImplemented, errNoRegistry)
+		return
+	}
+	if refEnv == "" {
+		httperr.WriteCode(w, req, http.StatusConflict,
+			errors.New("this game installs modpacks per dependency; install the resolved mods instead"))
+		return
+	}
+
+	var body struct {
+		Ref string `json:"ref"`
+	}
+	if err := decodeBody(req, &body); err != nil || strings.TrimSpace(body.Ref) == "" {
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("ref is required"))
+		return
+	}
+
+	// Ordered env to set: the modpack reference, then the template's static
+	// modpack env (e.g. TYPE=MODRINTH).
+	apply := []envKV{{Name: refEnv, Value: strings.TrimSpace(body.Ref)}}
+	apply = append(apply, staticEnv...)
+	setEnvVars(gs, apply)
+
+	if _, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Update(req.Context(), gs, metav1.UpdateOptions{}); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
 }
 
 // resolve loads the server + its template, selects the registry provider
@@ -185,4 +266,74 @@ func loaderGameVersion(m map[string]any) (loader, gameVersion string) {
 	loader, _ = m["loader"].(string)
 	gameVersion, _ = m["gameVersion"].(string)
 	return loader, gameVersion
+}
+
+type envKV struct {
+	Name  string
+	Value string
+}
+
+// modpackConfig reads capabilities.mods.registry.modpacks. ok is false when
+// the template declares no modpacks. refEnv is empty for deps-mode games.
+func modpackConfig(tmpl *unstructured.Unstructured) (refEnv string, env []envKV, ok bool) {
+	mp, found, err := unstructured.NestedMap(tmpl.Object, "spec", "capabilities", "mods", "registry", "modpacks")
+	if !found || err != nil || mp == nil {
+		return "", nil, false
+	}
+	refEnv, _ = mp["refEnv"].(string)
+	if list, isList := mp["env"].([]any); isList {
+		for _, e := range list {
+			if m, isMap := e.(map[string]any); isMap {
+				n, _ := m["name"].(string)
+				v, _ := m["value"].(string)
+				if n != "" {
+					env = append(env, envKV{Name: n, Value: v})
+				}
+			}
+		}
+	}
+	return refEnv, env, true
+}
+
+// setEnvVars merges apply into GameServer.spec.env in place: existing
+// entries of the same name are overwritten, new ones appended (in order).
+func setEnvVars(gs *unstructured.Unstructured, apply []envKV) {
+	override := make(map[string]string, len(apply))
+	order := make([]string, 0, len(apply))
+	for _, kv := range apply {
+		if _, seen := override[kv.Name]; !seen {
+			order = append(order, kv.Name)
+		}
+		override[kv.Name] = kv.Value
+	}
+
+	existing, _, _ := unstructured.NestedSlice(gs.Object, "spec", "env")
+	out := make([]any, 0, len(existing)+len(apply))
+	done := map[string]bool{}
+	for _, item := range existing {
+		m, isMap := item.(map[string]any)
+		if !isMap {
+			out = append(out, item)
+			continue
+		}
+		nm, _ := m["name"].(string)
+		if v, ok := override[nm]; ok {
+			out = append(out, map[string]any{"name": nm, "value": v})
+			done[nm] = true
+			continue
+		}
+		out = append(out, item)
+	}
+	for _, nm := range order {
+		if !done[nm] {
+			out = append(out, map[string]any{"name": nm, "value": override[nm]})
+		}
+	}
+	_ = unstructured.SetNestedSlice(gs.Object, out, "spec", "env")
+}
+
+// decodeBody reads a small JSON request body into v.
+func decodeBody(req *http.Request, v any) error {
+	defer req.Body.Close()
+	return json.NewDecoder(io.LimitReader(req.Body, 4<<10)).Decode(v)
 }

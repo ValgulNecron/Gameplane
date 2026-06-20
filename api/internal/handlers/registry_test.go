@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
@@ -34,6 +35,11 @@ func (f *fakeProvider) Versions(_ context.Context, project string, fl registry.F
 	f.gotProject = project
 	f.gotFilter = fl
 	return []registry.Version{{ID: "v1", Files: []registry.File{{Filename: "a.jar", DownloadURL: "https://cdn/a.jar", Primary: true}}}}, nil
+}
+
+func (f *fakeProvider) ModpackDeps(_ context.Context, project string) ([]registry.File, error) {
+	f.gotProject = project
+	return []registry.File{{Filename: "dep.zip", DownloadURL: "https://cdn/dep.zip", Primary: true}}, nil
 }
 
 // fakeSet returns p for any config, unless absent is true.
@@ -190,6 +196,76 @@ func TestRegistry_UnknownServer_404(t *testing.T) {
 	rr := do(t, r, "GET", "/servers/ghost/mods/registry/search?q=x", nil)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("got %d, want 404", rr.Code)
+	}
+}
+
+func TestInstallModpack_SetsEnv(t *testing.T) {
+	versions := []any{map[string]any{"id": "1.21.4-fabric", "loader": "fabric", "gameVersion": "1.21.4", "default": true}}
+	reg := map[string]any{
+		"provider": "modrinth",
+		"modpacks": map[string]any{
+			"refEnv": "MODRINTH_MODPACK",
+			"env":    []any{map[string]any{"name": "TYPE", "value": "MODRINTH"}},
+		},
+	}
+	k := fakeKubeClient(
+		newTemplateObj("minecraft", reg, versions),
+		serverWithVersion("kestrel-games", "alpha", "minecraft", "1.21.4-fabric"),
+	)
+	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
+
+	rr := do(t, r, "POST", "/servers/alpha/modpack", map[string]any{"ref": "cobblemon"})
+	if rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	gs, err := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace("kestrel-games").
+		Get(t.Context(), "alpha", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	env, _, _ := unstructured.NestedSlice(gs.Object, "spec", "env")
+	got := map[string]string{}
+	for _, e := range env {
+		m := e.(map[string]any)
+		got[m["name"].(string)], _ = m["value"].(string)
+	}
+	if got["MODRINTH_MODPACK"] != "cobblemon" || got["TYPE"] != "MODRINTH" {
+		t.Errorf("env = %v, want MODRINTH_MODPACK=cobblemon TYPE=MODRINTH", got)
+	}
+}
+
+func TestInstallModpack_DepsModeConflict(t *testing.T) {
+	versions := []any{map[string]any{"id": "stable", "loader": "bepinex", "default": true}}
+	reg := map[string]any{"provider": "thunderstore", "community": "valheim", "modpacks": map[string]any{}}
+	k := fakeKubeClient(
+		newTemplateObj("valheim", reg, versions),
+		serverWithVersion("kestrel-games", "alpha", "valheim", "stable"),
+	)
+	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
+	rr := do(t, r, "POST", "/servers/alpha/modpack", map[string]any{"ref": "x"})
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("got %d, want 409", rr.Code)
+	}
+}
+
+func TestModpackDeps(t *testing.T) {
+	versions := []any{map[string]any{"id": "stable", "loader": "bepinex", "default": true}}
+	reg := map[string]any{"provider": "thunderstore", "community": "valheim", "modpacks": map[string]any{}}
+	k := fakeKubeClient(
+		newTemplateObj("valheim", reg, versions),
+		serverWithVersion("kestrel-games", "alpha", "valheim", "stable"),
+	)
+	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
+	rr := do(t, r, "GET", "/servers/alpha/mods/registry/projects/some-pack/modpack", nil)
+	if rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	var files []registry.File
+	if err := json.Unmarshal(rr.Body.Bytes(), &files); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(files) != 1 || files[0].Filename != "dep.zip" {
+		t.Errorf("files = %+v", files)
 	}
 }
 
