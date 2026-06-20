@@ -43,18 +43,24 @@ type Env struct {
 	// Kubectl for context selection.
 	ClusterName string
 	Tag         string
+
+	// Context is the kubeconfig context the suite acts in. Defaults to
+	// "kind-<ClusterName>" for the local kind path; set KESTREL_E2E_CONTEXT
+	// to target an existing (e.g. remote) cluster instead.
+	Context string
 }
 
 func newEnv() (*Env, error) {
 	cluster := getenvOr("KESTREL_E2E_CLUSTER", "kestrel-e2e")
 	tag := getenvOr("KESTREL_E2E_TAG", "e2e")
+	kctx := getenvOr("KESTREL_E2E_CONTEXT", "kind-"+cluster)
 
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kc := os.Getenv("KUBECONFIG"); kc != "" {
 		loader.ExplicitPath = kc
 	}
 	override := &clientcmd.ConfigOverrides{
-		CurrentContext: "kind-" + cluster,
+		CurrentContext: kctx,
 	}
 	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loader, override).ClientConfig()
 	if err != nil {
@@ -74,6 +80,7 @@ func newEnv() (*Env, error) {
 		Dyn:         dyn,
 		ClusterName: cluster,
 		Tag:         tag,
+		Context:     kctx,
 	}, nil
 }
 
@@ -110,7 +117,7 @@ func (e *Env) Eventually(t *testing.T, timeout time.Duration, cond func() (bool,
 // combined) is returned along with the error, so callers can include
 // it in failure messages.
 func (e *Env) Kubectl(args ...string) (string, error) {
-	all := append([]string{"--context", "kind-" + e.ClusterName}, args...)
+	all := append([]string{"--context", e.Context}, args...)
 	cmd := exec.Command("kubectl", all...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -193,7 +200,7 @@ func (e *Env) ensureCluster() error {
 // to the kubectl process. Used for password-stdin and similar flows
 // where putting the value in argv would leak it through /proc.
 func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
-	all := append([]string{"--context", "kind-" + e.ClusterName}, args...)
+	all := append([]string{"--context", e.Context}, args...)
 	cmd := exec.Command("kubectl", all...)
 	cmd.Stdin = strings.NewReader(stdin)
 	out, err := cmd.CombinedOutput()
@@ -293,7 +300,7 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 		t.Fatalf("free port: %v", err)
 	}
 	args := []string{
-		"--context", "kind-" + e.ClusterName,
+		"--context", e.Context,
 		"port-forward",
 		"-n", ns,
 		target,
