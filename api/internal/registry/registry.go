@@ -120,11 +120,13 @@ func (s *Set) For(cfg Config) (Provider, bool) {
 }
 
 // Response-body caps. Modrinth search/version responses are small;
-// Thunderstore's per-community package list is the whole catalog (several
-// MiB), so it gets a far larger ceiling.
+// Thunderstore's per-community package list is the whole catalog (~150 MB
+// for Valheim), so it gets a far larger ceiling. The Thunderstore engine
+// stream-decodes within this bound, so the cap limits bytes read, not
+// resident memory.
 const (
-	defaultMaxRespBytes = 8 << 20  // 8 MiB
-	tsMaxRespBytes      = 64 << 20 // 64 MiB
+	defaultMaxRespBytes = 8 << 20   // 8 MiB
+	tsMaxRespBytes      = 320 << 20 // 320 MiB
 )
 
 // httpGetJSON GETs rawURL and decodes a JSON body into v, capping the body
