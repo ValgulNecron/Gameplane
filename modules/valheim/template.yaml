@@ -21,7 +21,7 @@ metadata:
 spec:
   displayName: Valheim (Dedicated)
   game: valheim
-  version: 2.2.0
+  version: 2.3.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#d99a2b"
   description: |
@@ -133,12 +133,13 @@ spec:
       # 302-redirects thunderstore.io → gcdn.thunderstore.io; both hosts
       # are allowlisted above so the agent's redirect re-check passes.
       registry:
-        provider: thunderstore
-        community: valheim
-        # Modpacks tab: Thunderstore modpacks are dependency manifests, not
-        # a single file. With no refEnv, installing one resolves the pack's
-        # dependencies and installs each (extracted) into plugins/.
-        modpacks: {}
+        providers:
+          - provider: thunderstore
+            community: valheim
+            # Modpacks tab: Thunderstore modpacks are dependency manifests,
+            # not a single file. With no refEnv, installing one resolves the
+            # pack's dependencies and installs each (extracted) into plugins/.
+            modpacks: {}
 
   configSchema:
     - name: SERVER_NAME
