@@ -64,6 +64,15 @@ export interface ModLoaderDecl {
 export interface ModRegistryDecl {
   provider: "modrinth" | "thunderstore";
   community?: string;
+  modpacks?: ModpackDecl;
+}
+
+// spec.capabilities.mods.registry.modpacks — enables the Modpacks tab.
+// refEnv set = env-mode install (e.g. Minecraft/itzg MODRINTH_MODPACK);
+// empty = deps-mode (resolve + install the pack's dependencies).
+export interface ModpackDecl {
+  refEnv?: string;
+  env?: { name: string; value?: string }[];
 }
 
 // spec.capabilities.mods — declares the mod directory and (optionally)

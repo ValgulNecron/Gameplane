@@ -21,6 +21,7 @@ import type {
   ModuleSourceSpec,
   PermissionGroup,
   PlayersResp,
+  RegistryFile,
   RegistryProject,
   RegistryVersion,
   Restore,
@@ -108,19 +109,45 @@ export const Servers = {
     api<void>(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, {
       method: "DELETE",
     }),
-  // In-app mod registry browse (spec.capabilities.mods.registry). The API
+  // In-app registry browse (spec.capabilities.mods.registry). The API
   // resolves the active version's loader + game version, so the dashboard
-  // sends only the search term. Installing a result reuses installMod with
-  // the file's downloadUrl. Returns 501 when the server's game has no
-  // browsable registry.
-  searchMods: (name: string, q: string, limit = 20) =>
-    api<RegistryProject[]>(
-      `/servers/${name}/mods/registry/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-    ),
+  // sends only the browse params. type="modpack" drives the Modpacks tab;
+  // an empty q is a valid browse (popular). Returns 501 when the server's
+  // game has no browsable registry.
+  searchRegistry: (
+    name: string,
+    opts: {
+      q?: string;
+      type?: "mod" | "modpack";
+      sort?: string;
+      category?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
+    const p = new URLSearchParams();
+    if (opts.q) p.set("q", opts.q);
+    if (opts.type) p.set("type", opts.type);
+    if (opts.sort) p.set("sort", opts.sort);
+    if (opts.category) p.set("category", opts.category);
+    p.set("limit", String(opts.limit ?? 24));
+    if (opts.offset) p.set("offset", String(opts.offset));
+    return api<RegistryProject[]>(`/servers/${name}/mods/registry/search?${p.toString()}`);
+  },
   modVersions: (name: string, project: string) =>
     api<RegistryVersion[]>(
       `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions`,
     ),
+  // Modpacks: resolve a pack's dependency files (deps-mode, e.g. Valheim) —
+  // the dashboard installs each via installMod.
+  modpackDeps: (name: string, project: string) =>
+    api<RegistryFile[]>(
+      `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/modpack`,
+    ),
+  // Apply an env-mode modpack (e.g. Minecraft/itzg): pins the pack on the
+  // server and restarts it.
+  installModpack: (name: string, body: { ref: string }) =>
+    api<{ ok: boolean }>(`/servers/${name}/modpack`, { method: "POST", body }),
 };
 
 export const Templates = {

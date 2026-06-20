@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Download, Package, Plus, RotateCw, Search, Trash2 } from "lucide-react";
+import { Download, Package, Plus, RotateCw, Trash2 } from "lucide-react";
 
 import type { GameServer, GameTemplate, InstalledMod, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
@@ -11,6 +11,7 @@ import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry-browser";
 import { cn, formatBytes, formatRelative } from "@/lib/utils";
 
 type Banner = { kind: "ok" | "err"; text: string };
@@ -175,6 +176,7 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
         <InstallDialog
           name={name}
           canBrowse={canBrowse}
+          provider={caps?.registry?.provider}
           allowedHosts={caps?.install?.allowedHosts ?? []}
           pending={install.isPending}
           onCancel={() => setInstallOpen(false)}
@@ -209,6 +211,7 @@ type InstallMode = "search" | "url";
 function InstallDialog({
   name,
   canBrowse,
+  provider,
   allowedHosts,
   pending,
   onCancel,
@@ -216,6 +219,7 @@ function InstallDialog({
 }: {
   name: string;
   canBrowse: boolean;
+  provider?: string;
   allowedHosts: string[];
   pending: boolean;
   onCancel: () => void;
@@ -267,7 +271,7 @@ function InstallDialog({
 
           {browsing ? (
             <>
-              <BrowseForm name={name} pending={pending} onInstall={onInstall} />
+              <BrowseForm name={name} provider={provider} pending={pending} onInstall={onInstall} />
               <div className="flex justify-end pt-3">
                 <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
                   Close
@@ -365,93 +369,63 @@ function UrlForm({
 // BrowseForm searches the module's mod registry (debounced) and lets the
 // user expand a result to pick a version/file. The API filters results to
 // the server's active loader + game version, so the picker stays short.
+// Curated Modrinth categories for the mod browser's filter chips.
+const MOD_CATEGORIES: { value: string; label: string }[] = [
+  { value: "optimization", label: "Performance" },
+  { value: "utility", label: "Utility" },
+  { value: "library", label: "Library" },
+  { value: "worldgen", label: "Worldgen" },
+  { value: "adventure", label: "Adventure" },
+  { value: "storage", label: "Storage" },
+  { value: "technology", label: "Tech" },
+  { value: "magic", label: "Magic" },
+];
+
+// BrowseForm is the full mod browser inside the install dialog: the shared
+// RegistryBrowser (popular by default, search, sort, category chips,
+// load-more) with each result expandable to a version picker + Install.
 function BrowseForm({
   name,
+  provider,
   pending,
   onInstall,
 }: {
   name: string;
+  provider?: string;
   pending: boolean;
   onInstall: (body: { url: string; name?: string }) => void;
 }) {
-  const [term, setTerm] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(term.trim()), 300);
-    return () => clearTimeout(t);
-  }, [term]);
-
-  const enabled = debounced.length >= 2;
-  const search = useQuery({
-    queryKey: ["mod-search", name, debounced],
-    queryFn: () => Servers.searchMods(name, debounced),
-    enabled,
-  });
-
   return (
-    <div className="flex min-h-0 flex-col pt-3">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input
-          autoFocus
-          className="pl-8"
-          placeholder="Search mods…"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          spellCheck={false}
-        />
-      </div>
-      <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-auto">
-        {!enabled ? (
-          <p className="text-xs text-muted">Type at least 2 characters to search.</p>
-        ) : search.isLoading ? (
-          <p className="text-xs text-muted">Searching…</p>
-        ) : search.isError ? (
-          <p className="text-xs text-danger">{errMsg(search.error)}</p>
-        ) : (search.data?.length ?? 0) === 0 ? (
-          <p className="text-xs text-muted">No results.</p>
-        ) : (
-          search.data?.map((p) => (
-            <ModResultCard
-              key={p.id}
-              name={name}
-              project={p}
-              expanded={expanded === p.id}
-              onToggle={() => setExpanded(expanded === p.id ? null : p.id)}
-              pending={pending}
-              onInstall={onInstall}
-            />
-          ))
-        )}
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col pt-3">
+      <RegistryBrowser
+        name={name}
+        type="mod"
+        categories={provider === "modrinth" ? MOD_CATEGORIES : undefined}
+        renderItem={(p) => <ModCard name={name} project={p} pending={pending} onInstall={onInstall} />}
+      />
     </div>
   );
 }
 
-// ModResultCard renders one search hit; expanding it loads the project's
-// versions and offers a version/file picker + Install.
-function ModResultCard({
+// ModCard is one browser result; expanding it loads the project's versions
+// and offers a version/file picker + Install.
+function ModCard({
   name,
   project,
-  expanded,
-  onToggle,
   pending,
   onInstall,
 }: {
   name: string;
   project: RegistryProject;
-  expanded: boolean;
-  onToggle: () => void;
   pending: boolean;
   onInstall: (body: { url: string; name?: string }) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [selId, setSelId] = useState("");
   const versions = useQuery({
     queryKey: ["mod-versions", name, project.id],
     queryFn: () => Servers.modVersions(name, project.id),
-    enabled: expanded,
+    enabled: open,
   });
   const list = versions.data ?? [];
 
@@ -465,8 +439,8 @@ function ModResultCard({
 
   return (
     <div className="rounded border border-border bg-surface/30">
-      <button type="button" onClick={onToggle} className="flex w-full items-center gap-3 p-2.5 text-left">
-        <ModIcon url={project.iconUrl} />
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 p-2.5 text-left">
+        <RegistryIcon url={project.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{project.title}</div>
           <div className="truncate text-xs text-muted">
@@ -479,7 +453,7 @@ function ModResultCard({
           {project.provider}
         </span>
       </button>
-      {expanded && (
+      {open && (
         <div className="flex items-center gap-2 border-t border-border p-2.5">
           {versions.isLoading ? (
             <span className="text-xs text-muted">Loading versions…</span>
@@ -517,26 +491,6 @@ function ModResultCard({
       )}
     </div>
   );
-}
-
-// ModIcon shows the registry icon, falling back to a generic glyph when
-// there's none or the image (a third-party CDN) fails to load.
-function ModIcon({ url }: { url?: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!url || failed) return <Package className="h-8 w-8 shrink-0 rounded text-muted" />;
-  return (
-    <img
-      src={url}
-      alt=""
-      loading="lazy"
-      className="h-8 w-8 shrink-0 rounded object-cover"
-      onError={() => setFailed(true)}
-    />
-  );
-}
-
-function compactNum(n: number): string {
-  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
 function errMsg(err: unknown): string {

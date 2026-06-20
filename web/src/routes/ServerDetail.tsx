@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
-import { resolveConsoleMode, serverHasMods } from "@/lib/capabilities";
+import { resolveConsoleMode, serverHasMods, serverHasModpacks } from "@/lib/capabilities";
 import { useMe, can } from "@/lib/auth";
 import { isValidK8sName } from "@/lib/validation";
 import { PhaseBadge } from "@/components/ui/badge";
@@ -32,6 +32,7 @@ import { capitalize, cn, formatUptime } from "@/lib/utils";
 import { OverviewTab } from "./tabs/Overview";
 import { LogsTab } from "./tabs/Logs";
 import { ModsTab } from "./tabs/Mods";
+import { ModpacksTab } from "./tabs/Modpacks";
 import { PlayersTab } from "./tabs/Players";
 import { BackupsTab } from "./tabs/Backups";
 import { SettingsTab } from "./tabs/Settings";
@@ -44,7 +45,8 @@ const FilesTab = lazy(() =>
   import("./tabs/Files").then((m) => ({ default: m.FilesTab })),
 );
 
-type TabKey = "overview" | "console" | "logs" | "files" | "mods" | "players" | "backups" | "settings";
+type TabKey =
+  | "overview" | "console" | "logs" | "files" | "mods" | "modpacks" | "players" | "backups" | "settings";
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "overview", label: "Overview" },
@@ -52,6 +54,7 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "logs",     label: "Logs" },
   { key: "files",    label: "Files" },
   { key: "mods",     label: "Mods" },
+  { key: "modpacks", label: "Modpacks" },
   { key: "players",  label: "Players" },
   { key: "backups",  label: "Backups" },
   { key: "settings", label: "Settings" },
@@ -120,9 +123,12 @@ export function ServerDetailPage() {
   // template declares the capability AND (for the per-loader model) the
   // active version's loader maps to one. Hidden for e.g. vanilla servers.
   const modsAvailable = serverHasMods(tmpl, gs);
+  // Modpacks appears when the template declares a modpacks registry block.
+  const modpacksAvailable = serverHasModpacks(tmpl);
   const visibleTabs = tabs.filter((t) => {
     if (t.key === "console") return consoleAvailable;
     if (t.key === "mods") return modsAvailable;
+    if (t.key === "modpacks") return modpacksAvailable;
     return true;
   });
 
@@ -260,6 +266,7 @@ export function ServerDetailPage() {
           )}
           {tab === "files"    && <FilesTab   name={name} />}
           {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} gs={gs} />}
+          {tab === "modpacks" && <ModpacksTab name={name} tmpl={tmpl} gs={gs} />}
           {tab === "players"  && <PlayersTab name={name} />}
           {tab === "backups"  && <BackupsTab name={name} />}
           {tab === "settings" && (

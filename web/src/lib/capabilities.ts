@@ -74,3 +74,9 @@ export function serverHasMods(
 ): boolean {
   return resolveModVolume(tmpl, gs) !== undefined;
 }
+
+// serverHasModpacks reports whether this server should show the Modpacks
+// tab: the template declares a registry with a modpacks block.
+export function serverHasModpacks(tmpl: GameTemplate | undefined): boolean {
+  return tmpl?.spec.capabilities?.mods?.registry?.modpacks !== undefined;
+}
