@@ -12,11 +12,13 @@
 package mods
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -38,6 +40,7 @@ type handler struct {
 	dir      string   // absolute mods directory, "" when unconfigured
 	exts     []string // lowercased extension allowlist ("" = any)
 	allowed  []string // download host allowlist; nil disables installs
+	extract  bool     // unpack downloaded archives into per-mod folders
 	maxBytes int64
 	client   *http.Client
 }
@@ -74,6 +77,7 @@ func newHandler(dataRoot string, spec *caps.Mods) *handler {
 		return h
 	}
 	h.dir = dir
+	h.extract = spec.Extract
 	for _, e := range spec.Extensions {
 		h.exts = append(h.exts, strings.ToLower(e))
 	}
@@ -105,15 +109,31 @@ func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 	}
 	out := []Mod{}
 	for _, e := range entries {
-		if e.IsDir() || !h.extAllowed(e.Name()) {
-			continue
+		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue // in-flight temp dirs/files
 		}
 		info, err := e.Info()
 		if err != nil {
 			continue
 		}
+		if h.extract {
+			// Extract loaders store each mod as a folder.
+			if !e.IsDir() {
+				continue
+			}
+			out = append(out, Mod{
+				Name:    name,
+				Size:    dirSize(filepath.Join(h.dir, name)),
+				ModTime: info.ModTime().UTC().Format(time.RFC3339),
+			})
+			continue
+		}
+		if e.IsDir() || !h.extAllowed(name) {
+			continue
+		}
 		out = append(out, Mod{
-			Name:    e.Name(),
+			Name:    name,
 			Size:    info.Size(),
 			ModTime: info.ModTime().UTC().Format(time.RFC3339),
 		})
@@ -161,7 +181,16 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	size, err := h.download(req.Context(), u.String(), name)
+	// Extract loaders (e.g. BepInEx): the download is an archive unpacked
+	// into its own folder so the loader's recursive scan finds the files.
+	installName := name
+	var size int64
+	if h.extract {
+		installName = archiveFolderName(name)
+		size, err = h.installArchive(req.Context(), u.String(), installName)
+	} else {
+		size, err = h.download(req.Context(), u.String(), name)
+	}
 	switch {
 	case errors.Is(err, errTooLarge):
 		writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
@@ -169,61 +198,182 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 	case errors.Is(err, netguard.ErrBlockedAddr) || errors.Is(err, errHostNotAllowed):
 		writeErr(w, http.StatusForbidden, "download was redirected to a disallowed address")
 		return
+	case errors.Is(err, errBadArchive):
+		writeErr(w, http.StatusBadGateway, "downloaded file is not a valid archive")
+		return
 	case err != nil:
 		// Never reflect the raw error — it may carry internal addresses.
 		slog.Warn("mod install", "host", u.Hostname(), "err", err)
 		writeErr(w, http.StatusBadGateway, "could not download the mod")
 		return
 	}
-	writeJSON(w, http.StatusOK, Mod{Name: name, Size: size})
+	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: size})
 }
 
-// download streams url into <dir>/<name> via a temp file, enforcing the
-// size cap, then atomically renames it into place.
-func (h *handler) download(ctx context.Context, url, name string) (int64, error) {
+// downloadTemp streams url into a temp file under the mods dir, enforcing
+// the size cap. The caller owns the returned path (rename it into place or
+// unpack it), and must remove it.
+func (h *handler) downloadTemp(ctx context.Context, url string) (string, int64, error) {
 	if err := os.MkdirAll(h.dir, 0o755); err != nil {
-		return 0, fmt.Errorf("mkdir mods: %w", err)
+		return "", 0, fmt.Errorf("mkdir mods: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 	resp, err := h.client.Do(req)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("upstream status %d", resp.StatusCode)
+		return "", 0, fmt.Errorf("upstream status %d", resp.StatusCode)
 	}
 	if resp.ContentLength > h.maxBytes {
-		return 0, errTooLarge
+		return "", 0, errTooLarge
 	}
 
 	tmp, err := os.CreateTemp(h.dir, ".dl-*")
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op once renamed
-
 	// LimitReader caps the copy at maxBytes+1 so an oversize body (with no
 	// or a lying Content-Length) is caught mid-stream.
 	n, err := io.Copy(tmp, io.LimitReader(resp.Body, h.maxBytes+1))
 	closeErr := tmp.Close()
+	if err != nil || closeErr != nil || n > h.maxBytes {
+		os.Remove(tmpName)
+		switch {
+		case err != nil:
+			return "", 0, err
+		case closeErr != nil:
+			return "", 0, closeErr
+		default:
+			return "", 0, errTooLarge
+		}
+	}
+	return tmpName, n, nil
+}
+
+// download streams url into <dir>/<name>, then atomically renames it.
+func (h *handler) download(ctx context.Context, url, name string) (int64, error) {
+	tmpName, n, err := h.downloadTemp(ctx, url)
 	if err != nil {
 		return 0, err
 	}
-	if closeErr != nil {
-		return 0, closeErr
-	}
-	if n > h.maxBytes {
-		return 0, errTooLarge
-	}
 	if err := os.Rename(tmpName, filepath.Join(h.dir, name)); err != nil {
+		os.Remove(tmpName)
 		return 0, err
 	}
 	return n, nil
+}
+
+// installArchive downloads a zip and unpacks it into <dir>/<folder>/,
+// replacing any existing folder of that name. Returns the downloaded size.
+func (h *handler) installArchive(ctx context.Context, url, folder string) (int64, error) {
+	tmpZip, size, err := h.downloadTemp(ctx, url)
+	if err != nil {
+		return 0, err
+	}
+	defer os.Remove(tmpZip)
+
+	staging, err := os.MkdirTemp(h.dir, ".ex-*")
+	if err != nil {
+		return 0, err
+	}
+	if err := unzipInto(tmpZip, staging, h.maxBytes); err != nil {
+		os.RemoveAll(staging)
+		return 0, err
+	}
+	final := filepath.Join(h.dir, folder)
+	if err := os.RemoveAll(final); err != nil {
+		os.RemoveAll(staging)
+		return 0, err
+	}
+	if err := os.Rename(staging, final); err != nil {
+		os.RemoveAll(staging)
+		return 0, err
+	}
+	return size, nil
+}
+
+// unzipInto extracts zipPath into dst, guarding against zip-slip and
+// capping the total uncompressed size.
+func unzipInto(zipPath, dst string, maxBytes int64) error {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("%w: %v", errBadArchive, err)
+	}
+	defer zr.Close()
+
+	dstClean := filepath.Clean(dst)
+	var total int64
+	for _, f := range zr.File {
+		target := filepath.Join(dstClean, filepath.Clean(f.Name))
+		// Reject entries that resolve outside the staging dir (zip-slip).
+		if target != dstClean && !strings.HasPrefix(target, dstClean+string(os.PathSeparator)) {
+			continue
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+		n, err := io.Copy(out, io.LimitReader(rc, maxBytes-total+1))
+		rc.Close()
+		closeErr := out.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		total += n
+		if total > maxBytes {
+			return errTooLarge
+		}
+	}
+	return nil
+}
+
+// archiveFolderName strips a known archive extension to name the per-mod
+// folder (e.g. "Owner-Mod-1.0.0.zip" → "Owner-Mod-1.0.0").
+func archiveFolderName(name string) string {
+	lower := strings.ToLower(name)
+	for _, ext := range []string{".tar.gz", ".tgz", ".zip"} {
+		if strings.HasSuffix(lower, ext) {
+			return name[:len(name)-len(ext)]
+		}
+	}
+	return name
+}
+
+// dirSize sums the size of every regular file under dir.
+func dirSize(dir string) int64 {
+	var total int64
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if info, e := d.Info(); e == nil {
+				total += info.Size()
+			}
+		}
+		return nil
+	})
+	return total
 }
 
 func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
@@ -236,10 +386,16 @@ func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	err = os.Remove(filepath.Join(h.dir, name))
-	if errors.Is(err, os.ErrNotExist) {
+	target := filepath.Join(h.dir, name)
+	if _, statErr := os.Stat(target); errors.Is(statErr, os.ErrNotExist) {
 		writeErr(w, http.StatusNotFound, "no such mod")
 		return
+	}
+	// Extract loaders store mods as folders; remove the whole tree.
+	if h.extract {
+		err = os.RemoveAll(target)
+	} else {
+		err = os.Remove(target)
 	}
 	if err != nil {
 		slog.Warn("mod remove", "err", err)
@@ -313,6 +469,7 @@ func hostAllowed(host string, allowed []string) bool {
 var (
 	errTooLarge       = errors.New("download exceeds size limit")
 	errHostNotAllowed = errors.New("redirect host not allowed")
+	errBadArchive     = errors.New("not a valid archive")
 )
 
 // ssrfPolicy decides whether the agent may dial an address. It defaults to

@@ -270,6 +270,13 @@ spec:
                         items:
                           type: string
                         type: array
+                      extract:
+                        description: |-
+                          Extract is the resolved per-loader Extract flag (the operator copies
+                          it from the active loader). When true the agent unpacks archive mods
+                          into per-mod folders. Not normally set by template authors at this
+                          level — set it on the loader entry instead.
+                        type: boolean
                       install:
                         description: |-
                           Install, when set, lets the dashboard add new mods by downloading
@@ -316,6 +323,14 @@ spec:
                               items:
                                 type: string
                               type: array
+                            extract:
+                              description: |-
+                                Extract, when true, tells the agent to treat downloaded mods as
+                                archives (e.g. Thunderstore .zip): each install unpacks into its own
+                                folder under the mods dir so the loader (e.g. BepInEx, which scans
+                                recursively) finds the contained files. Listing/removal then operate
+                                on those per-mod folders. Use for loaders distributed as archives.
+                              type: boolean
                             path:
                               description: |-
                                 Path is this loader's mods/plugins directory, relative to

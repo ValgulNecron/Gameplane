@@ -279,6 +279,13 @@ type ModsSpec struct {
 	// +optional
 	Extensions []string `json:"extensions,omitempty"`
 
+	// Extract is the resolved per-loader Extract flag (the operator copies
+	// it from the active loader). When true the agent unpacks archive mods
+	// into per-mod folders. Not normally set by template authors at this
+	// level — set it on the loader entry instead.
+	// +optional
+	Extract bool `json:"extract,omitempty"`
+
 	// Install, when set, lets the dashboard add new mods by downloading
 	// them into the resolved mods directory. When unset, only listing and
 	// removal are offered. Shared across all loaders.
@@ -340,6 +347,14 @@ type ModLoaderSpec struct {
 	// this loader (e.g. [".jar"], [".dll"]). Empty lists every file.
 	// +optional
 	Extensions []string `json:"extensions,omitempty"`
+
+	// Extract, when true, tells the agent to treat downloaded mods as
+	// archives (e.g. Thunderstore .zip): each install unpacks into its own
+	// folder under the mods dir so the loader (e.g. BepInEx, which scans
+	// recursively) finds the contained files. Listing/removal then operate
+	// on those per-mod folders. Use for loaders distributed as archives.
+	// +optional
+	Extract bool `json:"extract,omitempty"`
 }
 
 // ModInstallSpec configures installing a mod by downloading it from a

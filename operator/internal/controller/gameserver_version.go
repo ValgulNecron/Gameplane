@@ -180,6 +180,7 @@ func resolveCapabilities(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha
 	if len(spec.Extensions) > 0 {
 		caps.Mods.Extensions = spec.Extensions
 	}
+	caps.Mods.Extract = spec.Extract
 	caps.Mods.Loaders = nil
 	return caps
 }
