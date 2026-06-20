@@ -9,8 +9,10 @@ import (
 )
 
 // Hangar searches PaperMC's Hangar (hangar.papermc.io) — the registry for
-// Paper/Velocity/Waterfall plugins (keyless). Project ids are "owner/slug";
-// Hangar hosts plugins, not modpacks.
+// Paper/Velocity/Waterfall plugins (keyless). Project ids are "owner~slug"
+// (a path-safe separator so the id survives as a single URL path segment in
+// the versions route); Hangar hosts plugins, not modpacks.
+const hangarSep = "~"
 type Hangar struct {
 	client    *http.Client
 	userAgent string
@@ -78,16 +80,15 @@ func (h *Hangar) Search(ctx context.Context, q SearchQuery) ([]Project, error) {
 		if p.Namespace.Owner == "" || p.Namespace.Slug == "" {
 			continue
 		}
-		id := p.Namespace.Owner + "/" + p.Namespace.Slug
 		out = append(out, Project{
-			ID:          id,
+			ID:          p.Namespace.Owner + hangarSep + p.Namespace.Slug,
 			Slug:        p.Namespace.Slug,
 			Title:       p.Name,
 			Description: p.Description,
 			Author:      p.Namespace.Owner,
 			IconURL:     p.AvatarURL,
 			Downloads:   p.Stats.Downloads,
-			PageURL:     "https://hangar.papermc.io/" + id,
+			PageURL:     "https://hangar.papermc.io/" + p.Namespace.Owner + "/" + p.Namespace.Slug,
 			Provider:    "hangar",
 		})
 	}
@@ -176,9 +177,9 @@ func (h *Hangar) ModpackDeps(_ context.Context, _ string) ([]File, error) {
 	return nil, nil
 }
 
-// splitHangarID parses an "owner/slug" project id.
+// splitHangarID parses an "owner~slug" project id.
 func splitHangarID(id string) (owner, slug string, ok bool) {
-	o, s, found := strings.Cut(id, "/")
+	o, s, found := strings.Cut(id, hangarSep)
 	if !found || o == "" || s == "" {
 		return "", "", false
 	}

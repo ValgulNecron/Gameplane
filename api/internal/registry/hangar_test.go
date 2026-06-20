@@ -42,7 +42,7 @@ func TestHangarSearch(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("len = %d, want 1", len(got))
 	}
-	if got[0].ID != "EssentialsX/Essentials" || got[0].Author != "EssentialsX" || got[0].Provider != "hangar" {
+	if got[0].ID != "EssentialsX~Essentials" || got[0].Author != "EssentialsX" || got[0].Provider != "hangar" {
 		t.Errorf("hit = %+v", got[0])
 	}
 }
@@ -56,7 +56,7 @@ func TestHangarSearchModpackEmpty(t *testing.T) {
 
 func TestHangarVersions(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/projects/EssentialsX/Essentials/versions" {
+		if r.URL.Path != "/projects/EssentialsX~Essentials/versions" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"result":[
@@ -66,7 +66,7 @@ func TestHangarVersions(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testHangar(srv.URL).Versions(context.Background(), "EssentialsX/Essentials", Filter{})
+	got, err := testHangar(srv.URL).Versions(context.Background(), "EssentialsX~Essentials", Filter{})
 	if err != nil {
 		t.Fatalf("Versions: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestHangarVersionsConstructedURL(t *testing.T) {
 		]}`))
 	}))
 	defer srv.Close()
-	got, err := testHangar(srv.URL).Versions(context.Background(), "Owner/Plug", Filter{})
+	got, err := testHangar(srv.URL).Versions(context.Background(), "Owner~Plug", Filter{})
 	if err != nil {
 		t.Fatalf("Versions: %v", err)
 	}
