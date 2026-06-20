@@ -581,6 +581,23 @@ func buildAgentContainer(
 		// its own per-container cgroup (which shows only the idle sidecar).
 		{Name: "KESTREL_USAGE_PROC", Value: "1"},
 	}
+	// In proc mode the agent can't read the game container's cgroup limit, so
+	// pass the resolved limits through as the denominator for the dashboard's
+	// usage bars. Mirrors buildGameContainer's resource resolution.
+	gameRes := tmpl.Spec.Resources
+	if gs.Spec.Resources != nil {
+		gameRes = *gs.Spec.Resources
+	}
+	if cpu := gameRes.Limits.Cpu(); cpu != nil && !cpu.IsZero() {
+		env = append(env, corev1.EnvVar{
+			Name: "KESTREL_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
+		})
+	}
+	if mem := gameRes.Limits.Memory(); mem != nil && !mem.IsZero() {
+		env = append(env, corev1.EnvVar{
+			Name: "KESTREL_MEM_LIMIT_BYTES", Value: strconv.FormatInt(mem.Value(), 10),
+		})
+	}
 	// Declared capability commands travel to the agent as one JSON blob;
 	// the env change rolls the StatefulSet, so capability edits apply on the
 	// next pod rollout like every other template change. resolveCapabilities
