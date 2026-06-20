@@ -57,15 +57,25 @@ export interface ModLoaderDecl {
   extensions?: string[];
 }
 
+// spec.capabilities.mods.registry — selects a built-in external mod
+// registry the dashboard can browse/search. When present (and the server's
+// game supports it) the Mods tab offers a "Search registry" mode; absent
+// means install-by-URL only.
+export interface ModRegistryDecl {
+  provider: "modrinth" | "thunderstore";
+  community?: string;
+}
+
 // spec.capabilities.mods — declares the mod directory and (optionally)
 // the URL-install policy. A template uses either a single `path` (legacy)
 // or a per-loader `loaders` map keyed by GameVersion.loader; install is
-// offered only when `install` is set.
+// offered only when `install` is set; `registry` enables in-app browse.
 export interface ModsCapability {
   path?: string;
   loaders?: Record<string, ModLoaderDecl>;
   extensions?: string[];
   install?: ModInstallPolicy;
+  registry?: ModRegistryDecl;
 }
 
 // spec.capabilities — only the surfaces the dashboard renders are typed;
@@ -124,6 +134,43 @@ export interface GameVersion {
   image?: string;
   loader?: string;
   default?: boolean;
+  // Clean upstream version token (e.g. "1.21.4") passed to a mod registry
+  // to filter results; distinct from `id` (a Kestrel selector).
+  gameVersion?: string;
+}
+
+// A search hit from the mod-registry browse endpoint, normalized across
+// providers (GET /servers/{name}/mods/registry/search).
+export interface RegistryProject {
+  id: string;
+  slug?: string;
+  title: string;
+  description?: string;
+  author?: string;
+  iconUrl?: string;
+  downloads?: number;
+  pageUrl?: string;
+  provider: "modrinth" | "thunderstore";
+}
+
+// A downloadable artifact of a RegistryVersion; downloadUrl is handed to
+// the existing install endpoint.
+export interface RegistryFile {
+  filename: string;
+  downloadUrl: string;
+  size?: number;
+  primary?: boolean;
+}
+
+// One release of a RegistryProject (newest first), already filtered to the
+// active loader + game version by the API.
+export interface RegistryVersion {
+  id: string;
+  name?: string;
+  versionNumber?: string;
+  gameVersions?: string[];
+  loaders?: string[];
+  files: RegistryFile[];
 }
 
 export interface GameTemplate {

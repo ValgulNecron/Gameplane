@@ -21,6 +21,8 @@ import type {
   ModuleSourceSpec,
   PermissionGroup,
   PlayersResp,
+  RegistryProject,
+  RegistryVersion,
   Restore,
   Role,
   RoleBinding,
@@ -106,6 +108,19 @@ export const Servers = {
     api<void>(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, {
       method: "DELETE",
     }),
+  // In-app mod registry browse (spec.capabilities.mods.registry). The API
+  // resolves the active version's loader + game version, so the dashboard
+  // sends only the search term. Installing a result reuses installMod with
+  // the file's downloadUrl. Returns 501 when the server's game has no
+  // browsable registry.
+  searchMods: (name: string, q: string, limit = 20) =>
+    api<RegistryProject[]>(
+      `/servers/${name}/mods/registry/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  modVersions: (name: string, project: string) =>
+    api<RegistryVersion[]>(
+      `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions`,
+    ),
 };
 
 export const Templates = {
