@@ -302,18 +302,28 @@ type ModsSpec struct {
 	Registry *ModRegistrySpec `json:"registry,omitempty"`
 }
 
-// ModRegistrySpec selects a built-in external mod registry the dashboard
-// can search. The engine is generic Kestrel code; this block is the
-// per-game configuration that drives it. Loader filtering reuses the
-// active version's loader id verbatim (Kestrel loader ids match the
-// registries' loader facets), and version filtering uses the active
-// GameVersion.gameVersion token — so no mappings live here.
+// ModRegistrySpec lists the built-in external mod registries the dashboard
+// can browse for this game. The engines are generic Kestrel code; this
+// block is the per-game configuration that drives them. Loader filtering
+// reuses the active version's loader id verbatim and version filtering uses
+// the active GameVersion.gameVersion token — so no mappings live here.
 type ModRegistrySpec struct {
-	// Provider names the built-in registry engine. "modrinth" suits
-	// Minecraft (mods and plugins; keyless API, filters by loader + game
-	// version). "thunderstore" suits BepInEx games like Valheim (keyless,
-	// per-community package index; no version dimension).
-	// +kubebuilder:validation:Enum=modrinth;thunderstore
+	// Providers is the ordered list of registries to offer. The dashboard
+	// shows a provider switch when there's more than one; the first is the
+	// default. A provider whose engine needs unmet config (e.g. a
+	// CurseForge API key) is hidden until configured.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=8
+	Providers []ModProvider `json:"providers"`
+}
+
+// ModProvider configures one registry engine for a game.
+type ModProvider struct {
+	// Provider names the built-in registry engine: "modrinth" (Minecraft
+	// mods/plugins, keyless), "thunderstore" (BepInEx games, keyless,
+	// per-community), "curseforge" (Minecraft mods/modpacks, needs an API
+	// key), or "hangar" (PaperMC plugins, keyless).
+	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar
 	Provider string `json:"provider"`
 
 	// Community is the Thunderstore community slug whose package index to
@@ -323,11 +333,11 @@ type ModRegistrySpec struct {
 	// +optional
 	Community string `json:"community,omitempty"`
 
-	// Modpacks, when set, surfaces a Modpacks browser for this game and
+	// Modpacks, when set, surfaces a Modpacks browser for this provider and
 	// declares how installing one is applied. A modpack is selected as a
 	// whole (not added to the mods dir like a single mod), so install
 	// either pins it via a game-image env (RefEnv) or resolves and installs
-	// its dependency mods. Omit for games without modpacks.
+	// its dependency mods. Omit for providers without modpacks.
 	// +optional
 	Modpacks *ModpackSpec `json:"modpacks,omitempty"`
 }
