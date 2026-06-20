@@ -61,6 +61,33 @@ func TestModrinthSearch(t *testing.T) {
 	}
 }
 
+func TestModrinthModpackSortOffset(t *testing.T) {
+	var gotFacets, gotIndex, gotOffset string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotFacets = r.URL.Query().Get("facets")
+		gotIndex = r.URL.Query().Get("index")
+		gotOffset = r.URL.Query().Get("offset")
+		_, _ = w.Write([]byte(`{"hits":[]}`))
+	}))
+	defer srv.Close()
+
+	_, err := testModrinth(srv.URL).Search(context.Background(), SearchQuery{
+		ProjectType: "modpack", Loader: "fabric", Sort: "downloads", Offset: 20, Limit: 20,
+	})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if want := `[["categories:fabric"],["project_type:modpack"]]`; gotFacets != want {
+		t.Errorf("facets = %q, want %q", gotFacets, want)
+	}
+	if gotIndex != "downloads" {
+		t.Errorf("index = %q, want downloads", gotIndex)
+	}
+	if gotOffset != "20" {
+		t.Errorf("offset = %q, want 20", gotOffset)
+	}
+}
+
 func TestModrinthSearchNoFacets(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if f := r.URL.Query().Get("facets"); f != "" {

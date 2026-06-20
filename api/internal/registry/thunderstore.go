@@ -52,6 +52,7 @@ type tsPackage struct {
 	Desc      string
 	Rating    int64
 	Downloads int64
+	IsModpack bool
 	Versions  []tsVersion
 }
 
@@ -66,12 +67,13 @@ type tsVersion struct {
 // every untagged field (notably the large per-version "dependencies"
 // arrays), so decoding one element already discards most of the payload.
 type tsRawPackage struct {
-	Name         string `json:"name"`
-	FullName     string `json:"full_name"`
-	Owner        string `json:"owner"`
-	PackageURL   string `json:"package_url"`
-	RatingScore  int64  `json:"rating_score"`
-	IsDeprecated bool   `json:"is_deprecated"`
+	Name         string   `json:"name"`
+	FullName     string   `json:"full_name"`
+	Owner        string   `json:"owner"`
+	PackageURL   string   `json:"package_url"`
+	RatingScore  int64    `json:"rating_score"`
+	IsDeprecated bool     `json:"is_deprecated"`
+	Categories   []string `json:"categories"`
 	Versions     []struct {
 		FullName      string `json:"full_name"`
 		VersionNumber string `json:"version_number"`
@@ -174,6 +176,12 @@ func compactPackage(raw tsRawPackage) tsPackage {
 		PageURL:  raw.PackageURL,
 		Rating:   raw.RatingScore,
 	}
+	for _, cat := range raw.Categories {
+		if strings.EqualFold(cat, "Modpacks") {
+			p.IsModpack = true
+			break
+		}
+	}
 	if len(raw.Versions) > 0 {
 		p.Icon = raw.Versions[0].Icon
 		p.Desc = truncate(raw.Versions[0].Description, tsMaxDescLen)
@@ -213,9 +221,15 @@ func (c *thunderstoreCommunity) Search(ctx context.Context, q SearchQuery) ([]Pr
 		return nil, err
 	}
 	term := strings.ToLower(strings.TrimSpace(q.Term))
+	wantModpack := q.modpack()
 
-	matched := make([]tsPackage, 0, clampLimit(q.Limit))
+	matched := make([]tsPackage, 0)
 	for _, p := range pkgs {
+		// The modpacks browser shows only Modpacks; the mod browser hides
+		// them (they're meta-packages, not loadable plugins).
+		if p.IsModpack != wantModpack {
+			continue
+		}
 		if term != "" &&
 			!strings.Contains(strings.ToLower(p.Name), term) &&
 			!strings.Contains(strings.ToLower(p.Owner), term) {
@@ -223,8 +237,18 @@ func (c *thunderstoreCommunity) Search(ctx context.Context, q SearchQuery) ([]Pr
 		}
 		matched = append(matched, p)
 	}
-	// Rank by community rating; ties keep catalog order (stable).
-	sort.SliceStable(matched, func(i, j int) bool { return matched[i].Rating > matched[j].Rating })
+	// Order: downloads when explicitly requested, else community rating.
+	if q.Sort == "downloads" {
+		sort.SliceStable(matched, func(i, j int) bool { return matched[i].Downloads > matched[j].Downloads })
+	} else {
+		sort.SliceStable(matched, func(i, j int) bool { return matched[i].Rating > matched[j].Rating })
+	}
+	// Paginate (Offset+Limit) — the dashboard "load more" walks Offset.
+	if q.Offset >= len(matched) {
+		matched = nil
+	} else {
+		matched = matched[q.Offset:]
+	}
 	if limit := clampLimit(q.Limit); len(matched) > limit {
 		matched = matched[:limit]
 	}

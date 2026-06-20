@@ -34,10 +34,23 @@ func (m *Modrinth) Search(ctx context.Context, q SearchQuery) ([]Project, error)
 	if q.GameVersion != "" {
 		facets = append(facets, []string{"versions:" + q.GameVersion})
 	}
+	// The modpacks browser pins project_type:modpack. The mod browser leaves
+	// it open (the loader facet already scopes to mods/plugins) — Modrinth v2
+	// can't express "not modpack", but modpacks rarely surface under a loader
+	// facet, so this is good enough.
+	if q.modpack() {
+		facets = append(facets, []string{"project_type:modpack"})
+	}
 
 	params := url.Values{}
 	params.Set("query", q.Term)
 	params.Set("limit", strconv.Itoa(clampLimit(q.Limit)))
+	if q.Offset > 0 {
+		params.Set("offset", strconv.Itoa(q.Offset))
+	}
+	if idx := modrinthIndex(q.Sort); idx != "" {
+		params.Set("index", idx)
+	}
 	if len(facets) > 0 {
 		b, err := json.Marshal(facets)
 		if err != nil {
@@ -155,4 +168,15 @@ func clampLimit(n int) int {
 		return 20
 	}
 	return n
+}
+
+// modrinthIndex maps a normalized Sort to Modrinth's "index" param. Empty
+// (the default) lets Modrinth use relevance.
+func modrinthIndex(sort string) string {
+	switch sort {
+	case "downloads", "follows", "newest", "updated", "relevance":
+		return sort
+	default:
+		return ""
+	}
 }

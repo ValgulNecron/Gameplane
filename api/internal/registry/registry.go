@@ -56,12 +56,24 @@ type Version struct {
 // SearchQuery is a normalized search request. Loader and GameVersion are
 // the active version's loader id (used verbatim as the provider facet) and
 // clean game-version token; either may be empty (no facet → all results).
+// An empty Term is a valid "browse" request — providers return their
+// popular/all listing, paginated by Offset+Limit and ordered by Sort.
 type SearchQuery struct {
 	Term        string
 	Loader      string
 	GameVersion string
-	Limit       int
+	// ProjectType is "modpack" for the modpacks browser; empty (or "mod")
+	// is the regular mod/plugin browser, which excludes modpacks.
+	ProjectType string
+	// Sort is the provider ordering key for browse: "downloads" (popular),
+	// "updated", "newest", or "relevance" (the default when Term is set).
+	Sort   string
+	Limit  int
+	Offset int
 }
+
+// modpack reports whether this query targets modpacks rather than mods.
+func (q SearchQuery) modpack() bool { return q.ProjectType == "modpack" }
 
 // Filter narrows a Versions lookup to the active loader + game version.
 type Filter struct {

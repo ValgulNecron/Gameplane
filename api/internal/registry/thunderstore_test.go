@@ -16,7 +16,10 @@ const tsCatalog = `[
 	{"name":"BepInExPack","full_name":"denikson-BepInExPack_Valheim","owner":"denikson","package_url":"https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/","rating_score":900,"is_deprecated":false,"versions":[
 		{"name":"BepInExPack","full_name":"denikson-BepInExPack_Valheim-5.4.2202","version_number":"5.4.2202","description":"Loader","icon":"https://gcdn.thunderstore.io/b.png","download_url":"https://thunderstore.io/package/download/denikson/BepInExPack_Valheim/5.4.2202/","downloads":9000,"file_size":8192}
 	]},
-	{"name":"OldMod","full_name":"x-OldMod","owner":"x","package_url":"u","rating_score":1,"is_deprecated":true,"versions":[]}
+	{"name":"OldMod","full_name":"x-OldMod","owner":"x","package_url":"u","rating_score":1,"is_deprecated":true,"versions":[]},
+	{"name":"MegaPack","full_name":"packer-MegaPack","owner":"packer","package_url":"https://thunderstore.io/c/valheim/p/packer/MegaPack/","rating_score":700,"is_deprecated":false,"categories":["Modpacks"],"versions":[
+		{"name":"MegaPack","full_name":"packer-MegaPack-1.0.0","version_number":"1.0.0","description":"Curated pack","icon":"https://gcdn.thunderstore.io/m.png","download_url":"https://thunderstore.io/package/download/packer/MegaPack/1.0.0/","downloads":50000,"file_size":1024}
+	]}
 ]`
 
 func newTSServer(t *testing.T, hits *int32) *httptest.Server {
@@ -37,6 +40,45 @@ func testThunderstore(url string) *thunderstoreCommunity {
 	ts := newThunderstore(&http.Client{Timeout: 5 * time.Second}, "kestrel-test")
 	ts.baseURL = url
 	return &thunderstoreCommunity{ts: ts, community: "valheim"}
+}
+
+func TestThunderstoreModpackFilter(t *testing.T) {
+	srv := newTSServer(t, nil)
+	defer srv.Close()
+	c := testThunderstore(srv.URL)
+
+	// Mod browser (default) excludes modpacks.
+	mods, _ := c.Search(context.Background(), SearchQuery{Limit: 10})
+	for _, p := range mods {
+		if p.Title == "MegaPack" {
+			t.Errorf("mod browser should exclude the modpack, got %q", p.Title)
+		}
+	}
+	// Modpack browser returns only modpacks.
+	packs, err := c.Search(context.Background(), SearchQuery{ProjectType: "modpack", Limit: 10})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(packs) != 1 || packs[0].Title != "MegaPack" {
+		t.Fatalf("modpack search = %+v, want [MegaPack]", packs)
+	}
+}
+
+func TestThunderstoreSortAndOffset(t *testing.T) {
+	srv := newTSServer(t, nil)
+	defer srv.Close()
+	c := testThunderstore(srv.URL)
+
+	// Sort by downloads: ValheimPlus(100) < BepInEx(9000) → BepInEx first.
+	byDl, _ := c.Search(context.Background(), SearchQuery{Sort: "downloads", Limit: 10})
+	if len(byDl) < 2 || byDl[0].Title != "BepInExPack" {
+		t.Fatalf("downloads sort top = %+v, want BepInExPack", byDl)
+	}
+	// Offset past the first skips it.
+	off, _ := c.Search(context.Background(), SearchQuery{Sort: "downloads", Limit: 10, Offset: 1})
+	if len(off) != 1 || off[0].Title == "BepInExPack" {
+		t.Fatalf("offset=1 = %+v, want the 2nd item only", off)
+	}
 }
 
 func TestThunderstoreSearchRanksAndFilters(t *testing.T) {

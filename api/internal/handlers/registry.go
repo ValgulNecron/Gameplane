@@ -57,11 +57,15 @@ func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	limit, _ := strconv.Atoi(req.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(req.URL.Query().Get("offset"))
 	res, err := p.Search(req.Context(), registry.SearchQuery{
 		Term:        req.URL.Query().Get("q"),
 		Loader:      loader,
 		GameVersion: gameVersion,
+		ProjectType: req.URL.Query().Get("type"),
+		Sort:        req.URL.Query().Get("sort"),
 		Limit:       limit,
+		Offset:      offset,
 	})
 	if err != nil {
 		httperr.WriteCode(w, req, http.StatusBadGateway, fmt.Errorf("mod registry search failed: %w", err))
