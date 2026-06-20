@@ -26,9 +26,10 @@ import (
 func fakeKubeClient(objs ...runtime.Object) *kube.Client {
 	scheme := runtime.NewScheme()
 	gvkr := map[schema.GroupVersionResource]string{
-		kube.GVRModule:       "ModuleList",
-		kube.GVRModuleSource: "ModuleSourceList",
-		kube.GVRs["servers"]: "GameServerList",
+		kube.GVRModule:         "ModuleList",
+		kube.GVRModuleSource:   "ModuleSourceList",
+		kube.GVRs["servers"]:   "GameServerList",
+		kube.GVRs["templates"]: "GameTemplateList",
 	}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr, objs...)
 	return &kube.Client{Dynamic: dyn, Typed: kubefake.NewClientset()}

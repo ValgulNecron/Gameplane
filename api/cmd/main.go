@@ -23,6 +23,7 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/handlers"
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
 	"github.com/kestrel-gg/kestrel/api/internal/rbac"
+	"github.com/kestrel-gg/kestrel/api/internal/registry"
 	"github.com/kestrel-gg/kestrel/api/internal/telemetry"
 	"github.com/kestrel-gg/kestrel/api/internal/ws"
 )
@@ -147,6 +148,7 @@ func main() {
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
 		handlers.MountModules(p, k8s, cfg.namespace)
+		handlers.MountRegistry(p, k8s, registry.NewSet(Version))
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 
