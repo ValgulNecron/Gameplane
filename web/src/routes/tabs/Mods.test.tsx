@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { ModsTab } from "./Mods";
-import type { GameServer, GameTemplate, InstalledMod, ModsCapability } from "@/types";
+import type {
+  GameServer,
+  GameTemplate,
+  InstalledMod,
+  ModsCapability,
+  RegistryProject,
+  RegistryVersion,
+} from "@/types";
 
 const fetchMock = vi.fn();
 
@@ -22,6 +29,8 @@ function jsonRes(body: unknown, status = 200): Response {
 interface Routes {
   role?: "operator" | "viewer";
   mods?: InstalledMod[];
+  registry?: RegistryProject[];
+  versions?: RegistryVersion[];
   onInstall?: (body: { url: string; name?: string }) => void;
   onRemove?: (url: string) => void;
 }
@@ -39,6 +48,14 @@ function route(r: Routes) {
     const method = opts?.method ?? "GET";
     if (url.endsWith("/users/me")) {
       return Promise.resolve(jsonRes({ id: 1, username: "u", displayName: "U", email: "", role, permissions }));
+    }
+    // Registry browse routes contain "/mods" — match them before the
+    // generic /mods list handler below.
+    if (url.includes("/mods/registry/search")) {
+      return Promise.resolve(jsonRes(r.registry ?? []));
+    }
+    if (url.includes("/mods/registry/projects")) {
+      return Promise.resolve(jsonRes(r.versions ?? []));
     }
     if (url.includes("/mods/install")) {
       const body = JSON.parse(opts?.body ?? "{}") as { url: string; name?: string };
@@ -75,6 +92,12 @@ const withInstall: ModsCapability = {
   install: { allowedHosts: ["cdn.modrinth.com"] },
 };
 const listOnly: ModsCapability = { path: "mods" };
+const withBrowse: ModsCapability = {
+  path: "mods",
+  extensions: [".jar"],
+  install: { allowedHosts: ["cdn.modrinth.com"] },
+  registry: { provider: "modrinth" },
+};
 
 function versionedTmpl(): GameTemplate {
   return {
@@ -150,6 +173,82 @@ describe("ModsTab", () => {
     await waitFor(() =>
       expect(installs).toEqual([{ url: "https://cdn.modrinth.com/x/sodium.jar" }]),
     );
+  });
+
+  it("searches a registry and installs the selected file", async () => {
+    const installs: Array<{ url: string; name?: string }> = [];
+    route({
+      mods: [],
+      onInstall: (b) => installs.push(b),
+      registry: [
+        {
+          id: "sodium",
+          title: "Sodium",
+          author: "jellysquid",
+          downloads: 30_800_000,
+          iconUrl: "https://cdn.modrinth.com/sodium/icon.png",
+          provider: "modrinth",
+        },
+      ],
+      versions: [
+        {
+          id: "v1",
+          versionNumber: "0.6.0",
+          files: [
+            {
+              filename: "sodium-fabric-0.6.0.jar",
+              downloadUrl: "https://cdn.modrinth.com/sodium/0.6.0/sodium-fabric-0.6.0.jar",
+              primary: true,
+            },
+          ],
+        },
+      ],
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    // A browse-capable template defaults to Search mode.
+    expect(screen.getByRole("button", { name: "Search registry" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.change(await screen.findByPlaceholderText("Search mods…"), {
+      target: { value: "sodium" },
+    });
+
+    // Result appears after the debounce + fetch; expand it to load versions.
+    fireEvent.click(await screen.findByText("Sodium"));
+    const cardInstall = await screen.findByRole("button", { name: "Install" });
+    fireEvent.click(cardInstall);
+
+    await waitFor(() =>
+      expect(installs).toEqual([
+        {
+          url: "https://cdn.modrinth.com/sodium/0.6.0/sodium-fabric-0.6.0.jar",
+          name: "sodium-fabric-0.6.0.jar",
+        },
+      ]),
+    );
+  });
+
+  it("can switch from Search to From URL in a browse-capable template", async () => {
+    const installs: Array<{ url: string; name?: string }> = [];
+    route({ mods: [], onInstall: (b) => installs.push(b), registry: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+    fireEvent.click(await screen.findByRole("button", { name: "From URL" }));
+
+    fireEvent.change(await screen.findByLabelText(/download url/i), {
+      target: { value: "https://cdn.modrinth.com/x.jar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    await waitFor(() => expect(installs).toEqual([{ url: "https://cdn.modrinth.com/x.jar" }]));
   });
 
   it("removes a mod after confirmation", async () => {

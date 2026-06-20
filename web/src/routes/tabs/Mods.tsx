@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Package, Plus, RotateCw, Trash2 } from "lucide-react";
+import { Download, Package, Plus, RotateCw, Search, Trash2 } from "lucide-react";
 
-import type { GameServer, GameTemplate, InstalledMod } from "@/types";
+import type { GameServer, GameTemplate, InstalledMod, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { resolveModVolume } from "@/lib/capabilities";
@@ -26,6 +26,10 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
 
   const caps = tmpl?.spec.capabilities?.mods;
   const canInstall = !!caps?.install;
+  // Browse mode is offered when the template declares a registry. The
+  // server is authoritative (it 501s when its game has no registry); the
+  // dialog surfaces that by letting the user fall back to "From URL".
+  const canBrowse = !!caps?.registry;
 
   // The active version+loader fully implies which mod volume this server
   // manages — surface it as a header label (no selector). For the legacy
@@ -127,7 +131,11 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
           <Package className="h-6 w-6 text-muted" />
           <p className="text-sm text-muted">No mods installed.</p>
           {canInstall && canManage && (
-            <p className="text-xs text-muted">Use “Install mod” to add one from a URL.</p>
+            <p className="text-xs text-muted">
+              {canBrowse
+                ? "Use “Install mod” to search a registry or add one from a URL."
+                : "Use “Install mod” to add one from a URL."}
+            </p>
           )}
         </div>
       ) : (
@@ -165,6 +173,8 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
 
       {installOpen && (
         <InstallDialog
+          name={name}
+          canBrowse={canBrowse}
           allowedHosts={caps?.install?.allowedHosts ?? []}
           pending={install.isPending}
           onCancel={() => setInstallOpen(false)}
@@ -191,10 +201,96 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
   );
 }
 
-// InstallDialog collects a download URL (and optional filename). The
-// agent enforces the host allowlist and size cap; this dialog only does
-// a light http(s) check and surfaces the allowed hosts as a hint.
+type InstallMode = "search" | "url";
+
+// InstallDialog adds a mod either by searching a registry (when the
+// template declares one) or from a URL. Both paths converge on the same
+// install endpoint; the agent enforces the host allowlist and size cap.
 function InstallDialog({
+  name,
+  canBrowse,
+  allowedHosts,
+  pending,
+  onCancel,
+  onInstall,
+}: {
+  name: string;
+  canBrowse: boolean;
+  allowedHosts: string[];
+  pending: boolean;
+  onCancel: () => void;
+  onInstall: (body: { url: string; name?: string }) => void;
+}) {
+  const [mode, setMode] = useState<InstallMode>(canBrowse ? "search" : "url");
+  const browsing = mode === "search" && canBrowse;
+
+  return (
+    <Dialog.Root open onOpenChange={(o) => !o && onCancel()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-4rem)] w-[520px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
+          <Dialog.Title className="text-base font-semibold">Install mod</Dialog.Title>
+          <Dialog.Description asChild>
+            <p className="pt-1 text-sm text-muted">
+              {browsing
+                ? "Search a registry and install for this server’s version + loader."
+                : "Download a mod from a URL into the server’s mods directory."}
+            </p>
+          </Dialog.Description>
+
+          {canBrowse && (
+            <div className="mt-3 flex w-fit rounded border border-border text-xs">
+              <button
+                type="button"
+                onClick={() => setMode("search")}
+                aria-pressed={browsing}
+                className={cn(
+                  "h-8 rounded-l px-3",
+                  browsing ? "bg-primary font-medium text-primary-foreground" : "text-muted",
+                )}
+              >
+                Search registry
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("url")}
+                aria-pressed={!browsing}
+                className={cn(
+                  "h-8 rounded-r border-l border-border px-3",
+                  !browsing ? "bg-surface font-medium" : "text-muted",
+                )}
+              >
+                From URL
+              </button>
+            </div>
+          )}
+
+          {browsing ? (
+            <>
+              <BrowseForm name={name} pending={pending} onInstall={onInstall} />
+              <div className="flex justify-end pt-3">
+                <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+                  Close
+                </Button>
+              </div>
+            </>
+          ) : (
+            <UrlForm
+              allowedHosts={allowedHosts}
+              pending={pending}
+              onCancel={onCancel}
+              onInstall={onInstall}
+            />
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+// UrlForm collects a download URL (and optional filename); a light http(s)
+// check only, with the allowed hosts shown as a hint.
+function UrlForm({
   allowedHosts,
   pending,
   onCancel,
@@ -207,76 +303,240 @@ function InstallDialog({
 }) {
   const [url, setUrl] = useState("");
   const [fileName, setFileName] = useState("");
-
   const trimmed = url.trim();
   const validURL = /^https?:\/\/.+/i.test(trimmed);
 
   return (
-    <Dialog.Root open onOpenChange={(o) => !o && onCancel()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[460px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">Install mod</Dialog.Title>
-          <Dialog.Description asChild>
-            <p className="pt-2 text-sm text-muted">
-              Download a mod from a URL into the server&apos;s mods directory.
-            </p>
-          </Dialog.Description>
+    <>
+      <div className="space-y-3 pt-4">
+        <div>
+          <label className="block pb-1 text-xs text-muted" htmlFor="mod-url">
+            Download URL <span className="text-danger">*</span>
+          </label>
+          <Input
+            id="mod-url"
+            autoFocus
+            placeholder="https://cdn.modrinth.com/…/mod.jar"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            spellCheck={false}
+          />
+          {trimmed !== "" && !validURL && (
+            <p className="pt-1 text-xs text-danger">Must be an http(s) URL.</p>
+          )}
+        </div>
+        <div>
+          <label className="block pb-1 text-xs text-muted" htmlFor="mod-name">
+            Filename
+          </label>
+          <Input
+            id="mod-name"
+            placeholder="optional — derived from the URL"
+            value={fileName}
+            onChange={(e) => setFileName(e.target.value)}
+            spellCheck={false}
+          />
+        </div>
+        {allowedHosts.length > 0 && (
+          <p className="text-[11px] text-muted">
+            Allowed hosts: <span className="font-mono">{allowedHosts.join(", ")}</span>
+          </p>
+        )}
+      </div>
 
-          <div className="space-y-3 pt-4">
-            <div>
-              <label className="block pb-1 text-xs text-muted" htmlFor="mod-url">
-                Download URL <span className="text-danger">*</span>
-              </label>
-              <Input
-                id="mod-url"
-                autoFocus
-                placeholder="https://cdn.modrinth.com/…/mod.jar"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                spellCheck={false}
-              />
-              {trimmed !== "" && !validURL && (
-                <p className="pt-1 text-xs text-danger">Must be an http(s) URL.</p>
-              )}
-            </div>
-            <div>
-              <label className="block pb-1 text-xs text-muted" htmlFor="mod-name">
-                Filename
-              </label>
-              <Input
-                id="mod-name"
-                placeholder="optional — derived from the URL"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                spellCheck={false}
-              />
-            </div>
-            {allowedHosts.length > 0 && (
-              <p className="text-[11px] text-muted">
-                Allowed hosts: <span className="font-mono">{allowedHosts.join(", ")}</span>
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-5">
-            <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              disabled={!validURL || pending}
-              onClick={() =>
-                onInstall({ url: trimmed, ...(fileName.trim() ? { name: fileName.trim() } : {}) })
-              }
-            >
-              {pending ? "Installing…" : "Install"}
-            </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      <div className="flex items-center justify-end gap-2 pt-5">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          disabled={!validURL || pending}
+          onClick={() =>
+            onInstall({ url: trimmed, ...(fileName.trim() ? { name: fileName.trim() } : {}) })
+          }
+        >
+          {pending ? "Installing…" : "Install"}
+        </Button>
+      </div>
+    </>
   );
+}
+
+// BrowseForm searches the module's mod registry (debounced) and lets the
+// user expand a result to pick a version/file. The API filters results to
+// the server's active loader + game version, so the picker stays short.
+function BrowseForm({
+  name,
+  pending,
+  onInstall,
+}: {
+  name: string;
+  pending: boolean;
+  onInstall: (body: { url: string; name?: string }) => void;
+}) {
+  const [term, setTerm] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(term.trim()), 300);
+    return () => clearTimeout(t);
+  }, [term]);
+
+  const enabled = debounced.length >= 2;
+  const search = useQuery({
+    queryKey: ["mod-search", name, debounced],
+    queryFn: () => Servers.searchMods(name, debounced),
+    enabled,
+  });
+
+  return (
+    <div className="flex min-h-0 flex-col pt-3">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <Input
+          autoFocus
+          className="pl-8"
+          placeholder="Search mods…"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          spellCheck={false}
+        />
+      </div>
+      <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-auto">
+        {!enabled ? (
+          <p className="text-xs text-muted">Type at least 2 characters to search.</p>
+        ) : search.isLoading ? (
+          <p className="text-xs text-muted">Searching…</p>
+        ) : search.isError ? (
+          <p className="text-xs text-danger">{errMsg(search.error)}</p>
+        ) : (search.data?.length ?? 0) === 0 ? (
+          <p className="text-xs text-muted">No results.</p>
+        ) : (
+          search.data?.map((p) => (
+            <ModResultCard
+              key={p.id}
+              name={name}
+              project={p}
+              expanded={expanded === p.id}
+              onToggle={() => setExpanded(expanded === p.id ? null : p.id)}
+              pending={pending}
+              onInstall={onInstall}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ModResultCard renders one search hit; expanding it loads the project's
+// versions and offers a version/file picker + Install.
+function ModResultCard({
+  name,
+  project,
+  expanded,
+  onToggle,
+  pending,
+  onInstall,
+}: {
+  name: string;
+  project: RegistryProject;
+  expanded: boolean;
+  onToggle: () => void;
+  pending: boolean;
+  onInstall: (body: { url: string; name?: string }) => void;
+}) {
+  const [selId, setSelId] = useState("");
+  const versions = useQuery({
+    queryKey: ["mod-versions", name, project.id],
+    queryFn: () => Servers.modVersions(name, project.id),
+    enabled: expanded,
+  });
+  const list = versions.data ?? [];
+
+  useEffect(() => {
+    const first = versions.data?.[0];
+    if (first && !selId) setSelId(first.id);
+  }, [versions.data, selId]);
+
+  const chosen = list.find((v) => v.id === selId) ?? list[0];
+  const file = chosen?.files.find((f) => f.primary) ?? chosen?.files[0];
+
+  return (
+    <div className="rounded border border-border bg-surface/30">
+      <button type="button" onClick={onToggle} className="flex w-full items-center gap-3 p-2.5 text-left">
+        <ModIcon url={project.iconUrl} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{project.title}</div>
+          <div className="truncate text-xs text-muted">
+            {[project.author, project.downloads != null ? `${compactNum(project.downloads)} downloads` : null]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        </div>
+        <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] capitalize text-muted">
+          {project.provider}
+        </span>
+      </button>
+      {expanded && (
+        <div className="flex items-center gap-2 border-t border-border p-2.5">
+          {versions.isLoading ? (
+            <span className="text-xs text-muted">Loading versions…</span>
+          ) : versions.isError ? (
+            <span className="text-xs text-danger">{errMsg(versions.error)}</span>
+          ) : list.length === 0 ? (
+            <span className="text-xs text-muted">No compatible files.</span>
+          ) : (
+            <>
+              <select
+                value={selId}
+                onChange={(e) => setSelId(e.target.value)}
+                className="h-8 min-w-0 flex-1 rounded border border-border bg-surface px-2 text-xs"
+                aria-label="Version"
+              >
+                {list.map((v) => {
+                  const f = v.files.find((x) => x.primary) ?? v.files[0];
+                  return (
+                    <option key={v.id} value={v.id}>
+                      {(v.versionNumber ?? v.name ?? v.id) + (f ? ` · ${f.filename}` : "")}
+                    </option>
+                  );
+                })}
+              </select>
+              <Button
+                size="sm"
+                disabled={!file || pending}
+                onClick={() => file && onInstall({ url: file.downloadUrl, name: file.filename })}
+              >
+                <Download className="h-3 w-3" /> {pending ? "Installing…" : "Install"}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ModIcon shows the registry icon, falling back to a generic glyph when
+// there's none or the image (a third-party CDN) fails to load.
+function ModIcon({ url }: { url?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return <Package className="h-8 w-8 shrink-0 rounded text-muted" />;
+  return (
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      className="h-8 w-8 shrink-0 rounded object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function compactNum(n: number): string {
+  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
 function errMsg(err: unknown): string {
