@@ -50590,6 +50590,665 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "GSVxT",
+      "x": 27240,
+      "y": 0,
+      "name": "Screen/Server Detail — Mods — Browse (added)",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "clip": true,
+      "width": 780,
+      "fill": "$c:--background",
+      "cornerRadius": 12,
+      "stroke": "$c:--border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 24,
+      "children": [
+        {
+          "type": "text",
+          "id": "IaGPU",
+          "name": "title",
+          "fill": "$c:--foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Server Detail — Mods — Browse mod (added)",
+          "fontFamily": "$c:--font-secondary",
+          "fontSize": 18,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "ESEDj",
+          "name": "subtitle",
+          "fill": "$c:--muted-foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "The Install-mod dialog gains a “Search registry” mode beside “From URL”, shown when the template declares capabilities.mods.registry (Minecraft → Modrinth, Valheim → Thunderstore). Engineering reference; the base Mods screen layout is unchanged.",
+          "lineHeight": 1.5,
+          "fontFamily": "$c:--font-secondary",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "UJTfA",
+          "name": "Install Dialog",
+          "clip": true,
+          "width": "fill_container",
+          "fill": "$c:--card",
+          "cornerRadius": 12,
+          "stroke": "$c:--border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000080",
+            "offset": {
+              "x": 0,
+              "y": 24
+            },
+            "blur": 60
+          },
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "W3pSEB",
+              "name": "Header",
+              "width": "fill_container",
+              "stroke": "$c:--border",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "strokeAlignment": "inner",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": [
+                20,
+                24,
+                16,
+                24
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ws2SU",
+                  "name": "Dialog Title",
+                  "fill": "$c:--foreground",
+                  "content": "Install mod",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "h5E6qW",
+                  "name": "Mode Toggle",
+                  "clip": true,
+                  "cornerRadius": 8,
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "NC0gS",
+                      "name": "Search Pill",
+                      "fill": "$c:--primary",
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BeOeX",
+                          "name": "l",
+                          "fill": "$c:--primary-foreground",
+                          "content": "Search registry",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "PzR9c",
+                      "name": "URL Pill",
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "l29Mb0",
+                          "name": "l",
+                          "fill": "$c:--muted-foreground",
+                          "content": "From URL",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kBHNX",
+              "name": "Body",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "kitxy",
+                  "name": "Search Input",
+                  "width": "fill_container",
+                  "fill": "$c:--background",
+                  "cornerRadius": 8,
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 8,
+                  "padding": [
+                    10,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "bjOMf",
+                      "name": "ph",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Search mods…",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "vxSC9",
+                  "name": "Results",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tUtqc",
+                      "name": "Result Fabric API",
+                      "width": "fill_container",
+                      "fill": "$c:--background",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "c6PrL",
+                          "name": "Row",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "padding": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "D0BRH",
+                              "name": "Icon",
+                              "width": 40,
+                              "height": 40,
+                              "fill": "$c:--border",
+                              "cornerRadius": 6
+                            },
+                            {
+                              "type": "frame",
+                              "id": "j6YYqN",
+                              "name": "Text",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "y4FDJc",
+                                  "name": "t",
+                                  "fill": "$c:--foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Fabric API",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "RZP2r",
+                                  "name": "m",
+                                  "fill": "$c:--muted-foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "modmuss50 · 42.1M downloads",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "q2wgwl",
+                              "name": "Badge",
+                              "cornerRadius": 100,
+                              "stroke": "$c:--border",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                3,
+                                8
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "pV3zs",
+                                  "name": "b",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "Modrinth",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Dlzs8",
+                      "name": "Result Sodium",
+                      "width": "fill_container",
+                      "fill": "$c:--background",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "g4Yx6D",
+                          "name": "Row",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "padding": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "Y7hvvP",
+                              "name": "Icon",
+                              "width": 40,
+                              "height": 40,
+                              "fill": "$c:--border",
+                              "cornerRadius": 6
+                            },
+                            {
+                              "type": "frame",
+                              "id": "m7175",
+                              "name": "Text",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "D0fO1",
+                                  "name": "t",
+                                  "fill": "$c:--foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Sodium",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "RUA4J",
+                                  "name": "m",
+                                  "fill": "$c:--muted-foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "jellysquid3 · 30.8M downloads",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "j6cNfJ",
+                              "name": "Badge",
+                              "cornerRadius": 100,
+                              "stroke": "$c:--border",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                3,
+                                8
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "QMdca",
+                                  "name": "b",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "Modrinth",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "V2VxMJ",
+                          "name": "Expand",
+                          "width": "fill_container",
+                          "stroke": "$c:--border",
+                          "strokeWidth": {
+                            "top": 1
+                          },
+                          "strokeAlignment": "inner",
+                          "gap": 10,
+                          "padding": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "nbt4F",
+                              "name": "Version Select",
+                              "width": "fill_container",
+                              "fill": "$c:--background",
+                              "cornerRadius": 6,
+                              "stroke": "$c:--border",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "gap": 8,
+                              "padding": [
+                                8,
+                                12
+                              ],
+                              "justifyContent": "space_between",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "swH5k",
+                                  "name": "v",
+                                  "fill": "$c:--foreground",
+                                  "content": "1.21.4 · sodium-fabric-0.6.0.jar",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "FYsAn",
+                                  "name": "c",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "▾",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "gfmsM",
+                              "name": "Install Btn",
+                              "fill": "$c:--primary",
+                              "cornerRadius": 6,
+                              "padding": [
+                                8,
+                                14
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "oVK4w",
+                                  "name": "l",
+                                  "fill": "$c:--primary-foreground",
+                                  "content": "Install",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 13,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "aV2D9",
+                      "name": "Result Lithium",
+                      "width": "fill_container",
+                      "fill": "$c:--background",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "TWd3O",
+                          "name": "Row",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "padding": 12,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "P7bad",
+                              "name": "Icon",
+                              "width": 40,
+                              "height": 40,
+                              "fill": "$c:--border",
+                              "cornerRadius": 6
+                            },
+                            {
+                              "type": "frame",
+                              "id": "muHuG",
+                              "name": "Text",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "t1uaJ",
+                                  "name": "t",
+                                  "fill": "$c:--foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Lithium",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "e1zIx",
+                                  "name": "m",
+                                  "fill": "$c:--muted-foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "caffeinemc · 18.4M downloads",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ILsNV",
+                              "name": "Badge",
+                              "cornerRadius": 100,
+                              "stroke": "$c:--border",
+                              "strokeWidth": 1,
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                3,
+                                8
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "ZMZsj",
+                                  "name": "b",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "Modrinth",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "USDuu",
+              "name": "Footer",
+              "width": "fill_container",
+              "stroke": "$c:--border",
+              "strokeWidth": {
+                "top": 1
+              },
+              "strokeAlignment": "inner",
+              "padding": [
+                16,
+                24
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "b6wf8l",
+                  "name": "hint",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Installs download via the agent's host allowlist.",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "wfmAs",
+                  "name": "Close",
+                  "cornerRadius": 6,
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "KRp4L",
+                      "name": "l",
+                      "fill": "$c:--foreground",
+                      "content": "Close",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "QqwMQ",
+          "name": "Notes",
+          "width": "fill_container",
+          "fill": "$c:--card",
+          "cornerRadius": 8,
+          "stroke": "$c:--border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "xroB6",
+              "name": "nt",
+              "fill": "$c:--foreground",
+              "content": "Implementation notes",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "j9Pk2o",
+              "name": "nb",
+              "fill": "$c:--muted-foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "• Toggle defaults to Search when caps.mods.registry is set; otherwise only From URL is shown.\n• Search → GET /servers/{name}/mods/registry/search?q= (debounced, ≥2 chars). Expanding a card → GET …/projects/{id}/versions. The API filters by the active loader + gameVersion.\n• Install reuses POST /servers/{name}/mods/install with the chosen file's downloadUrl — no new install path, same SSRF allowlist.\n• A 501 (no registry for this game, e.g. Terraria) hides Search and falls back to From URL.",
+              "lineHeight": 1.5,
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
     }
   ],
   "imports": {
