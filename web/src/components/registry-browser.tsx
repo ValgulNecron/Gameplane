@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 
 import type { RegistryProject } from "@/types";
@@ -7,6 +7,7 @@ import { Servers } from "@/lib/endpoints";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { APIError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const PAGE = 24;
 
@@ -18,11 +19,24 @@ const SORTS: { value: RegistrySort; label: string }[] = [
   { value: "newest", label: "Newest" },
 ];
 
-// RegistryBrowser is the shared full browser used by the Mods Browse mode
-// and the Modpacks tab: a debounced search, a sort control, optional
-// category chips, a paged result grid (load-more), and a default "popular"
-// listing when the search is empty. Each result is rendered by renderItem,
-// so the caller owns the per-card action (install a mod vs apply a modpack).
+// Display labels for the provider switch.
+const PROVIDER_LABELS: Record<string, string> = {
+  modrinth: "Modrinth",
+  curseforge: "CurseForge",
+  thunderstore: "Thunderstore",
+  hangar: "Hangar",
+};
+
+function providerLabel(p: string): string {
+  return PROVIDER_LABELS[p] ?? p.charAt(0).toUpperCase() + p.slice(1);
+}
+
+// RegistryBrowser is the shared full browser used by the Mods install page
+// and the Modpacks tab: a provider switch (when a game declares more than
+// one registry), a debounced search, a sort control, optional category
+// chips, a paged result grid (load-more), and a default "popular" listing
+// when the search is empty. Each result is rendered by renderItem with the
+// active provider, so the caller's install action targets the right engine.
 export function RegistryBrowser({
   name,
   type,
@@ -32,24 +46,40 @@ export function RegistryBrowser({
   name: string;
   type?: "mod" | "modpack";
   categories?: { value: string; label: string }[];
-  renderItem: (project: RegistryProject) => ReactNode;
+  renderItem: (project: RegistryProject, provider: string) => ReactNode;
 }) {
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
   const [sort, setSort] = useState<RegistrySort>("downloads");
   const [category, setCategory] = useState("");
+  const [picked, setPicked] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(term.trim()), 300);
     return () => clearTimeout(t);
   }, [term]);
 
+  // Which registries this game offers (and which are usable). For the
+  // modpacks browser, only providers that declare modpacks.
+  const providersQ = useQuery({
+    queryKey: ["registry-providers", name],
+    queryFn: () => Servers.registryProviders(name),
+  });
+  const available = (providersQ.data ?? []).filter(
+    (p) => p.available && (type !== "modpack" || p.modpacks),
+  );
+  // Fall back to the first available provider until one is picked (or if a
+  // stale pick is no longer offered).
+  const provider = picked && available.some((p) => p.provider === picked) ? picked : available[0]?.provider;
+
   const q = useInfiniteQuery({
-    queryKey: ["registry", name, type ?? "mod", debounced, sort, category],
+    queryKey: ["registry", name, type ?? "mod", provider, debounced, sort, category],
     initialPageParam: 0,
+    enabled: !!provider,
     queryFn: ({ pageParam }) =>
       Servers.searchRegistry(name, {
         q: debounced,
+        provider,
         type,
         // A search term ranks by relevance; an empty browse uses the chosen sort.
         sort: debounced ? undefined : sort,
@@ -61,10 +91,37 @@ export function RegistryBrowser({
   });
 
   const items = q.data?.pages.flat() ?? [];
-  const unavailable = q.error instanceof APIError && q.error.status === 501;
+  const showChips = categories && categories.length > 0 && provider === "modrinth";
+
+  // No usable provider (none declared, or all need config like a CurseForge key).
+  if (!providersQ.isLoading && available.length === 0) {
+    return <p className="text-xs text-muted">In-app browse isn’t available for this server.</p>;
+  }
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
+      {available.length > 1 && (
+        <div className="flex w-fit rounded border border-border text-xs">
+          {available.map((p, i) => (
+            <button
+              key={p.provider}
+              type="button"
+              onClick={() => setPicked(p.provider)}
+              aria-pressed={p.provider === provider}
+              className={cn(
+                "h-8 px-3",
+                i === 0 && "rounded-l",
+                i === available.length - 1 && "rounded-r",
+                i > 0 && "border-l border-border",
+                p.provider === provider ? "bg-primary font-medium text-primary-foreground" : "text-muted",
+              )}
+            >
+              {providerLabel(p.provider)}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -93,7 +150,7 @@ export function RegistryBrowser({
         </select>
       </div>
 
-      {categories && categories.length > 0 && (
+      {showChips && (
         <div className="flex flex-wrap gap-1.5">
           {[{ value: "", label: "All" }, ...categories].map((c) => {
             const active = category === c.value;
@@ -117,9 +174,7 @@ export function RegistryBrowser({
       )}
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {unavailable ? (
-          <p className="text-xs text-muted">In-app browse isn’t available for this server.</p>
-        ) : q.isLoading ? (
+        {q.isLoading || providersQ.isLoading ? (
           <p className="text-xs text-muted">Loading…</p>
         ) : q.isError ? (
           <p className="text-xs text-danger">{errText(q.error)}</p>
@@ -129,7 +184,7 @@ export function RegistryBrowser({
           <>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {items.map((p) => (
-                <div key={`${p.provider}:${p.id}`}>{renderItem(p)}</div>
+                <div key={`${p.provider}:${p.id}`}>{renderItem(p, provider ?? p.provider)}</div>
               ))}
             </div>
             {q.hasNextPage && (

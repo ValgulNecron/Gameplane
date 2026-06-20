@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 
 type Banner = { kind: "ok" | "err"; text: string };
 
-// Curated Modrinth modpack categories for the filter chips.
+// Curated Modrinth modpack categories for the filter chips (shown only when
+// the active provider is Modrinth).
 const MODPACK_CATEGORIES: { value: string; label: string }[] = [
   { value: "adventure", label: "Adventure" },
   { value: "technology", label: "Tech" },
@@ -22,9 +23,9 @@ const MODPACK_CATEGORIES: { value: string; label: string }[] = [
 ];
 
 // ModpacksTab browses whole modpacks and installs one. Install differs by
-// game: env-mode (Minecraft/itzg) pins the pack via the server's env and
-// restarts (one active pack); deps-mode (Valheim/Thunderstore) resolves the
-// pack's dependencies and installs each into the mods directory.
+// the active provider: env-mode (e.g. Modrinth/itzg) pins the pack via the
+// server's env and restarts (one active pack); deps-mode (e.g.
+// Thunderstore) resolves the pack's dependencies and installs each.
 export function ModpacksTab({
   name,
   tmpl,
@@ -38,20 +39,30 @@ export function ModpacksTab({
   const { data: me } = useMe();
   const canManage = can(me, "servers:write");
 
-  const mp = tmpl?.spec.capabilities?.mods?.registry;
-  const provider = mp?.provider;
-  const refEnv = mp?.modpacks?.refEnv;
-  const envMode = !!refEnv;
-  const active = envMode ? gs?.spec.env?.find((e) => e.name === refEnv)?.value : undefined;
+  const providers = tmpl?.spec.capabilities?.mods?.registry?.providers ?? [];
+  const declFor = (p: string) => providers.find((x) => x.provider === p);
+
+  // Show whichever env-mode pack is currently pinned (provider-agnostic).
+  const active = (() => {
+    for (const p of providers) {
+      const refEnv = p.modpacks?.refEnv;
+      if (refEnv) {
+        const v = gs?.spec.env?.find((e) => e.name === refEnv)?.value;
+        if (v) return v;
+      }
+    }
+    return undefined;
+  })();
 
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // project id being installed
 
   const installEnv = useMutation({
-    mutationFn: (p: RegistryProject) => Servers.installModpack(name, { ref: p.slug || p.id }),
-    onMutate: (p) => setBusy(p.id),
-    onSuccess: (_r, p) => {
-      setBanner({ kind: "ok", text: `Set modpack ${p.title}. The server is restarting to install it.` });
+    mutationFn: (v: { p: RegistryProject; provider: string }) =>
+      Servers.installModpack(name, { ref: v.p.slug || v.p.id }, v.provider),
+    onMutate: (v) => setBusy(v.p.id),
+    onSuccess: (_r, v) => {
+      setBanner({ kind: "ok", text: `Set modpack ${v.p.title}. The server is restarting to install it.` });
       return qc.invalidateQueries({ queryKey: ["server", name] });
     },
     onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
@@ -59,36 +70,39 @@ export function ModpacksTab({
   });
 
   const installDeps = useMutation({
-    mutationFn: async (p: RegistryProject) => {
-      const files = await Servers.modpackDeps(name, p.id);
+    mutationFn: async (v: { p: RegistryProject; provider: string }) => {
+      const files = await Servers.modpackDeps(name, v.p.id, v.provider);
       for (const f of files) {
         await Servers.installMod(name, { url: f.downloadUrl, name: f.filename });
       }
       return files.length;
     },
-    onMutate: (p) => setBusy(p.id),
-    onSuccess: (count, p) => {
-      setBanner({ kind: "ok", text: `Installed ${p.title} — ${count} mod${count === 1 ? "" : "s"}.` });
+    onMutate: (v) => setBusy(v.p.id),
+    onSuccess: (count, v) => {
+      setBanner({ kind: "ok", text: `Installed ${v.p.title} — ${count} mod${count === 1 ? "" : "s"}.` });
       return qc.invalidateQueries({ queryKey: ["mods", name] });
     },
     onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
     onSettled: () => setBusy(null),
   });
 
-  const install = (p: RegistryProject) => (envMode ? installEnv : installDeps).mutate(p);
+  const install = (p: RegistryProject, provider: string) => {
+    const v = { p, provider };
+    if (declFor(provider)?.modpacks?.refEnv) installEnv.mutate(v);
+    else installDeps.mutate(v);
+  };
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
       <header className="space-y-0.5">
         <h2 className="text-sm text-muted">Browse modpacks</h2>
         <p className="text-[11px] text-muted">
-          {envMode
-            ? "Installing a modpack replaces this server's content and restarts it — one active pack."
-            : "Installing a modpack adds all of its mods to this server."}
+          Installing a modpack either pins it on the server (and restarts) or adds all of its mods,
+          depending on the registry.
         </p>
       </header>
 
-      {envMode && active && (
+      {active && (
         <div className="flex items-center gap-2 rounded border border-border bg-surface/40 px-3 py-2 text-sm">
           <PackageCheck className="h-4 w-4 text-primary" />
           <span className="text-muted">Active modpack:</span>
@@ -118,8 +132,8 @@ export function ModpacksTab({
         <RegistryBrowser
           name={name}
           type="modpack"
-          categories={provider === "modrinth" ? MODPACK_CATEGORIES : undefined}
-          renderItem={(p) => (
+          categories={MODPACK_CATEGORIES}
+          renderItem={(p, provider) => (
             <div className="flex items-center gap-3 rounded border border-border bg-surface/30 p-2.5">
               <RegistryIcon url={p.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
               <div className="min-w-0 flex-1">
@@ -134,7 +148,7 @@ export function ModpacksTab({
                 size="sm"
                 disabled={!canManage || busy !== null}
                 title={canManage ? undefined : "Requires operator role"}
-                onClick={() => install(p)}
+                onClick={() => install(p, provider)}
               >
                 {busy === p.id ? "Installing…" : "Install"}
               </Button>

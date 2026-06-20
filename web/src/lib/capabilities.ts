@@ -76,7 +76,9 @@ export function serverHasMods(
 }
 
 // serverHasModpacks reports whether this server should show the Modpacks
-// tab: the template declares a registry with a modpacks block.
+// tab: at least one declared registry provider offers modpacks.
 export function serverHasModpacks(tmpl: GameTemplate | undefined): boolean {
-  return tmpl?.spec.capabilities?.mods?.registry?.modpacks !== undefined;
+  return (tmpl?.spec.capabilities?.mods?.registry?.providers ?? []).some(
+    (p) => p.modpacks !== undefined,
+  );
 }

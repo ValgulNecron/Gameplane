@@ -79,7 +79,6 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
       <InstallPage
         name={name}
         canBrowse={canBrowse}
-        provider={caps?.registry?.provider}
         allowedHosts={caps?.install?.allowedHosts ?? []}
         pending={install.isPending}
         banner={banner}
@@ -221,7 +220,6 @@ type InstallMode = "search" | "url";
 function InstallPage({
   name,
   canBrowse,
-  provider,
   allowedHosts,
   pending,
   banner,
@@ -231,7 +229,6 @@ function InstallPage({
 }: {
   name: string;
   canBrowse: boolean;
-  provider?: string;
   allowedHosts: string[];
   pending: boolean;
   banner: Banner | null;
@@ -310,7 +307,7 @@ function InstallPage({
 
       {browsing ? (
         <div className="min-h-0 flex-1">
-          <BrowseForm name={name} provider={provider} pending={pending} onInstall={onInstall} />
+          <BrowseForm name={name} pending={pending} onInstall={onInstall} />
         </div>
       ) : (
         <UrlForm allowedHosts={allowedHosts} pending={pending} onCancel={onBack} onInstall={onInstall} />
@@ -413,12 +410,10 @@ const MOD_CATEGORIES: { value: string; label: string }[] = [
 // load-more) with each result expandable to a version picker + Install.
 function BrowseForm({
   name,
-  provider,
   pending,
   onInstall,
 }: {
   name: string;
-  provider?: string;
   pending: boolean;
   onInstall: (body: { url: string; name?: string }) => void;
 }) {
@@ -427,31 +422,35 @@ function BrowseForm({
       <RegistryBrowser
         name={name}
         type="mod"
-        categories={provider === "modrinth" ? MOD_CATEGORIES : undefined}
-        renderItem={(p) => <ModCard name={name} project={p} pending={pending} onInstall={onInstall} />}
+        categories={MOD_CATEGORIES}
+        renderItem={(p, provider) => (
+          <ModCard name={name} project={p} provider={provider} pending={pending} onInstall={onInstall} />
+        )}
       />
     </div>
   );
 }
 
 // ModCard is one browser result; expanding it loads the project's versions
-// and offers a version/file picker + Install.
+// (from the active provider) and offers a version/file picker + Install.
 function ModCard({
   name,
   project,
+  provider,
   pending,
   onInstall,
 }: {
   name: string;
   project: RegistryProject;
+  provider: string;
   pending: boolean;
   onInstall: (body: { url: string; name?: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selId, setSelId] = useState("");
   const versions = useQuery({
-    queryKey: ["mod-versions", name, project.id],
-    queryFn: () => Servers.modVersions(name, project.id),
+    queryKey: ["mod-versions", name, provider, project.id],
+    queryFn: () => Servers.modVersions(name, project.id, provider),
     enabled: open,
   });
   const list = versions.data ?? [];

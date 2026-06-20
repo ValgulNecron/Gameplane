@@ -62,17 +62,29 @@ export interface ModLoaderDecl {
 // game supports it) the Mods tab offers a "Search registry" mode; absent
 // means install-by-URL only.
 export interface ModRegistryDecl {
-  provider: "modrinth" | "thunderstore";
+  providers: ModProviderDecl[];
+}
+
+// One declared registry provider on a template.
+export interface ModProviderDecl {
+  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar";
   community?: string;
   modpacks?: ModpackDecl;
 }
 
-// spec.capabilities.mods.registry.modpacks — enables the Modpacks tab.
-// refEnv set = env-mode install (e.g. Minecraft/itzg MODRINTH_MODPACK);
-// empty = deps-mode (resolve + install the pack's dependencies).
+// registry.providers[].modpacks — enables the Modpacks tab for that
+// provider. refEnv set = env-mode install (e.g. Minecraft/itzg
+// MODRINTH_MODPACK); empty = deps-mode (resolve + install the pack's deps).
 export interface ModpackDecl {
   refEnv?: string;
   env?: { name: string; value?: string }[];
+}
+
+// GET /servers/{name}/mods/registry/providers — drives the provider switch.
+export interface RegistryProviderInfo {
+  provider: string;
+  available: boolean;
+  modpacks: boolean;
 }
 
 // spec.capabilities.mods — declares the mod directory and (optionally)

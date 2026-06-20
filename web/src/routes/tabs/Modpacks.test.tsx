@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { ModpacksTab } from "./Modpacks";
-import type { GameServer, GameTemplate, ModRegistryDecl, RegistryProject } from "@/types";
+import type { GameServer, GameTemplate, RegistryProject } from "@/types";
 
 const fetchMock = vi.fn();
 beforeEach(() => vi.stubGlobal("fetch", fetchMock));
@@ -21,11 +21,14 @@ const operator = {
 };
 const viewer = { ...operator, role: "viewer", permissions: { "*": ["servers:read"] } };
 
+type Modpacks = { refEnv?: string; env?: { name: string; value?: string }[] };
+
 interface Routes {
   me?: typeof operator;
   packs?: RegistryProject[];
   deps?: { filename: string; downloadUrl: string }[];
-  onModpack?: (body: { ref: string }) => void;
+  providers?: { provider: string; available: boolean; modpacks: boolean }[];
+  onModpack?: (body: { ref: string }, provider: string | null) => void;
   onInstallMod?: (body: { url: string; name?: string }) => void;
 }
 
@@ -33,11 +36,14 @@ function route(r: Routes) {
   fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
     const method = opts?.method ?? "GET";
     if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(r.me ?? operator));
+    if (url.includes("/mods/registry/providers"))
+      return Promise.resolve(jsonRes(r.providers ?? [{ provider: "modrinth", available: true, modpacks: true }]));
     if (url.includes("/mods/registry/search")) return Promise.resolve(jsonRes(r.packs ?? []));
     if (url.includes("/mods/registry/projects/") && url.includes("/modpack"))
       return Promise.resolve(jsonRes(r.deps ?? []));
-    if (url.endsWith("/modpack") && method === "POST") {
-      r.onModpack?.(JSON.parse(opts?.body ?? "{}"));
+    if (url.includes("/modpack") && method === "POST") {
+      const provider = new URL("http://x" + url.slice(url.indexOf("/"))).searchParams.get("provider");
+      r.onModpack?.(JSON.parse(opts?.body ?? "{}"), provider);
       return Promise.resolve(jsonRes({ ok: true }));
     }
     if (url.includes("/mods/install")) {
@@ -49,15 +55,19 @@ function route(r: Routes) {
   });
 }
 
-function tmpl(modpacks: ModRegistryDecl["modpacks"], provider = "modrinth"): GameTemplate {
+function tmpl(modpacks: Modpacks, provider = "modrinth"): GameTemplate {
   return {
     metadata: { name: "t" },
     spec: {
       displayName: "T", game: "g", version: "1", image: "img",
-      capabilities: { mods: { loaders: { l: { path: "mods" } }, registry: { provider: provider as "modrinth", modpacks } } },
+      capabilities: {
+        mods: { loaders: { l: { path: "mods" } }, registry: { providers: [{ provider: provider as "modrinth", modpacks }] } },
+      },
     },
   };
 }
+
+const providersOf = (provider: string) => [{ provider, available: true, modpacks: true }];
 
 function gs(env?: { name: string; value?: string }[]): GameServer {
   return { metadata: { name: "s1" }, spec: { templateRef: { name: "t" }, ...(env ? { env } : {}) } };
@@ -93,6 +103,7 @@ describe("ModpacksTab", () => {
   it("deps-mode: resolves and installs each dependency", async () => {
     const installed: Array<{ url: string; name?: string }> = [];
     route({
+      providers: providersOf("thunderstore"),
       packs: [{ ...pack, title: "MegaPack", id: "packer-MegaPack" }],
       deps: [
         { filename: "a.zip", downloadUrl: "https://cdn/a.zip" },
@@ -119,6 +130,8 @@ describe("ModpacksTab", () => {
     const urls: string[] = [];
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
+      if (url.includes("/mods/registry/providers"))
+        return Promise.resolve(jsonRes(providersOf("modrinth")));
       if (url.includes("/mods/registry/search")) {
         urls.push(url);
         return Promise.resolve(jsonRes([pack]));
@@ -136,10 +149,37 @@ describe("ModpacksTab", () => {
     expect(urls.every((u) => u.includes("type=modpack"))).toBe(true);
   });
 
+  it("switches providers", async () => {
+    const urls: string[] = [];
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
+      if (url.includes("/mods/registry/providers"))
+        return Promise.resolve(
+          jsonRes([
+            { provider: "modrinth", available: true, modpacks: true },
+            { provider: "thunderstore", available: true, modpacks: true },
+          ]),
+        );
+      if (url.includes("/mods/registry/search")) {
+        urls.push(url);
+        return Promise.resolve(jsonRes([pack]));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
+    await screen.findByText("Cobblemon");
+    await waitFor(() => expect(urls.some((u) => u.includes("provider=modrinth"))).toBe(true));
+
+    fireEvent.click(screen.getByRole("button", { name: "Thunderstore" }));
+    await waitFor(() => expect(urls.some((u) => u.includes("provider=thunderstore"))).toBe(true));
+  });
+
   it("pages with load more", async () => {
     const page1 = Array.from({ length: 24 }, (_, i) => ({ ...pack, id: `p${i}`, title: `Pack ${i}` }));
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
+      if (url.includes("/mods/registry/providers"))
+        return Promise.resolve(jsonRes(providersOf("modrinth")));
       if (url.includes("/mods/registry/search")) {
         const off = new URL("http://x" + url.slice(url.indexOf("/"))).searchParams.get("offset");
         return Promise.resolve(jsonRes(off ? [{ ...pack, id: "last", title: "Last Pack" }] : page1));
@@ -152,10 +192,11 @@ describe("ModpacksTab", () => {
     expect(await screen.findByText("Last Pack")).toBeInTheDocument();
   });
 
-  it("shows the unavailable state on 501", async () => {
+  it("shows the unavailable state when no provider is usable", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
-      if (url.includes("/mods/registry/search")) return Promise.resolve(jsonRes({ error: "no registry" }, 501));
+      // No usable provider → the browser shows the unavailable state.
+      if (url.includes("/mods/registry/providers")) return Promise.resolve(jsonRes([]));
       return Promise.resolve(jsonRes({}));
     });
     renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({})} gs={gs()} />);
@@ -165,6 +206,8 @@ describe("ModpacksTab", () => {
   it("surfaces a search error", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
+      if (url.includes("/mods/registry/providers"))
+        return Promise.resolve(jsonRes(providersOf("modrinth")));
       if (url.includes("/mods/registry/search")) return Promise.resolve(jsonRes({ error: "boom" }, 502));
       return Promise.resolve(jsonRes({}));
     });

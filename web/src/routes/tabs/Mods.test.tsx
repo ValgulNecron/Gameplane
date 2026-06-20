@@ -31,6 +31,7 @@ interface Routes {
   mods?: InstalledMod[];
   registry?: RegistryProject[];
   versions?: RegistryVersion[];
+  providers?: { provider: string; available: boolean; modpacks: boolean }[];
   onInstall?: (body: { url: string; name?: string }) => void;
   onRemove?: (url: string) => void;
 }
@@ -51,6 +52,9 @@ function route(r: Routes) {
     }
     // Registry browse routes contain "/mods" — match them before the
     // generic /mods list handler below.
+    if (url.includes("/mods/registry/providers")) {
+      return Promise.resolve(jsonRes(r.providers ?? [{ provider: "modrinth", available: true, modpacks: false }]));
+    }
     if (url.includes("/mods/registry/search")) {
       return Promise.resolve(jsonRes(r.registry ?? []));
     }
@@ -96,7 +100,7 @@ const withBrowse: ModsCapability = {
   path: "mods",
   extensions: [".jar"],
   install: { allowedHosts: ["cdn.modrinth.com"] },
-  registry: { provider: "modrinth" },
+  registry: { providers: [{ provider: "modrinth" }] },
 };
 
 function versionedTmpl(): GameTemplate {
