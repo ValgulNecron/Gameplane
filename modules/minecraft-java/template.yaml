@@ -21,7 +21,7 @@ metadata:
 spec:
   displayName: Minecraft (Java Edition)
   game: minecraft-java
-  version: 2.1.0
+  version: 2.2.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#5b9a3e"
   description: |
@@ -269,6 +269,13 @@ spec:
       # The loader id is used verbatim as a Modrinth category facet.
       registry:
         provider: modrinth
+        # Modpacks tab: installing a Modrinth modpack pins it via the itzg
+        # image's native env (TYPE=MODRINTH + MODRINTH_MODPACK=<slug/url>),
+        # which installs the whole pack on boot. One modpack per server.
+        modpacks:
+          refEnv: MODRINTH_MODPACK
+          env:
+            - { name: TYPE, value: MODRINTH }
 
   probes:
     readiness:

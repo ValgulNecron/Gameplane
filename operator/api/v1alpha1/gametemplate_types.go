@@ -322,6 +322,34 @@ type ModRegistrySpec struct {
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
 	Community string `json:"community,omitempty"`
+
+	// Modpacks, when set, surfaces a Modpacks browser for this game and
+	// declares how installing one is applied. A modpack is selected as a
+	// whole (not added to the mods dir like a single mod), so install
+	// either pins it via a game-image env (RefEnv) or resolves and installs
+	// its dependency mods. Omit for games without modpacks.
+	// +optional
+	Modpacks *ModpackSpec `json:"modpacks,omitempty"`
+}
+
+// ModpackSpec declares how a chosen modpack is installed for a game.
+type ModpackSpec struct {
+	// RefEnv, when set, is the game-image env the operator points at the
+	// chosen modpack reference (slug/URL) — e.g. "MODRINTH_MODPACK" for the
+	// itzg image. Installing then patches GameServer.spec.env and restarts;
+	// one modpack is active per server. When empty, installing instead
+	// resolves and installs the modpack's dependency mods (e.g. a
+	// Thunderstore/BepInEx pack).
+	// +kubebuilder:validation:MaxLength=64
+	// +optional
+	RefEnv string `json:"refEnv,omitempty"`
+
+	// Env are additional fixed env applied alongside RefEnv when a modpack
+	// is active, e.g. {TYPE: MODRINTH} to switch the itzg image into
+	// Modrinth-modpack mode. Bounded to keep the CRD small.
+	// +kubebuilder:validation:MaxItems=16
+	// +optional
+	Env []corev1.EnvVar `json:"env,omitempty"`
 }
 
 // ModLoaderSpec is the mods directory for one loader / server-type,

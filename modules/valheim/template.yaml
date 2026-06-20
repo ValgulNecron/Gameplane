@@ -21,7 +21,7 @@ metadata:
 spec:
   displayName: Valheim (Dedicated)
   game: valheim
-  version: 2.1.0
+  version: 2.2.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#d99a2b"
   description: |
@@ -115,7 +115,11 @@ spec:
         bepinex:
           displayName: BepInEx plugins
           path: bepinex/plugins
-          extensions: [".dll"]
+          # Thunderstore packages are .zip archives; the agent unpacks each
+          # into its own folder under plugins/ so BepInEx (recursive scan)
+          # loads the contained .dll(s).
+          extensions: [".zip"]
+          extract: true
       install:
         allowedHosts:
           - thunderstore.io
@@ -131,6 +135,10 @@ spec:
       registry:
         provider: thunderstore
         community: valheim
+        # Modpacks tab: Thunderstore modpacks are dependency manifests, not
+        # a single file. With no refEnv, installing one resolves the pack's
+        # dependencies and installs each (extracted) into plugins/.
+        modpacks: {}
 
   configSchema:
     - name: SERVER_NAME
