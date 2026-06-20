@@ -10,10 +10,11 @@ import type { GameServerPhase } from "@/types";
 
 const MAX_LINES = 20_000;
 
-// Log sources the tab streams from. "pod" follows the game container's
-// stdout — visible while a server is still downloading/configuring during
-// "Starting" (before it writes its own log file) and works without agent
-// mTLS; "file" tails the configured game log file via the agent.
+// Log sources the tab streams from. "pod" follows the whole pod timeline —
+// each setup/init container's output, then the game container's stdout —
+// so the install/setup step is visible while a server is still "Starting"
+// (before it writes its own log file), and it works without agent mTLS;
+// "file" tails the configured game log file via the agent.
 type LogSource = "pod" | "file";
 
 export function LogsTab({
@@ -91,7 +92,7 @@ export function LogsTab({
               onClick={() => setSource("pod")}
               aria-pressed={effectiveSource === "pod"}
               className={`h-8 rounded-l px-2 ${effectiveSource === "pod" ? "bg-surface font-medium" : "text-muted"}`}
-              title="Follow the game container's stdout (download/config + startup)"
+              title="Follow the pod's setup + game container output (install/startup)"
             >
               Container output
             </button>
@@ -108,7 +109,7 @@ export function LogsTab({
         ) : (
           <span
             className="text-xs font-medium text-muted"
-            title="Follow the game container's stdout (download/install + startup)"
+            title="Follow the pod's setup + game container output (install/startup)"
           >
             Container output
           </span>
