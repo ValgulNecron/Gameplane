@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Download, Package, Plus, RotateCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Package, Plus, RotateCw, Trash2 } from "lucide-react";
 
 import type { GameServer, GameTemplate, InstalledMod, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
@@ -40,7 +39,7 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
     ? [active.versionLabel ?? active.loader, active.path].filter(Boolean).join(" · ")
     : null;
 
-  const [installOpen, setInstallOpen] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<InstalledMod | null>(null);
   const [banner, setBanner] = useState<Banner | null>(null);
 
@@ -49,10 +48,11 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
     queryFn: () => Servers.mods(name),
   });
 
+  // Install stays on the browse page (so you can add several); the banner
+  // reports each result and the installed list refreshes underneath.
   const install = useMutation({
     mutationFn: (body: { url: string; name?: string }) => Servers.installMod(name, body),
     onSuccess: (mod) => {
-      setInstallOpen(false);
       setBanner({ kind: "ok", text: `Installed ${mod.name}` });
       return qc.invalidateQueries({ queryKey: ["mods", name] });
     },
@@ -72,6 +72,27 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
     },
   });
 
+  // Dedicated install/browse page (replaces the old popup), matching the
+  // Modpacks tab. Rendered after all hooks to keep hook order stable.
+  if (browsing) {
+    return (
+      <InstallPage
+        name={name}
+        canBrowse={canBrowse}
+        provider={caps?.registry?.provider}
+        allowedHosts={caps?.install?.allowedHosts ?? []}
+        pending={install.isPending}
+        banner={banner}
+        onDismiss={() => setBanner(null)}
+        onBack={() => {
+          setBrowsing(false);
+          setBanner(null);
+        }}
+        onInstall={(body) => install.mutate(body)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       <header className="flex items-center justify-between gap-3">
@@ -90,7 +111,7 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
           {canInstall && (
             <Button
               size="sm"
-              onClick={() => setInstallOpen(true)}
+              onClick={() => setBrowsing(true)}
               disabled={!canManage}
               title={canManage ? undefined : "Requires operator role"}
             >
@@ -172,18 +193,6 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
         </ul>
       )}
 
-      {installOpen && (
-        <InstallDialog
-          name={name}
-          canBrowse={canBrowse}
-          provider={caps?.registry?.provider}
-          allowedHosts={caps?.install?.allowedHosts ?? []}
-          pending={install.isPending}
-          onCancel={() => setInstallOpen(false)}
-          onInstall={(body) => install.mutate(body)}
-        />
-      )}
-
       <ConfirmDialog
         open={confirmRemove !== null}
         onOpenChange={(o) => !o && setConfirmRemove(null)}
@@ -205,16 +214,19 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
 
 type InstallMode = "search" | "url";
 
-// InstallDialog adds a mod either by searching a registry (when the
-// template declares one) or from a URL. Both paths converge on the same
-// install endpoint; the agent enforces the host allowlist and size cap.
-function InstallDialog({
+// InstallPage is the dedicated in-tab install view (replaces the old
+// popup): browse a registry (when the template declares one) or add a mod
+// from a URL. Both paths converge on the same install endpoint; the agent
+// enforces the host allowlist and size cap.
+function InstallPage({
   name,
   canBrowse,
   provider,
   allowedHosts,
   pending,
-  onCancel,
+  banner,
+  onDismiss,
+  onBack,
   onInstall,
 }: {
   name: string;
@@ -222,28 +234,35 @@ function InstallDialog({
   provider?: string;
   allowedHosts: string[];
   pending: boolean;
-  onCancel: () => void;
+  banner: Banner | null;
+  onDismiss: () => void;
+  onBack: () => void;
   onInstall: (body: { url: string; name?: string }) => void;
 }) {
   const [mode, setMode] = useState<InstallMode>(canBrowse ? "search" : "url");
   const browsing = mode === "search" && canBrowse;
 
   return (
-    <Dialog.Root open onOpenChange={(o) => !o && onCancel()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100vh-4rem)] w-[520px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
-          <Dialog.Title className="text-base font-semibold">Install mod</Dialog.Title>
-          <Dialog.Description asChild>
-            <p className="pt-1 text-sm text-muted">
+    <div className="flex h-full flex-col gap-4 p-6">
+      <header className="space-y-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1 text-xs text-muted hover:text-fg"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> Installed mods
+        </button>
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h2 className="text-base font-semibold">Install mods</h2>
+            <p className="text-[11px] text-muted">
               {browsing
-                ? "Search a registry and install for this server’s version + loader."
+                ? "Browse a registry and install for this server’s version + loader."
                 : "Download a mod from a URL into the server’s mods directory."}
             </p>
-          </Dialog.Description>
-
+          </div>
           {canBrowse && (
-            <div className="mt-3 flex w-fit rounded border border-border text-xs">
+            <div className="flex w-fit rounded border border-border text-xs">
               <button
                 type="button"
                 onClick={() => setMode("search")}
@@ -253,7 +272,7 @@ function InstallDialog({
                   browsing ? "bg-primary font-medium text-primary-foreground" : "text-muted",
                 )}
               >
-                Search registry
+                Browse registry
               </button>
               <button
                 type="button"
@@ -268,27 +287,35 @@ function InstallDialog({
               </button>
             </div>
           )}
+        </div>
+      </header>
 
-          {browsing ? (
-            <>
-              <BrowseForm name={name} provider={provider} pending={pending} onInstall={onInstall} />
-              <div className="flex justify-end pt-3">
-                <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
-                  Close
-                </Button>
-              </div>
-            </>
-          ) : (
-            <UrlForm
-              allowedHosts={allowedHosts}
-              pending={pending}
-              onCancel={onCancel}
-              onInstall={onInstall}
-            />
+      {banner && (
+        <div
+          className={cn(
+            "rounded border px-3 py-2 text-sm",
+            banner.kind === "ok"
+              ? "border-border bg-surface/40 text-fg"
+              : "border-danger/40 bg-danger/10 text-danger",
           )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="font-mono break-all">{banner.text}</span>
+            <button onClick={onDismiss} className="shrink-0 text-xs text-muted hover:text-fg">
+              dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {browsing ? (
+        <div className="min-h-0 flex-1">
+          <BrowseForm name={name} provider={provider} pending={pending} onInstall={onInstall} />
+        </div>
+      ) : (
+        <UrlForm allowedHosts={allowedHosts} pending={pending} onCancel={onBack} onInstall={onInstall} />
+      )}
+    </div>
   );
 }
 

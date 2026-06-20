@@ -211,7 +211,7 @@ describe("ModsTab", () => {
     fireEvent.click(open);
 
     // A browse-capable template defaults to Search mode.
-    expect(screen.getByRole("button", { name: "Search registry" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Browse registry" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
