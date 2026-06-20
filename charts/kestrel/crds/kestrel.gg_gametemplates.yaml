@@ -356,6 +356,35 @@ spec:
                         - message: path must be relative to the data mount and must
                             not contain '..'
                           rule: '!self.startsWith(''/'') && !self.contains(''..'')'
+                      registry:
+                        description: |-
+                          Registry, when set, lets the dashboard browse and search an external
+                          mod registry for this game (in addition to install-by-URL). Kestrel
+                          ships the provider engines and a generic browse UI; the module selects
+                          a provider here and the agent's Install downloads the chosen file —
+                          so the registry's CDN must also be in Install.AllowedHosts. Omit for
+                          URL-only games (e.g. tModLoader, whose mods live on Steam Workshop).
+                        properties:
+                          community:
+                            description: |-
+                              Community is the Thunderstore community slug whose package index to
+                              search, e.g. "valheim". Required by the thunderstore provider;
+                              ignored by others.
+                            maxLength: 64
+                            type: string
+                          provider:
+                            description: |-
+                              Provider names the built-in registry engine. "modrinth" suits
+                              Minecraft (mods and plugins; keyless API, filters by loader + game
+                              version). "thunderstore" suits BepInEx games like Valheim (keyless,
+                              per-community package index; no version dimension).
+                            enum:
+                            - modrinth
+                            - thunderstore
+                            type: string
+                        required:
+                        - provider
+                        type: object
                     type: object
                     x-kubernetes-validations:
                     - message: mods requires either path or at least one loaders entry
@@ -1617,6 +1646,18 @@ spec:
                         - name
                         type: object
                       type: array
+                    gameVersion:
+                      description: |-
+                        GameVersion is the upstream game-version token the dashboard passes to
+                        an external mod registry to filter results to this version (e.g.
+                        Modrinth's "game_versions" facet), e.g. "1.21.4". It is distinct from
+                        ID (a Kestrel selector like "1.21.4-paper" that's too lossy to parse
+                        reliably). Optional; when unset the registry search sends no version
+                        facet and returns mods for all versions. Ignored by registries with no
+                        version dimension (e.g. Thunderstore) and when the template declares no
+                        mods.registry.
+                      maxLength: 32
+                      type: string
                     id:
                       description: |-
                         ID is the stable selector stored in GameServer.spec.version. It is

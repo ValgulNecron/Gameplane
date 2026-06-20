@@ -196,6 +196,18 @@ type GameVersion struct {
 	// set it; if none (or several) do, the first entry is the default.
 	// +optional
 	Default bool `json:"default,omitempty"`
+
+	// GameVersion is the upstream game-version token the dashboard passes to
+	// an external mod registry to filter results to this version (e.g.
+	// Modrinth's "game_versions" facet), e.g. "1.21.4". It is distinct from
+	// ID (a Kestrel selector like "1.21.4-paper" that's too lossy to parse
+	// reliably). Optional; when unset the registry search sends no version
+	// facet and returns mods for all versions. Ignored by registries with no
+	// version dimension (e.g. Thunderstore) and when the template declares no
+	// mods.registry.
+	// +kubebuilder:validation:MaxLength=32
+	// +optional
+	GameVersion string `json:"gameVersion,omitempty"`
 }
 
 // CapabilitiesSpec declares the per-game command surface the agent
@@ -272,6 +284,37 @@ type ModsSpec struct {
 	// removal are offered. Shared across all loaders.
 	// +optional
 	Install *ModInstallSpec `json:"install,omitempty"`
+
+	// Registry, when set, lets the dashboard browse and search an external
+	// mod registry for this game (in addition to install-by-URL). Kestrel
+	// ships the provider engines and a generic browse UI; the module selects
+	// a provider here and the agent's Install downloads the chosen file —
+	// so the registry's CDN must also be in Install.AllowedHosts. Omit for
+	// URL-only games (e.g. tModLoader, whose mods live on Steam Workshop).
+	// +optional
+	Registry *ModRegistrySpec `json:"registry,omitempty"`
+}
+
+// ModRegistrySpec selects a built-in external mod registry the dashboard
+// can search. The engine is generic Kestrel code; this block is the
+// per-game configuration that drives it. Loader filtering reuses the
+// active version's loader id verbatim (Kestrel loader ids match the
+// registries' loader facets), and version filtering uses the active
+// GameVersion.gameVersion token — so no mappings live here.
+type ModRegistrySpec struct {
+	// Provider names the built-in registry engine. "modrinth" suits
+	// Minecraft (mods and plugins; keyless API, filters by loader + game
+	// version). "thunderstore" suits BepInEx games like Valheim (keyless,
+	// per-community package index; no version dimension).
+	// +kubebuilder:validation:Enum=modrinth;thunderstore
+	Provider string `json:"provider"`
+
+	// Community is the Thunderstore community slug whose package index to
+	// search, e.g. "valheim". Required by the thunderstore provider;
+	// ignored by others.
+	// +kubebuilder:validation:MaxLength=64
+	// +optional
+	Community string `json:"community,omitempty"`
 }
 
 // ModLoaderSpec is the mods directory for one loader / server-type,
