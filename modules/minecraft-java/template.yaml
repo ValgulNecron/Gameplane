@@ -21,7 +21,7 @@ metadata:
 spec:
   displayName: Minecraft (Java Edition)
   game: minecraft-java
-  version: 2.0.0
+  version: 2.1.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#5b9a3e"
   description: |
@@ -92,6 +92,7 @@ spec:
       displayName: "1.21.4 · Paper"
       image: itzg/minecraft-server:java21
       loader: paper
+      gameVersion: "1.21.4"
       default: true
       env:
         - { name: TYPE, value: PAPER }
@@ -100,6 +101,7 @@ spec:
       displayName: "1.21.4 · Fabric"
       image: itzg/minecraft-server:java21
       loader: fabric
+      gameVersion: "1.21.4"
       env:
         - { name: TYPE, value: FABRIC }
         - { name: VERSION, value: "1.21.4" }
@@ -107,6 +109,7 @@ spec:
       displayName: "1.21.4 · Forge"
       image: itzg/minecraft-server:java21
       loader: forge
+      gameVersion: "1.21.4"
       env:
         - { name: TYPE, value: FORGE }
         - { name: VERSION, value: "1.21.4" }
@@ -114,6 +117,7 @@ spec:
       displayName: "1.21.4 · Vanilla"
       image: itzg/minecraft-server:java21
       loader: vanilla
+      gameVersion: "1.21.4"
       env:
         - { name: TYPE, value: VANILLA }
         - { name: VERSION, value: "1.21.4" }
@@ -121,6 +125,7 @@ spec:
       displayName: "1.20.4 · Paper"
       image: itzg/minecraft-server:java17
       loader: paper
+      gameVersion: "1.20.4"
       env:
         - { name: TYPE, value: PAPER }
         - { name: VERSION, value: "1.20.4" }
@@ -128,6 +133,7 @@ spec:
       displayName: "1.20.4 · Forge"
       image: itzg/minecraft-server:java17
       loader: forge
+      gameVersion: "1.20.4"
       env:
         - { name: TYPE, value: FORGE }
         - { name: VERSION, value: "1.20.4" }
@@ -135,6 +141,7 @@ spec:
       displayName: "1.20.1 · Fabric"
       image: itzg/minecraft-server:java17
       loader: fabric
+      gameVersion: "1.20.1"
       env:
         - { name: TYPE, value: FABRIC }
         - { name: VERSION, value: "1.20.1" }
@@ -256,6 +263,12 @@ spec:
           - github.com
           - .githubusercontent.com
         maxSizeMB: 512
+      # In-app browse: the Mods tab can search Modrinth for the active
+      # loader + game version and one-click install (the chosen file
+      # downloads via the allowlist above — cdn.modrinth.com is listed).
+      # The loader id is used verbatim as a Modrinth category facet.
+      registry:
+        provider: modrinth
 
   probes:
     readiness:

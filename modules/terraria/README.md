@@ -22,6 +22,10 @@ each tModLoader build keeps its own set. Select the active modpack with the
 the tab is hidden for vanilla servers. Installs are allowed from GitHub
 (max 512 MiB), subject to the agent's SSRF guard.
 
+tModLoader mods are distributed via Steam Workshop, which has no public REST
+catalog, so this module does **not** offer in-app registry browse — install
+modpacks **From URL** (e.g. a GitHub release `.zip`) instead.
+
 ## Logs (including install)
 
 The server downloads/extracts on first boot and logs to stdout — watch

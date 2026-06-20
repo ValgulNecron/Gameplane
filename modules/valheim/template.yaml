@@ -21,7 +21,7 @@ metadata:
 spec:
   displayName: Valheim (Dedicated)
   game: valheim
-  version: 2.0.0
+  version: 2.1.0
   # Brand color the dashboard tints this game's icon/accents with.
   accentColor: "#d99a2b"
   description: |
@@ -124,6 +124,13 @@ spec:
           - github.com
           - .githubusercontent.com
         maxSizeMB: 256
+      # In-app browse: the Mods tab can search the Thunderstore Valheim
+      # community and one-click install BepInEx plugins. The download URL
+      # 302-redirects thunderstore.io → gcdn.thunderstore.io; both hosts
+      # are allowlisted above so the agent's redirect re-check passes.
+      registry:
+        provider: thunderstore
+        community: valheim
 
   configSchema:
     - name: SERVER_NAME

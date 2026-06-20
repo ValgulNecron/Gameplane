@@ -30,6 +30,12 @@ never collide and survive switching versions. Plugin loaders
 the tab is hidden for them. Installs are allowed from Modrinth, CurseForge,
 Hangar, and GitHub (max 512 MiB), subject to the agent's SSRF guard.
 
+The Mods tab's **Search registry** mode browses [Modrinth](https://modrinth.com)
+filtered to the server's active loader and game version, so you can find and
+one-click install a mod or plugin by name without hunting for a URL. The
+chosen file downloads through the same allowlist (Modrinth's CDN is listed).
+**From URL** install remains available for anything not on Modrinth.
+
 ## Logs (including install)
 
 itzg downloads the selected server jar on first boot; that output streams to

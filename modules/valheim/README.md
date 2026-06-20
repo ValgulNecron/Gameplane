@@ -25,6 +25,11 @@ never leaks into stable. Installs are allowed from Thunderstore and GitHub
 (max 256 MiB), subject to the agent's SSRF guard. Mods only load when
 `BEPINEX` is enabled.
 
+The Mods tab's **Search registry** mode browses the
+[Thunderstore Valheim community](https://thunderstore.io/c/valheim/) so you
+can find and one-click install BepInEx plugins by name. **From URL** install
+remains available for anything not on Thunderstore.
+
 ## Logs (including install)
 
 The server installs via SteamCMD on start; that output (and all runtime
