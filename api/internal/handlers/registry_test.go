@@ -55,12 +55,16 @@ func (s fakeSet) For(registry.Config) (registry.Provider, bool) {
 	return s.p, true
 }
 
+func (s fakeSet) Available(string) bool { return !s.absent }
+
 func newTemplateObj(name string, registryBlock map[string]any, versions []any) *unstructured.Unstructured {
 	mods := map[string]any{
 		"loaders": map[string]any{"paper": map[string]any{"path": "plugins"}},
 	}
+	// registryBlock is a single provider entry; wrap it in the providers[]
+	// list the CRD now uses.
 	if registryBlock != nil {
-		mods["registry"] = registryBlock
+		mods["registry"] = map[string]any{"providers": []any{registryBlock}}
 	}
 	return &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "kestrel.gg/v1alpha1",
@@ -266,6 +270,51 @@ func TestModpackDeps(t *testing.T) {
 	}
 	if len(files) != 1 || files[0].Filename != "dep.zip" {
 		t.Errorf("files = %+v", files)
+	}
+}
+
+func TestRegistryProviders(t *testing.T) {
+	versions := []any{map[string]any{"id": "1.21.4-fabric", "loader": "fabric", "gameVersion": "1.21.4", "default": true}}
+	tmpl := newTemplateObj("minecraft", nil, versions)
+	_ = unstructured.SetNestedField(tmpl.Object, map[string]any{
+		"providers": []any{
+			map[string]any{"provider": "modrinth", "modpacks": map[string]any{"refEnv": "MODRINTH_MODPACK"}},
+			map[string]any{"provider": "curseforge"},
+		},
+	}, "spec", "capabilities", "mods", "registry")
+	k := fakeKubeClient(tmpl, serverWithVersion("kestrel-games", "alpha", "minecraft", ""))
+	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
+
+	rr := do(t, r, "GET", "/servers/alpha/mods/registry/providers", nil)
+	if rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	var got []providerInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("providers = %+v", got)
+	}
+	if got[0].Provider != "modrinth" || !got[0].Modpacks || !got[0].Available {
+		t.Errorf("p0 = %+v", got[0])
+	}
+	if got[1].Provider != "curseforge" || got[1].Modpacks {
+		t.Errorf("p1 = %+v", got[1])
+	}
+}
+
+func TestRegistrySearch_UnknownProvider_501(t *testing.T) {
+	versions := []any{map[string]any{"id": "1.21.4-fabric", "loader": "fabric", "gameVersion": "1.21.4", "default": true}}
+	k := fakeKubeClient(
+		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
+		serverWithVersion("kestrel-games", "alpha", "minecraft", ""),
+	)
+	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
+	// curseforge isn't declared on this template → 501.
+	rr := do(t, r, "GET", "/servers/alpha/mods/registry/search?q=x&provider=curseforge", nil)
+	if rr.Code != http.StatusNotImplemented {
+		t.Fatalf("got %d, want 501", rr.Code)
 	}
 }
 

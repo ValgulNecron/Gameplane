@@ -104,27 +104,37 @@ type Config struct {
 
 // Set holds the constructed engines, sharing one HTTP client. Build once
 // at startup and reuse; the Thunderstore engine caches its community
-// package lists internally.
+// package lists internally. curseforge is nil when no API key is
+// configured (the provider is then reported unavailable).
 type Set struct {
 	modrinth     *Modrinth
 	thunderstore *Thunderstore
+	curseforge   *Curseforge
+	hangar       *Hangar
 }
 
 // NewSet builds the engine set. version tags the outbound User-Agent
-// (Modrinth asks callers to identify themselves).
-func NewSet(version string) *Set {
+// (Modrinth asks callers to identify themselves). curseforgeKey enables the
+// CurseForge engine (its API requires an x-api-key); empty disables it.
+func NewSet(version, curseforgeKey string) *Set {
 	client := &http.Client{Timeout: 15 * time.Second}
 	ua := "kestrel/" + version + " (+https://kestrel.gg)"
-	return &Set{
+	s := &Set{
 		modrinth:     newModrinth(client, ua),
 		thunderstore: newThunderstore(client, ua),
+		hangar:       newHangar(client, ua),
 	}
+	if curseforgeKey != "" {
+		s.curseforge = newCurseforge(client, ua, curseforgeKey)
+	}
+	return s
 }
 
 // For returns the provider for a module's registry config. ok is false
-// when the provider is unknown/unset, or a required parameter is missing
-// (Thunderstore needs a community) — the handler maps that to 501 so the
-// dashboard hides the Browse tab.
+// when the provider is unknown/unset, a required parameter is missing
+// (Thunderstore needs a community), or the engine isn't configured
+// (CurseForge without a key) — the handler maps that to 501 so the
+// dashboard hides the provider.
 func (s *Set) For(cfg Config) (Provider, bool) {
 	switch cfg.Provider {
 	case "modrinth":
@@ -134,8 +144,29 @@ func (s *Set) For(cfg Config) (Provider, bool) {
 			return nil, false
 		}
 		return &thunderstoreCommunity{ts: s.thunderstore, community: cfg.Community}, true
+	case "curseforge":
+		if s.curseforge == nil {
+			return nil, false
+		}
+		return s.curseforge, true
+	case "hangar":
+		return s.hangar, true
 	default:
 		return nil, false
+	}
+}
+
+// Available reports whether a provider's engine is usable independent of a
+// specific server — the providers listing uses it to mark the dashboard's
+// provider switch. CurseForge needs a configured API key.
+func (s *Set) Available(provider string) bool {
+	switch provider {
+	case "modrinth", "thunderstore", "hangar":
+		return true
+	case "curseforge":
+		return s.curseforge != nil
+	default:
+		return false
 	}
 }
 

@@ -20,30 +20,27 @@ import (
 )
 
 // errNoRegistry signals that a server's template declares no browsable mod
-// registry (no capabilities.mods.registry, or an unselectable provider).
-// The handler maps it to 501 so the dashboard hides the Browse tab and
-// falls back to install-by-URL.
+// registry (or the requested provider isn't declared/available). Mapped to
+// 501 so the dashboard hides Browse and falls back to install-by-URL.
 var errNoRegistry = errors.New("no mod registry for this server")
 
 // registrySet is the subset of *registry.Set the handler needs, so tests
-// can inject a fake provider.
+// can inject a fake. Available reports whether an engine is usable (e.g.
+// CurseForge needs an API key).
 type registrySet interface {
 	For(registry.Config) (registry.Provider, bool)
+	Available(provider string) bool
 }
 
 // MountRegistry wires read-only mod-registry browse onto r. Routes are
 // server-scoped so the API resolves the active version's loader and
-// game-version token from the cluster (the operator is authoritative) —
-// the client never supplies registry facets. Both are GETs under the
-// "servers" segment, so the existing servers:read RBAC rule covers them
-// (search is viewer+); installing a result reuses the existing
-// servers:write /mods/install route.
+// game-version token from the cluster (the operator is authoritative). A
+// game may declare multiple providers; the client picks one via ?provider=.
 func MountRegistry(r chi.Router, k *kube.Client, reg registrySet) {
 	h := &registryHandler{k: k, reg: reg}
+	r.Get("/servers/{name}/mods/registry/providers", h.providers)
 	r.Get("/servers/{name}/mods/registry/search", h.search)
 	r.Get("/servers/{name}/mods/registry/projects/{project}/versions", h.versions)
-	// Modpacks: resolve a pack's dependency files (deps-mode games install
-	// each via /mods/install), and apply an env-mode modpack to the server.
 	r.Get("/servers/{name}/mods/registry/projects/{project}/modpack", h.modpackDeps)
 	r.Post("/servers/{name}/modpack", h.installModpack)
 }
@@ -53,12 +50,45 @@ type registryHandler struct {
 	reg registrySet
 }
 
+// providerInfo is one entry of the providers listing the dashboard uses to
+// build its provider switch.
+type providerInfo struct {
+	Provider  string `json:"provider"`
+	Available bool   `json:"available"`
+	Modpacks  bool   `json:"modpacks"`
+}
+
+// providers lists the registries this server's template declares, marking
+// which are usable (engine configured) and which offer modpacks. The
+// dashboard shows a provider switch from this.
+func (h *registryHandler) providers(w http.ResponseWriter, req *http.Request) {
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	_, tmpl, err := h.loadServerTemplate(req.Context(), ns, chi.URLParam(req, "name"))
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+	declared := registryProviders(tmpl)
+	out := make([]providerInfo, 0, len(declared))
+	for _, p := range declared {
+		out = append(out, providerInfo{
+			Provider:  p.provider,
+			Available: h.reg.Available(p.provider),
+			Modpacks:  p.modpacks != nil,
+		})
+	}
+	writeJSON(w, out)
+}
+
 func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
 	}
-	p, loader, gameVersion, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"))
+	p, loader, gameVersion, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"), req.URL.Query().Get("provider"))
 	if err != nil {
 		h.writeResolveErr(w, req, err)
 		return
@@ -87,7 +117,7 @@ func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
-	p, loader, gameVersion, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"))
+	p, loader, gameVersion, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"), req.URL.Query().Get("provider"))
 	if err != nil {
 		h.writeResolveErr(w, req, err)
 		return
@@ -104,14 +134,14 @@ func (h *registryHandler) versions(w http.ResponseWriter, req *http.Request) {
 }
 
 // modpackDeps resolves a modpack into the dependency files the dashboard
-// then installs one-by-one via /mods/install (deps-mode games, e.g.
-// Valheim/Thunderstore).
+// then installs one-by-one via /mods/install (deps-mode providers, e.g.
+// Thunderstore).
 func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) {
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
 	}
-	p, _, _, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"))
+	p, _, _, err := h.resolve(req.Context(), ns, chi.URLParam(req, "name"), req.URL.Query().Get("provider"))
 	if err != nil {
 		h.writeResolveErr(w, req, err)
 		return
@@ -126,33 +156,26 @@ func (h *registryHandler) modpackDeps(w http.ResponseWriter, req *http.Request) 
 
 // installModpack applies an env-mode modpack (e.g. Modrinth on itzg): it
 // patches the GameServer's env to pin the chosen pack, which the operator
-// rolls out. Deps-mode games (no refEnv) are installed via modpackDeps +
-// /mods/install instead, so they get a 409 here.
+// rolls out. Deps-mode providers (no refEnv) are installed via modpackDeps
+// + /mods/install instead, so they get a 409 here.
 func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Request) {
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
 	}
-	name := chi.URLParam(req, "name")
-	gs, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Get(req.Context(), name, metav1.GetOptions{})
+	gs, tmpl, err := h.loadServerTemplate(req.Context(), ns, chi.URLParam(req, "name"))
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
 	}
-	tmplName, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
-	tmpl, err := h.k.Dynamic.Resource(kube.GVRs["templates"]).Get(req.Context(), tmplName, metav1.GetOptions{})
-	if err != nil {
-		httperr.Write(w, req, err)
-		return
-	}
-	refEnv, staticEnv, ok := modpackConfig(tmpl)
-	if !ok {
+	prov, ok := pickProvider(tmpl, req.URL.Query().Get("provider"))
+	if !ok || prov.modpacks == nil {
 		httperr.WriteCode(w, req, http.StatusNotImplemented, errNoRegistry)
 		return
 	}
-	if refEnv == "" {
+	if prov.modpacks.refEnv == "" {
 		httperr.WriteCode(w, req, http.StatusConflict,
-			errors.New("this game installs modpacks per dependency; install the resolved mods instead"))
+			errors.New("this provider installs modpacks per dependency; install the resolved mods instead"))
 		return
 	}
 
@@ -164,12 +187,8 @@ func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	// Ordered env to set: the modpack reference, then the template's static
-	// modpack env (e.g. TYPE=MODRINTH).
-	apply := []envKV{{Name: refEnv, Value: strings.TrimSpace(body.Ref)}}
-	apply = append(apply, staticEnv...)
+	apply := append([]envKV{{Name: prov.modpacks.refEnv, Value: strings.TrimSpace(body.Ref)}}, prov.modpacks.env...)
 	setEnvVars(gs, apply)
-
 	if _, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Update(req.Context(), gs, metav1.UpdateOptions{}); err != nil {
 		httperr.Write(w, req, err)
 		return
@@ -177,32 +196,40 @@ func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Reques
 	writeJSON(w, map[string]any{"ok": true})
 }
 
-// resolve loads the server + its template, selects the registry provider
-// declared by the template, and returns it alongside the active version's
-// loader and game-version token (used as registry facets).
-func (h *registryHandler) resolve(ctx context.Context, ns, name string) (registry.Provider, string, string, error) {
+// loadServerTemplate fetches a GameServer and its GameTemplate.
+func (h *registryHandler) loadServerTemplate(ctx context.Context, ns, name string) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
 	gs, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return nil, "", "", err
+		return nil, nil, err
 	}
-	selected, _, _ := unstructured.NestedString(gs.Object, "spec", "version")
 	tmplName, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
 	if tmplName == "" {
-		return nil, "", "", errNoRegistry
+		return gs, nil, errNoRegistry
 	}
 	tmpl, err := h.k.Dynamic.Resource(kube.GVRs["templates"]).Get(ctx, tmplName, metav1.GetOptions{})
 	if err != nil {
+		return gs, nil, err
+	}
+	return gs, tmpl, nil
+}
+
+// resolve loads the server + template, picks the requested provider (or the
+// default), and returns its engine plus the active version's loader and
+// game-version token.
+func (h *registryHandler) resolve(ctx context.Context, ns, name, providerName string) (registry.Provider, string, string, error) {
+	gs, tmpl, err := h.loadServerTemplate(ctx, ns, name)
+	if err != nil {
 		return nil, "", "", err
 	}
-
-	provider, community, ok := registryConfig(tmpl)
+	prov, ok := pickProvider(tmpl, providerName)
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
-	p, ok := h.reg.For(registry.Config{Provider: provider, Community: community})
+	p, ok := h.reg.For(registry.Config{Provider: prov.provider, Community: prov.community})
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
+	selected, _, _ := unstructured.NestedString(gs.Object, "spec", "version")
 	loader, gameVersion := activeVersion(tmpl, selected)
 	return p, loader, gameVersion, nil
 }
@@ -215,18 +242,75 @@ func (h *registryHandler) writeResolveErr(w http.ResponseWriter, req *http.Reque
 	httperr.Write(w, req, err)
 }
 
-// registryConfig reads the template's capabilities.mods.registry block.
-func registryConfig(tmpl *unstructured.Unstructured) (provider, community string, ok bool) {
-	reg, found, err := unstructured.NestedMap(tmpl.Object, "spec", "capabilities", "mods", "registry")
-	if !found || err != nil || reg == nil {
-		return "", "", false
+type providerCfg struct {
+	provider  string
+	community string
+	modpacks  *modpackCfg
+}
+
+type modpackCfg struct {
+	refEnv string
+	env    []envKV
+}
+
+// registryProviders reads capabilities.mods.registry.providers[].
+func registryProviders(tmpl *unstructured.Unstructured) []providerCfg {
+	if tmpl == nil {
+		return nil
 	}
-	provider, _ = reg["provider"].(string)
-	community, _ = reg["community"].(string)
-	if provider == "" {
-		return "", "", false
+	list, found, err := unstructured.NestedSlice(tmpl.Object, "spec", "capabilities", "mods", "registry", "providers")
+	if !found || err != nil {
+		return nil
 	}
-	return provider, community, true
+	out := make([]providerCfg, 0, len(list))
+	for _, raw := range list {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := m["provider"].(string)
+		if name == "" {
+			continue
+		}
+		cfg := providerCfg{provider: name}
+		cfg.community, _ = m["community"].(string)
+		if mp, ok := m["modpacks"].(map[string]any); ok {
+			mc := &modpackCfg{}
+			mc.refEnv, _ = mp["refEnv"].(string)
+			if envs, ok := mp["env"].([]any); ok {
+				for _, e := range envs {
+					if em, ok := e.(map[string]any); ok {
+						n, _ := em["name"].(string)
+						v, _ := em["value"].(string)
+						if n != "" {
+							mc.env = append(mc.env, envKV{Name: n, Value: v})
+						}
+					}
+				}
+			}
+			cfg.modpacks = mc
+		}
+		out = append(out, cfg)
+	}
+	return out
+}
+
+// pickProvider returns the named provider's config, or the first declared
+// when name is empty. ok is false when the template declares none.
+func pickProvider(tmpl *unstructured.Unstructured, name string) (providerCfg, bool) {
+	providers := registryProviders(tmpl)
+	if len(providers) == 0 {
+		return providerCfg{}, false
+	}
+	if name == "" {
+		return providers[0], true
+	}
+	for _, p := range providers {
+		if p.provider == name {
+			return p, true
+		}
+	}
+	return providerCfg{}, false
 }
 
 // activeVersion mirrors the operator's version selection (and the web's
@@ -272,28 +356,6 @@ func loaderGameVersion(m map[string]any) (loader, gameVersion string) {
 type envKV struct {
 	Name  string
 	Value string
-}
-
-// modpackConfig reads capabilities.mods.registry.modpacks. ok is false when
-// the template declares no modpacks. refEnv is empty for deps-mode games.
-func modpackConfig(tmpl *unstructured.Unstructured) (refEnv string, env []envKV, ok bool) {
-	mp, found, err := unstructured.NestedMap(tmpl.Object, "spec", "capabilities", "mods", "registry", "modpacks")
-	if !found || err != nil || mp == nil {
-		return "", nil, false
-	}
-	refEnv, _ = mp["refEnv"].(string)
-	if list, isList := mp["env"].([]any); isList {
-		for _, e := range list {
-			if m, isMap := e.(map[string]any); isMap {
-				n, _ := m["name"].(string)
-				v, _ := m["value"].(string)
-				if n != "" {
-					env = append(env, envKV{Name: n, Value: v})
-				}
-			}
-		}
-	}
-	return refEnv, env, true
 }
 
 // setEnvVars merges apply into GameServer.spec.env in place: existing
