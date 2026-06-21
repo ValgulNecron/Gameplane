@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Cpu, HardDrive, MemoryStick } from "lucide-react";
 import type { GameServer, GameTemplate, PlayersResp, ServerEvent } from "@/types";
 import { Players, Servers } from "@/lib/endpoints";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Sparkline } from "@/components/ui/sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
 import { formatBytes, formatRelative } from "@/lib/utils";
@@ -110,6 +111,7 @@ export function OverviewTab({
                 : undefined
             }
             progress={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
+            sample={cpuKnown && cpuLimitMilli ? cpuPct : undefined}
             accent="primary"
           />
           <MetricTile
@@ -120,6 +122,7 @@ export function OverviewTab({
               memKnown ? `${formatBytes(memUsed)} / ${memLimit ? formatBytes(memLimit) : "—"}` : undefined
             }
             progress={memKnown && memLimit ? memPct : undefined}
+            sample={memKnown && memLimit ? memPct : undefined}
             accent="violet"
           />
           <MetricTile
@@ -130,6 +133,7 @@ export function OverviewTab({
               diskKnown ? `${formatBytes(diskUsed)} / ${diskTotal ? formatBytes(diskTotal) : "—"}` : undefined
             }
             progress={diskKnown && diskTotal ? diskPct : undefined}
+            sample={diskKnown && diskTotal ? diskPct : undefined}
             accent="success"
           />
         </div>
@@ -199,12 +203,28 @@ export function OverviewTab({
   );
 }
 
+// Accumulate a rolling window of a metric's samples so the tile can draw a
+// trend. Appends only when the value actually changes (the parent re-renders
+// on every poll), capped to the last `max` points.
+function useMetricHistory(value: number | undefined, max = 32): number[] {
+  const [hist, setHist] = useState<number[]>([]);
+  useEffect(() => {
+    if (value === undefined || Number.isNaN(value)) return;
+    setHist((h) => {
+      const next = h.concat(value);
+      return next.length > max ? next.slice(-max) : next;
+    });
+  }, [value, max]);
+  return hist;
+}
+
 function MetricTile({
   label,
   icon,
   primary,
   secondary,
   progress,
+  sample,
   accent,
 }: {
   label: string;
@@ -212,6 +232,7 @@ function MetricTile({
   primary: string;
   secondary?: string;
   progress?: number;
+  sample?: number;
   accent?: "primary" | "success" | "warning" | "violet";
 }) {
   const accentClass = {
@@ -220,6 +241,13 @@ function MetricTile({
     warning: "bg-warning",
     violet:  "bg-violet",
   }[accent ?? "primary"];
+  const accentText = {
+    primary: "text-primary",
+    success: "text-success",
+    warning: "text-warning",
+    violet:  "text-violet",
+  }[accent ?? "primary"];
+  const history = useMetricHistory(sample);
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between text-xs uppercase tracking-wide text-muted">
@@ -227,6 +255,7 @@ function MetricTile({
         <span className="text-muted">{icon}</span>
       </div>
       <div className="pt-2 font-mono text-2xl text-fg">{primary}</div>
+      <Sparkline data={history} className={`mt-2 ${accentText}`} />
       {progress !== undefined && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface">
           <div
