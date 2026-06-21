@@ -18386,7 +18386,7 @@
                       "type": "text",
                       "id": "qIlem",
                       "fill": "$c:--muted-foreground",
-                      "content": "Welcome back to homelab-01",
+                      "content": "Welcome to Kestrel",
                       "fontFamily": "$c:--font-secondary",
                       "fontSize": 13,
                       "fontWeight": "normal"
@@ -18624,7 +18624,7 @@
                   "fill": "$c:--muted-foreground",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "v0.1.0-alpha · api.kestrel.homelab-01",
+                  "content": "AGPL-3.0 licensed",
                   "textAlign": "center",
                   "fontFamily": "$c:--font-secondary",
                   "fontSize": 11,
@@ -18672,7 +18672,7 @@
                   "type": "text",
                   "id": "CCWjG",
                   "fill": "$c:--muted-foreground",
-                  "content": "v0.1.0-alpha · AGPL-3.0",
+                  "content": "AGPL-3.0",
                   "fontFamily": "$c:--font-primary",
                   "fontSize": 12,
                   "fontWeight": "normal"
