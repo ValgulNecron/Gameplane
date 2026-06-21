@@ -2,8 +2,10 @@ package usage
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -229,5 +231,151 @@ func TestNew_DefaultsRoot(t *testing.T) {
 	}
 	if r.cfg.now == nil || r.cfg.statfs == nil {
 		t.Fatalf("now/statfs should default to non-nil")
+	}
+}
+
+func TestNew_ProcDefaults(t *testing.T) {
+	r := New(Config{ProcMode: true})
+	if r.cfg.ProcRoot != defaultProcRoot {
+		t.Fatalf("default proc root = %q, want %q", r.cfg.ProcRoot, defaultProcRoot)
+	}
+	if r.cfg.clkTck != userHZ {
+		t.Fatalf("default clkTck = %d, want %d", r.cfg.clkTck, userHZ)
+	}
+	if r.cfg.selfPID != os.Getpid() {
+		t.Fatalf("default selfPID = %d, want %d", r.cfg.selfPID, os.Getpid())
+	}
+}
+
+// writeProc lays down a fake /proc/<pid>/{stat,statm} pair. The stat layout
+// keeps the comm in parens (field 2) and places ppid at field 4 with utime
+// (field 14) carrying all the ticks and stime (field 15) zero — the reader
+// sums the two. Nine zero placeholders sit between ppid and utime.
+func writeProc(t *testing.T, procRoot string, pid, ppid int, comm string, ticks uint64, rssPages int64) {
+	t.Helper()
+	dir := filepath.Join(procRoot, strconv.Itoa(pid))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir proc/%d: %v", pid, err)
+	}
+	writeFile(t, dir, "stat", fmt.Sprintf("%d (%s) S %d 0 0 0 0 0 0 0 0 0 %d 0 0 0\n", pid, comm, ppid, ticks))
+	writeFile(t, dir, "statm", fmt.Sprintf("1000 %d 0 0 0 0 0\n", rssPages))
+}
+
+// TestRead_ProcMode covers the shared-PID-namespace path: CPU/memory are
+// summed across the game process(es), excluding pid 1 (pause) and the agent's
+// own subtree, and the CPU/memory limits come from the operator's hints.
+func TestRead_ProcMode(t *testing.T) {
+	proc := t.TempDir()
+	const self = 50
+	writeProc(t, proc, 1, 0, "pause", 999, 999)       // excluded (pid 1)
+	writeProc(t, proc, self, 1, "agent", 500, 500)    // excluded (selfPID)
+	writeProc(t, proc, 60, self, "agent-tls", 300, 300) // excluded (agent subtree)
+	writeProc(t, proc, 100, 1, "javaserver", 100, 10)   // counted
+	writeProc(t, proc, 101, 100, "java-gc", 0, 5)       // counted (child of game)
+
+	clock := &fakeClock{t: time.Unix(100, 0)}
+	r := New(Config{
+		ProcMode:           true,
+		ProcRoot:           proc,
+		selfPID:            self,
+		clkTck:             100,
+		now:                clock.now,
+		CPULimitMillicores: 4000,
+		MemLimitBytes:      8 << 30,
+	})
+
+	// First read: no prior CPU counter to diff, but memory and the limit
+	// hints are immediately known.
+	s1 := r.Read()
+	if s1.CPUKnown {
+		t.Fatalf("first proc read should report unknown CPU rate, got %d", s1.CPUMillicores)
+	}
+	wantRSS := int64(15) * int64(os.Getpagesize()) // 10 + 5 game pages
+	if !s1.MemoryKnown || s1.MemoryBytes != wantRSS {
+		t.Fatalf("proc memory = %d known=%v, want %d", s1.MemoryBytes, s1.MemoryKnown, wantRSS)
+	}
+	if !s1.CPULimitKnown || s1.CPULimitMillicores != 4000 {
+		t.Fatalf("cpu limit = %d known=%v, want 4000", s1.CPULimitMillicores, s1.CPULimitKnown)
+	}
+	if !s1.MemoryLimitKnown || s1.MemoryLimitBytes != 8<<30 {
+		t.Fatalf("mem limit = %d known=%v, want %d", s1.MemoryLimitBytes, s1.MemoryLimitKnown, int64(8<<30))
+	}
+
+	// One wall-second later the game burned 100 more ticks (1 CPU-second at
+	// clkTck 100) → exactly one core.
+	clock.t = clock.t.Add(time.Second)
+	writeProc(t, proc, 100, 1, "javaserver", 200, 10)
+	s2 := r.Read()
+	if !s2.CPUKnown || s2.CPUMillicores != 1000 {
+		t.Fatalf("proc cpu millicores = %d known=%v, want 1000", s2.CPUMillicores, s2.CPUKnown)
+	}
+}
+
+func TestRead_ProcModeNoProcesses(t *testing.T) {
+	// An empty procfs has nothing to sum → usage unknown, but the operator's
+	// limit hint still reports.
+	r := New(Config{ProcMode: true, ProcRoot: t.TempDir(), selfPID: 50, CPULimitMillicores: 1000})
+	s := r.Read()
+	if s.CPUKnown || s.MemoryKnown {
+		t.Fatalf("no processes should leave usage unknown: %+v", s)
+	}
+	if !s.CPULimitKnown || s.CPULimitMillicores != 1000 {
+		t.Fatalf("cpu limit hint should still report: %+v", s)
+	}
+}
+
+func TestRead_ProcModeUnreadableRoot(t *testing.T) {
+	r := New(Config{ProcMode: true, ProcRoot: filepath.Join(t.TempDir(), "absent"), selfPID: 50})
+	s := r.Read()
+	if s.CPUKnown || s.MemoryKnown {
+		t.Fatalf("unreadable proc root should leave usage unknown: %+v", s)
+	}
+}
+
+func TestReadProcStat(t *testing.T) {
+	dir := t.TempDir()
+	// A comm with spaces and nested parens must not confuse field parsing —
+	// the reader keys off the final ')'.
+	writeFile(t, dir, "ok", "100 (my (weird) game) S 7 0 0 0 0 0 0 0 0 0 11 4 0 0\n")
+	if ppid, ticks, ok := readProcStat(filepath.Join(dir, "ok")); !ok || ppid != 7 || ticks != 15 {
+		t.Fatalf("readProcStat ok = (%d,%d,%v), want (7,15,true)", ppid, ticks, ok)
+	}
+	writeFile(t, dir, "short", "100 (x) S 1 2 3\n") // too few fields after comm
+	if _, _, ok := readProcStat(filepath.Join(dir, "short")); ok {
+		t.Fatalf("short stat should not parse")
+	}
+	writeFile(t, dir, "noparen", "100 x S 1\n") // no closing paren
+	if _, _, ok := readProcStat(filepath.Join(dir, "noparen")); ok {
+		t.Fatalf("missing ) should not parse")
+	}
+	writeFile(t, dir, "badppid", "100 (x) S z 0 0 0 0 0 0 0 0 0 1 1 0 0\n")
+	if _, _, ok := readProcStat(filepath.Join(dir, "badppid")); ok {
+		t.Fatalf("non-numeric ppid should not parse")
+	}
+	writeFile(t, dir, "badtime", "100 (x) S 7 0 0 0 0 0 0 0 0 0 a b 0 0\n")
+	if _, _, ok := readProcStat(filepath.Join(dir, "badtime")); ok {
+		t.Fatalf("non-numeric times should not parse")
+	}
+	if _, _, ok := readProcStat(filepath.Join(dir, "absent")); ok {
+		t.Fatalf("absent stat should not parse")
+	}
+}
+
+func TestReadProcStatmRSS(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "ok", "1000 42 7 0 0 0 0\n")
+	if got := readProcStatmRSS(filepath.Join(dir, "ok")); got != 42 {
+		t.Fatalf("rss = %d, want 42", got)
+	}
+	writeFile(t, dir, "short", "1000\n")
+	if got := readProcStatmRSS(filepath.Join(dir, "short")); got != 0 {
+		t.Fatalf("short statm rss = %d, want 0", got)
+	}
+	writeFile(t, dir, "bad", "1000 notanum\n")
+	if got := readProcStatmRSS(filepath.Join(dir, "bad")); got != 0 {
+		t.Fatalf("bad statm rss = %d, want 0", got)
+	}
+	if got := readProcStatmRSS(filepath.Join(dir, "absent")); got != 0 {
+		t.Fatalf("absent statm rss = %d, want 0", got)
 	}
 }
