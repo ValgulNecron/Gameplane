@@ -222,6 +222,14 @@ type CapabilitiesSpec struct {
 	// +optional
 	Quiesce *QuiesceSpec `json:"quiesce,omitempty"`
 
+	// Lifecycle configures graceful lifecycle transitions the agent drives
+	// over RCON — currently the in-game stop sequence the operator runs
+	// before scaling the server down, so the world is saved and shut down
+	// cleanly instead of relying on a container SIGTERM. Requires
+	// rcon.protocol != none.
+	// +optional
+	Lifecycle *LifecycleSpec `json:"lifecycle,omitempty"`
+
 	// Actions declares named operator actions surfaced as buttons on the
 	// server detail page. Each runs a templated console command over the
 	// template's RCON connection, so they require rcon.protocol != none.
@@ -579,6 +587,20 @@ type QuiesceSpec struct {
 	// the command itself returned successfully.
 	// +optional
 	FailurePattern string `json:"failurePattern,omitempty"`
+}
+
+// LifecycleSpec declares command sequences the agent runs over RCON to
+// drive graceful lifecycle transitions.
+type LifecycleSpec struct {
+	// Stop runs, in order, to shut the game down cleanly before the
+	// operator scales the server to zero (e.g. ["stop"] for Minecraft, or
+	// a warn-then-shutdown sequence). The operator issues these, waits for
+	// the game to go not-ready (or for GameServer.spec.stopGracePeriodSeconds
+	// to elapse), then removes the pod — so a SIGTERM never interrupts an
+	// in-progress save.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=16
+	Stop []string `json:"stop"`
 }
 
 // GamePort is a single exposed port.

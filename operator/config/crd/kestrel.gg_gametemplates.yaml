@@ -254,6 +254,30 @@ spec:
                       type: object
                     maxItems: 32
                     type: array
+                  lifecycle:
+                    description: |-
+                      Lifecycle configures graceful lifecycle transitions the agent drives
+                      over RCON — currently the in-game stop sequence the operator runs
+                      before scaling the server down, so the world is saved and shut down
+                      cleanly instead of relying on a container SIGTERM. Requires
+                      rcon.protocol != none.
+                    properties:
+                      stop:
+                        description: |-
+                          Stop runs, in order, to shut the game down cleanly before the
+                          operator scales the server to zero (e.g. ["stop"] for Minecraft, or
+                          a warn-then-shutdown sequence). The operator issues these, waits for
+                          the game to go not-ready (or for GameServer.spec.stopGracePeriodSeconds
+                          to elapse), then removes the pod — so a SIGTERM never interrupts an
+                          in-progress save.
+                        items:
+                          type: string
+                        maxItems: 16
+                        minItems: 1
+                        type: array
+                    required:
+                    - stop
+                    type: object
                   mods:
                     description: |-
                       Mods declares how the dashboard manages this game's mods/plugins.
