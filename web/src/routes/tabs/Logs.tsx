@@ -1,14 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Logs } from "@/lib/endpoints";
 import { openWS } from "@/lib/ws";
-import { capitalize } from "@/lib/utils";
+import { capitalize, cn } from "@/lib/utils";
 import type { GameServerPhase } from "@/types";
 
 const MAX_LINES = 20_000;
+
+// Best-effort client-side log-level extraction. Game logs vary, but most
+// emit a recognizable level token (e.g. Minecraft "[Server thread/INFO]");
+// this drives filtering + row coloring only, never parsing semantics, and
+// returns null when no level is found.
+export type LogLevel = "ERROR" | "WARN" | "INFO" | "DEBUG";
+const LEVEL_RE = /\b(ERROR|ERR|SEVERE|FATAL|WARNING|WARN|INFO|DEBUG|TRACE|FINE)\b/i;
+export function parseLogLevel(line: string): LogLevel | null {
+  const m = LEVEL_RE.exec(line);
+  if (!m) return null;
+  const t = m[1].toUpperCase();
+  if (t === "ERROR" || t === "ERR" || t === "SEVERE" || t === "FATAL") return "ERROR";
+  if (t === "WARN" || t === "WARNING") return "WARN";
+  if (t === "DEBUG" || t === "TRACE" || t === "FINE") return "DEBUG";
+  return "INFO";
+}
+const LEVELS: LogLevel[] = ["INFO", "WARN", "ERROR", "DEBUG"];
+const LEVEL_CLASS: Record<LogLevel, string> = {
+  ERROR: "text-red-400",
+  WARN: "text-amber-400",
+  INFO: "",
+  DEBUG: "text-muted",
+};
 
 // Log sources the tab streams from. "pod" follows the whole pod timeline —
 // each setup/init container's output, then the game container's stdout —
@@ -30,6 +53,7 @@ export function LogsTab({
 }) {
   const [lines, setLines] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
+  const [level, setLevel] = useState<"all" | LogLevel>("all");
   // Default to container output so logs are never empty during startup.
   const [source, setSource] = useState<LogSource>("pod");
   const [connected, setConnected] = useState(false);
@@ -73,9 +97,26 @@ export function LogsTab({
     return () => sock.close();
   }, [name, effectiveSource]);
 
-  const filtered = filter
-    ? lines.filter((l) => l.toLowerCase().includes(filter.toLowerCase()))
-    : lines;
+  // Parse each line's level once; derive counts + the filtered view from it.
+  const parsed = useMemo(
+    () => lines.map((text) => ({ text, level: parseLogLevel(text) })),
+    [lines],
+  );
+  const counts = useMemo(() => {
+    const c: Record<LogLevel, number> = { ERROR: 0, WARN: 0, INFO: 0, DEBUG: 0 };
+    for (const p of parsed) if (p.level) c[p.level]++;
+    return c;
+  }, [parsed]);
+  const needle = filter.toLowerCase();
+  const filtered = useMemo(
+    () =>
+      parsed.filter((p) => {
+        if (needle && !p.text.toLowerCase().includes(needle)) return false;
+        if (level !== "all" && p.level !== level) return false;
+        return true;
+      }),
+    [parsed, needle, level],
+  );
 
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
@@ -139,6 +180,23 @@ export function LogsTab({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <div className="flex gap-1">
+          {(["all", ...LEVELS] as const).map((lv) => (
+            <button
+              key={lv}
+              type="button"
+              onClick={() => setLevel(lv)}
+              aria-pressed={level === lv}
+              className={cn(
+                "rounded px-2 py-1 text-[11px] font-medium",
+                level === lv ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+              )}
+            >
+              {lv === "all" ? "All" : `${lv[0]}${lv.slice(1).toLowerCase()}`}
+              {lv !== "all" && ` ${counts[lv]}`}
+            </button>
+          ))}
+        </div>
         <span className="text-xs text-muted">{filtered.length.toLocaleString()} lines</span>
         <div className="ml-auto">
           <Button
@@ -201,18 +259,21 @@ export function LogsTab({
           </div>
         ) : (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-            {rowVirtualizer.getVirtualItems().map((v) => (
-              <div
-                key={v.key}
-                style={{
-                  position: "absolute", top: 0, left: 0, right: 0,
-                  transform: `translateY(${v.start}px)`, height: v.size,
-                }}
-                className="whitespace-pre px-4 leading-[18px]"
-              >
-                {filtered[v.index]}
-              </div>
-            ))}
+            {rowVirtualizer.getVirtualItems().map((v) => {
+              const row = filtered[v.index];
+              return (
+                <div
+                  key={v.key}
+                  style={{
+                    position: "absolute", top: 0, left: 0, right: 0,
+                    transform: `translateY(${v.start}px)`, height: v.size,
+                  }}
+                  className={cn("whitespace-pre px-4 leading-[18px]", row.level && LEVEL_CLASS[row.level])}
+                >
+                  {row.text}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
