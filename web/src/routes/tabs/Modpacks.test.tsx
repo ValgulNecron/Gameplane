@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { ModpacksTab } from "./Modpacks";
 import type { GameServer, GameTemplate, RegistryProject } from "@/types";
@@ -84,8 +84,8 @@ describe("ModpacksTab", () => {
     route({ packs: [pack], onModpack: (b) => calls.push(b) });
     renderWithQuery(<ModpacksTab name="s1" tmpl={tmpl({ refEnv: "MODRINTH_MODPACK" })} gs={gs()} />);
 
-    const card = await screen.findByText("Cobblemon");
-    const install = within(card.closest("div")!.parentElement!).getByRole("button", { name: /install/i });
+    await screen.findByText("Cobblemon");
+    const install = await screen.findByRole("button", { name: /install/i });
     fireEvent.click(install);
     await waitFor(() => expect(calls).toEqual([{ ref: "cobblemon" }]));
     expect(await screen.findByText(/Set modpack Cobblemon/)).toBeInTheDocument();
