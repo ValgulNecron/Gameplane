@@ -1834,6 +1834,32 @@ spec:
               storage:
                 description: Storage overrides the template's storage layout.
                 properties:
+                  dataSource:
+                    description: |-
+                      DataSource, when set on a GameServer, seeds the data PVC from an
+                      existing CSI VolumeSnapshot the first time the PVC is created. This
+                      is how volume-snapshot Restores stand up a new server from a
+                      snapshot. It is immutable once the PVC binds and has no effect when
+                      set on a GameTemplate (it is a per-server restore concern).
+                    properties:
+                      kind:
+                        default: VolumeSnapshot
+                        description: |-
+                          Kind is the data-source object kind. Only "VolumeSnapshot" is
+                          supported today.
+                        enum:
+                        - VolumeSnapshot
+                        type: string
+                      name:
+                        description: Name is the VolumeSnapshot object name in the
+                          GameServer's namespace.
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
                   mountPath:
                     default: /data
                     description: |-

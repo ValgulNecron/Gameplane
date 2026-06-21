@@ -104,6 +104,13 @@ spec:
                 items:
                   type: string
                 type: array
+              volumeSnapshotClassName:
+                description: |-
+                  VolumeSnapshotClassName names the VolumeSnapshotClass to use when
+                  Strategy=volume-snapshot. Empty selects the cluster's default
+                  snapshot class. Ignored for restic-snapshot.
+                maxLength: 253
+                type: string
             required:
             - repoRef
             - serverRef
@@ -203,6 +210,13 @@ spec:
                 description: StartTime / CompletionTime bracket the actual backup
                   run.
                 format: date-time
+                type: string
+              volumeSnapshotContentName:
+                description: |-
+                  VolumeSnapshotContentName is the cluster-scoped VolumeSnapshotContent
+                  bound to status.snapshotID, recorded once the VolumeSnapshot reports
+                  readyToUse. Restore checks it to confirm the snapshot actually bound
+                  before standing up a new server. Empty for restic-snapshot backups.
                 type: string
             type: object
         type: object

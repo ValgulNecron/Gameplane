@@ -33,6 +33,13 @@ type BackupSpec struct {
 	// +optional
 	Strategy string `json:"strategy,omitempty"`
 
+	// VolumeSnapshotClassName names the VolumeSnapshotClass to use when
+	// Strategy=volume-snapshot. Empty selects the cluster's default
+	// snapshot class. Ignored for restic-snapshot.
+	// +kubebuilder:validation:MaxLength=253
+	// +optional
+	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty"`
+
 	// Quiesce, when true, asks the agent to flush/pause the game before
 	// the snapshot (via RCON "save-all" or game-specific hook) and
 	// resume after. Requires an agent that supports the game.
@@ -70,6 +77,13 @@ type BackupStatus struct {
 	// for use in restore operations.
 	// +optional
 	SnapshotID string `json:"snapshotID,omitempty"`
+
+	// VolumeSnapshotContentName is the cluster-scoped VolumeSnapshotContent
+	// bound to status.snapshotID, recorded once the VolumeSnapshot reports
+	// readyToUse. Restore checks it to confirm the snapshot actually bound
+	// before standing up a new server. Empty for restic-snapshot backups.
+	// +optional
+	VolumeSnapshotContentName string `json:"volumeSnapshotContentName,omitempty"`
 
 	// Size is the on-disk size of the snapshot, as reported by the
 	// backup driver. Not always exact for incremental snapshots.
