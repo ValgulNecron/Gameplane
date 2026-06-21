@@ -19,6 +19,10 @@ type commander interface {
 	Unban(name string) (string, bool)
 	BanList() (string, bool)
 	ParseBanList(raw string) []BannedPlayer
+	WhitelistAdd(name string) (string, bool)
+	WhitelistRemove(name string) (string, bool)
+	WhitelistList() (string, bool)
+	ParseWhitelist(raw string) []string
 }
 
 // pickCommander builds the moderation commander entirely from the
@@ -41,9 +45,12 @@ type modVars struct {
 }
 
 type templateCommander struct {
-	kick, ban, unban *template.Template
-	banListCmd       string
-	banListRE        *regexp.Regexp
+	kick, ban, unban           *template.Template
+	banListCmd                 string
+	banListRE                  *regexp.Regexp
+	whitelistAdd, whitelistRem *template.Template
+	whitelistListCmd           string
+	whitelistRE                *regexp.Regexp
 }
 
 // newTemplateCommander compiles the declared action templates. A
@@ -78,11 +85,33 @@ func newTemplateCommander(actions *caps.PlayerActions) commander {
 			c.banListCmd, c.banListRE = bl.Command, re
 		}
 	}
+	if wl := actions.Whitelist; wl != nil {
+		c.whitelistAdd = parse("whitelistAdd", wl.Add)
+		c.whitelistRem = parse("whitelistRemove", wl.Remove)
+		if wl.List != "" && wl.ListRegex != "" {
+			re, err := regexp.Compile(wl.ListRegex)
+			switch {
+			case err != nil:
+				slog.Warn("invalid whitelist listRegex; whitelist list disabled", "err", err)
+			case re.SubexpIndex("names") < 0 && re.SubexpIndex("name") < 0:
+				slog.Warn("whitelist listRegex has no (?P<names>…) or (?P<name>…) group; whitelist list disabled")
+			default:
+				c.whitelistListCmd, c.whitelistRE = wl.List, re
+			}
+		}
+	}
 	return c
 }
 
 func (c templateCommander) Capabilities() Capabilities {
-	return Capabilities{Kick: c.kick != nil, Ban: c.ban != nil, Unban: c.unban != nil}
+	return Capabilities{
+		Kick:  c.kick != nil,
+		Ban:   c.ban != nil,
+		Unban: c.unban != nil,
+		// Advertise whitelist only when the full surface works (list+add+remove),
+		// so the UI doesn't offer a half-functional tab.
+		Whitelist: c.whitelistAdd != nil && c.whitelistRem != nil && c.whitelistListCmd != "",
+	}
 }
 
 func (c templateCommander) render(t *template.Template, name, reason string) (string, bool) {
@@ -144,6 +173,50 @@ func (c templateCommander) ParseBanList(raw string) []BannedPlayer {
 	return out
 }
 
+func (c templateCommander) WhitelistAdd(name string) (string, bool) {
+	return c.render(c.whitelistAdd, name, "")
+}
+
+func (c templateCommander) WhitelistRemove(name string) (string, bool) {
+	return c.render(c.whitelistRem, name, "")
+}
+
+func (c templateCommander) WhitelistList() (string, bool) {
+	return c.whitelistListCmd, c.whitelistListCmd != ""
+}
+
+func (c templateCommander) ParseWhitelist(raw string) []string {
+	if c.whitelistRE == nil {
+		return nil
+	}
+	namesIdx := c.whitelistRE.SubexpIndex("names")
+	nameIdx := c.whitelistRE.SubexpIndex("name")
+	out := []string{}
+	// Match per line so $ anchors don't trip on a trailing newline. A
+	// "names" group holds a comma-separated list (Minecraft: "There are 2
+	// whitelisted players: alice, bob"); otherwise each line's "name" group
+	// is one entry (banlist-style).
+	for _, line := range strings.Split(strings.ReplaceAll(raw, "\r", ""), "\n") {
+		m := c.whitelistRE.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		switch {
+		case namesIdx >= 0:
+			for _, n := range strings.Split(m[namesIdx], ",") {
+				if s := strings.TrimSpace(n); s != "" {
+					out = append(out, s)
+				}
+			}
+		case nameIdx >= 0:
+			if s := strings.TrimSpace(m[nameIdx]); s != "" {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
 // --- Default (RCON-less or undeclared games) -----------------------------
 
 type unsupportedCommander struct{}
@@ -154,3 +227,9 @@ func (unsupportedCommander) Ban(string, string) (string, bool)  { return "", fal
 func (unsupportedCommander) Unban(string) (string, bool)        { return "", false }
 func (unsupportedCommander) BanList() (string, bool)            { return "", false }
 func (unsupportedCommander) ParseBanList(string) []BannedPlayer { return nil }
+func (unsupportedCommander) WhitelistAdd(string) (string, bool) { return "", false }
+func (unsupportedCommander) WhitelistRemove(string) (string, bool) {
+	return "", false
+}
+func (unsupportedCommander) WhitelistList() (string, bool)  { return "", false }
+func (unsupportedCommander) ParseWhitelist(string) []string { return nil }

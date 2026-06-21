@@ -669,6 +669,39 @@ spec:
                       unban:
                         description: Unban lifts a ban, e.g. "pardon {{.Player}}".
                         type: string
+                      whitelist:
+                        description: |-
+                          Whitelist configures the allow-list management actions on the
+                          Players tab (list / add / remove).
+                        properties:
+                          add:
+                            description: Add adds a player, e.g. "whitelist add {{.Player}}".
+                            minLength: 1
+                            type: string
+                          list:
+                            description: List prints the current whitelist (e.g. "whitelist
+                              list").
+                            minLength: 1
+                            type: string
+                          listRegex:
+                            description: |-
+                              ListRegex extracts whitelisted names from the List output. If it has
+                              a named group "names", that group is split on commas (Minecraft's
+                              "There are N whitelisted players: a, b, c"); otherwise each line's
+                              "name" group is one entry.
+                            minLength: 1
+                            type: string
+                          remove:
+                            description: Remove removes a player, e.g. "whitelist
+                              remove {{.Player}}".
+                            minLength: 1
+                            type: string
+                        required:
+                        - add
+                        - list
+                        - listRegex
+                        - remove
+                        type: object
                     type: object
                   quiesce:
                     description: |-

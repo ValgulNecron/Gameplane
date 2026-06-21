@@ -91,10 +91,11 @@ type StatusMetric struct {
 // (Go text/template, rendered with .Player and .Reason). Empty actions
 // are unsupported.
 type PlayerActions struct {
-	Kick    string   `json:"kick,omitempty"`
-	Ban     string   `json:"ban,omitempty"`
-	Unban   string   `json:"unban,omitempty"`
-	BanList *BanList `json:"banList,omitempty"`
+	Kick      string     `json:"kick,omitempty"`
+	Ban       string     `json:"ban,omitempty"`
+	Unban     string     `json:"unban,omitempty"`
+	BanList   *BanList   `json:"banList,omitempty"`
+	Whitelist *Whitelist `json:"whitelist,omitempty"`
 }
 
 // BanList reads and parses the game's ban list.
@@ -103,6 +104,17 @@ type BanList struct {
 	// EntryRegex matches one banned player per line via the named
 	// groups "name" (required), "source" and "reason" (optional).
 	EntryRegex string `json:"entryRegex"`
+}
+
+// Whitelist declares allow-list management commands. Add/Remove are
+// text/templates rendered with .Player; List output is parsed by ListRegex.
+type Whitelist struct {
+	List   string `json:"list"`
+	Add    string `json:"add"`
+	Remove string `json:"remove"`
+	// ListRegex extracts names from the List output. A "names" named group
+	// is comma-split; otherwise each line's "name" group is one entry.
+	ListRegex string `json:"listRegex"`
 }
 
 // Quiesce declares the command sequences run around a backup snapshot.

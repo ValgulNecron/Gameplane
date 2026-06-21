@@ -42,9 +42,10 @@ type handler struct {
 }
 
 type Capabilities struct {
-	Kick  bool `json:"kick"`
-	Ban   bool `json:"ban"`
-	Unban bool `json:"unban"`
+	Kick      bool `json:"kick"`
+	Ban       bool `json:"ban"`
+	Unban     bool `json:"unban"`
+	Whitelist bool `json:"whitelist"`
 }
 
 type Snapshot struct {
@@ -72,6 +73,9 @@ func Mount(r chi.Router, rc Rcon, game string, actions *caps.PlayerActions) {
 	r.Post("/players/kick", h.kick)
 	r.Post("/players/ban", h.ban)
 	r.Post("/players/unban", h.unban)
+	r.Get("/players/whitelist", h.whitelistList)
+	r.Post("/players/whitelist/add", h.whitelistAdd)
+	r.Post("/players/whitelist/remove", h.whitelistRemove)
 }
 
 const cacheTTL = 5 * time.Second
@@ -194,6 +198,44 @@ func (h *handler) runMod(
 	}
 	h.bustCache()
 	writeJSON(w, http.StatusOK, modResp{OK: true, Raw: strings.TrimSpace(raw)})
+}
+
+func (h *handler) whitelistAdd(w http.ResponseWriter, req *http.Request) {
+	// Whitelist add/remove take a name only; reason is ignored.
+	h.runMod(w, req, func(name, _ string) (string, bool) {
+		return h.cmdr.WhitelistAdd(name)
+	}, false)
+}
+
+func (h *handler) whitelistRemove(w http.ResponseWriter, req *http.Request) {
+	h.runMod(w, req, func(name, _ string) (string, bool) {
+		return h.cmdr.WhitelistRemove(name)
+	}, false)
+}
+
+func (h *handler) whitelistList(w http.ResponseWriter, _ *http.Request) {
+	cmd, ok := h.cmdr.WhitelistList()
+	if !ok {
+		// Empty list rather than 501 so a Whitelist tab renders uniformly;
+		// capabilities advertise whether management is actually available.
+		writeJSON(w, http.StatusOK, []string{})
+		return
+	}
+	raw, err := h.rcon.Exec(cmd)
+	if errors.Is(err, rcon.ErrDisabled) {
+		writeJSON(w, http.StatusOK, []string{})
+		return
+	}
+	if err != nil {
+		slog.Warn("whitelist rcon", "err", err)
+		http.Error(w, "upstream unavailable", http.StatusBadGateway)
+		return
+	}
+	out := h.cmdr.ParseWhitelist(raw)
+	if out == nil {
+		out = []string{}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *handler) banned(w http.ResponseWriter, _ *http.Request) {
