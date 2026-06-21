@@ -99,7 +99,9 @@ test.describe("audit log page", () => {
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     // MSW seeds five audit events; at least one POST and one 403 row
-    // appear if filters are off.
-    await expect(page.getByText(/api\/v1\/servers\/alpha/).first()).toBeVisible();
+    // appear if filters are off. The action cell shows a human-readable
+    // label (M12); the raw "METHOD /path" lives in that cell's title
+    // attribute, so assert on the title to track the data, not the wording.
+    await expect(page.getByTitle(/\/api\/v1\/servers\/alpha/).first()).toBeVisible();
   });
 });
