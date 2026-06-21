@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -326,6 +327,84 @@ func TestSchedule_DoesNotTrimBackupReferencedByActiveRestore(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// TestSchedule_RetentionTrimmedConditionSet — a schedule with a
+// retention policy records a RetentionTrimmed=True condition once the
+// (successful) trim pass has run, so the dashboard can show that pruning
+// is healthy. A trim failure would set the same condition to False; that
+// path needs client fault injection and is exercised by unit tests.
+func TestSchedule_RetentionTrimmedConditionSet(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+
+	// One succeeded backup so the trim pass has a candidate to evaluate
+	// (KeepLast=2 keeps it; nothing is deleted, so trim returns nil).
+	b := buildBackup(ns, "smp-sched-bk-a", "smp", "repo")
+	b.Labels = map[string]string{"kestrel.gg/backup-schedule": "smp-sched"}
+	if err := k8sClient.Create(context.Background(), b); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+	now := metav1.Now()
+	b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+	b.Status.CompletionTime = &now
+	size := resource.MustParse("1Mi")
+	b.Status.Size = &size
+	if err := k8sClient.Status().Update(context.Background(), b); err != nil {
+		t.Fatalf("status update backup: %v", err)
+	}
+
+	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 0 * * *",
+		&kestrelv1alpha1.BackupRetention{KeepLast: 2})
+	if err := k8sClient.Create(context.Background(), sched); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+	freezeSchedule(t, ns, sched.Name)
+
+	eventually(t, func() (bool, string) {
+		s := getSchedule(t, ns, "smp-sched")
+		c := meta.FindStatusCondition(s.Status.Conditions, "RetentionTrimmed")
+		if c == nil {
+			return false, "RetentionTrimmed condition not set"
+		}
+		if c.Status != metav1.ConditionTrue {
+			return false, "RetentionTrimmed = " + string(c.Status) + ", want True"
+		}
+		return true, ""
+	})
+}
+
+// TestSchedule_NoRetentionLeavesConditionUnset — a schedule without a
+// retention policy must not advertise a RetentionTrimmed condition at all
+// (there is nothing being pruned to report on).
+func TestSchedule_NoRetentionLeavesConditionUnset(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(),
+		buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 */6 * * *", nil)); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+
+	// Wait until the controller has reconciled at least once (NextScheduleTime set).
+	eventually(t, func() (bool, string) {
+		s := getSchedule(t, ns, "smp-sched")
+		if s.Status.NextScheduleTime == nil {
+			return false, "not yet reconciled"
+		}
+		return true, ""
+	})
+	s := getSchedule(t, ns, "smp-sched")
+	if c := meta.FindStatusCondition(s.Status.Conditions, "RetentionTrimmed"); c != nil {
+		t.Errorf("RetentionTrimmed condition present (%s) without a retention policy", c.Status)
+	}
 }
 
 // ---------- helpers used only by this file ----------

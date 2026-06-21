@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -17,6 +16,13 @@ import (
 
 	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
 )
+
+// conditionRetentionTrimmed reports whether the most recent retention
+// pass pruned old backups successfully. Status False (reason TrimFailed)
+// means old backups may be accumulating because a List/Delete failed —
+// the dashboard surfaces this so an operator can intervene, rather than
+// the failure being swallowed into the controller log only.
+const conditionRetentionTrimmed = "RetentionTrimmed"
 
 // BackupScheduleReconciler computes the next firing time from
 // Spec.Schedule and creates Backup objects when due. Retention trimming
@@ -37,8 +43,13 @@ func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.Get(ctx, req.NamespacedName, &sched); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// Snapshot the observed status so we can write back exactly once, and
+	// only when something actually changed (avoids reconcile churn).
+	before := sched.Status.DeepCopy()
+
 	if sched.Spec.Suspend {
-		return ctrl.Result{}, r.updateNextTime(ctx, &sched, nil)
+		sched.Status.NextScheduleTime = nil
+		return ctrl.Result{}, r.persistStatus(ctx, before, &sched)
 	}
 
 	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -62,10 +73,32 @@ func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		sched.Status.LastScheduleTime = &metav1.Time{Time: now}
 		next = expr.Next(now)
 	}
+
+	// Retention trimming is best-effort: a transient List/Delete failure
+	// must not wedge scheduling, so we record the outcome as a condition
+	// instead of returning the error and retrying the whole reconcile.
 	if err := r.trimBackups(ctx, &sched); err != nil {
 		logger.Error(err, "retention trim")
+		sched.Status.Conditions = upsertCondition(sched.Status.Conditions, metav1.Condition{
+			Type:               conditionRetentionTrimmed,
+			Status:             metav1.ConditionFalse,
+			Reason:             "TrimFailed",
+			Message:            err.Error(),
+			ObservedGeneration: sched.Generation,
+		})
+	} else if sched.Spec.Retention != nil {
+		sched.Status.Conditions = upsertCondition(sched.Status.Conditions, metav1.Condition{
+			Type:               conditionRetentionTrimmed,
+			Status:             metav1.ConditionTrue,
+			Reason:             "TrimSucceeded",
+			Message:            "retention policy applied",
+			ObservedGeneration: sched.Generation,
+		})
 	}
-	if err := r.updateNextTime(ctx, &sched, &next); err != nil {
+
+	sched.Status.NextScheduleTime = &metav1.Time{Time: next}
+
+	if err := r.persistStatus(ctx, before, &sched); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -105,18 +138,27 @@ func (r *BackupScheduleReconciler) fire(
 	return r.Create(ctx, b)
 }
 
-func (r *BackupScheduleReconciler) updateNextTime(
-	ctx context.Context, sched *kestrelv1alpha1.BackupSchedule, next *time.Time,
+// persistStatus writes the schedule's status subresource only when it
+// differs from the snapshot taken at the start of Reconcile. Centralising
+// the write means a condition flip is persisted even on reconciles where
+// NextScheduleTime is unchanged (e.g. a dormant or suspended schedule).
+func (r *BackupScheduleReconciler) persistStatus(
+	ctx context.Context,
+	before *kestrelv1alpha1.BackupScheduleStatus,
+	sched *kestrelv1alpha1.BackupSchedule,
 ) error {
-	var newNext *metav1.Time
-	if next != nil {
-		newNext = &metav1.Time{Time: *next}
-	}
-	if metav1TimeEqual(sched.Status.NextScheduleTime, newNext) {
+	if scheduleStatusEqual(before, &sched.Status) {
 		return nil
 	}
-	sched.Status.NextScheduleTime = newNext
 	return r.Status().Update(ctx, sched)
+}
+
+// scheduleStatusEqual reports whether the two statuses are equivalent for
+// the fields this controller manages.
+func scheduleStatusEqual(a, b *kestrelv1alpha1.BackupScheduleStatus) bool {
+	return metav1TimeEqual(a.LastScheduleTime, b.LastScheduleTime) &&
+		metav1TimeEqual(a.NextScheduleTime, b.NextScheduleTime) &&
+		sameConditions(a.Conditions, b.Conditions)
 }
 
 func metav1TimeEqual(a, b *metav1.Time) bool {
@@ -129,6 +171,3 @@ func metav1TimeEqual(a, b *metav1.Time) bool {
 		return a.Time.Equal(b.Time)
 	}
 }
-
-// silence unused import in early scaffold
-var _ = corev1.EventSource{}
