@@ -6,6 +6,34 @@
 
 ---
 
+## Status refresh — 2026-06-21
+
+Every finding below was re-verified against current code (the original pass is
+from 2026-06-14). Several headline items have since been fixed; the rest are
+the actionable beta list.
+
+- **Fixed since the original audit:** **B1** (console `fit()` is now guarded —
+  `useConsoleTerminal.ts` `safeFit()` with disposed/`isConnected`/rAF/ResizeObserver),
+  **B2** (WS exponential backoff + `WSStatus` in `lib/ws.ts`), **M1** (real
+  Dashboard Home fleet overview in `Dashboard.tsx`), **M8** (console header
+  toolbar + command bar in `ConsoleShell.tsx`). INFO **I3**/**I5** confirmed
+  working as designed (gated upload button / mods tab).
+- **Partial:** **M9** (metric tiles have progress bars but still no sparklines),
+  **C5** (Admin settings uses a sectioned sub-nav, design wants one scrolling page).
+- **Still open (actionable):** **B3** (`/` and `/servers` are duplicate nav
+  entries), **M2** (logs histogram / level pills / time-range / structured rows),
+  **M3** (players stat tiles + whitelist tab + columns), **M4** (backups summary
+  tiles + schedule banner), **M5** (create-server port-mappings table + CIDR
+  allowlist), **M6** (review edit-links / dry-run banner / EULA checkbox), **M7**
+  (template search + category pills), **M10** (modules category filter), **M11**
+  (users columns + audit quick link), **M12** (audit human-readable actions),
+  **C1** (login card framing), **C2** (login show/hide + "Forgot?"), **C3** (brand
+  mark consistency), **C4** (wizard step-1 "Cancel"), **C6** (backups "Back up now").
+- **Still owed in design (not code):** **I1** — the `design.pen` login frame
+  (`N1GkB`) leaks cluster name / version / hostname pre-auth; fix the *design*.
+
+---
+
 ## How this was checked (reproduce)
 
 The live app was driven in Chrome against the project's **MSW mock mode** (deterministic, fully-populated, no cluster needed) — the same harness `web` Playwright E2E uses:
@@ -149,12 +177,14 @@ Design presents **human-readable actions** with **actor avatars + email** and **
 
 ## Suggested fix priority for planning
 
-1. **B1 / B2** — Console crash + reconnect storm (real, user-visible runtime bugs).
-2. **B3 / M1** — Decide Dashboard Home vs Servers list; build the missing overview or de-duplicate nav.
-3. **M5 / M6** — Create Server completeness (port mappings, CIDR allowlist, EULA, dry-run, edit links) — these block correct server creation UX.
-4. **M2 / M3 / M4** — Server Detail Logs / Players / Backups feature parity (histograms, level filters, whitelist, summary tiles).
-5. **M7–M12, C1–C6** — Search/filters, console chrome, sparklines, login card, brand, audit semantics.
-6. **I1** — Correct the `design.pen` login frame to remove pre-auth cluster/version/host leakage.
+*(Refreshed 2026-06-21 — B1/B2/M1/M8 are done; below is what remains.)*
+
+1. **M5 / M6** — Create Server completeness (port mappings, CIDR allowlist, EULA, dry-run, edit links) — these block correct server creation UX. (M5 also needs CRD `networking` fields.)
+2. **M2 / M3 / M4** — Server Detail Logs / Players / Backups feature parity (histograms + level filters, whitelist + stat tiles, backup summary tiles). M4 is frontend-only; M2/M3 also need agent/API support.
+3. **B3** — De-duplicate the `/` vs `/servers` nav now that Dashboard Home exists.
+4. **M7 / M9 / M10 / M11 / M12** — Template search + category pills, Overview sparklines, modules category filter, users columns + audit quick link, audit human-readable actions.
+5. **C1–C6** — Login card + show/hide + forgot link, brand mark, wizard "Cancel", admin layout, backups "Back up now".
+6. **I1** — Correct the `design.pen` login frame to remove pre-auth cluster/version/host leakage (design, not code).
 
 ---
 
