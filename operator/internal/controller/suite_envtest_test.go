@@ -41,7 +41,12 @@ func TestMain(m *testing.M) {
 	utilruntime.Must(snapshotv1.AddToScheme(scheme))
 
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "config", "crd"),
+			// Vendored upstream CSI snapshot CRDs so the volume-snapshot
+			// backup/restore paths can create real VolumeSnapshot objects.
+			filepath.Join("..", "..", "test", "crds", "snapshot"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 

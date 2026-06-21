@@ -370,42 +370,6 @@ func TestBackup_PassesTagsToRestic(t *testing.T) {
 	})
 }
 
-// TestBackup_VolumeSnapshotStrategyShortCircuits verifies the controller
-// rejects strategy=volume-snapshot with a clear Failed status — no Job
-// is created. This is the documented "not yet implemented" branch.
-func TestBackup_VolumeSnapshotStrategyShortCircuits(t *testing.T) {
-	ns := newNamespace(t)
-	startMgr(t, ns, withBackupReconciler())
-	seedGameServer(t, ns, "smp")
-
-	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
-		t.Fatalf("create secret: %v", err)
-	}
-	b := buildBackup(ns, "smp-vs", "smp", "repo")
-	b.Spec.Strategy = "volume-snapshot"
-	if err := k8sClient.Create(context.Background(), b); err != nil {
-		t.Fatalf("create backup: %v", err)
-	}
-
-	eventually(t, func() (bool, string) {
-		got := getBackup(t, ns, "smp-vs")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
-			return false, describeBackupStatus(got)
-		}
-		if !strings.Contains(got.Status.Message, "volume-snapshot") {
-			return false, "message = " + got.Status.Message
-		}
-		return true, ""
-	})
-
-	consistently(t, 1*time.Second, func() (bool, string) {
-		if _, ok := getJob(t, ns, "smp-vs"); ok {
-			return false, "Job created despite volume-snapshot short-circuit"
-		}
-		return true, ""
-	})
-}
-
 // TestBackup_QuiesceAnnotationSetBeforeJob verifies that with a real
 // agent client (faked) and spec.quiesce=true (the default), the
 // controller calls Quiesce and stamps the quiesced-at annotation
