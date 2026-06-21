@@ -59,11 +59,14 @@ func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
 		// AUTH
 		id, _, _, _ := readOne(conn)
 		writeOne(conn, id, typeAuthResponse, "")
-		// EXEC + sentinel writes happen back-to-back from the client. We
-		// answer only the EXEC (echoing its id), drop the sentinel, then
-		// close — exactly what Minecraft does.
+		// EXEC + sentinel writes happen back-to-back from the client. Drain
+		// both, answer only the EXEC (echoing its id, never the sentinel),
+		// then close. Draining the sentinel first makes the close a clean
+		// FIN (deterministic EOF) instead of a RST race; either way the
+		// client must return the command output it already received.
 		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		execID, _, body, _ := readOne(conn)
+		_, _, _, _ = readOne(conn) // drain the sentinel
 		writeOne(conn, execID, typeRespValue, body+": partial")
 		_ = conn.Close()
 	}()

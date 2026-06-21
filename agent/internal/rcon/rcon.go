@@ -125,13 +125,14 @@ func (c *Client) Exec(cmd string) (string, error) {
 			c.dropLocked()
 			// Minecraft (and some other RCON servers) don't mirror the
 			// empty-cmd sentinel back the way true Source servers do; after
-			// answering the real command they simply close the socket. If we
-			// already have the command's response, that EOF/timeout is a
-			// normal end-of-stream, not a failure — return what we read
+			// answering the real command they just drop the connection — a
+			// clean FIN (io.EOF) or an abrupt RST ("connection reset") when
+			// our still-unread sentinel is sitting in their buffer. Once we
+			// already hold the command's response, that read error is a
+			// normal end-of-stream, not a failure: return what we read
 			// instead of discarding it (the bug that surfaced "EOF" in the
 			// console for every Minecraft command).
-			if gotResponse && (errors.Is(err, io.EOF) ||
-				errors.Is(err, io.ErrUnexpectedEOF) || isTimeout(err)) {
+			if gotResponse {
 				return out.String(), nil
 			}
 			return "", fmt.Errorf("rcon exec %q: %w", cmd, err)
@@ -147,13 +148,6 @@ func (c *Client) Exec(cmd string) (string, error) {
 			gotResponse = true
 		}
 	}
-}
-
-// isTimeout reports whether err is a network timeout (e.g. the per-call
-// deadline firing) as opposed to a hard connection error.
-func isTimeout(err error) bool {
-	var ne net.Error
-	return errors.As(err, &ne) && ne.Timeout()
 }
 
 // Close shuts down the underlying connection.
