@@ -56,6 +56,13 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
+  # CSI VolumeSnapshots back the volume-snapshot backup strategy: the
+  # backup controller watches them cluster-wide for readyToUse and reads
+  # the (cluster-scoped) content objects they bind to. Creation/deletion is
+  # namespace-scoped in the manage Role below.
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: [volumesnapshots, volumesnapshotcontents]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -110,6 +117,12 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # The backup controller creates VolumeSnapshots in the games namespace
+  # for the volume-snapshot backup strategy (deleted via owner GC when the
+  # Backup is trimmed).
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: [volumesnapshots]
     verbs: [get, list, watch, create, update, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

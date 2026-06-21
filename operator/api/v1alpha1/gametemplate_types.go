@@ -643,6 +643,30 @@ type GameStorageSpec struct {
 	// +kubebuilder:default=/data
 	// +optional
 	MountPath string `json:"mountPath,omitempty"`
+
+	// DataSource, when set on a GameServer, seeds the data PVC from an
+	// existing CSI VolumeSnapshot the first time the PVC is created. This
+	// is how volume-snapshot Restores stand up a new server from a
+	// snapshot. It is immutable once the PVC binds and has no effect when
+	// set on a GameTemplate (it is a per-server restore concern).
+	// +optional
+	DataSource *GameDataSource `json:"dataSource,omitempty"`
+}
+
+// GameDataSource references a CSI VolumeSnapshot used to pre-populate a
+// freshly-created data PVC. Only Kind=VolumeSnapshot
+// (snapshot.storage.k8s.io) is supported.
+type GameDataSource struct {
+	// Kind is the data-source object kind. Only "VolumeSnapshot" is
+	// supported today.
+	// +kubebuilder:validation:Enum=VolumeSnapshot
+	// +kubebuilder:default=VolumeSnapshot
+	Kind string `json:"kind"`
+
+	// Name is the VolumeSnapshot object name in the GameServer's namespace.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Name string `json:"name"`
 }
 
 // RCONSpec describes the remote-console protocol used by the game.

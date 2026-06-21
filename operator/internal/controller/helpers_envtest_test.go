@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -249,7 +250,7 @@ func buildBackup(ns, name, gsName, repoSecret string) *kestrelv1alpha1.Backup {
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 		Spec: kestrelv1alpha1.BackupSpec{
 			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
-			RepoRef:   kestrelv1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
+			RepoRef:   &kestrelv1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
 		},
 	}
 }
@@ -436,6 +437,101 @@ func markGameServerPhase(t *testing.T, ns, name string, phase kestrelv1alpha1.Ga
 	gs.Status.Phase = phase
 	if err := k8sClient.Status().Update(context.Background(), &gs); err != nil {
 		t.Fatalf("status update gameserver: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------
+// VolumeSnapshot helpers (volume-snapshot backup/restore strategy)
+//
+// envtest runs no CSI driver, so a created VolumeSnapshot never becomes
+// readyToUse on its own — tests drive its status here, the same way
+// patchJobStatus simulates the Job controller.
+// ---------------------------------------------------------------------
+
+// buildVolumeSnapshotBackup builds a Backup using the volume-snapshot
+// strategy (no restic repo needed).
+func buildVolumeSnapshotBackup(ns, name, gsName string) *kestrelv1alpha1.Backup {
+	return &kestrelv1alpha1.Backup{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: kestrelv1alpha1.BackupSpec{
+			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
+			Strategy:  "volume-snapshot",
+		},
+	}
+}
+
+// getVolumeSnapshot returns (vs, true) when present, (nil, false) on NotFound.
+func getVolumeSnapshot(t *testing.T, ns, name string) (*snapshotv1.VolumeSnapshot, bool) {
+	t.Helper()
+	var vs snapshotv1.VolumeSnapshot
+	err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &vs)
+	if apierrors.IsNotFound(err) {
+		return nil, false
+	}
+	if err != nil {
+		t.Fatalf("get volumesnapshot %s/%s: %v", ns, name, err)
+	}
+	return &vs, true
+}
+
+// markVolumeSnapshotReady simulates the CSI snapshotter completing a
+// VolumeSnapshot: readyToUse=true with a bound content name + restoreSize.
+func markVolumeSnapshotReady(t *testing.T, ns, name, contentName, restoreSize string) {
+	t.Helper()
+	var vs snapshotv1.VolumeSnapshot
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &vs); err != nil {
+		t.Fatalf("get volumesnapshot: %v", err)
+	}
+	ready := true
+	now := metav1.Now()
+	q := resource.MustParse(restoreSize)
+	vs.Status = &snapshotv1.VolumeSnapshotStatus{
+		ReadyToUse:                     &ready,
+		BoundVolumeSnapshotContentName: &contentName,
+		CreationTime:                   &now,
+		RestoreSize:                    &q,
+	}
+	if err := k8sClient.Status().Update(context.Background(), &vs); err != nil {
+		t.Fatalf("status update volumesnapshot: %v", err)
+	}
+}
+
+// markVolumeSnapshotError simulates the CSI snapshotter rejecting a snapshot.
+func markVolumeSnapshotError(t *testing.T, ns, name, msg string) {
+	t.Helper()
+	var vs snapshotv1.VolumeSnapshot
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &vs); err != nil {
+		t.Fatalf("get volumesnapshot: %v", err)
+	}
+	now := metav1.Now()
+	m := msg
+	vs.Status = &snapshotv1.VolumeSnapshotStatus{
+		Error: &snapshotv1.VolumeSnapshotError{Time: &now, Message: &m},
+	}
+	if err := k8sClient.Status().Update(context.Background(), &vs); err != nil {
+		t.Fatalf("status update volumesnapshot: %v", err)
+	}
+}
+
+// markBackupSucceededVolumeSnapshot sets a Backup to Succeeded as the
+// volume-snapshot path would — snapshotID + bound content name. Restore
+// reads the content name to confirm the snapshot actually bound.
+func markBackupSucceededVolumeSnapshot(t *testing.T, ns, name, snapshotID, contentName string) {
+	t.Helper()
+	var b kestrelv1alpha1.Backup
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &b); err != nil {
+		t.Fatalf("get backup: %v", err)
+	}
+	now := metav1.Now()
+	b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+	b.Status.SnapshotID = snapshotID
+	b.Status.VolumeSnapshotContentName = contentName
+	if b.Status.StartTime == nil {
+		b.Status.StartTime = &now
+	}
+	b.Status.CompletionTime = &now
+	if err := k8sClient.Status().Update(context.Background(), &b); err != nil {
+		t.Fatalf("status update backup: %v", err)
 	}
 }
 

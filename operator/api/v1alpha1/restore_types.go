@@ -23,9 +23,16 @@ type RestoreSpec struct {
 	// and have status.phase=Succeeded with a non-empty snapshotID.
 	BackupRef LocalObjectRef `json:"backupRef"`
 
-	// ServerRef is the target GameServer. Its data volume is
-	// overwritten from the backup. May differ from the Backup's
-	// original serverRef (restoring into a fresh server).
+	// ServerRef is the target GameServer.
+	//
+	// For restic-snapshot backups the target must already exist; it is
+	// suspended and its data volume is overwritten in place (it may be a
+	// pre-created empty server, restoring into a fresh server).
+	//
+	// For volume-snapshot backups the target must NOT already exist: the
+	// restore provisions a brand-new GameServer under this name, copying
+	// the original server's spec and seeding its data volume from the CSI
+	// snapshot. The original server is never touched.
 	ServerRef LocalObjectRef `json:"serverRef"`
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,6 +72,8 @@ type BackupReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=snapshot.storage.k8s.io,resources=volumesnapshots,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=snapshot.storage.k8s.io,resources=volumesnapshotcontents,verbs=get;list;watch
 
 func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var b kestrelv1alpha1.Backup
@@ -80,13 +83,6 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if b.Status.Phase == kestrelv1alpha1.BackupPhaseSucceeded ||
 		b.Status.Phase == kestrelv1alpha1.BackupPhaseFailed {
 		return ctrl.Result{}, nil
-	}
-
-	// Volume-snapshot strategy is declared in the API but not yet
-	// implemented. Short-circuit so the user gets a clean signal
-	// rather than a perpetually-Pending Backup.
-	if b.Spec.Strategy == "volume-snapshot" {
-		return r.fail(ctx, &b, "volume-snapshot strategy not yet implemented")
 	}
 
 	// Resolve the target before building the Job: a Backup against a
@@ -101,6 +97,20 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				fmt.Sprintf("GameServer %q not found in namespace %s", b.Spec.ServerRef.Name, b.Namespace))
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Volume-snapshot backups take a CSI snapshot of the data PVC rather
+	// than running restic, so they branch off here — before the restic
+	// repo Secret checks, which don't apply to them.
+	if b.Spec.Strategy == "volume-snapshot" {
+		return r.reconcileVolumeSnapshot(ctx, &b, &gs)
+	}
+
+	// restic backups need a repo Secret. The CEL rule on BackupSpec already
+	// enforces this at admission, but guard defensively so a nil deref can't
+	// happen if an object slips through (e.g. an older CRD revision).
+	if b.Spec.RepoRef == nil {
+		return r.fail(ctx, &b, "repoRef is required for the restic-snapshot strategy")
 	}
 
 	// Same for the restic repo Secret: a missing repoRef leaves the Job
@@ -288,28 +298,33 @@ func (r *BackupReconciler) mirrorJobStatus(
 	}
 
 	if phase == kestrelv1alpha1.BackupPhaseSucceeded || phase == kestrelv1alpha1.BackupPhaseFailed {
-		if err := r.maybeUnquiesce(ctx, b); err != nil {
-			// A failed unquiesce can leave the game world frozen with
-			// auto-save off. Surface it as an Unquiesced=False condition
-			// (visible in `kubectl describe` and the dashboard) and
-			// requeue to retry — the unquiesced-at annotation makes the
-			// retry idempotent and stops the requeue loop once it lands.
-			ctrl.LoggerFrom(ctx).Error(err, "unquiesce failed; will retry", "backup", b.Name)
-			if cerr := r.setUnquiescedCondition(ctx, b, false, err.Error()); cerr != nil {
-				return ctrl.Result{}, cerr
-			}
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
-		// When an unquiesce was actually performed, record success so the
-		// "world might be frozen" signal clears.
-		if _, ok := b.Annotations[annoUnquiescedAt]; ok {
-			if cerr := r.setUnquiescedCondition(ctx, b, true, ""); cerr != nil {
-				return ctrl.Result{}, cerr
-			}
-		}
-		return ctrl.Result{}, nil
+		return r.runUnquiesce(ctx, b)
 	}
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+}
+
+// runUnquiesce performs the terminal-phase unquiesce + Unquiesced condition
+// bookkeeping shared by the restic and volume-snapshot strategies. A failed
+// unquiesce can leave the game world frozen with auto-save off, so it is
+// surfaced as an Unquiesced=False condition (visible in `kubectl describe`
+// and the dashboard) and retried — the unquiesced-at annotation makes the
+// retry idempotent and stops the loop once it lands.
+func (r *BackupReconciler) runUnquiesce(ctx context.Context, b *kestrelv1alpha1.Backup) (ctrl.Result, error) {
+	if err := r.maybeUnquiesce(ctx, b); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "unquiesce failed; will retry", "backup", b.Name)
+		if cerr := r.setUnquiescedCondition(ctx, b, false, err.Error()); cerr != nil {
+			return ctrl.Result{}, cerr
+		}
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	// When an unquiesce was actually performed, record success so the
+	// "world might be frozen" signal clears.
+	if _, ok := b.Annotations[annoUnquiescedAt]; ok {
+		if cerr := r.setUnquiescedCondition(ctx, b, true, ""); cerr != nil {
+			return ctrl.Result{}, cerr
+		}
+	}
+	return ctrl.Result{}, nil
 }
 
 // setUnquiescedCondition upserts the Unquiesced condition on the Backup.
@@ -425,6 +440,7 @@ func (r *BackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kestrelv1alpha1.Backup{}).
 		Owns(&batchv1.Job{}).
+		Owns(&snapshotv1.VolumeSnapshot{}).
 		Complete(r)
 }
 
