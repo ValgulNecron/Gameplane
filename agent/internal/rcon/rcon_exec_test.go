@@ -39,13 +39,12 @@ func TestExec_WriteFailsWhenServerGone(t *testing.T) {
 }
 
 // TestExec_ResponseThenCloseReturnsOutput is the regression test for the
-// Minecraft "EOF" bug: Minecraft answers the real command and then closes
-// the socket without ever echoing the empty-cmd sentinel. The client must
-// return the command's output, not throw it away and surface the EOF.
+// Minecraft "EOF" bug: Minecraft answers the command and then closes the
+// socket per command. The client (which no longer sends a sentinel) must read
+// and return the command's output, not surface the close as an error.
 func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
-	// Server authenticates, accepts EXEC, sends one RESPONSE_VALUE with the
-	// command output, ignores the sentinel, then closes — mirroring real
-	// Minecraft RCON behaviour.
+	// Server authenticates, reads the (single) EXEC, answers it echoing the
+	// request id, then closes — mirroring real Minecraft RCON behaviour.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -59,14 +58,9 @@ func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
 		// AUTH
 		id, _, _, _ := readOne(conn)
 		writeOne(conn, id, typeAuthResponse, "")
-		// EXEC + sentinel writes happen back-to-back from the client. Drain
-		// both, answer only the EXEC (echoing its id, never the sentinel),
-		// then close. Draining the sentinel first makes the close a clean
-		// FIN (deterministic EOF) instead of a RST race; either way the
-		// client must return the command output it already received.
+		// EXEC -> answer -> close. The client sends no sentinel packet.
 		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		execID, _, body, _ := readOne(conn)
-		_, _, _, _ = readOne(conn) // drain the sentinel
 		writeOne(conn, execID, typeRespValue, body+": partial")
 		_ = conn.Close()
 	}()

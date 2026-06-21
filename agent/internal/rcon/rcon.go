@@ -74,6 +74,14 @@ type Client struct {
 // (heartbeat, players, quiesce, console).
 const defaultExecDeadline = 30 * time.Second
 
+// responseGrace bounds how long Exec waits for additional reply fragments
+// after the first one arrives. Source servers split large replies across
+// back-to-back packets; Minecraft sends a single packet (and typically closes
+// the connection straight after), so without this bound Exec would block on
+// the full execDeadline after every command. It only takes effect once a reply
+// packet has been read.
+const responseGrace = 400 * time.Millisecond
+
 func New(host string, port int, pw PassFn) *Client {
 	return &Client{
 		addr:         net.JoinHostPort(host, fmt.Sprint(port)),
@@ -108,46 +116,51 @@ func (c *Client) Exec(cmd string) (string, error) {
 		return "", err
 	}
 
-	// Sentinel trick: send an empty command right after the real one.
-	// RESPONSE_VALUE packets for the real command arrive first; when
-	// we see the sentinel's response we know the real one is complete.
-	sentinelID := c.allocID()
-	if err := c.writePacket(sentinelID, typeRespValue, ""); err != nil {
-		c.dropLocked()
-		return "", err
-	}
-
+	// We deliberately do NOT use the Valve "empty-cmd sentinel" trick (send an
+	// extra empty RESPONSE_VALUE and treat its echo as the end-of-reply
+	// marker). Minecraft's RCON chokes on that extra packet and tears the
+	// connection down ("Thread RCON Client shutting down") before — or as — it
+	// answers, so the real reply is lost to the close/RST and every command
+	// surfaced as "EOF". Instead we read the reply packets (which all echo
+	// reqID) and bound the wait for any trailing fragments with a short grace
+	// window: a single-packet reply (Minecraft) returns as soon as the grace
+	// elapses or the server closes; a fragmented Source reply keeps extending
+	// the window as each fragment arrives.
 	var out bytes.Buffer
 	gotResponse := false
 	for {
 		id, _, body, err := c.readPacket()
 		if err != nil {
-			c.dropLocked()
-			// Minecraft (and some other RCON servers) don't mirror the
-			// empty-cmd sentinel back the way true Source servers do; after
-			// answering the real command they just drop the connection — a
-			// clean FIN (io.EOF) or an abrupt RST ("connection reset") when
-			// our still-unread sentinel is sitting in their buffer. Once we
-			// already hold the command's response, that read error is a
-			// normal end-of-stream, not a failure: return what we read
-			// instead of discarding it (the bug that surfaced "EOF" in the
-			// console for every Minecraft command).
 			if gotResponse {
+				// We already hold the reply. A timeout means the grace window
+				// elapsed on a still-healthy socket — keep it for reuse. Any
+				// other error (EOF/RST) means the server closed after
+				// answering, as Minecraft does per command — drop it so the
+				// next call re-dials. Either way the reply is complete, so
+				// return it instead of discarding it.
+				if !isTimeout(err) {
+					c.dropLocked()
+				}
 				return out.String(), nil
 			}
+			c.dropLocked()
 			return "", fmt.Errorf("rcon exec %q: %w", cmd, err)
 		}
-		if id == sentinelID {
-			return out.String(), nil
-		}
-		// Only the real command's response packets carry reqID; ignore
-		// anything else (e.g. a server's "Unknown request" reply to the
-		// sentinel) so it can't pollute the returned output.
+		// Source/Minecraft echo the request id in every reply fragment; ignore
+		// anything else.
 		if id == reqID {
 			out.WriteString(body)
 			gotResponse = true
+			_ = conn.SetReadDeadline(time.Now().Add(responseGrace))
 		}
 	}
+}
+
+// isTimeout reports whether err is a network timeout (the grace/exec deadline
+// firing) as opposed to a hard connection error like EOF or a reset.
+func isTimeout(err error) bool {
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
 }
 
 // Close shuts down the underlying connection.
