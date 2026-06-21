@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 
 import type { RegistryProject } from "@/types";
@@ -76,6 +76,11 @@ export function RegistryBrowser({
     queryKey: ["registry", name, type ?? "mod", provider, debounced, sort, category],
     initialPageParam: 0,
     enabled: !!provider,
+    // Keep the previous results on screen while a new search/sort/category
+    // refetches. Without this, every debounced keystroke flips the query to
+    // a pending state that blanks the grid — which unmounts result cards and
+    // collapses any the user had expanded mid-browse.
+    placeholderData: keepPreviousData,
     queryFn: ({ pageParam }) =>
       Servers.searchRegistry(name, {
         q: debounced,

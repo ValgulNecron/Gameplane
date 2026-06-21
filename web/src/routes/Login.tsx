@@ -77,19 +77,29 @@ export function LoginPage() {
               }
             }}
           >
-            <label className="block space-y-1.5">
-              <span className="text-xs text-muted">Email or username</span>
+            <div className="space-y-1.5">
+              <label htmlFor="username" className="block text-xs text-muted">
+                Email or username
+              </label>
               <Input
+                id="username"
                 name="username"
                 autoComplete="username"
                 autoFocus
                 value={u}
                 onChange={(e) => setU(e.target.value)}
               />
-            </label>
-            <label className="block space-y-1.5">
+            </div>
+            <div className="space-y-1.5">
+              {/* The "Forgot?" control must sit OUTSIDE the <label>: a <label>
+                  that wraps a second interactive element steals that element's
+                  accessible name and mis-associates the field, so screen
+                  readers (and tests) resolve the label to the button, not the
+                  password input. */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted">Password</span>
+                <label htmlFor="password" className="block text-xs text-muted">
+                  Password
+                </label>
                 <button
                   type="button"
                   className="text-xs text-primary hover:underline"
@@ -99,6 +109,7 @@ export function LoginPage() {
                 </button>
               </div>
               <Input
+                id="password"
                 type="password"
                 name="password"
                 autoComplete="current-password"
@@ -110,7 +121,7 @@ export function LoginPage() {
                   Contact your administrator to reset your password.
                 </p>
               )}
-            </label>
+            </div>
             {err && <p className="text-sm text-danger">{err}</p>}
             <Button type="submit" className="w-full rounded-full" size="lg" disabled={busy}>
               Sign in →
