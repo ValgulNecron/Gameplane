@@ -9,9 +9,11 @@ import (
 )
 
 // Hangar searches PaperMC's Hangar (hangar.papermc.io) — the registry for
-// Paper/Velocity/Waterfall plugins (keyless). Project ids are "owner~slug"
-// (a path-safe separator so the id survives as a single URL path segment in
-// the versions route); Hangar hosts plugins, not modpacks.
+// Paper/Velocity/Waterfall plugins (keyless). Hangar project ids are
+// "owner/slug"; Kestrel joins them with a "~" instead so the id survives as a
+// single segment in Kestrel's own {project} route param (a "/" would split it).
+// The engine splits the "~" back to owner/slug for the two-segment upstream
+// Hangar path. Hangar hosts plugins, not modpacks.
 const hangarSep = "~"
 type Hangar struct {
 	client    *http.Client

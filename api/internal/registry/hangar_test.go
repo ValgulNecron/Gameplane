@@ -56,7 +56,7 @@ func TestHangarSearchModpackEmpty(t *testing.T) {
 
 func TestHangarVersions(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/projects/EssentialsX~Essentials/versions" {
+		if r.URL.Path != "/projects/EssentialsX/Essentials/versions" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		_, _ = w.Write([]byte(`{"result":[
