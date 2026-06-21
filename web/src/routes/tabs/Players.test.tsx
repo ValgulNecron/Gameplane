@@ -56,4 +56,27 @@ describe("PlayersTab", () => {
     renderWithQuery(<PlayersTab name="alpha" />);
     expect(await screen.findByText(/0 \/ 20 online/)).toBeInTheDocument();
   });
+
+  it("lists the whitelist and adds an entry", async () => {
+    const added: string[] = [];
+    server.use(
+      http.get("/servers/alpha/players", () => HttpResponse.json(makePlayers())),
+      http.get("/servers/alpha/players/whitelist", () =>
+        HttpResponse.json(["alice", "carol"]),
+      ),
+      http.post("/servers/alpha/players/whitelist/add", async ({ request }) => {
+        const b = (await request.json()) as { name?: string };
+        if (b.name) added.push(b.name);
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    // The collapsed Whitelist section advertises the count from the query.
+    const toggle = await screen.findByText(/Whitelist \(2\)/);
+    await userEvent.click(toggle);
+    const input = await screen.findByPlaceholderText(/Add player to whitelist/i);
+    await userEvent.type(input, "dave");
+    await userEvent.click(screen.getByRole("button", { name: /add/i }));
+    await waitFor(() => expect(added).toContain("dave"));
+  });
 });

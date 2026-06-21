@@ -249,7 +249,7 @@ export function makePlayers(over: Partial<PlayersResp> = {}): PlayersResp {
     max: 20,
     players: ["alice", "bob"],
     asOf: "2026-05-07T12:00:00Z",
-    capabilities: { kick: true, ban: true, unban: true },
+    capabilities: { kick: true, ban: true, unban: true, whitelist: true },
     ...over,
   };
 }

@@ -312,6 +312,12 @@ export const handlers = [
   http.post(/\/servers\/[^/]+\/players\/(kick|ban|unban)$/, () =>
     HttpResponse.json({ ok: true }),
   ),
+  http.get("/servers/:name/players/whitelist", () =>
+    HttpResponse.json(["alice", "carol"]),
+  ),
+  http.post(/\/servers\/[^/]+\/players\/whitelist\/(add|remove)$/, () =>
+    HttpResponse.json({ ok: true }),
+  ),
 
   // Files (agent proxy)
   http.get("/servers/:name/files/list", () =>
