@@ -229,7 +229,8 @@ describe("ConsoleTab", () => {
     opts.onMessage?.(JSON.stringify({ kind: "out", body: "pong" }));
     expect(term.writeln).toHaveBeenCalledWith("pong");
     opts.onMessage?.(JSON.stringify({ kind: "err", body: "boom" }));
-    expect(term.writeln).toHaveBeenCalledWith("boom");
+    // Errors render in red so they read as failures, not command output.
+    expect(term.writeln).toHaveBeenCalledWith("\x1b[31mboom\x1b[0m");
     opts.onMessage?.(JSON.stringify({ kind: "other", body: "x" })); // ignored
     opts.onMessage?.("not json"); // dropped
     opts.onMessage?.(new ArrayBuffer(2)); // non-string ignored
