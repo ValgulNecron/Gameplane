@@ -159,6 +159,16 @@ type GameServerNetworking struct {
 	// the Service port for a named template port.
 	// +optional
 	PortOverrides []PortOverride `json:"portOverrides,omitempty"`
+
+	// SourceRanges is an IP allow-list (CIDRs) for the fronting Service. It
+	// maps to service.spec.loadBalancerSourceRanges and therefore only takes
+	// effect when Expose=LoadBalancer (cloud LBs that honor it); it is
+	// ignored for ClusterIP/NodePort. Empty allows all clients.
+	// +kubebuilder:validation:MaxItems=20
+	// +kubebuilder:validation:XValidation:rule="self.all(c, c.contains('/'))",message="each sourceRange must be a CIDR, e.g. 203.0.113.0/24"
+	// +listType=atomic
+	// +optional
+	SourceRanges []string `json:"sourceRanges,omitempty"`
 }
 
 // PortOverride pins or remaps one of the template's declared ports.

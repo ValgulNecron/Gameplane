@@ -70,6 +70,21 @@ func TestCRDValidation_GameServerConfigValueTooLong(t *testing.T) {
 	}
 }
 
+func TestCRDValidation_GameServerSourceRanges(t *testing.T) {
+	ns := newNamespace(t)
+	bad := validGameServer(ns, "v-bad-cidr")
+	bad.Spec.Networking.SourceRanges = []string{"not-a-cidr"}
+	if err := k8sClient.Create(context.Background(), bad); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid for non-CIDR sourceRange, got %v", err)
+	}
+
+	ok := validGameServer(ns, "v-ok-cidr")
+	ok.Spec.Networking.SourceRanges = []string{"10.0.0.0/8", "203.0.113.0/24"}
+	if err := k8sClient.Create(context.Background(), ok); err != nil {
+		t.Fatalf("valid CIDR sourceRanges rejected: %v", err)
+	}
+}
+
 func TestCRDValidation_GameServerBadInlineBackupSchedule(t *testing.T) {
 	ns := newNamespace(t)
 	gs := validGameServer(ns, "v-bad-inline-cron")

@@ -48,7 +48,7 @@ export interface ServerCreate {
   version?: string;
   config?: Record<string, string>;
   storage?: { size?: string };
-  networking?: { expose?: string; hostname?: string };
+  networking?: { expose?: string; hostname?: string; sourceRanges?: string[] };
   resources?: unknown;
   nodeSelector?: Record<string, string>;
 }

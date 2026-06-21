@@ -479,6 +479,43 @@ func TestGameServer_StorageOverride(t *testing.T) {
 	})
 }
 
+// TestGameServer_LoadBalancerSourceRanges asserts the CIDR allow-list is
+// applied to the fronting Service only when Expose=LoadBalancer.
+func TestGameServer_LoadBalancerSourceRanges(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "smp", tmpl.Name)
+	gs.Spec.Networking = kestrelv1alpha1.GameServerNetworking{
+		Expose:       "LoadBalancer",
+		SourceRanges: []string{"203.0.113.0/24", "10.0.0.0/8"},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &svc); err != nil {
+			return false, err.Error()
+		}
+		if svc.Spec.Type != corev1.ServiceTypeLoadBalancer {
+			return false, "type = " + string(svc.Spec.Type)
+		}
+		if !equalStrings(svc.Spec.LoadBalancerSourceRanges, []string{"203.0.113.0/24", "10.0.0.0/8"}) {
+			return false, "ranges = " + strings.Join(svc.Spec.LoadBalancerSourceRanges, ",")
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_ConsoleMode_PTY — when the GameTemplate selects PTY
 // console, the rendered StatefulSet's "game" container must have
 // tty=true and stdin=true. These fields are immutable post-create, so
