@@ -18,6 +18,12 @@ func minecraftActions() *caps.PlayerActions {
 			Command:    "banlist players",
 			EntryRegex: `^\s*(?P<name>[A-Za-z0-9_]{1,32})\s+was banned by\s+(?P<source>[^:]+?)(?::\s*(?P<reason>.*))?\s*$`,
 		},
+		Whitelist: &caps.Whitelist{
+			List:      "whitelist list",
+			Add:       "whitelist add {{.Player}}",
+			Remove:    "whitelist remove {{.Player}}",
+			ListRegex: `whitelisted player[s()]*:\s*(?P<names>.+)$`,
+		},
 	}
 }
 

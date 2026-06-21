@@ -555,6 +555,35 @@ type PlayerActionsSpec struct {
 	// BanList configures reading the current ban list.
 	// +optional
 	BanList *BanListSpec `json:"banList,omitempty"`
+
+	// Whitelist configures the allow-list management actions on the
+	// Players tab (list / add / remove).
+	// +optional
+	Whitelist *WhitelistSpec `json:"whitelist,omitempty"`
+}
+
+// WhitelistSpec declares how to manage the game's whitelist (allow list).
+// Add/Remove are Go text/templates rendered with .Player; List is a plain
+// command whose output is parsed by ListRegex.
+type WhitelistSpec struct {
+	// List prints the current whitelist (e.g. "whitelist list").
+	// +kubebuilder:validation:MinLength=1
+	List string `json:"list"`
+
+	// Add adds a player, e.g. "whitelist add {{.Player}}".
+	// +kubebuilder:validation:MinLength=1
+	Add string `json:"add"`
+
+	// Remove removes a player, e.g. "whitelist remove {{.Player}}".
+	// +kubebuilder:validation:MinLength=1
+	Remove string `json:"remove"`
+
+	// ListRegex extracts whitelisted names from the List output. If it has
+	// a named group "names", that group is split on commas (Minecraft's
+	// "There are N whitelisted players: a, b, c"); otherwise each line's
+	// "name" group is one entry.
+	// +kubebuilder:validation:MinLength=1
+	ListRegex string `json:"listRegex"`
 }
 
 // BanListSpec reads and parses the game's ban list.

@@ -171,6 +171,13 @@ spec:
       banList:
         command: "banlist players"
         entryRegex: '^\s*(?P<name>[A-Za-z0-9_]{1,32})\s+was banned by\s+(?P<source>[^:]+?)(?::\s*(?P<reason>.*))?\s*$'
+      whitelist:
+        list: "whitelist list"
+        add: "whitelist add {{.Player}}"
+        remove: "whitelist remove {{.Player}}"
+        # "There are 2 whitelisted player(s): alice, bob" — capture the
+        # comma-separated tail; "no whitelisted players" yields no match.
+        listRegex: 'whitelisted player[s()]*:\s*(?P<names>.+)$'
     quiesce:
       quiesce: ["save-off", "save-all flush"]
       unquiesce: ["save-on"]
