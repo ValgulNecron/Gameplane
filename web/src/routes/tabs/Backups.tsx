@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive, CalendarClock, Clock, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StatCard } from "@/components/ui/stat";
 import { Backups, Schedules, Restores } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
-import { formatRelative } from "@/lib/utils";
+import { formatBytes, formatRelative, formatRelativeFuture, parseQuantityToBytes } from "@/lib/utils";
 import { PhaseBadge } from "@/components/ui/badge";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { ScheduleForm } from "@/components/backups/ScheduleForm";
@@ -58,8 +60,50 @@ export function BackupsTab({ name }: { name: string }) {
   const serverSchedules = schedules?.items.filter((s) => s.spec.serverRef.name === name) ?? [];
   const serverRestores = restores?.items.filter((r) => r.spec.serverRef.name === name) ?? [];
 
+  // Summary tiles, derived from the same lists the table renders.
+  const succeeded = serverBackups.filter((b) => b.status?.phase === "Succeeded");
+  const completions = succeeded
+    .map((b) => b.status?.completionTime)
+    .filter((t): t is string => Boolean(t))
+    .sort();
+  const lastBackupAt = completions[completions.length - 1];
+  const nextRuns = serverSchedules
+    .filter((s) => !s.spec.suspend)
+    .map((s) => s.status?.nextScheduleTime)
+    .filter((t): t is string => Boolean(t))
+    .sort();
+  const nextBackupAt = nextRuns[0];
+  const totalBytes = succeeded.reduce((acc, b) => acc + parseQuantityToBytes(b.status?.size), 0);
+
   return (
     <div className="space-y-6 p-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Last backup"
+          value={formatRelative(lastBackupAt)}
+          icon={<Clock size={16} />}
+          accent="primary"
+        />
+        <StatCard
+          label="Next backup"
+          value={nextBackupAt ? formatRelativeFuture(nextBackupAt) : "—"}
+          icon={<CalendarClock size={16} />}
+          accent="success"
+        />
+        <StatCard
+          label="Backups"
+          value={serverBackups.length}
+          icon={<Archive size={16} />}
+          accent="violet"
+        />
+        <StatCard
+          label="Total size"
+          value={totalBytes ? formatBytes(totalBytes) : "—"}
+          icon={<HardDrive size={16} />}
+          accent="warning"
+        />
+      </div>
+
       <section>
         <div className="flex items-center justify-between pb-3">
           <h2 className="text-sm text-muted">Schedules</h2>

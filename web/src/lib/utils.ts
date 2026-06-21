@@ -31,6 +31,41 @@ export function formatRelative(iso?: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+// formatRelativeFuture renders a forward-looking interval ("in 45m") for a
+// timestamp expected to be in the future (e.g. a schedule's next run). Past
+// or now reads as "due".
+export function formatRelativeFuture(iso?: string): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  const s = Math.floor((t - Date.now()) / 1000);
+  if (s <= 0)       return "due";
+  if (s < 60)       return `in ${s}s`;
+  if (s < 3600)     return `in ${Math.floor(s / 60)}m`;
+  if (s < 86400)    return `in ${Math.floor(s / 3600)}h`;
+  return `in ${Math.floor(s / 86400)}d`;
+}
+
+// parseQuantityToBytes parses a size string into bytes. Accepts plain byte
+// counts ("5368709120"), Kubernetes binary-SI ("5Gi", "512Mi") and decimal-SI
+// ("5G", "500M") suffixes, and human "GiB"/"GB" forms. Returns 0 for empty or
+// unparseable input, so it's safe to sum across a list.
+export function parseQuantityToBytes(s?: string): number {
+  if (!s) return 0;
+  const m = /^\s*([0-9.]+)\s*([A-Za-z]*)\s*$/.exec(s);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  if (Number.isNaN(n)) return 0;
+  let unit = m[2].toUpperCase();
+  if (unit.endsWith("B")) unit = unit.slice(0, -1); // GiB->GI, GB->G, B->""
+  if (unit === "") return n;
+  const factors: Record<string, number> = {
+    KI: 1024, MI: 1024 ** 2, GI: 1024 ** 3, TI: 1024 ** 4, PI: 1024 ** 5,
+    K: 1000, M: 1000 ** 2, G: 1000 ** 3, T: 1000 ** 4, P: 1000 ** 5,
+  };
+  return (factors[unit] ?? 0) * n;
+}
+
 export function formatUptime(startedAt?: string): string {
   if (!startedAt) return "—";
   const t = new Date(startedAt).getTime();
