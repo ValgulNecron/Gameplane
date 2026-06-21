@@ -71,7 +71,9 @@ func ssReplicas(t *testing.T, ns, name string) int32 {
 	t.Helper()
 	var ss appsv1.StatefulSet
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &ss); err != nil {
-		t.Fatalf("get ss: %v", err)
+		// Used inside eventually() polls, including before the reconciler has
+		// created the StatefulSet — report "not there" rather than failing.
+		return -1
 	}
 	if ss.Spec.Replicas == nil {
 		return -1
@@ -99,7 +101,9 @@ func TestGameServer_SoftStopRunsStopThenScalesDown(t *testing.T) {
 	deleteCleanup(t, tmpl)
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
-	grace := int32(3)
+	// Long grace so the scale-down in this test is driven by the game going
+	// not-ready, not by the backstop deadline firing mid-assertion.
+	grace := int32(120)
 	gs.Spec.StopGracePeriodSeconds = &grace
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)
