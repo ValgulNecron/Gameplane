@@ -304,6 +304,18 @@ export const Players = {
       `/servers/${server}/players/${action}`,
       { method: "POST", body },
     ),
+  whitelist: (server: string) =>
+    api<string[]>(`/servers/${server}/players/whitelist`),
+  whitelistAdd: (server: string, name: string) =>
+    api<{ ok: boolean; raw?: string }>(
+      `/servers/${server}/players/whitelist/add`,
+      { method: "POST", body: { name } },
+    ),
+  whitelistRemove: (server: string, name: string) =>
+    api<{ ok: boolean; raw?: string }>(
+      `/servers/${server}/players/whitelist/remove`,
+      { method: "POST", body: { name } },
+    ),
 };
 
 export interface UserCreate {

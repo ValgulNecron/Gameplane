@@ -511,6 +511,7 @@ export interface PlayerCapabilities {
   kick: boolean;
   ban: boolean;
   unban: boolean;
+  whitelist?: boolean;
 }
 
 export interface PlayersResp {

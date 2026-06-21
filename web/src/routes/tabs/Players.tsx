@@ -1,9 +1,19 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, RotateCw, UserMinus, Ban, Undo2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  RotateCw,
+  UserMinus,
+  UserPlus,
+  Ban,
+  Undo2,
+  ListChecks,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StatCard } from "@/components/ui/stat";
 import { APIError } from "@/lib/api";
 import { Players as PlayersAPI } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
@@ -20,6 +30,8 @@ export function PlayersTab({ name }: { name: string }) {
   const [pending, setPending] = useState<{ player: string; action: Action } | null>(null);
   const [reason, setReason] = useState("");
   const [showBanned, setShowBanned] = useState(false);
+  const [showWhitelist, setShowWhitelist] = useState(false);
+  const [wlName, setWlName] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const { data, refetch, isFetching } = useQuery({
@@ -27,11 +39,20 @@ export function PlayersTab({ name }: { name: string }) {
     queryFn: () => PlayersAPI.snapshot(name),
     refetchInterval: 5_000,
   });
+  const caps = data?.capabilities;
 
+  // Banned + whitelist are fetched whenever the game supports them so the
+  // summary tiles always have counts; the sections below just toggle the
+  // list's visibility, not the fetch.
   const { data: banned, isFetching: bannedFetching } = useQuery({
     queryKey: ["banned", name],
     queryFn: () => PlayersAPI.banned(name),
-    enabled: showBanned && (data?.capabilities.unban ?? false),
+    enabled: caps?.unban ?? false,
+  });
+  const { data: whitelist, isFetching: whitelistFetching } = useQuery({
+    queryKey: ["whitelist", name],
+    queryFn: () => PlayersAPI.whitelist(name),
+    enabled: caps?.whitelist ?? false,
   });
 
   const moderate = useMutation<ModResp, unknown, { action: Action | "unban"; player: string; reason?: string }>({
@@ -52,27 +73,48 @@ export function PlayersTab({ name }: { name: string }) {
         qc.invalidateQueries({ queryKey: ["banned", name] }),
       ]);
     },
-    onError: (err) => {
-      setStatus({ kind: "err", text: errMsg(err) });
-    },
+    onError: (err) => setStatus({ kind: "err", text: errMsg(err) }),
   });
 
-  const caps = data?.capabilities;
-  const noModeration = caps && !caps.kick && !caps.ban && !caps.unban;
+  const whitelistMut = useMutation<ModResp, unknown, { op: "add" | "remove"; player: string }>({
+    mutationFn: (vars) =>
+      vars.op === "add"
+        ? PlayersAPI.whitelistAdd(name, vars.player)
+        : PlayersAPI.whitelistRemove(name, vars.player),
+    onSuccess: (resp, vars) => {
+      setWlName("");
+      setStatus({
+        kind: "ok",
+        text: resp.raw ? truncate(resp.raw, 200) : `whitelist ${vars.op} ${vars.player} ok`,
+      });
+      return qc.invalidateQueries({ queryKey: ["whitelist", name] });
+    },
+    onError: (err) => setStatus({ kind: "err", text: errMsg(err) }),
+  });
+
+  const noModeration = caps && !caps.kick && !caps.ban && !caps.unban && !caps.whitelist;
 
   return (
     <div className="space-y-6 p-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StatCard
+          label="Online"
+          value={data ? `${data.online} / ${data.max}` : "—"}
+          accent="success"
+        />
+        {caps?.whitelist && (
+          <StatCard label="Whitelisted" value={whitelist?.length ?? "—"} accent="primary" />
+        )}
+        {caps?.unban && (
+          <StatCard label="Banned" value={banned?.length ?? "—"} accent="danger" />
+        )}
+      </div>
+
       <header className="flex items-center justify-between">
         <h2 className="text-sm text-muted">
           {data ? `${data.online} / ${data.max} online` : "Loading…"}
         </h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          title="Refresh"
-        >
+        <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
           <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
         </Button>
       </header>
@@ -88,10 +130,7 @@ export function PlayersTab({ name }: { name: string }) {
         >
           <div className="flex items-start justify-between gap-3">
             <span className="font-mono">{status.text}</span>
-            <button
-              onClick={() => setStatus(null)}
-              className="text-xs text-muted hover:text-fg"
-            >
+            <button onClick={() => setStatus(null)} className="text-xs text-muted hover:text-fg">
               dismiss
             </button>
           </div>
@@ -99,9 +138,7 @@ export function PlayersTab({ name }: { name: string }) {
       )}
 
       {noModeration && (
-        <p className="text-sm text-muted">
-          Player moderation isn&apos;t supported for this game.
-        </p>
+        <p className="text-sm text-muted">Player moderation isn&apos;t supported for this game.</p>
       )}
 
       <ul className="grid gap-1 md:grid-cols-2 lg:grid-cols-3">
@@ -143,9 +180,7 @@ export function PlayersTab({ name }: { name: string }) {
             )}
           </li>
         ))}
-        {data?.players.length === 0 && (
-          <p className="text-sm text-muted">Nobody online.</p>
-        )}
+        {data?.players.length === 0 && <p className="text-sm text-muted">Nobody online.</p>}
       </ul>
 
       {pending && (
@@ -169,24 +204,72 @@ export function PlayersTab({ name }: { name: string }) {
         />
       )}
 
+      {caps?.whitelist && (
+        <section>
+          <button
+            onClick={() => setShowWhitelist((v) => !v)}
+            className="flex items-center gap-1 text-sm text-muted hover:text-fg"
+          >
+            {showWhitelist ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <ListChecks className="h-3 w-3" /> Whitelist {whitelist ? `(${whitelist.length})` : ""}
+          </button>
+          {showWhitelist && (
+            <div className="mt-2 space-y-2">
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const n = wlName.trim();
+                  if (n) whitelistMut.mutate({ op: "add", player: n });
+                }}
+              >
+                <Input
+                  className="flex-1"
+                  placeholder="Add player to whitelist…"
+                  value={wlName}
+                  onChange={(e) => setWlName(e.target.value)}
+                  maxLength={32}
+                />
+                <Button size="sm" type="submit" disabled={!wlName.trim() || whitelistMut.isPending}>
+                  <UserPlus className="h-3 w-3" /> Add
+                </Button>
+              </form>
+              {whitelistFetching && !whitelist && <p className="text-sm text-muted">Loading…</p>}
+              {whitelist?.map((w) => (
+                <div
+                  key={w}
+                  className="flex items-center justify-between gap-2 rounded border border-border bg-surface/30 px-3 py-2 font-mono text-sm"
+                >
+                  <span className="truncate">{w}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Remove from whitelist"
+                    disabled={whitelistMut.isPending}
+                    onClick={() => whitelistMut.mutate({ op: "remove", player: w })}
+                  >
+                    <UserMinus className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              {whitelist?.length === 0 && <p className="text-sm text-muted">Whitelist is empty.</p>}
+            </div>
+          )}
+        </section>
+      )}
+
       {caps?.unban && (
         <section>
           <button
             onClick={() => setShowBanned((v) => !v)}
             className="flex items-center gap-1 text-sm text-muted hover:text-fg"
           >
-            {showBanned ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
+            {showBanned ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             Banned {banned ? `(${banned.length})` : ""}
           </button>
           {showBanned && (
             <div className="mt-2 space-y-1">
-              {bannedFetching && !banned && (
-                <p className="text-sm text-muted">Loading…</p>
-              )}
+              {bannedFetching && !banned && <p className="text-sm text-muted">Loading…</p>}
               {banned?.map((b) => (
                 <div
                   key={b.name}
@@ -207,17 +290,13 @@ export function PlayersTab({ name }: { name: string }) {
                     size="sm"
                     title="Unban"
                     disabled={moderate.isPending}
-                    onClick={() =>
-                      moderate.mutate({ action: "unban", player: b.name })
-                    }
+                    onClick={() => moderate.mutate({ action: "unban", player: b.name })}
                   >
                     <Undo2 className="h-3 w-3" /> Unban
                   </Button>
                 </div>
               ))}
-              {banned?.length === 0 && (
-                <p className="text-sm text-muted">Nobody is banned.</p>
-              )}
+              {banned?.length === 0 && <p className="text-sm text-muted">Nobody is banned.</p>}
             </div>
           )}
         </section>
