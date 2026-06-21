@@ -56,7 +56,15 @@ function template(overrides: Partial<GameTemplate["spec"]> = {}): GameTemplate {
 }
 
 async function pickTemplate(t: GameTemplate) {
-  fireEvent.click(await screen.findByRole("button", { name: new RegExp(t.spec.displayName, "i") }));
+  // The template grid renders only after the templates query resolves; the
+  // default 1000ms findBy timeout flakes under CI load, so wait longer.
+  fireEvent.click(
+    await screen.findByRole(
+      "button",
+      { name: new RegExp(t.spec.displayName, "i") },
+      { timeout: 5000 },
+    ),
+  );
   fireEvent.click(screen.getByRole("button", { name: /Continue to Configure/i }));
 }
 

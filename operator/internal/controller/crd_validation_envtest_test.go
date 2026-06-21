@@ -111,11 +111,41 @@ func TestCRDValidation_BackupRequiresServerRef(t *testing.T) {
 	bk := &kestrelv1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-no-serverref", Namespace: ns},
 		Spec: kestrelv1alpha1.BackupSpec{
-			RepoRef: kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+			RepoRef: &kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), bk); !apierrors.IsInvalid(err) {
 		t.Fatalf("expected Invalid, got %v", err)
+	}
+}
+
+// TestCRDValidation_BackupRepoRefRequiredForRestic checks the CEL rule:
+// restic-snapshot backups must carry a repoRef, while volume-snapshot
+// backups may omit it (they capture a CSI snapshot, no restic repo).
+func TestCRDValidation_BackupRepoRefRequiredForRestic(t *testing.T) {
+	ns := newNamespace(t)
+
+	// restic (default strategy) without repoRef → rejected.
+	bk := &kestrelv1alpha1.Backup{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-restic-no-repo", Namespace: ns},
+		Spec: kestrelv1alpha1.BackupSpec{
+			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), bk); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid for restic backup without repoRef, got %v", err)
+	}
+
+	// volume-snapshot without repoRef → accepted.
+	vs := &kestrelv1alpha1.Backup{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-vs-no-repo", Namespace: ns},
+		Spec: kestrelv1alpha1.BackupSpec{
+			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+			Strategy:  "volume-snapshot",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), vs); err != nil {
+		t.Fatalf("volume-snapshot backup without repoRef rejected: %v", err)
 	}
 }
 

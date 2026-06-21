@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -31,6 +32,10 @@ var Version = "dev"
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(kestrelv1alpha1.AddToScheme(scheme))
+	// CSI VolumeSnapshot types — backed by the volume-snapshot backup
+	// strategy (BackupReconciler creates VolumeSnapshots; RestoreReconciler
+	// reads them to seed a new server's data PVC).
+	utilruntime.Must(snapshotv1.AddToScheme(scheme))
 }
 
 func main() {

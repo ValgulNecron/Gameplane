@@ -17,13 +17,17 @@ const (
 )
 
 // BackupSpec is the desired state of a one-shot backup.
+// +kubebuilder:validation:XValidation:rule="self.strategy == 'volume-snapshot' || has(self.repoRef)",message="repoRef is required for the restic-snapshot strategy"
 type BackupSpec struct {
 	// ServerRef is the GameServer whose data volume should be backed up.
 	ServerRef LocalObjectRef `json:"serverRef"`
 
 	// RepoRef points at a Secret containing the restic repository URL
-	// and credentials. See docs for the expected key layout.
-	RepoRef SecretKeySelector `json:"repoRef"`
+	// and credentials. See docs for the expected key layout. Required for
+	// the restic-snapshot strategy; ignored (and may be omitted) for
+	// volume-snapshot, which captures a CSI snapshot instead of using restic.
+	// +optional
+	RepoRef *SecretKeySelector `json:"repoRef,omitempty"`
 
 	// Strategy controls how the data is captured.
 	// - "restic-snapshot" (default): run restic against the PVC mount
@@ -32,6 +36,13 @@ type BackupSpec struct {
 	// +kubebuilder:default=restic-snapshot
 	// +optional
 	Strategy string `json:"strategy,omitempty"`
+
+	// VolumeSnapshotClassName names the VolumeSnapshotClass to use when
+	// Strategy=volume-snapshot. Empty selects the cluster's default
+	// snapshot class. Ignored for restic-snapshot.
+	// +kubebuilder:validation:MaxLength=253
+	// +optional
+	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty"`
 
 	// Quiesce, when true, asks the agent to flush/pause the game before
 	// the snapshot (via RCON "save-all" or game-specific hook) and
@@ -70,6 +81,13 @@ type BackupStatus struct {
 	// for use in restore operations.
 	// +optional
 	SnapshotID string `json:"snapshotID,omitempty"`
+
+	// VolumeSnapshotContentName is the cluster-scoped VolumeSnapshotContent
+	// bound to status.snapshotID, recorded once the VolumeSnapshot reports
+	// readyToUse. Restore checks it to confirm the snapshot actually bound
+	// before standing up a new server. Empty for restic-snapshot backups.
+	// +optional
+	VolumeSnapshotContentName string `json:"volumeSnapshotContentName,omitempty"`
 
 	// Size is the on-disk size of the snapshot, as reported by the
 	// backup driver. Not always exact for incremental snapshots.
