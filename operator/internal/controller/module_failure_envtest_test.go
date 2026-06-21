@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -132,6 +133,16 @@ func TestModule_IncompatibleOperator(t *testing.T) {
 		}
 		if !strings.Contains(got.Status.LastError, "requires Kestrel") {
 			return false, "lastError=" + got.Status.LastError
+		}
+		// The bundle was pulled (Pulling=True) before the version check
+		// failed, so the failure must have cleared Pulling back to False —
+		// otherwise the dashboard shows "Failed" and "Pulling" at once.
+		pulling := meta.FindStatusCondition(got.Status.Conditions, kestrelv1alpha1.ModuleConditionPulling)
+		if pulling == nil {
+			return false, "Pulling condition missing"
+		}
+		if pulling.Status != metav1.ConditionFalse {
+			return false, "Pulling=" + string(pulling.Status) + ", want False after failure"
 		}
 		return true, ""
 	})

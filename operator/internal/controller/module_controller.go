@@ -333,6 +333,16 @@ func (r *ModuleReconciler) markFailed(ctx context.Context, mod *kestrelv1alpha1.
 		Message:            err.Error(),
 		ObservedGeneration: mod.Generation,
 	})
+	// A failure terminates the pull attempt. markPullingTransition sets
+	// Pulling=True before the steps that fail into here (pull, verify,
+	// digest, apply), so clear it — otherwise the dashboard shows a module
+	// stuck "Pulling" forever alongside "Failed".
+	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
+		Type:               kestrelv1alpha1.ModuleConditionPulling,
+		Status:             metav1.ConditionFalse,
+		Reason:             reason,
+		ObservedGeneration: mod.Generation,
+	})
 	if uerr := r.Status().Update(ctx, mod); uerr != nil {
 		return ctrl.Result{}, uerr
 	}
