@@ -17,13 +17,17 @@ const (
 )
 
 // BackupSpec is the desired state of a one-shot backup.
+// +kubebuilder:validation:XValidation:rule="self.strategy == 'volume-snapshot' || has(self.repoRef)",message="repoRef is required for the restic-snapshot strategy"
 type BackupSpec struct {
 	// ServerRef is the GameServer whose data volume should be backed up.
 	ServerRef LocalObjectRef `json:"serverRef"`
 
 	// RepoRef points at a Secret containing the restic repository URL
-	// and credentials. See docs for the expected key layout.
-	RepoRef SecretKeySelector `json:"repoRef"`
+	// and credentials. See docs for the expected key layout. Required for
+	// the restic-snapshot strategy; ignored (and may be omitted) for
+	// volume-snapshot, which captures a CSI snapshot instead of using restic.
+	// +optional
+	RepoRef *SecretKeySelector `json:"repoRef,omitempty"`
 
 	// Strategy controls how the data is captured.
 	// - "restic-snapshot" (default): run restic against the PVC mount

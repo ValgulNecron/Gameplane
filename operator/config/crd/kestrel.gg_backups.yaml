@@ -67,7 +67,9 @@ spec:
               repoRef:
                 description: |-
                   RepoRef points at a Secret containing the restic repository URL
-                  and credentials. See docs for the expected key layout.
+                  and credentials. See docs for the expected key layout. Required for
+                  the restic-snapshot strategy; ignored (and may be omitted) for
+                  volume-snapshot, which captures a CSI snapshot instead of using restic.
                 properties:
                   key:
                     minLength: 1
@@ -112,9 +114,11 @@ spec:
                 maxLength: 253
                 type: string
             required:
-            - repoRef
             - serverRef
             type: object
+            x-kubernetes-validations:
+            - message: repoRef is required for the restic-snapshot strategy
+              rule: self.strategy == 'volume-snapshot' || has(self.repoRef)
           status:
             description: BackupStatus is the observed state of a Backup.
             properties:

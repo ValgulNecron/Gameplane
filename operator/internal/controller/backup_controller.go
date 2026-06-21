@@ -106,6 +106,13 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.reconcileVolumeSnapshot(ctx, &b, &gs)
 	}
 
+	// restic backups need a repo Secret. The CEL rule on BackupSpec already
+	// enforces this at admission, but guard defensively so a nil deref can't
+	// happen if an object slips through (e.g. an older CRD revision).
+	if b.Spec.RepoRef == nil {
+		return r.fail(ctx, &b, "repoRef is required for the restic-snapshot strategy")
+	}
+
 	// Same for the restic repo Secret: a missing repoRef leaves the Job
 	// pod stuck in CreateContainerConfigError instead of failing.
 	var repoSecret corev1.Secret

@@ -308,7 +308,11 @@ func (in *BackupScheduleStatus) DeepCopy() *BackupScheduleStatus {
 func (in *BackupSpec) DeepCopyInto(out *BackupSpec) {
 	*out = *in
 	out.ServerRef = in.ServerRef
-	out.RepoRef = in.RepoRef
+	if in.RepoRef != nil {
+		in, out := &in.RepoRef, &out.RepoRef
+		*out = new(SecretKeySelector)
+		**out = **in
+	}
 	if in.VolumeSnapshotClassName != nil {
 		in, out := &in.VolumeSnapshotClassName, &out.VolumeSnapshotClassName
 		*out = new(string)
