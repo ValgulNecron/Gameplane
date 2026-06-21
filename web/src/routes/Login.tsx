@@ -24,6 +24,9 @@ export function LoginPage() {
   // Enabled login methods, fetched pre-auth. Defaults to local-only so a
   // failed/slow fetch never blocks password sign-in.
   const [oidc, setOidc] = useState<LoginProvider | null>(null);
+  // Self-service reset isn't wired up (admins reset via the CLI), so "Forgot?"
+  // just reveals an inline hint rather than linking to a non-existent flow.
+  const [forgot, setForgot] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -42,7 +45,7 @@ export function LoginPage() {
   return (
     <div className="grid h-full grid-cols-1 md:grid-cols-2">
       <section className="flex items-center justify-center bg-background p-8">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8">
           <div className="mb-8 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/15">
               <ShieldCheck className="h-5 w-5 text-primary" />
@@ -55,7 +58,7 @@ export function LoginPage() {
 
           <div className="mb-6">
             <h1 className="text-2xl font-semibold">Sign in</h1>
-            <p className="pt-1 text-sm text-muted">Welcome back to your control panel.</p>
+            <p className="pt-1 text-sm text-muted">Welcome to Kestrel.</p>
           </div>
 
           <form
@@ -85,7 +88,16 @@ export function LoginPage() {
               />
             </label>
             <label className="block space-y-1.5">
-              <span className="text-xs text-muted">Password</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted">Password</span>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setForgot((v) => !v)}
+                >
+                  Forgot?
+                </button>
+              </div>
               <Input
                 type="password"
                 name="password"
@@ -93,9 +105,14 @@ export function LoginPage() {
                 value={p}
                 onChange={(e) => setP(e.target.value)}
               />
+              {forgot && (
+                <p className="text-xs text-muted">
+                  Contact your administrator to reset your password.
+                </p>
+              )}
             </label>
             {err && <p className="text-sm text-danger">{err}</p>}
-            <Button type="submit" className="w-full" size="lg" disabled={busy}>
+            <Button type="submit" className="w-full rounded-full" size="lg" disabled={busy}>
               Sign in →
             </Button>
             {oidc && (
@@ -107,7 +124,7 @@ export function LoginPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full"
+                  className="w-full rounded-full"
                   size="lg"
                   onClick={() => location.assign(Auth.oidcStartURL())}
                 >
