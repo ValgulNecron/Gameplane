@@ -118,17 +118,42 @@ func (c *Client) Exec(cmd string) (string, error) {
 	}
 
 	var out bytes.Buffer
+	gotResponse := false
 	for {
 		id, _, body, err := c.readPacket()
 		if err != nil {
 			c.dropLocked()
-			return "", err
+			// Minecraft (and some other RCON servers) don't mirror the
+			// empty-cmd sentinel back the way true Source servers do; after
+			// answering the real command they simply close the socket. If we
+			// already have the command's response, that EOF/timeout is a
+			// normal end-of-stream, not a failure — return what we read
+			// instead of discarding it (the bug that surfaced "EOF" in the
+			// console for every Minecraft command).
+			if gotResponse && (errors.Is(err, io.EOF) ||
+				errors.Is(err, io.ErrUnexpectedEOF) || isTimeout(err)) {
+				return out.String(), nil
+			}
+			return "", fmt.Errorf("rcon exec %q: %w", cmd, err)
 		}
 		if id == sentinelID {
 			return out.String(), nil
 		}
-		out.WriteString(body)
+		// Only the real command's response packets carry reqID; ignore
+		// anything else (e.g. a server's "Unknown request" reply to the
+		// sentinel) so it can't pollute the returned output.
+		if id == reqID {
+			out.WriteString(body)
+			gotResponse = true
+		}
 	}
+}
+
+// isTimeout reports whether err is a network timeout (e.g. the per-call
+// deadline firing) as opposed to a hard connection error.
+func isTimeout(err error) bool {
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
 }
 
 // Close shuts down the underlying connection.
