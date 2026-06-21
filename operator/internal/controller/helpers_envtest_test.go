@@ -311,7 +311,7 @@ func buildBackupSchedule(
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 		Spec: kestrelv1alpha1.BackupScheduleSpec{
 			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
-			RepoRef:   kestrelv1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
+			RepoRef:   &kestrelv1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
 			Schedule:  cron,
 			Retention: ret,
 		},

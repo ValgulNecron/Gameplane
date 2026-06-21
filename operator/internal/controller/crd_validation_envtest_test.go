@@ -98,11 +98,39 @@ func TestCRDValidation_BackupScheduleBadCron(t *testing.T) {
 		Spec: kestrelv1alpha1.BackupScheduleSpec{
 			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "any"},
 			Schedule:  "not-a-cron",
-			RepoRef:   kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+			RepoRef:   &kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), bs); !apierrors.IsInvalid(err) {
 		t.Fatalf("expected Invalid, got %v", err)
+	}
+}
+
+// TestCRDValidation_BackupScheduleRepoRefRequiredForRestic mirrors the Backup
+// rule: restic-snapshot schedules need a repoRef; volume-snapshot ones don't.
+func TestCRDValidation_BackupScheduleRepoRefRequiredForRestic(t *testing.T) {
+	ns := newNamespace(t)
+	restic := &kestrelv1alpha1.BackupSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-sched-restic-no-repo", Namespace: ns},
+		Spec: kestrelv1alpha1.BackupScheduleSpec{
+			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+			Schedule:  "0 3 * * *",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), restic); !apierrors.IsInvalid(err) {
+		t.Fatalf("expected Invalid for restic schedule without repoRef, got %v", err)
+	}
+
+	vs := &kestrelv1alpha1.BackupSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "v-sched-vs-no-repo", Namespace: ns},
+		Spec: kestrelv1alpha1.BackupScheduleSpec{
+			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+			Schedule:  "0 3 * * *",
+			Strategy:  "volume-snapshot",
+		},
+	}
+	if err := k8sClient.Create(context.Background(), vs); err != nil {
+		t.Fatalf("volume-snapshot schedule without repoRef rejected: %v", err)
 	}
 }
 

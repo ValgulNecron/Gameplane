@@ -50,6 +50,27 @@ describe("ScheduleForm", () => {
     expect(captured).toMatchObject({ spec: expect.objectContaining({ schedule: "0 */6 * * *" }) });
   });
 
+  it("volume-snapshot type hides the destination and posts no repoRef", async () => {
+    let postedStrategy: unknown;
+    let hadRepoRef = true;
+    server.use(
+      http.post("/schedules", async ({ request }) => {
+        const spec = ((await request.json()) as { spec?: Record<string, unknown> }).spec ?? {};
+        postedStrategy = spec.strategy;
+        hadRepoRef = "repoRef" in spec;
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "volume-snapshot");
+    expect(screen.queryByLabelText("Destination")).toBeNull();
+    const create = screen.getByRole("button", { name: /Create schedule/i });
+    await waitFor(() => expect(create).toBeEnabled());
+    await userEvent.click(create);
+    await waitFor(() => expect(postedStrategy).toBe("volume-snapshot"));
+    expect(hadRepoRef).toBe(false);
+  });
+
   it("renders an error banner if Create fails", async () => {
     server.use(
       http.post("/schedules", () =>

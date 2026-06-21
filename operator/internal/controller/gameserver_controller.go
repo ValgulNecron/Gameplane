@@ -773,7 +773,7 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, bs, func() error {
 		bs.Spec.ServerRef = kestrelv1alpha1.LocalObjectRef{Name: gs.Name}
 		bs.Spec.Schedule = gs.Spec.BackupPolicy.Schedule
-		bs.Spec.RepoRef = gs.Spec.BackupPolicy.RepoRef
+		bs.Spec.RepoRef = &gs.Spec.BackupPolicy.RepoRef
 		bs.Spec.Retention = gs.Spec.BackupPolicy.Retention
 		bs.Spec.Suspend = gs.Spec.BackupPolicy.Suspend
 		return controllerutil.SetControllerReference(gs, bs, r.Scheme)

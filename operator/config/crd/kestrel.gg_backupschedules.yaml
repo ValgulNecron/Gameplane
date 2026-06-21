@@ -76,7 +76,10 @@ spec:
                 description: Quiesce mirrors BackupSpec.Quiesce.
                 type: boolean
               repoRef:
-                description: RepoRef is the restic repository credentials Secret.
+                description: |-
+                  RepoRef is the restic repository credentials Secret. Required for the
+                  restic-snapshot strategy; omit for volume-snapshot (CSI snapshots need
+                  no restic repo).
                 properties:
                   key:
                     minLength: 1
@@ -151,10 +154,12 @@ spec:
                 description: Suspend pauses the schedule without deleting it.
                 type: boolean
             required:
-            - repoRef
             - schedule
             - serverRef
             type: object
+            x-kubernetes-validations:
+            - message: repoRef is required for the restic-snapshot strategy
+              rule: self.strategy == 'volume-snapshot' || has(self.repoRef)
           status:
             description: BackupScheduleStatus is the observed state of a BackupSchedule.
             properties:
