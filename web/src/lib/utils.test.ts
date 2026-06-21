@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { cn, formatBytes, formatRelative, formatUptime } from "./utils";
+import {
+  cn,
+  formatBytes,
+  formatRelative,
+  formatRelativeFuture,
+  formatUptime,
+  parseQuantityToBytes,
+} from "./utils";
 
 describe("cn", () => {
   it("merges tailwind classes deduplicating conflicts", () => {
@@ -57,6 +64,59 @@ describe("formatRelative", () => {
   });
   it("days", () => {
     expect(formatRelative("2026-05-04T12:00:00Z")).toBe("3d ago");
+  });
+});
+
+describe("formatRelativeFuture", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-07T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("returns em dash for empty", () => {
+    expect(formatRelativeFuture()).toBe("—");
+  });
+  it("returns input on invalid date", () => {
+    expect(formatRelativeFuture("nope")).toBe("nope");
+  });
+  it("reads past/now as due", () => {
+    expect(formatRelativeFuture("2026-05-07T11:59:00Z")).toBe("due");
+  });
+  it("minutes ahead", () => {
+    expect(formatRelativeFuture("2026-05-07T12:45:00Z")).toBe("in 45m");
+  });
+  it("hours ahead", () => {
+    expect(formatRelativeFuture("2026-05-07T14:00:00Z")).toBe("in 2h");
+  });
+  it("days ahead", () => {
+    expect(formatRelativeFuture("2026-05-09T12:00:00Z")).toBe("in 2d");
+  });
+});
+
+describe("parseQuantityToBytes", () => {
+  it("returns 0 for empty/unparseable", () => {
+    expect(parseQuantityToBytes()).toBe(0);
+    expect(parseQuantityToBytes("")).toBe(0);
+    expect(parseQuantityToBytes("garbage")).toBe(0);
+  });
+  it("parses plain byte counts", () => {
+    expect(parseQuantityToBytes("5368709120")).toBe(5368709120);
+  });
+  it("parses binary-SI suffixes", () => {
+    expect(parseQuantityToBytes("5Gi")).toBe(5 * 1024 ** 3);
+    expect(parseQuantityToBytes("512Mi")).toBe(512 * 1024 ** 2);
+    expect(parseQuantityToBytes("38.2 GiB")).toBeCloseTo(38.2 * 1024 ** 3);
+  });
+  it("parses decimal-SI suffixes", () => {
+    expect(parseQuantityToBytes("5G")).toBe(5 * 1000 ** 3);
+    expect(parseQuantityToBytes("500MB")).toBe(500 * 1000 ** 2);
+  });
+  it("treats a bare B as bytes", () => {
+    expect(parseQuantityToBytes("1024 B")).toBe(1024);
+  });
+  it("returns 0 for an unknown unit", () => {
+    expect(parseQuantityToBytes("5X")).toBe(0);
   });
 });
 
