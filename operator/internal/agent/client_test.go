@@ -160,6 +160,38 @@ func (rt *rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	return rt.base.RoundTrip(req2)
 }
 
+func TestStop_DisabledNoOp(t *testing.T) {
+	c := &Client{Disabled: true}
+	if err := c.Stop(context.Background(), "ns", "srv"); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+}
+
+func TestStop_HappyPath(t *testing.T) {
+	var gotPath string
+	c, cleanup := newMockClient(t, func(w http.ResponseWriter, req *http.Request) {
+		gotPath = req.URL.Path
+		_ = json.NewEncoder(w).Encode(map[string]any{"stopped": true})
+	})
+	defer cleanup()
+	if err := c.Stop(context.Background(), "ns", "srv"); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if gotPath != "/lifecycle/stop" {
+		t.Fatalf("unexpected path %q", gotPath)
+	}
+}
+
+func TestStop_5xx(t *testing.T) {
+	c, cleanup := newMockClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	})
+	defer cleanup()
+	if err := c.Stop(context.Background(), "ns", "srv"); err == nil {
+		t.Fatal("expected error on 5xx")
+	}
+}
+
 func TestQuiesce_HappyPath(t *testing.T) {
 	c, cleanup := newMockClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"quiesced": true})

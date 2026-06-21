@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -42,7 +43,29 @@ type GameServerReconciler struct {
 	// (charts/kestrel/templates/mtls.yaml).
 	AgentCASecretName      string
 	AgentCASecretNamespace string
+
+	// AgentClient runs the module-declared in-game stop sequence over RCON
+	// during a soft stop. May be nil (or a disabled client) in dev clusters,
+	// in which case the operator falls back to a timed scale-to-zero.
+	AgentClient AgentStopper
 }
+
+// AgentStopper issues the module-declared graceful stop sequence to a game's
+// agent. Satisfied by *operator/internal/agent.Client.
+type AgentStopper interface {
+	Stop(ctx context.Context, namespace, server string) error
+}
+
+const (
+	// stopRequestedAtAnnotation records (RFC3339) when the operator issued the
+	// in-game stop sequence, so the soft-stop wait survives reconciles and the
+	// command is issued only once.
+	stopRequestedAtAnnotation = "gameserver.kestrel.gg/stop-requested-at"
+
+	// defaultStopGracePeriod bounds the soft-stop wait when the GameServer
+	// leaves spec.stopGracePeriodSeconds unset.
+	defaultStopGracePeriod = 30 * time.Second
+)
 
 // RBAC markers below describe only the CLUSTER-wide permissions the
 // operator needs. Writes to workload primitives (StatefulSets, Services,
@@ -136,7 +159,12 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile rcon Secret")
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, ver, mc); err != nil {
+	replicas, stopRequeue, err := r.desiredReplicas(ctx, &gs, &tmpl)
+	if err != nil {
+		logger.Error(err, "compute desired replicas")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, ver, mc, replicas); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
 	}
@@ -152,6 +180,11 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	requeue, err := r.reconcileStatus(ctx, &gs)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+	// While a soft stop is mid-flight, requeue at the (sooner) grace deadline
+	// so we scale to zero even if no pod event arrives first.
+	if stopRequeue > 0 && (requeue == 0 || stopRequeue < requeue) {
+		requeue = stopRequeue
 	}
 	return ctrl.Result{RequeueAfter: requeue}, nil
 }
@@ -303,14 +336,94 @@ func svcPortsFromTemplate(
 	return out
 }
 
+// desiredReplicas decides the StatefulSet replica count, driving the
+// module-declared soft stop on the suspend transition. On stop it issues the
+// in-game stop sequence over the agent (once, tracked by an annotation), keeps
+// the pod running while the game saves and shuts down, and scales to zero as
+// soon as the game goes not-ready — or when spec.stopGracePeriodSeconds elapses
+// as a backstop. The second return value is a requeue hint (>0 while a soft
+// stop is in progress). Templates with no stop sequence keep the original
+// behaviour: suspend scales straight to zero.
+func (r *GameServerReconciler) desiredReplicas(
+	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+) (int32, time.Duration, error) {
+	if !gs.Spec.Suspend {
+		// Running: drop any stale soft-stop bookkeeping from a prior stop.
+		return 1, 0, r.clearStopAnnotation(ctx, gs)
+	}
+
+	declared := tmpl.Spec.Capabilities != nil &&
+		tmpl.Spec.Capabilities.Lifecycle != nil &&
+		len(tmpl.Spec.Capabilities.Lifecycle.Stop) > 0
+	if !declared || r.AgentClient == nil {
+		return 0, 0, nil // hard scale-down (no graceful stop available)
+	}
+
+	// Is the game still up? If the StatefulSet is gone or has no ready
+	// replica, there's nothing to gracefully stop — finish the scale-down.
+	var ss appsv1.StatefulSet
+	switch err := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: gs.Name}, &ss); {
+	case apierrors.IsNotFound(err):
+		return 0, 0, nil
+	case err != nil:
+		return 0, 0, err
+	}
+	if ss.Status.ReadyReplicas == 0 {
+		return 0, 0, nil
+	}
+
+	grace := defaultStopGracePeriod
+	if gs.Spec.StopGracePeriodSeconds != nil {
+		grace = time.Duration(*gs.Spec.StopGracePeriodSeconds) * time.Second
+	}
+
+	// First pass: stamp the start of the grace clock, then issue the stop
+	// sequence. Stamping first means an update conflict retries cleanly
+	// without re-issuing the command.
+	if _, ok := gs.Annotations[stopRequestedAtAnnotation]; !ok {
+		if err := r.setStopAnnotation(ctx, gs, time.Now().UTC().Format(time.RFC3339)); err != nil {
+			return 1, 0, err
+		}
+		if err := r.AgentClient.Stop(ctx, gs.Namespace, gs.Name); err != nil {
+			// Best-effort: a failed/unreachable agent must not wedge the stop.
+			// The grace deadline (and readiness) still scale us down.
+			log.FromContext(ctx).Info("soft stop: agent stop call failed; falling back to timed scale-down", "err", err)
+		}
+		return 1, grace, nil // keep running; requeue at the grace deadline
+	}
+
+	// Backstop: the game is still ready, so wait out the remaining grace
+	// (readiness going to zero, handled above, scales us down sooner).
+	requestedAt, perr := time.Parse(time.RFC3339, gs.Annotations[stopRequestedAtAnnotation])
+	if perr != nil {
+		return 0, 0, nil // unparseable stamp — don't hang, just scale down
+	}
+	if remaining := grace - time.Since(requestedAt); remaining > 0 {
+		return 1, remaining, nil
+	}
+	return 0, 0, nil
+}
+
+func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *kestrelv1alpha1.GameServer, val string) error {
+	if gs.Annotations == nil {
+		gs.Annotations = map[string]string{}
+	}
+	gs.Annotations[stopRequestedAtAnnotation] = val
+	return r.Update(ctx, gs)
+}
+
+func (r *GameServerReconciler) clearStopAnnotation(ctx context.Context, gs *kestrelv1alpha1.GameServer) error {
+	if _, ok := gs.Annotations[stopRequestedAtAnnotation]; !ok {
+		return nil
+	}
+	delete(gs.Annotations, stopRequestedAtAnnotation)
+	return r.Update(ctx, gs)
+}
+
 func (r *GameServerReconciler) reconcileStatefulSet(
 	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
-	ver *kestrelv1alpha1.GameVersion, mc *materializedConfig,
+	ver *kestrelv1alpha1.GameVersion, mc *materializedConfig, replicas int32,
 ) error {
-	replicas := int32(1)
-	if gs.Spec.Suspend {
-		replicas = 0
-	}
 	image := resolveImage(gs, tmpl, ver)
 
 	ss := &appsv1.StatefulSet{
