@@ -72,12 +72,34 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 		}
 		rs.Status.SnapshotID = src.Status.SnapshotID
-		rs.Status.Phase = kestrelv1alpha1.RestorePhaseSuspending
+		if src.Spec.Strategy == "volume-snapshot" {
+			// Volume-snapshot restores stand up a brand-new server rather
+			// than suspending and overwriting an existing one, so they skip
+			// the Suspending phase entirely.
+			rs.Status.Phase = kestrelv1alpha1.RestorePhaseRunning
+		} else {
+			rs.Status.Phase = kestrelv1alpha1.RestorePhaseSuspending
+		}
 		rs.Status.ObservedGeneration = rs.Generation
 		if err := r.Status().Update(ctx, &rs); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// Re-resolve the source Backup so we know its strategy on every pass
+	// (the pin block above only runs once). Volume-snapshot restores never
+	// touch an existing server — they provision a new one seeded from the
+	// CSI snapshot — so they branch off here, before the suspend/Job flow.
+	var src kestrelv1alpha1.Backup
+	if err := r.Get(ctx, types.NamespacedName{Name: rs.Spec.BackupRef.Name, Namespace: rs.Namespace}, &src); err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.fail(ctx, &rs, fmt.Sprintf("source backup %q disappeared", rs.Spec.BackupRef.Name))
+		}
+		return ctrl.Result{}, err
+	}
+	if src.Spec.Strategy == "volume-snapshot" {
+		return r.reconcileVolumeSnapshotRestore(ctx, &rs, &src)
 	}
 
 	var gs kestrelv1alpha1.GameServer
@@ -108,15 +130,8 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// Find the source Backup again (we need the RepoRef for the Job env).
-	var src kestrelv1alpha1.Backup
-	if err := r.Get(ctx, types.NamespacedName{Name: rs.Spec.BackupRef.Name, Namespace: rs.Namespace}, &src); err != nil {
-		if apierrors.IsNotFound(err) {
-			return r.fail(ctx, &rs, fmt.Sprintf("source backup %q disappeared", rs.Spec.BackupRef.Name))
-		}
-		return ctrl.Result{}, err
-	}
-
+	// src (the source Backup, with RepoRef for the Job env) was resolved
+	// above before the volume-snapshot branch.
 	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "restore-" + rs.Name, Namespace: rs.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, job, func() error {
 		if job.CreationTimestamp.IsZero() {
