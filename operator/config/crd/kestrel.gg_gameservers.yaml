@@ -1272,6 +1272,20 @@ spec:
                     x-kubernetes-validations:
                     - message: serviceAnnotations values must be at most 4096 characters
                       rule: self.all(k, self[k].size() <= 4096)
+                  sourceRanges:
+                    description: |-
+                      SourceRanges is an IP allow-list (CIDRs) for the fronting Service. It
+                      maps to service.spec.loadBalancerSourceRanges and therefore only takes
+                      effect when Expose=LoadBalancer (cloud LBs that honor it); it is
+                      ignored for ClusterIP/NodePort. Empty allows all clients.
+                    items:
+                      type: string
+                    maxItems: 20
+                    type: array
+                    x-kubernetes-list-type: atomic
+                    x-kubernetes-validations:
+                    - message: each sourceRange must be a CIDR, e.g. 203.0.113.0/24
+                      rule: self.all(c, c.contains('/'))
                 type: object
               nodeSelector:
                 additionalProperties:

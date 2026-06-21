@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search,
 }));
 
-import { CreateServerWizard, gameCategory } from "./CreateServer";
+import { CreateServerWizard, gameCategory, parseSourceRanges } from "./CreateServer";
 
 interface FetchInit {
   method?: string;
@@ -233,6 +233,44 @@ describe("CreateServerWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sandbox" }));
     expect(screen.getByRole("button", { name: /Minecraft Java/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Valheim/i })).toBeNull();
+  });
+});
+
+describe("parseSourceRanges", () => {
+  it("splits on newlines and commas, trimming blanks", () => {
+    expect(parseSourceRanges("203.0.113.0/24\n10.0.0.0/8")).toEqual([
+      "203.0.113.0/24",
+      "10.0.0.0/8",
+    ]);
+    expect(parseSourceRanges(" 1.2.3.0/24 , , 5.6.7.0/24 ")).toEqual([
+      "1.2.3.0/24",
+      "5.6.7.0/24",
+    ]);
+    expect(parseSourceRanges("")).toEqual([]);
+  });
+});
+
+describe("CreateServerWizard networking", () => {
+  it("sends sourceRanges when LoadBalancer + CIDRs are set", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
+      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /LoadBalancer/i }));
+    fireEvent.change(screen.getByLabelText("IP allow-list"), {
+      target: { value: "203.0.113.0/24\n10.0.0.0/8" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.sourceRanges).toEqual(["203.0.113.0/24", "10.0.0.0/8"]);
   });
 });
 

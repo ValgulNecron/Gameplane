@@ -47,6 +47,7 @@ interface WizardState {
   nodePlacement: "auto" | "pin" | "gpu";
   expose: "ClusterIP" | "NodePort" | "LoadBalancer";
   hostname: string;
+  sourceRanges: string;
 }
 
 const initial: WizardState = {
@@ -54,8 +55,17 @@ const initial: WizardState = {
   template: null, version: "", config: {},
   cpuLimit: "4", memoryLimit: "8",
   storageSize: "50Gi", nodePlacement: "auto",
-  expose: "NodePort", hostname: "",
+  expose: "NodePort", hostname: "", sourceRanges: "",
 };
+
+// Split the CIDR allow-list textarea (newline- or comma-separated) into a
+// clean list, dropping blanks.
+export function parseSourceRanges(raw: string): string[] {
+  return raw
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 function buildCreateBody(state: WizardState): ServerCreate {
   let nodeSelector: Record<string, string> | undefined;
@@ -71,6 +81,11 @@ function buildCreateBody(state: WizardState): ServerCreate {
     networking: {
       expose: state.expose,
       hostname: state.hostname || undefined,
+      // Only meaningful for LoadBalancer; omit otherwise so we don't store a
+      // range the operator would ignore.
+      ...(state.expose === "LoadBalancer" && parseSourceRanges(state.sourceRanges).length > 0
+        ? { sourceRanges: parseSourceRanges(state.sourceRanges) }
+        : {}),
     },
     resources: {
       limits: { cpu: state.cpuLimit, memory: `${state.memoryLimit}Gi` },
@@ -587,6 +602,22 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
           placeholder="mc.example.dev"
         />
       </label>
+      {state.expose === "LoadBalancer" && (
+        <label className="block space-y-1.5">
+          <span className="text-xs text-muted">IP allow-list (CIDRs, optional)</span>
+          <textarea
+            className="block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm"
+            rows={3}
+            value={state.sourceRanges}
+            onChange={(e) => setState({ ...state, sourceRanges: e.target.value })}
+            placeholder={"203.0.113.0/24\n10.0.0.0/8"}
+            aria-label="IP allow-list"
+          />
+          <span className="text-[11px] text-muted">
+            One CIDR per line. Restricts which clients reach the LoadBalancer; empty allows all.
+          </span>
+        </label>
+      )}
     </div>
   );
 }
@@ -603,6 +634,9 @@ function Review({ state }: { state: WizardState }) {
     ["Placement",   state.nodePlacement],
     ["Expose",      state.expose],
     ["Hostname",    state.hostname || "—"],
+    ...(state.expose === "LoadBalancer"
+      ? [["IP allow-list", parseSourceRanges(state.sourceRanges).join(", ") || "all"] as [string, string]]
+      : []),
   ];
   return (
     <div className="space-y-2 text-sm">

@@ -262,6 +262,14 @@ func (r *GameServerReconciler) reconcileService(
 		case "LoadBalancer":
 			svc.Spec.Type = corev1.ServiceTypeLoadBalancer
 		}
+		// loadBalancerSourceRanges is only valid on LoadBalancer Services;
+		// clear it otherwise so a later Expose change doesn't leave a stale
+		// (and rejected) allow-list behind.
+		if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+			svc.Spec.LoadBalancerSourceRanges = gs.Spec.Networking.SourceRanges
+		} else {
+			svc.Spec.LoadBalancerSourceRanges = nil
+		}
 		svc.Spec.Selector = map[string]string{
 			"app.kubernetes.io/name":     "kestrel-game",
 			"app.kubernetes.io/instance": gs.Name,
