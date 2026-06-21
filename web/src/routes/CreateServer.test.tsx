@@ -11,7 +11,8 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search,
 }));
 
-import { CreateServerWizard, gameCategory, parseSourceRanges } from "./CreateServer";
+import { CreateServerWizard, parseSourceRanges } from "./CreateServer";
+import { gameCategory } from "@/lib/games";
 
 interface FetchInit {
   method?: string;

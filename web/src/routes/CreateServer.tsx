@@ -15,6 +15,7 @@ import {
   validateConfig,
 } from "@/lib/validation";
 import { cn } from "@/lib/utils";
+import { GAME_CATEGORIES, gameCategory, type GameCategory } from "@/lib/games";
 import type { GameTemplate } from "@/types";
 
 // Wizard steps are derived per-template: the "version" step only appears when
@@ -311,19 +312,8 @@ function StepBar({ steps, stepIndex }: { steps: StepKey[]; stepIndex: number }) 
   );
 }
 
-const TEMPLATE_CATEGORIES = ["all", "Survival", "Sandbox", "Shooter"] as const;
-type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
-
-// Best-effort game→category mapping for the template filter — GameTemplate
-// has no category field, so this is a UI-side heuristic. Unknown games map to
-// "Other" and only appear under "All".
-export function gameCategory(game: string): string {
-  const g = game.toLowerCase();
-  if (/valheim|palworld|ark|rust|conan|7.?days|dayz/.test(g)) return "Survival";
-  if (/minecraft|terraria|factorio|satisfactory|stardew/.test(g)) return "Sandbox";
-  if (/cs2|cs.?go|csgo|tf2|valorant|insurgency|squad|left4dead/.test(g)) return "Shooter";
-  return "Other";
-}
+const TEMPLATE_CATEGORIES = GAME_CATEGORIES;
+type TemplateCategory = GameCategory;
 
 function PickTemplate({ state, setState }: { state: WizardState; setState: (s: WizardState) => void }) {
   const { data } = useQuery({
