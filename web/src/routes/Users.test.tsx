@@ -119,6 +119,8 @@ describe("UsersPage", () => {
     renderPage();
     expect(await screen.findByText("alice")).toBeInTheDocument();
     expect(screen.getByText("root")).toBeInTheDocument();
+    // Provider renders as a normalized badge (local → "Local").
+    expect(screen.getAllByText("Local").length).toBeGreaterThan(0);
   });
 
   it("opens the action menu for a row", async () => {
