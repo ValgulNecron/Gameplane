@@ -287,3 +287,21 @@ describe("gameCategory", () => {
     expect(gameCategory(game)).toBe(want);
   });
 });
+
+describe("CreateServerWizard review", () => {
+  it("Edit links jump back to the matching step", async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+
+    // Template / Configuration / Network sections each expose an Edit link.
+    const edits = screen.getAllByRole("button", { name: "Edit" });
+    expect(edits.length).toBe(3);
+    // Configuration is the second section → jumps back to the Configure step.
+    fireEvent.click(edits[1]);
+    expect(screen.getByPlaceholderText("mc-hardcore")).toBeInTheDocument();
+  });
+});
