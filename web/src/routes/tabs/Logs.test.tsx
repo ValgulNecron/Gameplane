@@ -42,7 +42,7 @@ vi.mock("@/lib/ws", () => ({
   ),
 }));
 
-import { LogsTab } from "./Logs";
+import { LogsTab, parseLogLevel } from "./Logs";
 
 beforeEach(() => {
   sockets.length = 0;
@@ -69,6 +69,18 @@ describe("LogsTab", () => {
     await waitFor(() => expect(screen.getByText(/2 lines/)).toBeInTheDocument());
     const filter = screen.getByPlaceholderText(/filter/i);
     await userEvent.type(filter, "error");
+    await waitFor(() => expect(screen.getByText(/1 lines/)).toBeInTheDocument());
+  });
+
+  it("filters lines by log level via the level pills", async () => {
+    render(<LogsTab name="alpha" />);
+    sockets[0].sendMsg(
+      "[Server thread/INFO]: ok\n[Server thread/WARN]: hmm\n[Server thread/ERROR]: boom",
+    );
+    await waitFor(() => expect(screen.getByText(/3 lines/)).toBeInTheDocument());
+    // The Error pill advertises its count and filters to just that level.
+    const errorPill = screen.getByRole("button", { name: /Error 1/ });
+    await userEvent.click(errorPill);
     await waitFor(() => expect(screen.getByText(/1 lines/)).toBeInTheDocument());
   });
 
@@ -177,5 +189,18 @@ describe("LogsTab", () => {
     await waitFor(() =>
       expect(sockets[sockets.length - 1].path).toBe("/ws/servers/alpha/logs/pod?from=start"),
     );
+  });
+});
+
+describe("parseLogLevel", () => {
+  it.each([
+    ["[Server thread/INFO]: started", "INFO"],
+    ["[Server thread/WARN]: deprecated", "WARN"],
+    ["[Server thread/ERROR]: crash", "ERROR"],
+    ["[main/DEBUG]: verbose", "DEBUG"],
+    ["2026-01-01 SEVERE something", "ERROR"],
+    ["plain line with no level", null],
+  ])("maps %s -> %s", (line, want) => {
+    expect(parseLogLevel(line)).toBe(want);
   });
 });
