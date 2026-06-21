@@ -77,9 +77,8 @@ rules:
   - kestrel.gg
   resources:
   - gameservers
-  - modules
-  - restores
   verbs:
+  - create
   - get
   - list
   - patch
@@ -92,6 +91,17 @@ rules:
   - modules/finalizers
   verbs:
   - update
+- apiGroups:
+  - kestrel.gg
+  resources:
+  - modules
+  - restores
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - kestrel.gg
   resources:
@@ -108,4 +118,24 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshotcontents
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshots
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch

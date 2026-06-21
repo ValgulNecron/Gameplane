@@ -29,7 +29,7 @@ type RestoreReconciler struct {
 
 // +kubebuilder:rbac:groups=kestrel.gg,resources=restores,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=kestrel.gg,resources=restores/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=kestrel.gg,resources=backups,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 
