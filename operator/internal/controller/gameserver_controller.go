@@ -228,6 +228,20 @@ func (r *GameServerReconciler) reconcilePVC(
 			} else if tmpl.Spec.Storage.StorageClassName != nil {
 				pvc.Spec.StorageClassName = tmpl.Spec.Storage.StorageClassName
 			}
+			// Seed the volume from a CSI VolumeSnapshot when requested
+			// (this is how volume-snapshot Restores stand up a new server).
+			// DataSource is immutable once the PVC binds, so it only ever
+			// takes effect on this first-creation path. The copied storage
+			// size is >= the snapshot's restoreSize by construction (the
+			// snapshot came from a PVC of that size).
+			if gs.Spec.Storage != nil && gs.Spec.Storage.DataSource != nil {
+				apiGroup := "snapshot.storage.k8s.io"
+				pvc.Spec.DataSource = &corev1.TypedLocalObjectReference{
+					APIGroup: &apiGroup,
+					Kind:     gs.Spec.Storage.DataSource.Kind,
+					Name:     gs.Spec.Storage.DataSource.Name,
+				}
+			}
 		}
 		return controllerutil.SetControllerReference(gs, pvc, r.Scheme)
 	})
