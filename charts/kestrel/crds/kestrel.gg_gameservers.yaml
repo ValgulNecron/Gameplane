@@ -1818,6 +1818,19 @@ spec:
                   an SA that lacks that grant disables heartbeats (the server then
                   never reports Running).
                 type: string
+              stopGracePeriodSeconds:
+                default: 30
+                description: |-
+                  StopGracePeriodSeconds bounds the soft-stop: when Suspend flips true
+                  and the template declares a Lifecycle.Stop sequence, the operator runs
+                  it over RCON and waits up to this long for the game to go not-ready
+                  before scaling the StatefulSet to zero (it scales early once the game
+                  has actually stopped). It has no effect when the template declares no
+                  stop sequence. Defaults to 30s.
+                format: int32
+                maximum: 600
+                minimum: 0
+                type: integer
               storage:
                 description: Storage overrides the template's storage layout.
                 properties:

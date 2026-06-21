@@ -22,6 +22,7 @@ import (
 	"github.com/kestrel-gg/kestrel/agent/internal/console"
 	"github.com/kestrel-gg/kestrel/agent/internal/files"
 	"github.com/kestrel-gg/kestrel/agent/internal/heartbeat"
+	"github.com/kestrel-gg/kestrel/agent/internal/lifecycle"
 	"github.com/kestrel-gg/kestrel/agent/internal/logs"
 	"github.com/kestrel-gg/kestrel/agent/internal/mods"
 	"github.com/kestrel-gg/kestrel/agent/internal/players"
@@ -93,12 +94,14 @@ func main() {
 	}
 	var playerActions *caps.PlayerActions
 	var quiesceSpec *caps.Quiesce
+	var lifecycleSpec *caps.Lifecycle
 	var actionSpecs []caps.ServerAction
 	var statusSpec *caps.Status
 	var modsSpec *caps.Mods
 	if capSpec != nil {
 		playerActions = capSpec.Players
 		quiesceSpec = capSpec.Quiesce
+		lifecycleSpec = capSpec.Lifecycle
 		actionSpecs = capSpec.Actions
 		statusSpec = capSpec.Status
 		modsSpec = capSpec.Mods
@@ -130,6 +133,7 @@ func main() {
 		console.Mount(protected, rconClient)
 		players.Mount(protected, rconClient, gameName, playerActions)
 		quiesce.Mount(protected, rconClient, gameName, quiesceSpec)
+		lifecycle.Mount(protected, rconClient, gameName, lifecycleSpec)
 		actions.Mount(protected, rconClient, gameName, actionSpecs)
 		status.Mount(protected, rconClient, statusSpec)
 		mods.Mount(protected, dataRoot, modsSpec)

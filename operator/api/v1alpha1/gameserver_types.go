@@ -32,6 +32,18 @@ type GameServerSpec struct {
 	// +optional
 	Suspend bool `json:"suspend,omitempty"`
 
+	// StopGracePeriodSeconds bounds the soft-stop: when Suspend flips true
+	// and the template declares a Lifecycle.Stop sequence, the operator runs
+	// it over RCON and waits up to this long for the game to go not-ready
+	// before scaling the StatefulSet to zero (it scales early once the game
+	// has actually stopped). It has no effect when the template declares no
+	// stop sequence. Defaults to 30s.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=600
+	// +kubebuilder:default=30
+	// +optional
+	StopGracePeriodSeconds *int32 `json:"stopGracePeriodSeconds,omitempty"`
+
 	// Image, when set, overrides GameTemplate.Spec.Image (and any image
 	// resolved from Version). Useful for pinning a specific build or
 	// running a fork.

@@ -147,3 +147,27 @@ func (c *Client) callQuiesce(ctx context.Context, namespace, server, path string
 	}
 	return nil
 }
+
+// Stop calls /lifecycle/stop on the agent, asking it to run the module's
+// declared in-game stop sequence over RCON. Best-effort: the operator records
+// but does not block on the result — server readiness and the grace deadline
+// drive the actual scale-down. A disabled client (no mTLS) is a no-op.
+func (c *Client) Stop(ctx context.Context, namespace, server string) error {
+	if c.Disabled {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, agentURL(namespace, server, "/lifecycle/stop"), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("agent: /lifecycle/stop: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 16<<10))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("agent: /lifecycle/stop: status %d", resp.StatusCode)
+	}
+	return nil
+}

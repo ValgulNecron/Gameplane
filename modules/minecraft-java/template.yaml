@@ -175,6 +175,11 @@ spec:
       quiesce: ["save-off", "save-all flush"]
       unquiesce: ["save-on"]
       failurePattern: "saving failed"
+    # Graceful stop: the operator issues these over RCON, waits for the
+    # server to save and go down, then scales the pod to zero — so a SIGTERM
+    # never interrupts an in-progress world save.
+    lifecycle:
+      stop: ["stop"]
     actions:
       - id: broadcast
         displayName: Broadcast message

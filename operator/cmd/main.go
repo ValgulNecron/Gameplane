@@ -86,12 +86,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	agentClient, err := agent.New(agent.Config{
+		CABundle:   agentCABundle,
+		ClientCert: agentClientCert,
+		ClientKey:  agentClientKey,
+	})
+	if err != nil {
+		setupLog.Error(err, "unable to build agent client")
+		os.Exit(1)
+	}
+
 	if err := (&controller.GameServerReconciler{
 		Client:                 mgr.GetClient(),
 		Scheme:                 mgr.GetScheme(),
 		AgentImage:             agentImage,
 		AgentCASecretName:      agentCASecretName,
 		AgentCASecretNamespace: agentCASecretNamespace,
+		AgentClient:            agentClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameServer")
 		os.Exit(1)
@@ -101,15 +112,6 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameTemplate")
-		os.Exit(1)
-	}
-	agentClient, err := agent.New(agent.Config{
-		CABundle:   agentCABundle,
-		ClientCert: agentClientCert,
-		ClientKey:  agentClientKey,
-	})
-	if err != nil {
-		setupLog.Error(err, "unable to build agent client")
 		os.Exit(1)
 	}
 
