@@ -57,6 +57,66 @@ describe("RestoreDialog", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it("volume-snapshot backup restores into a new server", async () => {
+    type RestoreBody = { spec?: { serverRef?: { name?: string } } };
+    let postedName: string | undefined;
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+      http.post("/restores", async ({ request }) => {
+        postedName = ((await request.json()) as RestoreBody).spec?.serverRef?.name;
+        return HttpResponse.json({});
+      }),
+    );
+    const onClose = vi.fn();
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "alpha-vs" },
+          spec: { serverRef: { name: "alpha" }, strategy: "volume-snapshot" },
+        })}
+        defaultServer="alpha"
+        onClose={onClose}
+      />,
+    );
+    expect(await screen.findByText(/provisioned from this snapshot/i)).toBeInTheDocument();
+    const input = screen.getByPlaceholderText(/my-restored-server/i) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("alpha-restored"));
+    const btn = screen.getByRole("button", { name: /restore to new server/i });
+    expect(btn).toBeEnabled();
+    await userEvent.click(btn);
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(postedName).toBe("alpha-restored");
+  });
+
+  it("volume-snapshot restore blocks a name that already exists", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "alpha" } }),
+            makeServer({ metadata: { name: "taken" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "alpha-vs" },
+          spec: { serverRef: { name: "alpha" }, strategy: "volume-snapshot" },
+        })}
+        onClose={() => {}}
+      />,
+    );
+    const input = await screen.findByPlaceholderText(/my-restored-server/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, "taken");
+    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /restore to new server/i })).toBeDisabled();
+  });
+
   it("surfaces error when restore POST fails", async () => {
     server.use(
       http.get("/servers", () => HttpResponse.json({ items: [] })),
