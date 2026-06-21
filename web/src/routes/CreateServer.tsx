@@ -221,7 +221,15 @@ export function CreateServerWizard() {
             {currentKey === "version" && <PickVersion state={state} setState={setState} />}
             {currentKey === "configure" && <Configure state={state} setState={setState} />}
             {currentKey === "network" && <Network state={state} setState={setState} />}
-            {currentKey === "review" && <Review state={state} />}
+            {currentKey === "review" && (
+              <Review
+                state={state}
+                onEdit={(key) => {
+                  const idx = steps.indexOf(key);
+                  if (idx >= 0) setStepIndex(idx);
+                }}
+              />
+            )}
           </div>
           <Preview state={state} />
         </div>
@@ -612,32 +620,64 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
   );
 }
 
-function Review({ state }: { state: WizardState }) {
+function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) => void }) {
   const hasVersions = (state.template?.spec.versions?.length ?? 0) > 0;
-  const rows: Array<[string, string]> = [
-    ["Template",    state.template?.spec.displayName ?? "—"],
-    ...(hasVersions ? [["Version", state.version || "—"] as [string, string]] : []),
-    ["Name",        state.name || "—"],
-    ["CPU",         `${state.cpuLimit} cores`],
-    ["Memory",      `${state.memoryLimit} GiB`],
-    ["Storage",     state.storageSize],
-    ["Placement",   state.nodePlacement],
-    ["Expose",      state.expose],
-    ["Hostname",    state.hostname || "—"],
-    ...(state.expose === "LoadBalancer"
-      ? [["IP allow-list", parseSourceRanges(state.sourceRanges).join(", ") || "all"] as [string, string]]
+  const sections = [
+    {
+      key: "template",
+      title: "Template",
+      rows: [["Template", state.template?.spec.displayName ?? "—"]] as Array<[string, string]>,
+    },
+    ...(hasVersions
+      ? [{ key: "version", title: "Version", rows: [["Version", state.version || "—"]] as Array<[string, string]> }]
       : []),
-  ];
+    {
+      key: "configure",
+      title: "Configuration",
+      rows: [
+        ["Name", state.name || "—"],
+        ["CPU", `${state.cpuLimit} cores`],
+        ["Memory", `${state.memoryLimit} GiB`],
+        ["Storage", state.storageSize],
+        ["Placement", state.nodePlacement],
+      ] as Array<[string, string]>,
+    },
+    {
+      key: "network",
+      title: "Network",
+      rows: [
+        ["Expose", state.expose],
+        ["Hostname", state.hostname || "—"],
+        ...(state.expose === "LoadBalancer"
+          ? [["IP allow-list", parseSourceRanges(state.sourceRanges).join(", ") || "all"] as [string, string]]
+          : []),
+      ] as Array<[string, string]>,
+    },
+  ] as Array<{ key: StepKey; title: string; rows: Array<[string, string]> }>;
   return (
-    <div className="space-y-2 text-sm">
-      {rows.map(([k, v]) => (
-        <div key={k} className="flex justify-between border-b border-border py-1.5">
-          <span className="text-muted">{k}</span>
-          <span className="font-mono">{v}</span>
+    <div className="space-y-4 text-sm">
+      {sections.map((sec) => (
+        <div key={sec.key}>
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-xs uppercase tracking-wide text-muted">{sec.title}</span>
+            <button
+              type="button"
+              onClick={() => onEdit(sec.key)}
+              className="text-xs text-primary hover:underline"
+            >
+              Edit
+            </button>
+          </div>
+          {sec.rows.map(([k, v]) => (
+            <div key={k} className="flex justify-between border-b border-border py-1.5">
+              <span className="text-muted">{k}</span>
+              <span className="font-mono">{v}</span>
+            </div>
+          ))}
         </div>
       ))}
       {Object.keys(state.config).length > 0 && (
-        <div className="pt-3">
+        <div className="pt-1">
           <div className="pb-1 text-xs uppercase text-muted">Template config</div>
           <pre className="rounded bg-surface p-3 font-mono text-xs">
             {JSON.stringify(state.config, null, 2)}
