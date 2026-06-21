@@ -1,8 +1,10 @@
 package mods
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -181,6 +183,72 @@ func TestInstall_HappyPath(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(root, "mods", "cool.jar"))
 	if err != nil || string(data) != "JARDATA" {
 		t.Fatalf("file = %q err=%v", data, err)
+	}
+}
+
+func TestInstall_ExtractArchive(t *testing.T) {
+	allowLoopback(t)
+
+	// Build a Thunderstore-style zip: a plugin .dll plus package metadata.
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, content := range map[string]string{
+		"plugins/Cool.dll": "DLLBYTES",
+		"manifest.json":    `{"name":"Cool"}`,
+		"README.md":        "hi",
+	} {
+		f, _ := zw.Create(name)
+		_, _ = f.Write([]byte(content))
+	}
+	_ = zw.Close()
+	zipBytes := buf.Bytes()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(zipBytes)
+	}))
+	defer upstream.Close()
+	host, _, _ := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".zip"},
+		Extract:    true,
+		Install:    &caps.ModInstall{AllowedHosts: []string{host}},
+	}
+	srv := newSrv(t, root, spec)
+
+	// Install → unpacks into plugins/<name>/.
+	status, body := do(t, srv, http.MethodPost, "/mods/install",
+		map[string]string{"url": upstream.URL + "/x.zip", "name": "Owner-Cool-1.0.0.zip"})
+	if status != http.StatusOK {
+		t.Fatalf("install status=%d body=%s", status, body)
+	}
+	dll := filepath.Join(root, "plugins", "Owner-Cool-1.0.0", "plugins", "Cool.dll")
+	if data, err := os.ReadFile(dll); err != nil || string(data) != "DLLBYTES" {
+		t.Fatalf("extracted dll = %q err=%v", data, err)
+	}
+
+	// List → the per-mod folder shows as one mod.
+	status, body = do(t, srv, http.MethodGet, "/mods", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list status=%d", status)
+	}
+	var mods []Mod
+	if err := json.Unmarshal(body, &mods); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(mods) != 1 || mods[0].Name != "Owner-Cool-1.0.0" {
+		t.Fatalf("list = %+v, want one folder Owner-Cool-1.0.0", mods)
+	}
+
+	// Remove → the whole folder is gone.
+	status, _ = do(t, srv, http.MethodDelete, "/mods?name=Owner-Cool-1.0.0", nil)
+	if status != http.StatusNoContent {
+		t.Fatalf("remove status=%d", status)
+	}
+	if _, err := os.Stat(filepath.Join(root, "plugins", "Owner-Cool-1.0.0")); !os.IsNotExist(err) {
+		t.Fatalf("folder should be gone, stat err=%v", err)
 	}
 }
 
@@ -397,6 +465,104 @@ func TestHostAllowed(t *testing.T) {
 		if hostAllowed(h, allow) {
 			t.Errorf("hostAllowed(%q) = true, want false", h)
 		}
+	}
+}
+
+func TestArchiveFolderName(t *testing.T) {
+	cases := map[string]string{
+		"Owner-Mod-1.0.0.zip":    "Owner-Mod-1.0.0",
+		"Owner-Mod-1.0.0.tar.gz": "Owner-Mod-1.0.0",
+		"Owner-Mod-1.0.0.tgz":    "Owner-Mod-1.0.0",
+		"Owner-Mod-1.0.0.TGZ":    "Owner-Mod-1.0.0", // case-insensitive
+		"plainname":              "plainname",       // no known archive ext
+	}
+	for in, want := range cases {
+		if got := archiveFolderName(in); got != want {
+			t.Errorf("archiveFolderName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func makeZip(t *testing.T, entries map[string]string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "a.zip")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	for name, content := range entries {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestUnzipInto_RejectsZipSlip(t *testing.T) {
+	zipPath := makeZip(t, map[string]string{"good.txt": "ok", "../evil.txt": "pwned"})
+	dst := filepath.Join(t.TempDir(), "out")
+	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
+		t.Fatalf("unzipInto: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "good.txt")); err != nil {
+		t.Fatalf("good.txt should be extracted: %v", err)
+	}
+	// The traversal entry is skipped — nothing lands beside the staging dir.
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dst), "evil.txt")); !os.IsNotExist(err) {
+		t.Fatalf("evil.txt escaped the staging dir: %v", err)
+	}
+}
+
+func TestUnzipInto_SizeCap(t *testing.T) {
+	zipPath := makeZip(t, map[string]string{"big.bin": strings.Repeat("A", 4096)})
+	dst := filepath.Join(t.TempDir(), "out")
+	if err := unzipInto(zipPath, dst, 1024); !errors.Is(err, errTooLarge) {
+		t.Fatalf("unzipInto over cap = %v, want errTooLarge", err)
+	}
+}
+
+func TestUnzipInto_BadArchive(t *testing.T) {
+	dir := t.TempDir()
+	notZip := filepath.Join(dir, "x.zip")
+	if err := os.WriteFile(notZip, []byte("definitely not a zip"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := unzipInto(notZip, filepath.Join(dir, "out"), 1<<20); !errors.Is(err, errBadArchive) {
+		t.Fatalf("unzipInto bad archive = %v, want errBadArchive", err)
+	}
+}
+
+func TestInstall_ExtractBadArchive(t *testing.T) {
+	allowLoopback(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("definitely not a zip"))
+	}))
+	defer upstream.Close()
+	host, _, _ := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".zip"},
+		Extract:    true,
+		Install:    &caps.ModInstall{AllowedHosts: []string{host}},
+	}
+	srv := newSrv(t, root, spec)
+	status, _ := do(t, srv, http.MethodPost, "/mods/install",
+		map[string]string{"url": upstream.URL + "/x.zip", "name": "Owner-Bad-1.0.0.zip"})
+	if status != http.StatusBadGateway {
+		t.Fatalf("status=%d, want 502 (bad archive)", status)
 	}
 }
 

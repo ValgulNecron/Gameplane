@@ -32,10 +32,23 @@ type GameServerSpec struct {
 	// +optional
 	Suspend bool `json:"suspend,omitempty"`
 
-	// Image, when set, overrides GameTemplate.Spec.Image. Useful for
-	// pinning a specific version or running a fork.
+	// Image, when set, overrides GameTemplate.Spec.Image (and any image
+	// resolved from Version). Useful for pinning a specific build or
+	// running a fork.
 	// +optional
 	Image string `json:"image,omitempty"`
+
+	// Version selects a GameTemplate.spec.versions[].id, pinning that
+	// entry's image and appending its env (and provisioning its per-loader
+	// mod volume). When the template declares versions and this is set, it
+	// must match a catalog id or the server fails. Empty selects the
+	// template's default version (the entry with default=true, else the
+	// first); when the template declares no versions, this is ignored and
+	// the server runs spec.image or the template Image.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=40
+	// +optional
+	Version string `json:"version,omitempty"`
 
 	// Env is appended to (and overrides) the template's env vars.
 	// +optional

@@ -92,8 +92,20 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			fmt.Sprintf("invalid config: %v", err))
 	}
 
+	// Resolve the selected game version (image/env + per-loader mod
+	// volume). A spec.version that names no catalog entry fails loudly,
+	// like an invalid config, rather than silently falling back.
+	ver, err := resolveVersion(&gs, &tmpl)
+	if err != nil {
+		return ctrl.Result{}, r.setPhase(ctx, &gs, kestrelv1alpha1.GameServerPhaseFailed, err.Error())
+	}
+
 	if err := r.reconcilePVC(ctx, &gs, &tmpl); err != nil {
 		logger.Error(err, "reconcile PVC")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileModPVC(ctx, &gs, &tmpl, ver); err != nil {
+		logger.Error(err, "reconcile mod PVC")
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileService(ctx, &gs, &tmpl); err != nil {
@@ -124,7 +136,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile rcon Secret")
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, mc); err != nil {
+	if err := r.reconcileStatefulSet(ctx, &gs, &tmpl, ver, mc); err != nil {
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
 	}
@@ -293,16 +305,13 @@ func svcPortsFromTemplate(
 
 func (r *GameServerReconciler) reconcileStatefulSet(
 	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
-	mc *materializedConfig,
+	ver *kestrelv1alpha1.GameVersion, mc *materializedConfig,
 ) error {
 	replicas := int32(1)
 	if gs.Spec.Suspend {
 		replicas = 0
 	}
-	image := tmpl.Spec.Image
-	if gs.Spec.Image != "" {
-		image = gs.Spec.Image
-	}
+	image := resolveImage(gs, tmpl, ver)
 
 	ss := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: gs.Name, Namespace: gs.Namespace},
@@ -330,8 +339,8 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		}
 		ss.Spec.Template.ObjectMeta.Annotations = ann
 		ss.Spec.Template.Spec.Containers = []corev1.Container{
-			buildGameContainer(gs, tmpl, image, mc),
-			buildAgentContainer(gs, tmpl, r.AgentImage),
+			buildGameContainer(gs, tmpl, image, ver, mc),
+			buildAgentContainer(gs, tmpl, ver, r.AgentImage),
 		}
 		volumes := []corev1.Volume{
 			{
@@ -387,6 +396,13 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		} else {
 			ss.Spec.Template.Spec.InitContainers = nil
 		}
+		// Per-(version+loader) mod volume, nested at storage.mountPath/<path>
+		// so the game image reads mods from its usual dir while they persist
+		// on their own PVC. Assigned wholesale with the rest, so switching to
+		// a loaderless version drops the mount on the next reconcile.
+		if v := modVolume(gs, tmpl, ver); v != nil {
+			volumes = append(volumes, *v)
+		}
 		ss.Spec.Template.Spec.Volumes = volumes
 		if gs.Spec.NodeSelector != nil {
 			ss.Spec.Template.Spec.NodeSelector = gs.Spec.NodeSelector
@@ -400,6 +416,13 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		if gs.Spec.ServiceAccountName != "" {
 			ss.Spec.Template.Spec.ServiceAccountName = gs.Spec.ServiceAccountName
 		}
+		// Share the pod's PID namespace so the agent sidecar can read the
+		// game process's CPU/memory from /proc. cgroup v2 files are
+		// per-container, so without this the agent only sees its own
+		// (idle) usage. The pod stays non-privileged; /proc/<pid>/stat and
+		// /statm are world-readable, so no extra capabilities are needed.
+		shareProcess := true
+		ss.Spec.Template.Spec.ShareProcessNamespace = &shareProcess
 		return controllerutil.SetControllerReference(gs, ss, r.Scheme)
 	})
 	return err
@@ -445,7 +468,7 @@ func buildConfigInitContainer(tmpl *kestrelv1alpha1.GameTemplate) corev1.Contain
 
 func buildGameContainer(
 	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, image string,
-	mc *materializedConfig,
+	ver *kestrelv1alpha1.GameVersion, mc *materializedConfig,
 ) corev1.Container {
 	mountPath := effectiveMountPath(tmpl)
 	ports := make([]corev1.ContainerPort, 0, len(tmpl.Spec.Ports))
@@ -454,9 +477,13 @@ func buildGameContainer(
 			Name: p.Name, ContainerPort: p.ContainerPort, Protocol: p.Protocol,
 		})
 	}
-	// Later entries win on duplicate names: template defaults, then
-	// schema-resolved config, then explicit spec.env overrides.
+	// Later entries win on duplicate names: template defaults, then the
+	// selected version's env (e.g. itzg TYPE/VERSION), then schema-resolved
+	// config, then explicit spec.env overrides.
 	env := append([]corev1.EnvVar{}, tmpl.Spec.Env...)
+	if ver != nil {
+		env = append(env, ver.Env...)
+	}
 	env = append(env, mc.env...)
 	env = append(env, gs.Spec.Env...)
 	// The operator-managed RCON password wins, so the game and the agent
@@ -470,6 +497,11 @@ func buildGameContainer(
 		res = *gs.Spec.Resources
 	}
 
+	mounts := []corev1.VolumeMount{{Name: "data", MountPath: mountPath}}
+	if m := modVolumeMount(tmpl, ver); m != nil {
+		mounts = append(mounts, *m)
+	}
+
 	c := corev1.Container{
 		Name:         gameContainerName,
 		Image:        image,
@@ -477,7 +509,7 @@ func buildGameContainer(
 		Args:         tmpl.Spec.Args,
 		Env:          env,
 		Ports:        ports,
-		VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: mountPath}},
+		VolumeMounts: mounts,
 		Resources:    res,
 	}
 	if tmpl.Spec.Probes != nil {
@@ -509,7 +541,8 @@ func buildGameContainer(
 }
 
 func buildAgentContainer(
-	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, fallbackImage string,
+	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ver *kestrelv1alpha1.GameVersion, fallbackImage string,
 ) corev1.Container {
 	image := fallbackImage
 	res := corev1.ResourceRequirements{}
@@ -543,23 +576,46 @@ func buildAgentContainer(
 		// agent dialing a console port that doesn't exist — players
 		// and moderation endpoints degrade instead.
 		{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+		// The pod shares its PID namespace (ShareProcessNamespace), so the
+		// agent reports the GAME process's CPU/memory from /proc rather than
+		// its own per-container cgroup (which shows only the idle sidecar).
+		{Name: "KESTREL_USAGE_PROC", Value: "1"},
 	}
-	// Declared capability commands travel to the agent as one JSON
-	// blob; the env change rolls the StatefulSet, so capability edits
-	// apply on the next pod rollout like every other template change.
-	if tmpl.Spec.Capabilities != nil {
-		if caps, err := json.Marshal(tmpl.Spec.Capabilities); err == nil {
-			env = append(env, corev1.EnvVar{Name: "KESTREL_CAPABILITIES", Value: string(caps)})
+	// In proc mode the agent can't read the game container's cgroup limit, so
+	// pass the resolved limits through as the denominator for the dashboard's
+	// usage bars. Mirrors buildGameContainer's resource resolution.
+	gameRes := tmpl.Spec.Resources
+	if gs.Spec.Resources != nil {
+		gameRes = *gs.Spec.Resources
+	}
+	if cpu := gameRes.Limits.Cpu(); cpu != nil && !cpu.IsZero() {
+		env = append(env, corev1.EnvVar{
+			Name: "KESTREL_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
+		})
+	}
+	if mem := gameRes.Limits.Memory(); mem != nil && !mem.IsZero() {
+		env = append(env, corev1.EnvVar{
+			Name: "KESTREL_MEM_LIMIT_BYTES", Value: strconv.FormatInt(mem.Value(), 10),
+		})
+	}
+	// Declared capability commands travel to the agent as one JSON blob;
+	// the env change rolls the StatefulSet, so capability edits apply on the
+	// next pod rollout like every other template change. resolveCapabilities
+	// collapses the per-loader mods map into the active version's concrete
+	// Mods.Path, so the agent stays loader-agnostic (no agent code change).
+	if caps := resolveCapabilities(tmpl, ver); caps != nil {
+		if b, err := json.Marshal(caps); err == nil {
+			env = append(env, corev1.EnvVar{Name: "KESTREL_CAPABILITIES", Value: string(b)})
 		}
 	}
 	return corev1.Container{
-		Name:  "agent",
-		Image: image,
-		Args:  args,
-		Env:   env,
-		VolumeMounts: agentVolumeMounts(gs, tmpl, mountPath),
+		Name:         "agent",
+		Image:        image,
+		Args:         args,
+		Env:          env,
+		VolumeMounts: agentVolumeMounts(gs, tmpl, ver, mountPath),
 		Ports:        []corev1.ContainerPort{{Name: "agent", ContainerPort: 8090}},
-		Resources: res,
+		Resources:    res,
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             &nonRoot,
 			RunAsUser:                &uid,

@@ -49,13 +49,54 @@ export interface ModInstallPolicy {
   maxSizeMB?: number;
 }
 
-// spec.capabilities.mods — declares the mod directory and (optionally)
-// the URL-install policy. Listing/removal need only `path`; install is
-// offered only when `install` is set.
-export interface ModsCapability {
+// spec.capabilities.mods.loaders[<loader>] — the mods directory for one
+// loader/server-type, selected by the active version's loader.
+export interface ModLoaderDecl {
   path: string;
+  displayName?: string;
+  extensions?: string[];
+}
+
+// spec.capabilities.mods.registry — selects a built-in external mod
+// registry the dashboard can browse/search. When present (and the server's
+// game supports it) the Mods tab offers a "Search registry" mode; absent
+// means install-by-URL only.
+export interface ModRegistryDecl {
+  providers: ModProviderDecl[];
+}
+
+// One declared registry provider on a template.
+export interface ModProviderDecl {
+  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar";
+  community?: string;
+  modpacks?: ModpackDecl;
+}
+
+// registry.providers[].modpacks — enables the Modpacks tab for that
+// provider. refEnv set = env-mode install (e.g. Minecraft/itzg
+// MODRINTH_MODPACK); empty = deps-mode (resolve + install the pack's deps).
+export interface ModpackDecl {
+  refEnv?: string;
+  env?: { name: string; value?: string }[];
+}
+
+// GET /servers/{name}/mods/registry/providers — drives the provider switch.
+export interface RegistryProviderInfo {
+  provider: string;
+  available: boolean;
+  modpacks: boolean;
+}
+
+// spec.capabilities.mods — declares the mod directory and (optionally)
+// the URL-install policy. A template uses either a single `path` (legacy)
+// or a per-loader `loaders` map keyed by GameVersion.loader; install is
+// offered only when `install` is set; `registry` enables in-app browse.
+export interface ModsCapability {
+  path?: string;
+  loaders?: Record<string, ModLoaderDecl>;
   extensions?: string[];
   install?: ModInstallPolicy;
+  registry?: ModRegistryDecl;
 }
 
 // spec.capabilities — only the surfaces the dashboard renders are typed;
@@ -104,6 +145,55 @@ export interface ProbeSet {
 
 export type ProbeKind = "readiness" | "liveness" | "startup";
 
+// One entry in a template's version catalog (spec.versions[]). Selecting it
+// (GameServer.spec.version = id) pins the image and, when `loader` keys into
+// capabilities.mods.loaders, that loader's per-(version+loader) mod volume.
+// `env` is operator-side only and intentionally not surfaced here.
+export interface GameVersion {
+  id: string;
+  displayName: string;
+  image?: string;
+  loader?: string;
+  default?: boolean;
+  // Clean upstream version token (e.g. "1.21.4") passed to a mod registry
+  // to filter results; distinct from `id` (a Kestrel selector).
+  gameVersion?: string;
+}
+
+// A search hit from the mod-registry browse endpoint, normalized across
+// providers (GET /servers/{name}/mods/registry/search).
+export interface RegistryProject {
+  id: string;
+  slug?: string;
+  title: string;
+  description?: string;
+  author?: string;
+  iconUrl?: string;
+  downloads?: number;
+  pageUrl?: string;
+  provider: "modrinth" | "thunderstore";
+}
+
+// A downloadable artifact of a RegistryVersion; downloadUrl is handed to
+// the existing install endpoint.
+export interface RegistryFile {
+  filename: string;
+  downloadUrl: string;
+  size?: number;
+  primary?: boolean;
+}
+
+// One release of a RegistryProject (newest first), already filtered to the
+// active loader + game version by the API.
+export interface RegistryVersion {
+  id: string;
+  name?: string;
+  versionNumber?: string;
+  gameVersions?: string[];
+  loaders?: string[];
+  files: RegistryFile[];
+}
+
 export interface GameTemplate {
   metadata: ObjectMeta;
   spec: {
@@ -114,6 +204,7 @@ export interface GameTemplate {
     icon?: string;
     accentColor?: string;
     image: string;
+    versions?: GameVersion[];
     logPath?: string;
     consoleMode?: "rcon" | "pty" | "none";
     rcon?: { protocol?: string; port?: number };
@@ -182,6 +273,9 @@ export interface GameServer {
     templateRef: { name: string };
     suspend?: boolean;
     image?: string;
+    // Selects a GameTemplate.spec.versions[].id (image + per-loader mod
+    // volume). Omit to use the template's default version.
+    version?: string;
     config?: Record<string, string>;
     env?: EnvVar[];
     probes?: ProbeSet;

@@ -23,6 +23,7 @@ import (
 	"github.com/kestrel-gg/kestrel/api/internal/handlers"
 	"github.com/kestrel-gg/kestrel/api/internal/kube"
 	"github.com/kestrel-gg/kestrel/api/internal/rbac"
+	"github.com/kestrel-gg/kestrel/api/internal/registry"
 	"github.com/kestrel-gg/kestrel/api/internal/telemetry"
 	"github.com/kestrel-gg/kestrel/api/internal/ws"
 )
@@ -147,6 +148,7 @@ func main() {
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
 		handlers.MountModules(p, k8s, cfg.namespace)
+		handlers.MountRegistry(p, k8s, registry.NewSet(Version, cfg.curseforgeAPIKey))
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 
@@ -190,6 +192,7 @@ type config struct {
 
 	telemetryEndpoint string
 	clusterOps        bool
+	curseforgeAPIKey  string
 
 	agentCABundle   string
 	agentClientCert string
@@ -209,6 +212,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("KESTREL_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("KESTREL_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
 	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("KESTREL_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
+	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("KESTREL_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("KESTREL_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("KESTREL_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("KESTREL_AGENT_CLIENT_KEY", ""), "client key presented to agents")

@@ -50,7 +50,11 @@ func TestSelectKept_DailyBucketing(t *testing.T) {
 }
 
 func TestSelectKept_CombinedPolicies(t *testing.T) {
-	base := time.Now()
+	// Fixed midday-UTC base so a/b/c share one calendar day and d lands on the
+	// prior day. selectKept buckets by UTC calendar day, so time.Now() here
+	// flakes when the test runs within ~2h after UTC midnight (c spills into
+	// the previous day and becomes the newest "daily", not d).
+	base := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	items := []kestrelv1alpha1.Backup{
 		fakeBackup("a", base),
 		fakeBackup("b", base.Add(-time.Hour)),

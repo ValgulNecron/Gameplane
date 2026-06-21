@@ -1,9 +1,9 @@
 apiVersion: kestrel.gg/module/v1
 name: terraria
 displayName: Terraria
-version: 1.0.0
+version: 2.0.0
 game: terraria
-summary: Terraria dedicated server (ryshe/terraria). Console via container stdin.
+summary: Terraria + tModLoader dedicated server (passivelemon/terraria-docker) with a vanilla/tModLoader version picker and a tModLoader ModPacks volume. Console via container stdin.
 homepage: https://terraria.org/
 license: MIT
-kestrelMinVersion: 0.1.0
+kestrelMinVersion: 0.2.0

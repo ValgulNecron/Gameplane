@@ -56,6 +56,9 @@ type Mods struct {
 	Path       string      `json:"path"`
 	Extensions []string    `json:"extensions,omitempty"`
 	Install    *ModInstall `json:"install,omitempty"`
+	// Extract unpacks archive mods (e.g. Thunderstore .zip) into a per-mod
+	// folder under Path, so loaders like BepInEx find the contained files.
+	Extract bool `json:"extract,omitempty"`
 }
 
 // ModInstall configures URL-based mod installs with an SSRF host

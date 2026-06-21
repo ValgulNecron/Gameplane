@@ -1,0 +1,42 @@
+# Example GameServer for the terraria template.
+#
+# Apply in any namespace where Kestrel watches:
+#     kubectl -n kestrel-games apply -f samples/gameserver.yaml
+
+apiVersion: kestrel.gg/v1alpha1
+kind: GameServer
+metadata:
+  name: terraria-01
+  namespace: kestrel-games
+spec:
+  templateRef:
+    name: terraria
+
+  # Picks the tModLoader image tag + the tmodloader->ModPacks mod volume.
+  # Use "vanilla-latest" for a vanilla server (no Mods tab).
+  version: tmodloader-latest
+
+  config:
+    WORLDNAME: "Kestrel"
+    AUTOCREATE: "2"
+    DIFFICULTY: "1"
+    MAXPLAYERS: "8"
+    MOTD: "Welcome to a Kestrel-hosted Terraria server"
+    # MODPACK: my-modpack   # set after installing a modpack via the Mods tab
+
+  networking:
+    expose: NodePort
+    portOverrides:
+      - name: game
+        nodePort: 30777
+
+  storage:
+    size: 4Gi
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi

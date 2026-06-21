@@ -12,6 +12,26 @@ CHART_DIR      ?= charts/kestrel
 CHART_RELEASE  ?= kestrel
 NAMESPACE      ?= kestrel-system
 
+# -------- target cluster selection --------
+# CLUSTER selects where the dev/deploy targets act:
+#   kind   (default) — a local kind cluster these targets create + load into
+#   remote          — an existing cluster reached via REMOTE_KUBECONFIG
+#                     (e.g. the kubelab k3s test cluster)
+# Remote can't use `kind load`, so images must already be in a registry the
+# remote nodes can pull (set REGISTRY + run `make dev-push`) and the modules
+# pushed to a registry the in-cluster operator can reach (MODULE_REGISTRY +
+# MODULE_SOURCE_URL). The kind defaults below keep `make dev-up` unchanged.
+CLUSTER           ?= kind
+REMOTE_KUBECONFIG ?= $(HOME)/kubelab.yaml
+REMOTE_CONTEXT    ?= default
+MODULE_SOURCE_URL      ?= kind-registry:5000
+MODULE_SOURCE_INSECURE ?= true
+ifeq ($(CLUSTER),remote)
+KUBECONFIG_ENV := KUBECONFIG=$(REMOTE_KUBECONFIG)
+else
+KUBECONFIG_ENV :=
+endif
+
 GO_MODULES     := netguard operator api agent
 GO_INTEGRATION_MODULES := operator api
 GO_BUILDFLAGS  ?= -trimpath
@@ -151,9 +171,16 @@ e2e-images: ## Build operator/api/agent images tagged for e2e
 	docker build -t kestrel-test/agent:$(KIND_E2E_TAG)    -f agent/Dockerfile    .
 
 .PHONY: test-e2e
-test-e2e: e2e-images ## Spin up an ephemeral kind cluster and run E2E tests
+test-e2e: ## Run E2E tests (CLUSTER=kind spins an ephemeral cluster; CLUSTER=remote reuses REMOTE_KUBECONFIG)
+ifeq ($(CLUSTER),remote)
+	cd test/e2e && KESTREL_E2E_REUSE_CLUSTER=1 \
+		KESTREL_E2E_CONTEXT=$(REMOTE_CONTEXT) KUBECONFIG=$(REMOTE_KUBECONFIG) \
+		go test -tags=e2e -timeout 35m -v ./...
+else
+	$(MAKE) e2e-images
 	cd test/e2e && KESTREL_E2E_CLUSTER=$(KIND_E2E_CLUSTER) KESTREL_E2E_TAG=$(KIND_E2E_TAG) \
 		go test -tags=e2e -timeout 35m -v ./...
+endif
 
 .PHONY: test-e2e-keep
 test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/destroy)
@@ -224,29 +251,45 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 	cp operator/config/crd/kestrel.gg_*.yaml charts/kestrel/crds/
 
 # -------- local dev cluster (kind) --------
-.PHONY: dev-up dev-down dev-load dev-install
-dev-up: ## Create kind cluster + install Kestrel
+.PHONY: dev-up dev-down dev-load dev-push dev-install
+dev-up: ## Create/prepare cluster + install Kestrel (CLUSTER=kind|remote)
+ifeq ($(CLUSTER),remote)
+	$(MAKE) images TAG=$(TAG)
+	$(MAKE) dev-push TAG=$(TAG)
+	$(MAKE) modules-push MODULE_REGISTRY=$(MODULE_REGISTRY)
+	$(MAKE) dev-install
+else
 	./deploy/kind/up.sh $(KIND_CLUSTER)
 	$(MAKE) images TAG=$(TAG)
 	$(MAKE) dev-load
 	$(MAKE) modules-push MODULE_REGISTRY=localhost:5001
 	$(MAKE) dev-install
+endif
 
-dev-load: ## Load local images into kind cluster
+dev-load: ## Load local images into kind cluster (kind only)
 	kind load docker-image $(REGISTRY)/operator:$(TAG) --name $(KIND_CLUSTER)
 	kind load docker-image $(REGISTRY)/api:$(TAG)      --name $(KIND_CLUSTER)
 	kind load docker-image $(REGISTRY)/agent:$(TAG)    --name $(KIND_CLUSTER)
 
-dev-install: ## Install Kestrel Helm chart into current cluster
-	helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
+dev-push: ## Push operator/api/agent images to REGISTRY (remote clusters)
+	docker push $(REGISTRY)/operator:$(TAG)
+	docker push $(REGISTRY)/api:$(TAG)
+	docker push $(REGISTRY)/agent:$(TAG)
+
+dev-install: ## Install Kestrel Helm chart into the selected cluster
+	$(KUBECONFIG_ENV) helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
 		--set image.registry=$(REGISTRY) \
-		--set defaultModuleSource.url=kind-registry:5000 \
-		--set defaultModuleSource.insecure=true
+		--set defaultModuleSource.url=$(MODULE_SOURCE_URL) \
+		--set defaultModuleSource.insecure=$(MODULE_SOURCE_INSECURE)
 
-dev-down: ## Tear down kind cluster
+dev-down: ## Tear down: delete the kind cluster, or uninstall on a remote cluster
+ifeq ($(CLUSTER),remote)
+	$(KUBECONFIG_ENV) helm uninstall $(CHART_RELEASE) --namespace $(NAMESPACE)
+else
 	kind delete cluster --name $(KIND_CLUSTER)
+endif
 
 # -------- module bundles --------
 .PHONY: modules-push

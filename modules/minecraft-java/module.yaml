@@ -1,9 +1,9 @@
 apiVersion: kestrel.gg/module/v1
 name: minecraft-java
 displayName: Minecraft (Java Edition)
-version: 1.0.0
+version: 2.3.0
 game: minecraft-java
-summary: Vanilla / Paper / Spigot / Forge / Fabric / Quilt servers (itzg/minecraft-server).
+summary: Vanilla / Paper / Spigot / Bukkit / Purpur / Forge / Fabric / Quilt servers (itzg/minecraft-server) with a version+loader picker, per-loader mod volumes, and in-app Modrinth browse.
 homepage: https://www.minecraft.net/
 license: MIT
-kestrelMinVersion: 0.1.0
+kestrelMinVersion: 0.2.0

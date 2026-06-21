@@ -66,11 +66,11 @@ func TestRCONGameEnv(t *testing.T) {
 
 func TestAgentVolumeMounts(t *testing.T) {
 	gs := rconGS()
-	base := agentVolumeMounts(gs, rconTmpl(nil), "/data")
+	base := agentVolumeMounts(gs, rconTmpl(nil), nil, "/data")
 	if len(base) != 2 {
 		t.Fatalf("non-rcon agent should have 2 mounts, got %d", len(base))
 	}
-	withRCON := agentVolumeMounts(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "source"}), "/data")
+	withRCON := agentVolumeMounts(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "source"}), nil, "/data")
 	found := false
 	for _, m := range withRCON {
 		if m.Name == "rcon-password" && m.MountPath == rconPasswordPath {

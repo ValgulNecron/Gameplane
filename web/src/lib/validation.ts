@@ -15,6 +15,27 @@ export function isValidQuantity(s: string): boolean {
   return QUANTITY.test(trimmed);
 }
 
+// isValidVersion checks a chosen version id against a template's catalog.
+// When the template declares no versions, the version is irrelevant (true).
+// When it does, a value must be supplied and must match a catalog id.
+export function isValidVersion(
+  template: GameTemplate | undefined,
+  version: string | undefined,
+): boolean {
+  const versions = template?.spec.versions;
+  if (!versions || versions.length === 0) return true;
+  if (!version) return false;
+  return versions.some((v) => v.id === version);
+}
+
+// defaultVersionId returns the template's pre-selected version: the entry
+// marked default, else the first, else undefined when no catalog exists.
+export function defaultVersionId(template: GameTemplate | undefined): string | undefined {
+  const versions = template?.spec.versions;
+  if (!versions || versions.length === 0) return undefined;
+  return (versions.find((v) => v.default) ?? versions[0]).id;
+}
+
 export interface ConfigError {
   name: string;
   message: string;

@@ -21,6 +21,10 @@ import type {
   ModuleSourceSpec,
   PermissionGroup,
   PlayersResp,
+  RegistryFile,
+  RegistryProject,
+  RegistryProviderInfo,
+  RegistryVersion,
   Restore,
   Role,
   RoleBinding,
@@ -40,6 +44,8 @@ export interface ServerCreate {
   name: string;
   description?: string;
   templateRef: { name: string };
+  // Selects a GameTemplate.spec.versions[].id; flows into spec.version.
+  version?: string;
   config?: Record<string, string>;
   storage?: { size?: string };
   networking?: { expose?: string; hostname?: string };
@@ -104,6 +110,56 @@ export const Servers = {
     api<void>(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, {
       method: "DELETE",
     }),
+  // Registries the server's game declares, with availability (e.g.
+  // CurseForge needs an API key) — drives the provider switch.
+  registryProviders: (name: string) =>
+    api<RegistryProviderInfo[]>(`/servers/${name}/mods/registry/providers`),
+  // In-app registry browse (spec.capabilities.mods.registry). The API
+  // resolves the active version's loader + game version, so the dashboard
+  // sends only the browse params + which provider. type="modpack" drives
+  // the Modpacks tab; an empty q is a valid browse. Returns 501 when the
+  // game has no browsable registry / unknown provider.
+  searchRegistry: (
+    name: string,
+    opts: {
+      q?: string;
+      provider?: string;
+      type?: "mod" | "modpack";
+      sort?: string;
+      category?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
+    const p = new URLSearchParams();
+    if (opts.q) p.set("q", opts.q);
+    if (opts.provider) p.set("provider", opts.provider);
+    if (opts.type) p.set("type", opts.type);
+    if (opts.sort) p.set("sort", opts.sort);
+    if (opts.category) p.set("category", opts.category);
+    p.set("limit", String(opts.limit ?? 24));
+    if (opts.offset) p.set("offset", String(opts.offset));
+    return api<RegistryProject[]>(`/servers/${name}/mods/registry/search?${p.toString()}`);
+  },
+  modVersions: (name: string, project: string, provider?: string) =>
+    api<RegistryVersion[]>(
+      `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions` +
+        (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+    ),
+  // Modpacks: resolve a pack's dependency files (deps-mode, e.g. Valheim) —
+  // the dashboard installs each via installMod.
+  modpackDeps: (name: string, project: string, provider?: string) =>
+    api<RegistryFile[]>(
+      `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/modpack` +
+        (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+    ),
+  // Apply an env-mode modpack (e.g. Minecraft/itzg): pins the pack on the
+  // server and restarts it.
+  installModpack: (name: string, body: { ref: string }, provider?: string) =>
+    api<{ ok: boolean }>(
+      `/servers/${name}/modpack` + (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+      { method: "POST", body },
+    ),
 };
 
 export const Templates = {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -151,6 +152,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// Resource usage: in proc mode (the operator shares the pod's PID
+	// namespace and sets KESTREL_USAGE_PROC) the agent reports the game
+	// process's CPU/memory from /proc and uses the operator-supplied limits
+	// as the denominator; otherwise it falls back to its own cgroup.
 	go heartbeat.Run(ctx, heartbeat.Config{
 		ServerName: serverName,
 		Template:   templateName,
@@ -158,7 +163,12 @@ func main() {
 		Version:    Version,
 		RCON:       rconClient,
 		Interval:   20 * time.Second,
-		Usage:      usage.New(usage.Config{DataDir: dataRoot}),
+		Usage: usage.New(usage.Config{
+			DataDir:            dataRoot,
+			ProcMode:           envOr("KESTREL_USAGE_PROC", "") == "1",
+			CPULimitMillicores: envInt("KESTREL_CPU_LIMIT_MILLICORES"),
+			MemLimitBytes:      envInt("KESTREL_MEM_LIMIT_BYTES"),
+		}),
 	})
 
 	go func() {
@@ -186,4 +196,12 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// envInt parses an integer env var, returning 0 when unset or unparseable.
+func envInt(key string) int64 {
+	if v, err := strconv.ParseInt(os.Getenv(key), 10, 64); err == nil {
+		return v
+	}
+	return 0
 }
