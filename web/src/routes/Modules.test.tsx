@@ -104,6 +104,20 @@ describe("ModulesPage", () => {
     expect(screen.getByText(/v1\.0\.0 installed.*v1\.1\.0 available/)).toBeInTheDocument();
   });
 
+  it("filters the catalog by game category", async () => {
+    catalog.mockResolvedValue({
+      items: [MINECRAFT, { ...VALHEIM_INSTALLED, game: "valheim" }],
+    });
+    renderPage();
+    expect(await screen.findByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+
+    // minecraft-java → Sandbox; valheim → Survival.
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.queryByText("Valheim")).toBeNull();
+  });
+
   it("opens the install dialog and POSTs /modules with the chosen version", async () => {
     catalog.mockResolvedValue({ items: [MINECRAFT] });
     install.mockResolvedValue({});

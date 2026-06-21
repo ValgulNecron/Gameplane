@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { verifyForEntry } from "@/lib/verify";
+import { GAME_CATEGORIES, gameCategory } from "@/lib/games";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ export function ModulesPage() {
 
   const [q, setQ] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [catFilter, setCatFilter] = useState<string>("all");
   const [installTarget, setInstallTarget] = useState<CatalogEntry | null>(null);
   const [uninstallTarget, setUninstallTarget] = useState<CatalogEntry | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -56,6 +58,7 @@ export function ModulesPage() {
 
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
+    if (catFilter !== "all" && gameCategory(e.game ?? "") !== catFilter) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }
@@ -128,6 +131,22 @@ export function ModulesPage() {
               )}
             >
               {s === "all" ? "All sources" : s}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
+          {GAME_CATEGORIES.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCatFilter(c)}
+              className={cn(
+                "rounded px-3 py-1.5 text-xs transition-colors",
+                catFilter === c
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted hover:text-fg",
+              )}
+            >
+              {c === "all" ? "All categories" : c}
             </button>
           ))}
         </div>
