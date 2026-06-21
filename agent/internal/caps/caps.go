@@ -12,11 +12,20 @@ import (
 
 // Spec is the root capabilities document.
 type Spec struct {
-	Players *PlayerActions `json:"players,omitempty"`
-	Quiesce *Quiesce       `json:"quiesce,omitempty"`
-	Actions []ServerAction `json:"actions,omitempty"`
-	Status  *Status        `json:"status,omitempty"`
-	Mods    *Mods          `json:"mods,omitempty"`
+	Players   *PlayerActions `json:"players,omitempty"`
+	Quiesce   *Quiesce       `json:"quiesce,omitempty"`
+	Lifecycle *Lifecycle     `json:"lifecycle,omitempty"`
+	Actions   []ServerAction `json:"actions,omitempty"`
+	Status    *Status        `json:"status,omitempty"`
+	Mods      *Mods          `json:"mods,omitempty"`
+}
+
+// Lifecycle declares command sequences the agent runs over RCON to drive
+// graceful lifecycle transitions (currently the in-game stop sequence).
+type Lifecycle struct {
+	// Stop runs, in order, to shut the game down cleanly before the
+	// operator scales the server to zero (e.g. ["stop"] for Minecraft).
+	Stop []string `json:"stop"`
 }
 
 // ServerAction mirrors GameTemplate spec.capabilities.actions[]: a named
