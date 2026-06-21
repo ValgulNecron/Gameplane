@@ -296,16 +296,65 @@ function StepBar({ steps, stepIndex }: { steps: StepKey[]; stepIndex: number }) 
   );
 }
 
+const TEMPLATE_CATEGORIES = ["all", "Survival", "Sandbox", "Shooter"] as const;
+type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+// Best-effort game→category mapping for the template filter — GameTemplate
+// has no category field, so this is a UI-side heuristic. Unknown games map to
+// "Other" and only appear under "All".
+export function gameCategory(game: string): string {
+  const g = game.toLowerCase();
+  if (/valheim|palworld|ark|rust|conan|7.?days|dayz/.test(g)) return "Survival";
+  if (/minecraft|terraria|factorio|satisfactory|stardew/.test(g)) return "Sandbox";
+  if (/cs2|cs.?go|csgo|tf2|valorant|insurgency|squad|left4dead/.test(g)) return "Shooter";
+  return "Other";
+}
+
 function PickTemplate({ state, setState }: { state: WizardState; setState: (s: WizardState) => void }) {
   const { data } = useQuery({
     queryKey: ["templates"],
     queryFn: () => Templates.list(),
   });
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<TemplateCategory>("all");
+
+  const needle = q.trim().toLowerCase();
+  const filtered = (data?.items ?? []).filter((t) => {
+    if (cat !== "all" && gameCategory(t.spec.game) !== cat) return false;
+    if (needle) {
+      const hay = `${t.spec.displayName} ${t.spec.game} ${t.spec.description ?? ""}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-3">
-      <div className="text-sm font-medium">Choose a game</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          className="min-w-[160px] flex-1"
+          placeholder="Search…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Search templates"
+        />
+        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
+          {TEMPLATE_CATEGORIES.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={cn(
+                "rounded px-3 py-1 text-xs font-medium",
+                cat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+              )}
+            >
+              {c === "all" ? "All" : c}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        {data?.items.map((t) => {
+        {filtered.map((t) => {
           const active = state.template?.metadata.name === t.metadata.name;
           return (
             <button
@@ -331,6 +380,9 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
           );
         })}
       </div>
+      {filtered.length === 0 && (
+        <p className="text-sm text-muted">No templates match your search.</p>
+      )}
     </div>
   );
 }

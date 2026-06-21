@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search,
 }));
 
-import { CreateServerWizard } from "./CreateServer";
+import { CreateServerWizard, gameCategory } from "./CreateServer";
 
 interface FetchInit {
   method?: string;
@@ -209,5 +209,42 @@ describe("CreateServerWizard", () => {
     const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
     const body = JSON.parse((postCall[1] as FetchInit).body as string);
     expect(body.spec.version).toBe("1.21.4-forge");
+  });
+
+  it("filters templates by search text and category", async () => {
+    const valheim: GameTemplate = {
+      metadata: { name: "valheim" },
+      spec: { displayName: "Valheim", game: "valheim", version: "1.0", image: "x" },
+    };
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [template(), valheim] }));
+    render(withClient(<CreateServerWizard />));
+
+    // Both templates visible by default.
+    expect(await screen.findByRole("button", { name: /Minecraft Java/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Valheim/i })).toBeInTheDocument();
+
+    // Search narrows to matching templates.
+    fireEvent.change(screen.getByLabelText("Search templates"), { target: { value: "valheim" } });
+    expect(screen.queryByRole("button", { name: /Minecraft Java/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /Valheim/i })).toBeInTheDocument();
+
+    // Category pill filters by the game→category heuristic (minecraft=Sandbox).
+    fireEvent.change(screen.getByLabelText("Search templates"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    expect(screen.getByRole("button", { name: /Minecraft Java/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Valheim/i })).toBeNull();
+  });
+});
+
+describe("gameCategory", () => {
+  it.each([
+    ["minecraft", "Sandbox"],
+    ["terraria", "Sandbox"],
+    ["valheim", "Survival"],
+    ["palworld", "Survival"],
+    ["cs2", "Shooter"],
+    ["something-unknown", "Other"],
+  ])("maps %s -> %s", (game, want) => {
+    expect(gameCategory(game)).toBe(want);
   });
 });
