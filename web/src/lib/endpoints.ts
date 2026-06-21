@@ -226,7 +226,9 @@ export const Backups = {
 export interface ScheduleCreate {
   serverRef: { name: string };
   schedule: string;
-  repoRef: { name: string; key: string };
+  // Required for restic-snapshot; omitted for volume-snapshot.
+  repoRef?: { name: string; key: string };
+  strategy?: "restic-snapshot" | "volume-snapshot";
   retention?: BackupSchedule["spec"]["retention"];
   suspend?: boolean;
   name?: string;

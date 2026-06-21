@@ -94,7 +94,7 @@ func (r *BackupScheduleReconciler) fire(
 		},
 		Spec: kestrelv1alpha1.BackupSpec{
 			ServerRef: sched.Spec.ServerRef,
-			RepoRef:   &sched.Spec.RepoRef,
+			RepoRef:   sched.Spec.RepoRef,
 			Strategy:  sched.Spec.Strategy,
 			Quiesce:   sched.Spec.Quiesce,
 		},

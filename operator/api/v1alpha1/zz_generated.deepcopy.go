@@ -242,7 +242,11 @@ func (in *BackupScheduleList) DeepCopyObject() runtime.Object {
 func (in *BackupScheduleSpec) DeepCopyInto(out *BackupScheduleSpec) {
 	*out = *in
 	out.ServerRef = in.ServerRef
-	out.RepoRef = in.RepoRef
+	if in.RepoRef != nil {
+		in, out := &in.RepoRef, &out.RepoRef
+		*out = new(SecretKeySelector)
+		**out = **in
+	}
 	if in.Retention != nil {
 		in, out := &in.Retention, &out.Retention
 		*out = new(BackupRetention)

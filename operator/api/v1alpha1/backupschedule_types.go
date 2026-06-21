@@ -6,6 +6,7 @@ import (
 )
 
 // BackupScheduleSpec defines a recurring backup policy for a GameServer.
+// +kubebuilder:validation:XValidation:rule="self.strategy == 'volume-snapshot' || has(self.repoRef)",message="repoRef is required for the restic-snapshot strategy"
 type BackupScheduleSpec struct {
 	// ServerRef is the GameServer to back up on this schedule.
 	ServerRef LocalObjectRef `json:"serverRef"`
@@ -21,8 +22,11 @@ type BackupScheduleSpec struct {
 	// +kubebuilder:validation:Pattern=`^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$`
 	Schedule string `json:"schedule"`
 
-	// RepoRef is the restic repository credentials Secret.
-	RepoRef SecretKeySelector `json:"repoRef"`
+	// RepoRef is the restic repository credentials Secret. Required for the
+	// restic-snapshot strategy; omit for volume-snapshot (CSI snapshots need
+	// no restic repo).
+	// +optional
+	RepoRef *SecretKeySelector `json:"repoRef,omitempty"`
 
 	// Strategy mirrors BackupSpec.Strategy.
 	// +kubebuilder:validation:Enum=restic-snapshot;volume-snapshot
