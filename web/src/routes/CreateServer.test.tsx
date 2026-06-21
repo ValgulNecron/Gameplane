@@ -304,4 +304,12 @@ describe("CreateServerWizard review", () => {
     fireEvent.click(edits[1]);
     expect(screen.getByPlaceholderText("mc-hardcore")).toBeInTheDocument();
   });
+
+  it("shows Cancel on step 1 and closes the wizard", async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
+    render(withClient(<CreateServerWizard />));
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    fireEvent.click(cancel);
+    expect(navigate).toHaveBeenCalledWith({ to: "/" });
+  });
 });

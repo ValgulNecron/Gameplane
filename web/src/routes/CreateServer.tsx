@@ -248,13 +248,18 @@ export function CreateServerWizard() {
                 {stepCheck.reason}
               </span>
             )}
-            <Button
-              variant="ghost"
-              disabled={stepIndex === 0}
-              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
+            {stepIndex === 0 ? (
+              <Button variant="ghost" onClick={() => nav({ to: "/" })}>
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+              >
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Button>
+            )}
             {!isLast ? (
               <Button
                 disabled={!stepCheck.ok}
