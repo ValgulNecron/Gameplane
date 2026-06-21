@@ -60,6 +60,13 @@ describe("LoginPage", () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
+  it("reveals a reset hint when Forgot is clicked", async () => {
+    render(<LoginPage />);
+    expect(screen.queryByText(/contact your administrator/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Forgot?" }));
+    expect(screen.getByText(/contact your administrator to reset/i)).toBeInTheDocument();
+  });
+
   it("shows the OIDC button only when configured, using its label", async () => {
     providers = [
       { kind: "local", label: "Local account" },
