@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuditLogPage } from "./AuditLog";
+import { AuditLogPage, auditAction } from "./AuditLog";
 import type { AuditEvent } from "@/types";
 
 const fetchMock = vi.fn();
@@ -48,24 +48,25 @@ describe("AuditLogPage", () => {
     ]));
 
     render(withClient(<AuditLogPage />));
-    expect(await screen.findByText("/servers/mc:start")).toBeInTheDocument();
-    expect(screen.getByText("/servers/old")).toBeInTheDocument();
-    expect(screen.getByText("500")).toBeInTheDocument();
+    // Raw HTTP is mapped to human-readable actions + allow/deny outcomes.
+    expect(await screen.findByText("Started server")).toBeInTheDocument();
+    expect(screen.getByText("Deleted server")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument(); // status 500
   });
 
   it("filters rows by status class", async () => {
     fetchMock.mockResolvedValue(jsonRes([
-      event(1, { status: 200, path: "/ok" }),
-      event(2, { status: 500, path: "/boom" }),
+      event(1, { status: 200, method: "POST", path: "/backups" }),
+      event(2, { status: 500, method: "DELETE", path: "/servers/x" }),
     ]));
 
     render(withClient(<AuditLogPage />));
-    expect(await screen.findByText("/ok")).toBeInTheDocument();
-    expect(screen.getByText("/boom")).toBeInTheDocument();
+    expect(await screen.findByText("Created backup")).toBeInTheDocument();
+    expect(screen.getByText("Deleted server")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText(/5xx · 1/));
-    expect(screen.getByText("/boom")).toBeInTheDocument();
-    expect(screen.queryByText("/ok")).toBeNull();
+    expect(screen.getByText("Deleted server")).toBeInTheDocument();
+    expect(screen.queryByText("Created backup")).toBeNull();
   });
 
   it("shows an empty state when no events match", async () => {
@@ -76,5 +77,23 @@ describe("AuditLogPage", () => {
     await screen.findByText(/loaded/);
     fireEvent.click(screen.getByText(/4xx · 0/));
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
+  });
+});
+
+describe("auditAction", () => {
+  const cases: Array<[Partial<AuditEvent>, string]> = [
+    [{ method: "POST", path: "/api/v1/servers", target: "alpha" }, "Created server alpha"],
+    [{ method: "POST", path: "/servers/mc:start" }, "Started server"],
+    [{ method: "POST", path: "/servers/mc:wipe-data" }, "Wiped data on server"],
+    [{ method: "DELETE", path: "/servers/old", target: "old" }, "Deleted server old"],
+    [{ method: "POST", path: "/restores" }, "Restored backup"],
+    [{ method: "POST", path: "/backups" }, "Created backup"],
+    [{ method: "PUT", path: "/admin/config" }, "Updated settings"],
+    [{ method: "POST", path: "/auth/login" }, "Signed in"],
+    [{ method: "DELETE", path: "/users/3", target: "bob" }, "Deleted user bob"],
+    [{ method: "GET", path: "/widgets" }, "Viewed widgets"],
+  ];
+  it.each(cases)("maps %o -> %s", (partial, expected) => {
+    expect(auditAction({ method: "GET", path: "/", ...partial })).toBe(expected);
   });
 });

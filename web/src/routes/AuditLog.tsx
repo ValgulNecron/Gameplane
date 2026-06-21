@@ -129,11 +129,11 @@ export function AuditLogPage() {
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-surface/95 text-left uppercase tracking-wider text-muted backdrop-blur">
               <tr>
-                <Th className="w-[180px]">Time</Th>
+                <Th className="w-[160px]">Time</Th>
                 <Th className="w-[140px]">Actor</Th>
+                <Th>Action</Th>
                 <Th className="w-[80px]">Method</Th>
-                <Th>Path</Th>
-                <Th className="w-[80px]">Status</Th>
+                <Th className="w-[90px]">Access</Th>
                 <Th className="w-[120px]">IP</Th>
               </tr>
             </thead>
@@ -147,29 +147,32 @@ export function AuditLogPage() {
                   </td>
                 </tr>
               )}
-              {filtered.map((e) => (
-                <tr key={e.id} className="hover:bg-surface/40">
-                  <td className="px-5 py-2 text-muted" title={e.ts}>
-                    {formatRelative(e.ts)}
-                  </td>
-                  <td className="px-5 py-2 text-fg">{e.actor}</td>
-                  <td className="px-5 py-2">
-                    <MethodPill method={e.method} />
-                  </td>
-                  <td className="px-5 py-2">
-                    <span
-                      className="block max-w-[420px] truncate text-fg"
-                      title={e.path + (e.target ? ` (${e.target})` : "")}
-                    >
-                      {e.path}
-                    </span>
-                  </td>
-                  <td className={cn("px-5 py-2", statusColor(e.status))}>
-                    {e.status}
-                  </td>
-                  <td className="px-5 py-2 text-muted">{e.ip || "—"}</td>
-                </tr>
-              ))}
+              {filtered.map((e) => {
+                const access = accessOutcome(e.status);
+                return (
+                  <tr key={e.id} className="hover:bg-surface/40">
+                    <td className="px-5 py-2 text-muted" title={e.ts}>
+                      {formatRelative(e.ts)}
+                    </td>
+                    <td className="px-5 py-2 text-fg">{e.actor}</td>
+                    <td className="px-5 py-2">
+                      <span
+                        className="block max-w-[480px] truncate text-fg"
+                        title={`${e.method} ${e.path}`}
+                      >
+                        {auditAction(e)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-2">
+                      <MethodPill method={e.method} />
+                    </td>
+                    <td className={cn("px-5 py-2", access.tone)} title={`HTTP ${e.status}`}>
+                      {access.label}
+                    </td>
+                    <td className="px-5 py-2 text-muted">{e.ip || "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -197,6 +200,53 @@ export function AuditLogPage() {
 
 function Th({ children, className }: { children: ReactNode; className?: string }) {
   return <th className={cn("px-5 py-2 font-medium", className)}>{children}</th>;
+}
+
+// auditAction renders an audit row's method+path as a human-readable action
+// ("Started server alpha") instead of raw HTTP, falling back to a generic
+// "<verb> <resource>" when the route isn't specially known.
+const VERB: Record<string, string> = {
+  POST: "Created", PUT: "Updated", PATCH: "Updated", DELETE: "Deleted", GET: "Viewed",
+};
+export function auditAction(e: { method: string; path: string; target?: string }): string {
+  // Strip a leading /api/v<n> prefix so route matching is version-agnostic.
+  const p = e.path.replace(/^\/api\/v\d+/, "").replace(/\/+$/, "") || "/";
+  const t = e.target ? ` ${e.target}` : "";
+  // Lifecycle verbs are encoded as POST /servers/{name}:<verb>.
+  const colon = /\/servers\/[^/]+:([a-z-]+)$/.exec(p);
+  if (colon) {
+    const verb = colon[1];
+    const nice: Record<string, string> = {
+      start: "Started", stop: "Stopped", restart: "Restarted", clone: "Cloned",
+      "wipe-data": "Wiped data on",
+    };
+    return `${nice[verb] ?? verb} server${t}`;
+  }
+  const m = (s: string) => p === s || p.startsWith(s + "/");
+  if (m("/servers")) return `${VERB[e.method] ?? e.method} server${t}`;
+  if (m("/backups")) return `${VERB[e.method] ?? e.method} backup${t}`;
+  if (m("/restores")) return e.method === "POST" ? `Restored backup${t}` : `${VERB[e.method]} restore${t}`;
+  if (m("/schedules")) return `${VERB[e.method] ?? e.method} backup schedule${t}`;
+  if (m("/users")) return `${VERB[e.method] ?? e.method} user${t}`;
+  if (m("/roles")) return `${VERB[e.method] ?? e.method} role${t}`;
+  if (m("/modules")) return `${VERB[e.method] ?? e.method} module${t}`;
+  if (m("/module-sources")) return `${VERB[e.method] ?? e.method} module source${t}`;
+  if (m("/destinations") || m("/backup-destinations")) return `${VERB[e.method] ?? e.method} backup destination${t}`;
+  if (m("/admin/config")) return "Updated settings";
+  if (m("/auth/login")) return "Signed in";
+  if (m("/cluster")) return `${VERB[e.method] ?? e.method} cluster${t}`;
+  // Fallback: verb + last path segment.
+  const seg = p.split("/").filter(Boolean).pop() ?? "resource";
+  return `${VERB[e.method] ?? e.method} ${seg}`;
+}
+
+// accessOutcome maps an HTTP status to the allow/deny framing the audit log
+// presents (403 = explicitly denied; other 4xx/5xx = failed; 2xx/3xx = ok).
+function accessOutcome(status: number): { label: string; tone: string } {
+  if (status === 403) return { label: "Denied", tone: "text-danger" };
+  if (status >= 500) return { label: "Error", tone: "text-danger" };
+  if (status >= 400) return { label: "Failed", tone: "text-warning" };
+  return { label: "Allowed", tone: "text-success" };
 }
 
 function MethodPill({ method }: { method: string }) {
@@ -229,13 +279,6 @@ function statusBucket(s: number): "2xx" | "4xx" | "5xx" | "other" {
   if (s >= 400 && s < 500) return "4xx";
   if (s >= 500 && s < 600) return "5xx";
   return "other";
-}
-
-function statusColor(s: number): string {
-  if (s >= 500) return "text-danger";
-  if (s >= 400) return "text-warning";
-  if (s >= 200 && s < 300) return "text-success";
-  return "text-muted";
 }
 
 function labelFor(s: StatusClass): string {
