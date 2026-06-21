@@ -273,7 +273,11 @@ function UserRow({
           {u.role}
         </span>
       </td>
-      <td className="px-4 py-3 text-muted">{u.provider ?? "local"}</td>
+      <td className="px-4 py-3">
+        <span className="rounded px-2 py-0.5 text-[10px] uppercase text-muted ring-1 ring-border">
+          {u.provider === "oidc" ? "OIDC" : u.provider === "pending" ? "Pending" : "Local"}
+        </span>
+      </td>
       <td className="px-4 py-3 text-muted">{formatRelative(u.createdAt)}</td>
       <td className="px-4 py-3 text-right">
         <DropdownMenu>
