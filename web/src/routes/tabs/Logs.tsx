@@ -33,6 +33,10 @@ export function LogsTab({
   // Default to container output so logs are never empty during startup.
   const [source, setSource] = useState<LogSource>("pod");
   const [connected, setConnected] = useState(false);
+  // The agent-backed game-log stream can fail to connect (e.g. the agent
+  // is unreachable); track that so we can show an actionable notice instead
+  // of an endless "Connecting…" spinner.
+  const [streamFailed, setStreamFailed] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   // The game-log file is only an option when the template declares a
@@ -43,11 +47,23 @@ export function LogsTab({
   useEffect(() => {
     setLines([]);
     setConnected(false);
+    setStreamFailed(false);
     const path =
       effectiveSource === "pod" ? Logs.podStreamPath(name) : Logs.fileStreamPath(name);
     const sock = openWS(path, {
       onOpen: () => setConnected(true),
       onClose: () => setConnected(false),
+      onStatus: (status, info) => {
+        if (status === "open") {
+          setStreamFailed(false);
+          // Only the agent-backed file stream surfaces an actionable
+          // failure: the user can fall back to container output. The pod
+          // stream's retries are expected during provisioning, so leave
+          // those to the provisioning placeholder.
+        } else if (effectiveSource === "file" && status === "reconnecting" && info.attempt >= 2) {
+          setStreamFailed(true);
+        }
+      },
       onMessage: (data) =>
         setLines((prev) => {
           const next = prev.concat(typeof data === "string" ? data.split(/\r?\n/) : []);
@@ -81,6 +97,9 @@ export function LogsTab({
   const noOutput = lines.length === 0;
   const failed = phase === "Failed";
   const provisioning = phase !== undefined && phase !== "Running" && !failed;
+  // The game-log file stream couldn't reach the agent and produced nothing —
+  // offer container output (always available) instead of spinning forever.
+  const fileUnavailable = effectiveSource === "file" && streamFailed && noOutput;
 
   return (
     <div className="flex h-full flex-col">
@@ -146,6 +165,18 @@ export function LogsTab({
                   No container output was captured. Check the Overview events for image-pull
                   or scheduling errors.
                 </div>
+              </>
+            ) : fileUnavailable ? (
+              <>
+                <AlertTriangle className="h-8 w-8 text-warning" />
+                <div className="text-sm font-medium text-fg">Game log unavailable</div>
+                <div className="max-w-md text-xs text-muted">
+                  Couldn&apos;t reach the agent to tail the game log file. Container output is
+                  still available.
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setSource("pod")}>
+                  Use container output
+                </Button>
               </>
             ) : (
               <>

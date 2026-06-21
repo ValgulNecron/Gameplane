@@ -38,12 +38,14 @@ func TestExec_WriteFailsWhenServerGone(t *testing.T) {
 	}
 }
 
-// TestExec_ReadFailsAfterSentinel forces a read failure mid-Exec —
-// covers the "readPacket → err" branch that drops the connection.
-func TestExec_ReadFailsAfterSentinel(t *testing.T) {
-	// Server authenticates, accepts EXEC, sends one RESPONSE_VALUE,
-	// then closes — the sentinel's response never arrives so readPacket
-	// errors with EOF on the second iteration.
+// TestExec_ResponseThenCloseReturnsOutput is the regression test for the
+// Minecraft "EOF" bug: Minecraft answers the real command and then closes
+// the socket without ever echoing the empty-cmd sentinel. The client must
+// return the command's output, not throw it away and surface the EOF.
+func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
+	// Server authenticates, accepts EXEC, sends one RESPONSE_VALUE with the
+	// command output, ignores the sentinel, then closes — mirroring real
+	// Minecraft RCON behaviour.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -57,10 +59,14 @@ func TestExec_ReadFailsAfterSentinel(t *testing.T) {
 		// AUTH
 		id, _, _, _ := readOne(conn)
 		writeOne(conn, id, typeAuthResponse, "")
-		// EXEC + sentinel writes happen back-to-back from client. We
-		// only consume the EXEC, send a partial response, then bail.
+		// EXEC + sentinel writes happen back-to-back from the client. Drain
+		// both, answer only the EXEC (echoing its id, never the sentinel),
+		// then close. Draining the sentinel first makes the close a clean
+		// FIN (deterministic EOF) instead of a RST race; either way the
+		// client must return the command output it already received.
 		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		execID, _, body, _ := readOne(conn)
+		_, _, _, _ = readOne(conn) // drain the sentinel
 		writeOne(conn, execID, typeRespValue, body+": partial")
 		_ = conn.Close()
 	}()
@@ -70,11 +76,47 @@ func TestExec_ReadFailsAfterSentinel(t *testing.T) {
 	c := New(host, mustAtoi(port), func() (string, error) { return "x", nil })
 	defer c.Close()
 	out, err := c.Exec("hi")
-	if err == nil {
-		t.Fatalf("expected read failure, got out=%q", out)
+	if err != nil {
+		t.Fatalf("expected output despite the close, got err=%v", err)
 	}
-	if strings.Contains(err.Error(), "panic") {
-		t.Fatalf("panic surfaced: %v", err)
+	if out != "hi: partial" {
+		t.Fatalf("unexpected body %q", out)
+	}
+}
+
+// TestExec_ErrorBeforeAnyResponse confirms that a connection that drops
+// before the command's response arrives is still surfaced as a (wrapped)
+// error — the graceful end-of-stream only applies once we have output.
+func TestExec_ErrorBeforeAnyResponse(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		// AUTH succeeds.
+		id, _, _, _ := readOne(conn)
+		writeOne(conn, id, typeAuthResponse, "")
+		// Consume the EXEC but answer nothing, then close immediately.
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, _, _, _ = readOne(conn)
+		_ = conn.Close()
+	}()
+	defer ln.Close()
+
+	host, port, _ := net.SplitHostPort(ln.Addr().String())
+	c := New(host, mustAtoi(port), func() (string, error) { return "x", nil })
+	defer c.Close()
+	_, err = c.Exec("hi")
+	if err == nil {
+		t.Fatal("expected an error when the server closes before responding")
+	}
+	if !strings.Contains(err.Error(), "rcon exec") {
+		t.Fatalf("error should be wrapped with command context, got %v", err)
 	}
 }
 

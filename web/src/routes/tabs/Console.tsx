@@ -48,7 +48,11 @@ function RconConsole({ name }: { name: string }) {
         onMessage: (data) => {
           try {
             const env = JSON.parse(data) as { kind: string; body: string };
-            if (env.kind === "out" || env.kind === "err") {
+            if (env.kind === "err") {
+              // Render real RCON errors in red so they read as failures,
+              // not as ordinary command output (matches PtyConsole below).
+              term.writeln(`\x1b[31m${env.body}\x1b[0m`);
+            } else if (env.kind === "out") {
               term.writeln(env.body);
             }
           } catch {

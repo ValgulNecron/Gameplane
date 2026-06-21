@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 // Each call to openWS pushes a new fake socket onto sockets[]; tests
 // reach into the latest one to drive messages/lifecycle and assert cleanup.
+type StatusInfo = { attempt: number; nextRetryMs?: number };
 type FakeSock = {
   path: string;
   close: ReturnType<typeof vi.fn>;
@@ -11,6 +12,7 @@ type FakeSock = {
   sendMsg: (s: string) => void;
   open: () => void;
   closeEv: () => void;
+  statusEv: (status: string, info: StatusInfo) => void;
 };
 const sockets: FakeSock[] = [];
 
@@ -18,7 +20,12 @@ vi.mock("@/lib/ws", () => ({
   openWS: vi.fn(
     (
       path: string,
-      opts: { onMessage: (d: string) => void; onOpen?: () => void; onClose?: () => void },
+      opts: {
+        onMessage: (d: string) => void;
+        onOpen?: () => void;
+        onClose?: () => void;
+        onStatus?: (status: string, info: StatusInfo) => void;
+      },
     ) => {
       const sock: FakeSock = {
         path,
@@ -27,6 +34,7 @@ vi.mock("@/lib/ws", () => ({
         sendMsg: opts.onMessage,
         open: () => opts.onOpen?.(),
         closeEv: () => opts.onClose?.(),
+        statusEv: (status, info) => opts.onStatus?.(status, info),
       };
       sockets.push(sock);
       return { send: sock.send, close: sock.close };
@@ -152,5 +160,22 @@ describe("LogsTab", () => {
     render(<LogsTab name="alpha" phase="Running" />);
     sockets[0].open();
     await waitFor(() => expect(screen.getByText(/waiting for output/i)).toBeInTheDocument());
+  });
+
+  it("offers container output when the game-log stream keeps failing", async () => {
+    render(<LogsTab name="alpha" logPath="/data/logs/latest.log" phase="Running" />);
+    // Switch from container output to the agent-backed game-log file stream.
+    await userEvent.click(screen.getByRole("button", { name: /game log/i }));
+    const sock = sockets[sockets.length - 1];
+    expect(sock.path).toBe("/ws/servers/alpha/logs");
+    // Repeated reconnect attempts mean the agent is unreachable: show the
+    // actionable notice instead of an endless spinner.
+    sock.statusEv("reconnecting", { attempt: 2, nextRetryMs: 2000 });
+    await waitFor(() => expect(screen.getByText(/game log unavailable/i)).toBeInTheDocument());
+    // The fallback returns to the always-available container output stream.
+    await userEvent.click(screen.getByRole("button", { name: /use container output/i }));
+    await waitFor(() =>
+      expect(sockets[sockets.length - 1].path).toBe("/ws/servers/alpha/logs/pod?from=start"),
+    );
   });
 });
