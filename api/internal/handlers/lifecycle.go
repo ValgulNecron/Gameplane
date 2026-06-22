@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -104,22 +106,59 @@ func restartHandler(k *kube.Client) http.HandlerFunc {
 		}
 		stop, _ := json.Marshal(map[string]any{"spec": map[string]any{"suspend": true}})
 		start, _ := json.Marshal(map[string]any{"spec": map[string]any{"suspend": false}})
+		servers := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns)
 
-		if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-			Namespace(ns).
-			Patch(req.Context(), name, types.MergePatchType, stop, metav1.PatchOptions{}); err != nil {
+		if _, err := servers.Patch(req.Context(), name, types.MergePatchType, stop, metav1.PatchOptions{}); err != nil {
 			httperr.Write(w, req, err)
 			return
 		}
-		// Operator waits for pods to fully stop before scaling back up,
-		// so no manual sleep is required.
-		if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-			Namespace(ns).
-			Patch(req.Context(), name, types.MergePatchType, start, metav1.PatchOptions{}); err != nil {
+		// A restart must actually recycle the pod (a new pod identity). The
+		// operator stops gracefully, then scales the StatefulSet to zero; only
+		// once it has drained does flipping suspend back to false bring up a
+		// fresh pod. Patching back to false immediately races the operator's
+		// reconcile — under load it coalesces both patches, never observes the
+		// stop, and the pod is left running unchanged. So wait for the
+		// StatefulSet to drain before resuming (bounded under the 60s request
+		// timeout; a missing StatefulSet — e.g. a server that was never
+		// started — drains instantly).
+		waitForStatefulSetDrained(req.Context(), k, ns, name, 45*time.Second)
+
+		// Resume on a detached context so a slow stop (or a cancelled request)
+		// never strands the server in the suspended state.
+		resumeCtx, cancel := context.WithTimeout(context.WithoutCancel(req.Context()), 15*time.Second)
+		defer cancel()
+		if _, err := servers.Patch(resumeCtx, name, types.MergePatchType, start, metav1.PatchOptions{}); err != nil {
 			httperr.Write(w, req, err)
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+// waitForStatefulSetDrained blocks until the GameServer's StatefulSet reports
+// zero replicas (the operator finished the graceful stop) or the deadline
+// elapses. A missing StatefulSet returns immediately — there is nothing to
+// drain. Used by restart to make the stop→start sequence actually recycle the
+// pod rather than racing the operator's reconcile.
+func waitForStatefulSetDrained(ctx context.Context, k *kube.Client, ns, name string, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	for {
+		ss, err := k.Typed.AppsV1().StatefulSets(ns).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return // nothing materialized yet — nothing to wait on
+			}
+			return // context cancelled or transient — don't block the restart
+		}
+		if ss.Status.Replicas == 0 {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
 	}
 }
 
