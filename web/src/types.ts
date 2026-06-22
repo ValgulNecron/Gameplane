@@ -1,4 +1,4 @@
-// Minimal TypeScript surface mirroring the Kestrel CRDs. Kept lean —
+// Minimal TypeScript surface mirroring the Gameplane CRDs. Kept lean —
 // we use `unknown` for nested structures the UI doesn't yet render.
 
 export interface ObjectMeta {
@@ -156,7 +156,7 @@ export interface GameVersion {
   loader?: string;
   default?: boolean;
   // Clean upstream version token (e.g. "1.21.4") passed to a mod registry
-  // to filter results; distinct from `id` (a Kestrel selector).
+  // to filter results; distinct from `id` (a Gameplane selector).
   gameVersion?: string;
 }
 
@@ -487,7 +487,7 @@ export interface ClusterView {
 export interface ClusterInfo {
   clusterName?: string;
   version?: string; // Kubernetes server version
-  kestrelVersion?: string; // Kestrel control-plane build
+  gameplaneVersion?: string; // Gameplane control-plane build
 }
 
 export interface NodeJoinInfo {

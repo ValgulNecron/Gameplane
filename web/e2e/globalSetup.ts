@@ -31,7 +31,7 @@ const authDir = join(here, ".auth");
 const storageFile = join(authDir, "storage.json");
 
 const PORT = 18080;
-const CTX = process.env.GAMEPLANE_E2E_CLUSTER ?? "kestrel-e2e";
+const CTX = process.env.GAMEPLANE_E2E_CLUSTER ?? "gameplane-e2e";
 
 export default async function globalSetup(): Promise<void> {
   if (!existsSync(passwordFile)) {
@@ -56,8 +56,8 @@ export default async function globalSetup(): Promise<void> {
       `kind-${CTX}`,
       "port-forward",
       "-n",
-      "kestrel-system",
-      "svc/kestrel-api",
+      "gameplane-system",
+      "svc/gameplane-api",
       `${PORT}:80`,
     ],
     { stdio: "ignore", detached: true },

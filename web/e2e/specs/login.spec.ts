@@ -27,9 +27,9 @@ test.describe("login", () => {
 
     // Privacy contract: a cluster name like "homelab" is exposed by
     // /cluster/info to authenticated users but must NEVER show up
-    // pre-auth. Same for hostnames in the kestrel-system namespace.
+    // pre-auth. Same for hostnames in the gameplane-system namespace.
     const body = (await page.locator("body").innerText()).toLowerCase();
-    const forbidden = ["kestrel-system", "kestrel-games", "kind-kestrel-e2e", "homelab"];
+    const forbidden = ["gameplane-system", "gameplane-games", "kind-gameplane-e2e", "homelab"];
     for (const f of forbidden) {
       expect(body, `pre-auth body must not contain ${f}`).not.toContain(f);
     }

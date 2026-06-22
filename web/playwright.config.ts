@@ -1,4 +1,4 @@
-// Playwright configuration for the Kestrel dashboard.
+// Playwright configuration for the Gameplane dashboard.
 //
 // Two run modes selected by GAMEPLANE_E2E_TARGET (default "mock"):
 //
@@ -7,7 +7,7 @@
 //          Used for `npm run test:e2e:mock` (and the CI web-e2e-mock job).
 //
 //   live — vite proxies fetches to a kubectl port-forward on the
-//          kestrel-e2e cluster. Tests authenticate as the admin user
+//          gameplane-e2e cluster. Tests authenticate as the admin user
 //          bootstrapped by test/e2e/api_auth_e2e_test.go (password
 //          handed off via test/e2e/.tmp/admin-password). globalSetup
 //          spawns the port-forward; globalTeardown kills it.

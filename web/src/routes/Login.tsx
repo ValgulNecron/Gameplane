@@ -51,14 +51,14 @@ export function LoginPage() {
               <ShieldCheck className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <div className="font-mono text-lg font-semibold">kestrel</div>
+              <div className="font-mono text-lg font-semibold">gameplane</div>
               <div className="text-xs text-muted">game server control panel</div>
             </div>
           </div>
 
           <div className="mb-6">
             <h1 className="text-2xl font-semibold">Sign in</h1>
-            <p className="pt-1 text-sm text-muted">Welcome to Kestrel.</p>
+            <p className="pt-1 text-sm text-muted">Welcome to Gameplane.</p>
           </div>
 
           <form

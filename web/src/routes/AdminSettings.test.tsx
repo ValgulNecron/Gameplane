@@ -20,9 +20,9 @@ describe("AdminSettingsPage", () => {
       http.get("/admin/config", () =>
         HttpResponse.json({
           general: {
-            instanceName: "kestrel-prod",
+            instanceName: "gameplane-prod",
             externalURL: "https://example.com",
-            defaultNamespace: "kestrel-games",
+            defaultNamespace: "gameplane-games",
           },
         }),
       ),

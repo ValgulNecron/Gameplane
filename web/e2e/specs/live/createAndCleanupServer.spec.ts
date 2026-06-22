@@ -8,8 +8,8 @@ import { test, expect } from "@playwright/test";
 // createServer + serverDetail specs.
 //
 // Prerequisites (all set up by `make e2e-up`):
-//   - kestrel-e2e kind cluster is running
-//   - Helm chart is installed in kestrel-system
+//   - gameplane-e2e kind cluster is running
+//   - Helm chart is installed in gameplane-system
 //   - The "e2e-busybox" / "e2e-lifecycle-busybox" GameTemplate exists
 //     because the Go E2E suite ran first and created one. If neither
 //     exists, the spec falls back to whatever Templates.list() returns,

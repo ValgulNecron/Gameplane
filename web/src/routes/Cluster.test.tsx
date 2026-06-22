@@ -11,7 +11,7 @@ describe("ClusterPage", () => {
   it("renders node cards from /cluster", async () => {
     renderWithQuery(<ClusterPage />);
     await screen.findByText("node-1");
-    expect(screen.getByText(/kestrel-prod/)).toBeInTheDocument();
+    expect(screen.getByText(/gameplane-prod/)).toBeInTheDocument();
     expect(screen.getByText(/v1\.31\.0/)).toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-// Thin fetch wrapper for the Kestrel API. Handles:
+// Thin fetch wrapper for the Gameplane API. Handles:
 //   - base URL (relative; vite proxy forwards in dev, same-origin in prod)
 //   - CSRF header injection for mutating requests (cookie → header)
 //   - uniform error throwing so TanStack Query .error works consistently

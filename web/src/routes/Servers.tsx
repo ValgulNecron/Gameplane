@@ -196,7 +196,7 @@ function ServerRow({
               {gs.metadata.name}
             </Link>
             <div className="text-[11px] text-muted">
-              {gs.metadata.namespace ?? "kestrel-games"}
+              {gs.metadata.namespace ?? "gameplane-games"}
             </div>
           </div>
         </div>

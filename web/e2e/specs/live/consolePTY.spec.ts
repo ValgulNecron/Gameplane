@@ -33,7 +33,7 @@ test.describe("live: PTY console", () => {
       data: {
         apiVersion: "gameplane.gg/v1alpha1",
         kind: "GameServer",
-        metadata: { name: serverName, namespace: "kestrel-games" },
+        metadata: { name: serverName, namespace: "gameplane-games" },
         spec: { templateRef: { name: tmplName } },
       },
     });
@@ -75,7 +75,7 @@ test.describe("live: PTY console", () => {
     // the panel having an input affordance for command entry. If neither
     // is visible within 30s, the test skips (the live cluster's pod may
     // not have come up yet).
-    const marker = "kestrel-live-marker";
+    const marker = "gameplane-live-marker";
     const cmdInput = page.locator('input[placeholder*="command" i]').first();
     if (!(await cmdInput.isVisible({ timeout: 30_000 }).catch(() => false))) {
       test.skip(true, "Console tab has no command input — pod may not be ready");

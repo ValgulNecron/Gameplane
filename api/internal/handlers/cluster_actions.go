@@ -86,7 +86,7 @@ func (h *clusterActions) addNode(w http.ResponseWriter, req *http.Request) {
 			"expiration":                     expires.Format(time.RFC3339),
 			"usage-bootstrap-authentication": "true",
 			"usage-bootstrap-signing":        "true",
-			"description":                    "Kestrel dashboard node-join token",
+			"description":                    "Gameplane dashboard node-join token",
 		},
 	}
 	if _, err := h.k.Typed.CoreV1().Secrets("kube-system").Create(req.Context(), sec, metav1.CreateOptions{}); err != nil {
@@ -166,7 +166,7 @@ func (h *clusterActions) kubeconfig(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	u := auth.UserFromContext(req.Context())
-	username := "kestrel-admin"
+	username := "gameplane-admin"
 	if u != nil && u.Username != "" {
 		username = u.Username
 	}
@@ -180,7 +180,7 @@ func (h *clusterActions) kubeconfig(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: "kestrel:" + username, Organization: []string{"kestrel:dashboard"}},
+		Subject: pkix.Name{CommonName: "gameplane:" + username, Organization: []string{"gameplane:dashboard"}},
 	}, key)
 	if err != nil {
 		httperr.Write(w, req, err)
@@ -207,14 +207,14 @@ func (h *clusterActions) kubeconfig(w http.ResponseWriter, req *http.Request) {
 	kubeconfig := renderKubeconfig(h.k.Config.Host, caPEM, certPEM, keyPEM, username)
 
 	w.Header().Set("Content-Type", "application/yaml")
-	w.Header().Set("Content-Disposition", `attachment; filename="kestrel-kubeconfig.yaml"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="gameplane-kubeconfig.yaml"`)
 	_, _ = w.Write([]byte(kubeconfig))
 }
 
 // signClientCert creates a CertificateSigningRequest for the kube-apiserver
 // client signer, approves it, and waits briefly for the issued cert.
 func (h *clusterActions) signClientCert(ctx context.Context, username string, csrPEM []byte) ([]byte, error) {
-	name := "kestrel-" + username + "-" + time.Now().UTC().Format("20060102150405")
+	name := "gameplane-" + username + "-" + time.Now().UTC().Format("20060102150405")
 	expSeconds := int32(3600) // 1h short-lived
 	csr := &certv1.CertificateSigningRequest{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -236,8 +236,8 @@ func (h *clusterActions) signClientCert(ctx context.Context, username string, cs
 	created.Status.Conditions = append(created.Status.Conditions, certv1.CertificateSigningRequestCondition{
 		Type:    certv1.CertificateApproved,
 		Status:  corev1.ConditionTrue,
-		Reason:  "KestrelDashboard",
-		Message: "approved by the Kestrel API for a dashboard kubeconfig",
+		Reason:  "GameplaneDashboard",
+		Message: "approved by the Gameplane API for a dashboard kubeconfig",
 	})
 	if _, err := csrs.UpdateApproval(ctx, name, created, metav1.UpdateOptions{}); err != nil {
 		return nil, fmt.Errorf("approve CSR: %w", err)
@@ -270,16 +270,16 @@ func renderKubeconfig(server string, caPEM, certPEM, keyPEM []byte, username str
 	return fmt.Sprintf(`apiVersion: v1
 kind: Config
 clusters:
-- name: kestrel
+- name: gameplane
   cluster:
     server: %s
     certificate-authority-data: %s
 contexts:
-- name: kestrel
+- name: gameplane
   context:
-    cluster: kestrel
+    cluster: gameplane
     user: %s
-current-context: kestrel
+current-context: gameplane
 users:
 - name: %s
   user:

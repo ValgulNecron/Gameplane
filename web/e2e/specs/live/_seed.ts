@@ -2,7 +2,7 @@ import type { APIRequestContext, APIResponse, Page } from "@playwright/test";
 import { LoginPage } from "../../pages/LoginPage";
 
 // Shared helpers for the live-mode data-screen specs. These talk to the
-// REAL Kestrel API (through vite's proxy onto the kubectl port-forward
+// REAL Gameplane API (through vite's proxy onto the kubectl port-forward
 // globalSetup spawns) using the admin session cookies in storageState.
 //
 // Why seed through the API instead of reusing the Go e2e suite's fixtures:
@@ -103,7 +103,7 @@ export interface SeedServerOpts {
 }
 
 // seedServer creates a namespaced GameServer referencing `template`. The
-// API defaults the namespace to scope.DefaultNamespace ("kestrel-games") —
+// API defaults the namespace to scope.DefaultNamespace ("gameplane-games") —
 // the same default the dashboard reads — so seeded and rendered data line up
 // without passing ?namespace=. The description annotation mirrors what the
 // create-server wizard writes (gameplane.gg/description).

@@ -232,7 +232,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   <Input
                     value={f.url}
                     onChange={(e) => set({ url: e.target.value })}
-                    placeholder="ghcr.io/kestrel-gg/modules"
+                    placeholder="ghcr.io/valgulnecron/gameplane-modules"
                   />
                 </Field>
                 <Field
@@ -305,7 +305,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
                   <Input
                     value={f.url}
                     onChange={(e) => set({ url: e.target.value })}
-                    placeholder="https://github.com/example/kestrel-modules"
+                    placeholder="https://github.com/example/gameplane-modules"
                   />
                 </Field>
                 <Field label="Ref" hint="Branch or tag. Defaults to main.">

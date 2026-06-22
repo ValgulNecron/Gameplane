@@ -12,10 +12,10 @@ describe("AccessSection", () => {
 
   it("shows the configured serviceAccountName", () => {
     const draft = makeServer({
-      spec: { templateRef: { name: "x" }, serviceAccountName: "kestrel-server" },
+      spec: { templateRef: { name: "x" }, serviceAccountName: "gameplane-server" },
     });
     render(<AccessSection draft={draft} onChange={() => {}} />);
-    expect(screen.getByDisplayValue("kestrel-server")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("gameplane-server")).toBeInTheDocument();
   });
 
   it("renders the access placeholder text", () => {
