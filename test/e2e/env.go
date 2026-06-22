@@ -433,7 +433,11 @@ func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 	local, stop := e.PortForward(t, "kestrel-system", "svc/kestrel-api", 80)
 	base := fmt.Sprintf("http://127.0.0.1:%d", local)
 
-	cli := &http.Client{Jar: newInsecureCookieJar(), Timeout: 15 * time.Second}
+	// 90s tolerates the few legitimately-slow endpoints (notably :restart,
+	// which blocks until the graceful soft-stop drains the pod, up to the
+	// stop grace period). It never masks a hung handler: the API's own 60s
+	// request-timeout middleware returns 503 first.
+	cli := &http.Client{Jar: newInsecureCookieJar(), Timeout: 90 * time.Second}
 
 	body, err := json.Marshal(map[string]string{
 		"username": username,

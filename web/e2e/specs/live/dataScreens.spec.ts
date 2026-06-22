@@ -107,7 +107,10 @@ test.describe("live: data screens render real backend data", () => {
     // log is non-empty and carries those real rows.
     await expect(page.getByText("No audit events yet.")).toHaveCount(0);
     await expect(page.getByText("e2e-admin").first()).toBeVisible();
-    await expect(page.getByText("/servers").first()).toBeVisible();
+    // The action cell shows a human-readable label (M12); the raw METHOD /path
+    // lives in its title attribute, so match the seeded POST /servers row by
+    // title rather than visible text.
+    await expect(page.getByTitle(/\/servers/).first()).toBeVisible();
   });
 
   test("modules page renders the real catalog state", async ({ page }) => {

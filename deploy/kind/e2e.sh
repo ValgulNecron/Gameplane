@@ -32,17 +32,24 @@ up)
     need helm
     need docker
 
+    # Start from a clean cluster every time. The self-hosted CI runner is
+    # persistent, so a cancelled run can leave a zombie cluster behind: kind
+    # still lists it, but its kubeconfig context is gone (kubectl then falls
+    # back to localhost:8080 and everything fails) and a leftover Helm release
+    # would break the reinstall. Delete any same-named cluster before creating.
+    # Local fast-iteration reuses the cluster via `make test-e2e-keep`, which
+    # does not call this `up` path.
     if kind get clusters | grep -qx "${CLUSTER}"; then
-        echo "cluster ${CLUSTER} already exists — reusing"
-    else
-        echo "creating kind cluster ${CLUSTER} (single-node)"
-        kind create cluster --name "${CLUSTER}" --wait 90s --config - <<EOF
+        echo "removing pre-existing cluster ${CLUSTER} for a clean slate"
+        kind delete cluster --name "${CLUSTER}" || true
+    fi
+    echo "creating kind cluster ${CLUSTER} (single-node)"
+    kind create cluster --name "${CLUSTER}" --wait 90s --config - <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
 EOF
-    fi
 
     kubectl cluster-info --context "kind-${CLUSTER}" >/dev/null
 
