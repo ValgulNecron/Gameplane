@@ -8,7 +8,7 @@ kind: Role
 metadata:
   name: {{ .Release.Name }}-api-bootstrap-tokens
   namespace: kube-system
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
   # Add node creates bootstrap-token Secrets so a new node can join.
   - apiGroups: [""]
@@ -20,11 +20,11 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-api-bootstrap-tokens
   namespace: kube-system
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Release.Name }}-api-bootstrap-tokens }
 subjects:
   - kind: ServiceAccount
-    name: kestrel-api
+    name: gameplane-api
     namespace: {{ .Release.Namespace }}
 ---
 # Download kubeconfig: create + approve short-lived client-cert CSRs.
@@ -32,7 +32,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-api-kubeconfig
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["certificates.k8s.io"]
     resources: [certificatesigningrequests]
@@ -49,14 +49,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}-api-kubeconfig
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ .Release.Name }}-api-kubeconfig }
 subjects:
   - kind: ServiceAccount
-    name: kestrel-api
+    name: gameplane-api
     namespace: {{ .Release.Namespace }}
 ---
-# Downloaded kubeconfigs carry the group "kestrel:dashboard"; bind it to
+# Downloaded kubeconfigs carry the group "gameplane:dashboard"; bind it to
 # the built-in read-only "view" ClusterRole so they grant kubectl read
 # access (get/list/watch), not mutation. Adjust the roleRef to widen or
 # narrow what a downloaded kubeconfig can do.
@@ -64,10 +64,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}-dashboard-view
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view }
 subjects:
   - kind: Group
-    name: "kestrel:dashboard"
+    name: "gameplane:dashboard"
     apiGroup: rbac.authorization.k8s.io
 {{- end }}

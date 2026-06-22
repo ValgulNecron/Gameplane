@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kestrel-api
+  name: gameplane-api
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 ---
 # Cluster-wide READ access: templates (cluster-scoped), nodes, storage
-# classes, and read-only watches on Kestrel CRDs for the /events stream.
+# classes, and read-only watches on Gameplane CRDs for the /events stream.
 # Note the absence of any write verb here — mutation permissions are
 # bound per-namespace via Role + RoleBinding below.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-api-read
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["gameplane.gg"]
     resources: [gameservers, gametemplates, backups, backupschedules, restores, modules, modulesources]
@@ -43,11 +43,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}-api-read
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ .Release.Name }}-api-read }
 subjects:
   - kind: ServiceAccount
-    name: kestrel-api
+    name: gameplane-api
     namespace: {{ .Release.Namespace }}
 ---
 # Namespace-scoped WRITE access: limited to the games namespace(s) the
@@ -59,7 +59,7 @@ kind: Role
 metadata:
   name: {{ .Release.Name }}-api-games
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["gameplane.gg"]
     resources: [gameservers, backups, backupschedules, restores]
@@ -93,11 +93,11 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-api-games
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Release.Name }}-api-games }
 subjects:
   - kind: ServiceAccount
-    name: kestrel-api
+    name: gameplane-api
     namespace: {{ .Release.Namespace }}
 ---
 # Module upload bundles are ConfigMaps in the control-plane namespace
@@ -108,7 +108,7 @@ kind: Role
 metadata:
   name: {{ .Release.Name }}-api-uploads
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: [configmaps]
@@ -119,20 +119,20 @@ kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-api-uploads
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Release.Name }}-api-uploads }
 subjects:
   - kind: ServiceAccount
-    name: kestrel-api
+    name: gameplane-api
     namespace: {{ .Release.Namespace }}
 ---
 {{- if eq .Values.api.db.driver "sqlite" }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: kestrel-api-data
+  name: gameplane-api-data
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   accessModes: [ReadWriteOnce]
   resources:
@@ -145,20 +145,20 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kestrel-api
+  name: gameplane-api
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.api.replicas }}
   selector:
-    matchLabels: { app.kubernetes.io/name: kestrel-api }
+    matchLabels: { app.kubernetes.io/name: gameplane-api }
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: kestrel-api
-        {{- include "kestrel.labels" . | nindent 8 }}
+        app.kubernetes.io/name: gameplane-api
+        {{- include "gameplane.labels" . | nindent 8 }}
     spec:
-      serviceAccountName: kestrel-api
+      serviceAccountName: gameplane-api
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -166,7 +166,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: {{ include "kestrel.apiImage" . }}
+          image: {{ include "gameplane.apiImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --db-driver={{ .Values.api.db.driver }}
@@ -176,9 +176,9 @@ spec:
             - --oidc-client-id={{ .Values.api.oidc.clientID }}
             - --oidc-redirect-url={{ .Values.api.oidc.redirectURL }}
             {{- end }}
-            - --agent-ca-bundle=/etc/kestrel/agent-ca/ca.crt
-            - --agent-client-cert=/etc/kestrel/agent-client/tls.crt
-            - --agent-client-key=/etc/kestrel/agent-client/tls.key
+            - --agent-ca-bundle=/etc/gameplane/agent-ca/ca.crt
+            - --agent-client-cert=/etc/gameplane/agent-client/tls.crt
+            - --agent-client-key=/etc/gameplane/agent-client/tls.key
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:
@@ -205,12 +205,12 @@ spec:
             capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: data, mountPath: /data }
-            - { name: agent-ca, mountPath: /etc/kestrel/agent-ca, readOnly: true }
-            - { name: agent-client, mountPath: /etc/kestrel/agent-client, readOnly: true }
+            - { name: agent-ca, mountPath: /etc/gameplane/agent-ca, readOnly: true }
+            - { name: agent-client, mountPath: /etc/gameplane/agent-client, readOnly: true }
       volumes:
         - name: data
           {{- if eq .Values.api.db.driver "sqlite" }}
-          persistentVolumeClaim: { claimName: kestrel-api-data }
+          persistentVolumeClaim: { claimName: gameplane-api-data }
           {{- else }}
           emptyDir: {}
           {{- end }}
@@ -225,10 +225,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: kestrel-api
+  name: gameplane-api
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
-  selector: { app.kubernetes.io/name: kestrel-api }
+  selector: { app.kubernetes.io/name: gameplane-api }
   ports:
     - { name: http, port: 80, targetPort: http }

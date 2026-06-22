@@ -20,7 +20,7 @@ var envInstance *Env
 //	    Skip create + destroy. Use this for fast dev iteration once
 //	    you've already run `deploy/kind/e2e.sh up`.
 //
-//	GAMEPLANE_E2E_CLUSTER=<name>   default: kestrel-e2e
+//	GAMEPLANE_E2E_CLUSTER=<name>   default: gameplane-e2e
 //	GAMEPLANE_E2E_TAG=<tag>        default: e2e
 //	GAMEPLANE_E2E_KEEP_ON_FAILURE=1
 //	    Don't tear down if any test fails (helpful for post-mortem

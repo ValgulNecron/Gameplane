@@ -7,7 +7,7 @@ kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   podSelector: {}
   policyTypes: [Ingress]
@@ -23,7 +23,7 @@ kind: NetworkPolicy
 metadata:
   name: default-deny-egress
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   podSelector: {}
   policyTypes: [Egress]
@@ -47,11 +47,11 @@ kind: NetworkPolicy
 metadata:
   name: allow-agent-to-apiserver
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: kestrel-game
+      app.kubernetes.io/name: gameplane-game
   policyTypes: [Egress]
   egress:
     - to:
@@ -78,11 +78,11 @@ kind: NetworkPolicy
 metadata:
   name: allow-api-to-agent
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: kestrel-game
+      app.kubernetes.io/name: gameplane-game
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -91,13 +91,13 @@ spec:
               kubernetes.io/metadata.name: {{ .Release.Namespace }}
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: kestrel-api
+              app.kubernetes.io/name: gameplane-api
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Release.Namespace }}
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: kestrel-operator
+              app.kubernetes.io/name: gameplane-operator
       ports:
         - { protocol: TCP, port: 8090 }
 ---
@@ -111,11 +111,11 @@ kind: NetworkPolicy
 metadata:
   name: allow-kubelet-probes
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: kestrel-game
+      app.kubernetes.io/name: gameplane-game
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -144,11 +144,11 @@ kind: NetworkPolicy
 metadata:
   name: allow-game-public-egress
   namespace: {{ .Values.gamesNamespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: kestrel-game
+      app.kubernetes.io/name: gameplane-game
   policyTypes: [Egress]
   egress:
     - to:

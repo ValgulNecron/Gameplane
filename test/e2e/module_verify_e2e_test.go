@@ -33,8 +33,8 @@ func TestModule_VerifyRejectsUnsignedBundle(t *testing.T) {
 	// e2e tests, which run sequentially in the same cluster).
 	envInstance.ApplyYAML(t, "oci-registry.yaml")
 	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
-		dep, err := envInstance.K8s.AppsV1().Deployments("kestrel-system").
-			Get(ctx, "kestrel-test-registry", metav1.GetOptions{})
+		dep, err := envInstance.K8s.AppsV1().Deployments("gameplane-system").
+			Get(ctx, "gameplane-test-registry", metav1.GetOptions{})
 		if err != nil {
 			return false, "get registry deploy: " + err.Error()
 		}
@@ -43,12 +43,12 @@ func TestModule_VerifyRejectsUnsignedBundle(t *testing.T) {
 		}
 		return false, "registry not ready yet"
 	})
-	envInstance.OCIPush(t, "kestrel-system", "oras-push-test-game")
+	envInstance.OCIPush(t, "gameplane-system", "oras-push-test-game")
 
 	// Public key the operator verifies against (private half discarded).
 	envInstance.ApplyYAML(t, "verify-cosign-pubkey.yaml")
 	parent.Cleanup(func() {
-		_ = envInstance.K8s.CoreV1().Secrets("kestrel-system").
+		_ = envInstance.K8s.CoreV1().Secrets("gameplane-system").
 			Delete(context.Background(), "e2e-cosign-pubkey", metav1.DeleteOptions{})
 	})
 
@@ -66,7 +66,7 @@ func TestModule_VerifyRejectsUnsignedBundle(t *testing.T) {
 		"spec": map[string]any{
 			"type": "oci",
 			"oci": map[string]any{
-				"url":      "kestrel-test-registry.kestrel-system.svc:5000",
+				"url":      "gameplane-test-registry.gameplane-system.svc:5000",
 				"insecure": true,
 				"modules":  []any{map[string]any{"name": "e2e-test-game"}},
 			},

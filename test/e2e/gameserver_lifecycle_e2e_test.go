@@ -24,7 +24,7 @@ import (
 // elsewhere and add minutes to this case.
 func TestGameServer_SuspendScalesToZeroAndBack(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-lifecycle-busybox"
 	gs := "e2e-lifecycle-suspend"
 

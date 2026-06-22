@@ -111,8 +111,8 @@ func TestModuleSource_RejectsSSRFTarget(t *testing.T) {
 	}
 
 	// The guard must reject without crashing the controller.
-	pods, err := envInstance.K8s.CoreV1().Pods("kestrel-system").List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=kestrel-operator",
+	pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=gameplane-operator",
 	})
 	if err != nil {
 		t.Fatalf("list operator pods: %v", err)

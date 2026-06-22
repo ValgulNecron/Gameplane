@@ -60,19 +60,19 @@ func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
 		{"POST /servers", http.MethodPost, "/servers", map[string]any{
 			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "GameServer",
-			"metadata":   map[string]any{"name": "rbac-fake", "namespace": "kestrel-games"},
+			"metadata":   map[string]any{"name": "rbac-fake", "namespace": "gameplane-games"},
 			"spec":       map[string]any{"templateRef": map[string]any{"name": "rbac-fake-tmpl"}},
 		}, http.StatusForbidden},
 		{"POST /backups", http.MethodPost, "/backups", map[string]any{
 			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "Backup",
-			"metadata":   map[string]any{"name": "rbac-fake", "namespace": "kestrel-games"},
+			"metadata":   map[string]any{"name": "rbac-fake", "namespace": "gameplane-games"},
 			"spec":       map[string]any{},
 		}, http.StatusForbidden},
 		{"POST /schedules", http.MethodPost, "/schedules", map[string]any{
 			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "BackupSchedule",
-			"metadata":   map[string]any{"name": "rbac-fake", "namespace": "kestrel-games"},
+			"metadata":   map[string]any{"name": "rbac-fake", "namespace": "gameplane-games"},
 			"spec":       map[string]any{},
 		}, http.StatusForbidden},
 		{"DELETE /servers/no-such", http.MethodDelete, "/servers/no-such", nil, http.StatusForbidden},
@@ -119,7 +119,7 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 	const tmplName = "e2e-rbac-op-tmpl"
 	applyBusyboxTemplate(t, tmplName)
 
-	const ns = "kestrel-games"
+	const ns = "gameplane-games"
 	gsName := fmt.Sprintf("e2e-rbac-op-gs-%d", time.Now().UnixNano())
 	t.Cleanup(func() {
 		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).

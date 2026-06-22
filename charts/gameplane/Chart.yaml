@@ -1,12 +1,12 @@
 apiVersion: v2
-name: kestrel
+name: gameplane
 description: Kubernetes-native game server control panel (open-source alternative to CubeCoders AMP).
 type: application
 version: 0.2.0-beta.1
 appVersion: "0.2.0-beta.1"
-home: https://github.com/kestrel-gg/kestrel
+home: https://github.com/ValgulNecron/gameplane
 sources:
-  - https://github.com/kestrel-gg/kestrel
+  - https://github.com/ValgulNecron/gameplane
 keywords:
   - game-server
   - minecraft
@@ -14,4 +14,4 @@ keywords:
   - operator
   - control-panel
 maintainers:
-  - name: Kestrel contributors
+  - name: Gameplane contributors

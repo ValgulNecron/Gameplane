@@ -40,7 +40,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 		t.Skip("heavy: set GAMEPLANE_E2E_GAME_BOT=1 to run the real-Minecraft bot test")
 	}
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 
 	// A trimmed Minecraft GameTemplate: the same itzg image and game port as the
 	// shipped modules/minecraft-java template, but vanilla with a small JVM heap
@@ -156,7 +156,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 	// skips encryption and answers Login Success for our offline bot.
 	lctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	res, err := mcbot.Login(lctx, addr, st.Version.Protocol, "kestrel-e2e-bot")
+	res, err := mcbot.Login(lctx, addr, st.Version.Protocol, "gameplane-e2e-bot")
 	if err != nil {
 		t.Fatalf("bot login: %v", err)
 	}

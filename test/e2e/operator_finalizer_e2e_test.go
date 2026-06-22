@@ -24,12 +24,12 @@ import (
 // Module/GameServer pair to keep the assertions independent.
 func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 
 	envInstance.ApplyYAML(t, "oci-registry.yaml")
 	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
-		dep, err := envInstance.K8s.AppsV1().Deployments("kestrel-system").
-			Get(ctx, "kestrel-test-registry", metav1.GetOptions{})
+		dep, err := envInstance.K8s.AppsV1().Deployments("gameplane-system").
+			Get(ctx, "gameplane-test-registry", metav1.GetOptions{})
 		if err != nil {
 			return false, "get registry deploy: " + err.Error()
 		}
@@ -38,7 +38,7 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 		}
 		return false, "registry not ready yet"
 	})
-	envInstance.OCIPush(t, "kestrel-system", "oras-push-test-game")
+	envInstance.OCIPush(t, "gameplane-system", "oras-push-test-game")
 
 	const (
 		sourceName = "e2e-finalizer-source"
@@ -53,7 +53,7 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 		"spec": map[string]any{
 			"type": "oci",
 			"oci": map[string]any{
-				"url":      "kestrel-test-registry.kestrel-system.svc:5000",
+				"url":      "gameplane-test-registry.gameplane-system.svc:5000",
 				"insecure": true,
 				"modules":  []any{map[string]any{"name": "e2e-test-game"}},
 			},
@@ -170,7 +170,7 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 // children) and survive the GameServer's deletion.
 func TestGameServer_CascadingDelete(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-cascade-tmpl"
 	gs := "e2e-cascade-target"
 	bkName := "e2e-cascade-backup"
@@ -242,7 +242,7 @@ func TestGameServer_CascadingDelete(t *testing.T) {
 // the GameServer itself is deleted.
 func TestGameTemplate_DeletionWithLiveServer(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-tmpldelete-template"
 	gs := "e2e-tmpldelete-server"
 

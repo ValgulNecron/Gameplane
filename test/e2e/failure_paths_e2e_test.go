@@ -20,7 +20,7 @@ import (
 // is built.
 func TestBackup_FailsOnMissingPVC(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	bkName := "e2e-fail-missing-pvc"
 
 	// We still need the restic creds Secret for the spec to be admissible
@@ -74,7 +74,7 @@ func TestBackup_FailsOnMissingPVC(t *testing.T) {
 // step rather than short-circuiting earlier).
 func TestBackup_FailsOnBadCredentials(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-fail-badcreds-tmpl"
 	gs := "e2e-fail-badcreds-target"
 	bkName := "e2e-fail-badcreds"
@@ -172,7 +172,7 @@ func TestBackup_FailsOnBadCredentials(t *testing.T) {
 // without a usable snapshot".
 func TestRestore_FailsOnMissingSnapshot(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-restore-missing-snap-tmpl"
 	gs := "e2e-restore-missing-snap-gs"
 	bkName := "e2e-restore-missing-snap-bk"
@@ -262,7 +262,7 @@ func TestModule_FailsOnUnreachableRegistry(t *testing.T) {
 				// .invalid is reserved (RFC 6761) so it never resolves on
 				// any network — the controller must surface a DNS / connect
 				// error rather than wait indefinitely.
-				"url":      "kestrel-nonexistent-registry.invalid:5000",
+				"url":      "gameplane-nonexistent-registry.invalid:5000",
 				"insecure": true,
 				"modules":  []any{map[string]any{"name": "ghost-game"}},
 			},
@@ -311,8 +311,8 @@ func TestModule_FailsOnUnreachableRegistry(t *testing.T) {
 
 	// Sanity: the operator pod is still up. A panic on a bad ModuleSource
 	// would have crashed it; a one-shot list is enough.
-	pods, err := envInstance.K8s.CoreV1().Pods("kestrel-system").List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=kestrel-operator",
+	pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=gameplane-operator",
 	})
 	if err != nil {
 		t.Fatalf("list operator pods: %v", err)

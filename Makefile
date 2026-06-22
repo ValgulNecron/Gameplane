@@ -1,16 +1,16 @@
-# Kestrel — top-level Makefile.
+# Gameplane — top-level Makefile.
 # Delegates to per-component Makefiles where present, but exposes a single
 # entrypoint for dev workflows (build/test/dev-up/dev-down).
 
 SHELL          := /bin/bash
 .DEFAULT_GOAL  := help
 
-REGISTRY       ?= ghcr.io/kestrel
+REGISTRY       ?= ghcr.io/valgulnecron/gameplane
 TAG            ?= dev
-KIND_CLUSTER   ?= kestrel-dev
-CHART_DIR      ?= charts/kestrel
-CHART_RELEASE  ?= kestrel
-NAMESPACE      ?= kestrel-system
+KIND_CLUSTER   ?= gameplane-dev
+CHART_DIR      ?= charts/gameplane
+CHART_RELEASE  ?= gameplane
+NAMESPACE      ?= gameplane-system
 
 # -------- target cluster selection --------
 # CLUSTER selects where the dev/deploy targets act:
@@ -161,14 +161,14 @@ test-integration: envtest-bin ## Run envtest-tagged integration tests
 	done
 
 # -------- e2e tier (kind + helm + real components) --------
-KIND_E2E_CLUSTER ?= kestrel-e2e
+KIND_E2E_CLUSTER ?= gameplane-e2e
 KIND_E2E_TAG     ?= e2e
 
 .PHONY: e2e-images
 e2e-images: ## Build operator/api/agent images tagged for e2e
-	docker build -t kestrel-test/operator:$(KIND_E2E_TAG) -f operator/Dockerfile .
-	docker build -t kestrel-test/api:$(KIND_E2E_TAG)      -f api/Dockerfile      .
-	docker build -t kestrel-test/agent:$(KIND_E2E_TAG)    -f agent/Dockerfile    .
+	docker build -t gameplane-test/operator:$(KIND_E2E_TAG) -f operator/Dockerfile .
+	docker build -t gameplane-test/api:$(KIND_E2E_TAG)      -f api/Dockerfile      .
+	docker build -t gameplane-test/agent:$(KIND_E2E_TAG)    -f agent/Dockerfile    .
 
 .PHONY: test-e2e
 test-e2e: ## Run E2E tests (CLUSTER=kind spins an ephemeral cluster; CLUSTER=remote reuses REMOTE_KUBECONFIG)
@@ -198,7 +198,7 @@ e2e-down: ## Tear down the e2e kind cluster
 # -------- web e2e (Playwright) --------
 # Mock mode: vite + MSW intercepting fetches. No cluster needed.
 # Live mode: vite proxies fetches to a kubectl port-forward globalSetup
-# spawns against the kestrel-e2e cluster. Run after `make e2e-up` and
+# spawns against the gameplane-e2e cluster. Run after `make e2e-up` and
 # the Go e2e suite (which writes the admin password to test/e2e/.tmp/).
 
 .PHONY: test-web-e2e-mock
@@ -248,11 +248,11 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 		paths=./... \
 		output:crd:artifacts:config=config/crd \
 		output:rbac:artifacts:config=config/rbac
-	cp operator/config/crd/gameplane.gg_*.yaml charts/kestrel/crds/
+	cp operator/config/crd/gameplane.gg_*.yaml charts/gameplane/crds/
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-push dev-install
-dev-up: ## Create/prepare cluster + install Kestrel (CLUSTER=kind|remote)
+dev-up: ## Create/prepare cluster + install Gameplane (CLUSTER=kind|remote)
 ifeq ($(CLUSTER),remote)
 	$(MAKE) images TAG=$(TAG)
 	$(MAKE) dev-push TAG=$(TAG)
@@ -276,7 +276,7 @@ dev-push: ## Push operator/api/agent images to REGISTRY (remote clusters)
 	docker push $(REGISTRY)/api:$(TAG)
 	docker push $(REGISTRY)/agent:$(TAG)
 
-dev-install: ## Install Kestrel Helm chart into the selected cluster
+dev-install: ## Install Gameplane Helm chart into the selected cluster
 	$(KUBECONFIG_ENV) helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \

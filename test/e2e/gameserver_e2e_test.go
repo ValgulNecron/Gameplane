@@ -30,7 +30,7 @@ var (
 // matters at the operator layer.
 func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 
 	// Use a busybox-based "fake game" so the operator can construct a
 	// pod spec that won't fail to render. Image is never actually
@@ -219,7 +219,7 @@ func contains(ss []string, s string) bool {
 // different UID, while the PVC keeps the same UID throughout.
 func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-pvc-survive-tmpl"
 	gs := "e2e-pvc-survive-gs"
 
@@ -286,7 +286,7 @@ func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
 // install could ever leave Starting — this is the regression guard.
 func TestGameServer_HeartbeatReachesRunning(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-hb-tmpl"
 	gs := "e2e-hb-gs"
 

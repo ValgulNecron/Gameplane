@@ -1,6 +1,6 @@
 // Command mcprobe is a small CLI around the mcbot package: it pings a
 // Minecraft: Java Edition server and (optionally) attempts a login, printing
-// what it found. Handy for manually checking that a Kestrel-managed server is
+// what it found. Handy for manually checking that a Gameplane-managed server is
 // actually reachable and playable.
 //
 //	go run ./internal/mcbot/cmd/mcprobe -addr 127.0.0.1:25565 -login
@@ -19,7 +19,7 @@ import (
 func main() {
 	addr := flag.String("addr", "127.0.0.1:25565", "Minecraft server host:port")
 	login := flag.Bool("login", false, "attempt an (offline) login after the ping")
-	user := flag.String("user", "kestrel-probe", "username to log in with")
+	user := flag.String("user", "gameplane-probe", "username to log in with")
 	timeout := flag.Duration("timeout", 30*time.Second, "overall timeout")
 	flag.Parse()
 

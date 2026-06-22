@@ -6,10 +6,10 @@
   stable (and the API doesn't roll its client cert on every upgrade).
 
   Users who want to bring their own CA can pre-create
-  `kestrel-agent-ca` and `kestrel-agent-client`; the lookup path then
+  `gameplane-agent-ca` and `gameplane-agent-client`; the lookup path then
   reuses them and nothing is generated.
 */}}
-{{- $caSecret := lookup "v1" "Secret" .Release.Namespace "kestrel-agent-ca" -}}
+{{- $caSecret := lookup "v1" "Secret" .Release.Namespace "gameplane-agent-ca" -}}
 {{- $haveCA := and $caSecret (hasKey ($caSecret.data | default dict) "ca.crt") (hasKey ($caSecret.data | default dict) "ca.key") -}}
 {{- $caCrt := "" -}}
 {{- $caKey := "" -}}
@@ -17,16 +17,16 @@
   {{- $caCrt = (index $caSecret.data "ca.crt" | b64dec) -}}
   {{- $caKey = (index $caSecret.data "ca.key" | b64dec) -}}
 {{- else -}}
-  {{- $ca := genCA "kestrel-agent-ca" 3650 -}}
+  {{- $ca := genCA "gameplane-agent-ca" 3650 -}}
   {{- $caCrt = $ca.Cert -}}
   {{- $caKey = $ca.Key -}}
 {{- end }}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: kestrel-agent-ca
+  name: gameplane-agent-ca
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
   annotations:
     gameplane.gg/managed-by: helm
 type: Opaque
@@ -34,7 +34,7 @@ data:
   ca.crt: {{ $caCrt | b64enc }}
   ca.key: {{ $caKey | b64enc }}
 ---
-{{- $clientSecret := lookup "v1" "Secret" .Release.Namespace "kestrel-agent-client" -}}
+{{- $clientSecret := lookup "v1" "Secret" .Release.Namespace "gameplane-agent-client" -}}
 {{- $haveClient := and $clientSecret (hasKey ($clientSecret.data | default dict) "tls.crt") (hasKey ($clientSecret.data | default dict) "tls.key") -}}
 {{- $clientCrt := "" -}}
 {{- $clientKey := "" -}}
@@ -45,18 +45,18 @@ data:
   {{- /* The API presents this cert to every agent. Agents accept any
            cert signed by our CA, so CN/SAN are informational only — we
            still fill SANs so Go's verifier has something to anchor on. */ -}}
-  {{- $apiDNS := list (printf "kestrel-api.%s.svc" .Release.Namespace) (printf "kestrel-api.%s.svc.cluster.local" .Release.Namespace) "kestrel-api" -}}
+  {{- $apiDNS := list (printf "gameplane-api.%s.svc" .Release.Namespace) (printf "gameplane-api.%s.svc.cluster.local" .Release.Namespace) "gameplane-api" -}}
   {{- $ca := buildCustomCert (b64enc $caCrt) (b64enc $caKey) -}}
-  {{- $signed := genSignedCert "kestrel-api-client" nil $apiDNS 3650 $ca -}}
+  {{- $signed := genSignedCert "gameplane-api-client" nil $apiDNS 3650 $ca -}}
   {{- $clientCrt = $signed.Cert -}}
   {{- $clientKey = $signed.Key -}}
 {{- end }}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: kestrel-agent-client
+  name: gameplane-agent-client
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "kestrel.labels" . | nindent 4 }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
   annotations:
     gameplane.gg/managed-by: helm
 type: kubernetes.io/tls

@@ -22,7 +22,7 @@ import (
 // new Backups owned by the schedule appear during the suspended window.
 func TestBackupSchedule_SuspendStopsScheduling(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-bksched-suspend-tmpl"
 	gs := "e2e-bksched-suspend-target"
 	schedName := "e2e-bksched-suspend"
@@ -110,7 +110,7 @@ func TestBackupSchedule_SuspendStopsScheduling(t *testing.T) {
 // retention reconcile slack. The 6-min timeout absorbs both with margin.
 func TestBackupSchedule_RetentionTrimsPast(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-bksched-retention-tmpl"
 	gs := "e2e-bksched-retention-target"
 	schedName := "e2e-bksched-retention"
@@ -189,7 +189,7 @@ func TestBackupSchedule_RetentionTrimsPast(t *testing.T) {
 // which is the operator's actual contract.
 func TestBackupSchedule_ConcurrencyForbid(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-bksched-concurrency-tmpl"
 	gs := "e2e-bksched-concurrency-target"
 	schedName := "e2e-bksched-concurrency"

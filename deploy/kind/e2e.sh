@@ -8,7 +8,7 @@
 # Diffs from dev-up (deploy/kind/up.sh):
 #   - Single-node cluster (faster boot, sufficient for E2E coverage).
 #   - Skips ingress-nginx (the dashboard isn't exercised here).
-#   - Loads pre-built kestrel/{operator,api,agent}:<tag> images.
+#   - Loads pre-built gameplane/{operator,api,agent}:<tag> images.
 #   - Helm install with --wait so pods are Ready before tests start.
 #
 # Image tag defaults to "e2e". Override via the second argument or
@@ -17,11 +17,11 @@
 set -euo pipefail
 
 ACTION="${1:-up}"
-CLUSTER="${2:-kestrel-e2e}"
+CLUSTER="${2:-gameplane-e2e}"
 TAG="${3:-${GAMEPLANE_E2E_TAG:-e2e}}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "${HERE}/../.." && pwd)"
-CHART_DIR="${REPO}/charts/kestrel"
+CHART_DIR="${REPO}/charts/gameplane"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
 
@@ -53,16 +53,16 @@ EOF
 
     kubectl cluster-info --context "kind-${CLUSTER}" >/dev/null
 
-    echo "loading kestrel/{operator,api,agent}:${TAG} images into kind"
+    echo "loading gameplane/{operator,api,agent}:${TAG} images into kind"
     for img in operator api agent; do
-        if ! docker image inspect "kestrel-test/${img}:${TAG}" >/dev/null 2>&1; then
-            echo "  missing local image kestrel-test/${img}:${TAG} — building"
-            docker build -t "kestrel-test/${img}:${TAG}" -f "${REPO}/${img}/Dockerfile" "${REPO}"
+        if ! docker image inspect "gameplane-test/${img}:${TAG}" >/dev/null 2>&1; then
+            echo "  missing local image gameplane-test/${img}:${TAG} — building"
+            docker build -t "gameplane-test/${img}:${TAG}" -f "${REPO}/${img}/Dockerfile" "${REPO}"
         fi
-        kind load docker-image "kestrel-test/${img}:${TAG}" --name "${CLUSTER}"
+        kind load docker-image "gameplane-test/${img}:${TAG}" --name "${CLUSTER}"
     done
 
-    echo "helm upgrade --install kestrel"
+    echo "helm upgrade --install gameplane"
     # Bump the API container's memory limit above the chart default of
     # 256Mi. The bootstrap-admin subcommand and every login endpoint
     # invocation runs argon2id, which uses ~64Mi of working memory per
@@ -72,12 +72,12 @@ EOF
     # registry the e2e cluster can't reach, so `--wait` would block on it
     # (kstatus reports the never-indexed source as InProgress) until timeout.
     # The module e2e tests provision their own in-cluster registry + source.
-    helm upgrade --install kestrel "${CHART_DIR}" \
-        --namespace kestrel-system --create-namespace \
-        --set "image.registry=kestrel-test" \
+    helm upgrade --install gameplane "${CHART_DIR}" \
+        --namespace gameplane-system --create-namespace \
+        --set "image.registry=gameplane-test" \
         --set "image.tag=${TAG}" \
         --set "ingress.enabled=false" \
-        --set "operator.agentImage=kestrel-test/agent:${TAG}" \
+        --set "operator.agentImage=gameplane-test/agent:${TAG}" \
         --set "api.resources.limits.memory=512Mi" \
         --set "defaultModuleSource.enabled=false" \
         --wait --timeout 5m

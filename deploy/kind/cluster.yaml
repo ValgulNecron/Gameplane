@@ -1,12 +1,12 @@
-# kind cluster for Kestrel local development.
+# kind cluster for Gameplane local development.
 #
 # Three-node cluster so the operator can exercise multi-node scheduling
 # (node affinity, anti-affinity, NodePort advertisement). Single-node
-# mode can be tested with `kind create cluster --name kestrel-dev-single`.
+# mode can be tested with `kind create cluster --name gameplane-dev-single`.
 
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: kestrel-dev
+name: gameplane-dev
 networking:
   apiServerAddress: "127.0.0.1"
   apiServerPort: 6443
@@ -26,7 +26,7 @@ nodes:
           kubeletExtraArgs:
             node-labels: "ingress-ready=true"
     extraPortMappings:
-      # Kestrel dashboard / API via ingress
+      # Gameplane dashboard / API via ingress
       - containerPort: 80
         hostPort: 8080
         protocol: TCP

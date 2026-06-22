@@ -33,7 +33,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ModuleSource is a store that Kestrel pulls module bundles from.
+        description: ModuleSource is a store that Gameplane pulls module bundles from.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +54,7 @@ spec:
             type: object
           spec:
             description: |-
-              ModuleSourceSpec configures one store that hosts Kestrel modules. The
+              ModuleSourceSpec configures one store that hosts Gameplane modules. The
               spec is a discriminated union: exactly the nested config matching
               spec.type must be set (enforced by CEL rules below). The operator
               periodically indexes the source and caches the resulting catalog into
@@ -202,7 +202,7 @@ spec:
                   url:
                     description: |-
                       URL is the registry/repository prefix that holds module bundles
-                      (e.g. "ghcr.io/kestrel-gg/modules").
+                      (e.g. "ghcr.io/valgulnecron/gameplane-modules").
                     minLength: 1
                     type: string
                 required:
@@ -404,7 +404,7 @@ spec:
                     reference:
                       description: |-
                         Reference locates this module within its source: the registry
-                        repo path for oci (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java"),
+                        repo path for oci (e.g. "ghcr.io/valgulnecron/gameplane-modules/minecraft-java"),
                         or "<type>:<location>/<dir>" for the other source types.
                       type: string
                     summary:

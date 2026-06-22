@@ -1,6 +1,6 @@
 // Package mcbot is a tiny, dependency-free Minecraft: Java Edition protocol
 // client. The e2e suite (and the mcprobe CLI under cmd/) use it to prove that
-// a Kestrel-managed Minecraft server is not merely "Running" in Kubernetes but
+// a Gameplane-managed Minecraft server is not merely "Running" in Kubernetes but
 // genuinely playable: it answers a Server List Ping and accepts a login.
 //
 // It speaks just enough of the post-Netty protocol (Minecraft 1.7+):

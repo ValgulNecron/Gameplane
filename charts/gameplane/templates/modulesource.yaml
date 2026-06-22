@@ -4,7 +4,7 @@ kind: ModuleSource
 metadata:
   name: {{ .Values.defaultModuleSource.name | default "default" }}
   labels:
-    {{- include "kestrel.labels" . | nindent 4 }}
+    {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   type: oci
   refreshInterval: {{ .Values.defaultModuleSource.refreshInterval | default "1h" }}
@@ -27,7 +27,7 @@ kind: ModuleSource
 metadata:
   name: {{ .Values.uploadModuleSource.name | default "uploads" }}
   labels:
-    {{- include "kestrel.labels" . | nindent 4 }}
+    {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   type: upload
   refreshInterval: {{ .Values.uploadModuleSource.refreshInterval | default "1h" }}

@@ -144,7 +144,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
-      - run: helm lint charts/kestrel
+      - run: helm lint charts/gameplane
 
   chart-template:
     name: chart render
@@ -152,7 +152,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
-      - run: helm template kestrel charts/kestrel > /tmp/rendered.yaml
+      - run: helm template gameplane charts/gameplane > /tmp/rendered.yaml
       - name: sanity-check rendered manifests
         run: |
           grep -q 'kind: Deployment' /tmp/rendered.yaml
@@ -185,7 +185,7 @@ jobs:
       - name: build images
         run: make e2e-images
       - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up kestrel-e2e e2e
+        run: ./deploy/kind/e2e.sh up gameplane-e2e e2e
       - name: run go e2e (core)
         run: |
           # Anchored ^(...)$ list — prefix-matching (e.g. TestGameServer vs
@@ -220,7 +220,7 @@ jobs:
           RUN_REGEX+=')$'
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=kestrel-e2e \
+            GAMEPLANE_E2E_CLUSTER=gameplane-e2e \
             GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 19m -v -run "$RUN_REGEX" ./...
       - name: install playwright browser
@@ -239,16 +239,16 @@ jobs:
       - name: run playwright (live)
         env:
           GAMEPLANE_E2E_TARGET: live
-          GAMEPLANE_E2E_CLUSTER: kestrel-e2e
+          GAMEPLANE_E2E_CLUSTER: gameplane-e2e
         run: |
           cd web && npm run test:e2e:live
       - name: dump cluster state on failure
         if: failure()
         run: |
           kubectl get all -A
-          kubectl describe pods -n kestrel-system
-          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
-          kubectl logs -n kestrel-system -l app.kubernetes.io/name=kestrel-api --tail=200 || true
+          kubectl describe pods -n gameplane-system
+          kubectl logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
       - name: upload playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -259,7 +259,7 @@ jobs:
           if-no-files-found: warn
       - name: tear down
         if: always()
-        run: ./deploy/kind/e2e.sh down kestrel-e2e || true
+        run: ./deploy/kind/e2e.sh down gameplane-e2e || true
 
   e2e-extended:
     name: e2e extended (kind)
@@ -280,7 +280,7 @@ jobs:
       - name: build images
         run: make e2e-images
       - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up kestrel-e2e-2 e2e
+        run: ./deploy/kind/e2e.sh up gameplane-e2e-2 e2e
       - name: run go e2e (extended)
         run: |
           # Anchored ^(...)$ list — must stay disjoint from e2e-core.
@@ -312,19 +312,19 @@ jobs:
           RUN_REGEX+=')$'
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=kestrel-e2e-2 \
+            GAMEPLANE_E2E_CLUSTER=gameplane-e2e-2 \
             GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure
         if: failure()
         run: |
-          kubectl --context kind-kestrel-e2e-2 get all -A || true
-          kubectl --context kind-kestrel-e2e-2 describe pods -n kestrel-system || true
-          kubectl --context kind-kestrel-e2e-2 logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
-          kubectl --context kind-kestrel-e2e-2 logs -n kestrel-system -l app.kubernetes.io/name=kestrel-api --tail=200 || true
+          kubectl --context kind-gameplane-e2e-2 get all -A || true
+          kubectl --context kind-gameplane-e2e-2 describe pods -n gameplane-system || true
+          kubectl --context kind-gameplane-e2e-2 logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context kind-gameplane-e2e-2 logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
       - name: tear down
         if: always()
-        run: ./deploy/kind/e2e.sh down kestrel-e2e-2 || true
+        run: ./deploy/kind/e2e.sh down gameplane-e2e-2 || true
 
   # Boots a REAL Minecraft server through the operator and connects a headless
   # protocol bot (mcbot) that pings it and completes a login — proving the
@@ -349,22 +349,22 @@ jobs:
       - name: build images
         run: make e2e-images
       - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up kestrel-e2e-3 e2e
+        run: ./deploy/kind/e2e.sh up gameplane-e2e-3 e2e
       - name: run go e2e (game bot)
         run: |
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=kestrel-e2e-3 \
+            GAMEPLANE_E2E_CLUSTER=gameplane-e2e-3 \
             GAMEPLANE_E2E_GAME_BOT=1 \
             GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 18m -v -run '^TestGameServer_MinecraftBotConnects$' ./...
       - name: dump cluster state on failure
         if: failure()
         run: |
-          kubectl --context kind-kestrel-e2e-3 get all -A || true
-          kubectl --context kind-kestrel-e2e-3 describe pods -n kestrel-games || true
-          kubectl --context kind-kestrel-e2e-3 logs -n kestrel-games e2e-mc-bot-0 -c game --tail=200 || true
-          kubectl --context kind-kestrel-e2e-3 logs -n kestrel-system -l app.kubernetes.io/name=kestrel-operator --tail=200 || true
+          kubectl --context kind-gameplane-e2e-3 get all -A || true
+          kubectl --context kind-gameplane-e2e-3 describe pods -n gameplane-games || true
+          kubectl --context kind-gameplane-e2e-3 logs -n gameplane-games e2e-mc-bot-0 -c game --tail=200 || true
+          kubectl --context kind-gameplane-e2e-3 logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
       - name: tear down
         if: always()
-        run: ./deploy/kind/e2e.sh down kestrel-e2e-3 || true
+        run: ./deploy/kind/e2e.sh down gameplane-e2e-3 || true

@@ -32,7 +32,7 @@ type ptyEnvelope struct {
 // kubelet API, not the agent's mTLS endpoint.
 func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-ws-pty-tmpl"
 	gs := "e2e-ws-pty-gs"
 
@@ -62,7 +62,7 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 	wsConn, stop := dialAuthedWS(t, cli, "/ws/servers/"+gs+"/console-pty")
 	defer stop()
 
-	const marker = "kestrel-pty-marker-12345"
+	const marker = "gameplane-pty-marker-12345"
 	stdinCmd := []byte("echo " + marker + "\n")
 	envOut := ptyEnvelope{
 		Kind: "stdin",
@@ -115,10 +115,10 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 // The route is proxied to the agent sidecar over mTLS.
 func TestAPI_LogsTailWS(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-ws-logs-tmpl"
 	gs := "e2e-ws-logs-gs"
-	const marker = "kestrel-log-marker-67890"
+	const marker = "gameplane-log-marker-67890"
 
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)

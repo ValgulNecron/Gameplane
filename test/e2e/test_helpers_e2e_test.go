@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// GVRs for the Kestrel CRDs the new tests touch. The existing
+// GVRs for the Gameplane CRDs the new tests touch. The existing
 // gameserver_e2e_test.go owns gameTemplateGVR and gameServerGVR; we
 // extend the set here.
 var (

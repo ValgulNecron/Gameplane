@@ -1,7 +1,7 @@
 //go:build e2e
 
 // Package e2e holds end-to-end tests that run against a real
-// (kind-based) Kubernetes cluster with the Kestrel chart installed.
+// (kind-based) Kubernetes cluster with the Gameplane chart installed.
 package e2e
 
 import (
@@ -51,7 +51,7 @@ type Env struct {
 }
 
 func newEnv() (*Env, error) {
-	cluster := getenvOr("GAMEPLANE_E2E_CLUSTER", "kestrel-e2e")
+	cluster := getenvOr("GAMEPLANE_E2E_CLUSTER", "gameplane-e2e")
 	tag := getenvOr("GAMEPLANE_E2E_TAG", "e2e")
 	kctx := getenvOr("GAMEPLANE_E2E_CONTEXT", "kind-"+cluster)
 
@@ -259,7 +259,7 @@ func (e *Env) BootstrapAdmin(t *testing.T, username, password string) {
 		bootstrapAdminKey = key
 		out, err := e.KubectlWithStdin(
 			password+"\n",
-			"exec", "-i", "-n", "kestrel-system", "deploy/kestrel-api", "--",
+			"exec", "-i", "-n", "gameplane-system", "deploy/gameplane-api", "--",
 			"/api", "bootstrap-admin",
 			"--username="+username,
 			"--password-stdin",
@@ -430,7 +430,7 @@ type APIClient struct {
 // tear the port-forward down.
 func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 	t.Helper()
-	local, stop := e.PortForward(t, "kestrel-system", "svc/kestrel-api", 80)
+	local, stop := e.PortForward(t, "gameplane-system", "svc/gameplane-api", 80)
 	base := fmt.Sprintf("http://127.0.0.1:%d", local)
 
 	// 90s tolerates the few legitimately-slow endpoints (notably :restart,
@@ -562,7 +562,7 @@ func (e *Env) OCIPush(t *testing.T, jobNS, jobName string) {
 // and waits for the Job to succeed. Used by module install and module
 // upgrade tests, where each version needs its own Job + ConfigMap pair.
 //
-// jobNS is where the Job is created (typically "kestrel-system"), and
+// jobNS is where the Job is created (typically "gameplane-system"), and
 // jobName matches the metadata.name in the fixture.
 func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 	t.Helper()
@@ -593,7 +593,7 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 
 // CreateUser POSTs /users as the given admin client and returns the
 // generated credentials and the new user id. The username is suffixed
-// with time.UnixNano() so a re-run against a stateful kestrel-system DB
+// with time.UnixNano() so a re-run against a stateful gameplane-system DB
 // (the API PVC isn't wiped between local iterations) doesn't collide.
 //
 // The caller owns cleanup — register `t.Cleanup` to DELETE /users/{id}

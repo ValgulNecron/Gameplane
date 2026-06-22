@@ -53,13 +53,13 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: chart version
         run: |
-          sed -i "s/^version: .*/version: ${GITHUB_REF_NAME#v}/" charts/kestrel/Chart.yaml
-          sed -i "s/^appVersion: .*/appVersion: ${GITHUB_REF_NAME#v}/" charts/kestrel/Chart.yaml
+          sed -i "s/^version: .*/version: ${GITHUB_REF_NAME#v}/" charts/gameplane/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: ${GITHUB_REF_NAME#v}/" charts/gameplane/Chart.yaml
       - name: helm package
-        run: helm package charts/kestrel -d dist
+        run: helm package charts/gameplane -d dist
       - name: push to OCI
         env:
           HELM_REGISTRY_CONFIG: ${{ runner.temp }}/helm.json
         run: |
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-          helm push dist/kestrel-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          helm push dist/gameplane-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts

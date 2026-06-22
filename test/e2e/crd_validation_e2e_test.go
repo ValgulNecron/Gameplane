@@ -20,7 +20,7 @@ func TestCRD_Validation_GameServerWithoutTemplate(t *testing.T) {
 kind: GameServer
 metadata:
   name: e2e-validation-gs-no-template
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   templateRef:
     name: ""
@@ -33,7 +33,7 @@ func TestCRD_Validation_BackupScheduleBadCron(t *testing.T) {
 kind: BackupSchedule
 metadata:
   name: e2e-validation-bksched-badcron
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   serverRef:
     name: any-server
@@ -50,7 +50,7 @@ func TestCRD_Validation_BackupRequiresServerRef(t *testing.T) {
 kind: Backup
 metadata:
   name: e2e-validation-bk-no-serverref
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   repoRef:
     name: e2e-restic-creds

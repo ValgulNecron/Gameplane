@@ -26,7 +26,7 @@ func TestModuleSourceUpload(t *testing.T) {
 		sourceName = "e2e-upload-source"
 		moduleName = "e2e-upload-game"
 		cmName     = "e2e-upload-bundle"
-		ns         = "kestrel-system"
+		ns         = "gameplane-system"
 	)
 
 	// 1. The upload-type source (the chart also ships one named

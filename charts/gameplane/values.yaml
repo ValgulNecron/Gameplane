@@ -1,17 +1,17 @@
-## Kestrel Helm values.
+## Gameplane Helm values.
 ##
 ## Top-level layout:
 ##   image.*        — registry/tag shared by all component images
 ##   operator.*     — operator Deployment tunables
 ##   api.*          — API Deployment tunables (incl. DB + OIDC)
 ##   ingress.*      — dashboard ingress
-##   gamesNamespace — namespace Kestrel creates GameServers in
+##   gamesNamespace — namespace Gameplane creates GameServers in
 ##   networkPolicies — default-deny policies in gamesNamespace
 ##   serviceMonitors — Prometheus Operator integration
 ##   podSecurity     — cluster-wide hardening knobs
 
 image:
-  registry: ghcr.io/kestrel
+  registry: ghcr.io/valgulnecron/gameplane
   tag: "0.1.0"
   pullPolicy: IfNotPresent
   pullSecrets: []
@@ -31,7 +31,7 @@ operator:
     enabled: false
     existingClaim: ""
     hostPath: ""
-    mountPath: /var/lib/kestrel/modules
+    mountPath: /var/lib/gameplane/modules
 
 api:
   replicas: 1
@@ -41,10 +41,10 @@ api:
 
   db:
     driver: sqlite       # sqlite | postgres
-    dsn: "file:/data/kestrel.db?_pragma=journal_mode(WAL)"
+    dsn: "file:/data/gameplane.db?_pragma=journal_mode(WAL)"
     # When driver=postgres, set dsn to a postgres connection string and
     # rebuild the api image with -tags postgres. Example:
-    # dsn: "postgres://kestrel:***@postgres/kestrel?sslmode=require"
+    # dsn: "postgres://gameplane:***@postgres/gameplane?sslmode=require"
 
   # PVC attached to the API for SQLite storage. Only used when db.driver=sqlite.
   storage:
@@ -56,24 +56,24 @@ api:
     issuer: ""
     clientID: ""
     clientSecretRef:
-      name: kestrel-oidc
+      name: gameplane-oidc
       key:  clientSecret
     redirectURL: ""
 
   # mTLS material the API presents to in-pod agents. When unset, the
   # chart provisions a self-signed CA + cert via a post-install hook.
   agentMTLS:
-    caSecretRef:     { name: kestrel-agent-ca,     key: ca.crt }
-    clientCertRef:   { name: kestrel-agent-client, key: tls.crt }
-    clientKeyRef:    { name: kestrel-agent-client, key: tls.key }
+    caSecretRef:     { name: gameplane-agent-ca,     key: ca.crt }
+    clientCertRef:   { name: gameplane-agent-client, key: tls.crt }
+    clientKeyRef:    { name: gameplane-agent-client, key: tls.key }
 
 ingress:
   enabled: true
   className: nginx
-  host: kestrel.local
+  host: gameplane.local
   # TLS is on by default because session cookies + login credentials
   # travel this path. Provide a cert via cert-manager (annotations) or
-  # by pre-creating the `kestrel-tls` Secret. For throwaway dev clusters
+  # by pre-creating the `gameplane-tls` Secret. For throwaway dev clusters
   # where HTTPS is overkill, override `ingress.tls=false` explicitly.
   tls: true
   # Sensible default annotations for nginx-ingress. Override to swap in
@@ -85,7 +85,7 @@ ingress:
     nginx.ingress.kubernetes.io/limit-rps: "20"
     nginx.ingress.kubernetes.io/limit-connections: "50"
 
-gamesNamespace: kestrel-games
+gamesNamespace: gameplane-games
 
 networkPolicies:
   enabled: true
@@ -124,7 +124,7 @@ networkPolicies:
 # Cluster page (Add node = create a bootstrap token; Download kubeconfig =
 # mint a short-lived client cert). Off by default: enabling grants the API
 # powerful kube-system + CSR-approval RBAC. Downloaded kubeconfigs carry
-# the group "kestrel:dashboard", bound to the read-only "view" ClusterRole.
+# the group "gameplane:dashboard", bound to the read-only "view" ClusterRole.
 clusterOps:
   enabled: false
 
@@ -142,7 +142,7 @@ podSecurity:
 defaultModuleSource:
   enabled: true
   name: default
-  url: ghcr.io/kestrel-gg/modules
+  url: ghcr.io/valgulnecron/gameplane-modules
   refreshInterval: 1h
   insecure: false       # set true for plain-HTTP local registries
   modules:
