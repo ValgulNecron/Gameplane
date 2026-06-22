@@ -3,8 +3,8 @@
 //   - CSRF header injection for mutating requests (cookie → header)
 //   - uniform error throwing so TanStack Query .error works consistently
 
-const CSRF_COOKIE = "kestrel_csrf";
-const CSRF_HEADER = "X-Kestrel-CSRF";
+const CSRF_COOKIE = "gameplane_csrf";
+const CSRF_HEADER = "X-Gameplane-CSRF";
 
 function csrfToken(): string {
   const match = document.cookie.match(new RegExp("(?:^|; )" + CSRF_COOKIE + "=([^;]+)"));

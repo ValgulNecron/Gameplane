@@ -379,7 +379,7 @@ func freePort() (int, error) {
 }
 
 // APIClient is a minimal authenticated session against the API service.
-// Mutations attach the X-Kestrel-CSRF header that the session
+// Mutations attach the X-Gameplane-CSRF header that the session
 // insecureCookieJar is a minimal http.CookieJar that ignores the Secure
 // attribute so the e2e client can carry the API's Secure session/CSRF cookies
 // over the plain-HTTP port-forward. The standard net/http/cookiejar filters
@@ -518,7 +518,7 @@ func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, e
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if isMutation(method) {
-		req.Header.Set("X-Kestrel-CSRF", c.CSRF)
+		req.Header.Set("X-Gameplane-CSRF", c.CSRF)
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {

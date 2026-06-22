@@ -26,16 +26,16 @@ describe("api()", () => {
     await api("/users/me");
     const [, init] = fetchMock.mock.calls[0];
     expect(init.method).toBe("GET");
-    expect(init.headers["X-Kestrel-CSRF"]).toBeUndefined();
+    expect(init.headers["X-Gameplane-CSRF"]).toBeUndefined();
   });
 
   it("sends the CSRF cookie value as header on POST", async () => {
-    document.cookie = "kestrel_csrf=tok123";
+    document.cookie = "gameplane_csrf=tok123";
     fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
     await api("/auth/login", { method: "POST", body: { u: "x" } });
     const [, init] = fetchMock.mock.calls[0];
     expect(init.method).toBe("POST");
-    expect(init.headers["X-Kestrel-CSRF"]).toBe("tok123");
+    expect(init.headers["X-Gameplane-CSRF"]).toBe("tok123");
     expect(init.body).toBe(JSON.stringify({ u: "x" }));
   });
 

@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	sessionCookie = "kestrel_session"
-	csrfHeader    = "X-Kestrel-CSRF"
-	csrfCookie    = "kestrel_csrf"
+	sessionCookie = "gameplane_session"
+	csrfHeader    = "X-Gameplane-CSRF"
+	csrfCookie    = "gameplane_csrf"
 	sessionTTL    = 12 * time.Hour
 )
 
@@ -226,7 +226,7 @@ func setSessionCookie(w http.ResponseWriter, token string, ttl time.Duration) {
 
 func setCSRFCookie(w http.ResponseWriter, token string, ttl time.Duration) {
 	// CSRF cookie is deliberately NOT HttpOnly so the SPA can read it
-	// and echo it back as the X-Kestrel-CSRF header.
+	// and echo it back as the X-Gameplane-CSRF header.
 	http.SetCookie(w, &http.Cookie{
 		Name:     csrfCookie,
 		Value:    token,

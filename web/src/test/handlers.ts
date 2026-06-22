@@ -53,9 +53,9 @@ export const handlers = [
       {
         headers: {
           // Mirror the real cookie shape: csrf cookie is JS-readable so
-          // the SPA can echo it back in X-Kestrel-CSRF.
+          // the SPA can echo it back in X-Gameplane-CSRF.
           "Set-Cookie":
-            "kestrel_csrf=mock-csrf-token; Path=/; SameSite=Lax",
+            "gameplane_csrf=mock-csrf-token; Path=/; SameSite=Lax",
         },
       },
     );

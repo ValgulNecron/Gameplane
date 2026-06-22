@@ -186,7 +186,7 @@ func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
 			return
 		}
 		// Forward only headers the agent actually consumes. Never proxy
-		// Cookie, Authorization, X-Kestrel-CSRF — those are the user's
+		// Cookie, Authorization, X-Gameplane-CSRF — those are the user's
 		// session material and the agent doesn't need them (mTLS is what
 		// it authenticates on). Leaking them to agent logs or a
 		// compromised sidecar would hand over live session tokens.

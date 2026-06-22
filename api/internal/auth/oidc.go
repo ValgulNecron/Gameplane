@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	oidcStateCookie = "kestrel_oidc_state"
-	oidcNonceCookie = "kestrel_oidc_nonce"
+	oidcStateCookie = "gameplane_oidc_state"
+	oidcNonceCookie = "gameplane_oidc_nonce"
 )
 
 type OIDC struct {

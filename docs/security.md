@@ -16,7 +16,7 @@ Two modes, configurable independently:
 
 - **Local accounts** — argon2id (64 MiB, t=3, p=4) password hashing.
   Session cookies are HttpOnly, Secure, SameSite=Lax. CSRF protection
-  via a double-submit `X-Kestrel-CSRF` header on mutating requests.
+  via a double-submit `X-Gameplane-CSRF` header on mutating requests.
 - **OIDC** — Keycloak, Google, GitHub, any RFC-7519 compliant IdP.
   State validated through a short-lived cookie; `id_token` signature
   verified against the provider's JWKS.

@@ -114,8 +114,8 @@ export default async function globalSetup(): Promise<void> {
     .map((raw) => parseSetCookie(raw))
     .filter((c): c is PlaywrightCookie => c !== null);
 
-  if (!cookies.find((c) => c.name === "kestrel_session")) {
-    throw new Error("live-mode setup: kestrel_session cookie missing from login response");
+  if (!cookies.find((c) => c.name === "gameplane_session")) {
+    throw new Error("live-mode setup: gameplane_session cookie missing from login response");
   }
 
   if (!existsSync(authDir)) mkdirSync(authDir, { recursive: true, mode: 0o700 });

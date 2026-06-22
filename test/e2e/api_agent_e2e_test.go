@@ -116,7 +116,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		t.Fatalf("build write req: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("X-Kestrel-CSRF", cli.CSRF)
+	req.Header.Set("X-Gameplane-CSRF", cli.CSRF)
 	resp, err := cli.HTTP.Do(req)
 	if err != nil {
 		t.Fatalf("POST /files/write: %v", err)

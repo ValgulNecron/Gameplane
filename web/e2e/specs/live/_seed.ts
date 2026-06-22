@@ -31,8 +31,8 @@ export async function loginIfNeeded(page: Page): Promise<void> {
 
 // seedHeaders builds the headers a seed mutation needs:
 //
-//   - X-Kestrel-CSRF — the API enforces double-submit CSRF on every mutating
-//     request (the header must equal the kestrel_csrf cookie; api/internal/
+//   - X-Gameplane-CSRF — the API enforces double-submit CSRF on every mutating
+//     request (the header must equal the gameplane_csrf cookie; api/internal/
 //     auth/sessions.go). The browser app echoes it automatically (lib/api.ts);
 //     an APIRequestContext does not, so we read the token out of storageState
 //     and set it ourselves. Without this every seed POST/DELETE would 403.
@@ -42,8 +42,8 @@ export async function loginIfNeeded(page: Page): Promise<void> {
 //     the API side of that bypass regardless of Playwright's default.
 async function seedHeaders(request: APIRequestContext): Promise<Record<string, string>> {
   const state = await request.storageState();
-  const token = state.cookies.find((c) => c.name === "kestrel_csrf")?.value ?? "";
-  return { "X-Kestrel-CSRF": token, Accept: "application/json" };
+  const token = state.cookies.find((c) => c.name === "gameplane_csrf")?.value ?? "";
+  return { "X-Gameplane-CSRF": token, Accept: "application/json" };
 }
 
 // expectSeedOk throws (failing the spec) unless the seed request succeeded.

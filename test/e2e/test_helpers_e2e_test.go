@@ -353,11 +353,11 @@ func dialAuthedWS(t *testing.T, cli *APIClient, path string) (*websocket.Conn, f
 	wsURL := strings.Replace(cli.BaseURL, "http://", "ws://", 1) + path
 
 	// websocket.Dial uses the supplied HTTPClient's Jar for cookies, so
-	// borrowing the APIClient's jar gives us the kestrel_session cookie
+	// borrowing the APIClient's jar gives us the gameplane_session cookie
 	// without manual scraping.
 	dialClient := &http.Client{Jar: cli.HTTP.Jar, Timeout: 0}
 	header := http.Header{}
-	header.Set("X-Kestrel-CSRF", cli.CSRF)
+	header.Set("X-Gameplane-CSRF", cli.CSRF)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
