@@ -16,10 +16,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/agent"
-	"github.com/kestrel-gg/kestrel/operator/internal/controller"
-	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
+	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/agent"
+	"github.com/ValgulNecron/gameplane/operator/internal/controller"
+	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
 )
 
 var scheme = runtime.NewScheme()

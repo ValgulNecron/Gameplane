@@ -11,7 +11,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // reconcileVolumeSnapshot drives a Backup whose Strategy is

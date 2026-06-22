@@ -8,7 +8,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // GameTemplateReconciler mostly exists to maintain status.inUseCount —

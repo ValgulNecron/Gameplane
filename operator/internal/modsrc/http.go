@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kestrel-gg/kestrel/netguard"
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/netguard"
+	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // Hard caps on archives an http source will accept. A module bundle is

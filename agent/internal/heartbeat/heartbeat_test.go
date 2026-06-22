@@ -15,7 +15,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/usage"
+	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
 func TestRun_DisabledPaths(t *testing.T) {

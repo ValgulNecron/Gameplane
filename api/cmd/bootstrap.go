@@ -11,8 +11,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 // bootstrapAdmin seeds (or, with --force, resets) the initial admin user

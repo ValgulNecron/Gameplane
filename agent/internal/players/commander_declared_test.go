@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
 )
 
 // minecraftActions declares the same behavior the hardcoded minecraft

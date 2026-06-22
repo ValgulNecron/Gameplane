@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/usage"
+	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
 type Rcon interface {

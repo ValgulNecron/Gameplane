@@ -1,4 +1,4 @@
-module github.com/kestrel-gg/kestrel/api
+module github.com/ValgulNecron/gameplane/api
 
 go 1.25.0
 

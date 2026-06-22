@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 func newAuthDB(t *testing.T) *db.Store {

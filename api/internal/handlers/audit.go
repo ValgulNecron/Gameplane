@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/audit"
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/audit"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 )
 
 func MountAudit(r chi.Router, a *audit.Auditor) {

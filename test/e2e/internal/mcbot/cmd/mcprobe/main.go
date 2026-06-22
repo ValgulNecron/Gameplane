@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/kestrel-gg/kestrel/test/e2e/internal/mcbot"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/mcbot"
 )
 
 func main() {

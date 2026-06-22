@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/kestrel-gg/kestrel/test/e2e/internal/mcbot"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/mcbot"
 )
 
 // TestGameServer_MinecraftBotConnects is the most end-to-end test in the suite:

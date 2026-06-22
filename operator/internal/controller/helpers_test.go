@@ -3,7 +3,7 @@ package controller
 import (
 	"testing"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestEffectiveConsoleMode(t *testing.T) {

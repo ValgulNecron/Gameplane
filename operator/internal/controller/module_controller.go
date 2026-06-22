@@ -18,9 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
-	"github.com/kestrel-gg/kestrel/operator/internal/verify"
+	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
+	"github.com/ValgulNecron/gameplane/operator/internal/verify"
 )
 
 // ModuleReconciler materializes Module CRs into GameTemplate CRs. The

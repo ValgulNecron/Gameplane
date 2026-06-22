@@ -30,8 +30,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
-	"github.com/kestrel-gg/kestrel/netguard"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/netguard"
 )
 
 const defaultMaxBytes = 256 << 20 // 256 MiB

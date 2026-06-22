@@ -20,8 +20,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
-	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
 // Rcon is the slice of *rcon.Client we use. An interface so tests can

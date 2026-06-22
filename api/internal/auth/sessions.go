@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 const (

@@ -22,8 +22,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
-	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
 type Rcon interface {
