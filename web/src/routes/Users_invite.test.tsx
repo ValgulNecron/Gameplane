@@ -16,7 +16,10 @@ vi.mock("@/lib/endpoints", () => ({
     resetPassword: vi.fn(),
   },
 }));
-vi.mock("@/lib/auth", () => ({
+// Spread the real module so can() stays available — UsersPage now calls it
+// at the top level (audit quick-link gate); only useMe is stubbed.
+vi.mock("@/lib/auth", async (orig) => ({
+  ...(await orig<typeof import("@/lib/auth")>()),
   useMe: () => ({
     data: { id: 1, username: "root", displayName: "Root", email: "r@x", role: "admin" },
     error: null,

@@ -4,12 +4,14 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   KeyRound,
   MoreHorizontal,
   Pencil,
   Plus,
+  ScrollText,
   Search,
   Trash2,
 } from "lucide-react";
@@ -63,6 +65,10 @@ function roleGrantsUserManagement(roles: Role[], name: string): boolean {
 export function UsersPage() {
   const qc = useQueryClient();
   const { data: me } = useMe();
+  // Surface a quick jump to the audit log (design parity), but only for
+  // users who can actually read it — the /admin/audit route is gated on
+  // audit:read, so a link for anyone else would dead-end.
+  const canAudit = can(me, "audit:read");
   const [tab, setTab] = useState<Tab>("users");
   const [q, setQ] = useState("");
   const [inviting, setInviting] = useState(false);
@@ -110,6 +116,14 @@ export function UsersPage() {
         subtitle="Manage access to the Kestrel control plane."
         actions={
           <div className="flex items-center gap-2">
+            {canAudit && (
+              <Link
+                to="/admin/audit"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-fg transition-colors hover:bg-surface"
+              >
+                <ScrollText className="h-4 w-4" /> Audit log
+              </Link>
+            )}
             <Button onClick={() => setInviting(true)}>
               <Plus className="h-4 w-4" /> Invite user
             </Button>

@@ -231,3 +231,22 @@ describe("UsersPage roles tab", () => {
     expect(cards.length).toBe(3);
   });
 });
+
+describe("UsersPage audit quick-link", () => {
+  it("shows an Audit log link for users with audit:read", async () => {
+    renderPage();
+    const link = await screen.findByText("Audit log");
+    expect(link.closest("a")).toHaveAttribute("to", "/admin/audit");
+  });
+
+  it("hides the Audit log link from users without audit:read", async () => {
+    useMeMock.mockReturnValue({
+      data: { ...ME, permissions: { "*": ["users:manage"] } },
+      error: null,
+      isLoading: false,
+    });
+    renderPage();
+    await screen.findByText("Invite user");
+    expect(screen.queryByText("Audit log")).toBeNull();
+  });
+});
