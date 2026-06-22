@@ -232,6 +232,14 @@ This project standing-orders agents to commit after each logical unit of work. T
 - **When *not* to commit**: known-broken state (compile errors, failing tests you haven't addressed), partial CRD edits without their regenerated artifacts, anything containing secrets/credentials, or unreviewed bulk reformatting. In those cases, finish the unit first.
 - **Pushing**: push at natural checkpoints so work isn't stranded locally, but do **not** force-push `main` and do **not** push obviously broken commits.
 
+### 12. One branch per unit of work — delete it once merged
+
+Every piece of work goes on its own branch (rule 8). The moment that branch is merged into `main`, **delete it** — both the remote (`git push origin --delete <branch>`) and any local copy (`git branch -d <branch>`). Don't leave merged branches lying around.
+
+- *Why:* stale merged branches pile up and make the branch list useless — 53 had accumulated here (49 already merged but never deleted) before this rule. A clean branch list should show only `main` plus genuinely in-progress work.
+- **Mechanics:** finish the branch → get it merged into `main` (PR-merge, or — since `main` is unprotected — a `--no-ff` merge pushed to main; CI also runs on `push: [main]`) → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
+- Never delete a branch whose work is **not** yet in `main`, and never `--delete-branch` a stacked child whose descendants still depend on it (merge bottom-up first).
+
 ---
 
 ## Architecture quick reference
