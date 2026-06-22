@@ -295,9 +295,34 @@ func (e *Env) WriteAdminPasswordFile(t *testing.T, pw string) {
 // `target` follows kubectl conventions ("svc/foo" or "pod/foo").
 func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int, func()) {
 	t.Helper()
+	// Retry the whole spawn: on a loaded self-hosted runner, kubectl
+	// port-forward can take a while to wire the pod tunnel, or fail
+	// transiently. A single attempt with a short deadline produces a
+	// cascade of "never became ready" / "connection refused" failures once
+	// the runner is under load. Respawn on a fresh local port up to a few
+	// times before giving up.
+	const attempts = 4
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		local, stop, err := e.tryPortForward(ns, target, remotePort)
+		if err == nil {
+			return local, stop
+		}
+		lastErr = err
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("port-forward never became ready (target %s/%s:%d) after %d attempts: %v",
+		ns, target, remotePort, attempts, lastErr)
+	return 0, nil
+}
+
+// tryPortForward starts one `kubectl port-forward` on a free local port and
+// waits until the tunnel is usable. It returns the port and a stop func, or
+// an error if the forward never became ready (the caller retries).
+func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), error) {
 	local, err := freePort()
 	if err != nil {
-		t.Fatalf("free port: %v", err)
+		return 0, nil, fmt.Errorf("free port: %w", err)
 	}
 	args := []string{
 		"--context", e.Context,
@@ -310,24 +335,35 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start port-forward: %v", err)
+		return 0, nil, fmt.Errorf("start port-forward: %w", err)
 	}
 	stop := func() {
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 	}
-	deadline := time.Now().Add(15 * time.Second)
+	// kubectl opens the local listener before the pod tunnel is fully wired,
+	// so a single successful dial can still be followed by a "connection
+	// refused" on the first real request. Require two spaced successes for a
+	// steadier readiness signal, and allow a generous window for a busy
+	// runner to establish the forward.
+	deadline := time.Now().Add(45 * time.Second)
+	streak := 0
 	for time.Now().Before(deadline) {
 		c, derr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", local), 500*time.Millisecond)
 		if derr == nil {
 			_ = c.Close()
-			return local, stop
+			streak++
+			if streak >= 2 {
+				return local, stop, nil
+			}
+			time.Sleep(400 * time.Millisecond)
+			continue
 		}
+		streak = 0
 		time.Sleep(200 * time.Millisecond)
 	}
 	stop()
-	t.Fatalf("port-forward never became ready on 127.0.0.1:%d (target %s/%s:%d)", local, ns, target, remotePort)
-	return 0, nil
+	return 0, nil, fmt.Errorf("not ready within deadline on 127.0.0.1:%d", local)
 }
 
 // freePort returns an OS-allocated free TCP port on 127.0.0.1. There's a
