@@ -59,16 +59,16 @@ A module bundle is a single OCI artifact:
 
 | Layer            | Required | Media type                                            |
 | ---------------- | -------- | ----------------------------------------------------- |
-| `module.yaml`    | yes      | `application/vnd.kestrel.module.metadata.v1+yaml`     |
-| `template.yaml`  | yes      | `application/vnd.kestrel.module.template.v1+yaml`     |
-| `README.md`      | no       | `application/vnd.kestrel.module.readme.v1+md`         |
+| `module.yaml`    | yes      | `application/vnd.gameplane.module.metadata.v1+yaml`     |
+| `template.yaml`  | yes      | `application/vnd.gameplane.module.template.v1+yaml`     |
+| `README.md`      | no       | `application/vnd.gameplane.module.readme.v1+md`         |
 | `icon.png`       | no       | `image/png`                                           |
 
 Manifest:
 
 - `mediaType: application/vnd.oci.image.manifest.v1+json`
-- `artifactType: application/vnd.kestrel.module.v1+json`
-- `config: { mediaType: application/vnd.kestrel.module.config.v1+json,
+- `artifactType: application/vnd.gameplane.module.v1+json`
+- `config: { mediaType: application/vnd.gameplane.module.config.v1+json,
   data: "e30=" }` (the empty JSON object `{}` base64-encoded; we don't use
   the config for now but reserve it for future extensions)
 - Each layer carries an `org.opencontainers.image.title` annotation set
@@ -103,11 +103,11 @@ Under the hood `build.sh` runs:
 
 ```sh
 oras push \
-  --artifact-type application/vnd.kestrel.module.v1+json \
+  --artifact-type application/vnd.gameplane.module.v1+json \
   ghcr.io/kestrel-gg/modules/minecraft-java:1.0.0 \
-  module.yaml:application/vnd.kestrel.module.metadata.v1+yaml \
-  template.yaml:application/vnd.kestrel.module.template.v1+yaml \
-  README.md:application/vnd.kestrel.module.readme.v1+md \
+  module.yaml:application/vnd.gameplane.module.metadata.v1+yaml \
+  template.yaml:application/vnd.gameplane.module.template.v1+yaml \
+  README.md:application/vnd.gameplane.module.readme.v1+md \
   icon.png:image/png
 ```
 

@@ -8,11 +8,11 @@ package oci
 // Media types for the Kestrel module artifact format. The full
 // specification is in docs/module-authoring.md.
 const (
-	ArtifactType      = "application/vnd.kestrel.module.v1+json"
-	MediaTypeConfig   = "application/vnd.kestrel.module.config.v1+json"
-	MediaTypeMetadata = "application/vnd.kestrel.module.metadata.v1+yaml"
-	MediaTypeTemplate = "application/vnd.kestrel.module.template.v1+yaml"
-	MediaTypeReadme   = "application/vnd.kestrel.module.readme.v1+md"
+	ArtifactType      = "application/vnd.gameplane.module.v1+json"
+	MediaTypeConfig   = "application/vnd.gameplane.module.config.v1+json"
+	MediaTypeMetadata = "application/vnd.gameplane.module.metadata.v1+yaml"
+	MediaTypeTemplate = "application/vnd.gameplane.module.template.v1+yaml"
+	MediaTypeReadme   = "application/vnd.gameplane.module.readme.v1+md"
 	MediaTypeIconPNG  = "image/png"
 
 	// AnnotationTitle is the OCI annotation that carries each layer's

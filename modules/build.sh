@@ -15,10 +15,10 @@
 
 set -euo pipefail
 
-ARTIFACT_TYPE="application/vnd.kestrel.module.v1+json"
-MEDIA_METADATA="application/vnd.kestrel.module.metadata.v1+yaml"
-MEDIA_TEMPLATE="application/vnd.kestrel.module.template.v1+yaml"
-MEDIA_README="application/vnd.kestrel.module.readme.v1+md"
+ARTIFACT_TYPE="application/vnd.gameplane.module.v1+json"
+MEDIA_METADATA="application/vnd.gameplane.module.metadata.v1+yaml"
+MEDIA_TEMPLATE="application/vnd.gameplane.module.template.v1+yaml"
+MEDIA_README="application/vnd.gameplane.module.readme.v1+md"
 MEDIA_ICON="image/png"
 
 usage() {
