@@ -1,4 +1,4 @@
-# Kestrel
+# Gameplane
 
 A Kubernetes-native game server control panel. Open-source alternative to
 [CubeCoders AMP](https://cubecoders.com/AMP) with a K8s backend instead of
@@ -12,7 +12,7 @@ clusters without changing the operational model.
 
 ## Beta status & known limitations
 
-Kestrel is in **beta**: the core workflows — deploy a game server, console,
+Gameplane is in **beta**: the core workflows — deploy a game server, console,
 files, backups/restore, modules, RBAC — work end to end and are covered by
 unit, integration (envtest), and kind-based e2e suites. Before you rely on it,
 know that the following are **deferred past the first beta**:
@@ -38,7 +38,7 @@ AMP is great, but it's bound to a single host running Docker. If you want:
 - a spare PC running one Minecraft server, **and**
 - a 5-node cluster hosting a dozen games across a club or small hosting shop,
 
-the existing options force you to pick a side. Kestrel uses standard
+the existing options force you to pick a side. Gameplane uses standard
 Kubernetes primitives (CRDs, operators, StatefulSets, PVCs) so the same
 control plane handles both.
 
@@ -88,7 +88,7 @@ control plane handles both.
 | `agent/`     | Go       | Sidecar running in each game pod. RCON, file ops, PTY console.   |
 | `web/`       | TS+React | Dashboard UI. Vite, TanStack Query, xterm.js, Monaco.             |
 | `modules/`   | YAML     | Per-game `GameTemplate` bundles (Minecraft, Valheim, …).          |
-| `charts/`    | Helm     | `kestrel` install chart for operator + API + optional ingress.    |
+| `charts/`    | Helm     | `gameplane` install chart for operator + API + optional ingress.    |
 | `deploy/`    | Shell    | Local dev env (kind/k3d) bootstrap scripts.                       |
 
 ### CRDs (`gameplane.gg/v1alpha1`)
@@ -116,7 +116,7 @@ control plane handles both.
 │   ├── valheim/
 │   ├── terraria/
 │   └── build.sh  # OCI bundle builder/pusher (uses oras)
-├── charts/kestrel/       # Helm chart
+├── charts/gameplane/       # Helm chart
 ├── deploy/kind/          # local dev cluster
 ├── docs/
 └── design.pen    # Pencil design source (do not delete)
@@ -128,7 +128,7 @@ Requires: Go 1.22+, Node 20+, Docker, kind, kubectl, helm,
 [oras](https://oras.land/docs/installation) (>= 1.2.0).
 
 ```sh
-# spin up a local kind cluster with Kestrel preinstalled
+# spin up a local kind cluster with Gameplane preinstalled
 make dev-up
 
 # in another shell, run the web app against the in-cluster API
@@ -146,7 +146,7 @@ The `make dev-up` target:
 2. loads locally-built operator/api/agent images,
 3. pushes every directory under `modules/` (minecraft-java, valheim,
    terraria) to the local registry as an OCI module bundle,
-4. installs the Helm chart from `charts/kestrel/` with a default
+4. installs the Helm chart from `charts/gameplane/` with a default
    `ModuleSource` pointing at the local registry — the operator
    indexes it within seconds and the modules show up in the dashboard's
    Modules page.

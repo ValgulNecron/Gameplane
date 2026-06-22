@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestSchedule_FiresBackupWhenDue — A schedule with LastScheduleTime
@@ -158,7 +158,7 @@ func TestSchedule_RetentionTrimsSucceededBackups(t *testing.T) {
 		}
 		// Stagger CompletionTime so retention can sort them.
 		now := metav1.NewTime(time.Now().Add(time.Duration(i) * time.Second))
-		b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+		b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 		b.Status.CompletionTime = &now
 		size := resource.MustParse("1Mi")
 		b.Status.Size = &size
@@ -172,7 +172,7 @@ func TestSchedule_RetentionTrimsSucceededBackups(t *testing.T) {
 	// scheduler is dormant during the test (otherwise an extra Backup
 	// would appear in the namespace and skew the count).
 	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 0 * * *",
-		&kestrelv1alpha1.BackupRetention{KeepLast: 2})
+		&gameplanev1alpha1.BackupRetention{KeepLast: 2})
 	if err := k8sClient.Create(context.Background(), sched); err != nil {
 		t.Fatalf("create schedule: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestSchedule_DoesNotTrimRunningBackups(t *testing.T) {
 	if err := k8sClient.Create(context.Background(), running); err != nil {
 		t.Fatalf("create running backup: %v", err)
 	}
-	running.Status.Phase = kestrelv1alpha1.BackupPhaseRunning
+	running.Status.Phase = gameplanev1alpha1.BackupPhaseRunning
 	if err := k8sClient.Status().Update(context.Background(), running); err != nil {
 		t.Fatalf("status update running: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestSchedule_DoesNotTrimRunningBackups(t *testing.T) {
 			t.Fatalf("create old %d: %v", i, err)
 		}
 		now := metav1.NewTime(time.Now().Add(time.Duration(i) * time.Second))
-		b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+		b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 		b.Status.CompletionTime = &now
 		if err := k8sClient.Status().Update(context.Background(), b); err != nil {
 			t.Fatalf("status update %d: %v", i, err)
@@ -234,7 +234,7 @@ func TestSchedule_DoesNotTrimRunningBackups(t *testing.T) {
 	}
 
 	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 0 * * *",
-		&kestrelv1alpha1.BackupRetention{KeepLast: 1})
+		&gameplanev1alpha1.BackupRetention{KeepLast: 1})
 	if err := k8sClient.Create(context.Background(), sched); err != nil {
 		t.Fatalf("create schedule: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestSchedule_DoesNotTrimRunningBackups(t *testing.T) {
 		}
 		hasRunning := false
 		for _, b := range bs {
-			if b.Status.Phase == kestrelv1alpha1.BackupPhaseRunning {
+			if b.Status.Phase == gameplanev1alpha1.BackupPhaseRunning {
 				hasRunning = true
 			}
 		}
@@ -282,7 +282,7 @@ func TestSchedule_DoesNotTrimBackupReferencedByActiveRestore(t *testing.T) {
 			t.Fatalf("create %s: %v", n, err)
 		}
 		now := metav1.NewTime(time.Now().Add(time.Duration(i) * time.Second))
-		b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+		b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 		b.Status.SnapshotID = "snap-" + n
 		b.Status.CompletionTime = &now
 		if err := k8sClient.Status().Update(context.Background(), b); err != nil {
@@ -295,14 +295,14 @@ func TestSchedule_DoesNotTrimBackupReferencedByActiveRestore(t *testing.T) {
 	if err := k8sClient.Create(context.Background(), rs); err != nil {
 		t.Fatalf("create restore: %v", err)
 	}
-	rs.Status.Phase = kestrelv1alpha1.RestorePhaseRunning
+	rs.Status.Phase = gameplanev1alpha1.RestorePhaseRunning
 	if err := k8sClient.Status().Update(context.Background(), rs); err != nil {
 		t.Fatalf("status update restore: %v", err)
 	}
 
 	// KeepLast=1 — without pinning, would delete -old and -mid.
 	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 0 * * *",
-		&kestrelv1alpha1.BackupRetention{KeepLast: 1})
+		&gameplanev1alpha1.BackupRetention{KeepLast: 1})
 	if err := k8sClient.Create(context.Background(), sched); err != nil {
 		t.Fatalf("create schedule: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestSchedule_RetentionTrimmedConditionSet(t *testing.T) {
 		t.Fatalf("create backup: %v", err)
 	}
 	now := metav1.Now()
-	b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+	b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 	b.Status.CompletionTime = &now
 	size := resource.MustParse("1Mi")
 	b.Status.Size = &size
@@ -359,7 +359,7 @@ func TestSchedule_RetentionTrimmedConditionSet(t *testing.T) {
 	}
 
 	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 0 * * *",
-		&kestrelv1alpha1.BackupRetention{KeepLast: 2})
+		&gameplanev1alpha1.BackupRetention{KeepLast: 2})
 	if err := k8sClient.Create(context.Background(), sched); err != nil {
 		t.Fatalf("create schedule: %v", err)
 	}
@@ -409,13 +409,13 @@ func TestSchedule_NoRetentionLeavesConditionUnset(t *testing.T) {
 
 // ---------- helpers used only by this file ----------
 
-func listBackupsForSchedule(t *testing.T, ns, schedName string) []kestrelv1alpha1.Backup {
+func listBackupsForSchedule(t *testing.T, ns, schedName string) []gameplanev1alpha1.Backup {
 	t.Helper()
-	var list kestrelv1alpha1.BackupList
+	var list gameplanev1alpha1.BackupList
 	if err := k8sClient.List(context.Background(), &list); err != nil {
 		t.Fatalf("list backups: %v", err)
 	}
-	out := []kestrelv1alpha1.Backup{}
+	out := []gameplanev1alpha1.Backup{}
 	for _, b := range list.Items {
 		if b.Namespace != ns {
 			continue
@@ -440,9 +440,9 @@ func freezeSchedule(t *testing.T, ns, name string) {
 	}
 }
 
-func getSchedule(t *testing.T, ns, name string) *kestrelv1alpha1.BackupSchedule {
+func getSchedule(t *testing.T, ns, name string) *gameplanev1alpha1.BackupSchedule {
 	t.Helper()
-	var s kestrelv1alpha1.BackupSchedule
+	var s gameplanev1alpha1.BackupSchedule
 	if err := k8sClient.Get(context.Background(),
 		types.NamespacedName{Namespace: ns, Name: name}, &s); err != nil {
 		t.Fatalf("get schedule: %v", err)

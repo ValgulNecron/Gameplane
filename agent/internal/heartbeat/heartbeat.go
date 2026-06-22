@@ -5,7 +5,7 @@
 // resource usage without a cluster metrics pipeline.
 //
 // The agent uses its in-pod ServiceAccount to authenticate to the
-// Kubernetes API directly; no traffic flows through the Kestrel API
+// Kubernetes API directly; no traffic flows through the Gameplane API
 // for this. The operator must grant the agent's SA permission to
 // update gameservers/status — wired up during agent-injection.
 package heartbeat

@@ -1,4 +1,4 @@
-# Kestrel GameTemplate for Minecraft: Java Edition.
+# Gameplane GameTemplate for Minecraft: Java Edition.
 #
 # Backed by the community itzg/minecraft-server image, which downloads the
 # selected server jar on first boot — the install output streams to the
@@ -340,7 +340,7 @@ spec:
       displayName: MOTD
       description: Server description shown in the multiplayer list.
       type: string
-      default: "A Kestrel Minecraft server"
+      default: "A Gameplane Minecraft server"
 
     - name: LEVEL_SEED
       displayName: World seed

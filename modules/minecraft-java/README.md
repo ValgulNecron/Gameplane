@@ -1,6 +1,6 @@
 # `minecraft-java` module
 
-Kestrel GameTemplate for Minecraft: Java Edition.
+Gameplane GameTemplate for Minecraft: Java Edition.
 
 ## Install
 
@@ -8,7 +8,7 @@ Kestrel GameTemplate for Minecraft: Java Edition.
 kubectl apply -f modules/minecraft-java/template.yaml
 ```
 
-The template is cluster-scoped — install once per cluster. The Kestrel
+The template is cluster-scoped — install once per cluster. The Gameplane
 dashboard will then show Minecraft in the catalog.
 
 ## Version & loader choice
@@ -50,7 +50,7 @@ even before the game has started. Once running, the persistent logfile at
 | game | 25565 | TCP      | yes        |
 | rcon | 25575 | TCP      | no         |
 
-RCON stays inside the pod network — the Kestrel agent uses it for the
+RCON stays inside the pod network — the Gameplane agent uses it for the
 Console tab, player moderation, backup quiesce, and Overview metrics.
 
 ## Storage

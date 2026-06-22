@@ -18,7 +18,7 @@ func mountResourcesRouter(k *kube.Client) *chi.Mux {
 }
 
 func TestResources_NamespacedCRUD(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountResourcesRouter(k)
 
 	t.Run("list namespaced", func(t *testing.T) {

@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	"github.com/ValgulNecron/gameplane/operator/internal/agent"
 	"github.com/ValgulNecron/gameplane/operator/internal/controller"
 	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
@@ -31,7 +31,7 @@ var Version = "dev"
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(kestrelv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gameplanev1alpha1.AddToScheme(scheme))
 	// CSI VolumeSnapshot types — backed by the volume-snapshot backup
 	// strategy (BackupReconciler creates VolumeSnapshots; RestoreReconciler
 	// reads them to seed a new server's data PVC).
@@ -55,9 +55,9 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election.")
-	flag.StringVar(&agentImage, "agent-image", "ghcr.io/kestrel/agent:dev",
-		"Image to use for the Kestrel agent sidecar injected into game pods.")
-	flag.StringVar(&moduleNamespace, "module-namespace", "kestrel-system",
+	flag.StringVar(&agentImage, "agent-image", "ghcr.io/valgulnecron/gameplane/agent:dev",
+		"Image to use for the Gameplane agent sidecar injected into game pods.")
+	flag.StringVar(&moduleNamespace, "module-namespace", "gameplane-system",
 		"Namespace where ModuleSource credential Secrets live.")
 	flag.StringVar(&moduleLocalRoot, "module-local-root", "",
 		"Base directory that local-type ModuleSources resolve their paths under. Empty disables local sources.")
@@ -67,9 +67,9 @@ func main() {
 		"Client cert presented when calling the agent over mTLS.")
 	flag.StringVar(&agentClientKey, "agent-client-key", "",
 		"Client key for the agent client cert.")
-	flag.StringVar(&agentCASecretName, "agent-ca-secret-name", "kestrel-agent-ca",
+	flag.StringVar(&agentCASecretName, "agent-ca-secret-name", "gameplane-agent-ca",
 		"Name of the Secret holding the agent CA cert+key used to sign per-GameServer agent server certs.")
-	flag.StringVar(&agentCASecretNamespace, "agent-ca-secret-namespace", "kestrel-system",
+	flag.StringVar(&agentCASecretNamespace, "agent-ca-secret-namespace", "gameplane-system",
 		"Namespace of the agent CA Secret.")
 
 	opts := zap.Options{Development: true}
@@ -84,7 +84,7 @@ func main() {
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "kestrel-operator.gameplane.gg",
+		LeaderElectionID:       "gameplane-operator.gameplane.gg",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create manager")

@@ -2,7 +2,7 @@ apiVersion: gameplane.gg/v1alpha1
 kind: GameServer
 metadata:
   name: smp-01
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   templateRef:
     name: minecraft-java

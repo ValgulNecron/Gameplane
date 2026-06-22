@@ -5,13 +5,13 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestSvcPortsFromTemplate(t *testing.T) {
-	tmpl := &kestrelv1alpha1.GameTemplate{
-		Spec: kestrelv1alpha1.GameTemplateSpec{
-			Ports: []kestrelv1alpha1.GamePort{
+	tmpl := &gameplanev1alpha1.GameTemplate{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
+			Ports: []gameplanev1alpha1.GamePort{
 				{Name: "game", ContainerPort: 25565, Advertise: true},
 				{Name: "internal", ContainerPort: 9999, Advertise: false},
 				{Name: "udp", ContainerPort: 19132, Protocol: corev1.ProtocolUDP, Advertise: true},
@@ -20,7 +20,7 @@ func TestSvcPortsFromTemplate(t *testing.T) {
 	}
 
 	t.Run("filters by advertise", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{}
+		gs := &gameplanev1alpha1.GameServer{}
 		got := svcPortsFromTemplate(tmpl, gs)
 		if len(got) != 2 {
 			t.Fatalf("got %d ports", len(got))
@@ -33,7 +33,7 @@ func TestSvcPortsFromTemplate(t *testing.T) {
 	})
 
 	t.Run("default protocol is TCP", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{}
+		gs := &gameplanev1alpha1.GameServer{}
 		got := svcPortsFromTemplate(tmpl, gs)
 		var game corev1.ServicePort
 		for _, p := range got {
@@ -48,7 +48,7 @@ func TestSvcPortsFromTemplate(t *testing.T) {
 	})
 
 	t.Run("preserves explicit UDP", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{}
+		gs := &gameplanev1alpha1.GameServer{}
 		got := svcPortsFromTemplate(tmpl, gs)
 		var udp corev1.ServicePort
 		for _, p := range got {
@@ -63,10 +63,10 @@ func TestSvcPortsFromTemplate(t *testing.T) {
 	})
 
 	t.Run("port override remaps service port + nodeport", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{
-			Spec: kestrelv1alpha1.GameServerSpec{
-				Networking: kestrelv1alpha1.GameServerNetworking{
-					PortOverrides: []kestrelv1alpha1.PortOverride{
+		gs := &gameplanev1alpha1.GameServer{
+			Spec: gameplanev1alpha1.GameServerSpec{
+				Networking: gameplanev1alpha1.GameServerNetworking{
+					PortOverrides: []gameplanev1alpha1.PortOverride{
 						{Name: "game", ServicePort: 30000, NodePort: 30001},
 					},
 				},
@@ -92,10 +92,10 @@ func TestSvcPortsFromTemplate(t *testing.T) {
 	})
 
 	t.Run("override with zero ServicePort keeps the original", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{
-			Spec: kestrelv1alpha1.GameServerSpec{
-				Networking: kestrelv1alpha1.GameServerNetworking{
-					PortOverrides: []kestrelv1alpha1.PortOverride{
+		gs := &gameplanev1alpha1.GameServer{
+			Spec: gameplanev1alpha1.GameServerSpec{
+				Networking: gameplanev1alpha1.GameServerNetworking{
+					PortOverrides: []gameplanev1alpha1.PortOverride{
 						{Name: "game", NodePort: 30002},
 					},
 				},

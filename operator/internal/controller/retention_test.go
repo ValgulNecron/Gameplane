@@ -6,13 +6,13 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // selectKept is pure, so we unit test it directly without envtest.
 func TestSelectKept_KeepLast(t *testing.T) {
 	backups := fakeBackups(10, time.Hour)
-	keep := selectKept(backups, &kestrelv1alpha1.BackupRetention{KeepLast: 3})
+	keep := selectKept(backups, &gameplanev1alpha1.BackupRetention{KeepLast: 3})
 	if len(keep) != 3 {
 		t.Fatalf("KeepLast=3 expected 3 kept, got %d: %v", len(keep), keep)
 	}
@@ -26,7 +26,7 @@ func TestSelectKept_KeepLast(t *testing.T) {
 func TestSelectKept_DailyBucketing(t *testing.T) {
 	// 6 backups across 3 days (2 per day).
 	base := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	items := []kestrelv1alpha1.Backup{
+	items := []gameplanev1alpha1.Backup{
 		fakeBackup("newest-d2", base),
 		fakeBackup("older-d2", base.Add(-time.Hour)),
 		fakeBackup("newest-d1", base.Add(-24*time.Hour)),
@@ -34,7 +34,7 @@ func TestSelectKept_DailyBucketing(t *testing.T) {
 		fakeBackup("newest-d0", base.Add(-48*time.Hour)),
 		fakeBackup("older-d0", base.Add(-49*time.Hour)),
 	}
-	keep := selectKept(items, &kestrelv1alpha1.BackupRetention{KeepDaily: 2})
+	keep := selectKept(items, &gameplanev1alpha1.BackupRetention{KeepDaily: 2})
 
 	// Expect the newest-of-day for days 2 and 1 kept, nothing from day 0.
 	for _, name := range []string{"newest-d2", "newest-d1"} {
@@ -55,13 +55,13 @@ func TestSelectKept_CombinedPolicies(t *testing.T) {
 	// flakes when the test runs within ~2h after UTC midnight (c spills into
 	// the previous day and becomes the newest "daily", not d).
 	base := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	items := []kestrelv1alpha1.Backup{
+	items := []gameplanev1alpha1.Backup{
 		fakeBackup("a", base),
 		fakeBackup("b", base.Add(-time.Hour)),
 		fakeBackup("c", base.Add(-2*time.Hour)),
 		fakeBackup("d", base.Add(-24*time.Hour)),
 	}
-	keep := selectKept(items, &kestrelv1alpha1.BackupRetention{KeepLast: 1, KeepDaily: 2})
+	keep := selectKept(items, &gameplanev1alpha1.BackupRetention{KeepLast: 1, KeepDaily: 2})
 	if !keep["a"] {
 		t.Error("KeepLast=1 should keep a")
 	}
@@ -70,19 +70,19 @@ func TestSelectKept_CombinedPolicies(t *testing.T) {
 	}
 }
 
-func fakeBackup(name string, completion time.Time) kestrelv1alpha1.Backup {
+func fakeBackup(name string, completion time.Time) gameplanev1alpha1.Backup {
 	ct := metav1.NewTime(completion)
-	return kestrelv1alpha1.Backup{
+	return gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Status: kestrelv1alpha1.BackupStatus{
-			Phase:          kestrelv1alpha1.BackupPhaseSucceeded,
+		Status: gameplanev1alpha1.BackupStatus{
+			Phase:          gameplanev1alpha1.BackupPhaseSucceeded,
 			CompletionTime: &ct,
 		},
 	}
 }
 
-func fakeBackups(n int, spacing time.Duration) []kestrelv1alpha1.Backup {
-	out := make([]kestrelv1alpha1.Backup, n)
+func fakeBackups(n int, spacing time.Duration) []gameplanev1alpha1.Backup {
+	out := make([]gameplanev1alpha1.Backup, n)
 	base := time.Now()
 	for i := 0; i < n; i++ {
 		name := "b" + string(rune('a'+i))

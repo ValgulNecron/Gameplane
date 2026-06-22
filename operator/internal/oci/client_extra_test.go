@@ -61,7 +61,7 @@ func TestPull_TagNotFound(t *testing.T) {
 
 func TestPull_SkipsUntitledLayers(t *testing.T) {
 	reg := newFakeRegistry(t)
-	repo := "kestrel/partial"
+	repo := "gameplane/partial"
 	// Bundle parsing (missing module.yaml etc.) is modsrc's job; the
 	// client just returns whatever titled layers exist.
 	reg.pushBundle(repo, "1.0.0", map[string][]byte{

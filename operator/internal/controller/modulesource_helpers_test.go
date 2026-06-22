@@ -7,20 +7,20 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestRefreshInterval(t *testing.T) {
 	t.Run("zero falls back to default 1h", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{}
+		src := &gameplanev1alpha1.ModuleSource{}
 		if got := refreshInterval(src); got != defaultRefreshInterval {
 			t.Fatalf("got %v want %v", got, defaultRefreshInterval)
 		}
 	})
 
 	t.Run("below the floor clamps to minimum", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{
-			Spec: kestrelv1alpha1.ModuleSourceSpec{
+		src := &gameplanev1alpha1.ModuleSource{
+			Spec: gameplanev1alpha1.ModuleSourceSpec{
 				RefreshInterval: metav1.Duration{Duration: 10 * time.Second},
 			},
 		}
@@ -30,8 +30,8 @@ func TestRefreshInterval(t *testing.T) {
 	})
 
 	t.Run("normal value passes through", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{
-			Spec: kestrelv1alpha1.ModuleSourceSpec{
+		src := &gameplanev1alpha1.ModuleSource{
+			Spec: gameplanev1alpha1.ModuleSourceSpec{
 				RefreshInterval: metav1.Duration{Duration: 5 * time.Minute},
 			},
 		}
@@ -43,12 +43,12 @@ func TestRefreshInterval(t *testing.T) {
 
 func TestModuleSourceReconciler_FetcherFor_DefaultPath(t *testing.T) {
 	r := &ModuleSourceReconciler{}
-	src := &kestrelv1alpha1.ModuleSource{
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+	src := &gameplanev1alpha1.ModuleSource{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL:     "localhost:5001/modules",
-				Modules: []kestrelv1alpha1.ModuleRef{{Name: "valheim"}},
+				Modules: []gameplanev1alpha1.ModuleRef{{Name: "valheim"}},
 			},
 		},
 	}

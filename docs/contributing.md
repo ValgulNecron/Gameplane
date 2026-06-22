@@ -61,4 +61,4 @@ the same review, lint, and test gates below.
 
 Tags matching `v*` trigger the `release.yaml` workflow, which builds
 images, signs them with cosign (roadmap), and pushes the Helm chart to
-the `kestrel` OCI registry.
+the `gameplane` OCI registry.

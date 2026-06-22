@@ -14,7 +14,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // heartbeatFreshness defines how long an agent heartbeat is trusted.
@@ -26,7 +26,7 @@ const heartbeatFreshness = 60 * time.Second
 // from observed StatefulSet, Service, and the agent heartbeat. It's a
 // pure computation — no child objects are mutated here.
 func (r *GameServerReconciler) reconcileStatus(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) (time.Duration, error) {
 	// base captures the object as fetched so we can issue a JSON merge
 	// patch of only the fields this reconciler owns. The agent sidecar
@@ -60,7 +60,7 @@ func (r *GameServerReconciler) reconcileStatus(
 	// the dashboard's provisioning sub-status — or, if startup has
 	// terminally failed, escalate the phase to Failed.
 	var prov *provisioningInfo
-	if phase == kestrelv1alpha1.GameServerPhaseStarting {
+	if phase == gameplanev1alpha1.GameServerPhaseStarting {
 		var pod corev1.Pod
 		podErr := r.Get(ctx, types.NamespacedName{Name: gs.Name + "-0", Namespace: gs.Namespace}, &pod)
 		switch {
@@ -75,7 +75,7 @@ func (r *GameServerReconciler) reconcileStatus(
 				// dashboard stops showing a perpetual "Starting". Not sticky:
 				// derivePhase re-evaluates every reconcile, so a later
 				// recovery returns the phase to Running.
-				phase = kestrelv1alpha1.GameServerPhaseFailed
+				phase = gameplanev1alpha1.GameServerPhaseFailed
 				prov = &provisioningInfo{reason: fr, message: fm}
 			} else {
 				reason, message := provisioningReason(&pod, heartbeatFresh(gs))
@@ -90,11 +90,11 @@ func (r *GameServerReconciler) reconcileStatus(
 	if svcExists {
 		gs.Status.Endpoints = endpointsFromService(&svc)
 	}
-	if phase == kestrelv1alpha1.GameServerPhaseRunning && gs.Status.StartedAt == nil {
+	if phase == gameplanev1alpha1.GameServerPhaseRunning && gs.Status.StartedAt == nil {
 		now := metav1.Now()
 		gs.Status.StartedAt = &now
 	}
-	if phase == kestrelv1alpha1.GameServerPhaseStopped || phase == kestrelv1alpha1.GameServerPhaseSuspended {
+	if phase == gameplanev1alpha1.GameServerPhaseStopped || phase == gameplanev1alpha1.GameServerPhaseSuspended {
 		gs.Status.StartedAt = nil
 	}
 
@@ -105,37 +105,37 @@ func (r *GameServerReconciler) reconcileStatus(
 	}
 
 	// Re-check when heartbeat is about to go stale so Healthy flips promptly.
-	if phase == kestrelv1alpha1.GameServerPhaseRunning {
+	if phase == gameplanev1alpha1.GameServerPhaseRunning {
 		return heartbeatFreshness, nil
 	}
 	return 15 * time.Second, nil
 }
 
 func derivePhase(
-	gs *kestrelv1alpha1.GameServer, ssExists, ssReady, hbFresh bool,
-) kestrelv1alpha1.GameServerPhase {
+	gs *gameplanev1alpha1.GameServer, ssExists, ssReady, hbFresh bool,
+) gameplanev1alpha1.GameServerPhase {
 	if gs.Spec.Suspend {
 		if ssExists && ssReady {
-			return kestrelv1alpha1.GameServerPhaseStopping
+			return gameplanev1alpha1.GameServerPhaseStopping
 		}
-		return kestrelv1alpha1.GameServerPhaseSuspended
+		return gameplanev1alpha1.GameServerPhaseSuspended
 	}
 	if !ssExists {
-		return kestrelv1alpha1.GameServerPhasePending
+		return gameplanev1alpha1.GameServerPhasePending
 	}
 	if !ssReady {
-		return kestrelv1alpha1.GameServerPhaseStarting
+		return gameplanev1alpha1.GameServerPhaseStarting
 	}
 	if !hbFresh {
 		// Pod is ready but the agent isn't reporting — treat as
 		// Starting until the first heartbeat. A long timeout here
 		// could escalate to Failed; for now, optimistic.
-		return kestrelv1alpha1.GameServerPhaseStarting
+		return gameplanev1alpha1.GameServerPhaseStarting
 	}
-	return kestrelv1alpha1.GameServerPhaseRunning
+	return gameplanev1alpha1.GameServerPhaseRunning
 }
 
-func heartbeatFresh(gs *kestrelv1alpha1.GameServer) bool {
+func heartbeatFresh(gs *gameplanev1alpha1.GameServer) bool {
 	if gs.Status.Agent == nil || gs.Status.Agent.LastHeartbeat == nil {
 		return false
 	}
@@ -143,8 +143,8 @@ func heartbeatFresh(gs *kestrelv1alpha1.GameServer) bool {
 }
 
 func computeConditions(
-	gs *kestrelv1alpha1.GameServer,
-	phase kestrelv1alpha1.GameServerPhase,
+	gs *gameplanev1alpha1.GameServer,
+	phase gameplanev1alpha1.GameServerPhase,
 	prov *provisioningInfo,
 ) []metav1.Condition {
 	conds := gs.Status.Conditions
@@ -155,7 +155,7 @@ func computeConditions(
 	healthy = metav1.Condition{Type: "Healthy", ObservedGeneration: gs.Generation}
 
 	switch phase {
-	case kestrelv1alpha1.GameServerPhaseRunning:
+	case gameplanev1alpha1.GameServerPhaseRunning:
 		ready.Status = metav1.ConditionTrue
 		ready.Reason = "Running"
 		ready.Message = "server is ready and the agent is reporting heartbeats"
@@ -163,7 +163,7 @@ func computeConditions(
 		progressing.Reason = "Stable"
 		healthy.Status = metav1.ConditionTrue
 		healthy.Reason = "AgentFresh"
-	case kestrelv1alpha1.GameServerPhaseStarting:
+	case gameplanev1alpha1.GameServerPhaseStarting:
 		ready.Status = metav1.ConditionFalse
 		ready.Reason = "Starting"
 		progressing.Status = metav1.ConditionTrue
@@ -179,21 +179,21 @@ func computeConditions(
 		}
 		healthy.Status = metav1.ConditionFalse
 		healthy.Reason = "AgentStale"
-	case kestrelv1alpha1.GameServerPhaseStopping:
+	case gameplanev1alpha1.GameServerPhaseStopping:
 		ready.Status = metav1.ConditionFalse
 		ready.Reason = "Stopping"
 		progressing.Status = metav1.ConditionTrue
 		progressing.Reason = "Stopping"
 		healthy.Status = metav1.ConditionFalse
 		healthy.Reason = "Stopping"
-	case kestrelv1alpha1.GameServerPhaseSuspended:
+	case gameplanev1alpha1.GameServerPhaseSuspended:
 		ready.Status = metav1.ConditionFalse
 		ready.Reason = "Suspended"
 		progressing.Status = metav1.ConditionFalse
 		progressing.Reason = "Suspended"
 		healthy.Status = metav1.ConditionFalse
 		healthy.Reason = "Suspended"
-	case kestrelv1alpha1.GameServerPhaseFailed:
+	case gameplanev1alpha1.GameServerPhaseFailed:
 		ready.Status = metav1.ConditionFalse
 		ready.Reason = "Failed"
 		progressing.Status = metav1.ConditionFalse
@@ -287,7 +287,7 @@ func provisioningReason(pod *corev1.Pod, hbFresh bool) (reason, message string) 
 	}
 }
 
-// waitingReason maps a container's Waiting.Reason to a Kestrel reason +
+// waitingReason maps a container's Waiting.Reason to a Gameplane reason +
 // message, or ("", "") if it's not one we specifically explain.
 func waitingReason(reason string) (string, string) {
 	switch reason {
@@ -368,8 +368,8 @@ func podReady(pod *corev1.Pod) bool {
 // for a Service. For ClusterIP we report the cluster IP; for NodePort
 // we report the Service's declared port (the node IP is left to the API
 // layer since the operator doesn't know which node a user will hit).
-func endpointsFromService(svc *corev1.Service) []kestrelv1alpha1.GameServerEndpoint {
-	out := make([]kestrelv1alpha1.GameServerEndpoint, 0, len(svc.Spec.Ports))
+func endpointsFromService(svc *corev1.Service) []gameplanev1alpha1.GameServerEndpoint {
+	out := make([]gameplanev1alpha1.GameServerEndpoint, 0, len(svc.Spec.Ports))
 	host := svc.Spec.ClusterIP
 	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer && len(svc.Status.LoadBalancer.Ingress) > 0 {
 		ing := svc.Status.LoadBalancer.Ingress[0]
@@ -380,7 +380,7 @@ func endpointsFromService(svc *corev1.Service) []kestrelv1alpha1.GameServerEndpo
 		}
 	}
 	for _, p := range svc.Spec.Ports {
-		ep := kestrelv1alpha1.GameServerEndpoint{
+		ep := gameplanev1alpha1.GameServerEndpoint{
 			Name:     p.Name,
 			Host:     host,
 			Port:     p.Port,

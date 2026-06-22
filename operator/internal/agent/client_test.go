@@ -115,8 +115,8 @@ func TestNew_Success_OverrideTimeout(t *testing.T) {
 }
 
 func TestAgentURL(t *testing.T) {
-	got := agentURL("kestrel-games", "alpha", "/quiesce")
-	want := "https://alpha-agent.kestrel-games.svc.cluster.local:8090/quiesce"
+	got := agentURL("gameplane-games", "alpha", "/quiesce")
+	want := "https://alpha-agent.gameplane-games.svc.cluster.local:8090/quiesce"
 	if got != want {
 		t.Fatalf("got %q", got)
 	}

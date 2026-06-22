@@ -8,11 +8,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestByCatalogName(t *testing.T) {
-	entries := []kestrelv1alpha1.ModuleEntry{
+	entries := []gameplanev1alpha1.ModuleEntry{
 		{Name: "alpha"},
 		{Name: "beta"},
 	}
@@ -28,7 +28,7 @@ func TestByCatalogName(t *testing.T) {
 }
 
 func TestOwnedBy(t *testing.T) {
-	owner := &kestrelv1alpha1.Module{
+	owner := &gameplanev1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:  types.UID("uid-1"),
 			Name: "alpha",
@@ -110,12 +110,12 @@ func TestModuleReconciler_FetcherFor_DefaultPath(t *testing.T) {
 	// When the NewFetcher hook is unset, fetcherFor must build a real
 	// fetcher from the source spec. No PullSecretRef → no client call.
 	r := &ModuleReconciler{}
-	src := &kestrelv1alpha1.ModuleSource{
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+	src := &gameplanev1alpha1.ModuleSource{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL:     "ghcr.io/test/modules",
-				Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft-java"}},
+				Modules: []gameplanev1alpha1.ModuleRef{{Name: "minecraft-java"}},
 			},
 		},
 	}

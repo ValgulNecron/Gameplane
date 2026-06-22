@@ -7,19 +7,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func configFixtures(
-	schema []kestrelv1alpha1.ConfigField, config map[string]string,
-) (*kestrelv1alpha1.GameServer, *kestrelv1alpha1.GameTemplate) {
-	gs := &kestrelv1alpha1.GameServer{
+	schema []gameplanev1alpha1.ConfigField, config map[string]string,
+) (*gameplanev1alpha1.GameServer, *gameplanev1alpha1.GameTemplate) {
+	gs := &gameplanev1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{Name: "smp", Namespace: "games"},
-		Spec:       kestrelv1alpha1.GameServerSpec{Config: config},
+		Spec:       gameplanev1alpha1.GameServerSpec{Config: config},
 	}
-	tmpl := &kestrelv1alpha1.GameTemplate{
+	tmpl := &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "minecraft"},
-		Spec:       kestrelv1alpha1.GameTemplateSpec{ConfigSchema: schema},
+		Spec:       gameplanev1alpha1.GameTemplateSpec{ConfigSchema: schema},
 	}
 	return gs, tmpl
 }
@@ -33,7 +33,7 @@ func envMap(env []corev1.EnvVar) map[string]string {
 }
 
 func TestMaterializeConfig_ResolvesValuesAndDefaults(t *testing.T) {
-	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "TYPE", Type: "enum", Enum: []string{"VANILLA", "PAPER"}, Default: "VANILLA", Required: true},
 		{Name: "VERSION", Type: "string", Default: "LATEST", Required: true},
 		{Name: "MAX_PLAYERS", Type: "int", Default: "20"},
@@ -72,7 +72,7 @@ func TestMaterializeConfig_ResolvesValuesAndDefaults(t *testing.T) {
 }
 
 func TestMaterializeConfig_SchemaOrderIsDeterministic(t *testing.T) {
-	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "B", Type: "string", Default: "2"},
 		{Name: "A", Type: "string", Default: "1"},
 	}, nil)
@@ -87,7 +87,7 @@ func TestMaterializeConfig_SchemaOrderIsDeterministic(t *testing.T) {
 }
 
 func TestMaterializeConfig_HashTracksValues(t *testing.T) {
-	schema := []kestrelv1alpha1.ConfigField{{Name: "DIFFICULTY", Type: "string", Default: "easy"}}
+	schema := []gameplanev1alpha1.ConfigField{{Name: "DIFFICULTY", Type: "string", Default: "easy"}}
 
 	gs1, tmpl := configFixtures(schema, map[string]string{"DIFFICULTY": "hard"})
 	gs2, _ := configFixtures(schema, map[string]string{"DIFFICULTY": "easy"})
@@ -127,81 +127,81 @@ func TestMaterializeConfig_NoSchemaNoConfig(t *testing.T) {
 func TestMaterializeConfig_Errors(t *testing.T) {
 	cases := []struct {
 		name    string
-		schema  []kestrelv1alpha1.ConfigField
+		schema  []gameplanev1alpha1.ConfigField
 		config  map[string]string
-		files   []kestrelv1alpha1.ConfigFile
+		files   []gameplanev1alpha1.ConfigFile
 		wantErr string
 	}{
 		{
 			name:    "unknown key",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "TYPE", Type: "string"}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "TYPE", Type: "string"}},
 			config:  map[string]string{"TPYE": "PAPER"},
 			wantErr: "unknown config keys TPYE",
 		},
 		{
 			name:    "required missing without default",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "WORLD", Type: "string", Required: true}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "WORLD", Type: "string", Required: true}},
 			config:  nil,
 			wantErr: `required config field "WORLD"`,
 		},
 		{
 			name:    "required explicitly emptied despite default",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "WORLD", Type: "string", Default: "w", Required: true}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "WORLD", Type: "string", Default: "w", Required: true}},
 			config:  map[string]string{"WORLD": ""},
 			wantErr: `required config field "WORLD"`,
 		},
 		{
 			name:    "bad int",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "MAX_PLAYERS", Type: "int"}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "MAX_PLAYERS", Type: "int"}},
 			config:  map[string]string{"MAX_PLAYERS": "lots"},
 			wantErr: "not an integer",
 		},
 		{
 			name:    "bad bool",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "HARDCORE", Type: "bool"}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "HARDCORE", Type: "bool"}},
 			config:  map[string]string{"HARDCORE": "yep"},
 			wantErr: "not a boolean",
 		},
 		{
 			name:    "enum violation",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "MODE", Type: "enum", Enum: []string{"survival", "creative"}}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "MODE", Type: "enum", Enum: []string{"survival", "creative"}}},
 			config:  map[string]string{"MODE": "hardcore"},
 			wantErr: "not one of",
 		},
 		{
 			name:    "file value without configFiles",
-			schema:  []kestrelv1alpha1.ConfigField{{Name: "SERVER_CFG", Type: "string", Target: "file"}},
+			schema:  []gameplanev1alpha1.ConfigField{{Name: "SERVER_CFG", Type: "string", Target: "file"}},
 			config:  map[string]string{"SERVER_CFG": "motd=hi"},
 			wantErr: "declares no configFiles",
 		},
 		{
 			name:    "bad template syntax",
-			files:   []kestrelv1alpha1.ConfigFile{{Path: "server.cfg", Template: "{{ .Values.X"}},
+			files:   []gameplanev1alpha1.ConfigFile{{Path: "server.cfg", Template: "{{ .Values.X"}},
 			wantErr: "parse template",
 		},
 		{
 			name:    "template references unknown key",
-			files:   []kestrelv1alpha1.ConfigFile{{Path: "server.cfg", Template: "{{ .Values.NOPE }}"}},
+			files:   []gameplanev1alpha1.ConfigFile{{Path: "server.cfg", Template: "{{ .Values.NOPE }}"}},
 			wantErr: "render template",
 		},
 		{
 			name:    "absolute path",
-			files:   []kestrelv1alpha1.ConfigFile{{Path: "/etc/passwd", Template: "x"}},
+			files:   []gameplanev1alpha1.ConfigFile{{Path: "/etc/passwd", Template: "x"}},
 			wantErr: "is absolute",
 		},
 		{
 			name:    "path escapes the data mount",
-			files:   []kestrelv1alpha1.ConfigFile{{Path: "../escape.cfg", Template: "x"}},
+			files:   []gameplanev1alpha1.ConfigFile{{Path: "../escape.cfg", Template: "x"}},
 			wantErr: "must not contain '..'",
 		},
 		{
 			name:    "unclean path",
-			files:   []kestrelv1alpha1.ConfigFile{{Path: "cfg//server.cfg", Template: "x"}},
+			files:   []gameplanev1alpha1.ConfigFile{{Path: "cfg//server.cfg", Template: "x"}},
 			wantErr: "is not clean",
 		},
 		{
 			name: "duplicate path",
-			files: []kestrelv1alpha1.ConfigFile{
+			files: []gameplanev1alpha1.ConfigFile{
 				{Path: "server.cfg", Template: "a"},
 				{Path: "server.cfg", Template: "b"},
 			},
@@ -224,7 +224,7 @@ func TestMaterializeConfig_Errors(t *testing.T) {
 }
 
 func TestMaterializeConfig_PasswordGoesToSecret(t *testing.T) {
-	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "SERVER_PASS", Type: "password", Required: true},
 		{Name: "WORLD", Type: "string", Default: "Midgard"},
 	}, map[string]string{"SERVER_PASS": "hunter22"})
@@ -260,7 +260,7 @@ func TestMaterializeConfig_PasswordGoesToSecret(t *testing.T) {
 }
 
 func TestMaterializeConfig_PasswordValueChangesHash(t *testing.T) {
-	schema := []kestrelv1alpha1.ConfigField{{Name: "SERVER_PASS", Type: "password"}}
+	schema := []gameplanev1alpha1.ConfigField{{Name: "SERVER_PASS", Type: "password"}}
 	gs1, tmpl := configFixtures(schema, map[string]string{"SERVER_PASS": "one"})
 	gs2, _ := configFixtures(schema, map[string]string{"SERVER_PASS": "two"})
 
@@ -282,7 +282,7 @@ func TestMaterializeConfig_PasswordValueChangesHash(t *testing.T) {
 func TestMaterializeConfig_FileTargetUnsetIsAllowed(t *testing.T) {
 	// A declared-but-unset file field must not block servers that
 	// don't use it; only a value we would have to drop is an error.
-	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "SERVER_CFG", Type: "string", Target: "file"},
 	}, nil)
 	if _, err := materializeConfig(gs, tmpl); err != nil {
@@ -291,12 +291,12 @@ func TestMaterializeConfig_FileTargetUnsetIsAllowed(t *testing.T) {
 }
 
 func TestMaterializeConfig_FileTargetRendersToFile(t *testing.T) {
-	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "MOTD", Type: "string", Target: "file", Default: "hello"},
 		{Name: "MAX_PLAYERS", Type: "int", Default: "20"},
 		{Name: "SERVER_PASS", Type: "password", Target: "file"},
 	}, map[string]string{"SERVER_PASS": "hunter22"})
-	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+	tmpl.Spec.ConfigFiles = []gameplanev1alpha1.ConfigFile{{
 		Path:     "cfg/server.cfg",
 		Template: "motd={{ .Values.MOTD }}\nmax={{ .Values.MAX_PLAYERS }}\npass={{ .Values.SERVER_PASS }}\nname={{ .Server.Name }}\n",
 	}}
@@ -337,10 +337,10 @@ func TestMaterializeConfig_FileTargetRendersToFile(t *testing.T) {
 }
 
 func TestMaterializeConfig_UnsetOptionalRendersEmptyInTemplate(t *testing.T) {
-	gs, tmpl := configFixtures([]kestrelv1alpha1.ConfigField{
+	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "PASSWORD", Type: "string", Target: "file"},
 	}, nil)
-	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+	tmpl.Spec.ConfigFiles = []gameplanev1alpha1.ConfigFile{{
 		Path:     "server.cfg",
 		Template: "{{ if .Values.PASSWORD }}password={{ .Values.PASSWORD }}{{ end }}",
 	}}
@@ -356,7 +356,7 @@ func TestMaterializeConfig_UnsetOptionalRendersEmptyInTemplate(t *testing.T) {
 
 func TestMaterializeConfig_StaticFileNeedsNoSchema(t *testing.T) {
 	gs, tmpl := configFixtures(nil, nil)
-	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+	tmpl.Spec.ConfigFiles = []gameplanev1alpha1.ConfigFile{{
 		Path:     "eula.txt",
 		Template: "eula=true\n",
 	}}
@@ -374,9 +374,9 @@ func TestMaterializeConfig_StaticFileNeedsNoSchema(t *testing.T) {
 }
 
 func TestMaterializeConfig_FileContentChangesHash(t *testing.T) {
-	schema := []kestrelv1alpha1.ConfigField{{Name: "MOTD", Type: "string", Target: "file", Default: "hi"}}
-	file := func(text string) []kestrelv1alpha1.ConfigFile {
-		return []kestrelv1alpha1.ConfigFile{{Path: "server.cfg", Template: text}}
+	schema := []gameplanev1alpha1.ConfigField{{Name: "MOTD", Type: "string", Target: "file", Default: "hi"}}
+	file := func(text string) []gameplanev1alpha1.ConfigFile {
+		return []gameplanev1alpha1.ConfigFile{{Path: "server.cfg", Template: text}}
 	}
 
 	gs, tmpl := configFixtures(schema, nil)

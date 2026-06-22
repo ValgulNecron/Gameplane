@@ -1,5 +1,5 @@
 // Package kube wraps the dynamic and typed Kubernetes clients that the
-// API uses to read/write Kestrel CRDs.
+// API uses to read/write Gameplane CRDs.
 package kube
 
 import (

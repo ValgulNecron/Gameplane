@@ -38,11 +38,11 @@ func TestDestinations_List(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
 		Typed: kubefake.NewClientset(
-			newDestSecret("kestrel-games", "default"),
-			newDestSecret("kestrel-games", "second"),
+			newDestSecret("gameplane-games", "default"),
+			newDestSecret("gameplane-games", "second"),
 			// A non-labelled secret that must NOT appear in the list.
 			&corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "kestrel-games"},
+				ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "gameplane-games"},
 			},
 		),
 	}
@@ -64,8 +64,8 @@ func TestDestinations_Get(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
 		Typed: kubefake.NewClientset(
-			newDestSecret("kestrel-games", "default"),
-			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "wild", Namespace: "kestrel-games"}},
+			newDestSecret("gameplane-games", "default"),
+			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "wild", Namespace: "gameplane-games"}},
 		),
 	}
 	r := mountDestRouter(k)
@@ -106,7 +106,7 @@ func TestDestinations_Create(t *testing.T) {
 		if rr := do(t, r, "POST", "/backup-destinations/", body); rr.Code != 200 {
 			t.Fatalf("create: %d %s", rr.Code, rr.Body)
 		}
-		sec, err := k.Typed.CoreV1().Secrets("kestrel-games").Get(context.Background(), "repokey", metav1.GetOptions{})
+		sec, err := k.Typed.CoreV1().Secrets("gameplane-games").Get(context.Background(), "repokey", metav1.GetOptions{})
 		if err != nil {
 			t.Fatalf("get secret: %v", err)
 		}
@@ -150,8 +150,8 @@ func TestDestinations_Delete(t *testing.T) {
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
 		Typed: kubefake.NewClientset(
-			newDestSecret("kestrel-games", "default"),
-			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "kestrel-games"}},
+			newDestSecret("gameplane-games", "default"),
+			&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "gameplane-games"}},
 		),
 	}
 	r := mountDestRouter(k)

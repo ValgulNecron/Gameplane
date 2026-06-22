@@ -110,8 +110,8 @@ func TestMount_ActionsAndStatusRouted(t *testing.T) {
 // callers can derive the right URL even without a real client.
 func TestAgentHost_Format(t *testing.T) {
 	p := &proxy{}
-	got := p.agentHost("alpha", "kestrel-games")
-	for _, want := range []string{"alpha-agent.kestrel-games", ":8090"} {
+	got := p.agentHost("alpha", "gameplane-games")
+	for _, want := range []string{"alpha-agent.gameplane-games", ":8090"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("got %q, want substring %q", got, want)
 		}

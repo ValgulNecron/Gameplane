@@ -13,16 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // buildVersionedTemplate is a minecraft-like template with a version
 // catalog (distinct image per loader) and a per-(version+loader) mod
 // volume map (paper→plugins, forge→mods).
-func buildVersionedTemplate(name string) *kestrelv1alpha1.GameTemplate {
+func buildVersionedTemplate(name string) *gameplanev1alpha1.GameTemplate {
 	t := buildGameTemplate(name)
 	t.Spec.Image = "itzg/minecraft-server:fallback"
-	t.Spec.Versions = []kestrelv1alpha1.GameVersion{
+	t.Spec.Versions = []gameplanev1alpha1.GameVersion{
 		{
 			ID: "1.21.4-paper", DisplayName: "1.21.4 Paper",
 			Image: "itzg/minecraft-server:paper", Loader: "paper", Default: true,
@@ -34,13 +34,13 @@ func buildVersionedTemplate(name string) *kestrelv1alpha1.GameTemplate {
 			Env: []corev1.EnvVar{{Name: "TYPE", Value: "FORGE"}, {Name: "VERSION", Value: "1.21.4"}},
 		},
 	}
-	t.Spec.Capabilities = &kestrelv1alpha1.CapabilitiesSpec{
-		Mods: &kestrelv1alpha1.ModsSpec{
-			Loaders: map[string]kestrelv1alpha1.ModLoaderSpec{
+	t.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Mods: &gameplanev1alpha1.ModsSpec{
+			Loaders: map[string]gameplanev1alpha1.ModLoaderSpec{
 				"paper": {Path: "plugins", Extensions: []string{".jar"}},
 				"forge": {Path: "mods", Extensions: []string{".jar"}},
 			},
-			Install: &kestrelv1alpha1.ModInstallSpec{AllowedHosts: []string{"cdn.modrinth.com"}},
+			Install: &gameplanev1alpha1.ModInstallSpec{AllowedHosts: []string{"cdn.modrinth.com"}},
 		},
 	}
 	return t
@@ -181,7 +181,7 @@ func TestGameServer_SwitchVersionRetainsModPVC(t *testing.T) {
 
 	// Switch to forge.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var cur kestrelv1alpha1.GameServer
+		var cur gameplanev1alpha1.GameServer
 		if err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &cur); err != nil {
 			return err
@@ -237,12 +237,12 @@ func TestGameServer_UnknownVersionFailsPhase(t *testing.T) {
 	}
 
 	eventually(t, func() (bool, string) {
-		var cur kestrelv1alpha1.GameServer
+		var cur gameplanev1alpha1.GameServer
 		if err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &cur); err != nil {
 			return false, err.Error()
 		}
-		if cur.Status.Phase != kestrelv1alpha1.GameServerPhaseFailed {
+		if cur.Status.Phase != gameplanev1alpha1.GameServerPhaseFailed {
 			return false, "phase=" + string(cur.Status.Phase)
 		}
 		return true, ""

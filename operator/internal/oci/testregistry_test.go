@@ -146,7 +146,7 @@ func (r *fakeRegistry) handle(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// pushBundle is a convenience that constructs and pushes a Kestrel
+// pushBundle is a convenience that constructs and pushes a Gameplane
 // module bundle for tests.
 func (r *fakeRegistry) pushBundle(repo, tag string, layers map[string][]byte) string {
 	r.t.Helper()

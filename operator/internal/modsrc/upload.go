@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // newUpload builds a Fetcher over uploaded module bundles: ConfigMaps
@@ -29,15 +29,15 @@ type uploadFetcher struct {
 	allow     []string
 }
 
-func (f *uploadFetcher) Index(ctx context.Context) ([]kestrelv1alpha1.ModuleEntry, []string, error) {
+func (f *uploadFetcher) Index(ctx context.Context) ([]gameplanev1alpha1.ModuleEntry, []string, error) {
 	bundles, warnings, err := f.scan(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	entries := make([]kestrelv1alpha1.ModuleEntry, 0, len(bundles))
+	entries := make([]gameplanev1alpha1.ModuleEntry, 0, len(bundles))
 	for _, b := range bundles {
 		meta := b.bundle.Metadata
-		entries = append(entries, kestrelv1alpha1.ModuleEntry{
+		entries = append(entries, gameplanev1alpha1.ModuleEntry{
 			Name:          meta.Name,
 			DisplayName:   meta.DisplayName,
 			Summary:       meta.Summary,
@@ -80,7 +80,7 @@ func (f *uploadFetcher) scan(ctx context.Context) ([]uploadedBundle, []string, e
 	var cms corev1.ConfigMapList
 	if err := f.c.List(ctx, &cms,
 		client.InNamespace(f.namespace),
-		client.MatchingLabels{kestrelv1alpha1.LabelModuleUpload: "true"},
+		client.MatchingLabels{gameplanev1alpha1.LabelModuleUpload: "true"},
 	); err != nil {
 		return nil, nil, fmt.Errorf("list upload ConfigMaps: %w", err)
 	}

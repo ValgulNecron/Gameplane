@@ -6,25 +6,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestComputeConditions(t *testing.T) {
 	cases := []struct {
-		phase  kestrelv1alpha1.GameServerPhase
+		phase  gameplanev1alpha1.GameServerPhase
 		ready  metav1.ConditionStatus
 		health metav1.ConditionStatus
 	}{
-		{kestrelv1alpha1.GameServerPhaseRunning, metav1.ConditionTrue, metav1.ConditionTrue},
-		{kestrelv1alpha1.GameServerPhaseStarting, metav1.ConditionFalse, metav1.ConditionFalse},
-		{kestrelv1alpha1.GameServerPhaseStopping, metav1.ConditionFalse, metav1.ConditionFalse},
-		{kestrelv1alpha1.GameServerPhaseSuspended, metav1.ConditionFalse, metav1.ConditionFalse},
-		{kestrelv1alpha1.GameServerPhaseFailed, metav1.ConditionFalse, metav1.ConditionFalse},
-		{kestrelv1alpha1.GameServerPhase("unknown"), metav1.ConditionUnknown, metav1.ConditionUnknown},
+		{gameplanev1alpha1.GameServerPhaseRunning, metav1.ConditionTrue, metav1.ConditionTrue},
+		{gameplanev1alpha1.GameServerPhaseStarting, metav1.ConditionFalse, metav1.ConditionFalse},
+		{gameplanev1alpha1.GameServerPhaseStopping, metav1.ConditionFalse, metav1.ConditionFalse},
+		{gameplanev1alpha1.GameServerPhaseSuspended, metav1.ConditionFalse, metav1.ConditionFalse},
+		{gameplanev1alpha1.GameServerPhaseFailed, metav1.ConditionFalse, metav1.ConditionFalse},
+		{gameplanev1alpha1.GameServerPhase("unknown"), metav1.ConditionUnknown, metav1.ConditionUnknown},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.phase), func(t *testing.T) {
-			gs := &kestrelv1alpha1.GameServer{}
+			gs := &gameplanev1alpha1.GameServer{}
 			conds := computeConditions(gs, tc.phase, nil)
 			byType := map[string]metav1.Condition{}
 			for _, c := range conds {
@@ -41,9 +41,9 @@ func TestComputeConditions(t *testing.T) {
 }
 
 func TestComputeConditions_ProvisioningRefinement(t *testing.T) {
-	gs := &kestrelv1alpha1.GameServer{}
+	gs := &gameplanev1alpha1.GameServer{}
 	prov := &provisioningInfo{reason: "PullingImage", message: "pulling the game image"}
-	conds := computeConditions(gs, kestrelv1alpha1.GameServerPhaseStarting, prov)
+	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseStarting, prov)
 
 	var prog metav1.Condition
 	for _, c := range conds {
@@ -59,7 +59,7 @@ func TestComputeConditions_ProvisioningRefinement(t *testing.T) {
 	}
 
 	// nil prov leaves the generic Starting reason and no message.
-	conds = computeConditions(gs, kestrelv1alpha1.GameServerPhaseStarting, nil)
+	conds = computeConditions(gs, gameplanev1alpha1.GameServerPhaseStarting, nil)
 	for _, c := range conds {
 		if c.Type == "Progressing" && (c.Reason != "Starting" || c.Message != "") {
 			t.Errorf("nil prov: Progressing = %+v, want generic Starting/no message", c)
@@ -205,7 +205,7 @@ func TestStartupFailure(t *testing.T) {
 }
 
 func TestComputeConditions_FailedCarriesReason(t *testing.T) {
-	gs := &kestrelv1alpha1.GameServer{}
+	gs := &gameplanev1alpha1.GameServer{}
 	prov := &provisioningInfo{
 		reason:  "CrashLoopBackOff",
 		message: "the container has crash-looped 3 times during startup; check the logs",
@@ -218,7 +218,7 @@ func TestComputeConditions_FailedCarriesReason(t *testing.T) {
 		return m
 	}
 
-	m := byType(computeConditions(gs, kestrelv1alpha1.GameServerPhaseFailed, prov))
+	m := byType(computeConditions(gs, gameplanev1alpha1.GameServerPhaseFailed, prov))
 	if m["Ready"].Reason != "CrashLoopBackOff" || m["Ready"].Message != prov.message {
 		t.Errorf("Ready = %+v, want CrashLoopBackOff reason + the failure message", m["Ready"])
 	}
@@ -227,7 +227,7 @@ func TestComputeConditions_FailedCarriesReason(t *testing.T) {
 	}
 
 	// nil prov leaves the generic Failed reason and no message.
-	m = byType(computeConditions(gs, kestrelv1alpha1.GameServerPhaseFailed, nil))
+	m = byType(computeConditions(gs, gameplanev1alpha1.GameServerPhaseFailed, nil))
 	if m["Ready"].Reason != "Failed" || m["Ready"].Message != "" {
 		t.Errorf("nil prov: Ready = %+v, want generic Failed/no message", m["Ready"])
 	}

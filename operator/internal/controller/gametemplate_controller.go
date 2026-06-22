@@ -8,7 +8,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // GameTemplateReconciler mostly exists to maintain status.inUseCount —
@@ -22,12 +22,12 @@ type GameTemplateReconciler struct {
 // +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates/status,verbs=get;update;patch
 
 func (r *GameTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	if err := r.Get(ctx, req.NamespacedName, &tmpl); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	var servers kestrelv1alpha1.GameServerList
+	var servers gameplanev1alpha1.GameServerList
 	if err := r.List(ctx, &servers); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -47,7 +47,7 @@ func (r *GameTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 func (r *GameTemplateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.GameTemplate{}).
-		Watches(&kestrelv1alpha1.GameServer{}, enqueueTemplateForServer()).
+		For(&gameplanev1alpha1.GameTemplate{}).
+		Watches(&gameplanev1alpha1.GameServer{}, enqueueTemplateForServer()).
 		Complete(r)
 }

@@ -19,7 +19,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // agentCertRenewalThreshold: re-issue a server cert if its remaining
@@ -33,7 +33,7 @@ const agentCertRenewalThreshold = 30 * 24 * time.Hour
 // `tls.key`, and `ca.crt` from a single mount, so the controller stages
 // all three keys in one Secret rather than mounting the cluster CA
 // across namespaces (which Kubernetes doesn't allow).
-func agentTLSSecretName(gs *kestrelv1alpha1.GameServer) string {
+func agentTLSSecretName(gs *gameplanev1alpha1.GameServer) string {
 	return gs.Name + "-agent-tls"
 }
 
@@ -47,7 +47,7 @@ func agentTLSSecretName(gs *kestrelv1alpha1.GameServer) string {
 // Idempotent: a still-fresh existing cert (≥30 days remaining) is left
 // alone, so this runs cheaply on every Reconcile.
 func (r *GameServerReconciler) reconcileAgentTLS(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) error {
 	if r.AgentCASecretName == "" || r.AgentCASecretNamespace == "" {
 		return errors.New("agent CA Secret reference not configured (set --agent-ca-secret-name and --agent-ca-secret-namespace)")
@@ -167,7 +167,7 @@ func parseAgentCA(certPEM, keyPEM []byte) (*x509.Certificate, *rsa.PrivateKey, e
 }
 
 func signAgentServerCert(
-	caCert *x509.Certificate, caKey *rsa.PrivateKey, gs *kestrelv1alpha1.GameServer,
+	caCert *x509.Certificate, caKey *rsa.PrivateKey, gs *gameplanev1alpha1.GameServer,
 ) (certPEM, keyPEM []byte, err error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -203,7 +203,7 @@ func signAgentServerCert(
 // operator/internal/agent/client.go); the pod-DNS and game-Service
 // forms are kept so a cert mismatch surfaces only when something is
 // genuinely wrong, not because the caller picked a different aliasing.
-func agentDNSNames(gs *kestrelv1alpha1.GameServer) []string {
+func agentDNSNames(gs *gameplanev1alpha1.GameServer) []string {
 	pod := gs.Name + "-0"
 	agentSvc := gs.Name + "-agent"
 	return []string{

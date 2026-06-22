@@ -1,6 +1,6 @@
 # Architecture
 
-Kestrel is split across four long-lived components and a short-lived
+Gameplane is split across four long-lived components and a short-lived
 per-pod sidecar.
 
 ```
@@ -47,7 +47,7 @@ SaaS dashboard: session auth, CSRF, per-user RBAC beyond K8s RBAC,
 audit trails.
 
 Keeping them separate lets advanced users bypass the API entirely and
-manage Kestrel with `kubectl apply` — the operator is authoritative.
+manage Gameplane with `kubectl apply` — the operator is authoritative.
 
 ## Data flow examples
 
@@ -76,7 +76,7 @@ manage Kestrel with `kubectl apply` — the operator is authoritative.
 ### Tail logs
 
 1. Dashboard opens WS `/ws/servers/foo/logs`
-2. API verifies session, RBAC → dials `wss://foo-0.foo.kestrel-games:8090/logs/tail` using mTLS
+2. API verifies session, RBAC → dials `wss://foo-0.foo.gameplane-games:8090/logs/tail` using mTLS
 3. Agent tails the game container's log file and streams each line as a text WS frame
 4. API proxies frames back to the browser; xterm.js renders them
 
@@ -135,6 +135,6 @@ converge on the same outcome. Format spec: `docs/module-authoring.md`.
 - **Browser → API**: HTTPS, session cookie + CSRF header, OIDC or local login.
 - **API → Agent**: mTLS; client cert signed by operator-managed CA mounted into API pod.
 - **Agent → K8s**: in-pod ServiceAccount, scoped to updating its owning GameServer's status.
-- **Operator → K8s**: cluster-wide CRUD on Kestrel CRDs + workload primitives it manages.
+- **Operator → K8s**: cluster-wide CRUD on Gameplane CRDs + workload primitives it manages.
 
 See `docs/security.md` for the threat model.

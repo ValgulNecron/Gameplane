@@ -1,6 +1,6 @@
 # Terraria
 
-Terraria + tModLoader dedicated server, packaged as a Kestrel module.
+Terraria + tModLoader dedicated server, packaged as a Gameplane module.
 
 **Image:** [`passivelemon/terraria-docker`](https://github.com/PassiveLemon/terraria-docker)
 
@@ -53,7 +53,7 @@ tModLoader ModPacks volume is a separate PVC per version+loader.
 
 ## Backups
 
-Standard Kestrel `Backup` / `BackupSchedule` snapshots the data PVC. Live
+Standard Gameplane `Backup` / `BackupSchedule` snapshots the data PVC. Live
 snapshots are fine for Terraria since the server flushes the world on every
 autosave.
 

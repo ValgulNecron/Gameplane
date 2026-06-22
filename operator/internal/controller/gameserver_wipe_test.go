@@ -12,14 +12,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func wipeScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
-	if err := kestrelv1alpha1.AddToScheme(s); err != nil {
-		t.Fatalf("kestrel scheme: %v", err)
+	if err := gameplanev1alpha1.AddToScheme(s); err != nil {
+		t.Fatalf("gameplane scheme: %v", err)
 	}
 	if err := batchv1.AddToScheme(s); err != nil {
 		t.Fatalf("batch scheme: %v", err)
@@ -30,8 +30,8 @@ func wipeScheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
-func wipeGameServer(suspend bool, req string) *kestrelv1alpha1.GameServer {
-	gs := &kestrelv1alpha1.GameServer{}
+func wipeGameServer(suspend bool, req string) *gameplanev1alpha1.GameServer {
+	gs := &gameplanev1alpha1.GameServer{}
 	gs.Name = "alpha"
 	gs.Namespace = "ns"
 	gs.Annotations = map[string]string{WipeRequestedAnnotation: req}
@@ -43,7 +43,7 @@ func wipeGameServer(suspend bool, req string) *kestrelv1alpha1.GameServer {
 func TestReconcileWipe_CreatesJobWhenSuspended(t *testing.T) {
 	s := wipeScheme(t)
 	gs := wipeGameServer(true, "tok1")
-	tmpl := &kestrelv1alpha1.GameTemplate{}
+	tmpl := &gameplanev1alpha1.GameTemplate{}
 	tmpl.Name = "mc"
 
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
@@ -67,7 +67,7 @@ func TestReconcileWipe_CreatesJobWhenSuspended(t *testing.T) {
 func TestReconcileWipe_SkipsWhenNotSuspended(t *testing.T) {
 	s := wipeScheme(t)
 	gs := wipeGameServer(false, "tok1")
-	tmpl := &kestrelv1alpha1.GameTemplate{}
+	tmpl := &gameplanev1alpha1.GameTemplate{}
 	tmpl.Name = "mc"
 
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
@@ -85,7 +85,7 @@ func TestReconcileWipe_SkipsWhenNotSuspended(t *testing.T) {
 func TestReconcileWipe_AcksWhenJobSucceeded(t *testing.T) {
 	s := wipeScheme(t)
 	gs := wipeGameServer(true, "tok1")
-	tmpl := &kestrelv1alpha1.GameTemplate{}
+	tmpl := &gameplanev1alpha1.GameTemplate{}
 	tmpl.Name = "mc"
 
 	job := &batchv1.Job{
@@ -103,7 +103,7 @@ func TestReconcileWipe_AcksWhenJobSucceeded(t *testing.T) {
 	}
 
 	// The request is acked on the GameServer.
-	var got kestrelv1alpha1.GameServer
+	var got gameplanev1alpha1.GameServer
 	if err := cl.Get(context.Background(), types.NamespacedName{Name: "alpha", Namespace: "ns"}, &got); err != nil {
 		t.Fatalf("get gs: %v", err)
 	}

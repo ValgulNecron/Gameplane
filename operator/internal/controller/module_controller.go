@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
 	"github.com/ValgulNecron/gameplane/operator/internal/verify"
 )
@@ -42,11 +42,11 @@ type ModuleReconciler struct {
 
 	// NewFetcher is overridden in tests with an in-process fake. nil →
 	// the real per-source-type fetcher from modsrc.ForSource.
-	NewFetcher func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error)
+	NewFetcher func(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error)
 
 	// NewVerifier is overridden in tests with an in-process fake. nil →
 	// the real cosign verifier from verify.Build.
-	NewVerifier func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (verify.Verifier, error)
+	NewVerifier func(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (verify.Verifier, error)
 }
 
 // +kubebuilder:rbac:groups=gameplane.gg,resources=modules,verbs=get;list;watch;update;patch
@@ -56,7 +56,7 @@ type ModuleReconciler struct {
 // +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers,verbs=get;list;watch
 
 func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var mod kestrelv1alpha1.Module
+	var mod gameplanev1alpha1.Module
 	if err := r.Get(ctx, req.NamespacedName, &mod); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -64,8 +64,8 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if !mod.DeletionTimestamp.IsZero() {
 		return r.finalize(ctx, &mod)
 	}
-	if !controllerutil.ContainsFinalizer(&mod, kestrelv1alpha1.ModuleFinalizer) {
-		controllerutil.AddFinalizer(&mod, kestrelv1alpha1.ModuleFinalizer)
+	if !controllerutil.ContainsFinalizer(&mod, gameplanev1alpha1.ModuleFinalizer) {
+		controllerutil.AddFinalizer(&mod, gameplanev1alpha1.ModuleFinalizer)
 		if err := r.Update(ctx, &mod); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -98,7 +98,7 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if mod.Status.AppliedVersion == desiredVersion && mod.Status.AppliedTemplate == mod.Name &&
-		mod.Status.Phase == kestrelv1alpha1.ModulePhaseReady &&
+		mod.Status.Phase == gameplanev1alpha1.ModulePhaseReady &&
 		(entry.Digest == "" || mod.Status.AppliedDigest == entry.Digest) {
 		// Already converged. Non-OCI sources publish a single version
 		// stream, so the digest comparison is what catches content
@@ -143,7 +143,7 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// previously-applied GameTemplate untouched here is intentional.
 	if r.operatorTooOld(bundle.Metadata.GameplaneMinVersion) {
 		return r.markFailed(ctx, &mod, "IncompatibleOperator",
-			fmt.Errorf("module %q requires Kestrel >= %s but this operator is %s",
+			fmt.Errorf("module %q requires Gameplane >= %s but this operator is %s",
 				mod.Spec.Name, bundle.Metadata.GameplaneMinVersion, r.OperatorVersion))
 	}
 
@@ -158,21 +158,21 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		mod.Status.PreviousVersion = mod.Status.AppliedVersion
 		mod.Status.PreviousDigest = mod.Status.AppliedDigest
 	}
-	mod.Status.Phase = kestrelv1alpha1.ModulePhaseReady
+	mod.Status.Phase = gameplanev1alpha1.ModulePhaseReady
 	mod.Status.AppliedVersion = desiredVersion
 	mod.Status.AppliedDigest = bundle.Digest
 	mod.Status.AppliedTemplate = mod.Name
 	mod.Status.LastError = ""
 	mod.Status.ObservedGeneration = mod.Generation
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleConditionReady,
+		Type:               gameplanev1alpha1.ModuleConditionReady,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Applied",
 		Message:            fmt.Sprintf("GameTemplate %q at %s", mod.Name, desiredVersion),
 		ObservedGeneration: mod.Generation,
 	})
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleConditionPulling,
+		Type:               gameplanev1alpha1.ModuleConditionPulling,
 		Status:             metav1.ConditionFalse,
 		Reason:             "Applied",
 		ObservedGeneration: mod.Generation,
@@ -183,12 +183,12 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alpha1.Module, bundle *modsrc.Bundle, version, sourceName string) error {
-	parsed := &kestrelv1alpha1.GameTemplate{}
+func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *gameplanev1alpha1.Module, bundle *modsrc.Bundle, version, sourceName string) error {
+	parsed := &gameplanev1alpha1.GameTemplate{}
 	if err := yaml.Unmarshal(bundle.TemplateYAML, parsed); err != nil {
 		return fmt.Errorf("parse template.yaml: %w", err)
 	}
-	desired := &kestrelv1alpha1.GameTemplate{}
+	desired := &gameplanev1alpha1.GameTemplate{}
 	desired.Name = mod.Name
 	desired.Spec = parsed.Spec
 
@@ -197,14 +197,14 @@ func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alph
 	if desired.Labels == nil {
 		desired.Labels = map[string]string{}
 	}
-	desired.Labels[kestrelv1alpha1.LabelManagedBy] = kestrelv1alpha1.ManagedByModule
-	desired.Labels[kestrelv1alpha1.LabelModuleName] = mod.Spec.Name
-	desired.Labels[kestrelv1alpha1.LabelModuleVersion] = version
-	desired.Labels[kestrelv1alpha1.LabelModuleSource] = sourceName
+	desired.Labels[gameplanev1alpha1.LabelManagedBy] = gameplanev1alpha1.ManagedByModule
+	desired.Labels[gameplanev1alpha1.LabelModuleName] = mod.Spec.Name
+	desired.Labels[gameplanev1alpha1.LabelModuleVersion] = version
+	desired.Labels[gameplanev1alpha1.LabelModuleSource] = sourceName
 	if desired.Annotations == nil {
 		desired.Annotations = map[string]string{}
 	}
-	desired.Annotations[kestrelv1alpha1.LabelModuleDigest] = bundle.Digest
+	desired.Annotations[gameplanev1alpha1.LabelModuleDigest] = bundle.Digest
 
 	// Set the OwnerReference so deleting the Module GCs the template.
 	if err := controllerutil.SetControllerReference(mod, desired, r.Scheme); err != nil {
@@ -214,7 +214,7 @@ func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alph
 	// Server-side apply or create-or-update via SSA-like pattern. We do
 	// a Get + decide create/update because some tests assert on the
 	// resulting object's fields and we want predictable behavior.
-	var existing kestrelv1alpha1.GameTemplate
+	var existing gameplanev1alpha1.GameTemplate
 	err := r.Get(ctx, types.NamespacedName{Name: desired.Name}, &existing)
 	if apierrors.IsNotFound(err) {
 		return r.Create(ctx, desired)
@@ -225,7 +225,7 @@ func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alph
 	// Verify ownership before clobbering — refuse to mutate a template
 	// that wasn't created by this Module (e.g. pre-existing manual
 	// install with the same name).
-	if existing.Labels[kestrelv1alpha1.LabelManagedBy] != kestrelv1alpha1.ManagedByModule {
+	if existing.Labels[gameplanev1alpha1.LabelManagedBy] != gameplanev1alpha1.ManagedByModule {
 		return fmt.Errorf("template %q exists and is not module-managed", desired.Name)
 	}
 	if !ownedBy(&existing, mod) {
@@ -240,15 +240,15 @@ func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *kestrelv1alph
 // finalize handles the deletion path. We refuse to release the
 // finalizer (and therefore allow GC of the GameTemplate) while any
 // GameServer references it — uninstall would orphan running pods.
-func (r *ModuleReconciler) finalize(ctx context.Context, mod *kestrelv1alpha1.Module) (ctrl.Result, error) {
-	if !controllerutil.ContainsFinalizer(mod, kestrelv1alpha1.ModuleFinalizer) {
+func (r *ModuleReconciler) finalize(ctx context.Context, mod *gameplanev1alpha1.Module) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(mod, gameplanev1alpha1.ModuleFinalizer) {
 		return ctrl.Result{}, nil
 	}
 	tmplName := mod.Status.AppliedTemplate
 	if tmplName == "" {
 		tmplName = mod.Name
 	}
-	var servers kestrelv1alpha1.GameServerList
+	var servers gameplanev1alpha1.GameServerList
 	if err := r.List(ctx, &servers); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -262,10 +262,10 @@ func (r *ModuleReconciler) finalize(ctx context.Context, mod *kestrelv1alpha1.Mo
 		// Surface a clear blocker on status; the API translates this
 		// into a 409 on DELETE /modules/{name} so the UI can render a
 		// useful error.
-		mod.Status.Phase = kestrelv1alpha1.ModulePhaseFailed
+		mod.Status.Phase = gameplanev1alpha1.ModulePhaseFailed
 		mod.Status.LastError = fmt.Sprintf("GameTemplate %q is still in use by: %v", tmplName, inUse)
 		mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-			Type:               kestrelv1alpha1.ModuleConditionReady,
+			Type:               gameplanev1alpha1.ModuleConditionReady,
 			Status:             metav1.ConditionFalse,
 			Reason:             "InUse",
 			Message:            mod.Status.LastError,
@@ -282,7 +282,7 @@ func (r *ModuleReconciler) finalize(ctx context.Context, mod *kestrelv1alpha1.Mo
 	// Delete the materialized GameTemplate. SetControllerReference would
 	// also let the K8s GC do this, but we don't rely on the GC ordering
 	// because the Module disappears first.
-	tmpl := &kestrelv1alpha1.GameTemplate{}
+	tmpl := &gameplanev1alpha1.GameTemplate{}
 	if err := r.Get(ctx, types.NamespacedName{Name: tmplName}, tmpl); err == nil {
 		if ownedBy(tmpl, mod) {
 			if err := r.Delete(ctx, tmpl); err != nil && !apierrors.IsNotFound(err) {
@@ -290,27 +290,27 @@ func (r *ModuleReconciler) finalize(ctx context.Context, mod *kestrelv1alpha1.Mo
 			}
 		}
 	}
-	controllerutil.RemoveFinalizer(mod, kestrelv1alpha1.ModuleFinalizer)
+	controllerutil.RemoveFinalizer(mod, gameplanev1alpha1.ModuleFinalizer)
 	if err := r.Update(ctx, mod); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *ModuleReconciler) getSource(ctx context.Context, name string) (*kestrelv1alpha1.ModuleSource, error) {
-	var src kestrelv1alpha1.ModuleSource
+func (r *ModuleReconciler) getSource(ctx context.Context, name string) (*gameplanev1alpha1.ModuleSource, error) {
+	var src gameplanev1alpha1.ModuleSource
 	if err := r.Get(ctx, types.NamespacedName{Name: name}, &src); err != nil {
 		return nil, err
 	}
 	return &src, nil
 }
 
-func (r *ModuleReconciler) markPending(ctx context.Context, mod *kestrelv1alpha1.Module, reason string, err error) (ctrl.Result, error) {
-	mod.Status.Phase = kestrelv1alpha1.ModulePhasePending
+func (r *ModuleReconciler) markPending(ctx context.Context, mod *gameplanev1alpha1.Module, reason string, err error) (ctrl.Result, error) {
+	mod.Status.Phase = gameplanev1alpha1.ModulePhasePending
 	mod.Status.LastError = err.Error()
 	mod.Status.ObservedGeneration = mod.Generation
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleConditionReady,
+		Type:               gameplanev1alpha1.ModuleConditionReady,
 		Status:             metav1.ConditionFalse,
 		Reason:             reason,
 		Message:            err.Error(),
@@ -322,12 +322,12 @@ func (r *ModuleReconciler) markPending(ctx context.Context, mod *kestrelv1alpha1
 	return ctrl.Result{Requeue: true}, nil
 }
 
-func (r *ModuleReconciler) markFailed(ctx context.Context, mod *kestrelv1alpha1.Module, reason string, err error) (ctrl.Result, error) {
-	mod.Status.Phase = kestrelv1alpha1.ModulePhaseFailed
+func (r *ModuleReconciler) markFailed(ctx context.Context, mod *gameplanev1alpha1.Module, reason string, err error) (ctrl.Result, error) {
+	mod.Status.Phase = gameplanev1alpha1.ModulePhaseFailed
 	mod.Status.LastError = err.Error()
 	mod.Status.ObservedGeneration = mod.Generation
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleConditionReady,
+		Type:               gameplanev1alpha1.ModuleConditionReady,
 		Status:             metav1.ConditionFalse,
 		Reason:             reason,
 		Message:            err.Error(),
@@ -338,7 +338,7 @@ func (r *ModuleReconciler) markFailed(ctx context.Context, mod *kestrelv1alpha1.
 	// digest, apply), so clear it — otherwise the dashboard shows a module
 	// stuck "Pulling" forever alongside "Failed".
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleConditionPulling,
+		Type:               gameplanev1alpha1.ModuleConditionPulling,
 		Status:             metav1.ConditionFalse,
 		Reason:             reason,
 		ObservedGeneration: mod.Generation,
@@ -349,13 +349,13 @@ func (r *ModuleReconciler) markFailed(ctx context.Context, mod *kestrelv1alpha1.
 	return ctrl.Result{}, err
 }
 
-func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *kestrelv1alpha1.Module, version string) error {
-	if mod.Status.Phase == kestrelv1alpha1.ModulePhasePulling {
+func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *gameplanev1alpha1.Module, version string) error {
+	if mod.Status.Phase == gameplanev1alpha1.ModulePhasePulling {
 		return nil
 	}
-	mod.Status.Phase = kestrelv1alpha1.ModulePhasePulling
+	mod.Status.Phase = gameplanev1alpha1.ModulePhasePulling
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleConditionPulling,
+		Type:               gameplanev1alpha1.ModuleConditionPulling,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Pulling",
 		Message:            "pulling " + version,
@@ -364,14 +364,14 @@ func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *kestr
 	return r.Status().Update(ctx, mod)
 }
 
-func (r *ModuleReconciler) fetcherFor(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+func (r *ModuleReconciler) fetcherFor(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error) {
 	if r.NewFetcher != nil {
 		return r.NewFetcher(ctx, src)
 	}
 	return modsrc.ForSource(ctx, r.Client, r.Namespace, src, r.FetchOptions)
 }
 
-func (r *ModuleReconciler) verifierFor(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (verify.Verifier, error) {
+func (r *ModuleReconciler) verifierFor(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (verify.Verifier, error) {
 	if r.NewVerifier != nil {
 		return r.NewVerifier(ctx, src)
 	}
@@ -394,7 +394,7 @@ func (r *ModuleReconciler) operatorTooOld(minVersion string) bool {
 	return semver.Compare(have, want) < 0
 }
 
-func byCatalogName(entries []kestrelv1alpha1.ModuleEntry, name string) *kestrelv1alpha1.ModuleEntry {
+func byCatalogName(entries []gameplanev1alpha1.ModuleEntry, name string) *gameplanev1alpha1.ModuleEntry {
 	for i := range entries {
 		if entries[i].Name == name {
 			return &entries[i]
@@ -403,7 +403,7 @@ func byCatalogName(entries []kestrelv1alpha1.ModuleEntry, name string) *kestrelv
 	return nil
 }
 
-func ownedBy(o client.Object, owner *kestrelv1alpha1.Module) bool {
+func ownedBy(o client.Object, owner *gameplanev1alpha1.Module) bool {
 	for _, ref := range o.GetOwnerReferences() {
 		if ref.UID == owner.UID && ref.Kind == "Module" {
 			return true
@@ -424,9 +424,9 @@ func mergeAnnotations(into, from map[string]string) map[string]string {
 
 func (r *ModuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.Module{}).
-		Owns(&kestrelv1alpha1.GameTemplate{}).
-		Watches(&kestrelv1alpha1.ModuleSource{}, enqueueModulesForSource(r.Client)).
+		For(&gameplanev1alpha1.Module{}).
+		Owns(&gameplanev1alpha1.GameTemplate{}).
+		Watches(&gameplanev1alpha1.ModuleSource{}, enqueueModulesForSource(r.Client)).
 		Complete(r)
 }
 
@@ -435,11 +435,11 @@ func (r *ModuleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // indexes, pending Modules can resolve their version.
 func enqueueModulesForSource(c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-		src, ok := obj.(*kestrelv1alpha1.ModuleSource)
+		src, ok := obj.(*gameplanev1alpha1.ModuleSource)
 		if !ok {
 			return nil
 		}
-		var mods kestrelv1alpha1.ModuleList
+		var mods gameplanev1alpha1.ModuleList
 		if err := c.List(ctx, &mods); err != nil {
 			return nil
 		}

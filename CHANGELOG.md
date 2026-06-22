@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Kestrel are documented here. The format is based on
+All notable changes to Gameplane are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it
 reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
@@ -51,5 +51,5 @@ testing. Not yet recommended for unattended production workloads — see
   runner (retry + longer readiness window), eliminating a cascade of flaky
   API e2e failures.
 
-[Unreleased]: https://github.com/kestrel-gg/kestrel/compare/v0.2.0-beta.1...HEAD
-[0.2.0-beta.1]: https://github.com/kestrel-gg/kestrel/releases/tag/v0.2.0-beta.1
+[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/ValgulNecron/gameplane/releases/tag/v0.2.0-beta.1

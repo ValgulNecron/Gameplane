@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // ---------------------------------------------------------------------
@@ -90,7 +90,7 @@ func withGameServerReconciler(t *testing.T, ns string) setupReconciler {
 		return (&GameServerReconciler{
 			Client:                 mgr.GetClient(),
 			Scheme:                 mgr.GetScheme(),
-			AgentImage:             "ghcr.io/kestrel/agent:test",
+			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
 			AgentCASecretName:      "agent-ca",
 			AgentCASecretNamespace: ns,
 		}).SetupWithManager(mgr)
@@ -165,7 +165,7 @@ func newNamespace(t *testing.T) string {
 	if _, err := rand.Read(buf); err != nil {
 		t.Fatalf("rand: %v", err)
 	}
-	ns := "kestrel-test-" + hex.EncodeToString(buf)
+	ns := "gameplane-test-" + hex.EncodeToString(buf)
 
 	if err := k8sClient.Create(context.Background(), &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: ns},
@@ -245,22 +245,22 @@ func buildResticRepoSecret(ns, name string) *corev1.Secret {
 	}
 }
 
-func buildBackup(ns, name, gsName, repoSecret string) *kestrelv1alpha1.Backup {
-	return &kestrelv1alpha1.Backup{
+func buildBackup(ns, name, gsName, repoSecret string) *gameplanev1alpha1.Backup {
+	return &gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec: kestrelv1alpha1.BackupSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
-			RepoRef:   &kestrelv1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
+		Spec: gameplanev1alpha1.BackupSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: gsName},
+			RepoRef:   &gameplanev1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
 		},
 	}
 }
 
-func buildRestore(ns, name, backupName, gsName string) *kestrelv1alpha1.Restore {
-	return &kestrelv1alpha1.Restore{
+func buildRestore(ns, name, backupName, gsName string) *gameplanev1alpha1.Restore {
+	return &gameplanev1alpha1.Restore{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec: kestrelv1alpha1.RestoreSpec{
-			BackupRef: kestrelv1alpha1.LocalObjectRef{Name: backupName},
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
+		Spec: gameplanev1alpha1.RestoreSpec{
+			BackupRef: gameplanev1alpha1.LocalObjectRef{Name: backupName},
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: gsName},
 		},
 	}
 }
@@ -269,11 +269,11 @@ func buildRestore(ns, name, backupName, gsName string) *kestrelv1alpha1.Restore 
 // (assumed-to-exist) GameTemplate. The reconcilers under test in PR #1
 // (Backup, Restore) do not require the GameTemplate to exist; they
 // only Get the GameServer.
-func buildGameServer(ns, name, tmplName string) *kestrelv1alpha1.GameServer {
-	return &kestrelv1alpha1.GameServer{
+func buildGameServer(ns, name, tmplName string) *gameplanev1alpha1.GameServer {
+	return &gameplanev1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec: kestrelv1alpha1.GameServerSpec{
-			TemplateRef: kestrelv1alpha1.GameTemplateRef{Name: tmplName},
+		Spec: gameplanev1alpha1.GameServerSpec{
+			TemplateRef: gameplanev1alpha1.GameTemplateRef{Name: tmplName},
 		},
 	}
 }
@@ -281,21 +281,21 @@ func buildGameServer(ns, name, tmplName string) *kestrelv1alpha1.GameServer {
 // buildGameTemplate produces a small but valid cluster-scoped template
 // suitable for GameServer reconciler tests. Only the fields the
 // reconciler actually reads are populated.
-func buildGameTemplate(name string) *kestrelv1alpha1.GameTemplate {
-	return &kestrelv1alpha1.GameTemplate{
+func buildGameTemplate(name string) *gameplanev1alpha1.GameTemplate {
+	return &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec: kestrelv1alpha1.GameTemplateSpec{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
 			DisplayName: "Test " + name,
 			Game:        name,
 			Version:     "test",
 			Image:       "ghcr.io/test/" + name + ":latest",
-			Ports: []kestrelv1alpha1.GamePort{{
+			Ports: []gameplanev1alpha1.GamePort{{
 				Name:          "game",
 				ContainerPort: 25565,
 				Protocol:      corev1.ProtocolTCP,
 				Advertise:     true,
 			}},
-			Storage: kestrelv1alpha1.GameStorageSpec{
+			Storage: gameplanev1alpha1.GameStorageSpec{
 				MountPath: "/data",
 			},
 		},
@@ -305,13 +305,13 @@ func buildGameTemplate(name string) *kestrelv1alpha1.GameTemplate {
 // buildBackupSchedule builds a BackupSchedule with the given cron and
 // retention. retention may be nil to disable trimming.
 func buildBackupSchedule(
-	ns, name, gsName, repoSecret, cron string, ret *kestrelv1alpha1.BackupRetention,
-) *kestrelv1alpha1.BackupSchedule {
-	return &kestrelv1alpha1.BackupSchedule{
+	ns, name, gsName, repoSecret, cron string, ret *gameplanev1alpha1.BackupRetention,
+) *gameplanev1alpha1.BackupSchedule {
+	return &gameplanev1alpha1.BackupSchedule{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec: kestrelv1alpha1.BackupScheduleSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
-			RepoRef:   &kestrelv1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
+		Spec: gameplanev1alpha1.BackupScheduleSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: gsName},
+			RepoRef:   &gameplanev1alpha1.SecretKeySelector{Name: repoSecret, Key: "url"},
 			Schedule:  cron,
 			Retention: ret,
 		},
@@ -333,7 +333,7 @@ func seedAgentCA(t *testing.T, ns, name string) {
 	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "kestrel-test-agent-ca"},
+		Subject:               pkix.Name{CommonName: "gameplane-test-agent-ca"},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.Add(365 * 24 * time.Hour),
 		IsCA:                  true,
@@ -406,12 +406,12 @@ func patchJobStatus(t *testing.T, ns, name string, mut func(s *batchv1.JobStatus
 // given snapshot ID and size — the state restore tests depend on.
 func markBackupSucceeded(t *testing.T, ns, name, snapshotID, size string) {
 	t.Helper()
-	var b kestrelv1alpha1.Backup
+	var b gameplanev1alpha1.Backup
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &b); err != nil {
 		t.Fatalf("get backup: %v", err)
 	}
 	now := metav1.Now()
-	b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+	b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 	b.Status.SnapshotID = snapshotID
 	if size != "" {
 		q := resource.MustParse(size)
@@ -428,9 +428,9 @@ func markBackupSucceeded(t *testing.T, ns, name, snapshotID, size string) {
 
 // markGameServerPhase sets a GameServer's status.phase. The Restore
 // reconciler waits for Suspended/Stopped before advancing to Running.
-func markGameServerPhase(t *testing.T, ns, name string, phase kestrelv1alpha1.GameServerPhase) {
+func markGameServerPhase(t *testing.T, ns, name string, phase gameplanev1alpha1.GameServerPhase) {
 	t.Helper()
-	var gs kestrelv1alpha1.GameServer
+	var gs gameplanev1alpha1.GameServer
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &gs); err != nil {
 		t.Fatalf("get gameserver: %v", err)
 	}
@@ -450,11 +450,11 @@ func markGameServerPhase(t *testing.T, ns, name string, phase kestrelv1alpha1.Ga
 
 // buildVolumeSnapshotBackup builds a Backup using the volume-snapshot
 // strategy (no restic repo needed).
-func buildVolumeSnapshotBackup(ns, name, gsName string) *kestrelv1alpha1.Backup {
-	return &kestrelv1alpha1.Backup{
+func buildVolumeSnapshotBackup(ns, name, gsName string) *gameplanev1alpha1.Backup {
+	return &gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec: kestrelv1alpha1.BackupSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: gsName},
+		Spec: gameplanev1alpha1.BackupSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: gsName},
 			Strategy:  "volume-snapshot",
 		},
 	}
@@ -518,12 +518,12 @@ func markVolumeSnapshotError(t *testing.T, ns, name, msg string) {
 // reads the content name to confirm the snapshot actually bound.
 func markBackupSucceededVolumeSnapshot(t *testing.T, ns, name, snapshotID, contentName string) {
 	t.Helper()
-	var b kestrelv1alpha1.Backup
+	var b gameplanev1alpha1.Backup
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &b); err != nil {
 		t.Fatalf("get backup: %v", err)
 	}
 	now := metav1.Now()
-	b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+	b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 	b.Status.SnapshotID = snapshotID
 	b.Status.VolumeSnapshotContentName = contentName
 	if b.Status.StartTime == nil {
@@ -539,18 +539,18 @@ func markBackupSucceededVolumeSnapshot(t *testing.T, ns, name, snapshotID, conte
 // Read convenience wrappers
 // ---------------------------------------------------------------------
 
-func getBackup(t *testing.T, ns, name string) *kestrelv1alpha1.Backup {
+func getBackup(t *testing.T, ns, name string) *gameplanev1alpha1.Backup {
 	t.Helper()
-	var b kestrelv1alpha1.Backup
+	var b gameplanev1alpha1.Backup
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &b); err != nil {
 		t.Fatalf("get backup: %v", err)
 	}
 	return &b
 }
 
-func getRestore(t *testing.T, ns, name string) *kestrelv1alpha1.Restore {
+func getRestore(t *testing.T, ns, name string) *gameplanev1alpha1.Restore {
 	t.Helper()
-	var r kestrelv1alpha1.Restore
+	var r gameplanev1alpha1.Restore
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &r); err != nil {
 		t.Fatalf("get restore: %v", err)
 	}
@@ -558,18 +558,18 @@ func getRestore(t *testing.T, ns, name string) *kestrelv1alpha1.Restore {
 }
 
 // getTemplateByName fetches a cluster-scoped GameTemplate.
-func getTemplateByName(t *testing.T, name string) *kestrelv1alpha1.GameTemplate {
+func getTemplateByName(t *testing.T, name string) *gameplanev1alpha1.GameTemplate {
 	t.Helper()
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &tmpl); err != nil {
 		t.Fatalf("get template: %v", err)
 	}
 	return &tmpl
 }
 
-func getGameServer(t *testing.T, ns, name string) *kestrelv1alpha1.GameServer {
+func getGameServer(t *testing.T, ns, name string) *gameplanev1alpha1.GameServer {
 	t.Helper()
-	var gs kestrelv1alpha1.GameServer
+	var gs gameplanev1alpha1.GameServer
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &gs); err != nil {
 		t.Fatalf("get gameserver: %v", err)
 	}
@@ -595,12 +595,12 @@ func getJob(t *testing.T, ns, name string) (*batchv1.Job, bool) {
 // Debug helpers
 // ---------------------------------------------------------------------
 
-func describeBackupStatus(b *kestrelv1alpha1.Backup) string {
+func describeBackupStatus(b *gameplanev1alpha1.Backup) string {
 	return fmt.Sprintf("phase=%q snapshotID=%q size=%v message=%q",
 		b.Status.Phase, b.Status.SnapshotID, b.Status.Size, b.Status.Message)
 }
 
-func describeRestoreStatus(r *kestrelv1alpha1.Restore) string {
+func describeRestoreStatus(r *gameplanev1alpha1.Restore) string {
 	return fmt.Sprintf("phase=%q snapshotID=%q message=%q",
 		r.Status.Phase, r.Status.SnapshotID, r.Status.Message)
 }

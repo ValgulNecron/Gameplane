@@ -16,7 +16,7 @@ import (
 )
 
 // scope.Resolve defaults to this namespace when no ?namespace is given.
-const testNS = "kestrel-games"
+const testNS = "gameplane-games"
 
 func newEvent(name, kind, objName, evType, reason, msg, component string, t time.Time) *corev1.Event {
 	return &corev1.Event{

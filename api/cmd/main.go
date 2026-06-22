@@ -204,7 +204,7 @@ type config struct {
 func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.addr, "addr", ":8000", "HTTP listen address")
 	fs.StringVar(&c.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")
-	fs.StringVar(&c.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/kestrel.db?_pragma=journal_mode(WAL)"), "DSN")
+	fs.StringVar(&c.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/gameplane.db?_pragma=journal_mode(WAL)"), "DSN")
 	fs.StringVar(&c.oidcIssuer, "oidc-issuer", envOr("GAMEPLANE_OIDC_ISSUER", ""), "OIDC issuer URL")
 	fs.StringVar(&c.oidcClientID, "oidc-client-id", envOr("GAMEPLANE_OIDC_CLIENT_ID", ""), "OIDC client id")
 	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("GAMEPLANE_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
@@ -216,7 +216,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("GAMEPLANE_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("GAMEPLANE_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
-	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "kestrel-system"),
+	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "gameplane-system"),
 		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
 }
 

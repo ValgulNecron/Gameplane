@@ -1,13 +1,13 @@
 # Cluster-scoped. Named "example-source" rather than "default" because
 # the Helm chart already creates a ModuleSource named "default" (see
-# charts/kestrel/templates/modulesource.yaml) and applying this sample
+# charts/gameplane/templates/modulesource.yaml) and applying this sample
 # alongside the chart should not silently mutate that managed object.
 apiVersion: gameplane.gg/v1alpha1
 kind: ModuleSource
 metadata:
   name: example-source
 spec:
-  url: ghcr.io/kestrel-gg/modules
+  url: ghcr.io/valgulnecron/gameplane-modules
   refreshInterval: 1h
   modules:
     - name: minecraft-java

@@ -13,7 +13,7 @@ func ociBody(name string) map[string]any {
 		"name": name,
 		"type": "oci",
 		"oci": map[string]any{
-			"url":     "ghcr.io/kestrel-gg/modules",
+			"url":     "ghcr.io/valgulnecron/gameplane-modules",
 			"modules": []any{map[string]any{"name": "minecraft-java"}},
 		},
 	}
@@ -32,7 +32,7 @@ func TestSourceCreate(t *testing.T) {
 		}
 		typ, _, _ := unstructured.NestedString(created.Object, "spec", "type")
 		url, _, _ := unstructured.NestedString(created.Object, "spec", "oci", "url")
-		if typ != "oci" || url != "ghcr.io/kestrel-gg/modules" {
+		if typ != "oci" || url != "ghcr.io/valgulnecron/gameplane-modules" {
 			t.Fatalf("spec = %v", created.Object["spec"])
 		}
 	})
@@ -80,7 +80,7 @@ func TestSourceCreate(t *testing.T) {
 			"name": "community",
 			"type": "git",
 			"git": map[string]any{
-				"url":       "https://github.com/kestrel-gg/community-modules",
+				"url":       "https://github.com/gameplane-gg/community-modules",
 				"ref":       "stable",
 				"subPath":   "modules",
 				"secretRef": map[string]any{"name": "gh-creds"},

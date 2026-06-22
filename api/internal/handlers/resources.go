@@ -1,7 +1,7 @@
 // Package handlers implements the REST surface of the API. The design
 // deliberately sticks close to the Kubernetes API shape — the dashboard
 // talks to the API, the API to the dynamic client, and the dynamic
-// client to Kestrel CRDs. No intermediate DTOs.
+// client to Gameplane CRDs. No intermediate DTOs.
 package handlers
 
 import (

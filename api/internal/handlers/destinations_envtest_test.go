@@ -116,7 +116,7 @@ func TestDestinations_PasswordIsRedacted(t *testing.T) {
 	}
 }
 
-// A non-Kestrel Secret (no destinationLabel) is invisible to /backup-destinations.
+// A non-Gameplane Secret (no destinationLabel) is invisible to /backup-destinations.
 // This protects against the route accidentally exposing arbitrary cluster secrets.
 func TestDestinations_HidesUnlabeledSecrets(t *testing.T) {
 	name := uniqueResourceName("foreign")

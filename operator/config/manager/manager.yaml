@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kestrel-operator
-  namespace: kestrel-system
+  name: gameplane-operator
+  namespace: gameplane-system
   labels:
-    app.kubernetes.io/name: kestrel-operator
+    app.kubernetes.io/name: gameplane-operator
     app.kubernetes.io/component: manager
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: kestrel-operator
+      app.kubernetes.io/name: gameplane-operator
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: kestrel-operator
+        app.kubernetes.io/name: gameplane-operator
         app.kubernetes.io/component: manager
     spec:
-      serviceAccountName: kestrel-operator
+      serviceAccountName: gameplane-operator
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: manager
-          image: ghcr.io/kestrel/operator:dev
+          image: ghcr.io/valgulnecron/gameplane/operator:dev
           args:
             - "--leader-elect"
             - "--health-probe-bind-address=:8081"

@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // RestoreReconciler drives a Restore through suspend → restic-restore Job
@@ -34,36 +34,36 @@ type RestoreReconciler struct {
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 
 func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var rs kestrelv1alpha1.Restore
+	var rs gameplanev1alpha1.Restore
 	if err := r.Get(ctx, req.NamespacedName, &rs); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if rs.Status.Phase == kestrelv1alpha1.RestorePhaseSucceeded ||
-		rs.Status.Phase == kestrelv1alpha1.RestorePhaseFailed {
+	if rs.Status.Phase == gameplanev1alpha1.RestorePhaseSucceeded ||
+		rs.Status.Phase == gameplanev1alpha1.RestorePhaseFailed {
 		return ctrl.Result{}, nil
 	}
 
 	// Pin the snapshotID at first observation so retention can't pull
 	// the rug out from under us mid-restore.
 	if rs.Status.SnapshotID == "" {
-		var src kestrelv1alpha1.Backup
+		var src gameplanev1alpha1.Backup
 		if err := r.Get(ctx, types.NamespacedName{Name: rs.Spec.BackupRef.Name, Namespace: rs.Namespace}, &src); err != nil {
 			if apierrors.IsNotFound(err) {
 				return r.fail(ctx, &rs, fmt.Sprintf("source backup %q not found", rs.Spec.BackupRef.Name))
 			}
 			return ctrl.Result{}, err
 		}
-		if src.Status.Phase == kestrelv1alpha1.BackupPhaseFailed {
+		if src.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
 			// Terminal: a Failed backup will never grow a snapshotID, so
 			// waiting would leave the Restore Pending forever.
 			return r.fail(ctx, &rs, fmt.Sprintf(
 				"source backup %q failed and has no usable snapshot: %s",
 				rs.Spec.BackupRef.Name, src.Status.Message))
 		}
-		if src.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded || src.Status.SnapshotID == "" {
+		if src.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded || src.Status.SnapshotID == "" {
 			// Source backup is not ready yet. Stay Pending.
-			if rs.Status.Phase != kestrelv1alpha1.RestorePhasePending {
-				rs.Status.Phase = kestrelv1alpha1.RestorePhasePending
+			if rs.Status.Phase != gameplanev1alpha1.RestorePhasePending {
+				rs.Status.Phase = gameplanev1alpha1.RestorePhasePending
 				rs.Status.ObservedGeneration = rs.Generation
 				if err := r.Status().Update(ctx, &rs); err != nil {
 					return ctrl.Result{}, err
@@ -76,9 +76,9 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			// Volume-snapshot restores stand up a brand-new server rather
 			// than suspending and overwriting an existing one, so they skip
 			// the Suspending phase entirely.
-			rs.Status.Phase = kestrelv1alpha1.RestorePhaseRunning
+			rs.Status.Phase = gameplanev1alpha1.RestorePhaseRunning
 		} else {
-			rs.Status.Phase = kestrelv1alpha1.RestorePhaseSuspending
+			rs.Status.Phase = gameplanev1alpha1.RestorePhaseSuspending
 		}
 		rs.Status.ObservedGeneration = rs.Generation
 		if err := r.Status().Update(ctx, &rs); err != nil {
@@ -91,7 +91,7 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// (the pin block above only runs once). Volume-snapshot restores never
 	// touch an existing server — they provision a new one seeded from the
 	// CSI snapshot — so they branch off here, before the suspend/Job flow.
-	var src kestrelv1alpha1.Backup
+	var src gameplanev1alpha1.Backup
 	if err := r.Get(ctx, types.NamespacedName{Name: rs.Spec.BackupRef.Name, Namespace: rs.Namespace}, &src); err != nil {
 		if apierrors.IsNotFound(err) {
 			return r.fail(ctx, &rs, fmt.Sprintf("source backup %q disappeared", rs.Spec.BackupRef.Name))
@@ -102,7 +102,7 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.reconcileVolumeSnapshotRestore(ctx, &rs, &src)
 	}
 
-	var gs kestrelv1alpha1.GameServer
+	var gs gameplanev1alpha1.GameServer
 	gsKey := types.NamespacedName{Name: rs.Spec.ServerRef.Name, Namespace: rs.Namespace}
 	if err := r.Get(ctx, gsKey, &gs); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -111,7 +111,7 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if rs.Status.Phase == kestrelv1alpha1.RestorePhaseSuspending {
+	if rs.Status.Phase == gameplanev1alpha1.RestorePhaseSuspending {
 		if !gs.Spec.Suspend {
 			gs.Spec.Suspend = true
 			if err := r.Update(ctx, &gs); err != nil {
@@ -119,11 +119,11 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
-		if gs.Status.Phase != kestrelv1alpha1.GameServerPhaseSuspended &&
-			gs.Status.Phase != kestrelv1alpha1.GameServerPhaseStopped {
+		if gs.Status.Phase != gameplanev1alpha1.GameServerPhaseSuspended &&
+			gs.Status.Phase != gameplanev1alpha1.GameServerPhaseStopped {
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
-		rs.Status.Phase = kestrelv1alpha1.RestorePhaseRunning
+		rs.Status.Phase = gameplanev1alpha1.RestorePhaseRunning
 		if err := r.Status().Update(ctx, &rs); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -154,7 +154,7 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 		now := metav1.Now()
-		rs.Status.Phase = kestrelv1alpha1.RestorePhaseSucceeded
+		rs.Status.Phase = gameplanev1alpha1.RestorePhaseSucceeded
 		if rs.Status.StartTime == nil && job.Status.StartTime != nil {
 			rs.Status.StartTime = job.Status.StartTime
 		}
@@ -191,9 +191,9 @@ func (r *RestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 }
 
-func (r *RestoreReconciler) fail(ctx context.Context, rs *kestrelv1alpha1.Restore, msg string) (ctrl.Result, error) {
+func (r *RestoreReconciler) fail(ctx context.Context, rs *gameplanev1alpha1.Restore, msg string) (ctrl.Result, error) {
 	now := metav1.Now()
-	rs.Status.Phase = kestrelv1alpha1.RestorePhaseFailed
+	rs.Status.Phase = gameplanev1alpha1.RestorePhaseFailed
 	rs.Status.Message = msg
 	if rs.Status.CompletionTime == nil {
 		rs.Status.CompletionTime = &now
@@ -213,7 +213,7 @@ func (r *RestoreReconciler) fail(ctx context.Context, rs *kestrelv1alpha1.Restor
 
 func (r *RestoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.Restore{}).
+		For(&gameplanev1alpha1.Restore{}).
 		Owns(&batchv1.Job{}).
 		Complete(r)
 }
@@ -221,7 +221,7 @@ func (r *RestoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // buildRestorePodSpec mirrors backup_controller.buildBackupPodSpec but
 // runs `restic restore <id>` and mounts the data PVC read-write.
 func (r *RestoreReconciler) buildRestorePodSpec(
-	rs *kestrelv1alpha1.Restore, src *kestrelv1alpha1.Backup,
+	rs *gameplanev1alpha1.Restore, src *gameplanev1alpha1.Backup,
 ) corev1.PodSpec {
 	nonRoot := true
 	roRootFS := true

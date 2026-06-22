@@ -1,4 +1,4 @@
-# Kestrel dashboard — UI audit (design ↔ implementation)
+# Gameplane dashboard — UI audit (design ↔ implementation)
 
 **Date:** 2026-06-14
 **Scope:** Every web dashboard screen, compared against the source-of-truth designs in `design.pen`, plus runtime bug hunting (console errors, broken states).
@@ -156,7 +156,7 @@ Design presents **human-readable actions** with **actor avatars + email** and **
 
 ## INFO — context, not bugs
 
-- **I1 — `design.pen` Login violates the project's own pre-auth privacy rule.** Frame `N1GkB` puts the cluster name **"homelab-01"**, version **"v0.1.0-alpha"**, and hostname **"api.kestrel.homelab-01"** on the login screen (subtitle "Welcome back to homelab-01" and footer). The live `Login.tsx` *correctly* omits all of these (and has a comment enforcing it). **Action: fix the design, not the code** — and don't "restore" these strings when closing M1/M-series gaps.
+- **I1 — `design.pen` Login violates the project's own pre-auth privacy rule.** Frame `N1GkB` puts the cluster name **"homelab-01"**, version **"v0.1.0-alpha"**, and hostname **"api.gameplane.homelab-01"** on the login screen (subtitle "Welcome back to homelab-01" and footer). The live `Login.tsx` *correctly* omits all of these (and has a comment enforcing it). **Action: fix the design, not the code** — and don't "restore" these strings when closing M1/M-series gaps.
 - **I2 — Mock-data blanks.** CPU/Memory/Network 0, Connection host/port `—`, empty Recent events, single cluster node, 2 templates/modules, 2 backups — all MSW fixtures. Re-verify metrics, sparkline data, and the servers-table CPU/MEM/NODE columns (all `—` in mock) against a live cluster.
 - **I3 — Modules "Upload module".** Present in `Modules.tsx` but only rendered when an `upload`-type module source exists; the mock only has OCI sources, so it's hidden — not missing. The `EOqzy` design (Sources & Upload dialogs) should be cross-checked once an upload source exists.
 - **I4 — Cluster count mismatch.** Header reads "3/3 nodes healthy" but only **one** node card renders — mock inconsistency between `cluster/stats` and `cluster` (node list). Confirm on live data.

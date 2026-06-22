@@ -200,7 +200,7 @@ type GameVersion struct {
 	// GameVersion is the upstream game-version token the dashboard passes to
 	// an external mod registry to filter results to this version (e.g.
 	// Modrinth's "game_versions" facet), e.g. "1.21.4". It is distinct from
-	// ID (a Kestrel selector like "1.21.4-paper" that's too lossy to parse
+	// ID (a Gameplane selector like "1.21.4-paper" that's too lossy to parse
 	// reliably). Optional; when unset the registry search sends no version
 	// facet and returns mods for all versions. Ignored by registries with no
 	// version dimension (e.g. Thunderstore) and when the template declares no
@@ -301,7 +301,7 @@ type ModsSpec struct {
 	Install *ModInstallSpec `json:"install,omitempty"`
 
 	// Registry, when set, lets the dashboard browse and search an external
-	// mod registry for this game (in addition to install-by-URL). Kestrel
+	// mod registry for this game (in addition to install-by-URL). Gameplane
 	// ships the provider engines and a generic browse UI; the module selects
 	// a provider here and the agent's Install downloads the chosen file —
 	// so the registry's CDN must also be in Install.AllowedHosts. Omit for
@@ -311,7 +311,7 @@ type ModsSpec struct {
 }
 
 // ModRegistrySpec lists the built-in external mod registries the dashboard
-// can browse for this game. The engines are generic Kestrel code; this
+// can browse for this game. The engines are generic Gameplane code; this
 // block is the per-game configuration that drives them. Loader filtering
 // reuses the active version's loader id verbatim and version filtering uses
 // the active GameVersion.gameVersion token — so no mappings live here.
@@ -738,7 +738,7 @@ type GameProbesSpec struct {
 	Startup *corev1.Probe `json:"startup,omitempty"`
 }
 
-// AgentSpec tunes the Kestrel sidecar that runs alongside the game.
+// AgentSpec tunes the Gameplane sidecar that runs alongside the game.
 type AgentSpec struct {
 	// Image overrides the default agent image. Normally set by the
 	// operator to the image matching its own build.
@@ -844,7 +844,7 @@ type GameTemplateStatus struct {
 // +kubebuilder:subresource:status
 
 // GameTemplate is a cluster-scoped blueprint for a specific game. A
-// GameTemplate is distributed as part of a Kestrel module (OCI artifact)
+// GameTemplate is distributed as part of a Gameplane module (OCI artifact)
 // and instantiated via GameServer.
 type GameTemplate struct {
 	metav1.TypeMeta   `json:",inline"`

@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // fakeStopper records calls to the agent's soft-stop endpoint.
@@ -42,7 +42,7 @@ func withGameServerReconcilerStopper(t *testing.T, ns string, stop AgentStopper)
 		return (&GameServerReconciler{
 			Client:                 mgr.GetClient(),
 			Scheme:                 mgr.GetScheme(),
-			AgentImage:             "ghcr.io/kestrel/agent:test",
+			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
 			AgentCASecretName:      "agent-ca",
 			AgentCASecretNamespace: ns,
 			AgentClient:            stop,
@@ -92,9 +92,9 @@ func TestGameServer_SoftStopRunsStopThenScalesDown(t *testing.T) {
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
 	if tmpl.Spec.Capabilities == nil {
-		tmpl.Spec.Capabilities = &kestrelv1alpha1.CapabilitiesSpec{}
+		tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{}
 	}
-	tmpl.Spec.Capabilities.Lifecycle = &kestrelv1alpha1.LifecycleSpec{Stop: []string{"stop"}}
+	tmpl.Spec.Capabilities.Lifecycle = &gameplanev1alpha1.LifecycleSpec{Stop: []string{"stop"}}
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
 		t.Fatalf("create template: %v", err)
 	}

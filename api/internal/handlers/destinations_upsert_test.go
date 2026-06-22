@@ -14,7 +14,7 @@ import (
 // TestDestinations_Upsert_RotatesPasswordOnExisting confirms the
 // AlreadyExists → patch branch.
 func TestDestinations_Upsert_RotatesPasswordOnExisting(t *testing.T) {
-	pre := newDestSecret("kestrel-games", "default")
+	pre := newDestSecret("gameplane-games", "default")
 	k := &kube.Client{
 		Dynamic: fakeKubeClient().Dynamic,
 		Typed:   kubefake.NewClientset(pre),
@@ -27,13 +27,13 @@ func TestDestinations_Upsert_RotatesPasswordOnExisting(t *testing.T) {
 	}
 }
 
-// TestDestinations_Upsert_ConflictsWithNonKestrelSecret returns a clear
+// TestDestinations_Upsert_ConflictsWithNonGameplaneSecret returns a clear
 // error when a same-named, unlabelled Secret already exists.
-func TestDestinations_Upsert_ConflictsWithNonKestrelSecret(t *testing.T) {
+func TestDestinations_Upsert_ConflictsWithNonGameplaneSecret(t *testing.T) {
 	stranger := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
-			Namespace: "kestrel-games",
+			Namespace: "gameplane-games",
 		},
 	}
 	k := &kube.Client{
@@ -44,7 +44,7 @@ func TestDestinations_Upsert_ConflictsWithNonKestrelSecret(t *testing.T) {
 	body := map[string]any{"name": "default", "url": "s3:x", "password": "p"}
 	rr := do(t, r, "POST", "/backup-destinations/", body)
 	if rr.Code == http.StatusOK {
-		t.Fatalf("expected non-200 when a non-Kestrel Secret blocks the name")
+		t.Fatalf("expected non-200 when a non-Gameplane Secret blocks the name")
 	}
 }
 

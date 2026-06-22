@@ -3,7 +3,7 @@
 //
 // Resolve answers one question: which namespace is this request for?
 // It only validates that the requested namespace is on the configured
-// allow-list (`kestrel-games` plus any `GAMEPLANE_EXTRA_NAMESPACES`).
+// allow-list (`gameplane-games` plus any `GAMEPLANE_EXTRA_NAMESPACES`).
 // Whether the *caller* may act in that namespace is an authorization
 // decision, made by the rbac middleware against the user's per-namespace
 // permission bindings — not here.
@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-const DefaultNamespace = "kestrel-games"
+const DefaultNamespace = "gameplane-games"
 
 // AllowedNamespaces returns the list of namespaces the API will act in.
 // Computed once from env; small enough that a linear scan is fine.

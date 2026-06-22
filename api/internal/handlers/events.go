@@ -18,7 +18,7 @@ import (
 )
 
 // MountEvents exposes /events as a Server-Sent Events stream mirroring
-// Kubernetes watch events on the Kestrel CRDs, for clients that want
+// Kubernetes watch events on the Gameplane CRDs, for clients that want
 // cache-freshness without polling.
 func MountEvents(r chi.Router, k *kube.Client) {
 	r.Get("/events", eventsHandler(k))

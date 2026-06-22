@@ -15,7 +15,7 @@ func newBackupPod(name, jobName string, phase corev1.PodPhase, created time.Time
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              name,
-			Namespace:         "kestrel-games",
+			Namespace:         "gameplane-games",
 			Labels:            map[string]string{"job-name": jobName},
 			CreationTimestamp: metav1.Time{Time: created},
 		},
@@ -26,7 +26,7 @@ func newBackupPod(name, jobName string, phase corev1.PodPhase, created time.Time
 func TestBackupLogs_NoPodErrors(t *testing.T) {
 	cs := kubefake.NewClientset()
 	r := &clientsetLogReader{cs: cs}
-	_, err := r.BackupLogs(context.Background(), "kestrel-games", "backup-1")
+	_, err := r.BackupLogs(context.Background(), "gameplane-games", "backup-1")
 	if err == nil || !strings.Contains(err.Error(), "no succeeded pod") {
 		t.Fatalf("got %v", err)
 	}
@@ -39,7 +39,7 @@ func TestBackupLogs_NoSucceededPodErrors(t *testing.T) {
 		newBackupPod("p2", "backup-1", corev1.PodFailed, time.Now()),
 	)
 	r := &clientsetLogReader{cs: cs}
-	_, err := r.BackupLogs(context.Background(), "kestrel-games", "backup-1")
+	_, err := r.BackupLogs(context.Background(), "gameplane-games", "backup-1")
 	if err == nil || !strings.Contains(err.Error(), "no succeeded pod") {
 		t.Fatalf("got %v", err)
 	}
@@ -54,7 +54,7 @@ func TestBackupLogs_PicksLatestSucceeded(t *testing.T) {
 		newBackupPod("p2", "backup-1", corev1.PodSucceeded, now.Add(-time.Hour)),
 	)
 	r := &clientsetLogReader{cs: cs}
-	rc, err := r.BackupLogs(context.Background(), "kestrel-games", "backup-1")
+	rc, err := r.BackupLogs(context.Background(), "gameplane-games", "backup-1")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

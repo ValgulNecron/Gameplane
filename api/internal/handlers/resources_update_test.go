@@ -24,12 +24,12 @@ func templateObj(name string, labels map[string]string) *unstructured.Unstructur
 // only reach the managed-template block. Cover the rest here.
 
 func TestResources_Update_NamespacedSuccess(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountResourcesRouter(k)
 	body := map[string]any{
 		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
-		"metadata":   map[string]any{"name": "alpha", "namespace": "kestrel-games"},
+		"metadata":   map[string]any{"name": "alpha", "namespace": "gameplane-games"},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}, "suspended": true},
 	}
 	rr := do(t, r, "PUT", "/servers/alpha", body)
@@ -54,7 +54,7 @@ func TestResources_Update_ClusterUnmanagedSuccess(t *testing.T) {
 }
 
 func TestResources_Update_BadJSON(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountResourcesRouter(k)
 	rr := doRaw(t, r, "PUT", "/servers/alpha", "not json")
 	if rr.Code < 400 {

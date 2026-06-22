@@ -257,14 +257,14 @@ func TestReadNamespace_TrimsTrailingNewlines(t *testing.T) {
 	// the only branch worth verifying explicitly.)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ns")
-	if err := os.WriteFile(path, []byte("kestrel-system\r\n\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("gameplane-system\r\n\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	b, _ := os.ReadFile(path)
 	for len(b) > 0 && (b[len(b)-1] == '\n' || b[len(b)-1] == '\r') {
 		b = b[:len(b)-1]
 	}
-	if string(b) != "kestrel-system" {
+	if string(b) != "gameplane-system" {
 		t.Fatalf("got %q", string(b))
 	}
 }

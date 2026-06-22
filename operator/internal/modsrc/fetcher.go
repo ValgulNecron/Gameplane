@@ -7,7 +7,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	"github.com/ValgulNecron/gameplane/operator/internal/oci"
 )
 
@@ -20,7 +20,7 @@ import (
 // a stub (Name + Reference, no versions) and a human-readable warning
 // is appended, so one bad module never blanks the whole catalog.
 type Fetcher interface {
-	Index(ctx context.Context) (entries []kestrelv1alpha1.ModuleEntry, warnings []string, err error)
+	Index(ctx context.Context) (entries []gameplanev1alpha1.ModuleEntry, warnings []string, err error)
 	Pull(ctx context.Context, name, version string) (*Bundle, error)
 }
 
@@ -35,11 +35,11 @@ type Options struct {
 // ForSource builds the Fetcher for a ModuleSource based on its type.
 // c and namespace are used to resolve credential Secrets living in the
 // operator namespace.
-func ForSource(ctx context.Context, c client.Client, namespace string, src *kestrelv1alpha1.ModuleSource, opts Options) (Fetcher, error) {
+func ForSource(ctx context.Context, c client.Client, namespace string, src *gameplanev1alpha1.ModuleSource, opts Options) (Fetcher, error) {
 	switch src.Spec.Type {
 	// Empty matches pre-defaulting objects constructed in Go (the API
 	// server always defaults type to "oci").
-	case kestrelv1alpha1.ModuleSourceTypeOCI, "":
+	case gameplanev1alpha1.ModuleSourceTypeOCI, "":
 		spec := src.Spec.OCI
 		if spec == nil {
 			return nil, fmt.Errorf("spec.oci is required when spec.type is oci")
@@ -55,25 +55,25 @@ func ForSource(ctx context.Context, c client.Client, namespace string, src *kest
 			}
 		}
 		return NewOCI(oci.New(creds, spec.Insecure), spec.URL, names), nil
-	case kestrelv1alpha1.ModuleSourceTypeGit:
+	case gameplanev1alpha1.ModuleSourceTypeGit:
 		spec := src.Spec.Git
 		if spec == nil {
 			return nil, fmt.Errorf("spec.git is required when spec.type is git")
 		}
 		return newGit(ctx, c, namespace, spec, src.Spec.Allow)
-	case kestrelv1alpha1.ModuleSourceTypeLocal:
+	case gameplanev1alpha1.ModuleSourceTypeLocal:
 		spec := src.Spec.Local
 		if spec == nil {
 			return nil, fmt.Errorf("spec.local is required when spec.type is local")
 		}
 		return newLocal(opts.LocalRoot, spec.Path, src.Spec.Allow)
-	case kestrelv1alpha1.ModuleSourceTypeHTTP:
+	case gameplanev1alpha1.ModuleSourceTypeHTTP:
 		spec := src.Spec.HTTP
 		if spec == nil {
 			return nil, fmt.Errorf("spec.http is required when spec.type is http")
 		}
 		return newHTTP(ctx, c, namespace, spec, src.Spec.Allow)
-	case kestrelv1alpha1.ModuleSourceTypeUpload:
+	case gameplanev1alpha1.ModuleSourceTypeUpload:
 		return newUpload(c, namespace, src.Spec.Allow), nil
 	default:
 		return nil, fmt.Errorf("unknown source type %q", src.Spec.Type)

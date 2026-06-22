@@ -138,7 +138,7 @@ const LabelModuleUpload = "gameplane.gg/module-upload"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:subresource:status
 
-// Module is an installed instance of a Kestrel module bundle. The
+// Module is an installed instance of a Gameplane module bundle. The
 // reconciler maintains a GameTemplate owned by this object.
 type Module struct {
 	metav1.TypeMeta   `json:",inline"`

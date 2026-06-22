@@ -70,11 +70,11 @@ func TestClusterActions_KubeconfigHappyPath(t *testing.T) {
 	if ct := rr.Header().Get("Content-Type"); ct != "application/yaml" {
 		t.Fatalf("content-type = %q, want application/yaml", ct)
 	}
-	if cd := rr.Header().Get("Content-Disposition"); !strings.Contains(cd, "kestrel-kubeconfig.yaml") {
+	if cd := rr.Header().Get("Content-Disposition"); !strings.Contains(cd, "gameplane-kubeconfig.yaml") {
 		t.Fatalf("content-disposition = %q", cd)
 	}
 	body := rr.Body.String()
-	for _, want := range []string{"kind: Config", "kestrel-admin", "server: https://api.test:6443"} {
+	for _, want := range []string{"kind: Config", "gameplane-admin", "server: https://api.test:6443"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("kubeconfig missing %q:\n%s", want, body)
 		}

@@ -10,12 +10,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // agentServiceAccountName is the per-GameServer ServiceAccount the game
 // pod runs as (unless spec.serviceAccountName overrides it).
-func agentServiceAccountName(gs *kestrelv1alpha1.GameServer) string {
+func agentServiceAccountName(gs *gameplanev1alpha1.GameServer) string {
 	return gs.Name + "-agent"
 }
 
@@ -27,7 +27,7 @@ func agentServiceAccountName(gs *kestrelv1alpha1.GameServer) string {
 // subresource via resourceNames. All three objects are owned by the
 // GameServer so they're GC'd with it.
 func (r *GameServerReconciler) reconcileAgentRBAC(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) error {
 	name := agentServiceAccountName(gs)
 

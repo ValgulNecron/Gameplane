@@ -18,7 +18,7 @@ func TestLifecycle_RestartMissingServer(t *testing.T) {
 // TestLifecycle_StartScopeError forces resolveNS to deny via an unknown
 // namespace query param.
 func TestLifecycle_StartScopeError(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountLifecycleRouter(k)
 	rr := do(t, r, "POST", "/servers/alpha:start?namespace=forbidden", nil)
 	if rr.Code == 202 {
@@ -28,7 +28,7 @@ func TestLifecycle_StartScopeError(t *testing.T) {
 
 // TestLifecycle_CloneScopeError mirrors the clone-side scope check.
 func TestLifecycle_CloneScopeError(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountLifecycleRouter(k)
 	rr := do(t, r, "POST", "/servers/alpha:clone?namespace=forbidden",
 		map[string]any{"newName": "beta"})

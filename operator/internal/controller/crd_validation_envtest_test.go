@@ -10,7 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // These tests assert that the CRD OpenAPI schemas (loaded by the suite
@@ -19,11 +19,11 @@ import (
 // kubectl-based cases in test/e2e/crd_validation_e2e_test.go — a schema
 // regression should fail here first, without a kind cluster.
 
-func validGameServer(ns, name string) *kestrelv1alpha1.GameServer {
-	return &kestrelv1alpha1.GameServer{
+func validGameServer(ns, name string) *gameplanev1alpha1.GameServer {
+	return &gameplanev1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec: kestrelv1alpha1.GameServerSpec{
-			TemplateRef: kestrelv1alpha1.GameTemplateRef{Name: "some-template"},
+		Spec: gameplanev1alpha1.GameServerSpec{
+			TemplateRef: gameplanev1alpha1.GameTemplateRef{Name: "some-template"},
 		},
 	}
 }
@@ -88,18 +88,18 @@ func TestCRDValidation_GameServerSourceRanges(t *testing.T) {
 func TestCRDValidation_GameServerBadInlineBackupSchedule(t *testing.T) {
 	ns := newNamespace(t)
 	gs := validGameServer(ns, "v-bad-inline-cron")
-	gs.Spec.BackupPolicy = &kestrelv1alpha1.InlineBackupPolicy{
+	gs.Spec.BackupPolicy = &gameplanev1alpha1.InlineBackupPolicy{
 		Schedule: "every-night",
-		RepoRef:  kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+		RepoRef:  gameplanev1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
 	}
 	if err := k8sClient.Create(context.Background(), gs); !apierrors.IsInvalid(err) {
 		t.Fatalf("expected Invalid for non-cron inline schedule, got %v", err)
 	}
 
 	gs = validGameServer(ns, "v-good-inline-cron")
-	gs.Spec.BackupPolicy = &kestrelv1alpha1.InlineBackupPolicy{
+	gs.Spec.BackupPolicy = &gameplanev1alpha1.InlineBackupPolicy{
 		Schedule: "0 4 * * *",
-		RepoRef:  kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+		RepoRef:  gameplanev1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
 	}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("valid inline schedule rejected: %v", err)
@@ -108,12 +108,12 @@ func TestCRDValidation_GameServerBadInlineBackupSchedule(t *testing.T) {
 
 func TestCRDValidation_BackupScheduleBadCron(t *testing.T) {
 	ns := newNamespace(t)
-	bs := &kestrelv1alpha1.BackupSchedule{
+	bs := &gameplanev1alpha1.BackupSchedule{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-bad-cron", Namespace: ns},
-		Spec: kestrelv1alpha1.BackupScheduleSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "any"},
+		Spec: gameplanev1alpha1.BackupScheduleSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: "any"},
 			Schedule:  "not-a-cron",
-			RepoRef:   &kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+			RepoRef:   &gameplanev1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), bs); !apierrors.IsInvalid(err) {
@@ -125,10 +125,10 @@ func TestCRDValidation_BackupScheduleBadCron(t *testing.T) {
 // rule: restic-snapshot schedules need a repoRef; volume-snapshot ones don't.
 func TestCRDValidation_BackupScheduleRepoRefRequiredForRestic(t *testing.T) {
 	ns := newNamespace(t)
-	restic := &kestrelv1alpha1.BackupSchedule{
+	restic := &gameplanev1alpha1.BackupSchedule{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-sched-restic-no-repo", Namespace: ns},
-		Spec: kestrelv1alpha1.BackupScheduleSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+		Spec: gameplanev1alpha1.BackupScheduleSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: "smp"},
 			Schedule:  "0 3 * * *",
 		},
 	}
@@ -136,10 +136,10 @@ func TestCRDValidation_BackupScheduleRepoRefRequiredForRestic(t *testing.T) {
 		t.Fatalf("expected Invalid for restic schedule without repoRef, got %v", err)
 	}
 
-	vs := &kestrelv1alpha1.BackupSchedule{
+	vs := &gameplanev1alpha1.BackupSchedule{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-sched-vs-no-repo", Namespace: ns},
-		Spec: kestrelv1alpha1.BackupScheduleSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+		Spec: gameplanev1alpha1.BackupScheduleSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: "smp"},
 			Schedule:  "0 3 * * *",
 			Strategy:  "volume-snapshot",
 		},
@@ -151,10 +151,10 @@ func TestCRDValidation_BackupScheduleRepoRefRequiredForRestic(t *testing.T) {
 
 func TestCRDValidation_BackupRequiresServerRef(t *testing.T) {
 	ns := newNamespace(t)
-	bk := &kestrelv1alpha1.Backup{
+	bk := &gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-no-serverref", Namespace: ns},
-		Spec: kestrelv1alpha1.BackupSpec{
-			RepoRef: &kestrelv1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
+		Spec: gameplanev1alpha1.BackupSpec{
+			RepoRef: &gameplanev1alpha1.SecretKeySelector{Name: "creds", Key: "repo"},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), bk); !apierrors.IsInvalid(err) {
@@ -169,10 +169,10 @@ func TestCRDValidation_BackupRepoRefRequiredForRestic(t *testing.T) {
 	ns := newNamespace(t)
 
 	// restic (default strategy) without repoRef → rejected.
-	bk := &kestrelv1alpha1.Backup{
+	bk := &gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-restic-no-repo", Namespace: ns},
-		Spec: kestrelv1alpha1.BackupSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+		Spec: gameplanev1alpha1.BackupSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: "smp"},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), bk); !apierrors.IsInvalid(err) {
@@ -180,10 +180,10 @@ func TestCRDValidation_BackupRepoRefRequiredForRestic(t *testing.T) {
 	}
 
 	// volume-snapshot without repoRef → accepted.
-	vs := &kestrelv1alpha1.Backup{
+	vs := &gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-vs-no-repo", Namespace: ns},
-		Spec: kestrelv1alpha1.BackupSpec{
-			ServerRef: kestrelv1alpha1.LocalObjectRef{Name: "smp"},
+		Spec: gameplanev1alpha1.BackupSpec{
+			ServerRef: gameplanev1alpha1.LocalObjectRef{Name: "smp"},
 			Strategy:  "volume-snapshot",
 		},
 	}
@@ -193,9 +193,9 @@ func TestCRDValidation_BackupRepoRefRequiredForRestic(t *testing.T) {
 }
 
 func TestCRDValidation_GameTemplateRequiresImage(t *testing.T) {
-	tmpl := &kestrelv1alpha1.GameTemplate{
+	tmpl := &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-no-image"},
-		Spec: kestrelv1alpha1.GameTemplateSpec{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
 			DisplayName: "no image",
 			Game:        "busybox",
 			Version:     "1",
@@ -207,15 +207,15 @@ func TestCRDValidation_GameTemplateRequiresImage(t *testing.T) {
 }
 
 func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
-	ociSpec := &kestrelv1alpha1.OCISourceSpec{
+	ociSpec := &gameplanev1alpha1.OCISourceSpec{
 		URL:     "ghcr.io/test/modules",
-		Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft-java"}},
+		Modules: []gameplanev1alpha1.ModuleRef{{Name: "minecraft-java"}},
 	}
 
 	t.Run("type oci requires spec.oci", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{
+		src := &gameplanev1alpha1.ModuleSource{
 			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-oci-no-config")},
-			Spec:       kestrelv1alpha1.ModuleSourceSpec{Type: kestrelv1alpha1.ModuleSourceTypeOCI},
+			Spec:       gameplanev1alpha1.ModuleSourceSpec{Type: gameplanev1alpha1.ModuleSourceTypeOCI},
 		}
 		if err := k8sClient.Create(context.Background(), src); !apierrors.IsInvalid(err) {
 			t.Fatalf("expected Invalid, got %v", err)
@@ -223,7 +223,7 @@ func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
 	})
 
 	t.Run("type defaults to oci and still requires spec.oci", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{
+		src := &gameplanev1alpha1.ModuleSource{
 			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-default-no-config")},
 		}
 		if err := k8sClient.Create(context.Background(), src); !apierrors.IsInvalid(err) {
@@ -232,11 +232,11 @@ func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
 	})
 
 	t.Run("mismatched nested config rejected", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{
+		src := &gameplanev1alpha1.ModuleSource{
 			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-git-with-oci")},
-			Spec: kestrelv1alpha1.ModuleSourceSpec{
-				Type: kestrelv1alpha1.ModuleSourceTypeGit,
-				Git:  &kestrelv1alpha1.GitSourceSpec{URL: "https://example.com/mods.git"},
+			Spec: gameplanev1alpha1.ModuleSourceSpec{
+				Type: gameplanev1alpha1.ModuleSourceTypeGit,
+				Git:  &gameplanev1alpha1.GitSourceSpec{URL: "https://example.com/mods.git"},
 				OCI:  ociSpec,
 			},
 		}
@@ -246,11 +246,11 @@ func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
 	})
 
 	t.Run("git subPath escape rejected", func(t *testing.T) {
-		src := &kestrelv1alpha1.ModuleSource{
+		src := &gameplanev1alpha1.ModuleSource{
 			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-git-escape")},
-			Spec: kestrelv1alpha1.ModuleSourceSpec{
-				Type: kestrelv1alpha1.ModuleSourceTypeGit,
-				Git: &kestrelv1alpha1.GitSourceSpec{
+			Spec: gameplanev1alpha1.ModuleSourceSpec{
+				Type: gameplanev1alpha1.ModuleSourceTypeGit,
+				Git: &gameplanev1alpha1.GitSourceSpec{
 					URL:     "https://example.com/mods.git",
 					SubPath: "../outside",
 				},
@@ -262,19 +262,19 @@ func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
 	})
 
 	t.Run("valid typed sources accepted", func(t *testing.T) {
-		for _, src := range []*kestrelv1alpha1.ModuleSource{
+		for _, src := range []*gameplanev1alpha1.ModuleSource{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-oci")},
-				Spec: kestrelv1alpha1.ModuleSourceSpec{
-					Type: kestrelv1alpha1.ModuleSourceTypeOCI,
+				Spec: gameplanev1alpha1.ModuleSourceSpec{
+					Type: gameplanev1alpha1.ModuleSourceTypeOCI,
 					OCI:  ociSpec,
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-git")},
-				Spec: kestrelv1alpha1.ModuleSourceSpec{
-					Type: kestrelv1alpha1.ModuleSourceTypeGit,
-					Git: &kestrelv1alpha1.GitSourceSpec{
+				Spec: gameplanev1alpha1.ModuleSourceSpec{
+					Type: gameplanev1alpha1.ModuleSourceTypeGit,
+					Git: &gameplanev1alpha1.GitSourceSpec{
 						URL:     "https://example.com/mods.git",
 						SubPath: "modules",
 					},
@@ -283,15 +283,15 @@ func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-local")},
-				Spec: kestrelv1alpha1.ModuleSourceSpec{
-					Type:  kestrelv1alpha1.ModuleSourceTypeLocal,
-					Local: &kestrelv1alpha1.LocalSourceSpec{Path: "bundles"},
+				Spec: gameplanev1alpha1.ModuleSourceSpec{
+					Type:  gameplanev1alpha1.ModuleSourceTypeLocal,
+					Local: &gameplanev1alpha1.LocalSourceSpec{Path: "bundles"},
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: uniqueName("v-ok-upload")},
-				Spec: kestrelv1alpha1.ModuleSourceSpec{
-					Type: kestrelv1alpha1.ModuleSourceTypeUpload,
+				Spec: gameplanev1alpha1.ModuleSourceSpec{
+					Type: gameplanev1alpha1.ModuleSourceTypeUpload,
 				},
 			},
 		} {
@@ -304,9 +304,9 @@ func TestCRDValidation_ModuleSourceUnion(t *testing.T) {
 }
 
 func TestCRDValidation_ConsoleModeRconRequiresRcon(t *testing.T) {
-	tmpl := &kestrelv1alpha1.GameTemplate{
+	tmpl := &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-rcon-mode-no-rcon"},
-		Spec: kestrelv1alpha1.GameTemplateSpec{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
 			DisplayName: "rcon mode without rcon",
 			Game:        "busybox",
 			Version:     "1",
@@ -319,9 +319,9 @@ func TestCRDValidation_ConsoleModeRconRequiresRcon(t *testing.T) {
 	}
 
 	// consoleMode pty needs no rcon block.
-	tmpl = &kestrelv1alpha1.GameTemplate{
+	tmpl = &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "v-pty-mode-no-rcon"},
-		Spec: kestrelv1alpha1.GameTemplateSpec{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
 			DisplayName: "pty mode without rcon",
 			Game:        "busybox",
 			Version:     "1",

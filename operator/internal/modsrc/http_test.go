@@ -14,7 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func tarGzArchive(t *testing.T, files map[string]string) []byte {
@@ -80,13 +80,13 @@ func serveArchive(t *testing.T, body []byte, check func(r *http.Request)) *httpt
 	return srv
 }
 
-func newHTTPFetcher(t *testing.T, spec *kestrelv1alpha1.HTTPSourceSpec, objs ...*corev1.Secret) Fetcher {
+func newHTTPFetcher(t *testing.T, spec *gameplanev1alpha1.HTTPSourceSpec, objs ...*corev1.Secret) Fetcher {
 	t.Helper()
 	b := fake.NewClientBuilder()
 	for _, o := range objs {
 		b = b.WithObjects(o)
 	}
-	f, err := newHTTP(context.Background(), b.Build(), "kestrel-system", spec, nil)
+	f, err := newHTTP(context.Background(), b.Build(), "gameplane-system", spec, nil)
 	if err != nil {
 		t.Fatalf("newHTTP: %v", err)
 	}
@@ -96,7 +96,7 @@ func newHTTPFetcher(t *testing.T, spec *kestrelv1alpha1.HTTPSourceSpec, objs ...
 func TestHTTPFetcher_TarGz(t *testing.T) {
 	// Mimic a GitHub release tarball: one top-level dir wrapping the tree.
 	srv := serveArchive(t, tarGzArchive(t, archiveFiles("mods-1.0/", "mc", "1.0.0")), nil)
-	f := newHTTPFetcher(t, &kestrelv1alpha1.HTTPSourceSpec{URL: srv.URL + "/mods.tar.gz", Insecure: true})
+	f := newHTTPFetcher(t, &gameplanev1alpha1.HTTPSourceSpec{URL: srv.URL + "/mods.tar.gz", Insecure: true})
 
 	entries, warnings, err := f.Index(context.Background())
 	if err != nil || len(warnings) != 0 {
@@ -117,7 +117,7 @@ func TestHTTPFetcher_TarGz(t *testing.T) {
 
 func TestHTTPFetcher_Zip(t *testing.T) {
 	srv := serveArchive(t, zipArchive(t, archiveFiles("", "valheim", "0.9.0")), nil)
-	f := newHTTPFetcher(t, &kestrelv1alpha1.HTTPSourceSpec{URL: srv.URL + "/mods.zip", Insecure: true})
+	f := newHTTPFetcher(t, &gameplanev1alpha1.HTTPSourceSpec{URL: srv.URL + "/mods.zip", Insecure: true})
 	entries, _, err := f.Index(context.Background())
 	if err != nil || len(entries) != 1 || entries[0].Name != "valheim" {
 		t.Fatalf("entries=%+v err=%v", entries, err)
@@ -132,9 +132,9 @@ func TestHTTPFetcher_AuthHeaders(t *testing.T) {
 
 	t.Run("bearer token", func(t *testing.T) {
 		sec := &corev1.Secret{}
-		sec.Name, sec.Namespace = "creds", "kestrel-system"
+		sec.Name, sec.Namespace = "creds", "gameplane-system"
 		sec.Data = map[string][]byte{"token": []byte("tok123")}
-		f := newHTTPFetcher(t, &kestrelv1alpha1.HTTPSourceSpec{
+		f := newHTTPFetcher(t, &gameplanev1alpha1.HTTPSourceSpec{
 			URL: srv.URL + "/m.zip", Insecure: true,
 			SecretRef: &corev1.LocalObjectReference{Name: "creds"},
 		}, sec)
@@ -148,9 +148,9 @@ func TestHTTPFetcher_AuthHeaders(t *testing.T) {
 
 	t.Run("basic auth", func(t *testing.T) {
 		sec := &corev1.Secret{}
-		sec.Name, sec.Namespace = "creds", "kestrel-system"
+		sec.Name, sec.Namespace = "creds", "gameplane-system"
 		sec.Data = map[string][]byte{"username": []byte("u"), "password": []byte("p")}
-		f := newHTTPFetcher(t, &kestrelv1alpha1.HTTPSourceSpec{
+		f := newHTTPFetcher(t, &gameplanev1alpha1.HTTPSourceSpec{
 			URL: srv.URL + "/m.zip", Insecure: true,
 			SecretRef: &corev1.LocalObjectReference{Name: "creds"},
 		}, sec)
@@ -164,11 +164,11 @@ func TestHTTPFetcher_AuthHeaders(t *testing.T) {
 
 	t.Run("unusable secret errors", func(t *testing.T) {
 		sec := &corev1.Secret{}
-		sec.Name, sec.Namespace = "creds", "kestrel-system"
+		sec.Name, sec.Namespace = "creds", "gameplane-system"
 		sec.Data = map[string][]byte{"junk": []byte("x")}
 		b := fake.NewClientBuilder().WithObjects(sec).Build()
-		_, err := newHTTP(context.Background(), b, "kestrel-system",
-			&kestrelv1alpha1.HTTPSourceSpec{URL: "https://x/m.zip",
+		_, err := newHTTP(context.Background(), b, "gameplane-system",
+			&gameplanev1alpha1.HTTPSourceSpec{URL: "https://x/m.zip",
 				SecretRef: &corev1.LocalObjectReference{Name: "creds"}}, nil)
 		if err == nil {
 			t.Fatal("expected error")
@@ -225,7 +225,7 @@ func TestHTTPFetcher_ServerErrorIsTotalFailure(t *testing.T) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
 	t.Cleanup(srv.Close)
-	f := newHTTPFetcher(t, &kestrelv1alpha1.HTTPSourceSpec{URL: srv.URL + "/m.tar.gz", Insecure: true})
+	f := newHTTPFetcher(t, &gameplanev1alpha1.HTTPSourceSpec{URL: srv.URL + "/m.tar.gz", Insecure: true})
 	if _, _, err := f.Index(context.Background()); err == nil || !strings.Contains(err.Error(), "500") {
 		t.Fatalf("err = %v", err)
 	}

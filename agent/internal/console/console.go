@@ -6,7 +6,7 @@
 // and its textual response streams back as a single WS frame.
 //
 // This package is RCON-only by design: games without RCON declare
-// GameTemplate.spec.consoleMode "pty", which the Kestrel API serves by
+// GameTemplate.spec.consoleMode "pty", which the Gameplane API serves by
 // bridging the browser WebSocket to the Kubernetes pod-attach API
 // (api/internal/ws/attach.go) — no agent involvement.
 package console

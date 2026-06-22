@@ -121,7 +121,7 @@ func (b *bootstrapFlags) bind(fs *flag.FlagSet) {
 	fs.StringVar(&b.displayName, "display-name", "", "optional display name (defaults to username)")
 	fs.BoolVar(&b.force, "force", false, "if user exists, overwrite password and promote to admin")
 	fs.StringVar(&b.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")
-	fs.StringVar(&b.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/kestrel.db?_pragma=journal_mode(WAL)"), "DSN")
+	fs.StringVar(&b.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/gameplane.db?_pragma=journal_mode(WAL)"), "DSN")
 }
 
 // resolvePassword picks the password from exactly one source. Order of

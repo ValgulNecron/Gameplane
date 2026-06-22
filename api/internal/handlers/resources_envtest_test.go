@@ -22,7 +22,7 @@ import (
 // TestResources_GameServerCRUDRoundTrip — POST a GameServer at /servers,
 // confirm GET returns it, PUT mutates it, DELETE removes it. Verifies
 // the dynamic client path end-to-end against a real apiserver with
-// the Kestrel CRDs installed.
+// the Gameplane CRDs installed.
 func TestResources_GameServerCRUDRoundTrip(t *testing.T) {
 	name := uniqueResourceName("smp")
 

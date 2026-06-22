@@ -37,7 +37,7 @@ func newTSServer(t *testing.T, hits *int32) *httptest.Server {
 }
 
 func testThunderstore(url string) *thunderstoreCommunity {
-	ts := newThunderstore(&http.Client{Timeout: 5 * time.Second}, "kestrel-test")
+	ts := newThunderstore(&http.Client{Timeout: 5 * time.Second}, "gameplane-test")
 	ts.baseURL = url
 	return &thunderstoreCommunity{ts: ts, community: "valheim"}
 }

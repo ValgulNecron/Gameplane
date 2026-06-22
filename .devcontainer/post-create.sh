@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Devcontainer post-create bootstrap for Kestrel.
+# Devcontainer post-create bootstrap for Gameplane.
 #
 # Installs the extra tooling the Makefile expects but the devcontainer
 # features don't provide (kind, oras, golangci-lint), pre-fetches Go

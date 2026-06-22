@@ -9,7 +9,7 @@ import (
 )
 
 func testModrinth(url string) *Modrinth {
-	m := newModrinth(&http.Client{Timeout: 5 * time.Second}, "kestrel-test")
+	m := newModrinth(&http.Client{Timeout: 5 * time.Second}, "gameplane-test")
 	m.baseURL = url
 	return m
 }

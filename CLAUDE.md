@@ -1,8 +1,8 @@
-# Kestrel — guidance for AI coding assistants
+# Gameplane — guidance for AI coding assistants
 
 This file is for AI coding assistants (Claude Code and similar). It exists so a fresh agent session can plan a change without re-deriving the project's structure, commands, and house rules from scratch. Humans should read [`README.md`](README.md) and [`docs/contributing.md`](docs/contributing.md) instead — those are written for people; this is written for agents.
 
-**Project**: Kestrel — a Kubernetes-native game server control panel. Open-source alternative to CubeCoders AMP, built on K8s primitives so the same operational model works on a single-node k3s homelab and a multi-node production cluster.
+**Project**: Gameplane — a Kubernetes-native game server control panel. Open-source alternative to CubeCoders AMP, built on K8s primitives so the same operational model works on a single-node k3s homelab and a multi-node production cluster.
 
 > **Status:** beta (`v0.2.0-beta.1`). CRDs, operator, API, agent, and dashboard are feature-complete for the v1 scope and stabilized for external testing; not yet recommended for unattended production. See README "Beta status & known limitations".
 
@@ -31,7 +31,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── modules/                  # game template bundles (OCI artifacts)
 │   ├── minecraft-java/  valheim/  terraria/
 │   └── build.sh              # OCI bundle builder/pusher (uses oras ≥ 1.2.0)
-├── charts/kestrel/           # Helm chart
+├── charts/gameplane/           # Helm chart
 ├── deploy/kind/              # local dev cluster scripts
 ├── test/e2e/                 # kind-based E2E suite (build tag: e2e)
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
@@ -58,7 +58,7 @@ make dev-load      # rebuild and load images into kind
 make dev-install   # re-run helm upgrade against the local cluster
 ```
 
-`make dev-up` brings up a kind cluster from `deploy/kind/cluster.yaml` plus a local OCI registry on `localhost:5001` (cluster-internal name `kind-registry:5000`), loads the locally-built operator/api/agent images, pushes every `modules/*` directory as an OCI bundle, and installs the chart from `charts/kestrel/`.
+`make dev-up` brings up a kind cluster from `deploy/kind/cluster.yaml` plus a local OCI registry on `localhost:5001` (cluster-internal name `kind-registry:5000`), loads the locally-built operator/api/agent images, pushes every `modules/*` directory as an OCI bundle, and installs the chart from `charts/gameplane/`.
 
 ### Build
 
@@ -108,7 +108,7 @@ Coverage gates: `operator/.testcoverage.yml` (71%), `api/.testcoverage.yml` (80%
 
 ```sh
 make generate    # regenerates operator/api/v1alpha1/zz_generated.deepcopy.go
-make manifests   # regenerates operator/config/crd/*.yaml + operator/config/rbac/*.yaml and syncs charts/kestrel/crds/
+make manifests   # regenerates operator/config/crd/*.yaml + operator/config/rbac/*.yaml and syncs charts/gameplane/crds/
 ```
 
 Forgetting these leaves the CRD YAML out of sync with the Go types — CI will catch it, but your envtest run will fail mysteriously first.
@@ -125,7 +125,7 @@ make clean            # remove bin/, dist/, web/dist
 
 ## Project-specific rules
 
-These are the rules an agent cannot infer from reading the code. They are deliberately Kestrel-specific — generic Claude Code defaults (terse responses, no half-finished implementations, comments only when *why* is non-obvious) are already in your system prompt and don't need restating here.
+These are the rules an agent cannot infer from reading the code. They are deliberately Gameplane-specific — generic Claude Code defaults (terse responses, no half-finished implementations, comments only when *why* is non-obvious) are already in your system prompt and don't need restating here.
 
 ### 1. Design-first for UI changes
 
@@ -147,7 +147,7 @@ The file is encrypted — only the `pencil` MCP server can read/write it.
 The login page (`web/src/routes/Login.tsx`) and any unauthenticated screen must not display internal metrics, counts, hostnames, version strings, cluster names, or anything that aids user enumeration.
 
 - *Why:* the login page is internet-reachable on most installs (`docs/security.md` covers the threat model).
-- **Don't:** render `cluster: prod-east-1`, `5 servers online`, `Kestrel v0.4.2-rc3`, or "user `alice` not found" on `/login`.
+- **Don't:** render `cluster: prod-east-1`, `5 servers online`, `Gameplane v0.4.2-rc3`, or "user `alice` not found" on `/login`.
 - **Do:** keep it to brand + form + neutral error copy ("invalid credentials" — never "wrong password" vs "no such user").
 
 ### 4. Fix, don't silence
@@ -199,7 +199,7 @@ Commit the regenerated files in the same change:
 - `operator/api/v1alpha1/zz_generated.deepcopy.go`
 - `operator/config/crd/*.yaml`
 - `operator/config/rbac/*.yaml`
-- `charts/kestrel/crds/*.yaml` (synced automatically by `make manifests`)
+- `charts/gameplane/crds/*.yaml` (synced automatically by `make manifests`)
 
 Note: Helm only installs `crds/` on first install — `helm upgrade` never updates CRDs, so e2e/dev clusters must be recreated after CRD schema changes.
 

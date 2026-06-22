@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestAgentTLS_SecretCreatedAndConsumed asserts the end-to-end shape:
@@ -130,9 +130,9 @@ func TestAgentTLS_SecretCreatedAndConsumed(t *testing.T) {
 	}
 
 	wantArgs := map[string]bool{
-		"--tls-cert=/etc/kestrel/agent-tls/tls.crt":     false,
-		"--tls-key=/etc/kestrel/agent-tls/tls.key":      false,
-		"--tls-client-ca=/etc/kestrel/agent-tls/ca.crt": false,
+		"--tls-cert=/etc/gameplane/agent-tls/tls.crt":     false,
+		"--tls-key=/etc/gameplane/agent-tls/tls.key":      false,
+		"--tls-client-ca=/etc/gameplane/agent-tls/ca.crt": false,
 	}
 	for _, a := range agent.Args {
 		if _, ok := wantArgs[a]; ok {
@@ -147,7 +147,7 @@ func TestAgentTLS_SecretCreatedAndConsumed(t *testing.T) {
 
 	var sawMount bool
 	for _, m := range agent.VolumeMounts {
-		if m.Name == "agent-tls" && m.MountPath == "/etc/kestrel/agent-tls" && m.ReadOnly {
+		if m.Name == "agent-tls" && m.MountPath == "/etc/gameplane/agent-tls" && m.ReadOnly {
 			sawMount = true
 			break
 		}
@@ -188,7 +188,7 @@ func TestAgentTLS_IdempotentOnRereconcile(t *testing.T) {
 	// on conflict because the reconciler also writes status (and may
 	// re-write the spec via SetControllerReference cascades) in parallel.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var fresh kestrelv1alpha1.GameServer
+		var fresh gameplanev1alpha1.GameServer
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "smp"}, &fresh); err != nil {
 			if apierrors.IsNotFound(err) {
 				return err
@@ -203,7 +203,7 @@ func TestAgentTLS_IdempotentOnRereconcile(t *testing.T) {
 
 	// Wait for the reconciler to observe the change.
 	eventually(t, func() (bool, string) {
-		var got kestrelv1alpha1.GameServer
+		var got gameplanev1alpha1.GameServer
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "smp"}, &got); err != nil {
 			return false, "get gs: " + err.Error()
 		}

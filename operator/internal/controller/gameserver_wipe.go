@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 // pod isn't holding the ReadWriteOnce volume). It's idempotent: the request
 // is acked once the Job succeeds and the same token never re-runs.
 func (r *GameServerReconciler) reconcileWipe(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) error {
 	req := gs.Annotations[WipeRequestedAnnotation]
 	done := gs.Annotations[WipeCompletedAnnotation]
@@ -72,7 +72,7 @@ func (r *GameServerReconciler) reconcileWipe(
 }
 
 func (r *GameServerReconciler) createWipeJob(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 	name, token string,
 ) error {
 	mountPath := effectiveMountPath(tmpl)
@@ -87,7 +87,7 @@ func (r *GameServerReconciler) createWipeJob(
 			Namespace: gs.Namespace,
 			Labels: map[string]string{
 				wipeTokenLabel:                 token,
-				"app.kubernetes.io/managed-by": "kestrel",
+				"app.kubernetes.io/managed-by": "gameplane",
 				"app.kubernetes.io/name":       gs.Name,
 			},
 		},
@@ -140,7 +140,7 @@ func (r *GameServerReconciler) createWipeJob(
 	return nil
 }
 
-func (r *GameServerReconciler) ackWipe(ctx context.Context, gs *kestrelv1alpha1.GameServer, token string) error {
+func (r *GameServerReconciler) ackWipe(ctx context.Context, gs *gameplanev1alpha1.GameServer, token string) error {
 	patch := client.MergeFrom(gs.DeepCopy())
 	if gs.Annotations == nil {
 		gs.Annotations = map[string]string{}

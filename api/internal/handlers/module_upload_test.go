@@ -108,7 +108,7 @@ func TestUploadBundle(t *testing.T) {
 			t.Fatalf("resp = %+v", resp)
 		}
 
-		cm, err := k.Typed.CoreV1().ConfigMaps("kestrel-system").Get(context.Background(), resp.ConfigMap, metav1.GetOptions{})
+		cm, err := k.Typed.CoreV1().ConfigMaps("gameplane-system").Get(context.Background(), resp.ConfigMap, metav1.GetOptions{})
 		if err != nil {
 			t.Fatalf("get cm: %v", err)
 		}
@@ -141,7 +141,7 @@ func TestUploadBundle(t *testing.T) {
 		if rr := doBytes(t, r, "POST", "/modules/sources/uploads/upload", bundleTarGz(t, files)); rr.Code != http.StatusCreated {
 			t.Fatalf("re-upload: %d", rr.Code)
 		}
-		cm, _ := k.Typed.CoreV1().ConfigMaps("kestrel-system").Get(context.Background(), "module-upload-factorio", metav1.GetOptions{})
+		cm, _ := k.Typed.CoreV1().ConfigMaps("gameplane-system").Get(context.Background(), "module-upload-factorio", metav1.GetOptions{})
 		if !strings.Contains(string(cm.BinaryData["template.yaml"]), "1.1.110") {
 			t.Error("re-upload did not update content")
 		}
@@ -159,7 +159,7 @@ func TestUploadBundle(t *testing.T) {
 		if !resp.DryRun || resp.Module.Name != "factorio" {
 			t.Fatalf("resp = %+v", resp)
 		}
-		cms, _ := k.Typed.CoreV1().ConfigMaps("kestrel-system").List(context.Background(), metav1.ListOptions{})
+		cms, _ := k.Typed.CoreV1().ConfigMaps("gameplane-system").List(context.Background(), metav1.ListOptions{})
 		if len(cms.Items) != 0 {
 			t.Errorf("dry run wrote %d configmaps", len(cms.Items))
 		}
@@ -223,7 +223,7 @@ func TestDeleteUpload(t *testing.T) {
 		if rr := doBytes(t, r, "DELETE", "/modules/sources/uploads/upload/factorio", nil); rr.Code != http.StatusNoContent {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
-		cms, _ := k.Typed.CoreV1().ConfigMaps("kestrel-system").List(context.Background(), metav1.ListOptions{})
+		cms, _ := k.Typed.CoreV1().ConfigMaps("gameplane-system").List(context.Background(), metav1.ListOptions{})
 		if len(cms.Items) != 0 {
 			t.Errorf("configmap not removed")
 		}

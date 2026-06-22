@@ -1,5 +1,5 @@
 {
-	"name": "Kestrel",
+	"name": "Gameplane",
 	"image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {
@@ -35,8 +35,8 @@
 	"forwardPorts": [5173, 8080, 8443, 5001, 30565],
 	"portsAttributes": {
 		"5173": { "label": "Vite (web dev)", "onAutoForward": "notify" },
-		"8080": { "label": "Kestrel ingress (HTTP)", "onAutoForward": "silent" },
-		"8443": { "label": "Kestrel ingress (HTTPS)", "onAutoForward": "silent" },
+		"8080": { "label": "Gameplane ingress (HTTP)", "onAutoForward": "silent" },
+		"8443": { "label": "Gameplane ingress (HTTPS)", "onAutoForward": "silent" },
 		"5001": { "label": "Local OCI registry", "onAutoForward": "silent" },
 		"30565": { "label": "Sample Minecraft NodePort", "onAutoForward": "silent" }
 	},

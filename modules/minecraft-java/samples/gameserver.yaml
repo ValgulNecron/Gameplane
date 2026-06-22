@@ -1,13 +1,13 @@
 # Example GameServer for the minecraft-java template.
 #
-# Apply in any namespace where Kestrel watches:
-#     kubectl -n kestrel-games apply -f samples/gameserver.yaml
+# Apply in any namespace where Gameplane watches:
+#     kubectl -n gameplane-games apply -f samples/gameserver.yaml
 
 apiVersion: gameplane.gg/v1alpha1
 kind: GameServer
 metadata:
   name: smp-01
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   templateRef:
     name: minecraft-java
@@ -20,7 +20,7 @@ spec:
     DIFFICULTY: normal
     MODE: survival
     MAX_PLAYERS: "20"
-    MOTD: "Welcome to the Kestrel SMP"
+    MOTD: "Welcome to the Gameplane SMP"
     PVP: "true"
 
   resources:
@@ -43,7 +43,7 @@ spec:
   backupPolicy:
     schedule: "0 */6 * * *"  # every six hours
     repoRef:
-      name: kestrel-backup-repo
+      name: gameplane-backup-repo
       key: url
     retention:
       keepLast: 12

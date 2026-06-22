@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestBuildConfigInitContainer_Defaults(t *testing.T) {
-	tmpl := &kestrelv1alpha1.GameTemplate{}
+	tmpl := &gameplanev1alpha1.GameTemplate{}
 	c := buildConfigInitContainer(tmpl)
 
 	if c.Name != "config-init" {
@@ -36,9 +36,9 @@ func TestBuildConfigInitContainer_Defaults(t *testing.T) {
 }
 
 func TestBuildConfigInitContainer_HonorsMountPath(t *testing.T) {
-	tmpl := &kestrelv1alpha1.GameTemplate{
-		Spec: kestrelv1alpha1.GameTemplateSpec{
-			Storage: kestrelv1alpha1.GameStorageSpec{MountPath: "/world"},
+	tmpl := &gameplanev1alpha1.GameTemplate{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
+			Storage: gameplanev1alpha1.GameStorageSpec{MountPath: "/world"},
 		},
 	}
 	c := buildConfigInitContainer(tmpl)

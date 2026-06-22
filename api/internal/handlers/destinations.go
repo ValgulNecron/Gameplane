@@ -29,7 +29,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
-// destinationLabel marks a Secret as a Kestrel backup destination. The
+// destinationLabel marks a Secret as a Gameplane backup destination. The
 // agent and operator never read this label — it's purely a discovery
 // hint for the API.
 const destinationLabel = "gameplane.gg/backup-destination"
@@ -167,7 +167,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if !isDestination(existing) {
-		httperr.Write(w, req, errors.New("a non-Kestrel secret with that name already exists"))
+		httperr.Write(w, req, errors.New("a non-Gameplane secret with that name already exists"))
 		return
 	}
 	patch := map[string]any{

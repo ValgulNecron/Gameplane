@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // configHashAnnotation is stamped on the pod template whenever the
@@ -64,14 +64,14 @@ type renderedConfigFile struct {
 // configSecretName returns the per-GameServer Secret holding
 // password-type config values, referenced from the game container via
 // SecretKeyRef. Owned by the GameServer so it's GC'd on delete.
-func configSecretName(gs *kestrelv1alpha1.GameServer) string {
+func configSecretName(gs *gameplanev1alpha1.GameServer) string {
 	return gs.Name + "-config"
 }
 
 // filesSecretName returns the per-GameServer Secret holding rendered
 // configFiles, mounted into the config-init container. Owned by the
 // GameServer so it's GC'd on delete.
-func filesSecretName(gs *kestrelv1alpha1.GameServer) string {
+func filesSecretName(gs *gameplanev1alpha1.GameServer) string {
 	return gs.Name + "-files"
 }
 
@@ -84,7 +84,7 @@ func filesSecretName(gs *kestrelv1alpha1.GameServer) string {
 // error — the caller fails the GameServer rather than silently
 // dropping user intent.
 func materializeConfig(
-	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) (*materializedConfig, error) {
 	schema := tmpl.Spec.ConfigSchema
 	known := make(map[string]bool, len(schema))
@@ -194,7 +194,7 @@ func materializeConfig(
 // template fails the GameServer rather than materializing a pod that
 // silently misses a config file.
 func renderConfigFiles(
-	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, values map[string]string,
+	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, values map[string]string,
 ) ([]renderedConfigFile, error) {
 	data := struct {
 		Values map[string]string
@@ -253,7 +253,7 @@ func validateConfigFilePath(p string) error {
 // no password fields are in play (same lifecycle as the managed
 // BackupSchedule).
 func (r *GameServerReconciler) reconcileConfigSecret(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, mc *materializedConfig,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, mc *materializedConfig,
 ) error {
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: configSecretName(gs), Namespace: gs.Namespace},
@@ -276,7 +276,7 @@ func (r *GameServerReconciler) reconcileConfigSecret(
 // with the rendered configFiles, deleting it outright when the template
 // declares none (same lifecycle as the config Secret above).
 func (r *GameServerReconciler) reconcileFilesSecret(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, mc *materializedConfig,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, mc *materializedConfig,
 ) error {
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: filesSecretName(gs), Namespace: gs.Namespace},

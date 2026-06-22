@@ -1,11 +1,11 @@
-# Authoring a Kestrel Module
+# Authoring a Gameplane Module
 
-A **module** is a versioned, reusable game-server blueprint. Kestrel
+A **module** is a versioned, reusable game-server blueprint. Gameplane
 distributes modules as OCI artifacts so the same registries that hold your
 game-server container images also hold the templates that wire them up.
 
 A module is one OCI artifact carrying a `GameTemplate` manifest, machine-
-readable metadata, and optional README/icon. Admins point Kestrel at a
+readable metadata, and optional README/icon. Admins point Gameplane at a
 registry by creating a `ModuleSource` resource; users install a module by
 creating (or clicking Install on) a `Module` resource, which the operator
 materializes into an in-cluster `GameTemplate`.
@@ -93,7 +93,7 @@ Then:
 
 ```sh
 # push every bundle in modules/ to a registry
-make modules-push REGISTRY=ghcr.io/kestrel-gg/modules
+make modules-push REGISTRY=ghcr.io/valgulnecron/gameplane-modules
 
 # push a single module to a local kind registry
 modules/build.sh push --registry localhost:5001 --name minecraft-java
@@ -104,7 +104,7 @@ Under the hood `build.sh` runs:
 ```sh
 oras push \
   --artifact-type application/vnd.gameplane.module.v1+json \
-  ghcr.io/kestrel-gg/modules/minecraft-java:1.0.0 \
+  ghcr.io/valgulnecron/gameplane-modules/minecraft-java:1.0.0 \
   module.yaml:application/vnd.gameplane.module.metadata.v1+yaml \
   template.yaml:application/vnd.gameplane.module.template.v1+yaml \
   README.md:application/vnd.gameplane.module.readme.v1+md \
@@ -130,7 +130,7 @@ metadata: { name: community }
 spec:
   type: git                  # oci | git | http | local | upload
   git:
-    url: https://github.com/example/kestrel-modules
+    url: https://github.com/example/gameplane-modules
     ref: main                # branch or tag; the resolved commit is the digest
     subPath: modules         # optional scan root inside the repo
     secretRef: { name: gh-creds }   # optional, in the operator namespace
@@ -169,7 +169,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: module-upload-mygame
-  namespace: kestrel-system
+  namespace: gameplane-system
   labels: { gameplane.gg/module-upload: "true" }
 binaryData:        # or stringData for plain YAML
   module.yaml: <base64>
@@ -179,7 +179,7 @@ binaryData:        # or stringData for plain YAML
 ## Installing a module
 
 Once a `ModuleSource` is configured (Helm chart ships a default one
-pointing at `ghcr.io/kestrel-gg/modules`), modules show up in the
+pointing at `ghcr.io/valgulnecron/gameplane-modules`), modules show up in the
 **Modules** page of the dashboard. Click **Install** to create a
 `Module` resource:
 
@@ -234,7 +234,7 @@ kind: ModuleSource
 metadata: { name: trusted }
 spec:
   type: oci
-  oci: { url: ghcr.io/kestrel-gg/modules, modules: [{ name: minecraft-java }] }
+  oci: { url: ghcr.io/valgulnecron/gameplane-modules, modules: [{ name: minecraft-java }] }
   verify:
     key: { name: cosign-pub }    # Secret in the operator namespace,
                                  # public key under data "cosign.pub"
@@ -247,7 +247,7 @@ the sigstore trust root and Rekor:
   verify:
     keyless:
       issuer: https://token.actions.githubusercontent.com
-      identity: https://github.com/kestrel-gg/modules/.github/workflows/release.yml@refs/heads/main
+      identity: https://github.com/ValgulNecron/gameplane-modules/.github/workflows/release.yml@refs/heads/main
 ```
 
 `spec.verify` is rejected on non-OCI sources (cosign signatures are an OCI

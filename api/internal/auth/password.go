@@ -1,5 +1,5 @@
 // Package auth handles user authentication (local + OIDC) and session
-// lifecycle for the Kestrel API.
+// lifecycle for the Gameplane API.
 //
 // Passwords are hashed with argon2id using parameters aligned with
 // OWASP 2023 guidance for responsive dashboards: 64 MiB, t=3, p=2.

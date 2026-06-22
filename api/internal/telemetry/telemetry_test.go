@@ -67,8 +67,8 @@ func TestReportOnce_EnabledPostsAnonymousCounts(t *testing.T) {
 	defer srv.Close()
 
 	k := telKube(
-		unstr("GameServer", "a", "kestrel-games"),
-		unstr("GameServer", "b", "kestrel-games"),
+		unstr("GameServer", "a", "gameplane-games"),
+		unstr("GameServer", "b", "gameplane-games"),
 		unstr("GameTemplate", "minecraft", ""),
 	)
 	r := New(telStore(t, true), k, srv.URL, "v1.2.3", time.Hour)

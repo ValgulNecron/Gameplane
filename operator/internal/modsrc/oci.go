@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // OCIClient is the transport slice of *oci.Client the OCI fetcher
@@ -34,8 +34,8 @@ type ociFetcher struct {
 	modules []string
 }
 
-func (f *ociFetcher) Index(ctx context.Context) ([]kestrelv1alpha1.ModuleEntry, []string, error) {
-	entries := make([]kestrelv1alpha1.ModuleEntry, 0, len(f.modules))
+func (f *ociFetcher) Index(ctx context.Context) ([]gameplanev1alpha1.ModuleEntry, []string, error) {
+	entries := make([]gameplanev1alpha1.ModuleEntry, 0, len(f.modules))
 	var warnings []string
 	var firstErr error
 	for _, name := range f.modules {
@@ -47,7 +47,7 @@ func (f *ociFetcher) Index(ctx context.Context) ([]kestrelv1alpha1.ModuleEntry, 
 				firstErr = err
 			}
 			// Keep a stub entry so the UI shows the failure inline.
-			entries = append(entries, kestrelv1alpha1.ModuleEntry{Name: name, Reference: ref})
+			entries = append(entries, gameplanev1alpha1.ModuleEntry{Name: name, Reference: ref})
 			continue
 		}
 		entries = append(entries, entry)
@@ -63,12 +63,12 @@ func (f *ociFetcher) Index(ctx context.Context) ([]kestrelv1alpha1.ModuleEntry, 
 
 // indexModule lists tags for a module and probes its latest version to
 // pick up display metadata.
-func (f *ociFetcher) indexModule(ctx context.Context, name, ref string) (kestrelv1alpha1.ModuleEntry, error) {
+func (f *ociFetcher) indexModule(ctx context.Context, name, ref string) (gameplanev1alpha1.ModuleEntry, error) {
 	tags, err := f.cli.ListTags(ctx, ref)
 	if err != nil {
-		return kestrelv1alpha1.ModuleEntry{}, fmt.Errorf("list tags: %w", err)
+		return gameplanev1alpha1.ModuleEntry{}, fmt.Errorf("list tags: %w", err)
 	}
-	entry := kestrelv1alpha1.ModuleEntry{
+	entry := gameplanev1alpha1.ModuleEntry{
 		Name:      name,
 		Reference: ref,
 		Versions:  tags,

@@ -7,11 +7,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
-func mcVersions() []kestrelv1alpha1.GameVersion {
-	return []kestrelv1alpha1.GameVersion{
+func mcVersions() []gameplanev1alpha1.GameVersion {
+	return []gameplanev1alpha1.GameVersion{
 		{
 			ID: "1.21.4-paper", DisplayName: "1.21.4 Paper",
 			Image: "itzg/minecraft-server:stable", Loader: "paper", Default: true,
@@ -25,22 +25,22 @@ func mcVersions() []kestrelv1alpha1.GameVersion {
 	}
 }
 
-func mcModsTemplate() *kestrelv1alpha1.GameTemplate {
-	return &kestrelv1alpha1.GameTemplate{
+func mcModsTemplate() *gameplanev1alpha1.GameTemplate {
+	return &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "minecraft-java"},
-		Spec: kestrelv1alpha1.GameTemplateSpec{
+		Spec: gameplanev1alpha1.GameTemplateSpec{
 			Image:    "itzg/minecraft-server:stable",
-			Storage:  kestrelv1alpha1.GameStorageSpec{MountPath: "/data"},
+			Storage:  gameplanev1alpha1.GameStorageSpec{MountPath: "/data"},
 			Versions: mcVersions(),
-			Capabilities: &kestrelv1alpha1.CapabilitiesSpec{
-				Players: &kestrelv1alpha1.PlayerActionsSpec{Kick: "kick {{.Player}}"},
-				Mods: &kestrelv1alpha1.ModsSpec{
-					Loaders: map[string]kestrelv1alpha1.ModLoaderSpec{
+			Capabilities: &gameplanev1alpha1.CapabilitiesSpec{
+				Players: &gameplanev1alpha1.PlayerActionsSpec{Kick: "kick {{.Player}}"},
+				Mods: &gameplanev1alpha1.ModsSpec{
+					Loaders: map[string]gameplanev1alpha1.ModLoaderSpec{
 						"paper":   {Path: "plugins", Extensions: []string{".jar"}},
 						"forge":   {Path: "mods", Extensions: []string{".jar"}},
 						"vanilla": {Path: "mods"},
 					},
-					Install: &kestrelv1alpha1.ModInstallSpec{AllowedHosts: []string{"cdn.modrinth.com"}},
+					Install: &gameplanev1alpha1.ModInstallSpec{AllowedHosts: []string{"cdn.modrinth.com"}},
 				},
 			},
 		},
@@ -51,15 +51,15 @@ func TestResolveVersion(t *testing.T) {
 	tmpl := mcModsTemplate()
 
 	t.Run("no versions declared", func(t *testing.T) {
-		bare := &kestrelv1alpha1.GameTemplate{}
-		ver, err := resolveVersion(&kestrelv1alpha1.GameServer{}, bare)
+		bare := &gameplanev1alpha1.GameTemplate{}
+		ver, err := resolveVersion(&gameplanev1alpha1.GameServer{}, bare)
 		if err != nil || ver != nil {
 			t.Fatalf("got ver=%v err=%v, want nil,nil", ver, err)
 		}
 	})
 
 	t.Run("explicit valid id", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{Spec: kestrelv1alpha1.GameServerSpec{Version: "1.21.4-forge"}}
+		gs := &gameplanev1alpha1.GameServer{Spec: gameplanev1alpha1.GameServerSpec{Version: "1.21.4-forge"}}
 		ver, err := resolveVersion(gs, tmpl)
 		if err != nil || ver == nil || ver.ID != "1.21.4-forge" {
 			t.Fatalf("got ver=%v err=%v", ver, err)
@@ -67,7 +67,7 @@ func TestResolveVersion(t *testing.T) {
 	})
 
 	t.Run("explicit unknown id fails", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{Spec: kestrelv1alpha1.GameServerSpec{Version: "9.9-bogus"}}
+		gs := &gameplanev1alpha1.GameServer{Spec: gameplanev1alpha1.GameServerSpec{Version: "9.9-bogus"}}
 		_, err := resolveVersion(gs, tmpl)
 		if err == nil || !strings.Contains(err.Error(), "unknown version") {
 			t.Fatalf("want unknown-version error, got %v", err)
@@ -75,7 +75,7 @@ func TestResolveVersion(t *testing.T) {
 	})
 
 	t.Run("empty selects the default entry", func(t *testing.T) {
-		ver, err := resolveVersion(&kestrelv1alpha1.GameServer{}, tmpl)
+		ver, err := resolveVersion(&gameplanev1alpha1.GameServer{}, tmpl)
 		if err != nil || ver == nil || ver.ID != "1.21.4-paper" {
 			t.Fatalf("got ver=%v err=%v, want default 1.21.4-paper", ver, err)
 		}
@@ -84,7 +84,7 @@ func TestResolveVersion(t *testing.T) {
 	t.Run("empty with no default selects first", func(t *testing.T) {
 		t2 := mcModsTemplate()
 		t2.Spec.Versions[0].Default = false
-		ver, err := resolveVersion(&kestrelv1alpha1.GameServer{}, t2)
+		ver, err := resolveVersion(&gameplanev1alpha1.GameServer{}, t2)
 		if err != nil || ver == nil || ver.ID != "1.21.4-paper" {
 			t.Fatalf("got ver=%v err=%v, want first entry", ver, err)
 		}
@@ -96,18 +96,18 @@ func TestResolveImage(t *testing.T) {
 	ver := &tmpl.Spec.Versions[1] // forge, image stable
 
 	t.Run("spec.image override wins", func(t *testing.T) {
-		gs := &kestrelv1alpha1.GameServer{Spec: kestrelv1alpha1.GameServerSpec{Image: "fork:dev"}}
+		gs := &gameplanev1alpha1.GameServer{Spec: gameplanev1alpha1.GameServerSpec{Image: "fork:dev"}}
 		if got := resolveImage(gs, tmpl, ver); got != "fork:dev" {
 			t.Fatalf("got %q, want fork:dev", got)
 		}
 	})
 	t.Run("version image", func(t *testing.T) {
-		if got := resolveImage(&kestrelv1alpha1.GameServer{}, tmpl, ver); got != "itzg/minecraft-server:stable" {
+		if got := resolveImage(&gameplanev1alpha1.GameServer{}, tmpl, ver); got != "itzg/minecraft-server:stable" {
 			t.Fatalf("got %q", got)
 		}
 	})
 	t.Run("template fallback when no version", func(t *testing.T) {
-		if got := resolveImage(&kestrelv1alpha1.GameServer{}, tmpl, nil); got != "itzg/minecraft-server:stable" {
+		if got := resolveImage(&gameplanev1alpha1.GameServer{}, tmpl, nil); got != "itzg/minecraft-server:stable" {
 			t.Fatalf("got %q", got)
 		}
 	})
@@ -117,7 +117,7 @@ func TestResolveCapabilities(t *testing.T) {
 	tmpl := mcModsTemplate()
 
 	t.Run("nil capabilities", func(t *testing.T) {
-		if resolveCapabilities(&kestrelv1alpha1.GameTemplate{}, nil) != nil {
+		if resolveCapabilities(&gameplanev1alpha1.GameTemplate{}, nil) != nil {
 			t.Fatal("want nil")
 		}
 	})
@@ -151,7 +151,7 @@ func TestResolveCapabilities(t *testing.T) {
 	})
 
 	t.Run("loader without a mods entry yields no mod manager", func(t *testing.T) {
-		ver := &kestrelv1alpha1.GameVersion{ID: "x", Loader: "tmodloader"}
+		ver := &gameplanev1alpha1.GameVersion{ID: "x", Loader: "tmodloader"}
 		caps := resolveCapabilities(tmpl, ver)
 		if caps == nil || caps.Mods != nil {
 			t.Fatalf("want mods nil for unmapped loader, got %v", caps.Mods)
@@ -159,9 +159,9 @@ func TestResolveCapabilities(t *testing.T) {
 	})
 
 	t.Run("legacy single-path mods unchanged", func(t *testing.T) {
-		legacy := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
-			Capabilities: &kestrelv1alpha1.CapabilitiesSpec{
-				Mods: &kestrelv1alpha1.ModsSpec{Path: "plugins", Extensions: []string{".jar"}},
+		legacy := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
+			Capabilities: &gameplanev1alpha1.CapabilitiesSpec{
+				Mods: &gameplanev1alpha1.ModsSpec{Path: "plugins", Extensions: []string{".jar"}},
 			},
 		}}
 		caps := resolveCapabilities(legacy, nil)
@@ -178,7 +178,7 @@ func TestModVolumeNaming(t *testing.T) {
 	if got := modVolumeName("1.21.4-paper"); got != "mods-1-21-4-paper" {
 		t.Fatalf("modVolumeName=%q", got)
 	}
-	gs := &kestrelv1alpha1.GameServer{ObjectMeta: metav1.ObjectMeta{Name: "smp"}}
+	gs := &gameplanev1alpha1.GameServer{ObjectMeta: metav1.ObjectMeta{Name: "smp"}}
 	if got := modPVCName(gs, "1.21.4-paper"); got != "smp-mods-1-21-4-paper" {
 		t.Fatalf("modPVCName=%q", got)
 	}
@@ -206,7 +206,7 @@ func TestModVolumeMountAndKey(t *testing.T) {
 	}
 
 	// A version whose loader has no mods entry → no key, no mount.
-	noLoader := &kestrelv1alpha1.GameVersion{ID: "x", Loader: "tmodloader"}
+	noLoader := &gameplanev1alpha1.GameVersion{ID: "x", Loader: "tmodloader"}
 	if modVolumeKey(tmpl, noLoader) != "" {
 		t.Fatal("want empty key for unmapped loader")
 	}
@@ -214,7 +214,7 @@ func TestModVolumeMountAndKey(t *testing.T) {
 		t.Fatal("want nil mount for unmapped loader")
 	}
 	// nil version (no catalog) → no mount.
-	if modVolumeMount(&kestrelv1alpha1.GameTemplate{}, nil) != nil {
+	if modVolumeMount(&gameplanev1alpha1.GameTemplate{}, nil) != nil {
 		t.Fatal("want nil mount without versions")
 	}
 }

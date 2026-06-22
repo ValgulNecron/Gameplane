@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestBackup_VolumeSnapshotSucceeds drives the full volume-snapshot backup
@@ -44,7 +44,7 @@ func TestBackup_VolumeSnapshotSucceeds(t *testing.T) {
 			return false, "snapshot not owned by Backup"
 		}
 		got := getBackup(t, ns, "smp-vs")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseRunning {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseRunning {
 			return false, describeBackupStatus(got)
 		}
 		return true, ""
@@ -55,7 +55,7 @@ func TestBackup_VolumeSnapshotSucceeds(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-vs")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 			return false, describeBackupStatus(got)
 		}
 		if got.Status.SnapshotID != "smp-vs" {
@@ -100,7 +100,7 @@ func TestBackup_VolumeSnapshotErrorFails(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-vs")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseFailed {
 			return false, describeBackupStatus(got)
 		}
 		if !strings.Contains(got.Status.Message, "csi driver exploded") {
@@ -119,7 +119,7 @@ func TestRestore_VolumeSnapshotProvisionsNewServer(t *testing.T) {
 
 	// Original server — its spec is the template for the restored copy.
 	orig := buildGameServer(ns, "smp", "mc-template")
-	orig.Spec.Storage = &kestrelv1alpha1.GameStorageSpec{Size: resource.MustParse("12Gi")}
+	orig.Spec.Storage = &gameplanev1alpha1.GameStorageSpec{Size: resource.MustParse("12Gi")}
 	if err := k8sClient.Create(context.Background(), orig); err != nil {
 		t.Fatalf("create original gs: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestRestore_VolumeSnapshotProvisionsNewServer(t *testing.T) {
 	}
 
 	eventually(t, func() (bool, string) {
-		var gs kestrelv1alpha1.GameServer
+		var gs gameplanev1alpha1.GameServer
 		if err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp-restored"}, &gs); err != nil {
 			return false, "restored server not yet created: " + err.Error()
@@ -159,10 +159,10 @@ func TestRestore_VolumeSnapshotProvisionsNewServer(t *testing.T) {
 	}
 
 	// Once the restored server reports Running, the Restore succeeds.
-	markGameServerPhase(t, ns, "smp-restored", kestrelv1alpha1.GameServerPhaseRunning)
+	markGameServerPhase(t, ns, "smp-restored", gameplanev1alpha1.GameServerPhaseRunning)
 	eventually(t, func() (bool, string) {
 		got := getRestore(t, ns, "rs")
-		if got.Status.Phase != kestrelv1alpha1.RestorePhaseSucceeded {
+		if got.Status.Phase != gameplanev1alpha1.RestorePhaseSucceeded {
 			return false, describeRestoreStatus(got)
 		}
 		return true, ""
@@ -193,7 +193,7 @@ func TestRestore_VolumeSnapshotRejectsExistingTarget(t *testing.T) {
 	}
 	eventually(t, func() (bool, string) {
 		got := getRestore(t, ns, "rs")
-		if got.Status.Phase != kestrelv1alpha1.RestorePhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.RestorePhaseFailed {
 			return false, describeRestoreStatus(got)
 		}
 		if !strings.Contains(got.Status.Message, "already exists") {
@@ -218,8 +218,8 @@ func TestGameServer_DataSourceSeedsPVC(t *testing.T) {
 	deleteCleanup(t, tmpl)
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
-	gs.Spec.Storage = &kestrelv1alpha1.GameStorageSpec{
-		DataSource: &kestrelv1alpha1.GameDataSource{Kind: "VolumeSnapshot", Name: "snap-1"},
+	gs.Spec.Storage = &gameplanev1alpha1.GameStorageSpec{
+		DataSource: &gameplanev1alpha1.GameDataSource{Kind: "VolumeSnapshot", Name: "snap-1"},
 	}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)

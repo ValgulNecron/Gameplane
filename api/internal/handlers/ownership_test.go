@@ -12,7 +12,7 @@ import (
 )
 
 func TestStampOwner(t *testing.T) {
-	obj := newServerObj("kestrel-games", "alpha")
+	obj := newServerObj("gameplane-games", "alpha")
 	req := httptest.NewRequest("POST", "/servers", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 7, Username: "alice"}))
 	stampOwner(obj, req)
@@ -25,7 +25,7 @@ func TestStampOwner(t *testing.T) {
 func TestOwnership_Transfer(t *testing.T) {
 	store := newTestStore(t)
 	uid := seedUser(t, store, "bob", "viewer", "")
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := chi.NewRouter()
 	MountOwnership(r, k, store)
 
@@ -49,7 +49,7 @@ func TestOwnership_Transfer(t *testing.T) {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
 		obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-			Namespace("kestrel-games").Get(t.Context(), "alpha", metav1.GetOptions{})
+			Namespace("gameplane-games").Get(t.Context(), "alpha", metav1.GetOptions{})
 		if err != nil {
 			t.Fatalf("get: %v", err)
 		}

@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	"github.com/ValgulNecron/gameplane/operator/internal/agent"
 )
 
@@ -76,19 +76,19 @@ type BackupReconciler struct {
 // +kubebuilder:rbac:groups=snapshot.storage.k8s.io,resources=volumesnapshotcontents,verbs=get;list;watch
 
 func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var b kestrelv1alpha1.Backup
+	var b gameplanev1alpha1.Backup
 	if err := r.Get(ctx, req.NamespacedName, &b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if b.Status.Phase == kestrelv1alpha1.BackupPhaseSucceeded ||
-		b.Status.Phase == kestrelv1alpha1.BackupPhaseFailed {
+	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded ||
+		b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
 		return ctrl.Result{}, nil
 	}
 
 	// Resolve the target before building the Job: a Backup against a
 	// GameServer that doesn't exist would produce a pod waiting forever
 	// on a missing PVC instead of a clean Failed phase.
-	var gs kestrelv1alpha1.GameServer
+	var gs gameplanev1alpha1.GameServer
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: b.Namespace, Name: b.Spec.ServerRef.Name,
 	}, &gs); err != nil {
@@ -156,7 +156,7 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 // The quiesce-attempted annotation makes the call idempotent across
 // requeues; ErrUnsupported is recorded as "attempted but unsupported"
 // so the matching unquiesce step is skipped on terminal phase.
-func (r *BackupReconciler) maybeQuiesce(ctx context.Context, b *kestrelv1alpha1.Backup) error {
+func (r *BackupReconciler) maybeQuiesce(ctx context.Context, b *gameplanev1alpha1.Backup) error {
 	if !b.Spec.Quiesce {
 		return nil
 	}
@@ -196,7 +196,7 @@ func (r *BackupReconciler) maybeQuiesce(ctx context.Context, b *kestrelv1alpha1.
 
 // patchBackupAnnotations merges in the given key/value pairs without
 // dropping pre-existing annotations.
-func patchBackupAnnotations(b *kestrelv1alpha1.Backup, kv map[string]string) {
+func patchBackupAnnotations(b *gameplanev1alpha1.Backup, kv map[string]string) {
 	if b.Annotations == nil {
 		b.Annotations = map[string]string{}
 	}
@@ -210,19 +210,19 @@ func patchBackupAnnotations(b *kestrelv1alpha1.Backup, kv map[string]string) {
 // success, and triggers the matching unquiesce when the Backup
 // reaches a terminal phase.
 func (r *BackupReconciler) mirrorJobStatus(
-	ctx context.Context, b *kestrelv1alpha1.Backup, job *batchv1.Job,
+	ctx context.Context, b *gameplanev1alpha1.Backup, job *batchv1.Job,
 ) (ctrl.Result, error) {
 	phase := b.Status.Phase
 	switch {
 	case job.Status.Succeeded > 0:
-		phase = kestrelv1alpha1.BackupPhaseSucceeded
+		phase = gameplanev1alpha1.BackupPhaseSucceeded
 	case job.Status.Failed > 0:
-		phase = kestrelv1alpha1.BackupPhaseFailed
+		phase = gameplanev1alpha1.BackupPhaseFailed
 	case job.Status.Active > 0:
-		phase = kestrelv1alpha1.BackupPhaseRunning
+		phase = gameplanev1alpha1.BackupPhaseRunning
 	default:
 		if phase == "" {
-			phase = kestrelv1alpha1.BackupPhasePending
+			phase = gameplanev1alpha1.BackupPhasePending
 		}
 	}
 
@@ -249,7 +249,7 @@ func (r *BackupReconciler) mirrorJobStatus(
 	// snapshotID so this isn't optional — but a parse error must
 	// not flip the Backup to Failed (the data was actually written),
 	// so we surface the error in Message and let the user retry.
-	if phase == kestrelv1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
+	if phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
 		if summary, err := r.readResticSummary(ctx, b); err == nil {
 			b.Status.SnapshotID = summary.SnapshotID
 			if summary.TotalBytesProcessed > 0 {
@@ -270,10 +270,10 @@ func (r *BackupReconciler) mirrorJobStatus(
 		ObservedGeneration: b.Generation,
 	}
 	switch phase {
-	case kestrelv1alpha1.BackupPhaseSucceeded:
+	case gameplanev1alpha1.BackupPhaseSucceeded:
 		cond.Status = metav1.ConditionTrue
 		cond.Reason = "Succeeded"
-	case kestrelv1alpha1.BackupPhaseFailed:
+	case gameplanev1alpha1.BackupPhaseFailed:
 		cond.Status = metav1.ConditionFalse
 		cond.Reason = "JobFailed"
 		cond.Message = "backup job reported Failed"
@@ -297,7 +297,7 @@ func (r *BackupReconciler) mirrorJobStatus(
 		}
 	}
 
-	if phase == kestrelv1alpha1.BackupPhaseSucceeded || phase == kestrelv1alpha1.BackupPhaseFailed {
+	if phase == gameplanev1alpha1.BackupPhaseSucceeded || phase == gameplanev1alpha1.BackupPhaseFailed {
 		return r.runUnquiesce(ctx, b)
 	}
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -309,7 +309,7 @@ func (r *BackupReconciler) mirrorJobStatus(
 // surfaced as an Unquiesced=False condition (visible in `kubectl describe`
 // and the dashboard) and retried — the unquiesced-at annotation makes the
 // retry idempotent and stops the loop once it lands.
-func (r *BackupReconciler) runUnquiesce(ctx context.Context, b *kestrelv1alpha1.Backup) (ctrl.Result, error) {
+func (r *BackupReconciler) runUnquiesce(ctx context.Context, b *gameplanev1alpha1.Backup) (ctrl.Result, error) {
 	if err := r.maybeUnquiesce(ctx, b); err != nil {
 		ctrl.LoggerFrom(ctx).Error(err, "unquiesce failed; will retry", "backup", b.Name)
 		if cerr := r.setUnquiescedCondition(ctx, b, false, err.Error()); cerr != nil {
@@ -331,7 +331,7 @@ func (r *BackupReconciler) runUnquiesce(ctx context.Context, b *kestrelv1alpha1.
 // ok=false (Reason=Failed) flags that the post-backup unquiesce hasn't
 // completed — the world may still be frozen with auto-save off.
 func (r *BackupReconciler) setUnquiescedCondition(
-	ctx context.Context, b *kestrelv1alpha1.Backup, ok bool, msg string,
+	ctx context.Context, b *gameplanev1alpha1.Backup, ok bool, msg string,
 ) error {
 	cond := metav1.Condition{Type: "Unquiesced", ObservedGeneration: b.Generation}
 	if ok {
@@ -371,7 +371,7 @@ func missingRepoSecretKeys(s *corev1.Secret) []string {
 //   - quiesce was never attempted (no annotation),
 //   - quiesce was attempted but the game didn't support it,
 //   - unquiesce already succeeded on a prior pass.
-func (r *BackupReconciler) maybeUnquiesce(ctx context.Context, b *kestrelv1alpha1.Backup) error {
+func (r *BackupReconciler) maybeUnquiesce(ctx context.Context, b *gameplanev1alpha1.Backup) error {
 	if r.AgentClient == nil {
 		return nil
 	}
@@ -394,7 +394,7 @@ func (r *BackupReconciler) maybeUnquiesce(ctx context.Context, b *kestrelv1alpha
 // readResticSummary fetches the restic container's logs and parses the
 // trailing JSON summary line. Caller must be holding a Backup whose
 // matching Job is in Succeeded.
-func (r *BackupReconciler) readResticSummary(ctx context.Context, b *kestrelv1alpha1.Backup) (*ResticSummary, error) {
+func (r *BackupReconciler) readResticSummary(ctx context.Context, b *gameplanev1alpha1.Backup) (*ResticSummary, error) {
 	reader := r.LogReader
 	if reader == nil {
 		if r.Clientset == nil {
@@ -413,9 +413,9 @@ func (r *BackupReconciler) readResticSummary(ctx context.Context, b *kestrelv1al
 // fail writes a terminal Failed phase + message + condition to the
 // Backup. Mirrors RestoreReconciler.fail so the two controllers
 // produce identical user-visible signals.
-func (r *BackupReconciler) fail(ctx context.Context, b *kestrelv1alpha1.Backup, msg string) (ctrl.Result, error) {
+func (r *BackupReconciler) fail(ctx context.Context, b *gameplanev1alpha1.Backup, msg string) (ctrl.Result, error) {
 	now := metav1.Now()
-	b.Status.Phase = kestrelv1alpha1.BackupPhaseFailed
+	b.Status.Phase = gameplanev1alpha1.BackupPhaseFailed
 	b.Status.ObservedGeneration = b.Generation
 	if b.Status.Message != msg {
 		b.Status.Message = msg
@@ -438,7 +438,7 @@ func (r *BackupReconciler) fail(ctx context.Context, b *kestrelv1alpha1.Backup, 
 
 func (r *BackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.Backup{}).
+		For(&gameplanev1alpha1.Backup{}).
 		Owns(&batchv1.Job{}).
 		Owns(&snapshotv1.VolumeSnapshot{}).
 		Complete(r)
@@ -452,11 +452,11 @@ func (r *BackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //     config` returns 0 if the repo exists; otherwise we run `restic
 //     init` to create it.
 //   - container "restic": runs the actual `restic backup --json` with
-//     spec.tags appended to the default "kestrel" tag.
+//     spec.tags appended to the default "gameplane" tag.
 //
 // Both containers share the same env (repo + password from the user's
 // Secret) and a tmpfs-backed cache to keep the rootfs read-only.
-func (r *BackupReconciler) buildBackupPodSpec(b *kestrelv1alpha1.Backup) corev1.PodSpec {
+func (r *BackupReconciler) buildBackupPodSpec(b *gameplanev1alpha1.Backup) corev1.PodSpec {
 	nonRoot := true
 	roRootFS := true
 	noPrivEsc := false
@@ -486,7 +486,7 @@ func (r *BackupReconciler) buildBackupPodSpec(b *kestrelv1alpha1.Backup) corev1.
 		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 	}
 
-	args := []string{"backup", "/data", "--json", "--tag", "kestrel"}
+	args := []string{"backup", "/data", "--json", "--tag", "gameplane"}
 	for _, t := range b.Spec.Tags {
 		args = append(args, "--tag", t)
 	}

@@ -14,7 +14,7 @@ const (
 	ModuleSourceTypeUpload = "upload"
 )
 
-// ModuleSourceSpec configures one store that hosts Kestrel modules. The
+// ModuleSourceSpec configures one store that hosts Gameplane modules. The
 // spec is a discriminated union: exactly the nested config matching
 // spec.type must be set (enforced by CEL rules below). The operator
 // periodically indexes the source and caches the resulting catalog into
@@ -115,7 +115,7 @@ type KeylessVerifySpec struct {
 // "<url>/<name>:<version>".
 type OCISourceSpec struct {
 	// URL is the registry/repository prefix that holds module bundles
-	// (e.g. "ghcr.io/kestrel-gg/modules").
+	// (e.g. "ghcr.io/valgulnecron/gameplane-modules").
 	// +kubebuilder:validation:MinLength=1
 	URL string `json:"url"`
 
@@ -253,7 +253,7 @@ type ModuleEntry struct {
 	Icon string `json:"icon,omitempty"`
 
 	// Reference locates this module within its source: the registry
-	// repo path for oci (e.g. "ghcr.io/kestrel-gg/modules/minecraft-java"),
+	// repo path for oci (e.g. "ghcr.io/valgulnecron/gameplane-modules/minecraft-java"),
 	// or "<type>:<location>/<dir>" for the other source types.
 	Reference string `json:"reference"`
 
@@ -283,7 +283,7 @@ type ModuleEntry struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:subresource:status
 
-// ModuleSource is a store that Kestrel pulls module bundles from.
+// ModuleSource is a store that Gameplane pulls module bundles from.
 type ModuleSource struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
