@@ -31,7 +31,7 @@ const authDir = join(here, ".auth");
 const storageFile = join(authDir, "storage.json");
 
 const PORT = 18080;
-const CTX = process.env.KESTREL_E2E_CLUSTER ?? "kestrel-e2e";
+const CTX = process.env.GAMEPLANE_E2E_CLUSTER ?? "kestrel-e2e";
 
 export default async function globalSetup(): Promise<void> {
   if (!existsSync(passwordFile)) {
@@ -44,7 +44,7 @@ export default async function globalSetup(): Promise<void> {
   if (!pw) {
     throw new Error(`live-mode setup: admin password file at ${passwordFile} is empty`);
   }
-  const username = process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+  const username = process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
 
   // Spawn kubectl port-forward as a detached subprocess. Stdio is
   // ignored so a successful run is silent; we surface failure via the

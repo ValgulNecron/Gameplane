@@ -17,7 +17,7 @@ import { loginIfNeeded, seedServer, seedTemplate } from "./_seed";
 
 test.describe("live: data screens render real backend data", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only — the mock specs cover these screens against MSW",
   );
 

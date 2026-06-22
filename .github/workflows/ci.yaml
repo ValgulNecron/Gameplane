@@ -219,9 +219,9 @@ jobs:
           RUN_REGEX+='TestAPI_AgentUnreachable'
           RUN_REGEX+=')$'
           cd test/e2e && \
-            KESTREL_E2E_REUSE_CLUSTER=1 \
-            KESTREL_E2E_CLUSTER=kestrel-e2e \
-            KESTREL_E2E_KEEP_ON_FAILURE=1 \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER=kestrel-e2e \
+            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 19m -v -run "$RUN_REGEX" ./...
       - name: install playwright browser
         run: |
@@ -238,8 +238,8 @@ jobs:
           true
       - name: run playwright (live)
         env:
-          KESTREL_E2E_TARGET: live
-          KESTREL_E2E_CLUSTER: kestrel-e2e
+          GAMEPLANE_E2E_TARGET: live
+          GAMEPLANE_E2E_CLUSTER: kestrel-e2e
         run: |
           cd web && npm run test:e2e:live
       - name: dump cluster state on failure
@@ -311,9 +311,9 @@ jobs:
           RUN_REGEX+='TestAPI_LogsTailWS'
           RUN_REGEX+=')$'
           cd test/e2e && \
-            KESTREL_E2E_REUSE_CLUSTER=1 \
-            KESTREL_E2E_CLUSTER=kestrel-e2e-2 \
-            KESTREL_E2E_KEEP_ON_FAILURE=1 \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER=kestrel-e2e-2 \
+            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure
         if: failure()
@@ -329,7 +329,7 @@ jobs:
   # Boots a REAL Minecraft server through the operator and connects a headless
   # protocol bot (mcbot) that pings it and completes a login — proving the
   # server is genuinely playable. Heavier than the other e2e jobs (pulls the
-  # itzg image + runs a JVM), so it's gated behind KESTREL_E2E_GAME_BOT and
+  # itzg image + runs a JVM), so it's gated behind GAMEPLANE_E2E_GAME_BOT and
   # serialized last: the memory-limited runner OOM-kills a kind apiserver when
   # multiple e2e clusters run concurrently.
   e2e-game-bot:
@@ -353,10 +353,10 @@ jobs:
       - name: run go e2e (game bot)
         run: |
           cd test/e2e && \
-            KESTREL_E2E_REUSE_CLUSTER=1 \
-            KESTREL_E2E_CLUSTER=kestrel-e2e-3 \
-            KESTREL_E2E_GAME_BOT=1 \
-            KESTREL_E2E_KEEP_ON_FAILURE=1 \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER=kestrel-e2e-3 \
+            GAMEPLANE_E2E_GAME_BOT=1 \
+            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 18m -v -run '^TestGameServer_MinecraftBotConnects$' ./...
       - name: dump cluster state on failure
         if: failure()

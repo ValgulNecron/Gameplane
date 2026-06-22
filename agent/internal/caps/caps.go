@@ -1,6 +1,6 @@
 // Package caps mirrors the GameTemplate spec.capabilities schema
 // (operator/api/v1alpha1) that the operator serializes into the
-// KESTREL_CAPABILITIES env var. The agent interprets these declared
+// GAMEPLANE_CAPABILITIES env var. The agent interprets these declared
 // console commands at runtime, so modules add moderation and quiesce
 // support without agent code changes.
 package caps
@@ -127,7 +127,7 @@ type Quiesce struct {
 	FailurePattern string `json:"failurePattern,omitempty"`
 }
 
-// Parse decodes the KESTREL_CAPABILITIES env value. Empty input means
+// Parse decodes the GAMEPLANE_CAPABILITIES env value. Empty input means
 // no declared capabilities (nil, nil).
 func Parse(raw string) (*Spec, error) {
 	if raw == "" {

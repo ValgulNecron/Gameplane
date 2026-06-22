@@ -16,7 +16,7 @@ import { loginIfNeeded, seedServer, seedTemplate } from "./_seed";
 
 test.describe("live: agent-backed screens render real pod data", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only — needs a real pod + agent sidecar",
   );
 

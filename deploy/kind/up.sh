@@ -16,7 +16,7 @@ CONFIG="${HERE}/cluster.yaml"
 # localhost:${REG_HOST_PORT} for `oras push`, and reachable from cluster
 # pods as ${REG_NAME}:${REG_INTERNAL_PORT} after the kind-network attach.
 REG_NAME="kind-registry"
-REG_HOST_PORT="${KESTREL_REG_HOST_PORT:-5001}"
+REG_HOST_PORT="${GAMEPLANE_REG_HOST_PORT:-5001}"
 REG_INTERNAL_PORT=5000
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }

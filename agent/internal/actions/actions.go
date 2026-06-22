@@ -1,7 +1,7 @@
 // Package actions runs module-declared operator actions over RCON.
 //
 // A GameTemplate declares actions in spec.capabilities.actions[]; the
-// operator serializes them into KESTREL_CAPABILITIES and the agent
+// operator serializes them into GAMEPLANE_CAPABILITIES and the agent
 // interprets them here. Each action carries a Go text/template Command
 // rendered with the user-supplied parameters and sent to the game over
 // RCON, so modules add new buttons to the dashboard without any agent

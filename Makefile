@@ -173,18 +173,18 @@ e2e-images: ## Build operator/api/agent images tagged for e2e
 .PHONY: test-e2e
 test-e2e: ## Run E2E tests (CLUSTER=kind spins an ephemeral cluster; CLUSTER=remote reuses REMOTE_KUBECONFIG)
 ifeq ($(CLUSTER),remote)
-	cd test/e2e && KESTREL_E2E_REUSE_CLUSTER=1 \
-		KESTREL_E2E_CONTEXT=$(REMOTE_CONTEXT) KUBECONFIG=$(REMOTE_KUBECONFIG) \
+	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+		GAMEPLANE_E2E_CONTEXT=$(REMOTE_CONTEXT) KUBECONFIG=$(REMOTE_KUBECONFIG) \
 		go test -tags=e2e -timeout 35m -v ./...
 else
 	$(MAKE) e2e-images
-	cd test/e2e && KESTREL_E2E_CLUSTER=$(KIND_E2E_CLUSTER) KESTREL_E2E_TAG=$(KIND_E2E_TAG) \
+	cd test/e2e && GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) GAMEPLANE_E2E_TAG=$(KIND_E2E_TAG) \
 		go test -tags=e2e -timeout 35m -v ./...
 endif
 
 .PHONY: test-e2e-keep
 test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/destroy)
-	cd test/e2e && KESTREL_E2E_REUSE_CLUSTER=1 KESTREL_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
+	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
 		go test -tags=e2e -timeout 35m -v ./...
 
 .PHONY: e2e-up

@@ -53,7 +53,7 @@ subjects:
 # Namespace-scoped WRITE access: limited to the games namespace(s) the
 # API is allowed to mutate. Expanding this to additional namespaces
 # requires a new RoleBinding here AND adding them to
-# KESTREL_EXTRA_NAMESPACES on the API Deployment.
+# GAMEPLANE_EXTRA_NAMESPACES on the API Deployment.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -180,15 +180,15 @@ spec:
             - --agent-client-cert=/etc/kestrel/agent-client/tls.crt
             - --agent-client-key=/etc/kestrel/agent-client/tls.key
           env:
-            - name: KESTREL_NAMESPACE
+            - name: GAMEPLANE_NAMESPACE
               valueFrom:
                 fieldRef: { fieldPath: metadata.namespace }
             {{- if .Values.clusterOps.enabled }}
-            - name: KESTREL_CLUSTER_OPS
+            - name: GAMEPLANE_CLUSTER_OPS
               value: "true"
             {{- end }}
             {{- if .Values.api.oidc.enabled }}
-            - name: KESTREL_OIDC_CLIENT_SECRET
+            - name: GAMEPLANE_OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.api.oidc.clientSecretRef.name }}

@@ -11,7 +11,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("live: PTY console", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only spec",
   );
 

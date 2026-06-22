@@ -95,9 +95,9 @@ func TestGameServer_AgentSidecarInjected(t *testing.T) {
 			return false, "no agent sidecar container"
 		}
 		want := map[string]string{
-			"KESTREL_SERVER_NAME": "smp",
-			"KESTREL_TEMPLATE":    tmpl.Name,
-			"KESTREL_GAME":        tmpl.Spec.Game,
+			"GAMEPLANE_SERVER_NAME": "smp",
+			"GAMEPLANE_TEMPLATE":    tmpl.Name,
+			"GAMEPLANE_GAME":        tmpl.Spec.Game,
 		}
 		got := map[string]string{}
 		for _, e := range agent.Env {

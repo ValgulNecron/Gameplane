@@ -61,7 +61,7 @@ var gvr = schema.GroupVersionResource{
 // endpoints without heartbeats.
 func Run(ctx context.Context, cfg Config) {
 	if cfg.ServerName == "" {
-		slog.Info("heartbeat disabled: no KESTREL_SERVER_NAME")
+		slog.Info("heartbeat disabled: no GAMEPLANE_SERVER_NAME")
 		return
 	}
 	if cfg.Namespace == "" {

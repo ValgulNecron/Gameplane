@@ -10,7 +10,7 @@ import { LoginPage } from "../pages/LoginPage";
 // targeting live to avoid disturbing the MSW service-worker setup
 // (Playwright's storageState load can race with worker registration
 // in chromium).
-if (process.env.KESTREL_E2E_TARGET === "live") {
+if (process.env.GAMEPLANE_E2E_TARGET === "live") {
   test.use({ storageState: { cookies: [], origins: [] } });
 }
 
@@ -43,9 +43,9 @@ test.describe("login", () => {
     await login.goto();
 
     const username =
-      process.env.ADMIN_USERNAME ?? process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
     const password =
-      process.env.ADMIN_PASSWORD ?? process.env.KESTREL_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
 
     await login.login(username, password);
 

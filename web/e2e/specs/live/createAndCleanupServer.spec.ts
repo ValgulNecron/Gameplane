@@ -21,7 +21,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("live: create and cleanup a busybox server", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only spec — mock mode covers the wizard",
   );
 

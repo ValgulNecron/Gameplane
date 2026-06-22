@@ -80,14 +80,14 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 		for _, e := range c.Env {
 			envs[e.Name] = e.Value
 		}
-		if envs["KESTREL_SERVER_NAME"] != "alpha" {
-			t.Fatalf("server env=%q", envs["KESTREL_SERVER_NAME"])
+		if envs["GAMEPLANE_SERVER_NAME"] != "alpha" {
+			t.Fatalf("server env=%q", envs["GAMEPLANE_SERVER_NAME"])
 		}
-		if envs["KESTREL_TEMPLATE"] != "minecraft" {
-			t.Fatalf("template env=%q", envs["KESTREL_TEMPLATE"])
+		if envs["GAMEPLANE_TEMPLATE"] != "minecraft" {
+			t.Fatalf("template env=%q", envs["GAMEPLANE_TEMPLATE"])
 		}
-		if envs["KESTREL_GAME"] != "minecraft-java" {
-			t.Fatalf("game env=%q", envs["KESTREL_GAME"])
+		if envs["GAMEPLANE_GAME"] != "minecraft-java" {
+			t.Fatalf("game env=%q", envs["GAMEPLANE_GAME"])
 		}
 	})
 
@@ -117,15 +117,15 @@ func TestBuildAgentContainer_RconEnabledEnv(t *testing.T) {
 		tmpl := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
 			RCON: &kestrelv1alpha1.RCONSpec{Protocol: "source"},
 		}}
-		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb"))["KESTREL_RCON_ENABLED"]; got != "true" {
-			t.Fatalf("KESTREL_RCON_ENABLED=%q, want true", got)
+		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb"))["GAMEPLANE_RCON_ENABLED"]; got != "true" {
+			t.Fatalf("GAMEPLANE_RCON_ENABLED=%q, want true", got)
 		}
 	})
 
 	t.Run("no rcon block disables", func(t *testing.T) {
 		tmpl := &kestrelv1alpha1.GameTemplate{}
-		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb"))["KESTREL_RCON_ENABLED"]; got != "false" {
-			t.Fatalf("KESTREL_RCON_ENABLED=%q, want false", got)
+		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb"))["GAMEPLANE_RCON_ENABLED"]; got != "false" {
+			t.Fatalf("GAMEPLANE_RCON_ENABLED=%q, want false", got)
 		}
 	})
 
@@ -133,8 +133,8 @@ func TestBuildAgentContainer_RconEnabledEnv(t *testing.T) {
 		tmpl := &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{
 			RCON: &kestrelv1alpha1.RCONSpec{Protocol: "none"},
 		}}
-		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb"))["KESTREL_RCON_ENABLED"]; got != "false" {
-			t.Fatalf("KESTREL_RCON_ENABLED=%q, want false", got)
+		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb"))["GAMEPLANE_RCON_ENABLED"]; got != "false" {
+			t.Fatalf("GAMEPLANE_RCON_ENABLED=%q, want false", got)
 		}
 	})
 }
@@ -193,9 +193,9 @@ func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
 			},
 		},
 	}}
-	got, ok := envValue(buildAgentContainer(gs, tmpl, nil, "fb"), "KESTREL_CAPABILITIES")
+	got, ok := envValue(buildAgentContainer(gs, tmpl, nil, "fb"), "GAMEPLANE_CAPABILITIES")
 	if !ok {
-		t.Fatal("expected KESTREL_CAPABILITIES env when template declares capabilities")
+		t.Fatal("expected GAMEPLANE_CAPABILITIES env when template declares capabilities")
 	}
 	var parsed kestrelv1alpha1.CapabilitiesSpec
 	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
@@ -209,7 +209,7 @@ func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
 	}
 
 	bare := &kestrelv1alpha1.GameTemplate{}
-	if _, ok := envValue(buildAgentContainer(gs, bare, nil, "fb"), "KESTREL_CAPABILITIES"); ok {
-		t.Fatal("unexpected KESTREL_CAPABILITIES env without declared capabilities")
+	if _, ok := envValue(buildAgentContainer(gs, bare, nil, "fb"), "GAMEPLANE_CAPABILITIES"); ok {
+		t.Fatal("unexpected GAMEPLANE_CAPABILITIES env without declared capabilities")
 	}
 }

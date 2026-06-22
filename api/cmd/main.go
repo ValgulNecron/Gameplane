@@ -203,20 +203,20 @@ type config struct {
 
 func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.addr, "addr", ":8000", "HTTP listen address")
-	fs.StringVar(&c.dbDriver, "db-driver", envOr("KESTREL_DB_DRIVER", "sqlite"), "sqlite or postgres")
-	fs.StringVar(&c.dbDSN, "db-dsn", envOr("KESTREL_DB_DSN", "file:/data/kestrel.db?_pragma=journal_mode(WAL)"), "DSN")
-	fs.StringVar(&c.oidcIssuer, "oidc-issuer", envOr("KESTREL_OIDC_ISSUER", ""), "OIDC issuer URL")
-	fs.StringVar(&c.oidcClientID, "oidc-client-id", envOr("KESTREL_OIDC_CLIENT_ID", ""), "OIDC client id")
-	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("KESTREL_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
-	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("KESTREL_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
-	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("KESTREL_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
-	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("KESTREL_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
-	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("KESTREL_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
-	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("KESTREL_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
-	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("KESTREL_AGENT_CA", ""), "CA bundle validating agent server certs")
-	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("KESTREL_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
-	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("KESTREL_AGENT_CLIENT_KEY", ""), "client key presented to agents")
-	fs.StringVar(&c.namespace, "namespace", envOr("KESTREL_NAMESPACE", "kestrel-system"),
+	fs.StringVar(&c.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")
+	fs.StringVar(&c.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/kestrel.db?_pragma=journal_mode(WAL)"), "DSN")
+	fs.StringVar(&c.oidcIssuer, "oidc-issuer", envOr("GAMEPLANE_OIDC_ISSUER", ""), "OIDC issuer URL")
+	fs.StringVar(&c.oidcClientID, "oidc-client-id", envOr("GAMEPLANE_OIDC_CLIENT_ID", ""), "OIDC client id")
+	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("GAMEPLANE_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
+	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("GAMEPLANE_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
+	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("GAMEPLANE_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
+	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("GAMEPLANE_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
+	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("GAMEPLANE_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
+	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("GAMEPLANE_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
+	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("GAMEPLANE_AGENT_CA", ""), "CA bundle validating agent server certs")
+	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("GAMEPLANE_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
+	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
+	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "kestrel-system"),
 		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
 }
 

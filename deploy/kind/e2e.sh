@@ -12,13 +12,13 @@
 #   - Helm install with --wait so pods are Ready before tests start.
 #
 # Image tag defaults to "e2e". Override via the second argument or
-# the KESTREL_E2E_TAG env var.
+# the GAMEPLANE_E2E_TAG env var.
 
 set -euo pipefail
 
 ACTION="${1:-up}"
 CLUSTER="${2:-kestrel-e2e}"
-TAG="${3:-${KESTREL_E2E_TAG:-e2e}}"
+TAG="${3:-${GAMEPLANE_E2E_TAG:-e2e}}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "${HERE}/../.." && pwd)"
 CHART_DIR="${REPO}/charts/kestrel"
@@ -84,7 +84,7 @@ EOF
 
     echo
     echo "✓ cluster ${CLUSTER} ready (image tag ${TAG})"
-    echo "  KESTREL_E2E_REUSE_CLUSTER=1 reuses this cluster across go test runs"
+    echo "  GAMEPLANE_E2E_REUSE_CLUSTER=1 reuses this cluster across go test runs"
     ;;
 
 down)

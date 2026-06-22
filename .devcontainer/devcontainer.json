@@ -28,7 +28,7 @@
 	"runArgs": ["--init"],
 	"containerEnv": {
 		"GOTOOLCHAIN": "local",
-		"KESTREL_REG_HOST_PORT": "5001",
+		"GAMEPLANE_REG_HOST_PORT": "5001",
 		"CI": "1"
 	},
 	"postCreateCommand": "bash .devcontainer/post-create.sh",

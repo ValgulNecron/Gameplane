@@ -24,7 +24,7 @@ import (
 //
 // Unlike the other GameServer tests (which use a busybox "fake game" and never
 // wait for a Ready pod), this pulls a large external image and boots a JVM, so
-// it is opt-in (set KESTREL_E2E_GAME_BOT=1) and runs on its own CI job with a
+// it is opt-in (set GAMEPLANE_E2E_GAME_BOT=1) and runs on its own CI job with a
 // generous timeout. The mcbot client is also exercised against the shipped
 // minecraft-java template on a real cluster; here we use a trimmed vanilla
 // template so it boots fast and fits a single kind node.
@@ -36,8 +36,8 @@ import (
 //     only a bespoke protocol implementation could connect, which isn't worth
 //     carrying. (A plain TCP dial would prove reachability, not playability.)
 func TestGameServer_MinecraftBotConnects(t *testing.T) {
-	if os.Getenv("KESTREL_E2E_GAME_BOT") == "" {
-		t.Skip("heavy: set KESTREL_E2E_GAME_BOT=1 to run the real-Minecraft bot test")
+	if os.Getenv("GAMEPLANE_E2E_GAME_BOT") == "" {
+		t.Skip("heavy: set GAMEPLANE_E2E_GAME_BOT=1 to run the real-Minecraft bot test")
 	}
 	ctx := context.Background()
 	ns := "kestrel-games"

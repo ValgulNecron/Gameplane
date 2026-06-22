@@ -45,15 +45,15 @@ type Env struct {
 	Tag         string
 
 	// Context is the kubeconfig context the suite acts in. Defaults to
-	// "kind-<ClusterName>" for the local kind path; set KESTREL_E2E_CONTEXT
+	// "kind-<ClusterName>" for the local kind path; set GAMEPLANE_E2E_CONTEXT
 	// to target an existing (e.g. remote) cluster instead.
 	Context string
 }
 
 func newEnv() (*Env, error) {
-	cluster := getenvOr("KESTREL_E2E_CLUSTER", "kestrel-e2e")
-	tag := getenvOr("KESTREL_E2E_TAG", "e2e")
-	kctx := getenvOr("KESTREL_E2E_CONTEXT", "kind-"+cluster)
+	cluster := getenvOr("GAMEPLANE_E2E_CLUSTER", "kestrel-e2e")
+	tag := getenvOr("GAMEPLANE_E2E_TAG", "e2e")
+	kctx := getenvOr("GAMEPLANE_E2E_CONTEXT", "kind-"+cluster)
 
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kc := os.Getenv("KUBECONFIG"); kc != "" {

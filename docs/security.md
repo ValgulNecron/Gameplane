@@ -41,7 +41,7 @@ named set of permissions, and a user is bound to roles **per namespace**.
 - **Bindings** (`user_role_bindings`) grant a role in a namespace; `*` means
   cluster-wide. A user's primary role (`PATCH /users/{id}`) is their
   cluster-wide binding; additional per-namespace grants are managed via
-  `…/users/{id}/bindings`. Allowed namespaces are the `KESTREL_EXTRA_NAMESPACES`
+  `…/users/{id}/bindings`. Allowed namespaces are the `GAMEPLANE_EXTRA_NAMESPACES`
   allow-list plus the default `kestrel-games`.
 - **Enforcement** (`api/internal/rbac/rbac.go`): each route maps to one
   required permission; the middleware resolves the request's target namespace

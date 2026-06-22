@@ -704,17 +704,17 @@ func buildAgentContainer(
 		args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
 	}
 	env := []corev1.EnvVar{
-		{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
-		{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
-		{Name: "KESTREL_GAME", Value: tmpl.Spec.Game},
+		{Name: "GAMEPLANE_SERVER_NAME", Value: gs.Name},
+		{Name: "GAMEPLANE_TEMPLATE", Value: tmpl.Name},
+		{Name: "GAMEPLANE_GAME", Value: tmpl.Spec.Game},
 		// Games without RCON (consoleMode pty/none) must not have the
 		// agent dialing a console port that doesn't exist — players
 		// and moderation endpoints degrade instead.
-		{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+		{Name: "GAMEPLANE_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
 		// The pod shares its PID namespace (ShareProcessNamespace), so the
 		// agent reports the GAME process's CPU/memory from /proc rather than
 		// its own per-container cgroup (which shows only the idle sidecar).
-		{Name: "KESTREL_USAGE_PROC", Value: "1"},
+		{Name: "GAMEPLANE_USAGE_PROC", Value: "1"},
 	}
 	// In proc mode the agent can't read the game container's cgroup limit, so
 	// pass the resolved limits through as the denominator for the dashboard's
@@ -725,12 +725,12 @@ func buildAgentContainer(
 	}
 	if cpu := gameRes.Limits.Cpu(); cpu != nil && !cpu.IsZero() {
 		env = append(env, corev1.EnvVar{
-			Name: "KESTREL_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
+			Name: "GAMEPLANE_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
 		})
 	}
 	if mem := gameRes.Limits.Memory(); mem != nil && !mem.IsZero() {
 		env = append(env, corev1.EnvVar{
-			Name: "KESTREL_MEM_LIMIT_BYTES", Value: strconv.FormatInt(mem.Value(), 10),
+			Name: "GAMEPLANE_MEM_LIMIT_BYTES", Value: strconv.FormatInt(mem.Value(), 10),
 		})
 	}
 	// Declared capability commands travel to the agent as one JSON blob;
@@ -740,7 +740,7 @@ func buildAgentContainer(
 	// Mods.Path, so the agent stays loader-agnostic (no agent code change).
 	if caps := resolveCapabilities(tmpl, ver); caps != nil {
 		if b, err := json.Marshal(caps); err == nil {
-			env = append(env, corev1.EnvVar{Name: "KESTREL_CAPABILITIES", Value: string(b)})
+			env = append(env, corev1.EnvVar{Name: "GAMEPLANE_CAPABILITIES", Value: string(b)})
 		}
 	}
 	return corev1.Container{

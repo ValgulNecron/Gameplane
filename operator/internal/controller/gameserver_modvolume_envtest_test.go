@@ -70,7 +70,7 @@ func mountPathOf(c *corev1.Container, volName string) string {
 // TestGameServer_VersionResolvesImageEnvAndModVolume — selecting a
 // version pins that entry's image + env, provisions the per-(version+
 // loader) mod PVC, and mounts it (nested) on both the game and agent
-// containers; the agent's KESTREL_CAPABILITIES carries the resolved path.
+// containers; the agent's GAMEPLANE_CAPABILITIES carries the resolved path.
 func TestGameServer_VersionResolvesImageEnvAndModVolume(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withGameServerReconciler(t, ns))
@@ -130,12 +130,12 @@ func TestGameServer_VersionResolvesImageEnvAndModVolume(t *testing.T) {
 		// Agent capabilities collapsed to the forge path.
 		var caps string
 		for _, e := range agent.Env {
-			if e.Name == "KESTREL_CAPABILITIES" {
+			if e.Name == "GAMEPLANE_CAPABILITIES" {
 				caps = e.Value
 			}
 		}
 		if !strings.Contains(caps, `"path":"mods"`) {
-			return false, "KESTREL_CAPABILITIES path not collapsed: " + caps
+			return false, "GAMEPLANE_CAPABILITIES path not collapsed: " + caps
 		}
 		return true, ""
 	})

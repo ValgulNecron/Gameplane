@@ -121,7 +121,7 @@ can be loaded from anywhere:
   ones are distinguished by the `gameplane.gg/managed-by=Module` label.
 - `template.yaml#spec.capabilities` declares per-game console commands
   (player moderation, backup quiesce); the operator serializes it onto
-  the agent sidecar (`KESTREL_CAPABILITIES`), which interprets the
+  the agent sidecar (`GAMEPLANE_CAPABILITIES`), which interprets the
   commands at runtime — new games get full feature support without
   agent code changes.
 
