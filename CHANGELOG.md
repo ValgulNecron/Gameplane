@@ -7,6 +7,30 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0-beta.2] — 2026-06-22
+
+### Changed
+
+- **Renamed the project from Kestrel to Gameplane.** This is a breaking rebrand
+  that spans every layer:
+  - **CRD API group** `kestrel.gg` → `gameplane.gg` (all seven CRDs). Existing
+    clusters must be **recreated** — Helm never upgrades CRDs across a group
+    change, and there is no in-place migration for `v1alpha1` objects.
+  - **OCI module bundles** — media types `application/vnd.kestrel.*` →
+    `application/vnd.gameplane.*` and the manifest field `kestrelMinVersion` →
+    `gameplaneMinVersion`; existing bundles must be re-pushed
+    (`make modules-push`).
+  - **Helm chart** `kestrel` → `gameplane`, default namespaces
+    `kestrel-system` / `kestrel-games` → `gameplane-system` /
+    `gameplane-games`, the image registry, and every `kestrel-*` object name.
+  - **Environment variables** `KESTREL_*` → `GAMEPLANE_*`.
+  - **Auth cookies and CSRF header** (`kestrel_session`, `kestrel_csrf`,
+    `X-Kestrel-CSRF`, …) → `gameplane_*` / `X-Gameplane-CSRF`; active sessions
+    are invalidated on upgrade and users must re-login.
+  - **Go module path** `github.com/kestrel-gg/kestrel` →
+    `github.com/ValgulNecron/gameplane`.
+- Synced `web/package.json` to the chart version (it had been left at `0.1.0`).
+
 ## [0.2.0-beta.1] — 2026-06-22
 
 First **beta**. The control plane (operator, API, agent) and the dashboard are
