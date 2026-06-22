@@ -53,13 +53,13 @@ func TestHelmInstall_AllPodsReady(t *testing.T) {
 func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 	ctx := context.Background()
 	want := []string{
-		"gameservers.kestrel.gg",
-		"gametemplates.kestrel.gg",
-		"backups.kestrel.gg",
-		"backupschedules.kestrel.gg",
-		"restores.kestrel.gg",
-		"modules.kestrel.gg",
-		"modulesources.kestrel.gg",
+		"gameservers.gameplane.gg",
+		"gametemplates.gameplane.gg",
+		"backups.gameplane.gg",
+		"backupschedules.gameplane.gg",
+		"restores.gameplane.gg",
+		"modules.gameplane.gg",
+		"modulesources.gameplane.gg",
 	}
 	for _, name := range want {
 		ok, err := envInstance.CRDExists(ctx, name)

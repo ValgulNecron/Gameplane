@@ -25,7 +25,7 @@ func (r *BackupScheduleReconciler) trimBackups(
 	var list kestrelv1alpha1.BackupList
 	if err := r.List(ctx, &list,
 		client.InNamespace(sched.Namespace),
-		client.MatchingLabels{"kestrel.gg/backup-schedule": sched.Name},
+		client.MatchingLabels{"gameplane.gg/backup-schedule": sched.Name},
 	); err != nil {
 		return err
 	}

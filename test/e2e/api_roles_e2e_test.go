@@ -66,7 +66,7 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 		t.Errorf("support GET /servers: status=%d want 200", r.StatusCode)
 	}
 	if r, _, _ := support.Post("/servers", map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1", "kind": "GameServer",
+		"apiVersion": "gameplane.gg/v1alpha1", "kind": "GameServer",
 		"metadata": map[string]any{"name": "e2e-support-nope", "namespace": "kestrel-games"},
 		"spec":     map[string]any{"templateRef": map[string]any{"name": "nope"}},
 	}); r.StatusCode != http.StatusForbidden {
@@ -124,7 +124,7 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 	v1 := envInstance.APIClient(t, viewerName, viewerPW)
 	gsSpec := func(name string) map[string]any {
 		return map[string]any{
-			"apiVersion": "kestrel.gg/v1alpha1", "kind": "GameServer",
+			"apiVersion": "gameplane.gg/v1alpha1", "kind": "GameServer",
 			"metadata": map[string]any{"name": name, "namespace": "kestrel-games"},
 			"spec":     map[string]any{"templateRef": map[string]any{"name": tmplName}},
 		}

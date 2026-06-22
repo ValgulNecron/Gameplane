@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Servers, Users } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 
-const OWNER_ANNOTATION = "kestrel.gg/owner";
+const OWNER_ANNOTATION = "gameplane.gg/owner";
 
 interface Props {
   name: string;

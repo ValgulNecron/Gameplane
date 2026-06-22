@@ -1,6 +1,6 @@
 // Backup destinations are restic repositories the Backup/BackupSchedule
 // CRDs reference by Secret name. They're modelled as plain Kubernetes
-// Secrets labeled `kestrel.gg/backup-destination=true` rather than a
+// Secrets labeled `gameplane.gg/backup-destination=true` rather than a
 // dedicated CRD — the on-disk shape is small (URL + password) and the
 // generic CRD CRUD path doesn't cover core resources.
 //
@@ -32,7 +32,7 @@ import (
 // destinationLabel marks a Secret as a Kestrel backup destination. The
 // agent and operator never read this label — it's purely a discovery
 // hint for the API.
-const destinationLabel = "kestrel.gg/backup-destination"
+const destinationLabel = "gameplane.gg/backup-destination"
 
 // nameRE enforces a conservative DNS-label name. Matches the validation
 // already applied by the operator to GameServer names.

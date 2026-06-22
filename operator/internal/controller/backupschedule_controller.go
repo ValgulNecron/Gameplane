@@ -32,9 +32,9 @@ type BackupScheduleReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backupschedules,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backupschedules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backups,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backupschedules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backupschedules/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backups,verbs=get;list;watch;create;delete
 
 func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -123,7 +123,7 @@ func (r *BackupScheduleReconciler) fire(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", sched.Name, at.UTC().Format("20060102-150405")),
 			Namespace: sched.Namespace,
-			Labels:    map[string]string{"kestrel.gg/backup-schedule": sched.Name},
+			Labels:    map[string]string{"gameplane.gg/backup-schedule": sched.Name},
 		},
 		Spec: kestrelv1alpha1.BackupSpec{
 			ServerRef: sched.Spec.ServerRef,

@@ -15,16 +15,16 @@ metadata:
   name: {{ .Release.Name }}-api-read
   labels: {{- include "kestrel.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources: [gameservers, gametemplates, backups, backupschedules, restores, modules, modulesources]
     verbs: [get, list, watch]
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources: [gametemplates]
     verbs: [create, update, patch, delete]      # templates are cluster-scoped; admin UI edits them
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources: [modules]
     verbs: [create, update, patch, delete]      # modules are cluster-scoped; install/upgrade/uninstall from the dashboard
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources: [modulesources]
     verbs: [create, update, patch, delete]      # source management (add/edit/remove sources) from the dashboard
   - apiGroups: [""]
@@ -61,10 +61,10 @@ metadata:
   namespace: {{ .Values.gamesNamespace }}
   labels: {{- include "kestrel.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources: [gameservers, backups, backupschedules, restores]
     verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources: [gameservers/status, backups/status, backupschedules/status, restores/status]
     verbs: [get, update, patch]
   # The PTY console (api/internal/ws/attach.go) attaches to the game

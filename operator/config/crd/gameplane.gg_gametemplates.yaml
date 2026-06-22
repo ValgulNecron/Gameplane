@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: gametemplates.kestrel.gg
+  name: gametemplates.gameplane.gg
 spec:
-  group: kestrel.gg
+  group: gameplane.gg
   names:
     kind: GameTemplate
     listKind: GameTemplateList

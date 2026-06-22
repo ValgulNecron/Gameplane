@@ -167,7 +167,7 @@ describe("CreateServerWizard", () => {
     const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
     const body = JSON.parse((postCall[1] as FetchInit).body as string);
     expect(body.kind).toBe("GameServer");
-    expect(body.spec.nodeSelector).toEqual({ "kestrel.gg/pinned": "true" });
+    expect(body.spec.nodeSelector).toEqual({ "gameplane.gg/pinned": "true" });
   });
 
   it("keeps the 4-step flow when the template declares no versions", async () => {

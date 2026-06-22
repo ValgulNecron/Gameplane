@@ -285,7 +285,7 @@ func (f fakeUsage) Read() usage.Sample { return f.s }
 func fakeGameServer() runtime.Object {
 	o := &unstructured.Unstructured{}
 	o.SetGroupVersionKind(schema.GroupVersionKind{
-		Group: "kestrel.gg", Version: "v1alpha1", Kind: "GameServer",
+		Group: "gameplane.gg", Version: "v1alpha1", Kind: "GameServer",
 	})
 	o.SetName("srv")
 	o.SetNamespace("ns")

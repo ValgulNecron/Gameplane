@@ -31,7 +31,7 @@ test.describe("live: PTY console", () => {
     // This beforeAll just creates the GameServer.
     await request.post("/servers", {
       data: {
-        apiVersion: "kestrel.gg/v1alpha1",
+        apiVersion: "gameplane.gg/v1alpha1",
         kind: "GameServer",
         metadata: { name: serverName, namespace: "kestrel-games" },
         spec: { templateRef: { name: tmplName } },

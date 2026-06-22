@@ -25,7 +25,7 @@ import (
 var scheme = runtime.NewScheme()
 
 // Version is the operator build version, overridden at build time via
-// -ldflags. Compared against a module bundle's kestrelMinVersion to refuse
+// -ldflags. Compared against a module bundle's gameplaneMinVersion to refuse
 // modules that need a newer operator. Mirrors api/cmd and agent/cmd.
 var Version = "dev"
 
@@ -84,7 +84,7 @@ func main() {
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "kestrel-operator.kestrel.gg",
+		LeaderElectionID:       "kestrel-operator.gameplane.gg",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create manager")

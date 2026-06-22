@@ -121,7 +121,7 @@ func TestLifecycle_CloneRequiresNewName(t *testing.T) {
 func createServerForLifecycleTest(t *testing.T, name string) {
 	t.Helper()
 	gs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": scope.DefaultNamespace},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}},

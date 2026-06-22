@@ -10,7 +10,7 @@
 ## One-shot install
 
 ```sh
-helm repo add kestrel https://charts.kestrel.gg     # (once the chart is published)
+helm repo add kestrel https://charts.gameplane.gg     # (once the chart is published)
 helm upgrade --install kestrel kestrel/kestrel \
   --namespace kestrel-system --create-namespace \
   --set ingress.host=kestrel.your-domain.test

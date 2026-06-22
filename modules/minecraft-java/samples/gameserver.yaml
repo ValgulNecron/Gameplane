@@ -3,7 +3,7 @@
 # Apply in any namespace where Kestrel watches:
 #     kubectl -n kestrel-games apply -f samples/gameserver.yaml
 
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: GameServer
 metadata:
   name: smp-01

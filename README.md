@@ -91,7 +91,7 @@ control plane handles both.
 | `charts/`    | Helm     | `kestrel` install chart for operator + API + optional ingress.    |
 | `deploy/`    | Shell    | Local dev env (kind/k3d) bootstrap scripts.                       |
 
-### CRDs (`kestrel.gg/v1alpha1`)
+### CRDs (`gameplane.gg/v1alpha1`)
 
 - **GameTemplate** — reusable blueprint for a game (image, ports, env, volumes, defaults)
 - **GameServer** — an instance of a GameTemplate with user-specific config

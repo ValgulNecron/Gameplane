@@ -35,7 +35,7 @@ type Metadata struct {
 	Summary           string `yaml:"summary,omitempty" json:"summary,omitempty"`
 	Homepage          string `yaml:"homepage,omitempty" json:"homepage,omitempty"`
 	License           string `yaml:"license,omitempty" json:"license,omitempty"`
-	KestrelMinVersion string `yaml:"kestrelMinVersion,omitempty" json:"kestrelMinVersion,omitempty"`
+	GameplaneMinVersion string `yaml:"gameplaneMinVersion,omitempty" json:"gameplaneMinVersion,omitempty"`
 	Icon              string `yaml:"icon,omitempty" json:"icon,omitempty"`
 }
 

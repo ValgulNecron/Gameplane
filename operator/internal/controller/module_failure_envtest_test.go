@@ -84,7 +84,7 @@ func TestModule_VersionNotInCatalog(t *testing.T) {
 	})
 }
 
-// TestModule_IncompatibleOperator — a bundle whose kestrelMinVersion is
+// TestModule_IncompatibleOperator — a bundle whose gameplaneMinVersion is
 // newer than the operator must end in Phase=Failed with a clear message, and
 // must NOT materialize a GameTemplate.
 func TestModule_IncompatibleOperator(t *testing.T) {
@@ -96,10 +96,10 @@ func TestModule_IncompatibleOperator(t *testing.T) {
 	fake.putBundle(ref, "1.0.0", fakeArtifact{
 		digest: "sha256:mc-1.0.0",
 		files: map[string][]byte{
-			modsrc.FileMetadata: []byte("apiVersion: kestrel.gg/module/v1\n" +
+			modsrc.FileMetadata: []byte("apiVersion: gameplane.gg/module/v1\n" +
 				"name: minecraft-java\nversion: 1.0.0\ngame: minecraft-java\n" +
-				"kestrelMinVersion: 9.9.9\n"),
-			modsrc.FileTemplate: []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\n" +
+				"gameplaneMinVersion: 9.9.9\n"),
+			modsrc.FileTemplate: []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\n" +
 				"spec:\n  displayName: MC\n  game: minecraft-java\n  version: 1.0.0\n" +
 				"  image: ghcr.io/test/mc:1.0.0\n"),
 		},

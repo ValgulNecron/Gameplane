@@ -50,7 +50,7 @@ type Config struct {
 }
 
 var gvr = schema.GroupVersionResource{
-	Group:    "kestrel.gg",
+	Group:    "gameplane.gg",
 	Version:  "v1alpha1",
 	Resource: "gameservers",
 }

@@ -23,8 +23,8 @@ import (
 // is informational (display + transfer + audit), not an access boundary —
 // RBAC remains role/namespace based.
 const (
-	ownerIDAnnotation = "kestrel.gg/owner-id"
-	ownerAnnotation   = "kestrel.gg/owner"
+	ownerIDAnnotation = "gameplane.gg/owner-id"
+	ownerAnnotation   = "gameplane.gg/owner"
 )
 
 // stampOwner records the authenticated caller as the owner of obj. Called

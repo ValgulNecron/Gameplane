@@ -45,7 +45,7 @@ func (r *GameServerReconciler) reconcileAgentRBAC(
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, role, func() error {
 		role.Rules = []rbacv1.PolicyRule{{
-			APIGroups:     []string{"kestrel.gg"},
+			APIGroups:     []string{"gameplane.gg"},
 			Resources:     []string{"gameservers/status"},
 			ResourceNames: []string{gs.Name},
 			Verbs:         []string{"get", "patch"},

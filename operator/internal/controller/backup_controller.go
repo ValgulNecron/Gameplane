@@ -30,9 +30,9 @@ import (
 // Annotations the BackupReconciler maintains on each Backup to track
 // quiesce state across reconcile passes.
 const (
-	annoQuiesceAttempted = "backup.kestrel.gg/quiesce-attempted"
-	annoQuiescedAt       = "backup.kestrel.gg/quiesced-at"
-	annoUnquiescedAt     = "backup.kestrel.gg/unquiesced-at"
+	annoQuiesceAttempted = "backup.gameplane.gg/quiesce-attempted"
+	annoQuiescedAt       = "backup.gameplane.gg/quiesced-at"
+	annoUnquiescedAt     = "backup.gameplane.gg/unquiesced-at"
 )
 
 // AgentQuiescer is the slice of *agent.Client the BackupReconciler
@@ -66,8 +66,8 @@ type BackupReconciler struct {
 	LogReader BackupLogReader
 }
 
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backups,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backups,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backups/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get

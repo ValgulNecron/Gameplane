@@ -238,7 +238,7 @@ This project standing-orders agents to commit after each logical unit of work. T
 
 The detail lives in `docs/architecture.md`; this is the index.
 
-**`operator/`** — controller-runtime. Reconciles 7 CRDs (`kestrel.gg/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
+**`operator/`** — controller-runtime. Reconciles 7 CRDs (`gameplane.gg/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
 
 **`api/`** — chi router; REST + WebSocket. Entry: `api/cmd/main.go`, with subcommands `serve` and `bootstrap-admin`. Layout:
 
@@ -274,7 +274,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 | Frontend libs | TanStack Router, TanStack Query, Radix + shadcn/ui, Tailwind 3.4, lucide-react, Monaco editor, xterm.js |
 | Frontend tests | Vitest 2.1, `@testing-library/react`, `msw` |
 | Kubernetes target | 1.28+; Helm 3.13+ |
-| CRDs | `kestrel.gg/v1alpha1` — GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource |
+| CRDs | `gameplane.gg/v1alpha1` — GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource |
 | License | AGPL-3.0-or-later |
 
 ---

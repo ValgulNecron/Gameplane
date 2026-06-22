@@ -15,7 +15,7 @@ import (
 )
 
 // newUpload builds a Fetcher over uploaded module bundles: ConfigMaps
-// in the operator namespace labeled kestrel.gg/module-upload=true,
+// in the operator namespace labeled gameplane.gg/module-upload=true,
 // each holding one bundle's files in data/binaryData. The API's upload
 // endpoint writes these, but a hand-applied ConfigMap indexes exactly
 // the same way — the operator stays authoritative.

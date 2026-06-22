@@ -21,11 +21,11 @@ import (
 // gameserver_e2e_test.go owns gameTemplateGVR and gameServerGVR; we
 // extend the set here.
 var (
-	backupGVR         = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "backups"}
-	backupScheduleGVR = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "backupschedules"}
-	restoreGVR        = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "restores"}
-	moduleGVR         = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "modules"}
-	moduleSourceGVR   = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "modulesources"}
+	backupGVR         = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "backups"}
+	backupScheduleGVR = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "backupschedules"}
+	restoreGVR        = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "restores"}
+	moduleGVR         = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "modules"}
+	moduleSourceGVR   = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "modulesources"}
 )
 
 // applyBusyboxTemplate creates (or reuses) a cluster-scoped GameTemplate
@@ -39,7 +39,7 @@ func applyBusyboxTemplate(t *testing.T, tmplName string) {
 	t.Helper()
 	ctx := context.Background()
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{
@@ -70,7 +70,7 @@ func applyBusyboxGameServer(t *testing.T, ns, gsName, tmplName string) {
 	t.Helper()
 	ctx := context.Background()
 	gs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec": map[string]any{
@@ -116,7 +116,7 @@ func createBackup(t *testing.T, ns, name, gsName, repoSecretName, repoKey string
 	t.Helper()
 	ctx := context.Background()
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{
@@ -143,7 +143,7 @@ func createRestore(t *testing.T, ns, name, gsName, backupName string) *unstructu
 	t.Helper()
 	ctx := context.Background()
 	rs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Restore",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{
@@ -282,7 +282,7 @@ func applyBusyboxPTYTemplate(t *testing.T, tmplName string) {
 	t.Helper()
 	ctx := context.Background()
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{
@@ -316,7 +316,7 @@ func applyBusyboxLogTickerTemplate(t *testing.T, tmplName, marker string) {
 	t.Helper()
 	ctx := context.Background()
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{

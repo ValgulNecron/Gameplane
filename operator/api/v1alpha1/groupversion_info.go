@@ -1,8 +1,8 @@
-// Package v1alpha1 contains API Schema definitions for the kestrel.gg
+// Package v1alpha1 contains API Schema definitions for the gameplane.gg
 // v1alpha1 API group.
 //
 // +kubebuilder:object:generate=true
-// +groupName=kestrel.gg
+// +groupName=gameplane.gg
 package v1alpha1
 
 import (
@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	GroupVersion = schema.GroupVersion{Group: "kestrel.gg", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "gameplane.gg", Version: "v1alpha1"}
 
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
 

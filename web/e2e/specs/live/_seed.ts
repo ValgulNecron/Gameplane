@@ -72,7 +72,7 @@ export async function seedTemplate(request: APIRequestContext, name: string): Pr
   const res = await request.post("/templates", {
     headers: await seedHeaders(request),
     data: {
-      apiVersion: "kestrel.gg/v1alpha1",
+      apiVersion: "gameplane.gg/v1alpha1",
       kind: "GameTemplate",
       metadata: { name },
       spec: {
@@ -106,17 +106,17 @@ export interface SeedServerOpts {
 // API defaults the namespace to scope.DefaultNamespace ("kestrel-games") —
 // the same default the dashboard reads — so seeded and rendered data line up
 // without passing ?namespace=. The description annotation mirrors what the
-// create-server wizard writes (kestrel.gg/description).
+// create-server wizard writes (gameplane.gg/description).
 export async function seedServer(request: APIRequestContext, opts: SeedServerOpts): Promise<Seeded> {
   const res = await request.post("/servers", {
     headers: await seedHeaders(request),
     data: {
-      apiVersion: "kestrel.gg/v1alpha1",
+      apiVersion: "gameplane.gg/v1alpha1",
       kind: "GameServer",
       metadata: {
         name: opts.name,
         ...(opts.description
-          ? { annotations: { "kestrel.gg/description": opts.description } }
+          ? { annotations: { "gameplane.gg/description": opts.description } }
           : {}),
       },
       spec: { templateRef: { name: opts.template } },

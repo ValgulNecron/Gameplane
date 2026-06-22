@@ -56,11 +56,11 @@ export interface ServerCreate {
 function gameServerEnvelope(input: ServerCreate) {
   const { name, description, ...spec } = input;
   return {
-    apiVersion: "kestrel.gg/v1alpha1",
+    apiVersion: "gameplane.gg/v1alpha1",
     kind: "GameServer",
     metadata: {
       name,
-      ...(description ? { annotations: { "kestrel.gg/description": description } } : {}),
+      ...(description ? { annotations: { "gameplane.gg/description": description } } : {}),
     },
     spec,
   };
@@ -193,7 +193,7 @@ function envelope<K extends string, S>(
   spec: S,
 ) {
   return {
-    apiVersion: "kestrel.gg/v1alpha1",
+    apiVersion: "gameplane.gg/v1alpha1",
     kind,
     metadata: ident,
     spec,

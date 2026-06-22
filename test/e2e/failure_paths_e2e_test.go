@@ -28,7 +28,7 @@ func TestBackup_FailsOnMissingPVC(t *testing.T) {
 	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
 
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": bkName, "namespace": ns},
 		"spec": map[string]any{
@@ -94,7 +94,7 @@ func TestBackup_FailsOnBadCredentials(t *testing.T) {
 	// The wrong-password failure only exists once the repo has a key.
 	seedName := bkName + "-seed"
 	seed := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": seedName, "namespace": ns},
 		"spec": map[string]any{
@@ -126,7 +126,7 @@ func TestBackup_FailsOnBadCredentials(t *testing.T) {
 	})
 
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": bkName, "namespace": ns},
 		"spec": map[string]any{
@@ -182,7 +182,7 @@ func TestRestore_FailsOnMissingSnapshot(t *testing.T) {
 	// at a Secret that doesn't exist. The operator marks it Failed quickly,
 	// and we then point a Restore at it.
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": bkName, "namespace": ns},
 		"spec": map[string]any{
@@ -253,7 +253,7 @@ func TestModule_FailsOnUnreachableRegistry(t *testing.T) {
 	const sourceName = "e2e-fail-unreachable-source"
 
 	src := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": sourceName},
 		"spec": map[string]any{

@@ -15,7 +15,7 @@ metadata:
   name: kestrel-operator-manage
   namespace: kestrel-games
 rules:
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources:
       - gameservers
       - backups

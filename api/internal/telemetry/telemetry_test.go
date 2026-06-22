@@ -49,7 +49,7 @@ func telKube(objs ...runtime.Object) *kube.Client {
 
 func unstr(kind, name, ns string) *unstructured.Unstructured {
 	o := &unstructured.Unstructured{}
-	o.SetAPIVersion("kestrel.gg/v1alpha1")
+	o.SetAPIVersion("gameplane.gg/v1alpha1")
 	o.SetKind(kind)
 	o.SetName(name)
 	if ns != "" {

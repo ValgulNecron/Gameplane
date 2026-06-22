@@ -33,7 +33,7 @@ type ModuleReconciler struct {
 	Namespace string
 
 	// OperatorVersion is this operator's build version, compared against a
-	// bundle's kestrelMinVersion to refuse modules that need a newer
+	// bundle's gameplaneMinVersion to refuse modules that need a newer
 	// operator. Empty or "dev" disables the check.
 	OperatorVersion string
 
@@ -49,11 +49,11 @@ type ModuleReconciler struct {
 	NewVerifier func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (verify.Verifier, error)
 }
 
-// +kubebuilder:rbac:groups=kestrel.gg,resources=modules,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=modules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=modules/finalizers,verbs=update
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=modules,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=modules/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=modules/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers,verbs=get;list;watch
 
 func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var mod kestrelv1alpha1.Module
@@ -141,10 +141,10 @@ func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Refuse a bundle that needs a newer operator than this one — the
 	// reconciler can't honor capabilities it doesn't understand. Leaving the
 	// previously-applied GameTemplate untouched here is intentional.
-	if r.operatorTooOld(bundle.Metadata.KestrelMinVersion) {
+	if r.operatorTooOld(bundle.Metadata.GameplaneMinVersion) {
 		return r.markFailed(ctx, &mod, "IncompatibleOperator",
 			fmt.Errorf("module %q requires Kestrel >= %s but this operator is %s",
-				mod.Spec.Name, bundle.Metadata.KestrelMinVersion, r.OperatorVersion))
+				mod.Spec.Name, bundle.Metadata.GameplaneMinVersion, r.OperatorVersion))
 	}
 
 	// Materialize a GameTemplate.
@@ -378,7 +378,7 @@ func (r *ModuleReconciler) verifierFor(ctx context.Context, src *kestrelv1alpha1
 	return verify.Build(ctx, r.Client, r.Namespace, src)
 }
 
-// operatorTooOld reports whether minVersion (a bundle's kestrelMinVersion)
+// operatorTooOld reports whether minVersion (a bundle's gameplaneMinVersion)
 // is newer than this operator. It is conservative: an empty requirement, a
 // "dev"/empty operator build, or either value failing to parse as semver all
 // skip the gate so local and pre-release clusters keep working.

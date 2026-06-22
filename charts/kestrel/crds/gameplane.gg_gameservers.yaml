@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: gameservers.kestrel.gg
+  name: gameservers.gameplane.gg
 spec:
-  group: kestrel.gg
+  group: gameplane.gg
   names:
     kind: GameServer
     listKind: GameServerList

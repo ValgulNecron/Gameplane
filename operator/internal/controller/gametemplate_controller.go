@@ -18,8 +18,8 @@ type GameTemplateReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gametemplates,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gametemplates/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates/status,verbs=get;update;patch
 
 func (r *GameTemplateReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var tmpl kestrelv1alpha1.GameTemplate

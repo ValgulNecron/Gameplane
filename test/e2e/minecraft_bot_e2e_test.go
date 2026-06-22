@@ -48,7 +48,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 	// ONLINE_MODE=FALSE lets an unauthenticated headless bot complete a login.
 	tmplName := "e2e-minecraft"
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{
@@ -99,7 +99,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 
 	gsName := "e2e-mc-bot"
 	gs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec": map[string]any{

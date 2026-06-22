@@ -391,7 +391,7 @@ func TestBackup_QuiesceAnnotationSetBeforeJob(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-q")
-		if _, ok := got.Annotations["backup.kestrel.gg/quiesced-at"]; !ok {
+		if _, ok := got.Annotations["backup.gameplane.gg/quiesced-at"]; !ok {
 			return false, "quiesced-at annotation missing"
 		}
 		if fa.quiesceCount() == 0 {
@@ -417,7 +417,7 @@ func TestBackup_QuiesceAnnotationSetBeforeJob(t *testing.T) {
 			return false, "agent.Unquiesce never called"
 		}
 		got := getBackup(t, ns, "smp-q")
-		if _, ok := got.Annotations["backup.kestrel.gg/unquiesced-at"]; !ok {
+		if _, ok := got.Annotations["backup.gameplane.gg/unquiesced-at"]; !ok {
 			return false, "unquiesced-at annotation missing"
 		}
 		return true, ""

@@ -32,7 +32,7 @@ func TestModuleSourceUpload(t *testing.T) {
 	// 1. The upload-type source (the chart also ships one named
 	// "uploads"; this test brings its own to stay self-contained).
 	src := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": sourceName},
 		"spec": map[string]any{
@@ -55,16 +55,16 @@ func TestModuleSourceUpload(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cmName,
 			Namespace: ns,
-			Labels:    map[string]string{"kestrel.gg/module-upload": "true"},
+			Labels:    map[string]string{"gameplane.gg/module-upload": "true"},
 		},
 		BinaryData: map[string][]byte{
-			"module.yaml": []byte("apiVersion: kestrel.gg/module/v1\n" +
+			"module.yaml": []byte("apiVersion: gameplane.gg/module/v1\n" +
 				"name: " + moduleName + "\n" +
 				"displayName: E2E Upload Game\n" +
 				"version: 0.1.0\n" +
 				"game: busybox\n" +
 				"summary: upload e2e fixture\n"),
-			"template.yaml": []byte("apiVersion: kestrel.gg/v1alpha1\n" +
+			"template.yaml": []byte("apiVersion: gameplane.gg/v1alpha1\n" +
 				"kind: GameTemplate\n" +
 				"spec:\n" +
 				"  displayName: E2E Upload Game\n" +
@@ -115,7 +115,7 @@ func TestModuleSourceUpload(t *testing.T) {
 	// 4. Install it and confirm the GameTemplate materializes with the
 	// bundle's spec.
 	mod := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": moduleName},
 		"spec": map[string]any{
@@ -156,10 +156,10 @@ func TestModuleSourceUpload(t *testing.T) {
 		t.Errorf("template.spec.image=%q want busybox:1.36", image)
 	}
 	labels := tmpl.GetLabels()
-	if labels["kestrel.gg/managed-by"] != "Module" {
-		t.Errorf("template missing managed-by=Module label, got %q", labels["kestrel.gg/managed-by"])
+	if labels["gameplane.gg/managed-by"] != "Module" {
+		t.Errorf("template missing managed-by=Module label, got %q", labels["gameplane.gg/managed-by"])
 	}
-	digest := tmpl.GetAnnotations()["kestrel.gg/module-digest"]
+	digest := tmpl.GetAnnotations()["gameplane.gg/module-digest"]
 	if digest == "" {
 		t.Error("template missing module-digest annotation")
 	}

@@ -11,21 +11,21 @@ metadata:
     app.kubernetes.io/component: e2e-fixture
 data:
   module.yaml: |
-    apiVersion: kestrel.gg/module/v1
+    apiVersion: gameplane.gg/module/v1
     name: e2e-test-game
     displayName: E2E Test Game
     version: 0.1.0
     game: e2e-test-game
     summary: Tiny test module for e2e tests
     license: MIT
-    kestrelMinVersion: 0.1.0
+    gameplaneMinVersion: 0.1.0
   template.yaml: |
-    apiVersion: kestrel.gg/v1alpha1
+    apiVersion: gameplane.gg/v1alpha1
     kind: GameTemplate
     metadata:
       name: e2e-test-game
       labels:
-        kestrel.gg/module: e2e-test-game
+        gameplane.gg/module: e2e-test-game
     spec:
       displayName: E2E Test Game
       game: e2e-test-game

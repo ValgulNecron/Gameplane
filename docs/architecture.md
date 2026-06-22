@@ -104,7 +104,7 @@ can be loaded from anywhere:
   (auto-discovered module dirs at a ref), `http` (a tar.gz/zip
   archive), `local` (a directory mounted into the operator —
   `--module-local-root`, Helm `operator.localModules`), or `upload`
-  (ConfigMaps labeled `kestrel.gg/module-upload=true` in the operator
+  (ConfigMaps labeled `gameplane.gg/module-upload=true` in the operator
   namespace, written by the dashboard's upload endpoint or applied by
   hand).
 - The **ModuleSource controller** indexes each source through a
@@ -118,7 +118,7 @@ can be loaded from anywhere:
   (moving git branch, re-uploaded ConfigMap). A finalizer blocks
   uninstall while GameServers reference the template.
 - Templates can also be `kubectl apply`'d directly — module-managed
-  ones are distinguished by the `kestrel.gg/managed-by=Module` label.
+  ones are distinguished by the `gameplane.gg/managed-by=Module` label.
 - `template.yaml#spec.capabilities` declares per-game console commands
   (player moderation, backup quiesce); the operator serializes it onto
   the agent sidecar (`KESTREL_CAPABILITIES`), which interprets the

@@ -248,7 +248,7 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 		paths=./... \
 		output:crd:artifacts:config=config/crd \
 		output:rbac:artifacts:config=config/rbac
-	cp operator/config/crd/kestrel.gg_*.yaml charts/kestrel/crds/
+	cp operator/config/crd/gameplane.gg_*.yaml charts/kestrel/crds/
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-push dev-install

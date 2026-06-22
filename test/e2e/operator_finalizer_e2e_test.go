@@ -13,7 +13,7 @@ import (
 )
 
 // TestModule_FinalizerBlocksWhileTemplateInUse: the Module reconciler
-// holds the kestrel.gg/module-finalizer while any GameServer references
+// holds the gameplane.gg/module-finalizer while any GameServer references
 // the materialized GameTemplate. Deleting the Module under those
 // conditions sets metadata.deletionTimestamp but the resource lingers
 // (status.phase=Failed with an "InUse" reason) until the GameServer is
@@ -47,7 +47,7 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 	)
 
 	src := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": sourceName},
 		"spec": map[string]any{
@@ -70,7 +70,7 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 	})
 
 	mod := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": moduleCR},
 		"spec": map[string]any{
@@ -135,13 +135,13 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 		fins := got.GetFinalizers()
 		hasOurs := false
 		for _, f := range fins {
-			if f == "kestrel.gg/module-finalizer" {
+			if f == "gameplane.gg/module-finalizer" {
 				hasOurs = true
 				break
 			}
 		}
 		if !hasOurs {
-			t.Fatalf("module mid-delete missing kestrel.gg/module-finalizer (finalizers=%v)", fins)
+			t.Fatalf("module mid-delete missing gameplane.gg/module-finalizer (finalizers=%v)", fins)
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -185,7 +185,7 @@ func TestGameServer_CascadingDelete(t *testing.T) {
 	// but the CR shape exists in the namespace, which is enough for the
 	// "survives GameServer delete" assertion.
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": bkName, "namespace": ns},
 		"spec": map[string]any{

@@ -839,7 +839,7 @@ func TestGameServer_ConfigMaterializesAsEnv(t *testing.T) {
 				return false, "env " + k + " = " + got[k] + ", want " + v
 			}
 		}
-		if ss.Spec.Template.Annotations["kestrel.gg/config-hash"] == "" {
+		if ss.Spec.Template.Annotations["gameplane.gg/config-hash"] == "" {
 			return false, "config-hash annotation missing"
 		}
 		return true, ""
@@ -1055,7 +1055,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 				}
 			}
 		}
-		firstHash = ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		firstHash = ss.Spec.Template.Annotations["gameplane.gg/config-hash"]
 		if firstHash == "" {
 			return false, "config-hash annotation missing"
 		}
@@ -1087,7 +1087,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, "statefulset: " + err.Error()
 		}
-		if ss.Spec.Template.Annotations["kestrel.gg/config-hash"] == firstHash {
+		if ss.Spec.Template.Annotations["gameplane.gg/config-hash"] == firstHash {
 			return false, "config-hash did not roll"
 		}
 		return true, ""
@@ -1124,7 +1124,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 		if poke.Annotations == nil {
 			poke.Annotations = map[string]string{}
 		}
-		poke.Annotations["test.kestrel.gg/poke"] = time.Now().Format(time.RFC3339Nano)
+		poke.Annotations["test.gameplane.gg/poke"] = time.Now().Format(time.RFC3339Nano)
 		_ = k8sClient.Update(context.Background(), poke)
 
 		var sec corev1.Secret
@@ -1223,7 +1223,7 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, err.Error()
 		}
-		firstHash = ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		firstHash = ss.Spec.Template.Annotations["gameplane.gg/config-hash"]
 		return firstHash != "", "config-hash annotation missing"
 	})
 
@@ -1243,7 +1243,7 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, err.Error()
 		}
-		hash := ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		hash := ss.Spec.Template.Annotations["gameplane.gg/config-hash"]
 		if hash == firstHash {
 			return false, "config-hash unchanged"
 		}

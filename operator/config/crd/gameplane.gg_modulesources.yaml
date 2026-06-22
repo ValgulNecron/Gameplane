@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: modulesources.kestrel.gg
+  name: modulesources.gameplane.gg
 spec:
-  group: kestrel.gg
+  group: gameplane.gg
   names:
     kind: ModuleSource
     listKind: ModuleSourceList

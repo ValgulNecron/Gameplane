@@ -21,7 +21,7 @@ import (
 func seedModuleSource(t *testing.T, name string, modules []map[string]any) {
 	t.Helper()
 	src := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{
@@ -83,7 +83,7 @@ func TestModules_CatalogMergesSourcesAndInstalls(t *testing.T) {
 			context.Background(), modName, metav1.DeleteOptions{})
 	})
 	mod := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": modName},
 		"spec": map[string]any{
@@ -174,13 +174,13 @@ func TestModules_InstallCreatesCR(t *testing.T) {
 func TestModules_TemplateUpdate409sOnManagedTemplate(t *testing.T) {
 	tmplName := uniqueResourceName("guarded")
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata": map[string]any{
 			"name": tmplName,
 			"labels": map[string]any{
-				"kestrel.gg/managed-by":  "Module",
-				"kestrel.gg/module-name": "valheim",
+				"gameplane.gg/managed-by":  "Module",
+				"gameplane.gg/module-name": "valheim",
 			},
 		},
 		"spec": map[string]any{

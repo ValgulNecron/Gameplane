@@ -36,7 +36,7 @@ func TestBackupSchedule_SuspendStopsScheduling(t *testing.T) {
 	// Create the schedule already suspended so we can take a baseline
 	// count of zero before unsuspending.
 	sched := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "BackupSchedule",
 		"metadata":   map[string]any{"name": schedName, "namespace": ns},
 		"spec": map[string]any{
@@ -122,7 +122,7 @@ func TestBackupSchedule_RetentionTrimsPast(t *testing.T) {
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 
 	sched := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "BackupSchedule",
 		"metadata":   map[string]any{"name": schedName, "namespace": ns},
 		"spec": map[string]any{
@@ -202,7 +202,7 @@ func TestBackupSchedule_ConcurrencyForbid(t *testing.T) {
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 
 	sched := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "BackupSchedule",
 		"metadata":   map[string]any{"name": schedName, "namespace": ns},
 		"spec": map[string]any{

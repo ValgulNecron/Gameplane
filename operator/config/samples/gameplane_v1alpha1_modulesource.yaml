@@ -2,7 +2,7 @@
 # the Helm chart already creates a ModuleSource named "default" (see
 # charts/kestrel/templates/modulesource.yaml) and applying this sample
 # alongside the chart should not silently mutate that managed object.
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: ModuleSource
 metadata:
   name: example-source

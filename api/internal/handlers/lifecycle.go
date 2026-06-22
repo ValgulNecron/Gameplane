@@ -21,7 +21,7 @@ import (
 // wipeRequestedAnnotation matches the operator's
 // controller.WipeRequestedAnnotation (a different, internal package, so the
 // string is duplicated here deliberately).
-const wipeRequestedAnnotation = "kestrel.gg/wipe-data-requested"
+const wipeRequestedAnnotation = "gameplane.gg/wipe-data-requested"
 
 // MountLifecycle wires start/stop/restart/clone verbs on GameServers.
 //

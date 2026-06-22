@@ -10,12 +10,12 @@
 # Cluster-scoped; apply once per cluster:
 #     kubectl apply -f modules/terraria/template.yaml
 
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: GameTemplate
 metadata:
   name: terraria
   labels:
-    kestrel.gg/module: terraria
+    gameplane.gg/module: terraria
 spec:
   displayName: Terraria
   game: terraria

@@ -50,7 +50,7 @@ func TestWrite_Classification(t *testing.T) {
 		{"already exists", apierrors.NewAlreadyExists(gr, "n"), http.StatusConflict},
 		{"forbidden", apierrors.NewForbidden(gr, "n", errors.New("rbac")), http.StatusForbidden},
 		{"unauthorized", apierrors.NewUnauthorized("nope"), http.StatusUnauthorized},
-		{"invalid", apierrors.NewInvalid(schema.GroupKind{Group: "kestrel.gg", Kind: "X"}, "n", nil), http.StatusUnprocessableEntity},
+		{"invalid", apierrors.NewInvalid(schema.GroupKind{Group: "gameplane.gg", Kind: "X"}, "n", nil), http.StatusUnprocessableEntity},
 		{"bad request", apierrors.NewBadRequest("nope"), http.StatusBadRequest},
 		{"empty body (io.EOF)", io.EOF, http.StatusBadRequest},
 		{"unknown", errors.New("mystery"), http.StatusInternalServerError},

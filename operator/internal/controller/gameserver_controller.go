@@ -60,7 +60,7 @@ const (
 	// stopRequestedAtAnnotation records (RFC3339) when the operator issued the
 	// in-game stop sequence, so the soft-stop wait survives reconciles and the
 	// command is issued only once.
-	stopRequestedAtAnnotation = "gameserver.kestrel.gg/stop-requested-at"
+	stopRequestedAtAnnotation = "gameserver.gameplane.gg/stop-requested-at"
 
 	// defaultStopGracePeriod bounds the soft-stop wait when the GameServer
 	// leaves spec.stopGracePeriodSeconds unset.
@@ -74,10 +74,10 @@ const (
 // operator/config/rbac/role_namespace.yaml and the Helm chart. This
 // keeps a compromised operator token from reading Secrets cluster-wide.
 //
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
@@ -455,7 +455,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		labels := map[string]string{
 			"app.kubernetes.io/name":     "kestrel-game",
 			"app.kubernetes.io/instance": gs.Name,
-			"kestrel.gg/template":        tmpl.Name,
+			"gameplane.gg/template":        tmpl.Name,
 		}
 		ss.Spec.Replicas = &replicas
 		ss.Spec.ServiceName = gs.Name

@@ -1,5 +1,5 @@
 {{- if .Values.defaultModuleSource.enabled }}
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: ModuleSource
 metadata:
   name: {{ .Values.defaultModuleSource.name | default "default" }}
@@ -22,7 +22,7 @@ spec:
 {{- end }}
 {{- if .Values.uploadModuleSource.enabled }}
 ---
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: ModuleSource
 metadata:
   name: {{ .Values.uploadModuleSource.name | default "uploads" }}

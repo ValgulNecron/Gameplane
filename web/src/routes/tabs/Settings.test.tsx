@@ -121,7 +121,7 @@ describe("SettingsTab", () => {
           metadata: {
             name: "mc-survival",
             resourceVersion: "200",
-            annotations: { "kestrel.gg/managed-by-operator": "true" },
+            annotations: { "gameplane.gg/managed-by-operator": "true" },
           },
           spec: { templateRef: { name: "minecraft-java" } },
           status: { phase: "Running" },
@@ -148,9 +148,9 @@ describe("SettingsTab", () => {
     // Latest resourceVersion preserved.
     expect(body.metadata.resourceVersion).toBe("200");
     // Operator-managed annotation preserved.
-    expect(body.metadata.annotations?.["kestrel.gg/managed-by-operator"]).toBe("true");
+    expect(body.metadata.annotations?.["gameplane.gg/managed-by-operator"]).toBe("true");
     // User-edited annotation applied.
-    expect(body.metadata.annotations?.["kestrel.gg/description"]).toBe("test desc");
+    expect(body.metadata.annotations?.["gameplane.gg/description"]).toBe("test desc");
   });
 
   it("surfaces a reload prompt on 409 conflict", async () => {

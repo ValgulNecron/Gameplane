@@ -28,7 +28,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels: {{- include "kestrel.labels" . | nindent 4 }}
   annotations:
-    kestrel.gg/managed-by: helm
+    gameplane.gg/managed-by: helm
 type: Opaque
 data:
   ca.crt: {{ $caCrt | b64enc }}
@@ -58,7 +58,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels: {{- include "kestrel.labels" . | nindent 4 }}
   annotations:
-    kestrel.gg/managed-by: helm
+    gameplane.gg/managed-by: helm
 type: kubernetes.io/tls
 data:
   tls.crt: {{ $clientCrt | b64enc }}

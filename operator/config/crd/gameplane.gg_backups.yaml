@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: backups.kestrel.gg
+  name: backups.gameplane.gg
 spec:
-  group: kestrel.gg
+  group: gameplane.gg
   names:
     kind: Backup
     listKind: BackupList
