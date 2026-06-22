@@ -4,7 +4,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 
 **Project**: Kestrel — a Kubernetes-native game server control panel. Open-source alternative to CubeCoders AMP, built on K8s primitives so the same operational model works on a single-node k3s homelab and a multi-node production cluster.
 
-> **Status:** pre-alpha. CRDs, operator, and dashboard are under active development. Not production-ready.
+> **Status:** beta (`v0.2.0-beta.1`). CRDs, operator, API, agent, and dashboard are feature-complete for the v1 scope and stabilized for external testing; not yet recommended for unattended production. See README "Beta status & known limitations".
 
 > **AI tooling provenance:** the project was started with Claude Code on Claude Opus 4.8 (`claude-opus-4-8`); since June 2026 development continues on Claude Fable 5 (`claude-fable-5`). This is informational only — nothing in this file is model-specific.
 

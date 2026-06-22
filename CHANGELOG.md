@@ -1,0 +1,55 @@
+# Changelog
+
+All notable changes to Kestrel are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
+to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it
+reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
+
+## [Unreleased]
+
+## [0.2.0-beta.1] — 2026-06-22
+
+First **beta**. The control plane (operator, API, agent) and the dashboard are
+feature-complete for the v1 scope and have been stabilized for external
+testing. Not yet recommended for unattended production workloads — see
+[Beta status & known limitations](README.md#beta-status--known-limitations).
+
+### Highlights (the beta feature surface)
+
+- **GameServers** — create / start / stop / restart / clone / wipe-data, with a
+  guided 4-step creation wizard (template → configure → network → review),
+  per-server resource limits, node placement, env vars, and a CIDR ingress
+  allow-list. Provisioning sub-status surfaces image pull / install / waiting-
+  for-agent / crash-loop reasons.
+- **Console, logs, files, players** — RCON/PTY console with a command bar and
+  resilient reconnect; pod + game-file log views with level filtering; a Monaco
+  file editor; and player moderation (kick/ban/unban) plus whitelist management.
+- **Backups & restore** — on-demand and scheduled backups (restic-snapshot and
+  CSI volume-snapshot strategies), retention policies, and restore-as-new-server.
+- **Modules** — game templates distributed as signed OCI bundles, an in-app
+  registry browser (Modrinth / CurseForge / Hangar) for mods and modpacks, and
+  SSRF-guarded fetching with optional cosign signature verification.
+- **RBAC & audit** — admin / operator / viewer roles with a permission catalog,
+  local (argon2id) and OIDC login, and a human-readable audit log.
+- **Cluster** — node overview with cordon / drain and kubeconfig download.
+
+### Fixed (stabilization for beta)
+
+- **operator:** surface `BackupSchedule` retention-trim failures as a
+  `RetentionTrimmed` status condition instead of swallowing them, and persist
+  status changes even on dormant/suspended reconciles.
+- **operator:** clear a `Module`'s `Pulling` condition on failure so a failed
+  module no longer shows "Pulling" and "Failed" at once.
+- **api:** `:restart` now reliably recycles the pod — it waits for the
+  StatefulSet to drain before resuming, instead of racing the operator's
+  reconcile (which left the pod untouched under load).
+- **web:** fixed a login password-field accessibility bug (a `<label>` wrapping
+  the "Forgot?" button mis-bound the field), a registry browser that collapsed
+  expanded results on every search keystroke, and a stale audit-log assertion.
+- **web:** added the design's "Audit log" quick-link to the Users header.
+- **ci/test:** made the e2e `kubectl port-forward` helper resilient to a loaded
+  runner (retry + longer readiness window), eliminating a cascade of flaky
+  API e2e failures.
+
+[Unreleased]: https://github.com/kestrel-gg/kestrel/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/kestrel-gg/kestrel/releases/tag/v0.2.0-beta.1
