@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
 )
 
 // minecraftQuiesceSpec declares what the hardcoded minecraftQuiescer

@@ -1,0 +1,29 @@
+{{- if .Values.serviceMonitors.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gameplane-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gameplane.labels" . | nindent 4 }}
+    {{- toYaml .Values.serviceMonitors.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: gameplane-operator }
+  endpoints:
+    - { port: metrics, interval: 30s }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gameplane-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gameplane.labels" . | nindent 4 }}
+    {{- toYaml .Values.serviceMonitors.labels | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: gameplane-api }
+  endpoints:
+    - { port: http, interval: 30s, path: /metrics }
+{{- end }}

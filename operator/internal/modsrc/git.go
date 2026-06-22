@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kestrel-gg/kestrel/netguard"
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/netguard"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // registerGuardedGitHTTP installs an SSRF-guarded http client as go-git's
@@ -89,7 +89,7 @@ var gitClone = func(ctx context.Context, url, ref string, auth transport.AuthMet
 // tracks one ref; every module is stamped with the resolved commit as
 // its digest ("git:<sha>") so content drift on a moving branch is
 // detected even when module.yaml versions don't change.
-func newGit(ctx context.Context, c client.Client, namespace string, spec *kestrelv1alpha1.GitSourceSpec, allow []string) (Fetcher, error) {
+func newGit(ctx context.Context, c client.Client, namespace string, spec *gameplanev1alpha1.GitSourceSpec, allow []string) (Fetcher, error) {
 	if err := checkGitURL(spec.URL); err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func gitAuth(ctx context.Context, c client.Client, namespace string, secretRef *
 
 	if token, ok := sec.Data["token"]; ok && len(token) > 0 {
 		// GitHub/GitLab accept PATs as the password with any username.
-		return &githttp.BasicAuth{Username: "kestrel", Password: string(token)}, nil
+		return &githttp.BasicAuth{Username: "gameplane", Password: string(token)}, nil
 	}
 	user, uok := sec.Data["username"]
 	pass, pok := sec.Data["password"]
@@ -219,7 +219,7 @@ func gitAuth(ctx context.Context, c client.Client, namespace string, secretRef *
 // x/crypto's parser only reads files, so the bytes detour through a
 // temp file that is removed as soon as the callback is constructed.
 func knownHostsCallback(data []byte) (gossh.HostKeyCallback, error) {
-	f, err := os.CreateTemp("", "kestrel-known-hosts-*")
+	f, err := os.CreateTemp("", "gameplane-known-hosts-*")
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@
 //
 // The body is a tar.gz or zip holding one module directory (module.yaml
 // + template.yaml [+ README.md, icon.png]). After validation the files
-// are written into a ConfigMap labeled kestrel.gg/module-upload=true in
+// are written into a ConfigMap labeled gameplane.gg/module-upload=true in
 // the operator namespace — the exact shape an upload-type ModuleSource
 // indexes, and the same thing `kubectl apply` of such a ConfigMap
 // produces, so the operator stays authoritative. ?dryRun=true validates
@@ -32,8 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // Bundle files are a couple of YAML docs and an icon; the ConfigMap
@@ -43,8 +43,8 @@ const maxUploadBundleBytes = 900 << 10
 // labelModuleUpload mirrors the operator's v1alpha1.LabelModuleUpload
 // (the api module doesn't depend on the operator module).
 const (
-	labelModuleUpload     = "kestrel.gg/module-upload"
-	labelUploadModuleName = "kestrel.gg/module-name"
+	labelModuleUpload     = "gameplane.gg/module-upload"
+	labelUploadModuleName = "gameplane.gg/module-name"
 )
 
 // bundleFileNames are the canonical files copied into the ConfigMap;

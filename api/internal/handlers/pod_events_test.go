@@ -12,11 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // scope.Resolve defaults to this namespace when no ?namespace is given.
-const testNS = "kestrel-games"
+const testNS = "gameplane-games"
 
 func newEvent(name, kind, objName, evType, reason, msg, component string, t time.Time) *corev1.Event {
 	return &corev1.Event{

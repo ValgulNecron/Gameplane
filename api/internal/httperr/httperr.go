@@ -14,7 +14,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // WriteCode writes a specific HTTP status with the supplied (safe)

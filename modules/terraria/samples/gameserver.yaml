@@ -1,13 +1,13 @@
 # Example GameServer for the terraria template.
 #
-# Apply in any namespace where Kestrel watches:
-#     kubectl -n kestrel-games apply -f samples/gameserver.yaml
+# Apply in any namespace where Gameplane watches:
+#     kubectl -n gameplane-games apply -f samples/gameserver.yaml
 
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: GameServer
 metadata:
   name: terraria-01
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   templateRef:
     name: terraria
@@ -17,11 +17,11 @@ spec:
   version: tmodloader-latest
 
   config:
-    WORLDNAME: "Kestrel"
+    WORLDNAME: "Gameplane"
     AUTOCREATE: "2"
     DIFFICULTY: "1"
     MAXPLAYERS: "8"
-    MOTD: "Welcome to a Kestrel-hosted Terraria server"
+    MOTD: "Welcome to a Gameplane-hosted Terraria server"
     # MODPACK: my-modpack   # set after installing a modpack via the Mods tab
 
   networking:

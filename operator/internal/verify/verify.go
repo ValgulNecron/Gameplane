@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // cosignPubKey is the Secret data key holding a keyed-verification public key.
@@ -43,7 +43,7 @@ func (Nop) Verify(context.Context, string, string) error { return nil }
 // Build constructs the Verifier for a source from spec.verify, returning Nop
 // when verification is not configured. The public key and registry pull
 // secret are resolved from namespace.
-func Build(ctx context.Context, c client.Client, namespace string, src *kestrelv1alpha1.ModuleSource) (Verifier, error) {
+func Build(ctx context.Context, c client.Client, namespace string, src *gameplanev1alpha1.ModuleSource) (Verifier, error) {
 	if src.Spec.Verify == nil {
 		return Nop{}, nil
 	}

@@ -11,12 +11,12 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 const (
-	oidcStateCookie = "kestrel_oidc_state"
-	oidcNonceCookie = "kestrel_oidc_nonce"
+	oidcStateCookie = "gameplane_oidc_state"
+	oidcNonceCookie = "gameplane_oidc_nonce"
 )
 
 type OIDC struct {

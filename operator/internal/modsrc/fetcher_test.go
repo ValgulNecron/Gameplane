@@ -6,19 +6,19 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestForSource_RequiresTypedSpec(t *testing.T) {
 	c := fake.NewClientBuilder().Build()
 	for _, typ := range []string{
-		kestrelv1alpha1.ModuleSourceTypeOCI,
-		kestrelv1alpha1.ModuleSourceTypeGit,
-		kestrelv1alpha1.ModuleSourceTypeLocal,
-		kestrelv1alpha1.ModuleSourceTypeHTTP,
+		gameplanev1alpha1.ModuleSourceTypeOCI,
+		gameplanev1alpha1.ModuleSourceTypeGit,
+		gameplanev1alpha1.ModuleSourceTypeLocal,
+		gameplanev1alpha1.ModuleSourceTypeHTTP,
 	} {
 		t.Run(typ, func(t *testing.T) {
-			src := &kestrelv1alpha1.ModuleSource{Spec: kestrelv1alpha1.ModuleSourceSpec{Type: typ}}
+			src := &gameplanev1alpha1.ModuleSource{Spec: gameplanev1alpha1.ModuleSourceSpec{Type: typ}}
 			if _, err := ForSource(context.Background(), c, "ns", src, Options{}); err == nil {
 				t.Fatalf("expected error for %s type with no matching spec", typ)
 			}
@@ -28,7 +28,7 @@ func TestForSource_RequiresTypedSpec(t *testing.T) {
 
 func TestForSource_UnknownType(t *testing.T) {
 	c := fake.NewClientBuilder().Build()
-	src := &kestrelv1alpha1.ModuleSource{Spec: kestrelv1alpha1.ModuleSourceSpec{Type: "bogus"}}
+	src := &gameplanev1alpha1.ModuleSource{Spec: gameplanev1alpha1.ModuleSourceSpec{Type: "bogus"}}
 	if _, err := ForSource(context.Background(), c, "ns", src, Options{}); err == nil {
 		t.Fatal("expected error for an unknown source type")
 	}
@@ -38,11 +38,11 @@ func TestForSource_OCIAndUpload(t *testing.T) {
 	c := fake.NewClientBuilder().Build()
 
 	// OCI with an allow-list still builds; the list filters module names.
-	ociSrc := &kestrelv1alpha1.ModuleSource{Spec: kestrelv1alpha1.ModuleSourceSpec{
-		Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-		OCI: &kestrelv1alpha1.OCISourceSpec{
+	ociSrc := &gameplanev1alpha1.ModuleSource{Spec: gameplanev1alpha1.ModuleSourceSpec{
+		Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+		OCI: &gameplanev1alpha1.OCISourceSpec{
 			URL:     "ghcr.io/test/modules",
-			Modules: []kestrelv1alpha1.ModuleRef{{Name: "minecraft"}, {Name: "valheim"}},
+			Modules: []gameplanev1alpha1.ModuleRef{{Name: "minecraft"}, {Name: "valheim"}},
 		},
 		Allow: []string{"minecraft"},
 	}}
@@ -51,8 +51,8 @@ func TestForSource_OCIAndUpload(t *testing.T) {
 	}
 
 	// Upload sources need no typed spec.
-	upSrc := &kestrelv1alpha1.ModuleSource{Spec: kestrelv1alpha1.ModuleSourceSpec{
-		Type: kestrelv1alpha1.ModuleSourceTypeUpload,
+	upSrc := &gameplanev1alpha1.ModuleSource{Spec: gameplanev1alpha1.ModuleSourceSpec{
+		Type: gameplanev1alpha1.ModuleSourceTypeUpload,
 	}}
 	if _, err := ForSource(context.Background(), c, "ns", upSrc, Options{}); err != nil {
 		t.Fatalf("upload ForSource: %v", err)

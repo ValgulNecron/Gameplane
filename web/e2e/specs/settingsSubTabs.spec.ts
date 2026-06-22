@@ -14,9 +14,9 @@ async function loginIfNeeded(page: Page): Promise<void> {
   if (new URL(page.url()).pathname.startsWith("/login")) {
     const login = new LoginPage(page);
     const username =
-      process.env.ADMIN_USERNAME ?? process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
     const password =
-      process.env.ADMIN_PASSWORD ?? process.env.KESTREL_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
     await login.login(username, password);
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
   }
@@ -38,7 +38,7 @@ function isExpectedDevWarning(text: string): boolean {
 
 test.describe("server settings sub-tabs", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET === "live",
+    process.env.GAMEPLANE_E2E_TARGET === "live",
     "settings sub-tabs against live data depend on a running server; mock mode is the deterministic path",
   );
 

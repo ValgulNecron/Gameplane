@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { openEventStream, queryKeyForKind, type KestrelEvent } from "./sse";
+import { openEventStream, queryKeyForKind, type GameplaneEvent } from "./sse";
 
 describe("queryKeyForKind", () => {
   it("maps known CRD kinds to query keys", () => {
@@ -59,7 +59,7 @@ describe("openEventStream with EventSource", () => {
     vi.useFakeTimers();
     vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
 
-    const events: KestrelEvent[] = [];
+    const events: GameplaneEvent[] = [];
     let errored = 0;
     const dispose = openEventStream({
       onEvent: (e) => events.push(e),

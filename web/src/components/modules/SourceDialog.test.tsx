@@ -192,7 +192,7 @@ describe("SourceDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await screen.findByText(/url is required/);
 
-    fireEvent.change(screen.getByPlaceholderText("ghcr.io/kestrel-gg/modules"), {
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
       target: { value: "ghcr.io/x" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
@@ -203,7 +203,7 @@ describe("SourceDialog", () => {
   it("submits the typed payload", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upstream" } });
-    fireEvent.change(screen.getByPlaceholderText("ghcr.io/kestrel-gg/modules"), {
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
       target: { value: "ghcr.io/x" },
     });
     fireEvent.change(screen.getByPlaceholderText("minecraft-java, valheim"), {
@@ -223,7 +223,7 @@ describe("SourceDialog", () => {
   it("reveals keyless verify fields and validates them", async () => {
     const onConfirm = renderDialog();
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upstream" } });
-    fireEvent.change(screen.getByPlaceholderText("ghcr.io/kestrel-gg/modules"), {
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
       target: { value: "ghcr.io/x" },
     });
     fireEvent.change(screen.getByPlaceholderText("minecraft-java, valheim"), {

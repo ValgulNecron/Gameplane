@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestBackup_CreatesJobWithExpectedSpec verifies the BackupReconciler
@@ -54,7 +54,7 @@ func TestBackup_CreatesJobWithExpectedSpec(t *testing.T) {
 	if !strings.HasPrefix(c.Image, "restic/restic:") {
 		t.Errorf("image = %q, want restic/restic:*", c.Image)
 	}
-	if got, want := c.Args, []string{"backup", "/data", "--json", "--tag", "kestrel"}; !equalStrings(got, want) {
+	if got, want := c.Args, []string{"backup", "/data", "--json", "--tag", "gameplane"}; !equalStrings(got, want) {
 		t.Errorf("args = %v, want %v", got, want)
 	}
 
@@ -185,7 +185,7 @@ func TestBackup_MirrorsJobActiveToRunning(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		b := getBackup(t, ns, "smp-manual")
-		if b.Status.Phase == kestrelv1alpha1.BackupPhaseRunning && b.Status.StartTime != nil {
+		if b.Status.Phase == gameplanev1alpha1.BackupPhaseRunning && b.Status.StartTime != nil {
 			return true, ""
 		}
 		return false, describeBackupStatus(b)
@@ -220,7 +220,7 @@ func TestBackup_MirrorsJobSucceededToSucceeded(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		b := getBackup(t, ns, "smp-manual")
-		if b.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded {
+		if b.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 			return false, describeBackupStatus(b)
 		}
 		if b.Status.CompletionTime == nil {
@@ -268,7 +268,7 @@ func TestBackup_MirrorsJobFailedToFailed(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		b := getBackup(t, ns, "smp-manual")
-		if b.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+		if b.Status.Phase != gameplanev1alpha1.BackupPhaseFailed {
 			return false, describeBackupStatus(b)
 		}
 		if b.Status.Message != "backup job reported Failed" {
@@ -308,7 +308,7 @@ func TestBackup_StableInTerminalPhase(t *testing.T) {
 	})
 	eventually(t, func() (bool, string) {
 		b := getBackup(t, ns, "smp-manual")
-		return b.Status.Phase == kestrelv1alpha1.BackupPhaseSucceeded, describeBackupStatus(b)
+		return b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded, describeBackupStatus(b)
 	})
 
 	// After a brief settling period, capture ResourceVersion. A correct
@@ -319,7 +319,7 @@ func TestBackup_StableInTerminalPhase(t *testing.T) {
 
 	consistently(t, 2*time.Second, func() (bool, string) {
 		b := getBackup(t, ns, "smp-manual")
-		if b.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded {
+		if b.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 			return false, "phase regressed to " + string(b.Status.Phase)
 		}
 		if b.ResourceVersion != rv {
@@ -342,7 +342,7 @@ func equalStrings(a, b []string) bool {
 }
 
 // TestBackup_PassesTagsToRestic asserts spec.tags become `--tag` args
-// on the restic container, in order, after the default "kestrel" tag.
+// on the restic container, in order, after the default "gameplane" tag.
 func TestBackup_PassesTagsToRestic(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withBackupReconciler())
@@ -362,7 +362,7 @@ func TestBackup_PassesTagsToRestic(t *testing.T) {
 		if !ok {
 			return false, "job not yet created"
 		}
-		want := []string{"backup", "/data", "--json", "--tag", "kestrel", "--tag", "nightly", "--tag", "preupgrade"}
+		want := []string{"backup", "/data", "--json", "--tag", "gameplane", "--tag", "nightly", "--tag", "preupgrade"}
 		if !equalStrings(j.Spec.Template.Spec.Containers[0].Args, want) {
 			return false, "args = " + strings.Join(j.Spec.Template.Spec.Containers[0].Args, " ")
 		}
@@ -391,7 +391,7 @@ func TestBackup_QuiesceAnnotationSetBeforeJob(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-q")
-		if _, ok := got.Annotations["backup.kestrel.gg/quiesced-at"]; !ok {
+		if _, ok := got.Annotations["backup.gameplane.gg/quiesced-at"]; !ok {
 			return false, "quiesced-at annotation missing"
 		}
 		if fa.quiesceCount() == 0 {
@@ -417,7 +417,7 @@ func TestBackup_QuiesceAnnotationSetBeforeJob(t *testing.T) {
 			return false, "agent.Unquiesce never called"
 		}
 		got := getBackup(t, ns, "smp-q")
-		if _, ok := got.Annotations["backup.kestrel.gg/unquiesced-at"]; !ok {
+		if _, ok := got.Annotations["backup.gameplane.gg/unquiesced-at"]; !ok {
 			return false, "unquiesced-at annotation missing"
 		}
 		return true, ""
@@ -453,7 +453,7 @@ func TestBackup_PopulatesSnapshotIDFromLogs(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-sum")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 			return false, describeBackupStatus(got)
 		}
 		if got.Status.SnapshotID != "deadbeef" {
@@ -482,7 +482,7 @@ func TestBackup_FailsFastOnMissingGameServer(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-orphan")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseFailed {
 			return false, "phase=" + string(got.Status.Phase)
 		}
 		if got.Status.Message == "" {
@@ -510,7 +510,7 @@ func TestBackup_FailsFastOnMissingRepoSecret(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-nosecret")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseFailed {
 			return false, "phase=" + string(got.Status.Phase)
 		}
 		if got.Status.Message == "" {
@@ -547,7 +547,7 @@ func TestBackup_FailsFastOnSecretMissingKeys(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getBackup(t, ns, "smp-badkey")
-		if got.Status.Phase != kestrelv1alpha1.BackupPhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.BackupPhaseFailed {
 			return false, "phase=" + string(got.Status.Phase)
 		}
 		if !strings.Contains(got.Status.Message, "repo") {

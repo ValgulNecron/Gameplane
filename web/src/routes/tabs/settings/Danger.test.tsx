@@ -62,7 +62,7 @@ describe("DangerSection", () => {
     server.use(
       http.get("/servers/alpha", () =>
         HttpResponse.json({
-          metadata: { name: "alpha", annotations: { "kestrel.gg/owner": "root" } },
+          metadata: { name: "alpha", annotations: { "gameplane.gg/owner": "root" } },
           spec: { templateRef: { name: "mc" } },
         }),
       ),

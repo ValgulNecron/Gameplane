@@ -1,6 +1,6 @@
 // Backup destinations are restic repositories the Backup/BackupSchedule
 // CRDs reference by Secret name. They're modelled as plain Kubernetes
-// Secrets labeled `kestrel.gg/backup-destination=true` rather than a
+// Secrets labeled `gameplane.gg/backup-destination=true` rather than a
 // dedicated CRD — the on-disk shape is small (URL + password) and the
 // generic CRD CRUD path doesn't cover core resources.
 //
@@ -24,15 +24,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
-// destinationLabel marks a Secret as a Kestrel backup destination. The
+// destinationLabel marks a Secret as a Gameplane backup destination. The
 // agent and operator never read this label — it's purely a discovery
 // hint for the API.
-const destinationLabel = "kestrel.gg/backup-destination"
+const destinationLabel = "gameplane.gg/backup-destination"
 
 // nameRE enforces a conservative DNS-label name. Matches the validation
 // already applied by the operator to GameServer names.
@@ -167,7 +167,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if !isDestination(existing) {
-		httperr.Write(w, req, errors.New("a non-Kestrel secret with that name already exists"))
+		httperr.Write(w, req, errors.New("a non-Gameplane secret with that name already exists"))
 		return
 	}
 	patch := map[string]any{

@@ -1,0 +1,27 @@
+apiVersion: gameplane.gg/v1alpha1
+kind: GameServer
+metadata:
+  name: smp-01
+  namespace: gameplane-games
+spec:
+  templateRef:
+    name: minecraft-java
+  config:
+    TYPE: PAPER
+    VERSION: "1.21.4"
+    DIFFICULTY: normal
+    MAX_PLAYERS: "20"
+  resources:
+    requests:
+      cpu: "1"
+      memory: 3Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  storage:
+    size: 20Gi
+  networking:
+    expose: NodePort
+    portOverrides:
+      - name: game
+        nodePort: 30565

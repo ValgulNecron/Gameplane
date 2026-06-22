@@ -1,6 +1,6 @@
 # Architecture
 
-Kestrel is split across four long-lived components and a short-lived
+Gameplane is split across four long-lived components and a short-lived
 per-pod sidecar.
 
 ```
@@ -47,7 +47,7 @@ SaaS dashboard: session auth, CSRF, per-user RBAC beyond K8s RBAC,
 audit trails.
 
 Keeping them separate lets advanced users bypass the API entirely and
-manage Kestrel with `kubectl apply` — the operator is authoritative.
+manage Gameplane with `kubectl apply` — the operator is authoritative.
 
 ## Data flow examples
 
@@ -76,7 +76,7 @@ manage Kestrel with `kubectl apply` — the operator is authoritative.
 ### Tail logs
 
 1. Dashboard opens WS `/ws/servers/foo/logs`
-2. API verifies session, RBAC → dials `wss://foo-0.foo.kestrel-games:8090/logs/tail` using mTLS
+2. API verifies session, RBAC → dials `wss://foo-0.foo.gameplane-games:8090/logs/tail` using mTLS
 3. Agent tails the game container's log file and streams each line as a text WS frame
 4. API proxies frames back to the browser; xterm.js renders them
 
@@ -104,7 +104,7 @@ can be loaded from anywhere:
   (auto-discovered module dirs at a ref), `http` (a tar.gz/zip
   archive), `local` (a directory mounted into the operator —
   `--module-local-root`, Helm `operator.localModules`), or `upload`
-  (ConfigMaps labeled `kestrel.gg/module-upload=true` in the operator
+  (ConfigMaps labeled `gameplane.gg/module-upload=true` in the operator
   namespace, written by the dashboard's upload endpoint or applied by
   hand).
 - The **ModuleSource controller** indexes each source through a
@@ -118,10 +118,10 @@ can be loaded from anywhere:
   (moving git branch, re-uploaded ConfigMap). A finalizer blocks
   uninstall while GameServers reference the template.
 - Templates can also be `kubectl apply`'d directly — module-managed
-  ones are distinguished by the `kestrel.gg/managed-by=Module` label.
+  ones are distinguished by the `gameplane.gg/managed-by=Module` label.
 - `template.yaml#spec.capabilities` declares per-game console commands
   (player moderation, backup quiesce); the operator serializes it onto
-  the agent sidecar (`KESTREL_CAPABILITIES`), which interprets the
+  the agent sidecar (`GAMEPLANE_CAPABILITIES`), which interprets the
   commands at runtime — new games get full feature support without
   agent code changes.
 
@@ -135,6 +135,6 @@ converge on the same outcome. Format spec: `docs/module-authoring.md`.
 - **Browser → API**: HTTPS, session cookie + CSRF header, OIDC or local login.
 - **API → Agent**: mTLS; client cert signed by operator-managed CA mounted into API pod.
 - **Agent → K8s**: in-pod ServiceAccount, scoped to updating its owning GameServer's status.
-- **Operator → K8s**: cluster-wide CRUD on Kestrel CRDs + workload primitives it manages.
+- **Operator → K8s**: cluster-wide CRUD on Gameplane CRDs + workload primitives it manages.
 
 See `docs/security.md` for the threat model.

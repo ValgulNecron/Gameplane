@@ -13,7 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 func TestDestinations_CreateGetListDelete(t *testing.T) {
@@ -116,7 +116,7 @@ func TestDestinations_PasswordIsRedacted(t *testing.T) {
 	}
 }
 
-// A non-Kestrel Secret (no destinationLabel) is invisible to /backup-destinations.
+// A non-Gameplane Secret (no destinationLabel) is invisible to /backup-destinations.
 // This protects against the route accidentally exposing arbitrary cluster secrets.
 func TestDestinations_HidesUnlabeledSecrets(t *testing.T) {
 	name := uniqueResourceName("foreign")

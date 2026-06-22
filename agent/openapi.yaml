@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
-  title: Kestrel Agent
+  title: Gameplane Agent
   version: 1.0.0
   description: |
-    HTTP API served by the Kestrel agent sidecar inside every game pod.
-    This contract is consumed by the Kestrel API gateway, which proxies
+    HTTP API served by the Gameplane agent sidecar inside every game pod.
+    This contract is consumed by the Gameplane API gateway, which proxies
     authenticated dashboard traffic through to the agent.
 
     Auth: all /files, /logs, /console, /players routes require either
@@ -16,7 +16,7 @@ servers:
   - url: https://{pod}.{namespace}.svc.cluster.local:8090
     variables:
       pod:        { default: "<gameserver-pod-0>" }
-      namespace:  { default: "kestrel-games" }
+      namespace:  { default: "gameplane-games" }
 
 security:
   - mtls: []

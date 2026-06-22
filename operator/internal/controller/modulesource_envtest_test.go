@@ -16,8 +16,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
 )
 
 // fakeOCI is an in-process modsrc.OCIClient used by the ModuleSource
@@ -100,8 +100,8 @@ func (f *fakeOCI) putBundle(ref, version string, a fakeArtifact) {
 
 // fakeOCIFetcher wires the fake transport through the real OCI fetcher
 // so envtests exercise the production index/pull logic.
-func fakeOCIFetcher(fake *fakeOCI) func(context.Context, *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
-	return func(_ context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+func fakeOCIFetcher(fake *fakeOCI) func(context.Context, *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+	return func(_ context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error) {
 		names := make([]string, 0, len(src.Spec.OCI.Modules))
 		for _, m := range src.Spec.OCI.Modules {
 			names = append(names, m.Name)
@@ -126,13 +126,13 @@ func fixtureBundle(name, version, displayName string) fakeArtifact {
 	return fakeArtifact{
 		digest: "sha256:" + name + "-" + version,
 		files: map[string][]byte{
-			modsrc.FileMetadata: []byte("apiVersion: kestrel.gg/module/v1\n" +
+			modsrc.FileMetadata: []byte("apiVersion: gameplane.gg/module/v1\n" +
 				"name: " + name + "\n" +
 				"displayName: " + displayName + "\n" +
 				"version: " + version + "\n" +
 				"game: " + name + "\n" +
 				"summary: " + displayName + " — test fixture\n"),
-			modsrc.FileTemplate: []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\n" +
+			modsrc.FileTemplate: []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\n" +
 				"spec:\n  displayName: " + displayName + "\n  game: " + name +
 				"\n  version: " + version + "\n  image: ghcr.io/test/" + name + ":" + version + "\n"),
 		},
@@ -144,20 +144,20 @@ func fixtureBundle(name, version, displayName string) fakeArtifact {
 func TestModuleSource_IndexesCatalog(t *testing.T) {
 	_ = newNamespace(t) // doesn't matter; ModuleSource is cluster-scoped
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleSourceReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleSourceReconciler(fake))
 
 	// Pre-populate the fake registry with two modules, two versions each.
 	fake.putBundle("local/test/minecraft-java", "1.0.0", fixtureBundle("minecraft-java", "1.0.0", "Minecraft (Java)"))
 	fake.putBundle("local/test/minecraft-java", "1.1.0", fixtureBundle("minecraft-java", "1.1.0", "Minecraft (Java)"))
 	fake.putBundle("local/test/valheim", "0.9.0", fixtureBundle("valheim", "0.9.0", "Valheim"))
 
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("indexed")},
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL: "local/test",
-				Modules: []kestrelv1alpha1.ModuleRef{
+				Modules: []gameplanev1alpha1.ModuleRef{
 					{Name: "minecraft-java"},
 					{Name: "valheim"},
 				},
@@ -188,7 +188,7 @@ func TestModuleSource_IndexesCatalog(t *testing.T) {
 		if vh == nil || vh.LatestVersion != "0.9.0" {
 			return false, fmt.Sprintf("valheim latest = %v", vh)
 		}
-		return conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced),
+		return conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced),
 			"Synced condition not True yet"
 	})
 }
@@ -198,18 +198,18 @@ func TestModuleSource_IndexesCatalog(t *testing.T) {
 func TestModuleSource_KeepsPartialCatalogOnError(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleSourceReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleSourceReconciler(fake))
 
 	fake.putBundle("local/test/good", "1.0.0", fixtureBundle("good", "1.0.0", "Good"))
 	fake.errOn["tags:local/test/broken"] = fmt.Errorf("simulated registry error")
 
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("partial")},
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL:     "local/test",
-				Modules: []kestrelv1alpha1.ModuleRef{{Name: "good"}, {Name: "broken"}},
+				Modules: []gameplanev1alpha1.ModuleRef{{Name: "good"}, {Name: "broken"}},
 			},
 		},
 	}
@@ -242,7 +242,7 @@ func TestModuleSource_LocalDirectory(t *testing.T) {
 	writeLocalModule(t, filepath.Join(root, "bundles", "terraria"), "terraria", "1.4.0")
 
 	opts := modsrc.Options{LocalRoot: root}
-	startMgr(t, "kestrel-system",
+	startMgr(t, "gameplane-system",
 		func(mgr manager.Manager) error {
 			return (&ModuleSourceReconciler{
 				Client:       mgr.GetClient(),
@@ -259,11 +259,11 @@ func TestModuleSource_LocalDirectory(t *testing.T) {
 		},
 	)
 
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("local")},
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type:  kestrelv1alpha1.ModuleSourceTypeLocal,
-			Local: &kestrelv1alpha1.LocalSourceSpec{Path: "bundles"},
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type:  gameplanev1alpha1.ModuleSourceTypeLocal,
+			Local: &gameplanev1alpha1.LocalSourceSpec{Path: "bundles"},
 		},
 	}
 	if err := k8sClient.Create(context.Background(), src); err != nil {
@@ -280,14 +280,14 @@ func TestModuleSource_LocalDirectory(t *testing.T) {
 		if entry.LatestVersion != "1.4.0" || entry.Digest == "" {
 			return false, fmt.Sprintf("entry = %+v", entry)
 		}
-		return conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced),
+		return conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced),
 			"Synced condition not True yet"
 	})
 
 	modName := uniqueName("local-mod")
-	mod := &kestrelv1alpha1.Module{
+	mod := &gameplanev1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: modName},
-		Spec: kestrelv1alpha1.ModuleSpec{
+		Spec: gameplanev1alpha1.ModuleSpec{
 			Source: corev1.LocalObjectReference{Name: src.Name},
 			Name:   "terraria",
 		},
@@ -298,11 +298,11 @@ func TestModuleSource_LocalDirectory(t *testing.T) {
 	deleteCleanup(t, mod)
 
 	eventually(t, func() (bool, string) {
-		var got kestrelv1alpha1.Module
+		var got gameplanev1alpha1.Module
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
 			return false, err.Error()
 		}
-		if got.Status.Phase != kestrelv1alpha1.ModulePhaseReady {
+		if got.Status.Phase != gameplanev1alpha1.ModulePhaseReady {
 			return false, "phase=" + got.Status.Phase + " err=" + got.Status.LastError
 		}
 		if got.Status.AppliedVersion != "1.4.0" || got.Status.AppliedDigest == "" {
@@ -311,7 +311,7 @@ func TestModuleSource_LocalDirectory(t *testing.T) {
 		return true, ""
 	})
 
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err != nil {
 		t.Fatalf("get materialized template: %v", err)
 	}
@@ -344,9 +344,9 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 		},
 	)
 
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("uploads")},
-		Spec:       kestrelv1alpha1.ModuleSourceSpec{Type: kestrelv1alpha1.ModuleSourceTypeUpload},
+		Spec:       gameplanev1alpha1.ModuleSourceSpec{Type: gameplanev1alpha1.ModuleSourceTypeUpload},
 	}
 	if err := k8sClient.Create(context.Background(), src); err != nil {
 		t.Fatalf("create modulesource: %v", err)
@@ -356,7 +356,7 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 	// The source starts healthy but empty.
 	eventually(t, func() (bool, string) {
 		got := getModuleSource(t, src.Name)
-		return conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced),
+		return conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced),
 			"Synced not True yet"
 	})
 
@@ -367,12 +367,12 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cmName,
 			Namespace: ns,
-			Labels:    map[string]string{kestrelv1alpha1.LabelModuleUpload: "true"},
+			Labels:    map[string]string{gameplanev1alpha1.LabelModuleUpload: "true"},
 		},
 		BinaryData: map[string][]byte{
-			"module.yaml": []byte("apiVersion: kestrel.gg/module/v1\nname: factorio\n" +
+			"module.yaml": []byte("apiVersion: gameplane.gg/module/v1\nname: factorio\n" +
 				"displayName: Factorio\nversion: 2.0.0\ngame: factorio\nsummary: upload fixture\n"),
-			"template.yaml": []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+			"template.yaml": []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
 				"  displayName: Factorio\n  game: factorio\n  version: 2.0.0\n  image: factoriotools/factorio:stable\n"),
 		},
 	}
@@ -395,9 +395,9 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 
 	// Install from the upload and confirm materialization.
 	modName := uniqueName("upload-mod")
-	mod := &kestrelv1alpha1.Module{
+	mod := &gameplanev1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: modName},
-		Spec: kestrelv1alpha1.ModuleSpec{
+		Spec: gameplanev1alpha1.ModuleSpec{
 			Source: corev1.LocalObjectReference{Name: src.Name},
 			Name:   "factorio",
 		},
@@ -408,17 +408,17 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 	deleteCleanup(t, mod)
 
 	eventually(t, func() (bool, string) {
-		var got kestrelv1alpha1.Module
+		var got gameplanev1alpha1.Module
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
 			return false, err.Error()
 		}
-		if got.Status.Phase != kestrelv1alpha1.ModulePhaseReady {
+		if got.Status.Phase != gameplanev1alpha1.ModulePhaseReady {
 			return false, "phase=" + got.Status.Phase + " err=" + got.Status.LastError
 		}
 		return got.Status.AppliedVersion == "2.0.0", "appliedVersion=" + got.Status.AppliedVersion
 	})
 
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err != nil {
 		t.Fatalf("get materialized template: %v", err)
 	}
@@ -428,7 +428,7 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 
 	var digestBefore string
 	{
-		var got kestrelv1alpha1.Module
+		var got gameplanev1alpha1.Module
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
 			t.Fatalf("get module: %v", err)
 		}
@@ -440,21 +440,21 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: ns}, cm); err != nil {
 		t.Fatalf("re-get configmap: %v", err)
 	}
-	cm.BinaryData["template.yaml"] = []byte("apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+	cm.BinaryData["template.yaml"] = []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
 		"  displayName: Factorio\n  game: factorio\n  version: 2.0.0\n  image: factoriotools/factorio:1.1.110\n")
 	if err := k8sClient.Update(context.Background(), cm); err != nil {
 		t.Fatalf("update configmap: %v", err)
 	}
 
 	eventually(t, func() (bool, string) {
-		var got kestrelv1alpha1.Module
+		var got gameplanev1alpha1.Module
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &got); err != nil {
 			return false, err.Error()
 		}
 		if got.Status.AppliedDigest == digestBefore {
 			return false, "appliedDigest unchanged"
 		}
-		var tmpl kestrelv1alpha1.GameTemplate
+		var tmpl gameplanev1alpha1.GameTemplate
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err != nil {
 			return false, err.Error()
 		}
@@ -470,10 +470,10 @@ func writeLocalModule(t *testing.T, dir, name, version string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	meta := "apiVersion: kestrel.gg/module/v1\nname: " + name +
+	meta := "apiVersion: gameplane.gg/module/v1\nname: " + name +
 		"\ndisplayName: " + name + "\nversion: " + version +
 		"\ngame: " + name + "\nsummary: local fixture\n"
-	tmplYAML := "apiVersion: kestrel.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+	tmplYAML := "apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
 		"  displayName: " + name + "\n  game: " + name + "\n  version: " + version +
 		"\n  image: ghcr.io/test/" + name + ":" + version + "\n"
 	for file, content := range map[string]string{
@@ -486,16 +486,16 @@ func writeLocalModule(t *testing.T, dir, name, version string) {
 	}
 }
 
-func getModuleSource(t *testing.T, name string) *kestrelv1alpha1.ModuleSource {
+func getModuleSource(t *testing.T, name string) *gameplanev1alpha1.ModuleSource {
 	t.Helper()
-	var src kestrelv1alpha1.ModuleSource
+	var src gameplanev1alpha1.ModuleSource
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &src); err != nil {
 		t.Fatalf("get modulesource: %v", err)
 	}
 	return &src
 }
 
-func byName(entries []kestrelv1alpha1.ModuleEntry, name string) *kestrelv1alpha1.ModuleEntry {
+func byName(entries []gameplanev1alpha1.ModuleEntry, name string) *gameplanev1alpha1.ModuleEntry {
 	for i := range entries {
 		if entries[i].Name == name {
 			return &entries[i]
@@ -529,7 +529,7 @@ func patchSourceAnnotation(t *testing.T, name, key, val string) {
 	// Retry on conflict — the reconciler patches status concurrently,
 	// racing a bare Get+Update's resourceVersion.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var src kestrelv1alpha1.ModuleSource
+		var src gameplanev1alpha1.ModuleSource
 		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &src); err != nil {
 			return err
 		}
@@ -551,17 +551,17 @@ func patchSourceAnnotation(t *testing.T, name, key, val string) {
 func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleSourceReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleSourceReconciler(fake))
 
 	fake.errOn["tags:unreachable/test/ghost"] = fmt.Errorf("dial tcp: no such host")
 
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("unreachable")},
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL:     "unreachable/test",
-				Modules: []kestrelv1alpha1.ModuleRef{{Name: "ghost"}},
+				Modules: []gameplanev1alpha1.ModuleRef{{Name: "ghost"}},
 			},
 		},
 	}
@@ -572,11 +572,11 @@ func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getModuleSource(t, src.Name)
-		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+		if conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced) {
 			return false, "Synced should be False"
 		}
 		// Synced=False only counts once the failure was actually observed.
-		if !hasCondition(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+		if !hasCondition(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced) {
 			return false, "Synced condition not yet set"
 		}
 		if got.Status.LastSync != nil {
@@ -585,7 +585,7 @@ func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 		if len(got.Status.Modules) != 0 {
 			return false, fmt.Sprintf("modules unexpectedly populated: %d", len(got.Status.Modules))
 		}
-		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionReady) {
+		if conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionReady) {
 			return false, "Ready should be False"
 		}
 		return true, ""
@@ -599,17 +599,17 @@ func TestModuleSource_ReportsFailureWhenAllModulesError(t *testing.T) {
 func TestModuleSource_PreservesStaleCatalogOnFailure(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleSourceReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleSourceReconciler(fake))
 
 	fake.putBundle("local/test/good", "1.0.0", fixtureBundle("good", "1.0.0", "Good Mod"))
 
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: uniqueName("stale")},
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL:     "local/test",
-				Modules: []kestrelv1alpha1.ModuleRef{{Name: "good"}},
+				Modules: []gameplanev1alpha1.ModuleRef{{Name: "good"}},
 			},
 		},
 	}
@@ -625,7 +625,7 @@ func TestModuleSource_PreservesStaleCatalogOnFailure(t *testing.T) {
 		if len(got.Status.Modules) != 1 {
 			return false, fmt.Sprintf("modules = %d", len(got.Status.Modules))
 		}
-		if !conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+		if !conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced) {
 			return false, "Synced not yet True"
 		}
 		firstSync = got.Status.LastSync
@@ -635,17 +635,17 @@ func TestModuleSource_PreservesStaleCatalogOnFailure(t *testing.T) {
 	// Break the registry, then nudge the source so it re-reconciles now
 	// instead of an hour from now.
 	fake.errOn["tags:local/test/good"] = fmt.Errorf("dial tcp: connection refused")
-	patchSourceAnnotation(t, src.Name, "kestrel.gg/test-nudge", "1")
+	patchSourceAnnotation(t, src.Name, "gameplane.gg/test-nudge", "1")
 
 	eventually(t, func() (bool, string) {
 		got := getModuleSource(t, src.Name)
-		if conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionSynced) {
+		if conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionSynced) {
 			return false, "Synced should have flipped False"
 		}
 		if len(got.Status.Modules) != 1 {
 			return false, fmt.Sprintf("stale catalog dropped: %d modules", len(got.Status.Modules))
 		}
-		if !conditionTrue(got.Status.Conditions, kestrelv1alpha1.ModuleSourceConditionReady) {
+		if !conditionTrue(got.Status.Conditions, gameplanev1alpha1.ModuleSourceConditionReady) {
 			return false, "Ready should stay True (serving stale catalog)"
 		}
 		if got.Status.LastSync == nil || !got.Status.LastSync.Time.Equal(firstSync.Time) {

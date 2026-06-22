@@ -23,9 +23,9 @@ async function gotoSection(name: RegExp) {
 describe("AdminSettings sections", () => {
   it("saves an edited General field", async () => {
     renderWithQuery(<AdminSettingsPage />);
-    const nameInput = await screen.findByDisplayValue("Kestrel (mock)");
+    const nameInput = await screen.findByDisplayValue("Gameplane (mock)");
     await userEvent.clear(nameInput);
-    await userEvent.type(nameInput, "kestrel-prod");
+    await userEvent.type(nameInput, "gameplane-prod");
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
@@ -35,7 +35,7 @@ describe("AdminSettings sections", () => {
       http.put("/admin/config/general", () => HttpResponse.text("namespace invalid", { status: 400 })),
     );
     renderWithQuery(<AdminSettingsPage />);
-    const nameInput = await screen.findByDisplayValue("Kestrel (mock)");
+    const nameInput = await screen.findByDisplayValue("Gameplane (mock)");
     await userEvent.clear(nameInput);
     await userEvent.type(nameInput, "x");
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
@@ -89,7 +89,7 @@ describe("AdminSettings sections", () => {
     await gotoSection(/Backup destinations/i);
     // The default handler returns one destination ("default").
     await userEvent.click(await screen.findByRole("button", { name: /Add destination/i }));
-    const nameField = await screen.findByPlaceholderText("kestrel-backup-repo");
+    const nameField = await screen.findByPlaceholderText("gameplane-backup-repo");
     await userEvent.type(nameField, "repo1");
     await userEvent.type(screen.getByPlaceholderText(/s3:s3.example.com/i), "s3:host/bucket");
     await userEvent.type(screen.getByPlaceholderText(/passphrase/i), "a-strong-passphrase");
@@ -111,6 +111,6 @@ describe("AdminSettings sections", () => {
     renderWithQuery(<AdminSettingsPage />);
     await gotoSection(/About/i);
     expect(await screen.findByText("AGPL-3.0")).toBeInTheDocument();
-    expect(screen.getByText("Kestrel")).toBeInTheDocument();
+    expect(screen.getByText("Gameplane")).toBeInTheDocument();
   });
 });

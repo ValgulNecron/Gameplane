@@ -1,3 +1,3 @@
-module github.com/kestrel-gg/kestrel/netguard
+module github.com/ValgulNecron/gameplane/netguard
 
 go 1.25.0

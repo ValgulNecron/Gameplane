@@ -113,7 +113,7 @@ export function UsersPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Users & RBAC"
-        subtitle="Manage access to the Kestrel control plane."
+        subtitle="Manage access to the Gameplane control plane."
         actions={
           <div className="flex items-center gap-2">
             {canAudit && (

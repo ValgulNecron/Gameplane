@@ -2,7 +2,7 @@ import type { APIRequestContext, APIResponse, Page } from "@playwright/test";
 import { LoginPage } from "../../pages/LoginPage";
 
 // Shared helpers for the live-mode data-screen specs. These talk to the
-// REAL Kestrel API (through vite's proxy onto the kubectl port-forward
+// REAL Gameplane API (through vite's proxy onto the kubectl port-forward
 // globalSetup spawns) using the admin session cookies in storageState.
 //
 // Why seed through the API instead of reusing the Go e2e suite's fixtures:
@@ -21,9 +21,9 @@ export async function loginIfNeeded(page: Page): Promise<void> {
   if (new URL(page.url()).pathname.startsWith("/login")) {
     const login = new LoginPage(page);
     const username =
-      process.env.ADMIN_USERNAME ?? process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
     const password =
-      process.env.ADMIN_PASSWORD ?? process.env.KESTREL_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
     await login.login(username, password);
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
   }
@@ -31,8 +31,8 @@ export async function loginIfNeeded(page: Page): Promise<void> {
 
 // seedHeaders builds the headers a seed mutation needs:
 //
-//   - X-Kestrel-CSRF — the API enforces double-submit CSRF on every mutating
-//     request (the header must equal the kestrel_csrf cookie; api/internal/
+//   - X-Gameplane-CSRF — the API enforces double-submit CSRF on every mutating
+//     request (the header must equal the gameplane_csrf cookie; api/internal/
 //     auth/sessions.go). The browser app echoes it automatically (lib/api.ts);
 //     an APIRequestContext does not, so we read the token out of storageState
 //     and set it ourselves. Without this every seed POST/DELETE would 403.
@@ -42,8 +42,8 @@ export async function loginIfNeeded(page: Page): Promise<void> {
 //     the API side of that bypass regardless of Playwright's default.
 async function seedHeaders(request: APIRequestContext): Promise<Record<string, string>> {
   const state = await request.storageState();
-  const token = state.cookies.find((c) => c.name === "kestrel_csrf")?.value ?? "";
-  return { "X-Kestrel-CSRF": token, Accept: "application/json" };
+  const token = state.cookies.find((c) => c.name === "gameplane_csrf")?.value ?? "";
+  return { "X-Gameplane-CSRF": token, Accept: "application/json" };
 }
 
 // expectSeedOk throws (failing the spec) unless the seed request succeeded.
@@ -72,7 +72,7 @@ export async function seedTemplate(request: APIRequestContext, name: string): Pr
   const res = await request.post("/templates", {
     headers: await seedHeaders(request),
     data: {
-      apiVersion: "kestrel.gg/v1alpha1",
+      apiVersion: "gameplane.gg/v1alpha1",
       kind: "GameTemplate",
       metadata: { name },
       spec: {
@@ -103,20 +103,20 @@ export interface SeedServerOpts {
 }
 
 // seedServer creates a namespaced GameServer referencing `template`. The
-// API defaults the namespace to scope.DefaultNamespace ("kestrel-games") —
+// API defaults the namespace to scope.DefaultNamespace ("gameplane-games") —
 // the same default the dashboard reads — so seeded and rendered data line up
 // without passing ?namespace=. The description annotation mirrors what the
-// create-server wizard writes (kestrel.gg/description).
+// create-server wizard writes (gameplane.gg/description).
 export async function seedServer(request: APIRequestContext, opts: SeedServerOpts): Promise<Seeded> {
   const res = await request.post("/servers", {
     headers: await seedHeaders(request),
     data: {
-      apiVersion: "kestrel.gg/v1alpha1",
+      apiVersion: "gameplane.gg/v1alpha1",
       kind: "GameServer",
       metadata: {
         name: opts.name,
         ...(opts.description
-          ? { annotations: { "kestrel.gg/description": opts.description } }
+          ? { annotations: { "gameplane.gg/description": opts.description } }
           : {}),
       },
       spec: { templateRef: { name: opts.template } },

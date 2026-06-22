@@ -7,7 +7,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: e2e-cosign-pubkey
-  namespace: kestrel-system
+  namespace: gameplane-system
 type: Opaque
 stringData:
   cosign.pub: |

@@ -15,7 +15,7 @@ import (
 // TestModuleSourceAndModule covers the whole bundle-discovery path
 // end-to-end against an in-cluster registry:
 //
-//  1. Bring up a registry:2 pod inside the kestrel-system namespace.
+//  1. Bring up a registry:2 pod inside the gameplane-system namespace.
 //  2. Push a tiny module bundle (configmap + oras Job) at it.
 //  3. Apply a ModuleSource pointing at the registry; expect the
 //     indexer to populate status.modules with the pushed entry.
@@ -39,8 +39,8 @@ func TestModuleSourceAndModule(t *testing.T) {
 	// least one Ready pod.
 	envInstance.ApplyYAML(t, "oci-registry.yaml")
 	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
-		dep, err := envInstance.K8s.AppsV1().Deployments("kestrel-system").
-			Get(ctx, "kestrel-test-registry", metav1.GetOptions{})
+		dep, err := envInstance.K8s.AppsV1().Deployments("gameplane-system").
+			Get(ctx, "gameplane-test-registry", metav1.GetOptions{})
 		if err != nil {
 			return false, "get registry deploy: " + err.Error()
 		}
@@ -52,7 +52,7 @@ func TestModuleSourceAndModule(t *testing.T) {
 
 	// 2. Push. OCIPush manages the Job lifecycle (delete-then-apply
 	// for idempotence, then wait for success).
-	envInstance.OCIPush(t, "kestrel-system", "oras-push-test-game")
+	envInstance.OCIPush(t, "gameplane-system", "oras-push-test-game")
 
 	const (
 		sourceName = "e2e-test-source"
@@ -62,13 +62,13 @@ func TestModuleSourceAndModule(t *testing.T) {
 	// 3. ModuleSource indexes the registry.
 	t.Run("ModuleSourceIndexesFromOCIRegistry", func(t *testing.T) {
 		src := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "kestrel.gg/v1alpha1",
+			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "ModuleSource",
 			"metadata":   map[string]any{"name": sourceName},
 			"spec": map[string]any{
 				"type": "oci",
 				"oci": map[string]any{
-					"url":      "kestrel-test-registry.kestrel-system.svc:5000",
+					"url":      "gameplane-test-registry.gameplane-system.svc:5000",
 					"insecure": true,
 					"modules":  []any{map[string]any{"name": "e2e-test-game"}},
 				},
@@ -119,7 +119,7 @@ func TestModuleSourceAndModule(t *testing.T) {
 	// exists here.
 	t.Run("ModuleMaterializesGameTemplate", func(t *testing.T) {
 		mod := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "kestrel.gg/v1alpha1",
+			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "Module",
 			"metadata":   map[string]any{"name": moduleCR},
 			"spec": map[string]any{
@@ -169,8 +169,8 @@ func TestModuleSourceAndModule(t *testing.T) {
 		// LabelManagedBy should be set to "Module" so the API can
 		// distinguish module-managed templates from hand-applied ones.
 		labels := tmpl.GetLabels()
-		if labels["kestrel.gg/managed-by"] != "Module" {
-			t.Errorf("template missing managed-by=Module label, got %q", labels["kestrel.gg/managed-by"])
+		if labels["gameplane.gg/managed-by"] != "Module" {
+			t.Errorf("template missing managed-by=Module label, got %q", labels["gameplane.gg/managed-by"])
 		}
 
 		// Sanity-check that the bundle's port + display metadata round-
@@ -194,11 +194,11 @@ func TestModuleSourceAndModule(t *testing.T) {
 	// the previous subtest could pass even if the template were missing
 	// the controller-required fields (image, command, etc.).
 	t.Run("MaterializedTemplateIsUsable", func(t *testing.T) {
-		ns := "kestrel-games"
+		ns := "gameplane-games"
 		gs := "e2e-test-game-via-module"
 
 		gsObj := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "kestrel.gg/v1alpha1",
+			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "GameServer",
 			"metadata":   map[string]any{"name": gs, "namespace": ns},
 			"spec": map[string]any{

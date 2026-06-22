@@ -66,8 +66,8 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 		t.Errorf("support GET /servers: status=%d want 200", r.StatusCode)
 	}
 	if r, _, _ := support.Post("/servers", map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1", "kind": "GameServer",
-		"metadata": map[string]any{"name": "e2e-support-nope", "namespace": "kestrel-games"},
+		"apiVersion": "gameplane.gg/v1alpha1", "kind": "GameServer",
+		"metadata": map[string]any{"name": "e2e-support-nope", "namespace": "gameplane-games"},
 		"spec":     map[string]any{"templateRef": map[string]any{"name": "nope"}},
 	}); r.StatusCode != http.StatusForbidden {
 		t.Errorf("support POST /servers: status=%d want 403", r.StatusCode)
@@ -124,8 +124,8 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 	v1 := envInstance.APIClient(t, viewerName, viewerPW)
 	gsSpec := func(name string) map[string]any {
 		return map[string]any{
-			"apiVersion": "kestrel.gg/v1alpha1", "kind": "GameServer",
-			"metadata": map[string]any{"name": name, "namespace": "kestrel-games"},
+			"apiVersion": "gameplane.gg/v1alpha1", "kind": "GameServer",
+			"metadata": map[string]any{"name": name, "namespace": "gameplane-games"},
 			"spec":     map[string]any{"templateRef": map[string]any{"name": tmplName}},
 		}
 	}
@@ -136,7 +136,7 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 
 	// Grant operator in the default namespace only.
 	if r, b, _ := admin.Post("/users/"+viewerID+"/bindings", map[string]any{
-		"roleName": "operator", "namespace": "kestrel-games",
+		"roleName": "operator", "namespace": "gameplane-games",
 	}); r.StatusCode != http.StatusCreated {
 		t.Fatalf("add binding: status=%d body=%s", r.StatusCode, string(b))
 	}
@@ -147,7 +147,7 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 
 	gsName := fmt.Sprintf("e2e-binding-ok-%d", time.Now().UnixNano())
 	t.Cleanup(func() {
-		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace("kestrel-games").
+		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace("gameplane-games").
 			Delete(context.Background(), gsName, metav1.DeleteOptions{})
 	})
 	// Now the namespaced write is authorized (200/201, not 403).
@@ -163,7 +163,7 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 	}
 
 	// Remove the binding again.
-	if r, _, _ := admin.Delete("/users/" + viewerID + "/bindings/operator/kestrel-games"); r.StatusCode != http.StatusNoContent {
+	if r, _, _ := admin.Delete("/users/" + viewerID + "/bindings/operator/gameplane-games"); r.StatusCode != http.StatusNoContent {
 		t.Errorf("remove binding: status=%d want 204", r.StatusCode)
 	}
 }

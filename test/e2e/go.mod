@@ -1,4 +1,4 @@
-module github.com/kestrel-gg/kestrel/test/e2e
+module github.com/ValgulNecron/gameplane/test/e2e
 
 go 1.25.0
 

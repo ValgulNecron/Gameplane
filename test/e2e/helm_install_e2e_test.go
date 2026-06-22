@@ -19,13 +19,13 @@ import (
 func TestHelmInstall_AllPodsReady(t *testing.T) {
 	ctx := context.Background()
 	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
-		pods, err := envInstance.K8s.CoreV1().Pods("kestrel-system").
+		pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").
 			List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, "list pods: " + err.Error()
 		}
 		if len(pods.Items) == 0 {
-			return false, "no pods in kestrel-system yet"
+			return false, "no pods in gameplane-system yet"
 		}
 		notReady := []string{}
 		for _, p := range pods.Items {
@@ -47,19 +47,19 @@ func TestHelmInstall_AllPodsReady(t *testing.T) {
 	})
 }
 
-// TestHelmInstall_AllCRDsPresent — every Kestrel CRD declared by the
+// TestHelmInstall_AllCRDsPresent — every Gameplane CRD declared by the
 // chart is reachable via discovery. Catches a missing CRD YAML in
-// `charts/kestrel/crds/` from a future refactor.
+// `charts/gameplane/crds/` from a future refactor.
 func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 	ctx := context.Background()
 	want := []string{
-		"gameservers.kestrel.gg",
-		"gametemplates.kestrel.gg",
-		"backups.kestrel.gg",
-		"backupschedules.kestrel.gg",
-		"restores.kestrel.gg",
-		"modules.kestrel.gg",
-		"modulesources.kestrel.gg",
+		"gameservers.gameplane.gg",
+		"gametemplates.gameplane.gg",
+		"backups.gameplane.gg",
+		"backupschedules.gameplane.gg",
+		"restores.gameplane.gg",
+		"modules.gameplane.gg",
+		"modulesources.gameplane.gg",
 	}
 	for _, name := range want {
 		ok, err := envInstance.CRDExists(ctx, name)
@@ -78,18 +78,18 @@ func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 // expected during initial reconciliation.
 func TestHelmInstall_OperatorLogsClean(t *testing.T) {
 	ctx := context.Background()
-	pods, err := envInstance.K8s.CoreV1().Pods("kestrel-system").List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=kestrel-operator",
+	pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=gameplane-operator",
 	})
 	if err != nil {
 		t.Fatalf("list operator pods: %v", err)
 	}
 	if len(pods.Items) == 0 {
-		t.Fatal("no operator pod found by app.kubernetes.io/name=kestrel-operator")
+		t.Fatal("no operator pod found by app.kubernetes.io/name=gameplane-operator")
 	}
 
 	for _, p := range pods.Items {
-		out, err := envInstance.Kubectl("logs", "-n", "kestrel-system", p.Name, "--tail=500")
+		out, err := envInstance.Kubectl("logs", "-n", "gameplane-system", p.Name, "--tail=500")
 		if err != nil {
 			t.Fatalf("kubectl logs %s: %v\n%s", p.Name, err, out)
 		}
@@ -108,18 +108,18 @@ func TestHelmInstall_OperatorLogsClean(t *testing.T) {
 // during a slow-starting readiness probe.
 func TestHelmInstall_APILogsClean(t *testing.T) {
 	ctx := context.Background()
-	pods, err := envInstance.K8s.CoreV1().Pods("kestrel-system").List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=kestrel-api",
+	pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=gameplane-api",
 	})
 	if err != nil {
 		t.Fatalf("list api pods: %v", err)
 	}
 	if len(pods.Items) == 0 {
-		t.Fatal("no api pod found by app.kubernetes.io/name=kestrel-api")
+		t.Fatal("no api pod found by app.kubernetes.io/name=gameplane-api")
 	}
 
 	for _, p := range pods.Items {
-		out, err := envInstance.Kubectl("logs", "-n", "kestrel-system", p.Name, "--tail=500")
+		out, err := envInstance.Kubectl("logs", "-n", "gameplane-system", p.Name, "--tail=500")
 		if err != nil {
 			t.Fatalf("kubectl logs %s: %v\n%s", p.Name, err, out)
 		}
@@ -131,12 +131,12 @@ func TestHelmInstall_APILogsClean(t *testing.T) {
 
 // TestHelmInstall_APIHealthz — proves the API service answers
 // /healthz over the cluster network. Runs `curl -fsS` from a
-// transient pod in kestrel-system; -f makes curl exit non-zero on
+// transient pod in gameplane-system; -f makes curl exit non-zero on
 // non-2xx so we can assert on the kubectl exit code instead of
 // parsing kubectl-and-pod-mixed stdout.
 //
 // The probe pod uses curlimages/curl, which is the only external
-// (non-Kestrel) image this suite pulls. First-run cost is the image
+// (non-Gameplane) image this suite pulls. First-run cost is the image
 // pull from the public registry into kind; the 90s budget is mostly
 // to absorb that.
 func TestHelmInstall_APIHealthz(t *testing.T) {
@@ -145,13 +145,13 @@ func TestHelmInstall_APIHealthz(t *testing.T) {
 		// not-yet-cleaned-up pod from the previous tick.
 		name := fmt.Sprintf("healthz-probe-%d", time.Now().UnixNano())
 		out, err := envInstance.Kubectl(
-			"run", "-n", "kestrel-system",
+			"run", "-n", "gameplane-system",
 			"--rm", "--restart=Never", "--attach",
 			"--image=curlimages/curl:8.10.1",
 			name,
 			"--",
 			"curl", "-fsS", "--max-time", "5",
-			"http://kestrel-api/healthz",
+			"http://gameplane-api/healthz",
 		)
 		if err != nil {
 			return false, fmt.Sprintf("api healthz probe failed: %v\n%s", err, out)

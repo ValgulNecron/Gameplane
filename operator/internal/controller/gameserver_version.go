@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // modVolumeDefaultSize is the size of each per-(version+loader) mod PVC.
@@ -27,7 +27,7 @@ var modVolumeDefaultSize = resource.MustParse("5Gi")
 // that doesn't exist, so a bad version fails the GameServer loudly instead
 // of silently falling back — keeping kubectl-apply and the wizard in
 // lockstep (Rule 10).
-func resolveVersion(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate) (*kestrelv1alpha1.GameVersion, error) {
+func resolveVersion(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate) (*gameplanev1alpha1.GameVersion, error) {
 	vers := tmpl.Spec.Versions
 	if len(vers) == 0 {
 		return nil, nil
@@ -52,7 +52,7 @@ func resolveVersion(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTe
 // resolveImage picks the game container image: an explicit spec.image
 // override wins, then the selected version's image, then the template's
 // Image (today's behavior when no versions are declared).
-func resolveImage(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion) string {
+func resolveImage(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion) string {
 	if gs.Spec.Image != "" {
 		return gs.Spec.Image
 	}
@@ -63,7 +63,7 @@ func resolveImage(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemp
 }
 
 // activeLoader returns the selected version's mod loader, or "".
-func activeLoader(ver *kestrelv1alpha1.GameVersion) string {
+func activeLoader(ver *gameplanev1alpha1.GameVersion) string {
 	if ver == nil {
 		return ""
 	}
@@ -74,13 +74,13 @@ func activeLoader(ver *kestrelv1alpha1.GameVersion) string {
 // loader and true when the template declares a per-loader mod volume for
 // it. It reports false for legacy single-path mods, a version whose loader
 // has no mods entry (e.g. vanilla), or no mods block at all.
-func activeModLoader(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion) (kestrelv1alpha1.ModLoaderSpec, bool) {
+func activeModLoader(tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion) (gameplanev1alpha1.ModLoaderSpec, bool) {
 	if tmpl.Spec.Capabilities == nil || tmpl.Spec.Capabilities.Mods == nil {
-		return kestrelv1alpha1.ModLoaderSpec{}, false
+		return gameplanev1alpha1.ModLoaderSpec{}, false
 	}
 	loader := activeLoader(ver)
 	if loader == "" || len(tmpl.Spec.Capabilities.Mods.Loaders) == 0 {
-		return kestrelv1alpha1.ModLoaderSpec{}, false
+		return gameplanev1alpha1.ModLoaderSpec{}, false
 	}
 	spec, ok := tmpl.Spec.Capabilities.Mods.Loaders[loader]
 	return spec, ok
@@ -89,7 +89,7 @@ func activeModLoader(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.Ga
 // modVolumeKey is the stable per-(version+loader) key, or "" when this
 // server has no dedicated mod volume. The version id already encodes
 // version+loader, so it is the key.
-func modVolumeKey(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion) string {
+func modVolumeKey(tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion) string {
 	if _, ok := activeModLoader(tmpl, ver); !ok {
 		return ""
 	}
@@ -119,7 +119,7 @@ func modVolumeName(key string) string {
 }
 
 // modPVCName is the PVC name backing a server's mod combo.
-func modPVCName(gs *kestrelv1alpha1.GameServer, key string) string {
+func modPVCName(gs *gameplanev1alpha1.GameServer, key string) string {
 	return truncateDNS(gs.Name+"-mods-"+dnsSafe(key), 253)
 }
 
@@ -128,7 +128,7 @@ func modPVCName(gs *kestrelv1alpha1.GameServer, key string) string {
 // mounted at storage.mountPath/<loaderPath> — a nested mount over the data
 // volume so the game image reads mods from its usual directory while the
 // files persist on a per-combo PVC.
-func modVolumeMount(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion) *corev1.VolumeMount {
+func modVolumeMount(tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion) *corev1.VolumeMount {
 	spec, ok := activeModLoader(tmpl, ver)
 	if !ok {
 		return nil
@@ -140,7 +140,7 @@ func modVolumeMount(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.Gam
 }
 
 // modVolume returns the pod volume backing the active mod combo, or nil.
-func modVolume(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion) *corev1.Volume {
+func modVolume(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion) *corev1.Volume {
 	key := modVolumeKey(tmpl, ver)
 	if key == "" {
 		return nil
@@ -161,7 +161,7 @@ func modVolume(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplat
 // concrete Path for the active version's loader and drops the map. A
 // version whose loader has no mod volume (e.g. vanilla) gets no mod
 // manager at all. Returns nil when the template declares no capabilities.
-func resolveCapabilities(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion) *kestrelv1alpha1.CapabilitiesSpec {
+func resolveCapabilities(tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion) *gameplanev1alpha1.CapabilitiesSpec {
 	if tmpl.Spec.Capabilities == nil {
 		return nil
 	}
@@ -191,8 +191,8 @@ func resolveCapabilities(tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha
 // garbage-collected (via owner reference) only when the GameServer is
 // deleted.
 func (r *GameServerReconciler) reconcileModPVC(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
-	ver *kestrelv1alpha1.GameVersion,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+	ver *gameplanev1alpha1.GameVersion,
 ) error {
 	key := modVolumeKey(tmpl, ver)
 	if key == "" {

@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // MountModules wires the /modules surface onto r. namespace is the
@@ -168,7 +168,7 @@ func (h modulesHandler) install(w http.ResponseWriter, req *http.Request) {
 	}
 
 	desired := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{

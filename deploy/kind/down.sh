@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Tear down the Kestrel dev kind cluster.
+# Tear down the Gameplane dev kind cluster.
 
 set -euo pipefail
 
-CLUSTER="${1:-kestrel-dev}"
+CLUSTER="${1:-gameplane-dev}"
 
 if ! kind get clusters | grep -qx "${CLUSTER}"; then
     echo "cluster ${CLUSTER} not found — nothing to do"

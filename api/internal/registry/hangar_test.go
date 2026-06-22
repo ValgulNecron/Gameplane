@@ -9,7 +9,7 @@ import (
 )
 
 func testHangar(url string) *Hangar {
-	h := newHangar(&http.Client{Timeout: 5 * time.Second}, "kestrel-test")
+	h := newHangar(&http.Client{Timeout: 5 * time.Second}, "gameplane-test")
 	h.baseURL = url
 	return h
 }

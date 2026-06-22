@@ -18,8 +18,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // envtest fires up a real kube-apiserver+etcd in-process. We then build

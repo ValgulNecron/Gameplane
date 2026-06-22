@@ -13,9 +13,9 @@ async function loginIfNeeded(page: Page): Promise<void> {
   if (new URL(page.url()).pathname.startsWith("/login")) {
     const login = new LoginPage(page);
     const username =
-      process.env.ADMIN_USERNAME ?? process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
     const password =
-      process.env.ADMIN_PASSWORD ?? process.env.KESTREL_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
     await login.login(username, password);
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
   }
@@ -23,7 +23,7 @@ async function loginIfNeeded(page: Page): Promise<void> {
 
 test.describe("users page", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET === "live",
+    process.env.GAMEPLANE_E2E_TARGET === "live",
     "user create/delete in live mode would persist to the API DB; mock mode is the safe path",
   );
 
@@ -85,7 +85,7 @@ test.describe("users page", () => {
 
 test.describe("audit log page", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET === "live",
+    process.env.GAMEPLANE_E2E_TARGET === "live",
     "audit log on a fresh live cluster has variable rows; mock mode is the deterministic path",
   );
 

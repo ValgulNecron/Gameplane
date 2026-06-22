@@ -47,7 +47,7 @@ export function ClusterPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "kestrel-kubeconfig.yaml";
+      a.download = "gameplane-kubeconfig.yaml";
       document.body.appendChild(a);
       a.click();
       a.remove();

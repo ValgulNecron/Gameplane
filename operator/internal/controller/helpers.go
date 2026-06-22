@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // upsertCondition replaces a condition by Type if present, otherwise
@@ -59,7 +59,7 @@ func sameConditions(a, b []metav1.Condition) bool {
 //
 // Exported so the API service can consume the same defaulting rule when
 // it decides which console WebSocket to expose for a given template.
-func EffectiveConsoleMode(tmpl *kestrelv1alpha1.GameTemplate) string {
+func EffectiveConsoleMode(tmpl *gameplanev1alpha1.GameTemplate) string {
 	if tmpl == nil {
 		return "none"
 	}
@@ -77,7 +77,7 @@ func EffectiveConsoleMode(tmpl *kestrelv1alpha1.GameTemplate) string {
 // up to date.
 func enqueueTemplateForServer() handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
-		gs, ok := obj.(*kestrelv1alpha1.GameServer)
+		gs, ok := obj.(*gameplanev1alpha1.GameServer)
 		if !ok || gs.Spec.TemplateRef.Name == "" {
 			return nil
 		}
@@ -88,7 +88,7 @@ func enqueueTemplateForServer() handler.EventHandler {
 // templateHasRCON reports whether the game actually exposes an RCON
 // console the agent can dial. Mirrors EffectiveConsoleMode's defaulting:
 // an absent RCON block or protocol "none" means no console port exists.
-func templateHasRCON(tmpl *kestrelv1alpha1.GameTemplate) bool {
+func templateHasRCON(tmpl *gameplanev1alpha1.GameTemplate) bool {
 	return tmpl != nil && tmpl.Spec.RCON != nil &&
 		tmpl.Spec.RCON.Protocol != "" && tmpl.Spec.RCON.Protocol != "none"
 }

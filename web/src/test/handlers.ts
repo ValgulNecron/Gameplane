@@ -53,9 +53,9 @@ export const handlers = [
       {
         headers: {
           // Mirror the real cookie shape: csrf cookie is JS-readable so
-          // the SPA can echo it back in X-Kestrel-CSRF.
+          // the SPA can echo it back in X-Gameplane-CSRF.
           "Set-Cookie":
-            "kestrel_csrf=mock-csrf-token; Path=/; SameSite=Lax",
+            "gameplane_csrf=mock-csrf-token; Path=/; SameSite=Lax",
         },
       },
     );
@@ -104,7 +104,7 @@ export const handlers = [
     HttpResponse.json({
       items: [
         makeServer(),
-        makeServer({ metadata: { name: "beta", namespace: "kestrel-games" } }),
+        makeServer({ metadata: { name: "beta", namespace: "gameplane-games" } }),
       ],
     }),
   ),
@@ -117,7 +117,7 @@ export const handlers = [
     } | null;
     return HttpResponse.json(
       makeServer({
-        metadata: { name: body?.metadata?.name ?? "new-server", namespace: "kestrel-games" },
+        metadata: { name: body?.metadata?.name ?? "new-server", namespace: "gameplane-games" },
       }),
     );
   }),
@@ -137,7 +137,7 @@ export const handlers = [
     } | null;
     return HttpResponse.json(
       makeServer({
-        metadata: { name: body?.newName ?? "cloned-server", namespace: "kestrel-games" },
+        metadata: { name: body?.newName ?? "cloned-server", namespace: "gameplane-games" },
       }),
     );
   }),
@@ -153,7 +153,7 @@ export const handlers = [
             displayName: "Valheim",
             game: "valheim",
             version: "0.218",
-            image: "ghcr.io/kestrel/valheim:0.218",
+            image: "ghcr.io/valgulnecron/gameplane/valheim:0.218",
           },
         }),
       ],
@@ -169,7 +169,7 @@ export const handlers = [
       items: [
         makeBackup(),
         makeBackup({
-          metadata: { name: "alpha-2026-05-06", namespace: "kestrel-games" },
+          metadata: { name: "alpha-2026-05-06", namespace: "gameplane-games" },
           status: {
             phase: "Failed",
             startTime: "2026-05-06T03:00:00Z",
@@ -190,7 +190,7 @@ export const handlers = [
     const name =
       body?.metadata?.name ??
       `${body?.spec?.serverRef?.name ?? "alpha"}-manual-${Date.now()}`;
-    return HttpResponse.json(makeBackup({ metadata: { name, namespace: "kestrel-games" } }));
+    return HttpResponse.json(makeBackup({ metadata: { name, namespace: "gameplane-games" } }));
   }),
   http.delete("/backups/:name", () => new HttpResponse(null, { status: 204 })),
 
@@ -207,7 +207,7 @@ export const handlers = [
       makeSchedule({
         metadata: {
           name: body?.metadata?.name ?? `${body?.spec?.serverRef?.name ?? "alpha"}-sched-1`,
-          namespace: "kestrel-games",
+          namespace: "gameplane-games",
         },
       }),
     );
@@ -228,7 +228,7 @@ export const handlers = [
       makeRestore({
         metadata: {
           name: body?.metadata?.name ?? `restore-${Date.now()}`,
-          namespace: "kestrel-games",
+          namespace: "gameplane-games",
         },
         spec: {
           backupRef: { name: body?.spec?.backupRef?.name ?? "alpha-2026-05-07" },

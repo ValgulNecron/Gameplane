@@ -17,8 +17,8 @@ import (
 // gameTemplateGVR / gameServerGVR — typed clients aren't generated for
 // the test/e2e module; we use the dynamic client.
 var (
-	gameTemplateGVR = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "gametemplates"}
-	gameServerGVR   = schema.GroupVersionResource{Group: "kestrel.gg", Version: "v1alpha1", Resource: "gameservers"}
+	gameTemplateGVR = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "gametemplates"}
+	gameServerGVR   = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "gameservers"}
 )
 
 // TestGameServer_OperatorMaterializesChildren — apply a tiny template
@@ -30,14 +30,14 @@ var (
 // matters at the operator layer.
 func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 
 	// Use a busybox-based "fake game" so the operator can construct a
 	// pod spec that won't fail to render. Image is never actually
 	// pulled here — we don't wait for the pod.
 	tmplName := "e2e-busybox"
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{
@@ -80,7 +80,7 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 
 	gsName := "e2e-test-srv"
 	gs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec": map[string]any{
@@ -219,7 +219,7 @@ func contains(ss []string, s string) bool {
 // different UID, while the PVC keeps the same UID throughout.
 func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-pvc-survive-tmpl"
 	gs := "e2e-pvc-survive-gs"
 
@@ -286,7 +286,7 @@ func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
 // install could ever leave Starting — this is the regression guard.
 func TestGameServer_HeartbeatReachesRunning(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-hb-tmpl"
 	gs := "e2e-hb-gs"
 

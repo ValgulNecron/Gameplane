@@ -16,20 +16,20 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/actions"
-	"github.com/kestrel-gg/kestrel/agent/internal/auth"
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
-	"github.com/kestrel-gg/kestrel/agent/internal/console"
-	"github.com/kestrel-gg/kestrel/agent/internal/files"
-	"github.com/kestrel-gg/kestrel/agent/internal/heartbeat"
-	"github.com/kestrel-gg/kestrel/agent/internal/lifecycle"
-	"github.com/kestrel-gg/kestrel/agent/internal/logs"
-	"github.com/kestrel-gg/kestrel/agent/internal/mods"
-	"github.com/kestrel-gg/kestrel/agent/internal/players"
-	"github.com/kestrel-gg/kestrel/agent/internal/quiesce"
-	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
-	"github.com/kestrel-gg/kestrel/agent/internal/status"
-	"github.com/kestrel-gg/kestrel/agent/internal/usage"
+	"github.com/ValgulNecron/gameplane/agent/internal/actions"
+	"github.com/ValgulNecron/gameplane/agent/internal/auth"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/console"
+	"github.com/ValgulNecron/gameplane/agent/internal/files"
+	"github.com/ValgulNecron/gameplane/agent/internal/heartbeat"
+	"github.com/ValgulNecron/gameplane/agent/internal/lifecycle"
+	"github.com/ValgulNecron/gameplane/agent/internal/logs"
+	"github.com/ValgulNecron/gameplane/agent/internal/mods"
+	"github.com/ValgulNecron/gameplane/agent/internal/players"
+	"github.com/ValgulNecron/gameplane/agent/internal/quiesce"
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
+	"github.com/ValgulNecron/gameplane/agent/internal/status"
+	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
 // Version is overridden at build time via -ldflags.
@@ -58,17 +58,17 @@ func main() {
 	flag.StringVar(&rconHost, "rcon-host", "127.0.0.1", "RCON host (loopback in the pod)")
 	flag.IntVar(&rconPort, "rcon-port", 25575, "RCON port")
 	flag.StringVar(&rconPassFile, "rcon-password-file", "", "path to file holding the RCON password")
-	flag.BoolVar(&rconEnabled, "rcon-enabled", envOr("KESTREL_RCON_ENABLED", "true") != "false",
+	flag.BoolVar(&rconEnabled, "rcon-enabled", envOr("GAMEPLANE_RCON_ENABLED", "true") != "false",
 		"whether the game exposes RCON; when false, RCON-backed endpoints degrade instead of dialing")
 	flag.StringVar(&gameLogPath, "game-log-path", "", "path to the game container's log file (for /logs/tail)")
 	flag.StringVar(&certFile, "tls-cert", "", "server TLS cert (PEM). Enables HTTPS + requires client cert")
 	flag.StringVar(&keyFile, "tls-key", "", "server TLS key (PEM)")
 	flag.StringVar(&clientCAFile, "tls-client-ca", "", "CA that signs API client certs")
 	flag.StringVar(&apiTokenFile, "api-token-file", "", "fallback shared-secret auth (used when TLS is not configured)")
-	flag.StringVar(&serverName, "server-name", envOr("KESTREL_SERVER_NAME", ""), "owning GameServer name")
-	flag.StringVar(&templateName, "template", envOr("KESTREL_TEMPLATE", ""), "GameTemplate name")
-	flag.StringVar(&gameName, "game", envOr("KESTREL_GAME", ""), "game identifier")
-	flag.StringVar(&capsJSON, "capabilities", envOr("KESTREL_CAPABILITIES", ""),
+	flag.StringVar(&serverName, "server-name", envOr("GAMEPLANE_SERVER_NAME", ""), "owning GameServer name")
+	flag.StringVar(&templateName, "template", envOr("GAMEPLANE_TEMPLATE", ""), "GameTemplate name")
+	flag.StringVar(&gameName, "game", envOr("GAMEPLANE_GAME", ""), "game identifier")
+	flag.StringVar(&capsJSON, "capabilities", envOr("GAMEPLANE_CAPABILITIES", ""),
 		"declared game capabilities (JSON, from GameTemplate spec.capabilities)")
 	flag.Parse()
 
@@ -157,7 +157,7 @@ func main() {
 	defer cancel()
 
 	// Resource usage: in proc mode (the operator shares the pod's PID
-	// namespace and sets KESTREL_USAGE_PROC) the agent reports the game
+	// namespace and sets GAMEPLANE_USAGE_PROC) the agent reports the game
 	// process's CPU/memory from /proc and uses the operator-supplied limits
 	// as the denominator; otherwise it falls back to its own cgroup.
 	go heartbeat.Run(ctx, heartbeat.Config{
@@ -169,9 +169,9 @@ func main() {
 		Interval:   20 * time.Second,
 		Usage: usage.New(usage.Config{
 			DataDir:            dataRoot,
-			ProcMode:           envOr("KESTREL_USAGE_PROC", "") == "1",
-			CPULimitMillicores: envInt("KESTREL_CPU_LIMIT_MILLICORES"),
-			MemLimitBytes:      envInt("KESTREL_MEM_LIMIT_BYTES"),
+			ProcMode:           envOr("GAMEPLANE_USAGE_PROC", "") == "1",
+			CPULimitMillicores: envInt("GAMEPLANE_CPU_LIMIT_MILLICORES"),
+			MemLimitBytes:      envInt("GAMEPLANE_MEM_LIMIT_BYTES"),
 		}),
 	})
 

@@ -9,8 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // MountPodEvents exposes GET /servers/{name}/events: a snapshot of the

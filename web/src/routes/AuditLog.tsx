@@ -298,7 +298,7 @@ function exportCsv(events: AuditEvent[]) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `kestrel-audit-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+  a.download = `gameplane-audit-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

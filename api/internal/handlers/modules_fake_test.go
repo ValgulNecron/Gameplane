@@ -17,7 +17,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // fakeKubeClient builds a kube.Client wired to fakes for both the
@@ -37,7 +37,7 @@ func fakeKubeClient(objs ...runtime.Object) *kube.Client {
 
 func newModule(name string, spec map[string]any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": name},
 		"spec":       spec,
@@ -52,7 +52,7 @@ func newModuleWithStatus(name string, spec, status map[string]any) *unstructured
 
 func newSource(name string, modules []any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": name},
 		"status":     map[string]any{"modules": modules},
@@ -61,7 +61,7 @@ func newSource(name string, modules []any) *unstructured.Unstructured {
 
 func mountModulesRouter(k *kube.Client) http.Handler {
 	r := chi.NewRouter()
-	MountModules(r, k, "kestrel-system")
+	MountModules(r, k, "gameplane-system")
 	return r
 }
 

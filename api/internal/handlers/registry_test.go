@@ -11,8 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
-	"github.com/kestrel-gg/kestrel/api/internal/registry"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/registry"
 )
 
 // fakeProvider records the query it was called with and returns canned data.
@@ -67,7 +67,7 @@ func newTemplateObj(name string, registryBlock map[string]any, versions []any) *
 		mods["registry"] = map[string]any{"providers": []any{registryBlock}}
 	}
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{
@@ -80,7 +80,7 @@ func newTemplateObj(name string, registryBlock map[string]any, versions []any) *
 
 func serverWithVersion(ns, name, tmpl, version string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{
@@ -103,7 +103,7 @@ func TestRegistrySearch_ResolvesLoaderAndGameVersion(t *testing.T) {
 	}
 	k := fakeKubeClient(
 		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
-		serverWithVersion("kestrel-games", "alpha", "minecraft", "1.20.1-fabric"),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", "1.20.1-fabric"),
 	)
 	fp := &fakeProvider{}
 	r := mountRegistryRouter(k, fakeSet{p: fp})
@@ -134,7 +134,7 @@ func TestRegistrySearch_DefaultVersionWhenUnset(t *testing.T) {
 	}
 	k := fakeKubeClient(
 		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
-		serverWithVersion("kestrel-games", "alpha", "minecraft", ""),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
 	)
 	fp := &fakeProvider{}
 	r := mountRegistryRouter(k, fakeSet{p: fp})
@@ -151,7 +151,7 @@ func TestRegistryVersions(t *testing.T) {
 	versions := []any{map[string]any{"id": "1.21.4-paper", "loader": "paper", "gameVersion": "1.21.4", "default": true}}
 	k := fakeKubeClient(
 		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
-		serverWithVersion("kestrel-games", "alpha", "minecraft", ""),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
 	)
 	fp := &fakeProvider{}
 	r := mountRegistryRouter(k, fakeSet{p: fp})
@@ -171,7 +171,7 @@ func TestRegistry_NoRegistryBlock_501(t *testing.T) {
 	versions := []any{map[string]any{"id": "v", "loader": "tmodloader", "default": true}}
 	k := fakeKubeClient(
 		newTemplateObj("terraria", nil, versions), // no registry block
-		serverWithVersion("kestrel-games", "alpha", "terraria", ""),
+		serverWithVersion("gameplane-games", "alpha", "terraria", ""),
 	)
 	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 	rr := do(t, r, "GET", "/servers/alpha/mods/registry/search?q=x", nil)
@@ -184,7 +184,7 @@ func TestRegistry_UnselectableProvider_501(t *testing.T) {
 	versions := []any{map[string]any{"id": "v", "loader": "bepinex", "default": true}}
 	k := fakeKubeClient(
 		newTemplateObj("valheim", map[string]any{"provider": "thunderstore"}, versions),
-		serverWithVersion("kestrel-games", "alpha", "valheim", ""),
+		serverWithVersion("gameplane-games", "alpha", "valheim", ""),
 	)
 	// Set.For reports the provider unselectable (e.g. missing community).
 	r := mountRegistryRouter(k, fakeSet{absent: true})
@@ -214,7 +214,7 @@ func TestInstallModpack_SetsEnv(t *testing.T) {
 	}
 	k := fakeKubeClient(
 		newTemplateObj("minecraft", reg, versions),
-		serverWithVersion("kestrel-games", "alpha", "minecraft", "1.21.4-fabric"),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", "1.21.4-fabric"),
 	)
 	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 
@@ -222,7 +222,7 @@ func TestInstallModpack_SetsEnv(t *testing.T) {
 	if rr.Code != 200 {
 		t.Fatalf("got %d %s", rr.Code, rr.Body)
 	}
-	gs, err := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace("kestrel-games").
+	gs, err := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace("gameplane-games").
 		Get(t.Context(), "alpha", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -243,7 +243,7 @@ func TestInstallModpack_DepsModeConflict(t *testing.T) {
 	reg := map[string]any{"provider": "thunderstore", "community": "valheim", "modpacks": map[string]any{}}
 	k := fakeKubeClient(
 		newTemplateObj("valheim", reg, versions),
-		serverWithVersion("kestrel-games", "alpha", "valheim", "stable"),
+		serverWithVersion("gameplane-games", "alpha", "valheim", "stable"),
 	)
 	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 	rr := do(t, r, "POST", "/servers/alpha/modpack", map[string]any{"ref": "x"})
@@ -257,7 +257,7 @@ func TestModpackDeps(t *testing.T) {
 	reg := map[string]any{"provider": "thunderstore", "community": "valheim", "modpacks": map[string]any{}}
 	k := fakeKubeClient(
 		newTemplateObj("valheim", reg, versions),
-		serverWithVersion("kestrel-games", "alpha", "valheim", "stable"),
+		serverWithVersion("gameplane-games", "alpha", "valheim", "stable"),
 	)
 	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 	rr := do(t, r, "GET", "/servers/alpha/mods/registry/projects/some-pack/modpack", nil)
@@ -282,7 +282,7 @@ func TestRegistryProviders(t *testing.T) {
 			map[string]any{"provider": "curseforge"},
 		},
 	}, "spec", "capabilities", "mods", "registry")
-	k := fakeKubeClient(tmpl, serverWithVersion("kestrel-games", "alpha", "minecraft", ""))
+	k := fakeKubeClient(tmpl, serverWithVersion("gameplane-games", "alpha", "minecraft", ""))
 	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 
 	rr := do(t, r, "GET", "/servers/alpha/mods/registry/providers", nil)
@@ -308,7 +308,7 @@ func TestRegistrySearch_UnknownProvider_501(t *testing.T) {
 	versions := []any{map[string]any{"id": "1.21.4-fabric", "loader": "fabric", "gameVersion": "1.21.4", "default": true}}
 	k := fakeKubeClient(
 		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
-		serverWithVersion("kestrel-games", "alpha", "minecraft", ""),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
 	)
 	r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}})
 	// curseforge isn't declared on this template → 501.
@@ -322,7 +322,7 @@ func TestRegistry_UpstreamError_502(t *testing.T) {
 	versions := []any{map[string]any{"id": "v", "loader": "paper", "gameVersion": "1.21.4", "default": true}}
 	k := fakeKubeClient(
 		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
-		serverWithVersion("kestrel-games", "alpha", "minecraft", ""),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
 	)
 	fp := &fakeProvider{searchErr: errors.New("boom")}
 	r := mountRegistryRouter(k, fakeSet{p: fp})

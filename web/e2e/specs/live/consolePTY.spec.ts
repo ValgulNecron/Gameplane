@@ -11,7 +11,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("live: PTY console", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only spec",
   );
 
@@ -31,9 +31,9 @@ test.describe("live: PTY console", () => {
     // This beforeAll just creates the GameServer.
     await request.post("/servers", {
       data: {
-        apiVersion: "kestrel.gg/v1alpha1",
+        apiVersion: "gameplane.gg/v1alpha1",
         kind: "GameServer",
-        metadata: { name: serverName, namespace: "kestrel-games" },
+        metadata: { name: serverName, namespace: "gameplane-games" },
         spec: { templateRef: { name: tmplName } },
       },
     });
@@ -75,7 +75,7 @@ test.describe("live: PTY console", () => {
     // the panel having an input affordance for command entry. If neither
     // is visible within 30s, the test skips (the live cluster's pod may
     // not have come up yet).
-    const marker = "kestrel-live-marker";
+    const marker = "gameplane-live-marker";
     const cmdInput = page.locator('input[placeholder*="command" i]').first();
     if (!(await cmdInput.isVisible({ timeout: 30_000 }).catch(() => false))) {
       test.skip(true, "Console tab has no command input — pod may not be ready");

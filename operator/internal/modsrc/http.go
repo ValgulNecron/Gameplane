@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/kestrel-gg/kestrel/netguard"
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/netguard"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // Hard caps on archives an http source will accept. A module bundle is
@@ -44,7 +44,7 @@ var httpFetchClient = netguard.HTTPClient(2*time.Minute, netguard.IsAllowed)
 // newHTTP builds a Fetcher over an archive (.tar.gz/.tgz/.zip) served
 // at an http(s) URL. The archive is downloaded fresh on each index and
 // scanned for module directories like every filesystem source.
-func newHTTP(ctx context.Context, c client.Client, namespace string, spec *kestrelv1alpha1.HTTPSourceSpec, allow []string) (Fetcher, error) {
+func newHTTP(ctx context.Context, c client.Client, namespace string, spec *gameplanev1alpha1.HTTPSourceSpec, allow []string) (Fetcher, error) {
 	if err := checkHTTPURL(spec.URL, spec.Insecure); err != nil {
 		return nil, err
 	}

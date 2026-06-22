@@ -28,7 +28,7 @@ import (
 // retention deletes other snapshots in the meantime).
 func TestRestore_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-restore-busybox"
 	gs := "e2e-restore-target"
 	bkName := "e2e-restore-bk"
@@ -57,7 +57,7 @@ func TestRestore_RoundTrip(t *testing.T) {
 		return false, "game container not ready yet"
 	})
 
-	const marker = "kestrel-restore-marker-payload"
+	const marker = "gameplane-restore-marker-payload"
 	// kubectl exec defaults to the first container ("game") when -c is
 	// omitted. The Env helper appends every arg after target to the
 	// command (after the `--` separator), so passing `-c game` here
@@ -193,7 +193,7 @@ func TestRestore_RoundTrip(t *testing.T) {
 // reconciler resolves the missing backup, then transitions to Failed.
 func TestRestore_RejectsMissingBackup(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	rsName := "e2e-restore-missing-backup"
 
 	// Need a target GameServer for the spec to validate against. We don't

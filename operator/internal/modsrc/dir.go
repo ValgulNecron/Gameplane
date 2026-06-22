@@ -10,7 +10,7 @@ import (
 	"path"
 	"sort"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // newFSFetcher builds a Fetcher over any filesystem-shaped source —
@@ -38,15 +38,15 @@ type dirModule struct {
 	bundle *Bundle
 }
 
-func (f *fsFetcher) Index(ctx context.Context) ([]kestrelv1alpha1.ModuleEntry, []string, error) {
+func (f *fsFetcher) Index(ctx context.Context) ([]gameplanev1alpha1.ModuleEntry, []string, error) {
 	mods, warnings, err := f.scan(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	entries := make([]kestrelv1alpha1.ModuleEntry, 0, len(mods))
+	entries := make([]gameplanev1alpha1.ModuleEntry, 0, len(mods))
 	for _, m := range mods {
 		meta := m.bundle.Metadata
-		entries = append(entries, kestrelv1alpha1.ModuleEntry{
+		entries = append(entries, gameplanev1alpha1.ModuleEntry{
 			Name:          meta.Name,
 			DisplayName:   meta.DisplayName,
 			Summary:       meta.Summary,

@@ -24,7 +24,7 @@ import (
 // regression that drops the patch silently would still pass the test.
 func TestAPI_LifecycleStartStop(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-tmpl"
 	gs := "e2e-api-lifecycle-startstop"
 
@@ -94,7 +94,7 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 // name.
 func TestAPI_LifecycleRestart(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-restart-tmpl"
 	gs := "e2e-api-lifecycle-restart"
 
@@ -154,7 +154,7 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 // usual materialize path on the new CR).
 func TestAPI_LifecycleClone(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-clone-tmpl"
 	gs := "e2e-api-lifecycle-clone-src"
 	cloneName := "e2e-api-lifecycle-clone-dst"
@@ -255,7 +255,7 @@ func TestAPI_LifecycleNotFound(t *testing.T) {
 func createGameServerViaAPI(t *testing.T, cli *APIClient, ns, name, tmpl string) {
 	t.Helper()
 	body := map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{

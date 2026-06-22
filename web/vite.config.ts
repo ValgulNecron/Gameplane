@@ -8,8 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 // API target for the dev server's proxy. Defaults to the standard local
 // process; Playwright live-mode points it at a kubectl port-forward by
-// setting KESTREL_API_URL=http://localhost:18080 before spawning vite.
-const apiTarget = process.env.KESTREL_API_URL ?? "http://localhost:8000";
+// setting GAMEPLANE_API_URL=http://localhost:18080 before spawning vite.
+const apiTarget = process.env.GAMEPLANE_API_URL ?? "http://localhost:8000";
 const wsTarget = apiTarget.replace(/^http/, "ws");
 
 // htmlBypass returns "/index.html" for HTML navigations (Accept includes

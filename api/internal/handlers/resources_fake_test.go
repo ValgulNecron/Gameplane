@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 func mountResourcesRouter(k *kube.Client) *chi.Mux {
@@ -18,7 +18,7 @@ func mountResourcesRouter(k *kube.Client) *chi.Mux {
 }
 
 func TestResources_NamespacedCRUD(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountResourcesRouter(k)
 
 	t.Run("list namespaced", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestResources_NamespacedCRUD(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		body := map[string]any{
-			"apiVersion": "kestrel.gg/v1alpha1",
+			"apiVersion": "gameplane.gg/v1alpha1",
 			"kind":       "GameServer",
 			"metadata":   map[string]any{"name": "beta"},
 			"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}},
@@ -75,7 +75,7 @@ func TestResources_DecodeBadJSON(t *testing.T) {
 func TestResources_ClusterScoped(t *testing.T) {
 	// gametemplates are cluster-scoped — no namespace in path.
 	body := map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": "minecraft"},
 		"spec":       map[string]any{"image": "x", "game": "minecraft", "version": "1"},
@@ -95,19 +95,19 @@ func TestResources_ClusterScoped(t *testing.T) {
 func TestResources_ManagedTemplateBlocked(t *testing.T) {
 	tmpl := newServerObj("", "minecraft")
 	// Re-shape into a GameTemplate-shaped object with the managed-by label.
-	tmpl.Object["apiVersion"] = "kestrel.gg/v1alpha1"
+	tmpl.Object["apiVersion"] = "gameplane.gg/v1alpha1"
 	tmpl.Object["kind"] = "GameTemplate"
 	delete(tmpl.Object["metadata"].(map[string]any), "namespace")
 	tmpl.SetLabels(map[string]string{
-		"kestrel.gg/managed-by":  "Module",
-		"kestrel.gg/module-name": "minecraft-vanilla",
+		"gameplane.gg/managed-by":  "Module",
+		"gameplane.gg/module-name": "minecraft-vanilla",
 	})
 
 	k := fakeKubeClient(tmpl)
 	r := mountResourcesRouter(k)
 
 	body := map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": "minecraft"},
 		"spec":       map[string]any{"image": "x"},
@@ -127,7 +127,7 @@ func TestResources_ManagedTemplateBlocked(t *testing.T) {
 func TestDecode_OversizeRejected(t *testing.T) {
 	// >1MiB body is rejected by io.LimitReader inside decode().
 	huge := strings.Repeat("a", (1<<20)+10)
-	body := `{"apiVersion":"kestrel.gg/v1alpha1","kind":"GameServer","metadata":{"name":"x"},"spec":{"junk":"` + huge + `"}}`
+	body := `{"apiVersion":"gameplane.gg/v1alpha1","kind":"GameServer","metadata":{"name":"x"},"spec":{"junk":"` + huge + `"}}`
 	k := fakeKubeClient()
 	r := mountResourcesRouter(k)
 	rr := doRaw(t, r, "POST", "/servers/", body)

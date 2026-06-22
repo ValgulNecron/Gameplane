@@ -11,8 +11,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 // bootstrapAdmin seeds (or, with --force, resets) the initial admin user
@@ -115,17 +115,17 @@ type bootstrapFlags struct {
 
 func (b *bootstrapFlags) bind(fs *flag.FlagSet) {
 	fs.StringVar(&b.username, "username", "", "admin username (required)")
-	fs.StringVar(&b.password, "password", "", "admin password; or set KESTREL_ADMIN_PASSWORD, or use --password-stdin")
+	fs.StringVar(&b.password, "password", "", "admin password; or set GAMEPLANE_ADMIN_PASSWORD, or use --password-stdin")
 	fs.BoolVar(&b.passwordStdin, "password-stdin", false, "read password from stdin (single line)")
 	fs.StringVar(&b.email, "email", "", "optional email")
 	fs.StringVar(&b.displayName, "display-name", "", "optional display name (defaults to username)")
 	fs.BoolVar(&b.force, "force", false, "if user exists, overwrite password and promote to admin")
-	fs.StringVar(&b.dbDriver, "db-driver", envOr("KESTREL_DB_DRIVER", "sqlite"), "sqlite or postgres")
-	fs.StringVar(&b.dbDSN, "db-dsn", envOr("KESTREL_DB_DSN", "file:/data/kestrel.db?_pragma=journal_mode(WAL)"), "DSN")
+	fs.StringVar(&b.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")
+	fs.StringVar(&b.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/gameplane.db?_pragma=journal_mode(WAL)"), "DSN")
 }
 
 // resolvePassword picks the password from exactly one source. Order of
-// precedence: --password-stdin, then --password, then KESTREL_ADMIN_PASSWORD.
+// precedence: --password-stdin, then --password, then GAMEPLANE_ADMIN_PASSWORD.
 // Combining --password-stdin with --password is rejected so an operator
 // can't accidentally hash the wrong value when piping.
 func resolvePassword(bf *bootstrapFlags, stdin io.Reader) (string, error) {
@@ -144,8 +144,8 @@ func resolvePassword(bf *bootstrapFlags, stdin io.Reader) (string, error) {
 	if bf.password != "" {
 		return bf.password, nil
 	}
-	if env := os.Getenv("KESTREL_ADMIN_PASSWORD"); env != "" {
+	if env := os.Getenv("GAMEPLANE_ADMIN_PASSWORD"); env != "" {
 		return env, nil
 	}
-	return "", errors.New("password required: provide --password, --password-stdin, or KESTREL_ADMIN_PASSWORD")
+	return "", errors.New("password required: provide --password, --password-stdin, or GAMEPLANE_ADMIN_PASSWORD")
 }

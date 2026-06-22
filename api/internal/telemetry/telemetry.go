@@ -20,8 +20,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 type Reporter struct {

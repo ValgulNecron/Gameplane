@@ -11,7 +11,7 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // annoRestoreCreatedBy marks a GameServer that a volume-snapshot Restore
@@ -19,7 +19,7 @@ import (
 // mistaking it for a pre-existing name collision. The new server is
 // intentionally NOT owner-referenced by the Restore (it must outlive it),
 // so this annotation is how the controller tracks it.
-const annoRestoreCreatedBy = "restore.kestrel.gg/created-by"
+const annoRestoreCreatedBy = "restore.gameplane.gg/created-by"
 
 // reconcileVolumeSnapshotRestore restores a volume-snapshot Backup by
 // standing up a brand-new GameServer whose data PVC is seeded from the CSI
@@ -27,7 +27,7 @@ const annoRestoreCreatedBy = "restore.kestrel.gg/created-by"
 // server is never touched. The new server's spec is copied from the original
 // (which must still exist to source the spec).
 func (r *RestoreReconciler) reconcileVolumeSnapshotRestore(
-	ctx context.Context, rs *kestrelv1alpha1.Restore, src *kestrelv1alpha1.Backup,
+	ctx context.Context, rs *gameplanev1alpha1.Restore, src *gameplanev1alpha1.Backup,
 ) (ctrl.Result, error) {
 	// The snapshot must have actually bound or the new PVC can't be seeded.
 	if src.Status.VolumeSnapshotContentName == "" {
@@ -36,7 +36,7 @@ func (r *RestoreReconciler) reconcileVolumeSnapshotRestore(
 	}
 
 	newKey := types.NamespacedName{Name: rs.Spec.ServerRef.Name, Namespace: rs.Namespace}
-	var newGS kestrelv1alpha1.GameServer
+	var newGS gameplanev1alpha1.GameServer
 	err := r.Get(ctx, newKey, &newGS)
 	switch {
 	case err == nil:
@@ -54,7 +54,7 @@ func (r *RestoreReconciler) reconcileVolumeSnapshotRestore(
 	}
 
 	// Target doesn't exist yet — build it from the original server's spec.
-	var orig kestrelv1alpha1.GameServer
+	var orig gameplanev1alpha1.GameServer
 	if err := r.Get(ctx, types.NamespacedName{Name: src.Spec.ServerRef.Name, Namespace: rs.Namespace}, &orig); err != nil {
 		if apierrors.IsNotFound(err) {
 			return r.fail(ctx, rs, fmt.Sprintf(
@@ -64,7 +64,7 @@ func (r *RestoreReconciler) reconcileVolumeSnapshotRestore(
 		return ctrl.Result{}, err
 	}
 
-	created := &kestrelv1alpha1.GameServer{
+	created := &gameplanev1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        rs.Spec.ServerRef.Name,
 			Namespace:   rs.Namespace,
@@ -74,9 +74,9 @@ func (r *RestoreReconciler) reconcileVolumeSnapshotRestore(
 	orig.Spec.DeepCopyInto(&created.Spec)
 	created.Spec.Suspend = false
 	if created.Spec.Storage == nil {
-		created.Spec.Storage = &kestrelv1alpha1.GameStorageSpec{}
+		created.Spec.Storage = &gameplanev1alpha1.GameStorageSpec{}
 	}
-	created.Spec.Storage.DataSource = &kestrelv1alpha1.GameDataSource{
+	created.Spec.Storage.DataSource = &gameplanev1alpha1.GameDataSource{
 		Kind: "VolumeSnapshot",
 		Name: rs.Status.SnapshotID,
 	}
@@ -101,12 +101,12 @@ func (r *RestoreReconciler) reconcileVolumeSnapshotRestore(
 // newly-provisioned server: Running → Succeeded, Failed → Failed, otherwise
 // keep polling while it starts up.
 func (r *RestoreReconciler) awaitRestoredServer(
-	ctx context.Context, rs *kestrelv1alpha1.Restore, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, rs *gameplanev1alpha1.Restore, gs *gameplanev1alpha1.GameServer,
 ) (ctrl.Result, error) {
 	switch gs.Status.Phase {
-	case kestrelv1alpha1.GameServerPhaseRunning:
+	case gameplanev1alpha1.GameServerPhaseRunning:
 		now := metav1.Now()
-		rs.Status.Phase = kestrelv1alpha1.RestorePhaseSucceeded
+		rs.Status.Phase = gameplanev1alpha1.RestorePhaseSucceeded
 		if rs.Status.CompletionTime == nil {
 			rs.Status.CompletionTime = &now
 		}
@@ -120,7 +120,7 @@ func (r *RestoreReconciler) awaitRestoredServer(
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
-	case kestrelv1alpha1.GameServerPhaseFailed:
+	case gameplanev1alpha1.GameServerPhaseFailed:
 		return r.fail(ctx, rs, fmt.Sprintf("restored server %q failed to start", gs.Name))
 	default:
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil

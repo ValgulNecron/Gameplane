@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# build.sh — build and push Kestrel module bundles to an OCI registry.
+# build.sh — build and push Gameplane module bundles to an OCI registry.
 #
 # Each module lives in modules/<name>/{template.yaml, module.yaml,
 # README.md, icon.png}. This script wraps `oras push` with the
-# Kestrel media types so the operator's pull path can find each
+# Gameplane media types so the operator's pull path can find each
 # layer by its filename annotation.
 #
 # Usage:
-#   modules/build.sh push --registry ghcr.io/kestrel-gg/modules
+#   modules/build.sh push --registry ghcr.io/valgulnecron/gameplane-modules
 #   modules/build.sh push --registry localhost:5001 --name minecraft-java --insecure
 #   modules/build.sh push --registry $REG --plain-http   # all modules, plain-http
 #
@@ -15,10 +15,10 @@
 
 set -euo pipefail
 
-ARTIFACT_TYPE="application/vnd.kestrel.module.v1+json"
-MEDIA_METADATA="application/vnd.kestrel.module.metadata.v1+yaml"
-MEDIA_TEMPLATE="application/vnd.kestrel.module.template.v1+yaml"
-MEDIA_README="application/vnd.kestrel.module.readme.v1+md"
+ARTIFACT_TYPE="application/vnd.gameplane.module.v1+json"
+MEDIA_METADATA="application/vnd.gameplane.module.metadata.v1+yaml"
+MEDIA_TEMPLATE="application/vnd.gameplane.module.template.v1+yaml"
+MEDIA_README="application/vnd.gameplane.module.readme.v1+md"
 MEDIA_ICON="image/png"
 
 usage() {
@@ -26,7 +26,7 @@ usage() {
 Usage: $0 push [flags]
 
 Flags:
-  --registry <ref>   Registry/repo prefix (e.g. ghcr.io/kestrel-gg/modules)   [required]
+  --registry <ref>   Registry/repo prefix (e.g. ghcr.io/valgulnecron/gameplane-modules)   [required]
   --name <name>      Push only this module (defaults: every dir under modules/)
   --plain-http       Use plain HTTP (for local kind registries)
   --insecure         Skip TLS verification

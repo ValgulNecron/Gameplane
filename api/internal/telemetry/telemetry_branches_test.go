@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 // bareStore is a migrated store with no telemetry config row (telStore

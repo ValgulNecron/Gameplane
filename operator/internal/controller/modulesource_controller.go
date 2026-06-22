@@ -15,8 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/modsrc"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/modsrc"
 )
 
 // defaultRefreshInterval is used when ModuleSource.spec.refreshInterval
@@ -40,18 +40,18 @@ type ModuleSourceReconciler struct {
 
 	// NewFetcher lets envtest swap in an in-process Fetcher. nil → the
 	// real per-source-type fetcher from modsrc.ForSource.
-	NewFetcher func(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error)
+	NewFetcher func(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error)
 }
 
-// +kubebuilder:rbac:groups=kestrel.gg,resources=modulesources,verbs=get;list;watch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=modulesources/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=modulesources,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=modulesources/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 
 func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var src kestrelv1alpha1.ModuleSource
+	var src gameplanev1alpha1.ModuleSource
 	if err := r.Get(ctx, req.NamespacedName, &src); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -76,7 +76,7 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		logger.Error(err, "indexing source", "source", src.Name)
 		src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
-			Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
+			Type:               gameplanev1alpha1.ModuleSourceConditionSynced,
 			Status:             metav1.ConditionFalse,
 			Reason:             "IndexFailed",
 			Message:            err.Error(),
@@ -94,7 +94,7 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				len(src.Status.Modules), err)
 		}
 		src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
-			Type:               kestrelv1alpha1.ModuleSourceConditionReady,
+			Type:               gameplanev1alpha1.ModuleSourceConditionReady,
 			Status:             readyStatus,
 			Reason:             readyReason,
 			Message:            readyMsg,
@@ -110,14 +110,14 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	src.Status.LastSync = &now
 	src.Status.Modules = entries
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
+		Type:               gameplanev1alpha1.ModuleSourceConditionSynced,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Indexed",
 		Message:            fmt.Sprintf("indexed %d of %d module(s)", len(entries)-len(warnings), len(entries)),
 		ObservedGeneration: src.Generation,
 	})
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleSourceConditionReady,
+		Type:               gameplanev1alpha1.ModuleSourceConditionReady,
 		Status:             metav1.ConditionTrue,
 		Reason:             "CatalogPopulated",
 		ObservedGeneration: src.Generation,
@@ -129,9 +129,9 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{RequeueAfter: refreshInterval(&src)}, nil
 }
 
-func (r *ModuleSourceReconciler) fail(ctx context.Context, src *kestrelv1alpha1.ModuleSource, err error) (ctrl.Result, error) {
+func (r *ModuleSourceReconciler) fail(ctx context.Context, src *gameplanev1alpha1.ModuleSource, err error) (ctrl.Result, error) {
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
-		Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
+		Type:               gameplanev1alpha1.ModuleSourceConditionSynced,
 		Status:             metav1.ConditionFalse,
 		Reason:             "IndexFailed",
 		Message:            err.Error(),
@@ -145,14 +145,14 @@ func (r *ModuleSourceReconciler) fail(ctx context.Context, src *kestrelv1alpha1.
 	return ctrl.Result{RequeueAfter: minRefreshInterval}, nil
 }
 
-func (r *ModuleSourceReconciler) fetcherFor(ctx context.Context, src *kestrelv1alpha1.ModuleSource) (modsrc.Fetcher, error) {
+func (r *ModuleSourceReconciler) fetcherFor(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error) {
 	if r.NewFetcher != nil {
 		return r.NewFetcher(ctx, src)
 	}
 	return modsrc.ForSource(ctx, r.Client, r.Namespace, src, r.FetchOptions)
 }
 
-func refreshInterval(src *kestrelv1alpha1.ModuleSource) time.Duration {
+func refreshInterval(src *gameplanev1alpha1.ModuleSource) time.Duration {
 	d := src.Spec.RefreshInterval.Duration
 	if d <= 0 {
 		return defaultRefreshInterval
@@ -165,7 +165,7 @@ func refreshInterval(src *kestrelv1alpha1.ModuleSource) time.Duration {
 
 func (r *ModuleSourceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.ModuleSource{}).
+		For(&gameplanev1alpha1.ModuleSource{}).
 		Watches(&corev1.ConfigMap{}, enqueueUploadSourcesForConfigMap(r.Client)).
 		Complete(r)
 }
@@ -175,16 +175,16 @@ func (r *ModuleSourceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // catalog immediately instead of on the next refresh tick.
 func enqueueUploadSourcesForConfigMap(c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-		if obj.GetLabels()[kestrelv1alpha1.LabelModuleUpload] != "true" {
+		if obj.GetLabels()[gameplanev1alpha1.LabelModuleUpload] != "true" {
 			return nil
 		}
-		var sources kestrelv1alpha1.ModuleSourceList
+		var sources gameplanev1alpha1.ModuleSourceList
 		if err := c.List(ctx, &sources); err != nil {
 			return nil
 		}
 		var reqs []reconcile.Request
 		for i := range sources.Items {
-			if sources.Items[i].Spec.Type == kestrelv1alpha1.ModuleSourceTypeUpload {
+			if sources.Items[i].Spec.Type == gameplanev1alpha1.ModuleSourceTypeUpload {
 				reqs = append(reqs, reconcile.Request{
 					NamespacedName: types.NamespacedName{Name: sources.Items[i].Name},
 				})

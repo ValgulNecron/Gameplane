@@ -14,9 +14,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
-	"github.com/kestrel-gg/kestrel/api/internal/registry"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/registry"
 )
 
 // errNoRegistry signals that a server's template declares no browsable mod

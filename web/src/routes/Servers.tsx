@@ -178,7 +178,7 @@ function ServerRow({
   const players = gs.status?.agent?.playersOnline;
   const maxPlayers = gs.status?.agent?.playersMax;
   const node = (gs.status as unknown as { node?: string })?.node
-    ?? gs.metadata.annotations?.["kestrel.gg/node"];
+    ?? gs.metadata.annotations?.["gameplane.gg/node"];
   const cpu = (gs.status as unknown as { cpuPercent?: number })?.cpuPercent;
   const mem = (gs.status as unknown as { memoryBytes?: number })?.memoryBytes;
 
@@ -196,7 +196,7 @@ function ServerRow({
               {gs.metadata.name}
             </Link>
             <div className="text-[11px] text-muted">
-              {gs.metadata.namespace ?? "kestrel-games"}
+              {gs.metadata.namespace ?? "gameplane-games"}
             </div>
           </div>
         </div>

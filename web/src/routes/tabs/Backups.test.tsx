@@ -45,7 +45,7 @@ describe("BackupsTab", () => {
     server.use(
       http.post("/backups", async ({ request }) => {
         posted = await request.json();
-        return HttpResponse.json(makeBackup({ metadata: { name: "alpha-new", namespace: "kestrel-games" } }));
+        return HttpResponse.json(makeBackup({ metadata: { name: "alpha-new", namespace: "gameplane-games" } }));
       }),
     );
     renderWithQuery(<BackupsTab name="alpha" />);
@@ -128,8 +128,8 @@ describe("BackupsTab", () => {
       http.get("/backups", () =>
         HttpResponse.json({
           items: [
-            makeBackup({ metadata: { name: "mine", namespace: "kestrel-games" }, spec: { serverRef: { name: "alpha" } } }),
-            makeBackup({ metadata: { name: "theirs", namespace: "kestrel-games" }, spec: { serverRef: { name: "beta" } } }),
+            makeBackup({ metadata: { name: "mine", namespace: "gameplane-games" }, spec: { serverRef: { name: "alpha" } } }),
+            makeBackup({ metadata: { name: "theirs", namespace: "gameplane-games" }, spec: { serverRef: { name: "beta" } } }),
           ],
         }),
       ),

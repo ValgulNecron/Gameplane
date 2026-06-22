@@ -10,7 +10,7 @@ import (
 
 func templateObj(name string, labels map[string]string) *unstructured.Unstructured {
 	o := newServerObj("", name)
-	o.Object["apiVersion"] = "kestrel.gg/v1alpha1"
+	o.Object["apiVersion"] = "gameplane.gg/v1alpha1"
 	o.Object["kind"] = "GameTemplate"
 	delete(o.Object["metadata"].(map[string]any), "namespace")
 	if labels != nil {
@@ -24,12 +24,12 @@ func templateObj(name string, labels map[string]string) *unstructured.Unstructur
 // only reach the managed-template block. Cover the rest here.
 
 func TestResources_Update_NamespacedSuccess(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountResourcesRouter(k)
 	body := map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
-		"metadata":   map[string]any{"name": "alpha", "namespace": "kestrel-games"},
+		"metadata":   map[string]any{"name": "alpha", "namespace": "gameplane-games"},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}, "suspended": true},
 	}
 	rr := do(t, r, "PUT", "/servers/alpha", body)
@@ -42,7 +42,7 @@ func TestResources_Update_ClusterUnmanagedSuccess(t *testing.T) {
 	k := fakeKubeClient(templateObj("minecraft", nil)) // no managed-by label
 	r := mountResourcesRouter(k)
 	body := map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": "minecraft"},
 		"spec":       map[string]any{"image": "y", "game": "minecraft", "version": "2"},
@@ -54,7 +54,7 @@ func TestResources_Update_ClusterUnmanagedSuccess(t *testing.T) {
 }
 
 func TestResources_Update_BadJSON(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountResourcesRouter(k)
 	rr := doRaw(t, r, "PUT", "/servers/alpha", "not json")
 	if rr.Code < 400 {
@@ -65,10 +65,10 @@ func TestResources_Update_BadJSON(t *testing.T) {
 // A managed template missing the module-name label falls back to the
 // template name in the conflict message.
 func TestResources_ManagedTemplate_ModNameFallback(t *testing.T) {
-	k := fakeKubeClient(templateObj("minecraft", map[string]string{"kestrel.gg/managed-by": "Module"}))
+	k := fakeKubeClient(templateObj("minecraft", map[string]string{"gameplane.gg/managed-by": "Module"}))
 	r := mountResourcesRouter(k)
 	body := map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": "minecraft"},
 		"spec":       map[string]any{"image": "x"},

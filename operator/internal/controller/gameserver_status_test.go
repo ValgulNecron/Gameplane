@@ -6,7 +6,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestDerivePhase(t *testing.T) {
@@ -16,19 +16,19 @@ func TestDerivePhase(t *testing.T) {
 		ssExists bool
 		ssReady  bool
 		hbFresh  bool
-		want     kestrelv1alpha1.GameServerPhase
+		want     gameplanev1alpha1.GameServerPhase
 	}{
-		{"pending when no ss", false, false, false, false, kestrelv1alpha1.GameServerPhasePending},
-		{"starting when ss not ready", false, true, false, false, kestrelv1alpha1.GameServerPhaseStarting},
-		{"starting when ready but no heartbeat", false, true, true, false, kestrelv1alpha1.GameServerPhaseStarting},
-		{"running when ready and fresh heartbeat", false, true, true, true, kestrelv1alpha1.GameServerPhaseRunning},
-		{"suspended when suspend + ss gone", true, false, false, false, kestrelv1alpha1.GameServerPhaseSuspended},
-		{"stopping when suspend + ss still ready", true, true, true, true, kestrelv1alpha1.GameServerPhaseStopping},
+		{"pending when no ss", false, false, false, false, gameplanev1alpha1.GameServerPhasePending},
+		{"starting when ss not ready", false, true, false, false, gameplanev1alpha1.GameServerPhaseStarting},
+		{"starting when ready but no heartbeat", false, true, true, false, gameplanev1alpha1.GameServerPhaseStarting},
+		{"running when ready and fresh heartbeat", false, true, true, true, gameplanev1alpha1.GameServerPhaseRunning},
+		{"suspended when suspend + ss gone", true, false, false, false, gameplanev1alpha1.GameServerPhaseSuspended},
+		{"stopping when suspend + ss still ready", true, true, true, true, gameplanev1alpha1.GameServerPhaseStopping},
 	}
 	for _, tc := range table {
 		t.Run(tc.name, func(t *testing.T) {
-			gs := &kestrelv1alpha1.GameServer{
-				Spec: kestrelv1alpha1.GameServerSpec{Suspend: tc.suspend},
+			gs := &gameplanev1alpha1.GameServer{
+				Spec: gameplanev1alpha1.GameServerSpec{Suspend: tc.suspend},
 			}
 			got := derivePhase(gs, tc.ssExists, tc.ssReady, tc.hbFresh)
 			if got != tc.want {
@@ -39,12 +39,12 @@ func TestDerivePhase(t *testing.T) {
 }
 
 func TestHeartbeatFresh(t *testing.T) {
-	gs := &kestrelv1alpha1.GameServer{}
+	gs := &gameplanev1alpha1.GameServer{}
 	if heartbeatFresh(gs) {
 		t.Error("no heartbeat should be stale")
 	}
 	now := metav1.Now()
-	gs.Status.Agent = &kestrelv1alpha1.AgentStatus{LastHeartbeat: &now}
+	gs.Status.Agent = &gameplanev1alpha1.AgentStatus{LastHeartbeat: &now}
 	if !heartbeatFresh(gs) {
 		t.Error("heartbeat now should be fresh")
 	}

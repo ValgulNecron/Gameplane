@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // testSSHKey generates an ed25519 keypair, returning the private key
@@ -52,16 +52,16 @@ func stubClone(t *testing.T, fn func(ctx context.Context, url, ref string, auth 
 
 func gitSecret(name string, data map[string][]byte) *corev1.Secret {
 	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kestrel-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "gameplane-system"},
 		Data:       data,
 	}
 }
 
 func TestCheckGitURL(t *testing.T) {
 	for _, ok := range []string{
-		"https://github.com/kestrel-gg/modules.git",
-		"ssh://git@github.com/kestrel-gg/modules.git",
-		"git@github.com:kestrel-gg/modules.git",
+		"https://github.com/ValgulNecron/gameplane-modules.git",
+		"ssh://git@github.com/ValgulNecron/gameplane-modules.git",
+		"git@github.com:gameplane-gg/modules.git",
 		// Self-hosted git on a private literal is legitimate, not SSRF.
 		"https://10.0.0.5/internal/modules.git",
 		"git@192.168.1.10:team/modules.git",
@@ -97,8 +97,8 @@ func TestGitFetcher_IndexStampsCommitDigest(t *testing.T) {
 		}), "abc123", nil
 	})
 
-	spec := &kestrelv1alpha1.GitSourceSpec{URL: "https://example.com/mods.git"}
-	f, err := newGit(context.Background(), fake.NewClientBuilder().Build(), "kestrel-system", spec, nil)
+	spec := &gameplanev1alpha1.GitSourceSpec{URL: "https://example.com/mods.git"}
+	f, err := newGit(context.Background(), fake.NewClientBuilder().Build(), "gameplane-system", spec, nil)
 	if err != nil {
 		t.Fatalf("newGit: %v", err)
 	}
@@ -132,12 +132,12 @@ func TestGitFetcher_SubPathScopesScan(t *testing.T) {
 			},
 		}), "abc123", nil
 	})
-	spec := &kestrelv1alpha1.GitSourceSpec{
+	spec := &gameplanev1alpha1.GitSourceSpec{
 		URL:     "https://example.com/mods.git",
 		Ref:     "v2",
 		SubPath: "modules/",
 	}
-	f, err := newGit(context.Background(), fake.NewClientBuilder().Build(), "kestrel-system", spec, nil)
+	f, err := newGit(context.Background(), fake.NewClientBuilder().Build(), "gameplane-system", spec, nil)
 	if err != nil {
 		t.Fatalf("newGit: %v", err)
 	}
@@ -157,8 +157,8 @@ func TestGitFetcher_CloneFailureIsTotalFailure(t *testing.T) {
 	stubClone(t, func(context.Context, string, string, transport.AuthMethod) (fs.FS, string, error) {
 		return nil, "", fmt.Errorf("authentication required")
 	})
-	spec := &kestrelv1alpha1.GitSourceSpec{URL: "https://example.com/private.git"}
-	f, err := newGit(context.Background(), fake.NewClientBuilder().Build(), "kestrel-system", spec, nil)
+	spec := &gameplanev1alpha1.GitSourceSpec{URL: "https://example.com/private.git"}
+	f, err := newGit(context.Background(), fake.NewClientBuilder().Build(), "gameplane-system", spec, nil)
 	if err != nil {
 		t.Fatalf("newGit: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestGitFetcher_CloneFailureIsTotalFailure(t *testing.T) {
 
 func TestGitAuth(t *testing.T) {
 	ctx := context.Background()
-	const ns = "kestrel-system"
+	const ns = "gameplane-system"
 
 	t.Run("nil secretRef is anonymous", func(t *testing.T) {
 		a, err := gitAuth(ctx, fake.NewClientBuilder().Build(), ns, nil, "https://x")

@@ -1,7 +1,7 @@
 // Package handlers implements the REST surface of the API. The design
 // deliberately sticks close to the Kubernetes API shape — the dashboard
 // talks to the API, the API to the dynamic client, and the dynamic
-// client to Kestrel CRDs. No intermediate DTOs.
+// client to Gameplane CRDs. No intermediate DTOs.
 package handlers
 
 import (
@@ -17,9 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // heartbeatStaleTTL is how long the agent's reported status.agent values
@@ -205,7 +205,7 @@ func deleteHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 }
 
 // managedTemplateBlocked returns a non-empty reason when the named
-// GameTemplate is managed by a Module (kestrel.gg/managed-by=Module).
+// GameTemplate is managed by a Module (gameplane.gg/managed-by=Module).
 // In that case, direct mutations via /templates are refused — the user
 // must go through /modules to install/upgrade/uninstall.
 func managedTemplateBlocked(req *http.Request, k *kube.Client, name string) (string, error) {
@@ -216,8 +216,8 @@ func managedTemplateBlocked(req *http.Request, k *kube.Client, name string) (str
 		}
 		return "", err
 	}
-	if tmpl.GetLabels()["kestrel.gg/managed-by"] == "Module" {
-		modName := tmpl.GetLabels()["kestrel.gg/module-name"]
+	if tmpl.GetLabels()["gameplane.gg/managed-by"] == "Module" {
+		modName := tmpl.GetLabels()["gameplane.gg/module-name"]
 		if modName == "" {
 			modName = name
 		}

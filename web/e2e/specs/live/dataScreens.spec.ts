@@ -6,7 +6,7 @@ import { loginIfNeeded, seedServer, seedTemplate } from "./_seed";
 // not MSW fixtures. The 17 main specs all skip in live mode and assert
 // against MSW; this spec is the inverse — it seeds real CRDs/DB rows through
 // the API and asserts the UI shows exactly those, end-to-end against the
-// kestrel-e2e cluster.
+// gameplane-e2e cluster.
 //
 // Screens with no setup cost (Cluster, Users/Roles, Modules) read whatever
 // the live install already has. Screens that need a workload (Servers list,
@@ -17,7 +17,7 @@ import { loginIfNeeded, seedServer, seedTemplate } from "./_seed";
 
 test.describe("live: data screens render real backend data", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only — the mock specs cover these screens against MSW",
   );
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap a local kind cluster for Kestrel development.
+# Bootstrap a local kind cluster for Gameplane development.
 #
 # Usage: deploy/kind/up.sh [cluster-name]
 #
@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-CLUSTER="${1:-kestrel-dev}"
+CLUSTER="${1:-gameplane-dev}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${HERE}/cluster.yaml"
 
@@ -16,7 +16,7 @@ CONFIG="${HERE}/cluster.yaml"
 # localhost:${REG_HOST_PORT} for `oras push`, and reachable from cluster
 # pods as ${REG_NAME}:${REG_INTERNAL_PORT} after the kind-network attach.
 REG_NAME="kind-registry"
-REG_HOST_PORT="${KESTREL_REG_HOST_PORT:-5001}"
+REG_HOST_PORT="${GAMEPLANE_REG_HOST_PORT:-5001}"
 REG_INTERNAL_PORT=5000
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
@@ -73,7 +73,7 @@ EOF
 
 kubectl cluster-info --context "kind-${CLUSTER}" >/dev/null
 
-# ingress-nginx — the Kestrel dashboard is reached through the ingress
+# ingress-nginx — the Gameplane dashboard is reached through the ingress
 # mapped to host ports 8080/8443 by cluster.yaml.
 if ! kubectl get ns ingress-nginx >/dev/null 2>&1; then
     echo "installing ingress-nginx"
@@ -92,7 +92,7 @@ kubectl apply -f - <<'EOF'
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: kestrel-system
+  name: gameplane-system
 EOF
 
 echo

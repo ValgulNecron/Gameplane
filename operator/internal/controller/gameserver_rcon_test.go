@@ -5,15 +5,15 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
-func rconGS() *kestrelv1alpha1.GameServer {
-	return &kestrelv1alpha1.GameServer{ObjectMeta: metav1.ObjectMeta{Name: "smp", Namespace: "ns"}}
+func rconGS() *gameplanev1alpha1.GameServer {
+	return &gameplanev1alpha1.GameServer{ObjectMeta: metav1.ObjectMeta{Name: "smp", Namespace: "ns"}}
 }
 
-func rconTmpl(spec *kestrelv1alpha1.RCONSpec) *kestrelv1alpha1.GameTemplate {
-	return &kestrelv1alpha1.GameTemplate{Spec: kestrelv1alpha1.GameTemplateSpec{RCON: spec}}
+func rconTmpl(spec *gameplanev1alpha1.RCONSpec) *gameplanev1alpha1.GameTemplate {
+	return &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{RCON: spec}}
 }
 
 func TestResolveRCON(t *testing.T) {
@@ -23,13 +23,13 @@ func TestResolveRCON(t *testing.T) {
 		if resolveRCON(gs, rconTmpl(nil)).enabled {
 			t.Fatal("expected disabled")
 		}
-		if resolveRCON(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "none"})).enabled {
+		if resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{Protocol: "none"})).enabled {
 			t.Fatal("protocol none must be disabled")
 		}
 	})
 
 	t.Run("generated secret by default", func(t *testing.T) {
-		rc := resolveRCON(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "source", PasswordEnv: "RCON_PASSWORD"}))
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{Protocol: "source", PasswordEnv: "RCON_PASSWORD"}))
 		if !rc.enabled || rc.secretName != "smp-rcon" || rc.secretKey != "password" {
 			t.Fatalf("got %+v", rc)
 		}
@@ -39,9 +39,9 @@ func TestResolveRCON(t *testing.T) {
 	})
 
 	t.Run("external PasswordSecretRef wins", func(t *testing.T) {
-		rc := resolveRCON(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
 			Protocol:          "source",
-			PasswordSecretRef: &kestrelv1alpha1.SecretKeySelector{Name: "my-secret", Key: "pw"},
+			PasswordSecretRef: &gameplanev1alpha1.SecretKeySelector{Name: "my-secret", Key: "pw"},
 		}))
 		if rc.secretName != "my-secret" || rc.secretKey != "pw" {
 			t.Fatalf("got %+v", rc)
@@ -52,10 +52,10 @@ func TestResolveRCON(t *testing.T) {
 func TestRCONGameEnv(t *testing.T) {
 	gs := rconGS()
 	// No passwordEnv → no env injected.
-	if rconGameEnv(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "source"})) != nil {
+	if rconGameEnv(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{Protocol: "source"})) != nil {
 		t.Fatal("no passwordEnv should inject nothing")
 	}
-	e := rconGameEnv(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "source", PasswordEnv: "RCON_PASSWORD"}))
+	e := rconGameEnv(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{Protocol: "source", PasswordEnv: "RCON_PASSWORD"}))
 	if e == nil || e.Name != "RCON_PASSWORD" || e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
 		t.Fatalf("got %+v", e)
 	}
@@ -70,7 +70,7 @@ func TestAgentVolumeMounts(t *testing.T) {
 	if len(base) != 2 {
 		t.Fatalf("non-rcon agent should have 2 mounts, got %d", len(base))
 	}
-	withRCON := agentVolumeMounts(gs, rconTmpl(&kestrelv1alpha1.RCONSpec{Protocol: "source"}), nil, "/data")
+	withRCON := agentVolumeMounts(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{Protocol: "source"}), nil, "/data")
 	found := false
 	for _, m := range withRCON {
 		if m.Name == "rcon-password" && m.MountPath == rconPasswordPath {

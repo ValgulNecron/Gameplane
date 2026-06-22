@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 func telStore(t *testing.T, sendMetrics bool) *db.Store {
@@ -49,7 +49,7 @@ func telKube(objs ...runtime.Object) *kube.Client {
 
 func unstr(kind, name, ns string) *unstructured.Unstructured {
 	o := &unstructured.Unstructured{}
-	o.SetAPIVersion("kestrel.gg/v1alpha1")
+	o.SetAPIVersion("gameplane.gg/v1alpha1")
 	o.SetKind(kind)
 	o.SetName(name)
 	if ns != "" {
@@ -67,8 +67,8 @@ func TestReportOnce_EnabledPostsAnonymousCounts(t *testing.T) {
 	defer srv.Close()
 
 	k := telKube(
-		unstr("GameServer", "a", "kestrel-games"),
-		unstr("GameServer", "b", "kestrel-games"),
+		unstr("GameServer", "a", "gameplane-games"),
+		unstr("GameServer", "b", "gameplane-games"),
 		unstr("GameTemplate", "minecraft", ""),
 	)
 	r := New(telStore(t, true), k, srv.URL, "v1.2.3", time.Hour)

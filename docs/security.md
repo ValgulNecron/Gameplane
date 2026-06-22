@@ -2,11 +2,11 @@
 
 ## Threat model
 
-Kestrel's dashboard is deliberately internet-exposed — that's the whole
+Gameplane's dashboard is deliberately internet-exposed — that's the whole
 point. Assume:
 
 - the login page is enumerable by any scanner,
-- cluster-internal attackers may land a pod in `kestrel-games` via a
+- cluster-internal attackers may land a pod in `gameplane-games` via a
   compromised game image (Minecraft plugins, Valheim mods, etc.),
 - the game pods themselves should be treated as low-trust.
 
@@ -16,12 +16,12 @@ Two modes, configurable independently:
 
 - **Local accounts** — argon2id (64 MiB, t=3, p=4) password hashing.
   Session cookies are HttpOnly, Secure, SameSite=Lax. CSRF protection
-  via a double-submit `X-Kestrel-CSRF` header on mutating requests.
+  via a double-submit `X-Gameplane-CSRF` header on mutating requests.
 - **OIDC** — Keycloak, Google, GitHub, any RFC-7519 compliant IdP.
   State validated through a short-lived cookie; `id_token` signature
   verified against the provider's JWKS.
 
-On first OIDC login for a subject, Kestrel creates a user row with
+On first OIDC login for a subject, Gameplane creates a user row with
 role `viewer`. Admins must promote new OIDC users manually.
 
 ## Authorization
@@ -41,8 +41,8 @@ named set of permissions, and a user is bound to roles **per namespace**.
 - **Bindings** (`user_role_bindings`) grant a role in a namespace; `*` means
   cluster-wide. A user's primary role (`PATCH /users/{id}`) is their
   cluster-wide binding; additional per-namespace grants are managed via
-  `…/users/{id}/bindings`. Allowed namespaces are the `KESTREL_EXTRA_NAMESPACES`
-  allow-list plus the default `kestrel-games`.
+  `…/users/{id}/bindings`. Allowed namespaces are the `GAMEPLANE_EXTRA_NAMESPACES`
+  allow-list plus the default `gameplane-games`.
 - **Enforcement** (`api/internal/rbac/rbac.go`): each route maps to one
   required permission; the middleware resolves the request's target namespace
   and checks the caller's resolved permission set. A *namespaced* permission
@@ -59,7 +59,7 @@ ownership today is informational only.
 ## API → Agent
 
 mTLS. The Helm chart provisions a self-signed CA via a post-install
-hook (or takes an existing `kestrel-agent-ca` Secret). The operator
+hook (or takes an existing `gameplane-agent-ca` Secret). The operator
 uses the CA to sign per-pod server certs; the API uses a single client
 cert. Agent refuses plain-HTTP traffic when TLS material is present.
 
@@ -80,7 +80,7 @@ allowIngress implicitly.
 
 ## Pod security
 
-Every Kestrel-managed pod (operator, api, agent) runs as:
+Every Gameplane-managed pod (operator, api, agent) runs as:
 
 - `runAsNonRoot: true` (uid 65532)
 - `readOnlyRootFilesystem: true`
@@ -114,18 +114,18 @@ boundary. Three controls protect it:
 
 Verification and pinning are opt-in. A source with neither is trusted to
 serve a `GameTemplate` whose image/command runs in your cluster — only point
-Kestrel at module sources you trust, and prefer signed, pinned installs for
+Gameplane at module sources you trust, and prefer signed, pinned installs for
 third-party games. Authoring details: [`module-authoring.md`](module-authoring.md).
 
 ## Secrets
 
-Secrets Kestrel reads or creates, by convention:
+Secrets Gameplane reads or creates, by convention:
 
-- `kestrel-<gameserver>-rcon` — per-game RCON password, created by operator
-- `kestrel-agent-ca` — CA bundle the API trusts
-- `kestrel-agent-client` — API's client cert/key
-- `kestrel-oidc` — OIDC client secret (user-supplied)
-- `kestrel-backup-repo` — restic repo URL + password (user-supplied)
+- `gameplane-<gameserver>-rcon` — per-game RCON password, created by operator
+- `gameplane-agent-ca` — CA bundle the API trusts
+- `gameplane-agent-client` — API's client cert/key
+- `gameplane-oidc` — OIDC client secret (user-supplied)
+- `gameplane-backup-repo` — restic repo URL + password (user-supplied)
 
 Rotation: deleting the `-rcon` secret triggers a reconciliation and
 generates a fresh password on the next pod restart.

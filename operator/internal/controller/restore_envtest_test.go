@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestRestore_FailsWhenBackupMissing — Restore referencing a
@@ -29,7 +29,7 @@ func TestRestore_FailsWhenBackupMissing(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		if r.Status.Phase != kestrelv1alpha1.RestorePhaseFailed {
+		if r.Status.Phase != gameplanev1alpha1.RestorePhaseFailed {
 			return false, describeRestoreStatus(r)
 		}
 		if r.Status.Message == "" {
@@ -64,13 +64,13 @@ func TestRestore_StaysPendingUntilBackupSucceeded(t *testing.T) {
 	// with empty Status; the controller writes Pending.)
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		return r.Status.Phase == kestrelv1alpha1.RestorePhasePending, describeRestoreStatus(r)
+		return r.Status.Phase == gameplanev1alpha1.RestorePhasePending, describeRestoreStatus(r)
 	})
 
 	// Then assert it stays in Pending while the Backup isn't ready.
 	consistently(t, 2*time.Second, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		if r.Status.Phase != kestrelv1alpha1.RestorePhasePending {
+		if r.Status.Phase != gameplanev1alpha1.RestorePhasePending {
 			return false, "advanced past Pending: " + describeRestoreStatus(r)
 		}
 		if r.Status.SnapshotID != "" {
@@ -112,7 +112,7 @@ func TestRestore_PinsSnapshotIDOnTransition(t *testing.T) {
 		// (or further — Suspending → Running is a single step away, so
 		// we accept Suspending or Running here).
 		switch r.Status.Phase {
-		case kestrelv1alpha1.RestorePhaseSuspending, kestrelv1alpha1.RestorePhaseRunning:
+		case gameplanev1alpha1.RestorePhaseSuspending, gameplanev1alpha1.RestorePhaseRunning:
 			return true, ""
 		default:
 			return false, "phase = " + string(r.Status.Phase)
@@ -187,7 +187,7 @@ func TestRestore_AdvancesToRunningOnceSuspended(t *testing.T) {
 	})
 
 	// Bump GameServer status into Suspended, expect the Job to materialize.
-	markGameServerPhase(t, ns, "smp", kestrelv1alpha1.GameServerPhaseSuspended)
+	markGameServerPhase(t, ns, "smp", gameplanev1alpha1.GameServerPhaseSuspended)
 
 	eventually(t, func() (bool, string) {
 		j, ok := getJob(t, ns, "restore-rs-1")
@@ -220,7 +220,7 @@ func TestRestore_AdvancesToRunningOnceSuspended(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		return r.Status.Phase == kestrelv1alpha1.RestorePhaseRunning, describeRestoreStatus(r)
+		return r.Status.Phase == gameplanev1alpha1.RestorePhaseRunning, describeRestoreStatus(r)
 	})
 }
 
@@ -241,7 +241,7 @@ func TestRestore_ResumesGameServerOnSuccess(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		if r.Status.Phase != kestrelv1alpha1.RestorePhaseSucceeded {
+		if r.Status.Phase != gameplanev1alpha1.RestorePhaseSucceeded {
 			return false, describeRestoreStatus(r)
 		}
 		gs := getGameServer(t, ns, "smp")
@@ -270,7 +270,7 @@ func TestRestore_LeavesServerSuspendedOnFailure(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		if r.Status.Phase != kestrelv1alpha1.RestorePhaseFailed {
+		if r.Status.Phase != gameplanev1alpha1.RestorePhaseFailed {
 			return false, describeRestoreStatus(r)
 		}
 		if r.Status.Message == "" {
@@ -304,7 +304,7 @@ func TestRestore_FailsWhenServerMissing(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		if r.Status.Phase != kestrelv1alpha1.RestorePhaseFailed {
+		if r.Status.Phase != gameplanev1alpha1.RestorePhaseFailed {
 			return false, describeRestoreStatus(r)
 		}
 		return true, ""
@@ -336,7 +336,7 @@ func bootstrapRestoreToRunning(t *testing.T, ns string) {
 	eventually(t, func() (bool, string) {
 		return getGameServer(t, ns, "smp").Spec.Suspend, "waiting for spec.suspend"
 	})
-	markGameServerPhase(t, ns, "smp", kestrelv1alpha1.GameServerPhaseSuspended)
+	markGameServerPhase(t, ns, "smp", gameplanev1alpha1.GameServerPhaseSuspended)
 
 	eventually(t, func() (bool, string) {
 		_, ok := getJob(t, ns, "restore-rs-1")
@@ -344,7 +344,7 @@ func bootstrapRestoreToRunning(t *testing.T, ns string) {
 	})
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
-		return r.Status.Phase == kestrelv1alpha1.RestorePhaseRunning, describeRestoreStatus(r)
+		return r.Status.Phase == gameplanev1alpha1.RestorePhaseRunning, describeRestoreStatus(r)
 	})
 }
 
@@ -373,7 +373,7 @@ func TestRestore_FailsWhenBackupFailed(t *testing.T) {
 	if err := k8sClient.Create(context.Background(), bk); err != nil {
 		t.Fatalf("create backup: %v", err)
 	}
-	bk.Status.Phase = kestrelv1alpha1.BackupPhaseFailed
+	bk.Status.Phase = gameplanev1alpha1.BackupPhaseFailed
 	bk.Status.Message = "repo Secret missing"
 	if err := k8sClient.Status().Update(context.Background(), bk); err != nil {
 		t.Fatalf("mark backup failed: %v", err)
@@ -385,7 +385,7 @@ func TestRestore_FailsWhenBackupFailed(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		r := getRestore(t, ns, "rs-dead")
-		if r.Status.Phase != kestrelv1alpha1.RestorePhaseFailed {
+		if r.Status.Phase != gameplanev1alpha1.RestorePhaseFailed {
 			return false, describeRestoreStatus(r)
 		}
 		if r.Status.Message == "" {
@@ -395,7 +395,7 @@ func TestRestore_FailsWhenBackupFailed(t *testing.T) {
 	})
 
 	// The target GameServer was never suspended.
-	var gs kestrelv1alpha1.GameServer
+	var gs gameplanev1alpha1.GameServer
 	if err := k8sClient.Get(context.Background(),
 		types.NamespacedName{Namespace: ns, Name: "smp"}, &gs); err != nil {
 		t.Fatalf("get gameserver: %v", err)

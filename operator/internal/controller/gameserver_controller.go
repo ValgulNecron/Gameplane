@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // GameServerReconciler reconciles a GameServer object into a StatefulSet,
@@ -40,7 +40,7 @@ type GameServerReconciler struct {
 	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
 	// wide Secret holding `ca.crt` + `ca.key` used to sign the
 	// per-GameServer agent server cert. Provisioned by the chart
-	// (charts/kestrel/templates/mtls.yaml).
+	// (charts/gameplane/templates/mtls.yaml).
 	AgentCASecretName      string
 	AgentCASecretNamespace string
 
@@ -60,7 +60,7 @@ const (
 	// stopRequestedAtAnnotation records (RFC3339) when the operator issued the
 	// in-game stop sequence, so the soft-stop wait survives reconciles and the
 	// command is issued only once.
-	stopRequestedAtAnnotation = "gameserver.kestrel.gg/stop-requested-at"
+	stopRequestedAtAnnotation = "gameserver.gameplane.gg/stop-requested-at"
 
 	// defaultStopGracePeriod bounds the soft-stop wait when the GameServer
 	// leaves spec.stopGracePeriodSeconds unset.
@@ -74,10 +74,10 @@ const (
 // operator/config/rbac/role_namespace.yaml and the Helm chart. This
 // keeps a compromised operator token from reading Secrets cluster-wide.
 //
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gameservers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=kestrel.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
@@ -89,17 +89,17 @@ const (
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var gs kestrelv1alpha1.GameServer
+	var gs gameplanev1alpha1.GameServer
 	if err := r.Get(ctx, req.NamespacedName, &gs); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// Resolve the template this GameServer points at. Templates are
 	// cluster-scoped so no namespace is needed.
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	if err := r.Get(ctx, types.NamespacedName{Name: gs.Spec.TemplateRef.Name}, &tmpl); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ctrl.Result{}, r.setPhase(ctx, &gs, kestrelv1alpha1.GameServerPhaseFailed,
+			return ctrl.Result{}, r.setPhase(ctx, &gs, gameplanev1alpha1.GameServerPhaseFailed,
 				fmt.Sprintf("GameTemplate %q not found", gs.Spec.TemplateRef.Name))
 		}
 		return ctrl.Result{}, err
@@ -111,7 +111,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// silently ignores what the user asked for.
 	mc, err := materializeConfig(&gs, &tmpl)
 	if err != nil {
-		return ctrl.Result{}, r.setPhase(ctx, &gs, kestrelv1alpha1.GameServerPhaseFailed,
+		return ctrl.Result{}, r.setPhase(ctx, &gs, gameplanev1alpha1.GameServerPhaseFailed,
 			fmt.Sprintf("invalid config: %v", err))
 	}
 
@@ -120,7 +120,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// like an invalid config, rather than silently falling back.
 	ver, err := resolveVersion(&gs, &tmpl)
 	if err != nil {
-		return ctrl.Result{}, r.setPhase(ctx, &gs, kestrelv1alpha1.GameServerPhaseFailed, err.Error())
+		return ctrl.Result{}, r.setPhase(ctx, &gs, gameplanev1alpha1.GameServerPhaseFailed, err.Error())
 	}
 
 	if err := r.reconcilePVC(ctx, &gs, &tmpl); err != nil {
@@ -191,12 +191,12 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.GameServer{}).
+		For(&gameplanev1alpha1.GameServer{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
-		Owns(&kestrelv1alpha1.BackupSchedule{}).
+		Owns(&gameplanev1alpha1.BackupSchedule{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&rbacv1.Role{}).
@@ -207,7 +207,7 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // --- sub-reconcilers (skeletons) ---
 
 func (r *GameServerReconciler) reconcilePVC(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) error {
 	size := resource.MustParse("10Gi")
 	if gs.Spec.Storage != nil && !gs.Spec.Storage.Size.IsZero() {
@@ -249,7 +249,7 @@ func (r *GameServerReconciler) reconcilePVC(
 }
 
 func (r *GameServerReconciler) reconcileService(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) error {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: gs.Name, Namespace: gs.Namespace},
@@ -271,7 +271,7 @@ func (r *GameServerReconciler) reconcileService(
 			svc.Spec.LoadBalancerSourceRanges = nil
 		}
 		svc.Spec.Selector = map[string]string{
-			"app.kubernetes.io/name":     "kestrel-game",
+			"app.kubernetes.io/name":     "gameplane-game",
 			"app.kubernetes.io/instance": gs.Name,
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
@@ -296,7 +296,7 @@ func (r *GameServerReconciler) reconcileService(
 // per-pod DNS only resolves under headless Services, which the game
 // Service is not.
 func (r *GameServerReconciler) reconcileAgentService(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) error {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: gs.Name + "-agent", Namespace: gs.Namespace},
@@ -309,7 +309,7 @@ func (r *GameServerReconciler) reconcileAgentService(
 		// readiness probe would otherwise hold the agent hostage.
 		svc.Spec.PublishNotReadyAddresses = true
 		svc.Spec.Selector = map[string]string{
-			"app.kubernetes.io/name":     "kestrel-game",
+			"app.kubernetes.io/name":     "gameplane-game",
 			"app.kubernetes.io/instance": gs.Name,
 		}
 		svc.Spec.Ports = []corev1.ServicePort{{
@@ -324,9 +324,9 @@ func (r *GameServerReconciler) reconcileAgentService(
 }
 
 func svcPortsFromTemplate(
-	tmpl *kestrelv1alpha1.GameTemplate, gs *kestrelv1alpha1.GameServer,
+	tmpl *gameplanev1alpha1.GameTemplate, gs *gameplanev1alpha1.GameServer,
 ) []corev1.ServicePort {
-	overrides := map[string]kestrelv1alpha1.PortOverride{}
+	overrides := map[string]gameplanev1alpha1.PortOverride{}
 	for _, o := range gs.Spec.Networking.PortOverrides {
 		overrides[o.Name] = o
 	}
@@ -367,7 +367,7 @@ func svcPortsFromTemplate(
 // stop is in progress). Templates with no stop sequence keep the original
 // behaviour: suspend scales straight to zero.
 func (r *GameServerReconciler) desiredReplicas(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) (int32, time.Duration, error) {
 	if !gs.Spec.Suspend {
 		// Running: drop any stale soft-stop bookkeeping from a prior stop.
@@ -426,7 +426,7 @@ func (r *GameServerReconciler) desiredReplicas(
 	return 0, 0, nil
 }
 
-func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *kestrelv1alpha1.GameServer, val string) error {
+func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *gameplanev1alpha1.GameServer, val string) error {
 	if gs.Annotations == nil {
 		gs.Annotations = map[string]string{}
 	}
@@ -434,7 +434,7 @@ func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *kestre
 	return r.Update(ctx, gs)
 }
 
-func (r *GameServerReconciler) clearStopAnnotation(ctx context.Context, gs *kestrelv1alpha1.GameServer) error {
+func (r *GameServerReconciler) clearStopAnnotation(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
 	if _, ok := gs.Annotations[stopRequestedAtAnnotation]; !ok {
 		return nil
 	}
@@ -443,8 +443,8 @@ func (r *GameServerReconciler) clearStopAnnotation(ctx context.Context, gs *kest
 }
 
 func (r *GameServerReconciler) reconcileStatefulSet(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
-	ver *kestrelv1alpha1.GameVersion, mc *materializedConfig, replicas int32,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+	ver *gameplanev1alpha1.GameVersion, mc *materializedConfig, replicas int32,
 ) error {
 	image := resolveImage(gs, tmpl, ver)
 
@@ -453,9 +453,9 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ss, func() error {
 		labels := map[string]string{
-			"app.kubernetes.io/name":     "kestrel-game",
+			"app.kubernetes.io/name":     "gameplane-game",
 			"app.kubernetes.io/instance": gs.Name,
-			"kestrel.gg/template":        tmpl.Name,
+			"gameplane.gg/template":        tmpl.Name,
 		}
 		ss.Spec.Replicas = &replicas
 		ss.Spec.ServiceName = gs.Name
@@ -565,7 +565,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 
 // effectiveMountPath is where the game's data volume is mounted,
 // defaulting to /data when the template doesn't say.
-func effectiveMountPath(tmpl *kestrelv1alpha1.GameTemplate) string {
+func effectiveMountPath(tmpl *gameplanev1alpha1.GameTemplate) string {
 	if tmpl.Spec.Storage.MountPath != "" {
 		return tmpl.Spec.Storage.MountPath
 	}
@@ -575,7 +575,7 @@ func effectiveMountPath(tmpl *kestrelv1alpha1.GameTemplate) string {
 // configFilesStagingPath is where the `<gs>-files` Secret is mounted
 // inside the config-init container before being copied onto the data
 // volume.
-const configFilesStagingPath = "/etc/kestrel/config-files"
+const configFilesStagingPath = "/etc/gameplane/config-files"
 
 // configInitImage runs the copy from the staging mount onto the data
 // volume. Pinned like the restic image in backup_controller.go; the
@@ -585,7 +585,7 @@ const configInitImage = "busybox:1.37.0"
 // buildConfigInitContainer copies the rendered config files onto the
 // data volume on every pod start — operator-rendered files always win
 // over in-place edits (e.g. via the dashboard Files tab).
-func buildConfigInitContainer(tmpl *kestrelv1alpha1.GameTemplate) corev1.Container {
+func buildConfigInitContainer(tmpl *gameplanev1alpha1.GameTemplate) corev1.Container {
 	mountPath := effectiveMountPath(tmpl)
 	return corev1.Container{
 		Name:    "config-init",
@@ -602,8 +602,8 @@ func buildConfigInitContainer(tmpl *kestrelv1alpha1.GameTemplate) corev1.Contain
 }
 
 func buildGameContainer(
-	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, image string,
-	ver *kestrelv1alpha1.GameVersion, mc *materializedConfig,
+	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, image string,
+	ver *gameplanev1alpha1.GameVersion, mc *materializedConfig,
 ) corev1.Container {
 	mountPath := effectiveMountPath(tmpl)
 	ports := make([]corev1.ContainerPort, 0, len(tmpl.Spec.Ports))
@@ -676,8 +676,8 @@ func buildGameContainer(
 }
 
 func buildAgentContainer(
-	gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
-	ver *kestrelv1alpha1.GameVersion, fallbackImage string,
+	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+	ver *gameplanev1alpha1.GameVersion, fallbackImage string,
 ) corev1.Container {
 	image := fallbackImage
 	res := corev1.ResourceRequirements{}
@@ -693,9 +693,9 @@ func buildAgentContainer(
 	noPrivEsc := false
 	uid := int64(65532)
 	args := []string{
-		"--tls-cert=/etc/kestrel/agent-tls/tls.crt",
-		"--tls-key=/etc/kestrel/agent-tls/tls.key",
-		"--tls-client-ca=/etc/kestrel/agent-tls/ca.crt",
+		"--tls-cert=/etc/gameplane/agent-tls/tls.crt",
+		"--tls-key=/etc/gameplane/agent-tls/tls.key",
+		"--tls-client-ca=/etc/gameplane/agent-tls/ca.crt",
 	}
 	if tmpl.Spec.LogPath != "" {
 		args = append(args, "--game-log-path="+tmpl.Spec.LogPath)
@@ -704,17 +704,17 @@ func buildAgentContainer(
 		args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
 	}
 	env := []corev1.EnvVar{
-		{Name: "KESTREL_SERVER_NAME", Value: gs.Name},
-		{Name: "KESTREL_TEMPLATE", Value: tmpl.Name},
-		{Name: "KESTREL_GAME", Value: tmpl.Spec.Game},
+		{Name: "GAMEPLANE_SERVER_NAME", Value: gs.Name},
+		{Name: "GAMEPLANE_TEMPLATE", Value: tmpl.Name},
+		{Name: "GAMEPLANE_GAME", Value: tmpl.Spec.Game},
 		// Games without RCON (consoleMode pty/none) must not have the
 		// agent dialing a console port that doesn't exist — players
 		// and moderation endpoints degrade instead.
-		{Name: "KESTREL_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+		{Name: "GAMEPLANE_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
 		// The pod shares its PID namespace (ShareProcessNamespace), so the
 		// agent reports the GAME process's CPU/memory from /proc rather than
 		// its own per-container cgroup (which shows only the idle sidecar).
-		{Name: "KESTREL_USAGE_PROC", Value: "1"},
+		{Name: "GAMEPLANE_USAGE_PROC", Value: "1"},
 	}
 	// In proc mode the agent can't read the game container's cgroup limit, so
 	// pass the resolved limits through as the denominator for the dashboard's
@@ -725,12 +725,12 @@ func buildAgentContainer(
 	}
 	if cpu := gameRes.Limits.Cpu(); cpu != nil && !cpu.IsZero() {
 		env = append(env, corev1.EnvVar{
-			Name: "KESTREL_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
+			Name: "GAMEPLANE_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
 		})
 	}
 	if mem := gameRes.Limits.Memory(); mem != nil && !mem.IsZero() {
 		env = append(env, corev1.EnvVar{
-			Name: "KESTREL_MEM_LIMIT_BYTES", Value: strconv.FormatInt(mem.Value(), 10),
+			Name: "GAMEPLANE_MEM_LIMIT_BYTES", Value: strconv.FormatInt(mem.Value(), 10),
 		})
 	}
 	// Declared capability commands travel to the agent as one JSON blob;
@@ -740,7 +740,7 @@ func buildAgentContainer(
 	// Mods.Path, so the agent stays loader-agnostic (no agent code change).
 	if caps := resolveCapabilities(tmpl, ver); caps != nil {
 		if b, err := json.Marshal(caps); err == nil {
-			env = append(env, corev1.EnvVar{Name: "KESTREL_CAPABILITIES", Value: string(b)})
+			env = append(env, corev1.EnvVar{Name: "GAMEPLANE_CAPABILITIES", Value: string(b)})
 		}
 	}
 	return corev1.Container{
@@ -763,10 +763,10 @@ func buildAgentContainer(
 }
 
 func (r *GameServerReconciler) reconcileBackupSchedule(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) error {
 	name := gs.Name + "-auto"
-	bs := &kestrelv1alpha1.BackupSchedule{
+	bs := &gameplanev1alpha1.BackupSchedule{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: gs.Namespace},
 	}
 
@@ -779,7 +779,7 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, bs, func() error {
-		bs.Spec.ServerRef = kestrelv1alpha1.LocalObjectRef{Name: gs.Name}
+		bs.Spec.ServerRef = gameplanev1alpha1.LocalObjectRef{Name: gs.Name}
 		bs.Spec.Schedule = gs.Spec.BackupPolicy.Schedule
 		bs.Spec.RepoRef = &gs.Spec.BackupPolicy.RepoRef
 		bs.Spec.Retention = gs.Spec.BackupPolicy.Retention
@@ -790,7 +790,7 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 }
 
 func (r *GameServerReconciler) setPhase(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, phase kestrelv1alpha1.GameServerPhase, msg string,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, phase gameplanev1alpha1.GameServerPhase, msg string,
 ) error {
 	// Patch (not Update) so we don't carry/revert the agent's concurrently
 	// written status.agent — see reconcileStatus for the full rationale.

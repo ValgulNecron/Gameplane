@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/kestrel-gg/kestrel/test/e2e/internal/mcbot"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/mcbot"
 )
 
 // TestGameServer_MinecraftBotConnects is the most end-to-end test in the suite:
@@ -24,7 +24,7 @@ import (
 //
 // Unlike the other GameServer tests (which use a busybox "fake game" and never
 // wait for a Ready pod), this pulls a large external image and boots a JVM, so
-// it is opt-in (set KESTREL_E2E_GAME_BOT=1) and runs on its own CI job with a
+// it is opt-in (set GAMEPLANE_E2E_GAME_BOT=1) and runs on its own CI job with a
 // generous timeout. The mcbot client is also exercised against the shipped
 // minecraft-java template on a real cluster; here we use a trimmed vanilla
 // template so it boots fast and fits a single kind node.
@@ -36,11 +36,11 @@ import (
 //     only a bespoke protocol implementation could connect, which isn't worth
 //     carrying. (A plain TCP dial would prove reachability, not playability.)
 func TestGameServer_MinecraftBotConnects(t *testing.T) {
-	if os.Getenv("KESTREL_E2E_GAME_BOT") == "" {
-		t.Skip("heavy: set KESTREL_E2E_GAME_BOT=1 to run the real-Minecraft bot test")
+	if os.Getenv("GAMEPLANE_E2E_GAME_BOT") == "" {
+		t.Skip("heavy: set GAMEPLANE_E2E_GAME_BOT=1 to run the real-Minecraft bot test")
 	}
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 
 	// A trimmed Minecraft GameTemplate: the same itzg image and game port as the
 	// shipped modules/minecraft-java template, but vanilla with a small JVM heap
@@ -48,7 +48,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 	// ONLINE_MODE=FALSE lets an unauthenticated headless bot complete a login.
 	tmplName := "e2e-minecraft"
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{
@@ -99,7 +99,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 
 	gsName := "e2e-mc-bot"
 	gs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec": map[string]any{
@@ -156,7 +156,7 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 	// skips encryption and answers Login Success for our offline bot.
 	lctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	res, err := mcbot.Login(lctx, addr, st.Version.Protocol, "kestrel-e2e-bot")
+	res, err := mcbot.Login(lctx, addr, st.Version.Protocol, "gameplane-e2e-bot")
 	if err != nil {
 		t.Fatalf("bot login: %v", err)
 	}

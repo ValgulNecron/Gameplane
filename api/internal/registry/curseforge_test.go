@@ -9,7 +9,7 @@ import (
 )
 
 func testCurseforge(url string) *Curseforge {
-	c := newCurseforge(&http.Client{Timeout: 5 * time.Second}, "kestrel-test", "secret-key")
+	c := newCurseforge(&http.Client{Timeout: 5 * time.Second}, "gameplane-test", "secret-key")
 	c.baseURL = url
 	return c
 }

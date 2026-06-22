@@ -1,0 +1,15 @@
+apiVersion: gameplane.gg/v1alpha1
+kind: Backup
+metadata:
+  name: smp-01-manual-001
+  namespace: gameplane-games
+spec:
+  serverRef:
+    name: smp-01
+  repoRef:
+    name: gameplane-backup-repo
+    key: url
+  strategy: restic-snapshot
+  quiesce: true
+  tags:
+    - manual

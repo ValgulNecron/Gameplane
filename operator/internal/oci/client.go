@@ -16,7 +16,7 @@ import (
 )
 
 // Client is a thin wrapper around oras-go that knows how to enumerate
-// tags and pull Kestrel module bundles.
+// tags and pull Gameplane module bundles.
 type Client struct {
 	credentials CredentialFunc
 	insecure    bool
@@ -49,7 +49,7 @@ func (c *Client) repo(ref string) (*remote.Repository, error) {
 	r.PlainHTTP = c.insecure
 	authClient := &auth.Client{
 		Client: c.httpClient,
-		Header: http.Header{"User-Agent": []string{"kestrel-operator/oci"}},
+		Header: http.Header{"User-Agent": []string{"gameplane-operator/oci"}},
 	}
 	if c.credentials != nil {
 		authClient.Credential = func(ctx context.Context, registry string) (auth.Credential, error) {

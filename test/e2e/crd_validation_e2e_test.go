@@ -16,11 +16,11 @@ import (
 // error.
 
 func TestCRD_Validation_GameServerWithoutTemplate(t *testing.T) {
-	yaml := `apiVersion: kestrel.gg/v1alpha1
+	yaml := `apiVersion: gameplane.gg/v1alpha1
 kind: GameServer
 metadata:
   name: e2e-validation-gs-no-template
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   templateRef:
     name: ""
@@ -29,11 +29,11 @@ spec:
 }
 
 func TestCRD_Validation_BackupScheduleBadCron(t *testing.T) {
-	yaml := `apiVersion: kestrel.gg/v1alpha1
+	yaml := `apiVersion: gameplane.gg/v1alpha1
 kind: BackupSchedule
 metadata:
   name: e2e-validation-bksched-badcron
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   serverRef:
     name: any-server
@@ -46,11 +46,11 @@ spec:
 }
 
 func TestCRD_Validation_BackupRequiresServerRef(t *testing.T) {
-	yaml := `apiVersion: kestrel.gg/v1alpha1
+	yaml := `apiVersion: gameplane.gg/v1alpha1
 kind: Backup
 metadata:
   name: e2e-validation-bk-no-serverref
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   repoRef:
     name: e2e-restic-creds
@@ -60,7 +60,7 @@ spec:
 }
 
 func TestCRD_Validation_GameTemplateRequiresImage(t *testing.T) {
-	yaml := `apiVersion: kestrel.gg/v1alpha1
+	yaml := `apiVersion: gameplane.gg/v1alpha1
 kind: GameTemplate
 metadata:
   name: e2e-validation-tmpl-no-image

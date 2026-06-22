@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // These tests sweep the validation / error branches of the user handlers

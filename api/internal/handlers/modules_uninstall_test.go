@@ -19,7 +19,7 @@ func TestUninstall_BlockedByGameServer(t *testing.T) {
 	_ = unstructured.SetNestedField(mod.Object, "minecraft", "status", "appliedTemplate")
 
 	// A GameServer that uses the template — uninstall must be blocked.
-	gs := newServerObj("kestrel-games", "alpha")
+	gs := newServerObj("gameplane-games", "alpha")
 	_ = unstructured.SetNestedField(gs.Object, "minecraft", "spec", "templateRef", "name")
 
 	k := fakeKubeClient(mod, gs)

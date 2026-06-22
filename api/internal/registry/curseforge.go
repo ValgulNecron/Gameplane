@@ -12,7 +12,7 @@ import (
 
 // Curseforge searches the CurseForge v1 API (api.curseforge.com), which
 // requires an x-api-key. Suits Minecraft mods + modpacks. Loader filtering
-// maps Kestrel loader ids to CurseForge's numeric modLoaderType; the clean
+// maps Gameplane loader ids to CurseForge's numeric modLoaderType; the clean
 // game-version token is the gameVersion filter.
 type Curseforge struct {
 	client    *http.Client
@@ -32,7 +32,7 @@ const (
 	cfClassModpacks = 4471
 )
 
-// cfLoaderType maps a Kestrel loader id to CurseForge's modLoaderType enum.
+// cfLoaderType maps a Gameplane loader id to CurseForge's modLoaderType enum.
 // 0 (Any) means "no loader filter" — used for plugin loaders CurseForge
 // doesn't model as mod loaders.
 func cfLoaderType(loader string) int {

@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // Built-in role names. Custom roles may take any other (valid) name.

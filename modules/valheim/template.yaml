@@ -1,4 +1,4 @@
-# Kestrel GameTemplate for Valheim (dedicated server).
+# Gameplane GameTemplate for Valheim (dedicated server).
 #
 # Backed by lloesche/valheim-server, which installs the game via SteamCMD on
 # start — that install output streams to the dashboard's Logs tab (source
@@ -12,12 +12,12 @@
 # Cluster-scoped; apply once per cluster:
 #     kubectl apply -f modules/valheim/template.yaml
 
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: GameTemplate
 metadata:
   name: valheim
   labels:
-    kestrel.gg/module: valheim
+    gameplane.gg/module: valheim
 spec:
   displayName: Valheim (Dedicated)
   game: valheim
@@ -146,7 +146,7 @@ spec:
       displayName: Server name
       type: string
       required: true
-      default: "Kestrel Valheim"
+      default: "Gameplane Valheim"
     - name: SERVER_PASS
       displayName: Password
       description: 5+ characters. Required by Valheim.
@@ -172,6 +172,6 @@ spec:
       default: "0 1 * * *"
     - name: BACKUPS
       displayName: In-container backups
-      description: lloesche image also rolls backups. The Kestrel Backup CRD is the preferred path; leave off.
+      description: lloesche image also rolls backups. The Gameplane Backup CRD is the preferred path; leave off.
       type: bool
       default: "false"

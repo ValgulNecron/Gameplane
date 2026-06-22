@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func TestUpsertCondition_Append(t *testing.T) {
@@ -83,9 +83,9 @@ func TestSameConditions(t *testing.T) {
 func TestEnqueueTemplateForServer(t *testing.T) {
 	h := enqueueTemplateForServer()
 
-	gs := &kestrelv1alpha1.GameServer{
-		Spec: kestrelv1alpha1.GameServerSpec{
-			TemplateRef: kestrelv1alpha1.GameTemplateRef{Name: "minecraft"},
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			TemplateRef: gameplanev1alpha1.GameTemplateRef{Name: "minecraft"},
 		},
 	}
 
@@ -103,7 +103,7 @@ func TestEnqueueTemplateForServer(t *testing.T) {
 	if len(got) != 1 || got[0] != "minecraft" {
 		t.Fatalf("got %+v", got)
 	}
-	if mapServerToTemplate(&kestrelv1alpha1.GameServer{}) != nil {
+	if mapServerToTemplate(&gameplanev1alpha1.GameServer{}) != nil {
 		t.Fatal("empty TemplateRef.Name should map to nil")
 	}
 	_ = context.Background
@@ -111,7 +111,7 @@ func TestEnqueueTemplateForServer(t *testing.T) {
 
 // mapServerToTemplate mirrors the logic inside enqueueTemplateForServer's
 // MapFunc so we can unit-test it without bringing up controller-runtime.
-func mapServerToTemplate(gs *kestrelv1alpha1.GameServer) []string {
+func mapServerToTemplate(gs *gameplanev1alpha1.GameServer) []string {
 	if gs == nil || gs.Spec.TemplateRef.Name == "" {
 		return nil
 	}

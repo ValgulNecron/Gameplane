@@ -46,7 +46,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - kestrel.gg
+  - gameplane.gg
   resources:
   - backups
   - backupschedules
@@ -60,7 +60,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - kestrel.gg
+  - gameplane.gg
   resources:
   - backups/status
   - backupschedules/status
@@ -74,7 +74,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - kestrel.gg
+  - gameplane.gg
   resources:
   - gameservers
   verbs:
@@ -85,14 +85,14 @@ rules:
   - update
   - watch
 - apiGroups:
-  - kestrel.gg
+  - gameplane.gg
   resources:
   - gameservers/finalizers
   - modules/finalizers
   verbs:
   - update
 - apiGroups:
-  - kestrel.gg
+  - gameplane.gg
   resources:
   - modules
   - restores
@@ -103,7 +103,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - kestrel.gg
+  - gameplane.gg
   resources:
   - modulesources
   verbs:

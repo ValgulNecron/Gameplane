@@ -185,7 +185,7 @@ func TestAPI_AuditPaginationAndFilter(t *testing.T) {
 }
 
 // TestAPI_LogoutInvalidatesSession: POST /auth/logout must terminate the
-// caller's session — even with the kestrel_session cookie still
+// caller's session — even with the gameplane_session cookie still
 // attached, /users/me should bounce as 401.
 func TestAPI_LogoutInvalidatesSession(t *testing.T) {
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)

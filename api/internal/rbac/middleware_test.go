@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 )
 
 func TestMiddleware_Unauthenticated(t *testing.T) {

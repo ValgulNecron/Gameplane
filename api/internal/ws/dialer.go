@@ -17,9 +17,9 @@ import (
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // Mount attaches the WS/file proxy routes under /ws and /servers/:name/files.
@@ -186,7 +186,7 @@ func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
 			return
 		}
 		// Forward only headers the agent actually consumes. Never proxy
-		// Cookie, Authorization, X-Kestrel-CSRF — those are the user's
+		// Cookie, Authorization, X-Gameplane-CSRF — those are the user's
 		// session material and the agent doesn't need them (mTLS is what
 		// it authenticates on). Leaking them to agent logs or a
 		// compromised sidecar would hand over live session tokens.

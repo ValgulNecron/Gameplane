@@ -59,7 +59,7 @@ export function makeServer(over: Partial<GameServer> = {}): GameServer {
   return {
     metadata: {
       name: "alpha",
-      namespace: "kestrel-games",
+      namespace: "gameplane-games",
       creationTimestamp: "2026-04-01T00:00:00Z",
       ...(over.metadata ?? {}),
     },
@@ -94,7 +94,7 @@ export function makeTemplate(over: TemplateOverride = {}): GameTemplate {
       displayName: "Minecraft (Vanilla)",
       game: "minecraft",
       version: "1.21",
-      image: "ghcr.io/kestrel/minecraft:1.21",
+      image: "ghcr.io/valgulnecron/gameplane/minecraft:1.21",
       consoleMode: "rcon",
       rcon: { protocol: "source" },
       logPath: "/data/logs/latest.log",
@@ -106,7 +106,7 @@ export function makeTemplate(over: TemplateOverride = {}): GameTemplate {
 
 export function makeBackup(over: Partial<Backup> = {}): Backup {
   return {
-    metadata: { name: "alpha-2026-05-07", namespace: "kestrel-games" },
+    metadata: { name: "alpha-2026-05-07", namespace: "gameplane-games" },
     spec: { serverRef: { name: "alpha" } },
     status: {
       phase: "Succeeded",
@@ -121,7 +121,7 @@ export function makeBackup(over: Partial<Backup> = {}): Backup {
 
 export function makeSchedule(over: Partial<BackupSchedule> = {}): BackupSchedule {
   return {
-    metadata: { name: "alpha-daily", namespace: "kestrel-games" },
+    metadata: { name: "alpha-daily", namespace: "gameplane-games" },
     spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", retention: { keepLast: 7 } },
     status: {
       lastSuccessfulTime: "2026-05-07T03:01:30Z",
@@ -133,7 +133,7 @@ export function makeSchedule(over: Partial<BackupSchedule> = {}): BackupSchedule
 
 export function makeRestore(over: Partial<Restore> = {}): Restore {
   return {
-    metadata: { name: "restore-alpha-1", namespace: "kestrel-games" },
+    metadata: { name: "restore-alpha-1", namespace: "gameplane-games" },
     spec: {
       backupRef: { name: "alpha-2026-05-07" },
       serverRef: { name: "alpha" },
@@ -151,7 +151,7 @@ export function makeRestore(over: Partial<Restore> = {}): Restore {
 export function makeDestination(over: Partial<BackupDestination> = {}): BackupDestination {
   return {
     name: "default",
-    url: "s3:s3.amazonaws.com/kestrel-backups",
+    url: "s3:s3.amazonaws.com/gameplane-backups",
     hasPassword: true,
     createdAt: "2026-04-01T00:00:00Z",
     ...over,
@@ -174,7 +174,7 @@ export function makeAudit(over: Partial<AuditEvent> = {}): AuditEvent {
 
 export function makeClusterView(over: Partial<ClusterView> = {}): ClusterView {
   return {
-    name: "kestrel-prod",
+    name: "gameplane-prod",
     version: "v1.31.0",
     ready: 3,
     total: 3,
@@ -234,7 +234,7 @@ export function makeModuleSource(over: Partial<ModuleSource> = {}): ModuleSource
     spec: {
       type: "oci",
       oci: {
-        url: "ghcr.io/kestrel/modules",
+        url: "ghcr.io/valgulnecron/gameplane/modules",
         modules: [{ name: "minecraft-vanilla" }],
       },
     },
@@ -278,9 +278,9 @@ export function makeFileEntry(over: Partial<FileEntry> = {}): FileEntry {
 export function makeConfig(over: Partial<AllConfig> = {}): AllConfig {
   return {
     general: {
-      instanceName: "Kestrel (mock)",
-      externalURL: "https://kestrel.local",
-      defaultNamespace: "kestrel-games",
+      instanceName: "Gameplane (mock)",
+      externalURL: "https://gameplane.local",
+      defaultNamespace: "gameplane-games",
     },
     auth: { providers: [{ name: "local", kind: "local", enabled: true }] },
     notifications: { sinks: [] },

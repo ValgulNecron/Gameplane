@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const fixtureModuleYAML = `apiVersion: kestrel.gg/module/v1
+const fixtureModuleYAML = `apiVersion: gameplane.gg/module/v1
 name: minecraft-java
 displayName: Minecraft (Java Edition)
 version: 1.0.0
@@ -14,7 +14,7 @@ game: minecraft-java
 summary: Vanilla / Paper / Forge / Fabric
 `
 
-const fixtureTemplateYAML = `apiVersion: kestrel.gg/v1alpha1
+const fixtureTemplateYAML = `apiVersion: gameplane.gg/v1alpha1
 kind: GameTemplate
 spec:
   displayName: Minecraft (Java Edition)
@@ -25,7 +25,7 @@ spec:
 
 func TestClient_Pull(t *testing.T) {
 	reg := newFakeRegistry(t)
-	repo := "kestrel/minecraft-java"
+	repo := "gameplane/minecraft-java"
 	digest := reg.pushBundle(repo, "1.0.0", map[string][]byte{
 		LayerNameMetadata: []byte(fixtureModuleYAML),
 		LayerNameTemplate: []byte(fixtureTemplateYAML),
@@ -53,9 +53,9 @@ func TestClient_Pull(t *testing.T) {
 
 func TestClient_Pull_RejectsForeignArtifact(t *testing.T) {
 	reg := newFakeRegistry(t)
-	repo := "kestrel/bogus"
+	repo := "gameplane/bogus"
 	// Push a manifest with a different artifactType to simulate a
-	// non-Kestrel bundle pushed to the same registry.
+	// non-Gameplane bundle pushed to the same registry.
 	manifest := []byte(`{"mediaType":"application/vnd.oci.image.manifest.v1+json",` +
 		`"artifactType":"application/vnd.something.else","config":{"mediaType":"application/json","digest":"sha256:` +
 		emptyDigestHex + `","size":2},"layers":[]}`)
@@ -70,7 +70,7 @@ func TestClient_Pull_RejectsForeignArtifact(t *testing.T) {
 
 func TestClient_ListTags_DropsNonSemverAndSorts(t *testing.T) {
 	reg := newFakeRegistry(t)
-	repo := "kestrel/multi"
+	repo := "gameplane/multi"
 	for _, tag := range []string{"1.0.0", "1.2.0", "0.9.0", "latest", "main"} {
 		reg.pushBundle(repo, tag, map[string][]byte{
 			LayerNameMetadata: []byte(fixtureModuleYAML),

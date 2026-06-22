@@ -16,17 +16,17 @@ var envInstance *Env
 // TestMain optionally creates a kind cluster, runs all e2e tests
 // against it, and tears it down at exit. Honors the env vars:
 //
-//	KESTREL_E2E_REUSE_CLUSTER=1
+//	GAMEPLANE_E2E_REUSE_CLUSTER=1
 //	    Skip create + destroy. Use this for fast dev iteration once
 //	    you've already run `deploy/kind/e2e.sh up`.
 //
-//	KESTREL_E2E_CLUSTER=<name>   default: kestrel-e2e
-//	KESTREL_E2E_TAG=<tag>        default: e2e
-//	KESTREL_E2E_KEEP_ON_FAILURE=1
+//	GAMEPLANE_E2E_CLUSTER=<name>   default: gameplane-e2e
+//	GAMEPLANE_E2E_TAG=<tag>        default: e2e
+//	GAMEPLANE_E2E_KEEP_ON_FAILURE=1
 //	    Don't tear down if any test fails (helpful for post-mortem
 //	    `kubectl get all -A` and operator log inspection).
 func TestMain(m *testing.M) {
-	reuse := os.Getenv("KESTREL_E2E_REUSE_CLUSTER") == "1"
+	reuse := os.Getenv("GAMEPLANE_E2E_REUSE_CLUSTER") == "1"
 
 	if !reuse {
 		if err := runBootstrap("up"); err != nil {
@@ -56,7 +56,7 @@ func TestMain(m *testing.M) {
 
 	if !reuse {
 		// On failure, optionally leave the cluster around for forensics.
-		if code != 0 && os.Getenv("KESTREL_E2E_KEEP_ON_FAILURE") == "1" {
+		if code != 0 && os.Getenv("GAMEPLANE_E2E_KEEP_ON_FAILURE") == "1" {
 			fmt.Fprintln(os.Stderr, "tests failed; leaving cluster up for inspection")
 		} else {
 			_ = runBootstrap("down")

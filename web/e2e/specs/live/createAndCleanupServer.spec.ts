@@ -8,8 +8,8 @@ import { test, expect } from "@playwright/test";
 // createServer + serverDetail specs.
 //
 // Prerequisites (all set up by `make e2e-up`):
-//   - kestrel-e2e kind cluster is running
-//   - Helm chart is installed in kestrel-system
+//   - gameplane-e2e kind cluster is running
+//   - Helm chart is installed in gameplane-system
 //   - The "e2e-busybox" / "e2e-lifecycle-busybox" GameTemplate exists
 //     because the Go E2E suite ran first and created one. If neither
 //     exists, the spec falls back to whatever Templates.list() returns,
@@ -21,7 +21,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("live: create and cleanup a busybox server", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET !== "live",
+    process.env.GAMEPLANE_E2E_TARGET !== "live",
     "live-only spec — mock mode covers the wizard",
   );
 

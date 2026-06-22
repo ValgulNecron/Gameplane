@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 // dsnIn returns a sqlite DSN pointing at a fresh file under t.TempDir().
@@ -40,7 +40,7 @@ func mustOpen(t *testing.T, dsn string) *db.Store {
 
 func TestBootstrap_Insert(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	out, err := runBootstrap(t, dsn, "",
 		"--username=admin", "--password=correct-horse-battery", "--email=a@b.test",
 	)
@@ -75,7 +75,7 @@ func TestBootstrap_Insert(t *testing.T) {
 
 func TestBootstrap_PasswordStdin(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	_, err := runBootstrap(t, dsn, "fromstdin-password\n",
 		"--username=admin", "--password-stdin",
 	)
@@ -95,7 +95,7 @@ func TestBootstrap_PasswordStdin(t *testing.T) {
 
 func TestBootstrap_PasswordEnv(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "env-supplied-pass")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "env-supplied-pass")
 	_, err := runBootstrap(t, dsn, "", "--username=admin")
 	if err != nil {
 		t.Fatalf("bootstrap: %v", err)
@@ -113,7 +113,7 @@ func TestBootstrap_PasswordEnv(t *testing.T) {
 
 func TestBootstrap_RejectsShortPassword(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	_, err := runBootstrap(t, dsn, "", "--username=admin", "--password=short")
 	if err == nil || !strings.Contains(err.Error(), "too short") {
 		t.Fatalf("expected too-short error, got %v", err)
@@ -122,7 +122,7 @@ func TestBootstrap_RejectsShortPassword(t *testing.T) {
 
 func TestBootstrap_RejectsMissingPassword(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	_, err := runBootstrap(t, dsn, "", "--username=admin")
 	if err == nil || !strings.Contains(err.Error(), "password required") {
 		t.Fatalf("expected password-required error, got %v", err)
@@ -131,7 +131,7 @@ func TestBootstrap_RejectsMissingPassword(t *testing.T) {
 
 func TestBootstrap_RejectsConflictingPasswordSources(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	_, err := runBootstrap(t, dsn, "ignored\n",
 		"--username=admin", "--password=in-flag", "--password-stdin",
 	)
@@ -149,7 +149,7 @@ func TestBootstrap_RejectsMissingUsername(t *testing.T) {
 
 func TestBootstrap_RefusesOverwriteWithoutForce(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	if _, err := runBootstrap(t, dsn, "",
 		"--username=admin", "--password=correct-horse-battery"); err != nil {
 		t.Fatalf("first bootstrap: %v", err)
@@ -174,7 +174,7 @@ func TestBootstrap_RefusesOverwriteWithoutForce(t *testing.T) {
 
 func TestBootstrap_ForceUpdatesPassword(t *testing.T) {
 	dsn := dsnIn(t)
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	if _, err := runBootstrap(t, dsn, "",
 		"--username=admin", "--password=original-correct-horse"); err != nil {
 		t.Fatalf("first bootstrap: %v", err)
@@ -218,7 +218,7 @@ func TestBootstrap_ForcePromotesToAdmin(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	t.Setenv("KESTREL_ADMIN_PASSWORD", "")
+	t.Setenv("GAMEPLANE_ADMIN_PASSWORD", "")
 	if _, err := runBootstrap(t, dsn, "",
 		"--username=alice", "--password=promotion-correct-horse", "--force",
 	); err != nil {

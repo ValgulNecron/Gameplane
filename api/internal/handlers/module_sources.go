@@ -20,8 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // sourceRequest mirrors ModuleSourceSpec plus the object name (used on
@@ -250,7 +250,7 @@ func (h modulesHandler) createSource(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	desired := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": in.Name},
 		"spec":       in.spec(),

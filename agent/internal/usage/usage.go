@@ -2,7 +2,7 @@
 // the pod and exposes it as a Sample for the heartbeat to report.
 //
 // Everything is sourced in-pod with no cluster-level metrics pipeline
-// (Kestrel deliberately has no metrics-server dependency). There are two
+// (Gameplane deliberately has no metrics-server dependency). There are two
 // modes:
 //
 //   - proc mode (default in production): the pod shares its PID namespace

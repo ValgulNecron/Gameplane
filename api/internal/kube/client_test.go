@@ -9,11 +9,11 @@ import (
 
 func TestGVRsTable(t *testing.T) {
 	want := map[string]schema.GroupVersionResource{
-		"servers":   {Group: "kestrel.gg", Version: "v1alpha1", Resource: "gameservers"},
-		"templates": {Group: "kestrel.gg", Version: "v1alpha1", Resource: "gametemplates"},
-		"backups":   {Group: "kestrel.gg", Version: "v1alpha1", Resource: "backups"},
-		"schedules": {Group: "kestrel.gg", Version: "v1alpha1", Resource: "backupschedules"},
-		"restores":  {Group: "kestrel.gg", Version: "v1alpha1", Resource: "restores"},
+		"servers":   {Group: "gameplane.gg", Version: "v1alpha1", Resource: "gameservers"},
+		"templates": {Group: "gameplane.gg", Version: "v1alpha1", Resource: "gametemplates"},
+		"backups":   {Group: "gameplane.gg", Version: "v1alpha1", Resource: "backups"},
+		"schedules": {Group: "gameplane.gg", Version: "v1alpha1", Resource: "backupschedules"},
+		"restores":  {Group: "gameplane.gg", Version: "v1alpha1", Resource: "restores"},
 	}
 	for k, v := range want {
 		got, ok := GVRs[k]

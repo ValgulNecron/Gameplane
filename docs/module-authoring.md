@@ -1,11 +1,11 @@
-# Authoring a Kestrel Module
+# Authoring a Gameplane Module
 
-A **module** is a versioned, reusable game-server blueprint. Kestrel
+A **module** is a versioned, reusable game-server blueprint. Gameplane
 distributes modules as OCI artifacts so the same registries that hold your
 game-server container images also hold the templates that wire them up.
 
 A module is one OCI artifact carrying a `GameTemplate` manifest, machine-
-readable metadata, and optional README/icon. Admins point Kestrel at a
+readable metadata, and optional README/icon. Admins point Gameplane at a
 registry by creating a `ModuleSource` resource; users install a module by
 creating (or clicking Install on) a `Module` resource, which the operator
 materializes into an in-cluster `GameTemplate`.
@@ -30,7 +30,7 @@ names if needed.
 ## `module.yaml` schema
 
 ```yaml
-apiVersion: kestrel.gg/module/v1
+apiVersion: gameplane.gg/module/v1
 name: minecraft-java                       # required, DNS-1123 label
 displayName: Minecraft (Java Edition)      # required
 version: 1.0.0                             # required, semver, must match the OCI tag
@@ -38,7 +38,7 @@ game: minecraft-java                       # required, free-form game family ide
 summary: Vanilla / Paper / Forge / Fabric  # required, one-line description for the card
 homepage: https://minecraft.net            # optional
 license: MIT                               # optional, SPDX identifier
-kestrelMinVersion: 0.1.0                   # optional, refuse install on older operators
+gameplaneMinVersion: 0.1.0                   # optional, refuse install on older operators
 icon: icon.png                             # optional, filename of the icon layer
 ```
 
@@ -48,7 +48,7 @@ Field rules:
   with the same `name` in the same `ModuleSource` are an error.
 - `version` is the canonical version string and **must** match the OCI tag
   the bundle is pushed under.
-- `kestrelMinVersion` is checked at install time against the operator's
+- `gameplaneMinVersion` is checked at install time against the operator's
   build version; a module that needs a newer operator fails the `Module`
   reconcile with an `IncompatibleOperator` condition. The check is skipped
   for `dev`/unversioned operator builds.
@@ -59,16 +59,16 @@ A module bundle is a single OCI artifact:
 
 | Layer            | Required | Media type                                            |
 | ---------------- | -------- | ----------------------------------------------------- |
-| `module.yaml`    | yes      | `application/vnd.kestrel.module.metadata.v1+yaml`     |
-| `template.yaml`  | yes      | `application/vnd.kestrel.module.template.v1+yaml`     |
-| `README.md`      | no       | `application/vnd.kestrel.module.readme.v1+md`         |
+| `module.yaml`    | yes      | `application/vnd.gameplane.module.metadata.v1+yaml`     |
+| `template.yaml`  | yes      | `application/vnd.gameplane.module.template.v1+yaml`     |
+| `README.md`      | no       | `application/vnd.gameplane.module.readme.v1+md`         |
 | `icon.png`       | no       | `image/png`                                           |
 
 Manifest:
 
 - `mediaType: application/vnd.oci.image.manifest.v1+json`
-- `artifactType: application/vnd.kestrel.module.v1+json`
-- `config: { mediaType: application/vnd.kestrel.module.config.v1+json,
+- `artifactType: application/vnd.gameplane.module.v1+json`
+- `config: { mediaType: application/vnd.gameplane.module.config.v1+json,
   data: "e30=" }` (the empty JSON object `{}` base64-encoded; we don't use
   the config for now but reserve it for future extensions)
 - Each layer carries an `org.opencontainers.image.title` annotation set
@@ -93,7 +93,7 @@ Then:
 
 ```sh
 # push every bundle in modules/ to a registry
-make modules-push REGISTRY=ghcr.io/kestrel-gg/modules
+make modules-push REGISTRY=ghcr.io/valgulnecron/gameplane-modules
 
 # push a single module to a local kind registry
 modules/build.sh push --registry localhost:5001 --name minecraft-java
@@ -103,11 +103,11 @@ Under the hood `build.sh` runs:
 
 ```sh
 oras push \
-  --artifact-type application/vnd.kestrel.module.v1+json \
-  ghcr.io/kestrel-gg/modules/minecraft-java:1.0.0 \
-  module.yaml:application/vnd.kestrel.module.metadata.v1+yaml \
-  template.yaml:application/vnd.kestrel.module.template.v1+yaml \
-  README.md:application/vnd.kestrel.module.readme.v1+md \
+  --artifact-type application/vnd.gameplane.module.v1+json \
+  ghcr.io/valgulnecron/gameplane-modules/minecraft-java:1.0.0 \
+  module.yaml:application/vnd.gameplane.module.metadata.v1+yaml \
+  template.yaml:application/vnd.gameplane.module.template.v1+yaml \
+  README.md:application/vnd.gameplane.module.readme.v1+md \
   icon.png:image/png
 ```
 
@@ -124,13 +124,13 @@ a `module.yaml` (use `spec.allow` to filter by name or glob). Sources
 can be managed from the dashboard (admin) or applied as CRs:
 
 ```yaml
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: ModuleSource
 metadata: { name: community }
 spec:
   type: git                  # oci | git | http | local | upload
   git:
-    url: https://github.com/example/kestrel-modules
+    url: https://github.com/example/gameplane-modules
     ref: main                # branch or tag; the resolved commit is the digest
     subPath: modules         # optional scan root inside the repo
     secretRef: { name: gh-creds }   # optional, in the operator namespace
@@ -158,7 +158,7 @@ local kind registry legitimately live there.
 ### Uploaded bundles
 
 `type: upload` sources index ConfigMaps in the operator namespace
-labeled `kestrel.gg/module-upload: "true"`, each holding one bundle's
+labeled `gameplane.gg/module-upload: "true"`, each holding one bundle's
 files under their canonical names. The dashboard's **Upload module**
 flow creates these via `POST /modules/sources/{name}/upload`
 (tar.gz/zip, ≤ 900 KiB), but a hand-applied ConfigMap indexes exactly
@@ -169,8 +169,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: module-upload-mygame
-  namespace: kestrel-system
-  labels: { kestrel.gg/module-upload: "true" }
+  namespace: gameplane-system
+  labels: { gameplane.gg/module-upload: "true" }
 binaryData:        # or stringData for plain YAML
   module.yaml: <base64>
   template.yaml: <base64>
@@ -179,12 +179,12 @@ binaryData:        # or stringData for plain YAML
 ## Installing a module
 
 Once a `ModuleSource` is configured (Helm chart ships a default one
-pointing at `ghcr.io/kestrel-gg/modules`), modules show up in the
+pointing at `ghcr.io/valgulnecron/gameplane-modules`), modules show up in the
 **Modules** page of the dashboard. Click **Install** to create a
 `Module` resource:
 
 ```yaml
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: Module
 metadata:
   name: minecraft-java          # becomes GameTemplate name
@@ -229,12 +229,12 @@ wrong key/identity fails the install with a `SignatureInvalid` condition.
 Keyed:
 
 ```yaml
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: ModuleSource
 metadata: { name: trusted }
 spec:
   type: oci
-  oci: { url: ghcr.io/kestrel-gg/modules, modules: [{ name: minecraft-java }] }
+  oci: { url: ghcr.io/valgulnecron/gameplane-modules, modules: [{ name: minecraft-java }] }
   verify:
     key: { name: cosign-pub }    # Secret in the operator namespace,
                                  # public key under data "cosign.pub"
@@ -247,7 +247,7 @@ the sigstore trust root and Rekor:
   verify:
     keyless:
       issuer: https://token.actions.githubusercontent.com
-      identity: https://github.com/kestrel-gg/modules/.github/workflows/release.yml@refs/heads/main
+      identity: https://github.com/ValgulNecron/gameplane-modules/.github/workflows/release.yml@refs/heads/main
 ```
 
 `spec.verify` is rejected on non-OCI sources (cosign signatures are an OCI
@@ -564,7 +564,7 @@ kubectl get modulesource default -o jsonpath='{.status.modules[*].name}'
 
 # 4. install via UI or CR
 kubectl apply -f - <<EOF
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: Module
 metadata: { name: <name> }
 spec:

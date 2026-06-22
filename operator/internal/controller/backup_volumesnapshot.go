@@ -11,7 +11,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // reconcileVolumeSnapshot drives a Backup whose Strategy is
@@ -24,7 +24,7 @@ import (
 // gs is the (already-resolved) source GameServer; its data PVC is the
 // snapshot source.
 func (r *BackupReconciler) reconcileVolumeSnapshot(
-	ctx context.Context, b *kestrelv1alpha1.Backup, gs *kestrelv1alpha1.GameServer,
+	ctx context.Context, b *gameplanev1alpha1.Backup, gs *gameplanev1alpha1.GameServer,
 ) (ctrl.Result, error) {
 	// Quiesce first (idempotent across requeues). A CSI snapshot is only
 	// crash-consistent; flushing the game to disk first (RCON save-all,
@@ -71,10 +71,10 @@ func (r *BackupReconciler) reconcileVolumeSnapshot(
 // and requeues to poll the VolumeSnapshot's readyToUse (the Owns() watch
 // also wakes us on status transitions).
 func (r *BackupReconciler) markVolumeSnapshotRunning(
-	ctx context.Context, b *kestrelv1alpha1.Backup,
+	ctx context.Context, b *gameplanev1alpha1.Backup,
 ) (ctrl.Result, error) {
-	if b.Status.Phase != kestrelv1alpha1.BackupPhaseRunning {
-		b.Status.Phase = kestrelv1alpha1.BackupPhaseRunning
+	if b.Status.Phase != gameplanev1alpha1.BackupPhaseRunning {
+		b.Status.Phase = gameplanev1alpha1.BackupPhaseRunning
 		b.Status.ObservedGeneration = b.Generation
 		if b.Status.StartTime == nil {
 			now := metav1.Now()
@@ -83,7 +83,7 @@ func (r *BackupReconciler) markVolumeSnapshotRunning(
 		b.Status.Conditions = upsertCondition(b.Status.Conditions, metav1.Condition{
 			Type:               "Completed",
 			Status:             metav1.ConditionFalse,
-			Reason:             string(kestrelv1alpha1.BackupPhaseRunning),
+			Reason:             string(gameplanev1alpha1.BackupPhaseRunning),
 			ObservedGeneration: b.Generation,
 		})
 		if err := r.Status().Update(ctx, b); err != nil {
@@ -96,11 +96,11 @@ func (r *BackupReconciler) markVolumeSnapshotRunning(
 // completeVolumeSnapshot records the bound snapshot identity + size, marks
 // the Backup Succeeded, and runs the terminal unquiesce.
 func (r *BackupReconciler) completeVolumeSnapshot(
-	ctx context.Context, b *kestrelv1alpha1.Backup, vs *snapshotv1.VolumeSnapshot,
+	ctx context.Context, b *gameplanev1alpha1.Backup, vs *snapshotv1.VolumeSnapshot,
 ) (ctrl.Result, error) {
-	if b.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded {
+	if b.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 		now := metav1.Now()
-		b.Status.Phase = kestrelv1alpha1.BackupPhaseSucceeded
+		b.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 		b.Status.ObservedGeneration = b.Generation
 		b.Status.SnapshotID = vs.Name
 		if vs.Status.BoundVolumeSnapshotContentName != nil {
@@ -136,7 +136,7 @@ func (r *BackupReconciler) completeVolumeSnapshot(
 // failVolumeSnapshot marks the Backup Failed and still runs the terminal
 // unquiesce so a quiesced game doesn't stay frozen after a snapshot error.
 func (r *BackupReconciler) failVolumeSnapshot(
-	ctx context.Context, b *kestrelv1alpha1.Backup, msg string,
+	ctx context.Context, b *gameplanev1alpha1.Backup, msg string,
 ) (ctrl.Result, error) {
 	if _, err := r.fail(ctx, b, msg); err != nil {
 		return ctrl.Result{}, err

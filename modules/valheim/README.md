@@ -1,6 +1,6 @@
 # `valheim` module
 
-Kestrel GameTemplate for Valheim dedicated servers.
+Gameplane GameTemplate for Valheim dedicated servers.
 
 ## Install
 
@@ -61,6 +61,6 @@ Default PVC is 5 GiB at `/config`; world saves live under
 
 ## Backups
 
-`BACKUPS=false` is the default so the Kestrel Backup CRD is the authoritative
+`BACKUPS=false` is the default so the Gameplane Backup CRD is the authoritative
 snapshot path. A backup of the whole `/config` volume restores cleanly onto a
 fresh pod.

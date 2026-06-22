@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/db"
-	"github.com/kestrel-gg/kestrel/api/internal/scope"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // newUsersServer wires MountUsers behind a test middleware that injects

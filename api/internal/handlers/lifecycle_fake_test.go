@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 func mountLifecycleRouter(k *kube.Client) *chi.Mux {
@@ -21,7 +21,7 @@ func mountLifecycleRouter(k *kube.Client) *chi.Mux {
 
 func newServerObj(ns, name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}},
@@ -29,7 +29,7 @@ func newServerObj(ns, name string) *unstructured.Unstructured {
 }
 
 func TestLifecycle_StartStop(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountLifecycleRouter(k)
 
 	for _, verb := range []string{"start", "stop"} {
@@ -41,7 +41,7 @@ func TestLifecycle_StartStop(t *testing.T) {
 }
 
 func TestLifecycle_Restart(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountLifecycleRouter(k)
 	rr := do(t, r, "POST", "/servers/alpha:restart", nil)
 	if rr.Code != 202 {
@@ -59,7 +59,7 @@ func TestLifecycle_StartUnknown(t *testing.T) {
 }
 
 func TestLifecycle_WipeData(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountLifecycleRouter(k)
 
 	t.Run("requires matching confirmation", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestLifecycle_WipeData(t *testing.T) {
 			t.Fatalf("got %d %s", rr.Code, rr.Body)
 		}
 		obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
-			Namespace("kestrel-games").Get(t.Context(), "alpha", metav1.GetOptions{})
+			Namespace("gameplane-games").Get(t.Context(), "alpha", metav1.GetOptions{})
 		if err != nil {
 			t.Fatalf("get: %v", err)
 		}
@@ -91,7 +91,7 @@ func TestLifecycle_WipeData(t *testing.T) {
 }
 
 func TestLifecycle_Clone(t *testing.T) {
-	k := fakeKubeClient(newServerObj("kestrel-games", "alpha"))
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
 	r := mountLifecycleRouter(k)
 
 	t.Run("happy path", func(t *testing.T) {

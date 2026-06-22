@@ -91,7 +91,7 @@ export function DashboardPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Dashboard"
-        subtitle="At-a-glance health of your Kestrel cluster."
+        subtitle="At-a-glance health of your Gameplane cluster."
         actions={
           <Button asChild>
             <Link to="/servers/new"><Plus className="h-4 w-4" /> Create server</Link>

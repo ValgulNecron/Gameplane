@@ -12,9 +12,9 @@ async function loginIfNeeded(page: Page): Promise<void> {
   if (new URL(page.url()).pathname.startsWith("/login")) {
     const login = new LoginPage(page);
     const username =
-      process.env.ADMIN_USERNAME ?? process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
     const password =
-      process.env.ADMIN_PASSWORD ?? process.env.KESTREL_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
     await login.login(username, password);
     await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 10_000 });
   }
@@ -22,7 +22,7 @@ async function loginIfNeeded(page: Page): Promise<void> {
 
 test.describe("backups page", () => {
   test.skip(
-    process.env.KESTREL_E2E_TARGET === "live",
+    process.env.GAMEPLANE_E2E_TARGET === "live",
     "live mode requires a real server and restic-server; mock mode is the deterministic path",
   );
 

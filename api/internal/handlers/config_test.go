@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 // newTestStore opens an in-memory SQLite store and runs migrations.
@@ -85,8 +85,8 @@ func TestConfig_PutThenGet(t *testing.T) {
 
 	in := generalCfg{
 		InstanceName:     "homelab-01",
-		ExternalURL:      "https://kestrel.example.dev",
-		DefaultNamespace: "kestrel-games",
+		ExternalURL:      "https://gameplane.example.dev",
+		DefaultNamespace: "gameplane-games",
 	}
 	status, body := doReq(t, "PUT", srv.URL+"/admin/config/general", in)
 	if status != 200 {
@@ -161,8 +161,8 @@ func TestConfig_PutValidationFailure(t *testing.T) {
 		section string
 		body    any
 	}{
-		{"general missing instanceName", "general", generalCfg{DefaultNamespace: "kestrel-games"}},
-		{"general bad URL", "general", generalCfg{InstanceName: "x", DefaultNamespace: "kestrel-games", ExternalURL: "not a url"}},
+		{"general missing instanceName", "general", generalCfg{DefaultNamespace: "gameplane-games"}},
+		{"general bad URL", "general", generalCfg{InstanceName: "x", DefaultNamespace: "gameplane-games", ExternalURL: "not a url"}},
 		{"general bad namespace", "general", generalCfg{InstanceName: "x", DefaultNamespace: "Bad_Name"}},
 		{"updates bad channel", "updates", updatesCfg{Channel: "wat"}},
 		{"auth bad kind", "auth", authCfg{Providers: []authProvider{{Name: "x", Kind: "wat"}}}},

@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func testPubPEM(t *testing.T) []byte {
@@ -32,10 +32,10 @@ func testPubPEM(t *testing.T) []byte {
 }
 
 func TestBuild_VerifyWithoutOCIErrors(t *testing.T) {
-	src := &kestrelv1alpha1.ModuleSource{
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type:   kestrelv1alpha1.ModuleSourceTypeOCI,
-			Verify: &kestrelv1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}},
+	src := &gameplanev1alpha1.ModuleSource{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type:   gameplanev1alpha1.ModuleSourceTypeOCI,
+			Verify: &gameplanev1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}},
 			// OCI deliberately nil.
 		},
 	}
@@ -45,7 +45,7 @@ func TestBuild_VerifyWithoutOCIErrors(t *testing.T) {
 }
 
 func TestBuild_NeitherKeyNorKeylessErrors(t *testing.T) {
-	src := ociSource(&kestrelv1alpha1.VerifySpec{}) // both key and keyless nil
+	src := ociSource(&gameplanev1alpha1.VerifySpec{}) // both key and keyless nil
 	if _, err := Build(context.Background(), fake.NewClientBuilder().Build(), "ns", src); err == nil {
 		t.Fatal("expected error when verify sets neither key nor keyless")
 	}
@@ -56,7 +56,7 @@ func TestBuild_KeySecretMissingDataKeyErrors(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "k", Namespace: "ns"},
 		Data:       map[string][]byte{"wrong-key": []byte("x")}, // no cosign.pub
 	}
-	src := ociSource(&kestrelv1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}})
+	src := ociSource(&gameplanev1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}})
 	c := fake.NewClientBuilder().WithObjects(sec).Build()
 	if _, err := Build(context.Background(), c, "ns", src); err == nil {
 		t.Fatal("expected error when the key secret lacks cosign.pub")

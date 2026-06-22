@@ -14,14 +14,14 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // wipeRequestedAnnotation matches the operator's
 // controller.WipeRequestedAnnotation (a different, internal package, so the
 // string is duplicated here deliberately).
-const wipeRequestedAnnotation = "kestrel.gg/wipe-data-requested"
+const wipeRequestedAnnotation = "gameplane.gg/wipe-data-requested"
 
 // MountLifecycle wires start/stop/restart/clone verbs on GameServers.
 //

@@ -1,0 +1,34 @@
+{{- if .Values.defaultModuleSource.enabled }}
+apiVersion: gameplane.gg/v1alpha1
+kind: ModuleSource
+metadata:
+  name: {{ .Values.defaultModuleSource.name | default "default" }}
+  labels:
+    {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  type: oci
+  refreshInterval: {{ .Values.defaultModuleSource.refreshInterval | default "1h" }}
+  oci:
+    url: {{ .Values.defaultModuleSource.url | quote }}
+    insecure: {{ .Values.defaultModuleSource.insecure | default false }}
+    modules:
+      {{- range .Values.defaultModuleSource.modules }}
+      - name: {{ . | quote }}
+      {{- end }}
+    {{- with .Values.defaultModuleSource.pullSecretName }}
+    pullSecretRef:
+      name: {{ . | quote }}
+    {{- end }}
+{{- end }}
+{{- if .Values.uploadModuleSource.enabled }}
+---
+apiVersion: gameplane.gg/v1alpha1
+kind: ModuleSource
+metadata:
+  name: {{ .Values.uploadModuleSource.name | default "uploads" }}
+  labels:
+    {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  type: upload
+  refreshInterval: {{ .Values.uploadModuleSource.refreshInterval | default "1h" }}
+{{- end }}

@@ -4,7 +4,7 @@
 // TanStack Query caches (so views refresh without waiting for the next
 // poll) and to feed the notifications panel.
 
-export interface KestrelEvent {
+export interface GameplaneEvent {
   // CRD path segment: "servers" | "templates" | "backups" | "schedules" | "restores"
   kind: string;
   // Kubernetes watch event type: "ADDED" | "MODIFIED" | "DELETED"
@@ -13,7 +13,7 @@ export interface KestrelEvent {
 }
 
 export interface EventStreamOptions {
-  onEvent: (ev: KestrelEvent) => void;
+  onEvent: (ev: GameplaneEvent) => void;
   onError?: () => void;
 }
 
@@ -35,7 +35,7 @@ export function openEventStream(opts: EventStreamOptions): () => void {
     es = new EventSource("/events", { withCredentials: true });
     es.onmessage = (e) => {
       try {
-        opts.onEvent(JSON.parse(e.data) as KestrelEvent);
+        opts.onEvent(JSON.parse(e.data) as GameplaneEvent);
       } catch {
         // Ignore malformed frames rather than tearing down the stream.
       }

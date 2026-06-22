@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
 )
 
 // commander formats per-game RCON commands for moderation actions.

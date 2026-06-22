@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 func newStore(t *testing.T) *db.Store {

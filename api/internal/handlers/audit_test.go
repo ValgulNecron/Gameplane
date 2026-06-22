@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/audit"
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/audit"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 )
 
 // TestAudit_RecordsAuthenticatedActor — the audit middleware must record

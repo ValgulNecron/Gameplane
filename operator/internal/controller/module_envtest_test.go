@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
-	"github.com/kestrel-gg/kestrel/operator/internal/verify"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
+	"github.com/ValgulNecron/gameplane/operator/internal/verify"
 )
 
 // fakeVerifier stands in for the cosign verifier in envtests.
@@ -29,7 +29,7 @@ func withModuleReconcilerVerifier(fake *fakeOCI, v verify.Verifier) setupReconci
 			Client:     mgr.GetClient(),
 			Scheme:     mgr.GetScheme(),
 			NewFetcher: fakeOCIFetcher(fake),
-			NewVerifier: func(context.Context, *kestrelv1alpha1.ModuleSource) (verify.Verifier, error) {
+			NewVerifier: func(context.Context, *gameplanev1alpha1.ModuleSource) (verify.Verifier, error) {
 				return v, nil
 			},
 		}).SetupWithManager(mgr)
@@ -60,20 +60,20 @@ func withModuleReconcilerVersion(fake *fakeOCI, version string) setupReconciler 
 // createIndexedSource is a test helper: creates a ModuleSource and
 // directly seeds its status.modules so the Module reconciler doesn't
 // have to wait for a separate ModuleSourceReconciler in this test.
-func createIndexedSource(t *testing.T, name, urlPrefix string, _ *fakeOCI, modules []kestrelv1alpha1.ModuleEntry) *kestrelv1alpha1.ModuleSource {
+func createIndexedSource(t *testing.T, name, urlPrefix string, _ *fakeOCI, modules []gameplanev1alpha1.ModuleEntry) *gameplanev1alpha1.ModuleSource {
 	t.Helper()
-	src := &kestrelv1alpha1.ModuleSource{
+	src := &gameplanev1alpha1.ModuleSource{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type: kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI: &kestrelv1alpha1.OCISourceSpec{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type: gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI: &gameplanev1alpha1.OCISourceSpec{
 				URL:     urlPrefix,
-				Modules: []kestrelv1alpha1.ModuleRef{},
+				Modules: []gameplanev1alpha1.ModuleRef{},
 			},
 		},
 	}
 	for _, e := range modules {
-		src.Spec.OCI.Modules = append(src.Spec.OCI.Modules, kestrelv1alpha1.ModuleRef{Name: e.Name})
+		src.Spec.OCI.Modules = append(src.Spec.OCI.Modules, gameplanev1alpha1.ModuleRef{Name: e.Name})
 	}
 	if err := k8sClient.Create(context.Background(), src); err != nil {
 		t.Fatalf("create modulesource: %v", err)
@@ -86,7 +86,7 @@ func createIndexedSource(t *testing.T, name, urlPrefix string, _ *fakeOCI, modul
 	}
 	src.Status.Modules = modules
 	src.Status.Conditions = []metav1.Condition{{
-		Type:               kestrelv1alpha1.ModuleSourceConditionSynced,
+		Type:               gameplanev1alpha1.ModuleSourceConditionSynced,
 		Status:             metav1.ConditionTrue,
 		Reason:             "TestSeeded",
 		LastTransitionTime: metav1.Now(),
@@ -103,13 +103,13 @@ func createIndexedSource(t *testing.T, name, urlPrefix string, _ *fakeOCI, modul
 func TestModule_PullsAndMaterializesGameTemplate(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleReconciler(fake))
 
 	const ref = "local/test/minecraft-java"
 	fake.putBundle(ref, "1.0.0", fixtureBundle("minecraft-java", "1.0.0", "Minecraft (Java)"))
 
 	srcName := uniqueName("modsrc")
-	createIndexedSource(t, srcName, "local/test", fake, []kestrelv1alpha1.ModuleEntry{{
+	createIndexedSource(t, srcName, "local/test", fake, []gameplanev1alpha1.ModuleEntry{{
 		Name:          "minecraft-java",
 		DisplayName:   "Minecraft (Java)",
 		Reference:     ref,
@@ -118,9 +118,9 @@ func TestModule_PullsAndMaterializesGameTemplate(t *testing.T) {
 	}})
 
 	modName := uniqueName("mod")
-	mod := &kestrelv1alpha1.Module{
+	mod := &gameplanev1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: modName},
-		Spec: kestrelv1alpha1.ModuleSpec{
+		Spec: gameplanev1alpha1.ModuleSpec{
 			Source: corev1.LocalObjectReference{Name: srcName},
 			Name:   "minecraft-java",
 		},
@@ -132,7 +132,7 @@ func TestModule_PullsAndMaterializesGameTemplate(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getModule(t, modName)
-		if got.Status.Phase != kestrelv1alpha1.ModulePhaseReady {
+		if got.Status.Phase != gameplanev1alpha1.ModulePhaseReady {
 			return false, "phase=" + got.Status.Phase + " err=" + got.Status.LastError
 		}
 		if got.Status.AppliedVersion != "1.0.0" {
@@ -143,11 +143,11 @@ func TestModule_PullsAndMaterializesGameTemplate(t *testing.T) {
 
 	// GameTemplate should exist with management labels.
 	tmpl := getTemplateByName(t, modName)
-	if tmpl.Labels[kestrelv1alpha1.LabelManagedBy] != kestrelv1alpha1.ManagedByModule {
+	if tmpl.Labels[gameplanev1alpha1.LabelManagedBy] != gameplanev1alpha1.ManagedByModule {
 		t.Errorf("template missing managed-by label: %v", tmpl.Labels)
 	}
-	if tmpl.Labels[kestrelv1alpha1.LabelModuleVersion] != "1.0.0" {
-		t.Errorf("template module-version = %q", tmpl.Labels[kestrelv1alpha1.LabelModuleVersion])
+	if tmpl.Labels[gameplanev1alpha1.LabelModuleVersion] != "1.0.0" {
+		t.Errorf("template module-version = %q", tmpl.Labels[gameplanev1alpha1.LabelModuleVersion])
 	}
 	if tmpl.Spec.Game != "minecraft-java" {
 		t.Errorf("template spec.game = %q", tmpl.Spec.Game)
@@ -165,7 +165,7 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 	fake.putBundle(ref, "0.9.0", fixtureBundle("valheim", "0.9.0", "Valheim"))
 
 	srcName := uniqueName("modsrc")
-	createIndexedSource(t, srcName, "local/test", fake, []kestrelv1alpha1.ModuleEntry{{
+	createIndexedSource(t, srcName, "local/test", fake, []gameplanev1alpha1.ModuleEntry{{
 		Name:          "valheim",
 		Reference:     ref,
 		Versions:      []string{"0.9.0"},
@@ -173,9 +173,9 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 	}})
 
 	modName := uniqueName("vh")
-	mod := &kestrelv1alpha1.Module{
+	mod := &gameplanev1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: modName},
-		Spec: kestrelv1alpha1.ModuleSpec{
+		Spec: gameplanev1alpha1.ModuleSpec{
 			Source: corev1.LocalObjectReference{Name: srcName},
 			Name:   "valheim",
 		},
@@ -187,7 +187,7 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 	// Wait for materialization.
 	eventually(t, func() (bool, string) {
 		got := getModule(t, modName)
-		return got.Status.Phase == kestrelv1alpha1.ModulePhaseReady, "phase=" + got.Status.Phase
+		return got.Status.Phase == gameplanev1alpha1.ModulePhaseReady, "phase=" + got.Status.Phase
 	})
 
 	// Create a GameServer referencing the materialized template.
@@ -203,7 +203,7 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 
 	// Module should NOT disappear — finalizer blocks while gs in use.
 	consistently(t, 2*time.Second, func() (bool, string) {
-		var still kestrelv1alpha1.Module
+		var still gameplanev1alpha1.Module
 		err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &still)
 		if err != nil {
 			return false, fmt.Sprintf("Module gone too early: %v", err)
@@ -216,7 +216,7 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 		t.Fatalf("delete gs: %v", err)
 	}
 	eventually(t, func() (bool, string) {
-		var still kestrelv1alpha1.Module
+		var still gameplanev1alpha1.Module
 		err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &still)
 		if apierrors.IsNotFound(err) {
 			return true, ""
@@ -226,16 +226,16 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 	})
 
 	// And the template should have been deleted along with it.
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl)
 	if !apierrors.IsNotFound(err) {
 		t.Errorf("expected GameTemplate deleted; got err=%v", err)
 	}
 }
 
-func getModule(t *testing.T, name string) *kestrelv1alpha1.Module {
+func getModule(t *testing.T, name string) *gameplanev1alpha1.Module {
 	t.Helper()
-	var m kestrelv1alpha1.Module
+	var m gameplanev1alpha1.Module
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name}, &m); err != nil {
 		t.Fatalf("get module: %v", err)
 	}

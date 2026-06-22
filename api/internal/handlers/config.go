@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/api/internal/db"
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 )
 
 // dnsLabelRE matches an RFC1123 label: lowercase alphanumeric and dashes,

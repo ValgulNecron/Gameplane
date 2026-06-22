@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // conditionRetentionTrimmed reports whether the most recent retention
@@ -32,14 +32,14 @@ type BackupScheduleReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backupschedules,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backupschedules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=kestrel.gg,resources=backups,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backupschedules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backupschedules/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.gg,resources=backups,verbs=get;list;watch;create;delete
 
 func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var sched kestrelv1alpha1.BackupSchedule
+	var sched gameplanev1alpha1.BackupSchedule
 	if err := r.Get(ctx, req.NamespacedName, &sched); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -111,21 +111,21 @@ func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 func (r *BackupScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kestrelv1alpha1.BackupSchedule{}).
-		Owns(&kestrelv1alpha1.Backup{}).
+		For(&gameplanev1alpha1.BackupSchedule{}).
+		Owns(&gameplanev1alpha1.Backup{}).
 		Complete(r)
 }
 
 func (r *BackupScheduleReconciler) fire(
-	ctx context.Context, sched *kestrelv1alpha1.BackupSchedule, at time.Time,
+	ctx context.Context, sched *gameplanev1alpha1.BackupSchedule, at time.Time,
 ) error {
-	b := &kestrelv1alpha1.Backup{
+	b := &gameplanev1alpha1.Backup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", sched.Name, at.UTC().Format("20060102-150405")),
 			Namespace: sched.Namespace,
-			Labels:    map[string]string{"kestrel.gg/backup-schedule": sched.Name},
+			Labels:    map[string]string{"gameplane.gg/backup-schedule": sched.Name},
 		},
-		Spec: kestrelv1alpha1.BackupSpec{
+		Spec: gameplanev1alpha1.BackupSpec{
 			ServerRef: sched.Spec.ServerRef,
 			RepoRef:   sched.Spec.RepoRef,
 			Strategy:  sched.Spec.Strategy,
@@ -144,8 +144,8 @@ func (r *BackupScheduleReconciler) fire(
 // NextScheduleTime is unchanged (e.g. a dormant or suspended schedule).
 func (r *BackupScheduleReconciler) persistStatus(
 	ctx context.Context,
-	before *kestrelv1alpha1.BackupScheduleStatus,
-	sched *kestrelv1alpha1.BackupSchedule,
+	before *gameplanev1alpha1.BackupScheduleStatus,
+	sched *gameplanev1alpha1.BackupSchedule,
 ) error {
 	if scheduleStatusEqual(before, &sched.Status) {
 		return nil
@@ -155,7 +155,7 @@ func (r *BackupScheduleReconciler) persistStatus(
 
 // scheduleStatusEqual reports whether the two statuses are equivalent for
 // the fields this controller manages.
-func scheduleStatusEqual(a, b *kestrelv1alpha1.BackupScheduleStatus) bool {
+func scheduleStatusEqual(a, b *gameplanev1alpha1.BackupScheduleStatus) bool {
 	return metav1TimeEqual(a.LastScheduleTime, b.LastScheduleTime) &&
 		metav1TimeEqual(a.NextScheduleTime, b.NextScheduleTime) &&
 		sameConditions(a.Conditions, b.Conditions)

@@ -1,4 +1,4 @@
-# Kestrel GameTemplate for Terraria (vanilla + tModLoader).
+# Gameplane GameTemplate for Terraria (vanilla + tModLoader).
 #
 # Backed by passivelemon/terraria-docker. Vanilla vs tModLoader (and the
 # build) is chosen in the New Server wizard from spec.versions — the choice
@@ -10,12 +10,12 @@
 # Cluster-scoped; apply once per cluster:
 #     kubectl apply -f modules/terraria/template.yaml
 
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: GameTemplate
 metadata:
   name: terraria
   labels:
-    kestrel.gg/module: terraria
+    gameplane.gg/module: terraria
 spec:
   displayName: Terraria
   game: terraria
@@ -105,7 +105,7 @@ spec:
     - name: WORLDNAME
       displayName: World name
       type: string
-      default: "Kestrel"
+      default: "Gameplane"
       required: true
     - name: AUTOCREATE
       displayName: World size
@@ -131,7 +131,7 @@ spec:
     - name: MOTD
       displayName: MOTD
       type: string
-      default: "Welcome to a Kestrel-hosted Terraria server"
+      default: "Welcome to a Gameplane-hosted Terraria server"
     - name: SEED
       displayName: World seed
       description: Used when a new world is generated. Leave blank for random.

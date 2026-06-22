@@ -1,11 +1,35 @@
 # Changelog
 
-All notable changes to Kestrel are documented here. The format is based on
+All notable changes to Gameplane are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it
 reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
+
+## [0.2.0-beta.2] — 2026-06-22
+
+### Changed
+
+- **Renamed the project from Kestrel to Gameplane.** This is a breaking rebrand
+  that spans every layer:
+  - **CRD API group** `kestrel.gg` → `gameplane.gg` (all seven CRDs). Existing
+    clusters must be **recreated** — Helm never upgrades CRDs across a group
+    change, and there is no in-place migration for `v1alpha1` objects.
+  - **OCI module bundles** — media types `application/vnd.kestrel.*` →
+    `application/vnd.gameplane.*` and the manifest field `kestrelMinVersion` →
+    `gameplaneMinVersion`; existing bundles must be re-pushed
+    (`make modules-push`).
+  - **Helm chart** `kestrel` → `gameplane`, default namespaces
+    `kestrel-system` / `kestrel-games` → `gameplane-system` /
+    `gameplane-games`, the image registry, and every `kestrel-*` object name.
+  - **Environment variables** `KESTREL_*` → `GAMEPLANE_*`.
+  - **Auth cookies and CSRF header** (`kestrel_session`, `kestrel_csrf`,
+    `X-Kestrel-CSRF`, …) → `gameplane_*` / `X-Gameplane-CSRF`; active sessions
+    are invalidated on upgrade and users must re-login.
+  - **Go module path** `github.com/kestrel-gg/kestrel` →
+    `github.com/ValgulNecron/gameplane`.
+- Synced `web/package.json` to the chart version (it had been left at `0.1.0`).
 
 ## [0.2.0-beta.1] — 2026-06-22
 
@@ -51,5 +75,5 @@ testing. Not yet recommended for unattended production workloads — see
   runner (retry + longer readiness window), eliminating a cascade of flaky
   API e2e failures.
 
-[Unreleased]: https://github.com/kestrel-gg/kestrel/compare/v0.2.0-beta.1...HEAD
-[0.2.0-beta.1]: https://github.com/kestrel-gg/kestrel/releases/tag/v0.2.0-beta.1
+[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/ValgulNecron/gameplane/releases/tag/v0.2.0-beta.1

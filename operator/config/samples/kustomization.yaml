@@ -1,10 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - kestrel_v1alpha1_gametemplate.yaml
-  - kestrel_v1alpha1_gameserver.yaml
-  - kestrel_v1alpha1_backup.yaml
-  - kestrel_v1alpha1_backupschedule.yaml
-  - kestrel_v1alpha1_restore.yaml
-  - kestrel_v1alpha1_modulesource.yaml
-  - kestrel_v1alpha1_module.yaml
+  - gameplane_v1alpha1_gametemplate.yaml
+  - gameplane_v1alpha1_gameserver.yaml
+  - gameplane_v1alpha1_backup.yaml
+  - gameplane_v1alpha1_backupschedule.yaml
+  - gameplane_v1alpha1_restore.yaml
+  - gameplane_v1alpha1_modulesource.yaml
+  - gameplane_v1alpha1_module.yaml

@@ -13,14 +13,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // newPod builds a fake pod for the default namespace with a running game
 // container and the given (already-terminated) init containers.
 func newPod(name string, initNames []string, initFailed bool) *corev1.Pod {
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kestrel-games"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "gameplane-games"},
 		Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "game"}}},
 		Status: corev1.PodStatus{
 			ContainerStatuses: []corev1.ContainerStatus{

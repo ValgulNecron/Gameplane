@@ -2,7 +2,7 @@
 // dashboard's Overview tab.
 //
 // A GameTemplate declares metrics in spec.capabilities.status.metrics[];
-// the operator serializes them into KESTREL_CAPABILITIES and the agent
+// the operator serializes them into GAMEPLANE_CAPABILITIES and the agent
 // interprets them here. Each metric runs an RCON command and extracts a
 // value via a named-group regex (group "value"), so modules surface
 // game-specific readouts (TPS, world time, …) without an agent change.
@@ -20,8 +20,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/caps"
-	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
 // Rcon is the slice of *rcon.Client we use. An interface so tests can

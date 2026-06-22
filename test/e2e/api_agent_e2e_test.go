@@ -87,7 +87,7 @@ func waitAgentReachable(t *testing.T, cli *APIClient, gs string) {
 // generous timeouts on the Ready wait but keep per-request timeouts
 // tight to surface plumbing regressions cleanly.
 func TestAPI_AgentFilesRoundTrip(t *testing.T) {
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-agent-files-tmpl"
 	gs := "e2e-agent-files-gs"
 
@@ -106,7 +106,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	// NOT absolute pod paths.
 	const fileName = "hello-from-e2e.txt"
 	const filePath = "/" + fileName
-	const payload = "hi from kestrel api e2e"
+	const payload = "hi from gameplane api e2e"
 
 	// Write a file. The endpoint takes path as query param and body as
 	// raw octet-stream — APIClient.Do marshals JSON, so we go direct.
@@ -116,7 +116,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		t.Fatalf("build write req: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("X-Kestrel-CSRF", cli.CSRF)
+	req.Header.Set("X-Gameplane-CSRF", cli.CSRF)
 	resp, err := cli.HTTP.Do(req)
 	if err != nil {
 		t.Fatalf("POST /files/write: %v", err)
@@ -204,7 +204,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 // JSON with the expected keys, which proves the API correctly proxied
 // to the agent and decoded its response.
 func TestAPI_AgentPlayers(t *testing.T) {
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-agent-players-tmpl"
 	gs := "e2e-agent-players-gs"
 
@@ -242,7 +242,7 @@ func TestAPI_AgentPlayers(t *testing.T) {
 // in that "agent down" range.
 func TestAPI_AgentUnreachable(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-agent-unreach-tmpl"
 	gs := "e2e-agent-unreach-gs"
 

@@ -26,7 +26,7 @@ import (
 // CR makes a Job appear".
 func TestBackup_OperatorMaterializesJob(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-backup-busybox-tmpl"
 	gs := "e2e-backup-target"
 
@@ -49,7 +49,7 @@ func TestBackup_OperatorMaterializesJob(t *testing.T) {
 	// 3. Apply Backup CR.
 	bkName := "e2e-backup"
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": bkName, "namespace": ns},
 		"spec": map[string]any{
@@ -107,7 +107,7 @@ func TestBackup_OperatorMaterializesJob(t *testing.T) {
 // the API server before the controller ever sees it.
 func TestBackupSchedule_CreatesBackupCR(t *testing.T) {
 	ctx := context.Background()
-	ns := "kestrel-games"
+	ns := "gameplane-games"
 	tmpl := "e2e-bksched-busybox-tmpl"
 	gs := "e2e-bksched-target"
 
@@ -119,7 +119,7 @@ func TestBackupSchedule_CreatesBackupCR(t *testing.T) {
 
 	schedName := "e2e-bksched"
 	sched := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "kestrel.gg/v1alpha1",
+		"apiVersion": "gameplane.gg/v1alpha1",
 		"kind":       "BackupSchedule",
 		"metadata":   map[string]any{"name": schedName, "namespace": ns},
 		"spec": map[string]any{

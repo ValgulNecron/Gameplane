@@ -14,14 +14,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
-func ociSource(verify *kestrelv1alpha1.VerifySpec) *kestrelv1alpha1.ModuleSource {
-	return &kestrelv1alpha1.ModuleSource{
-		Spec: kestrelv1alpha1.ModuleSourceSpec{
-			Type:   kestrelv1alpha1.ModuleSourceTypeOCI,
-			OCI:    &kestrelv1alpha1.OCISourceSpec{URL: "ghcr.io/test/modules"},
+func ociSource(verify *gameplanev1alpha1.VerifySpec) *gameplanev1alpha1.ModuleSource {
+	return &gameplanev1alpha1.ModuleSource{
+		Spec: gameplanev1alpha1.ModuleSourceSpec{
+			Type:   gameplanev1alpha1.ModuleSourceTypeOCI,
+			OCI:    &gameplanev1alpha1.OCISourceSpec{URL: "ghcr.io/test/modules"},
 			Verify: verify,
 		},
 	}
@@ -38,7 +38,7 @@ func TestBuild_NilVerifyReturnsNop(t *testing.T) {
 }
 
 func TestBuild_KeyMissingSecretErrors(t *testing.T) {
-	src := ociSource(&kestrelv1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "missing"}})
+	src := ociSource(&gameplanev1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "missing"}})
 	if _, err := Build(context.Background(), fake.NewClientBuilder().Build(), "ns", src); err == nil {
 		t.Fatal("expected error for missing key secret")
 	}
@@ -49,7 +49,7 @@ func TestBuild_KeyBadPEMErrors(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "k", Namespace: "ns"},
 		Data:       map[string][]byte{cosignPubKey: []byte("not a key")},
 	}
-	src := ociSource(&kestrelv1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}})
+	src := ociSource(&gameplanev1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}})
 	c := fake.NewClientBuilder().WithObjects(sec).Build()
 	if _, err := Build(context.Background(), c, "ns", src); err == nil {
 		t.Fatal("expected error for malformed public key")
@@ -71,7 +71,7 @@ func TestBuild_KeyValidPEMReturnsVerifier(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "k", Namespace: "ns"},
 		Data:       map[string][]byte{cosignPubKey: pubPEM},
 	}
-	src := ociSource(&kestrelv1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}})
+	src := ociSource(&gameplanev1alpha1.VerifySpec{Key: &corev1.LocalObjectReference{Name: "k"}})
 	c := fake.NewClientBuilder().WithObjects(sec).Build()
 	v, err := Build(context.Background(), c, "ns", src)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 )
 
 func TestUsers_Me_Authenticated(t *testing.T) {

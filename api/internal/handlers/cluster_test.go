@@ -14,7 +14,7 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 func readyNode(name string, ready bool, cpu, mem string) *corev1.Node {
@@ -147,8 +147,8 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	if info.Version != "v1.30.0" {
 		t.Fatalf("version = %q", info.Version)
 	}
-	if info.KestrelVersion != "v9.9.9-test" {
-		t.Fatalf("kestrelVersion = %q, want v9.9.9-test", info.KestrelVersion)
+	if info.GameplaneVersion != "v9.9.9-test" {
+		t.Fatalf("gameplaneVersion = %q, want v9.9.9-test", info.GameplaneVersion)
 	}
 	if info.ClusterName != "" {
 		t.Fatalf("clusterName = %q, want empty with nil store", info.ClusterName)

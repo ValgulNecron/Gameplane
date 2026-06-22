@@ -1,0 +1,65 @@
+{{- /*
+  Agent mTLS material.
+
+  Generated at install time via Helm's built-in crypto. On upgrade we
+  `lookup` the existing Secret and reuse it verbatim so the CA stays
+  stable (and the API doesn't roll its client cert on every upgrade).
+
+  Users who want to bring their own CA can pre-create
+  `gameplane-agent-ca` and `gameplane-agent-client`; the lookup path then
+  reuses them and nothing is generated.
+*/}}
+{{- $caSecret := lookup "v1" "Secret" .Release.Namespace "gameplane-agent-ca" -}}
+{{- $haveCA := and $caSecret (hasKey ($caSecret.data | default dict) "ca.crt") (hasKey ($caSecret.data | default dict) "ca.key") -}}
+{{- $caCrt := "" -}}
+{{- $caKey := "" -}}
+{{- if $haveCA -}}
+  {{- $caCrt = (index $caSecret.data "ca.crt" | b64dec) -}}
+  {{- $caKey = (index $caSecret.data "ca.key" | b64dec) -}}
+{{- else -}}
+  {{- $ca := genCA "gameplane-agent-ca" 3650 -}}
+  {{- $caCrt = $ca.Cert -}}
+  {{- $caKey = $ca.Key -}}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gameplane-agent-ca
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    gameplane.gg/managed-by: helm
+type: Opaque
+data:
+  ca.crt: {{ $caCrt | b64enc }}
+  ca.key: {{ $caKey | b64enc }}
+---
+{{- $clientSecret := lookup "v1" "Secret" .Release.Namespace "gameplane-agent-client" -}}
+{{- $haveClient := and $clientSecret (hasKey ($clientSecret.data | default dict) "tls.crt") (hasKey ($clientSecret.data | default dict) "tls.key") -}}
+{{- $clientCrt := "" -}}
+{{- $clientKey := "" -}}
+{{- if $haveClient -}}
+  {{- $clientCrt = (index $clientSecret.data "tls.crt" | b64dec) -}}
+  {{- $clientKey = (index $clientSecret.data "tls.key" | b64dec) -}}
+{{- else -}}
+  {{- /* The API presents this cert to every agent. Agents accept any
+           cert signed by our CA, so CN/SAN are informational only — we
+           still fill SANs so Go's verifier has something to anchor on. */ -}}
+  {{- $apiDNS := list (printf "gameplane-api.%s.svc" .Release.Namespace) (printf "gameplane-api.%s.svc.cluster.local" .Release.Namespace) "gameplane-api" -}}
+  {{- $ca := buildCustomCert (b64enc $caCrt) (b64enc $caKey) -}}
+  {{- $signed := genSignedCert "gameplane-api-client" nil $apiDNS 3650 $ca -}}
+  {{- $clientCrt = $signed.Cert -}}
+  {{- $clientKey = $signed.Key -}}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gameplane-agent-client
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    gameplane.gg/managed-by: helm
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ $clientCrt | b64enc }}
+  tls.key: {{ $clientKey | b64enc }}

@@ -104,16 +104,16 @@ const (
 
 // ModuleFinalizer guards delete while a GameServer references the
 // module's GameTemplate.
-const ModuleFinalizer = "kestrel.gg/module-finalizer"
+const ModuleFinalizer = "gameplane.gg/module-finalizer"
 
 // Labels stamped on the materialized GameTemplate so the API + UI can
 // distinguish module-managed templates from manually-applied ones.
 const (
-	LabelManagedBy     = "kestrel.gg/managed-by"
-	LabelModuleName    = "kestrel.gg/module-name"
-	LabelModuleVersion = "kestrel.gg/module-version"
-	LabelModuleDigest  = "kestrel.gg/module-digest"
-	LabelModuleSource  = "kestrel.gg/module-source"
+	LabelManagedBy     = "gameplane.gg/managed-by"
+	LabelModuleName    = "gameplane.gg/module-name"
+	LabelModuleVersion = "gameplane.gg/module-version"
+	LabelModuleDigest  = "gameplane.gg/module-digest"
+	LabelModuleSource  = "gameplane.gg/module-source"
 
 	// ManagedByModule is the value of LabelManagedBy when a Module owns
 	// a GameTemplate.
@@ -127,7 +127,7 @@ const (
 // (module.yaml, template.yaml, README.md, icon.png). `kubectl apply`
 // of such a ConfigMap is equivalent to uploading through the
 // dashboard.
-const LabelModuleUpload = "kestrel.gg/module-upload"
+const LabelModuleUpload = "gameplane.gg/module-upload"
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=mod
@@ -138,7 +138,7 @@ const LabelModuleUpload = "kestrel.gg/module-upload"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:subresource:status
 
-// Module is an installed instance of a Kestrel module bundle. The
+// Module is an installed instance of a Gameplane module bundle. The
 // reconciler maintains a GameTemplate owned by this object.
 type Module struct {
 	metav1.TypeMeta   `json:",inline"`

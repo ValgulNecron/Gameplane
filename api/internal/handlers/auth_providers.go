@@ -19,7 +19,7 @@ type loginProvidersResp struct {
 //
 // Per the login-privacy rule this returns ONLY provider kinds and labels:
 // no version, cluster name, host, issuer URL, or counts. The OIDC label
-// is admin-configured (KESTREL_OIDC_DISPLAY_NAME); it never derives from
+// is admin-configured (GAMEPLANE_OIDC_DISPLAY_NAME); it never derives from
 // the issuer URL, which would leak a hostname.
 func AuthProvidersHandler(oidcEnabled bool, oidcLabel string) http.HandlerFunc {
 	resp := loginProvidersResp{

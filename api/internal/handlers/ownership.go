@@ -13,18 +13,18 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/kestrel-gg/kestrel/api/internal/auth"
-	"github.com/kestrel-gg/kestrel/api/internal/db"
-	"github.com/kestrel-gg/kestrel/api/internal/httperr"
-	"github.com/kestrel-gg/kestrel/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
 // Owner annotations record which user a GameServer belongs to. Ownership
 // is informational (display + transfer + audit), not an access boundary —
 // RBAC remains role/namespace based.
 const (
-	ownerIDAnnotation = "kestrel.gg/owner-id"
-	ownerAnnotation   = "kestrel.gg/owner"
+	ownerIDAnnotation = "gameplane.gg/owner-id"
+	ownerAnnotation   = "gameplane.gg/owner"
 )
 
 // stampOwner records the authenticated caller as the owner of obj. Called

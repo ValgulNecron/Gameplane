@@ -10,7 +10,7 @@ import { LoginPage } from "../pages/LoginPage";
 // targeting live to avoid disturbing the MSW service-worker setup
 // (Playwright's storageState load can race with worker registration
 // in chromium).
-if (process.env.KESTREL_E2E_TARGET === "live") {
+if (process.env.GAMEPLANE_E2E_TARGET === "live") {
   test.use({ storageState: { cookies: [], origins: [] } });
 }
 
@@ -27,9 +27,9 @@ test.describe("login", () => {
 
     // Privacy contract: a cluster name like "homelab" is exposed by
     // /cluster/info to authenticated users but must NEVER show up
-    // pre-auth. Same for hostnames in the kestrel-system namespace.
+    // pre-auth. Same for hostnames in the gameplane-system namespace.
     const body = (await page.locator("body").innerText()).toLowerCase();
-    const forbidden = ["kestrel-system", "kestrel-games", "kind-kestrel-e2e", "homelab"];
+    const forbidden = ["gameplane-system", "gameplane-games", "kind-gameplane-e2e", "homelab"];
     for (const f of forbidden) {
       expect(body, `pre-auth body must not contain ${f}`).not.toContain(f);
     }
@@ -43,9 +43,9 @@ test.describe("login", () => {
     await login.goto();
 
     const username =
-      process.env.ADMIN_USERNAME ?? process.env.KESTREL_E2E_ADMIN_USERNAME ?? "e2e-admin";
+      process.env.ADMIN_USERNAME ?? process.env.GAMEPLANE_E2E_ADMIN_USERNAME ?? "e2e-admin";
     const password =
-      process.env.ADMIN_PASSWORD ?? process.env.KESTREL_E2E_ADMIN_PASSWORD ?? "any-non-empty";
+      process.env.ADMIN_PASSWORD ?? process.env.GAMEPLANE_E2E_ADMIN_PASSWORD ?? "any-non-empty";
 
     await login.login(username, password);
 

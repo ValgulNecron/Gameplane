@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // seedMC catalogs and stocks one "mc" 1.0.0 bundle, returning the source name.
@@ -21,7 +21,7 @@ func seedMC(t *testing.T, fake *fakeOCI) (srcName, ref string) {
 	ref = "local/test/mc"
 	fake.putBundle(ref, "1.0.0", fixtureBundle("mc", "1.0.0", "MC"))
 	srcName = uniqueName("modsrc")
-	createIndexedSource(t, srcName, "local/test", fake, []kestrelv1alpha1.ModuleEntry{{
+	createIndexedSource(t, srcName, "local/test", fake, []gameplanev1alpha1.ModuleEntry{{
 		Name:          "mc",
 		Reference:     ref,
 		Versions:      []string{"1.0.0"},
@@ -30,11 +30,11 @@ func seedMC(t *testing.T, fake *fakeOCI) (srcName, ref string) {
 	return srcName, ref
 }
 
-func createModule(t *testing.T, name, srcName string, mutate func(*kestrelv1alpha1.Module)) {
+func createModule(t *testing.T, name, srcName string, mutate func(*gameplanev1alpha1.Module)) {
 	t.Helper()
-	mod := &kestrelv1alpha1.Module{
+	mod := &gameplanev1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec: kestrelv1alpha1.ModuleSpec{
+		Spec: gameplanev1alpha1.ModuleSpec{
 			Source: corev1.LocalObjectReference{Name: srcName},
 			Name:   "mc",
 		},
@@ -67,15 +67,15 @@ func expectModulePhase(t *testing.T, name, phase, lastErrContains string) {
 func TestModule_SignatureInvalid(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleReconcilerVerifier(fake, fakeVerifier{err: fmt.Errorf("no matching signatures")}))
+	startMgr(t, "gameplane-system", withModuleReconcilerVerifier(fake, fakeVerifier{err: fmt.Errorf("no matching signatures")}))
 
 	srcName, _ := seedMC(t, fake)
 	modName := uniqueName("mod-unsigned")
 	createModule(t, modName, srcName, nil)
 
-	expectModulePhase(t, modName, kestrelv1alpha1.ModulePhaseFailed, "no matching signatures")
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseFailed, "no matching signatures")
 
-	var tmpl kestrelv1alpha1.GameTemplate
+	var tmpl gameplanev1alpha1.GameTemplate
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &tmpl); err == nil {
 		t.Fatal("GameTemplate should not exist for an unsigned module")
 	}
@@ -85,13 +85,13 @@ func TestModule_SignatureInvalid(t *testing.T) {
 func TestModule_SignatureValid(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleReconcilerVerifier(fake, fakeVerifier{}))
+	startMgr(t, "gameplane-system", withModuleReconcilerVerifier(fake, fakeVerifier{}))
 
 	srcName, _ := seedMC(t, fake)
 	modName := uniqueName("mod-signed")
 	createModule(t, modName, srcName, nil)
 
-	expectModulePhase(t, modName, kestrelv1alpha1.ModulePhaseReady, "")
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
 }
 
 // TestModule_DigestPinMismatch — a spec.digest that doesn't match the
@@ -99,29 +99,29 @@ func TestModule_SignatureValid(t *testing.T) {
 func TestModule_DigestPinMismatch(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleReconciler(fake))
 
 	srcName, _ := seedMC(t, fake)
 	modName := uniqueName("mod-badpin")
-	createModule(t, modName, srcName, func(m *kestrelv1alpha1.Module) {
+	createModule(t, modName, srcName, func(m *gameplanev1alpha1.Module) {
 		m.Spec.Digest = "sha256:wrong"
 	})
 
-	expectModulePhase(t, modName, kestrelv1alpha1.ModulePhaseFailed, "pinned digest")
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseFailed, "pinned digest")
 }
 
 // TestModule_DigestPinMatch — a correct spec.digest installs cleanly.
 func TestModule_DigestPinMatch(t *testing.T) {
 	_ = newNamespace(t)
 	fake := newFakeOCI()
-	startMgr(t, "kestrel-system", withModuleReconciler(fake))
+	startMgr(t, "gameplane-system", withModuleReconciler(fake))
 
 	srcName, _ := seedMC(t, fake)
 	modName := uniqueName("mod-goodpin")
-	createModule(t, modName, srcName, func(m *kestrelv1alpha1.Module) {
+	createModule(t, modName, srcName, func(m *gameplanev1alpha1.Module) {
 		// fixtureBundle stamps digest "sha256:<name>-<version>".
 		m.Spec.Digest = "sha256:mc-1.0.0"
 	})
 
-	expectModulePhase(t, modName, kestrelv1alpha1.ModulePhaseReady, "")
+	expectModulePhase(t, modName, gameplanev1alpha1.ModulePhaseReady, "")
 }

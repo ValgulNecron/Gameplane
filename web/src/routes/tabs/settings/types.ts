@@ -6,5 +6,5 @@ export interface SectionProps {
   template?: GameTemplate;
 }
 
-export const DESCRIPTION_ANNOTATION = "kestrel.gg/description";
-export const GRACE_PERIOD_ANNOTATION = "kestrel.gg/grace-period-seconds";
+export const DESCRIPTION_ANNOTATION = "gameplane.gg/description";
+export const GRACE_PERIOD_ANNOTATION = "gameplane.gg/grace-period-seconds";

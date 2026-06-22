@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestGameServer_CreatesStatefulSetServicePVC — minimal happy path.
@@ -95,9 +95,9 @@ func TestGameServer_AgentSidecarInjected(t *testing.T) {
 			return false, "no agent sidecar container"
 		}
 		want := map[string]string{
-			"KESTREL_SERVER_NAME": "smp",
-			"KESTREL_TEMPLATE":    tmpl.Name,
-			"KESTREL_GAME":        tmpl.Spec.Game,
+			"GAMEPLANE_SERVER_NAME": "smp",
+			"GAMEPLANE_TEMPLATE":    tmpl.Name,
+			"GAMEPLANE_GAME":        tmpl.Spec.Game,
 		}
 		got := map[string]string{}
 		for _, e := range agent.Env {
@@ -148,13 +148,13 @@ func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
 	}
 
 	// Seed status.agent as the in-pod sidecar's heartbeat would.
-	var seeded kestrelv1alpha1.GameServer
+	var seeded gameplanev1alpha1.GameServer
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "smp"}, &seeded); err != nil {
 		t.Fatalf("get for seed: %v", err)
 	}
 	players := int32(7)
 	now := metav1.Now()
-	seeded.Status.Agent = &kestrelv1alpha1.AgentStatus{LastHeartbeat: &now, PlayersOnline: &players}
+	seeded.Status.Agent = &gameplanev1alpha1.AgentStatus{LastHeartbeat: &now, PlayersOnline: &players}
 	if err := k8sClient.Status().Update(ctx, &seeded); err != nil {
 		t.Fatalf("seed agent status: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
 		t.Fatalf("reconcileStatus: %v", err)
 	}
 
-	var got kestrelv1alpha1.GameServer
+	var got gameplanev1alpha1.GameServer
 	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "smp"}, &got); err != nil {
 		t.Fatalf("get after reconcile: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestGameServer_RCONProvisioning(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("mc"))
-	tmpl.Spec.RCON = &kestrelv1alpha1.RCONSpec{Protocol: "source", Port: 25575, PasswordEnv: "RCON_PASSWORD"}
+	tmpl.Spec.RCON = &gameplanev1alpha1.RCONSpec{Protocol: "source", Port: 25575, PasswordEnv: "RCON_PASSWORD"}
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
 		t.Fatalf("create template: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestGameServer_RCONProvisioning(t *testing.T) {
 		// Agent: --rcon-password-file arg + rcon-password mount.
 		hasFlag := false
 		for _, a := range agent.Args {
-			if a == "--rcon-password-file=/etc/kestrel/rcon/password" {
+			if a == "--rcon-password-file=/etc/gameplane/rcon/password" {
 				hasFlag = true
 			}
 		}
@@ -278,7 +278,7 @@ func TestGameServer_TemplateNotFound_PhaseFailed(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		gs := getGameServer(t, ns, "orphan")
-		if gs.Status.Phase != kestrelv1alpha1.GameServerPhaseFailed {
+		if gs.Status.Phase != gameplanev1alpha1.GameServerPhaseFailed {
 			return false, "phase = " + string(gs.Status.Phase)
 		}
 		return true, ""
@@ -352,16 +352,16 @@ func TestGameServer_BackupPolicyMaterializesSchedule(t *testing.T) {
 	deleteCleanup(t, tmpl)
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
-	gs.Spec.BackupPolicy = &kestrelv1alpha1.InlineBackupPolicy{
+	gs.Spec.BackupPolicy = &gameplanev1alpha1.InlineBackupPolicy{
 		Schedule: "0 */6 * * *",
-		RepoRef:  kestrelv1alpha1.SecretKeySelector{Name: "repo", Key: "url"},
+		RepoRef:  gameplanev1alpha1.SecretKeySelector{Name: "repo", Key: "url"},
 	}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)
 	}
 
 	eventually(t, func() (bool, string) {
-		var bs kestrelv1alpha1.BackupSchedule
+		var bs gameplanev1alpha1.BackupSchedule
 		if err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp-auto"}, &bs); err != nil {
 			return false, "get schedule: " + err.Error()
@@ -396,16 +396,16 @@ func TestGameServer_BackupPolicyRemovedDeletesSchedule(t *testing.T) {
 	deleteCleanup(t, tmpl)
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
-	gs.Spec.BackupPolicy = &kestrelv1alpha1.InlineBackupPolicy{
+	gs.Spec.BackupPolicy = &gameplanev1alpha1.InlineBackupPolicy{
 		Schedule: "0 0 * * *",
-		RepoRef:  kestrelv1alpha1.SecretKeySelector{Name: "repo", Key: "url"},
+		RepoRef:  gameplanev1alpha1.SecretKeySelector{Name: "repo", Key: "url"},
 	}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)
 	}
 
 	eventually(t, func() (bool, string) {
-		var bs kestrelv1alpha1.BackupSchedule
+		var bs gameplanev1alpha1.BackupSchedule
 		err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp-auto"}, &bs)
 		return err == nil, "waiting for managed schedule"
@@ -423,7 +423,7 @@ func TestGameServer_BackupPolicyRemovedDeletesSchedule(t *testing.T) {
 	}
 
 	eventually(t, func() (bool, string) {
-		var bs kestrelv1alpha1.BackupSchedule
+		var bs gameplanev1alpha1.BackupSchedule
 		err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp-auto"}, &bs)
 		if apierrors.IsNotFound(err) {
@@ -450,7 +450,7 @@ func TestGameServer_StorageOverride(t *testing.T) {
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
 	want := resource.MustParse("25Gi")
-	gs.Spec.Storage = &kestrelv1alpha1.GameStorageSpec{Size: want}
+	gs.Spec.Storage = &gameplanev1alpha1.GameStorageSpec{Size: want}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)
 	}
@@ -492,7 +492,7 @@ func TestGameServer_LoadBalancerSourceRanges(t *testing.T) {
 	deleteCleanup(t, tmpl)
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
-	gs.Spec.Networking = kestrelv1alpha1.GameServerNetworking{
+	gs.Spec.Networking = gameplanev1alpha1.GameServerNetworking{
 		Expose:       "LoadBalancer",
 		SourceRanges: []string{"203.0.113.0/24", "10.0.0.0/8"},
 	}
@@ -571,7 +571,7 @@ func TestGameServer_ConsoleMode_RCONNoTTY(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("rcongame"))
-	tmpl.Spec.RCON = &kestrelv1alpha1.RCONSpec{Protocol: "source", Port: 25575}
+	tmpl.Spec.RCON = &gameplanev1alpha1.RCONSpec{Protocol: "source", Port: 25575}
 	// ConsoleMode left empty — defaults to "rcon" via EffectiveConsoleMode.
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
 		t.Fatalf("create template: %v", err)
@@ -790,7 +790,7 @@ func TestGameServer_ConfigMaterializesAsEnv(t *testing.T) {
 		{Name: "EULA", Value: "TRUE"},
 		{Name: "TYPE", Value: "VANILLA"}, // config below must override this
 	}
-	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
 		{Name: "TYPE", Type: "enum", Enum: []string{"VANILLA", "PAPER"}, Default: "VANILLA", Required: true},
 		{Name: "VERSION", Type: "string", Default: "LATEST"},
 		{Name: "MAX_PLAYERS", Type: "int", Default: "20"},
@@ -839,7 +839,7 @@ func TestGameServer_ConfigMaterializesAsEnv(t *testing.T) {
 				return false, "env " + k + " = " + got[k] + ", want " + v
 			}
 		}
-		if ss.Spec.Template.Annotations["kestrel.gg/config-hash"] == "" {
+		if ss.Spec.Template.Annotations["gameplane.gg/config-hash"] == "" {
 			return false, "config-hash annotation missing"
 		}
 		return true, ""
@@ -854,7 +854,7 @@ func TestGameServer_InvalidConfigFailsThenRecovers(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
-	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
 		{Name: "MODE", Type: "enum", Enum: []string{"survival", "creative"}},
 	}
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -870,7 +870,7 @@ func TestGameServer_InvalidConfigFailsThenRecovers(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getGameServer(t, ns, "smp")
-		if got.Status.Phase != kestrelv1alpha1.GameServerPhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.GameServerPhaseFailed {
 			return false, "phase = " + string(got.Status.Phase)
 		}
 		for _, c := range got.Status.Conditions {
@@ -904,7 +904,7 @@ func TestGameServer_InvalidConfigFailsThenRecovers(t *testing.T) {
 			return false, "statefulset: " + err.Error()
 		}
 		got := getGameServer(t, ns, "smp")
-		if got.Status.Phase == kestrelv1alpha1.GameServerPhaseFailed {
+		if got.Status.Phase == gameplanev1alpha1.GameServerPhaseFailed {
 			return false, "phase still Failed after fixing config"
 		}
 		return true, ""
@@ -919,7 +919,7 @@ func TestGameServer_PasswordConfigStoredInSecret(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("valheim"))
-	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
 		{Name: "SERVER_PASS", Type: "password"},
 	}
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -997,11 +997,11 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("terraria"))
-	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
 		{Name: "MOTD", Type: "string", Target: "file", Default: "hello"},
 		{Name: "SERVER_PASS", Type: "password", Target: "file"},
 	}
-	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+	tmpl.Spec.ConfigFiles = []gameplanev1alpha1.ConfigFile{{
 		Path:     "cfg/server.cfg",
 		Template: "motd={{ .Values.MOTD }}\npass={{ .Values.SERVER_PASS }}\n",
 	}}
@@ -1055,7 +1055,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 				}
 			}
 		}
-		firstHash = ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		firstHash = ss.Spec.Template.Annotations["gameplane.gg/config-hash"]
 		if firstHash == "" {
 			return false, "config-hash annotation missing"
 		}
@@ -1087,7 +1087,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, "statefulset: " + err.Error()
 		}
-		if ss.Spec.Template.Annotations["kestrel.gg/config-hash"] == firstHash {
+		if ss.Spec.Template.Annotations["gameplane.gg/config-hash"] == firstHash {
 			return false, "config-hash did not roll"
 		}
 		return true, ""
@@ -1099,7 +1099,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 	// Retry on conflict — reconcilers patch status concurrently, racing a
 	// bare Get+Update's resourceVersion.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		tmplNow := &kestrelv1alpha1.GameTemplate{}
+		tmplNow := &gameplanev1alpha1.GameTemplate{}
 		if err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Name: tmpl.Name}, tmplNow); err != nil {
 			return err
@@ -1124,7 +1124,7 @@ func TestGameServer_ConfigFilesMaterialize(t *testing.T) {
 		if poke.Annotations == nil {
 			poke.Annotations = map[string]string{}
 		}
-		poke.Annotations["test.kestrel.gg/poke"] = time.Now().Format(time.RFC3339Nano)
+		poke.Annotations["test.gameplane.gg/poke"] = time.Now().Format(time.RFC3339Nano)
 		_ = k8sClient.Update(context.Background(), poke)
 
 		var sec corev1.Secret
@@ -1161,7 +1161,7 @@ func TestGameServer_BadConfigFileTemplateFails(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("terraria"))
-	tmpl.Spec.ConfigFiles = []kestrelv1alpha1.ConfigFile{{
+	tmpl.Spec.ConfigFiles = []gameplanev1alpha1.ConfigFile{{
 		Path:     "server.cfg",
 		Template: "{{ .Values.NO_SUCH_FIELD }}",
 	}}
@@ -1177,7 +1177,7 @@ func TestGameServer_BadConfigFileTemplateFails(t *testing.T) {
 
 	eventually(t, func() (bool, string) {
 		got := getGameServer(t, ns, "smp")
-		if got.Status.Phase != kestrelv1alpha1.GameServerPhaseFailed {
+		if got.Status.Phase != gameplanev1alpha1.GameServerPhaseFailed {
 			return false, "phase = " + string(got.Status.Phase)
 		}
 		for _, c := range got.Status.Conditions {
@@ -1203,7 +1203,7 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
-	tmpl.Spec.ConfigSchema = []kestrelv1alpha1.ConfigField{
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
 		{Name: "DIFFICULTY", Type: "string", Default: "easy"},
 	}
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
@@ -1223,7 +1223,7 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, err.Error()
 		}
-		firstHash = ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		firstHash = ss.Spec.Template.Annotations["gameplane.gg/config-hash"]
 		return firstHash != "", "config-hash annotation missing"
 	})
 
@@ -1243,7 +1243,7 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, err.Error()
 		}
-		hash := ss.Spec.Template.Annotations["kestrel.gg/config-hash"]
+		hash := ss.Spec.Template.Annotations["gameplane.gg/config-hash"]
 		if hash == firstHash {
 			return false, "config-hash unchanged"
 		}

@@ -5,7 +5,7 @@
 // resource usage without a cluster metrics pipeline.
 //
 // The agent uses its in-pod ServiceAccount to authenticate to the
-// Kubernetes API directly; no traffic flows through the Kestrel API
+// Kubernetes API directly; no traffic flows through the Gameplane API
 // for this. The operator must grant the agent's SA permission to
 // update gameservers/status — wired up during agent-injection.
 package heartbeat
@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/usage"
+	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
 type Rcon interface {
@@ -50,7 +50,7 @@ type Config struct {
 }
 
 var gvr = schema.GroupVersionResource{
-	Group:    "kestrel.gg",
+	Group:    "gameplane.gg",
 	Version:  "v1alpha1",
 	Resource: "gameservers",
 }
@@ -61,7 +61,7 @@ var gvr = schema.GroupVersionResource{
 // endpoints without heartbeats.
 func Run(ctx context.Context, cfg Config) {
 	if cfg.ServerName == "" {
-		slog.Info("heartbeat disabled: no KESTREL_SERVER_NAME")
+		slog.Info("heartbeat disabled: no GAMEPLANE_SERVER_NAME")
 		return
 	}
 	if cfg.Namespace == "" {

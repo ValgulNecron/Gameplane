@@ -1,4 +1,4 @@
-// ESLint flat config for the Kestrel dashboard.
+// ESLint flat config for the Gameplane dashboard.
 //
 // Focus: catch real bugs (floating promises, missing dependency arrays,
 // shadowed variables) without being pedantic about style — Prettier will

@@ -10,17 +10,17 @@
 ## One-shot install
 
 ```sh
-helm repo add kestrel https://charts.kestrel.gg     # (once the chart is published)
-helm upgrade --install kestrel kestrel/kestrel \
-  --namespace kestrel-system --create-namespace \
-  --set ingress.host=kestrel.your-domain.test
+helm repo add gameplane https://charts.gameplane.gg     # (once the chart is published)
+helm upgrade --install gameplane gameplane/gameplane \
+  --namespace gameplane-system --create-namespace \
+  --set ingress.host=gameplane.your-domain.test
 ```
 
 From source (during development):
 
 ```sh
-helm upgrade --install kestrel ./charts/kestrel \
-  --namespace kestrel-system --create-namespace
+helm upgrade --install gameplane ./charts/gameplane \
+  --namespace gameplane-system --create-namespace
 ```
 
 ## First-time setup
@@ -28,14 +28,14 @@ helm upgrade --install kestrel ./charts/kestrel \
 Seed an initial admin user. Passwords must be at least 12 characters.
 
 ```sh
-kubectl -n kestrel-system exec deploy/kestrel-api -- \
+kubectl -n gameplane-system exec deploy/gameplane-api -- \
   /api bootstrap-admin --username admin --password "<choose>"
 ```
 
 To avoid the password landing in your shell history, pipe it on stdin:
 
 ```sh
-printf '%s' "$ADMIN_PASSWORD" | kubectl -n kestrel-system exec -i deploy/kestrel-api -- \
+printf '%s' "$ADMIN_PASSWORD" | kubectl -n gameplane-system exec -i deploy/gameplane-api -- \
   /api bootstrap-admin --username admin --password-stdin
 ```
 
@@ -74,8 +74,8 @@ bundle format.
 ## Upgrading
 
 ```sh
-helm upgrade kestrel ./charts/kestrel \
-  --namespace kestrel-system \
+helm upgrade gameplane ./charts/gameplane \
+  --namespace gameplane-system \
   --reuse-values
 ```
 
@@ -83,5 +83,5 @@ CRDs are installed once by Helm and not updated on upgrade (by design).
 For CRD schema changes, run:
 
 ```sh
-kubectl apply -f charts/kestrel/crds/
+kubectl apply -f charts/gameplane/crds/
 ```

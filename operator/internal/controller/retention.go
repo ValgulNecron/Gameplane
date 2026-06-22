@@ -8,46 +8,46 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // trimBackups enforces the schedule's retention policy by deleting
 // Backups that fall outside all keep-* buckets. Backup objects still
 // in-flight (Phase != Succeeded) are never deleted.
 func (r *BackupScheduleReconciler) trimBackups(
-	ctx context.Context, sched *kestrelv1alpha1.BackupSchedule,
+	ctx context.Context, sched *gameplanev1alpha1.BackupSchedule,
 ) error {
 	ret := sched.Spec.Retention
 	if ret == nil {
 		return nil
 	}
 
-	var list kestrelv1alpha1.BackupList
+	var list gameplanev1alpha1.BackupList
 	if err := r.List(ctx, &list,
 		client.InNamespace(sched.Namespace),
-		client.MatchingLabels{"kestrel.gg/backup-schedule": sched.Name},
+		client.MatchingLabels{"gameplane.gg/backup-schedule": sched.Name},
 	); err != nil {
 		return err
 	}
 
 	// Don't yank a backup out from under an in-flight Restore.
-	var restores kestrelv1alpha1.RestoreList
+	var restores gameplanev1alpha1.RestoreList
 	if err := r.List(ctx, &restores, client.InNamespace(sched.Namespace)); err != nil {
 		return err
 	}
 	pinned := map[string]bool{}
 	for _, rs := range restores.Items {
 		switch rs.Status.Phase {
-		case kestrelv1alpha1.RestorePhaseSucceeded, kestrelv1alpha1.RestorePhaseFailed:
+		case gameplanev1alpha1.RestorePhaseSucceeded, gameplanev1alpha1.RestorePhaseFailed:
 			continue
 		}
 		pinned[rs.Spec.BackupRef.Name] = true
 	}
 
 	// Only succeeded backups are candidates for trimming.
-	succeeded := make([]kestrelv1alpha1.Backup, 0, len(list.Items))
+	succeeded := make([]gameplanev1alpha1.Backup, 0, len(list.Items))
 	for _, b := range list.Items {
-		if b.Status.Phase != kestrelv1alpha1.BackupPhaseSucceeded {
+		if b.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 			continue
 		}
 		if b.Status.CompletionTime == nil {
@@ -84,7 +84,7 @@ func (r *BackupScheduleReconciler) trimBackups(
 // the most recent N distinct bucket keys, keep the newest Backup in
 // that bucket. KeepLast is a simple "keep the N newest" clause.
 func selectKept(
-	newestFirst []kestrelv1alpha1.Backup, ret *kestrelv1alpha1.BackupRetention,
+	newestFirst []gameplanev1alpha1.Backup, ret *gameplanev1alpha1.BackupRetention,
 ) map[string]bool {
 	keep := map[string]bool{}
 

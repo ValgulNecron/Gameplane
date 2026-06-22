@@ -11,16 +11,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // rconPasswordPath is where the resolved RCON password is mounted into
 // the agent sidecar; the agent reads it via --rcon-password-file.
-const rconPasswordPath = "/etc/kestrel/rcon"
+const rconPasswordPath = "/etc/gameplane/rcon"
 
 // rconSecretName is the operator-managed Secret holding a generated RCON
 // password when the template doesn't reference an external one.
-func rconSecretName(gs *kestrelv1alpha1.GameServer) string {
+func rconSecretName(gs *gameplanev1alpha1.GameServer) string {
 	return gs.Name + "-rcon"
 }
 
@@ -36,7 +36,7 @@ type resolvedRCON struct {
 	passwordEnv string
 }
 
-func resolveRCON(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate) resolvedRCON {
+func resolveRCON(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate) resolvedRCON {
 	if !templateHasRCON(tmpl) {
 		return resolvedRCON{}
 	}
@@ -58,7 +58,7 @@ func resolveRCON(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTempl
 // Secret, or expose no RCON, get nothing (the <gs>-rcon Secret is removed
 // when RCON is disabled, same lifecycle as the config Secret).
 func (r *GameServerReconciler) reconcileRCONSecret(
-	ctx context.Context, gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) error {
 	rc := resolveRCON(gs, tmpl)
 	sec := &corev1.Secret{
@@ -94,10 +94,10 @@ func (r *GameServerReconciler) reconcileRCONSecret(
 // loader) mod volume when the active version selects one — the agent must
 // see the same mounted mod dir the game reads so the Mods tab operates on
 // it.
-func agentVolumeMounts(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate, ver *kestrelv1alpha1.GameVersion, dataMount string) []corev1.VolumeMount {
+func agentVolumeMounts(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion, dataMount string) []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
 		{Name: "data", MountPath: dataMount},
-		{Name: "agent-tls", MountPath: "/etc/kestrel/agent-tls", ReadOnly: true},
+		{Name: "agent-tls", MountPath: "/etc/gameplane/agent-tls", ReadOnly: true},
 	}
 	if resolveRCON(gs, tmpl).enabled {
 		mounts = append(mounts, corev1.VolumeMount{
@@ -114,7 +114,7 @@ func agentVolumeMounts(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.Gam
 // into the game container, or nil when the template declares no
 // PasswordEnv. Appended last so it overrides any user-set value, keeping
 // the game and agent in agreement on the password.
-func rconGameEnv(gs *kestrelv1alpha1.GameServer, tmpl *kestrelv1alpha1.GameTemplate) *corev1.EnvVar {
+func rconGameEnv(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate) *corev1.EnvVar {
 	rc := resolveRCON(gs, tmpl)
 	if !rc.enabled || rc.passwordEnv == "" {
 		return nil

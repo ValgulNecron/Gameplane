@@ -1,12 +1,12 @@
-module github.com/kestrel-gg/kestrel/agent
+module github.com/ValgulNecron/gameplane/agent
 
 go 1.25.0
 
-require github.com/kestrel-gg/kestrel/netguard v0.0.0
+require github.com/ValgulNecron/gameplane/netguard v0.0.0
 
 // netguard is an in-repo module (no published version); resolve it locally
 // both inside the workspace (go.work) and in standalone module/Docker builds.
-replace github.com/kestrel-gg/kestrel/netguard => ../netguard
+replace github.com/ValgulNecron/gameplane/netguard => ../netguard
 
 require (
 	github.com/coder/websocket v1.8.12

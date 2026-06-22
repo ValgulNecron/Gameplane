@@ -59,7 +59,7 @@ export function AdminSettingsPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Admin settings"
-        subtitle="Platform-wide configuration for this Kestrel instance."
+        subtitle="Platform-wide configuration for this Gameplane instance."
       />
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
@@ -189,7 +189,7 @@ function useSectionForm<T>(initial: T, section: Parameters<typeof useUpdateConfi
 const defaultGeneral: GeneralCfg = {
   instanceName: "",
   externalURL: "",
-  defaultNamespace: "kestrel-games",
+  defaultNamespace: "gameplane-games",
 };
 
 function GeneralSection({ initial }: { initial?: GeneralCfg }) {
@@ -197,7 +197,7 @@ function GeneralSection({ initial }: { initial?: GeneralCfg }) {
   return (
     <SectionCard
       title="General"
-      subtitle="Basic identity for this Kestrel instance."
+      subtitle="Basic identity for this Gameplane instance."
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
@@ -356,7 +356,7 @@ function BackupDestSection() {
           <>
             <p>
               The repository at this destination will <strong>not</strong> be erased — only the
-              credentials Kestrel uses to reach it. Existing backups remain intact;
+              credentials Gameplane uses to reach it. Existing backups remain intact;
               new backups against this destination will fail until it&apos;s re-added.
             </p>
             {deleting && (
@@ -394,20 +394,20 @@ function NewDestinationForm({ onClose }: { onClose: () => void }) {
     <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
       <div className="text-sm font-medium">Add destination</div>
       <p className="text-xs text-muted">
-        Stored as a Secret labelled <span className="font-mono">kestrel.gg/backup-destination=true</span>.
+        Stored as a Secret labelled <span className="font-mono">gameplane.gg/backup-destination=true</span>.
         Restic URL formats: <span className="font-mono">s3:host/bucket</span>, <span className="font-mono">b2:bucket</span>, <span className="font-mono">azure:account/container</span>, etc.
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         <FieldLabel label="Name (DNS label)">
           <Input
-            placeholder="kestrel-backup-repo"
+            placeholder="gameplane-backup-repo"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
         </FieldLabel>
         <FieldLabel label="Restic URL">
           <Input
-            placeholder="s3:s3.example.com/kestrel-bucket"
+            placeholder="s3:s3.example.com/gameplane-bucket"
             value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
           />
@@ -519,7 +519,7 @@ function UpdatesSection({ initial }: { initial?: UpdatesCfg }) {
   return (
     <SectionCard
       title="Updates"
-      subtitle="Kestrel upgrade channel."
+      subtitle="Gameplane upgrade channel."
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
@@ -548,16 +548,16 @@ function UpdatesSection({ initial }: { initial?: UpdatesCfg }) {
 
 function AboutSection() {
   // Real versions from the API (the control plane is built and released as
-  // one unit, so a single Kestrel version is honest); "—" until loaded.
+  // one unit, so a single Gameplane version is honest); "—" until loaded.
   const { data } = useQuery({
     queryKey: ["cluster-info"],
     queryFn: () => Cluster.info().catch(() => ({} as ClusterInfo)),
     staleTime: 60_000,
   });
   return (
-    <SectionCard title="About" subtitle="This Kestrel build.">
+    <SectionCard title="About" subtitle="This Gameplane build.">
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
-        <dt className="text-muted">Kestrel</dt><dd className="font-mono">{data?.kestrelVersion || "—"}</dd>
+        <dt className="text-muted">Gameplane</dt><dd className="font-mono">{data?.gameplaneVersion || "—"}</dd>
         <dt className="text-muted">Kubernetes</dt><dd className="font-mono">{data?.version || "—"}</dd>
         <dt className="text-muted">License</dt><dd>AGPL-3.0</dd>
       </dl>

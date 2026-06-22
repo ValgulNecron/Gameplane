@@ -1,8 +1,8 @@
-apiVersion: kestrel.gg/v1alpha1
+apiVersion: gameplane.gg/v1alpha1
 kind: GameServer
 metadata:
   name: valheim-01
-  namespace: kestrel-games
+  namespace: gameplane-games
 spec:
   templateRef:
     name: valheim
@@ -12,7 +12,7 @@ spec:
   version: stable
 
   config:
-    SERVER_NAME: "Kestrel Valheim"
+    SERVER_NAME: "Gameplane Valheim"
     SERVER_PASS: "change-me-please"
     WORLD_NAME: "Dedicated"
     SERVER_PUBLIC: "true"

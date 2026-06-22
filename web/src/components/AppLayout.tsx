@@ -20,7 +20,7 @@ import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
 import { useMe, can } from "@/lib/auth";
 import type { ClusterInfo, User } from "@/types";
 import { cn } from "@/lib/utils";
-import { openEventStream, queryKeyForKind, type KestrelEvent } from "@/lib/sse";
+import { openEventStream, queryKeyForKind, type GameplaneEvent } from "@/lib/sse";
 import { useEffect, useState } from "react";
 
 function useClusterInfo() {
@@ -89,7 +89,7 @@ function Sidebar({ me, clusterName }: { me?: User; clusterName?: string }) {
           <ShieldCheck className="h-4 w-4 text-primary" />
         </div>
         <div className="leading-tight">
-          <div className="font-mono text-base font-semibold text-fg">kestrel</div>
+          <div className="font-mono text-base font-semibold text-fg">gameplane</div>
           <div className="text-[11px] text-muted">{clusterName || "—"}</div>
         </div>
       </div>
@@ -220,7 +220,7 @@ function Notifications() {
   useEffect(() => {
     let seq = 0;
     const dispose = openEventStream({
-      onEvent: (ev: KestrelEvent) => {
+      onEvent: (ev: GameplaneEvent) => {
         const key = queryKeyForKind(ev.kind);
         if (key) void qc.invalidateQueries({ queryKey: key });
         const name = ev.object?.metadata?.name ?? "";
@@ -358,7 +358,7 @@ interface Crumb {
 function buildCrumbs(pathname: string, _matches: unknown[]): Crumb[] {
   // Map route paths → human labels. Keeps breadcrumbs simple without
   // requiring per-route loader data.
-  const crumbs: Crumb[] = [{ label: "kestrel", to: "/" }];
+  const crumbs: Crumb[] = [{ label: "gameplane", to: "/" }];
   const parts = pathname.split("/").filter(Boolean);
   const labels: Record<string, string> = {
     servers: "Servers",

@@ -111,7 +111,7 @@ func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer admin.Close()
 
-	// Per-process unique viewer name. The kestrel-system DB carries
+	// Per-process unique viewer name. The gameplane-system DB carries
 	// state between test runs against a `make e2e-up`-managed cluster
 	// (the API PVC isn't wiped); a fixed username collides with the
 	// previous run's row and the create handler returns 500. CI's

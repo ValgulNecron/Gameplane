@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/kestrel-gg/kestrel/agent/internal/rcon"
+	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
 // With RCON disabled (game declares no console protocol), the players

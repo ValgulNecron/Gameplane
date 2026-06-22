@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	kestrelv1alpha1 "github.com/kestrel-gg/kestrel/operator/api/v1alpha1"
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 func uploadCM(name string, files map[string]string) *corev1.ConfigMap {
@@ -21,8 +21,8 @@ func uploadCM(name string, files map[string]string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "kestrel-system",
-			Labels:    map[string]string{kestrelv1alpha1.LabelModuleUpload: "true"},
+			Namespace: "gameplane-system",
+			Labels:    map[string]string{gameplanev1alpha1.LabelModuleUpload: "true"},
 		},
 		BinaryData: binary,
 	}
@@ -37,11 +37,11 @@ func TestUploadFetcher_IndexAndPull(t *testing.T) {
 		uploadCM("bundle-mc", validModuleFiles("mc", "1.0.0")),
 		// Unlabeled ConfigMaps in the namespace are ignored.
 		&corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{Name: "unrelated", Namespace: "kestrel-system"},
+			ObjectMeta: metav1.ObjectMeta{Name: "unrelated", Namespace: "gameplane-system"},
 			Data:       map[string]string{"foo": "bar"},
 		},
 	)
-	f := newUpload(c, "kestrel-system", nil)
+	f := newUpload(c, "gameplane-system", nil)
 
 	entries, warnings, err := f.Index(context.Background())
 	if err != nil || len(warnings) != 0 {
@@ -72,15 +72,15 @@ func TestUploadFetcher_StringDataAndWarnings(t *testing.T) {
 	stringCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "bundle-string",
-			Namespace: "kestrel-system",
-			Labels:    map[string]string{kestrelv1alpha1.LabelModuleUpload: "true"},
+			Namespace: "gameplane-system",
+			Labels:    map[string]string{gameplanev1alpha1.LabelModuleUpload: "true"},
 		},
 		Data: validModuleFiles("valheim", "0.9.0"),
 	}
 	broken := uploadCM("bundle-broken", map[string]string{FileMetadata: "name: broken\n"})
 	dup := uploadCM("zz-bundle-dup", validModuleFiles("valheim", "2.0.0"))
 
-	f := newUpload(uploadClient(stringCM, broken, dup), "kestrel-system", nil)
+	f := newUpload(uploadClient(stringCM, broken, dup), "gameplane-system", nil)
 	entries, warnings, err := f.Index(context.Background())
 	if err != nil {
 		t.Fatalf("Index: %v", err)
@@ -102,14 +102,14 @@ func TestUploadFetcher_AllowFilterAndEmpty(t *testing.T) {
 		uploadCM("bundle-mc", validModuleFiles("mc", "1.0.0")),
 		uploadCM("bundle-valheim", validModuleFiles("valheim", "1.0.0")),
 	)
-	f := newUpload(c, "kestrel-system", []string{"mc"})
+	f := newUpload(c, "gameplane-system", []string{"mc"})
 	entries, _, err := f.Index(context.Background())
 	if err != nil || len(entries) != 1 || entries[0].Name != "mc" {
 		t.Fatalf("entries=%+v err=%v", entries, err)
 	}
 
 	// No uploads at all is a healthy empty catalog, not an error.
-	empty := newUpload(uploadClient(), "kestrel-system", nil)
+	empty := newUpload(uploadClient(), "gameplane-system", nil)
 	entries, warnings, err := empty.Index(context.Background())
 	if err != nil || len(entries) != 0 || len(warnings) != 0 {
 		t.Fatalf("entries=%v warnings=%v err=%v", entries, warnings, err)

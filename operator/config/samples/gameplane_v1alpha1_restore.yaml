@@ -1,0 +1,10 @@
+apiVersion: gameplane.gg/v1alpha1
+kind: Restore
+metadata:
+  name: smp-01-restore-001
+  namespace: gameplane-games
+spec:
+  backupRef:
+    name: smp-01-manual-001
+  serverRef:
+    name: smp-01

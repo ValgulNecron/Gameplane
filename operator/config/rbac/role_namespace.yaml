@@ -3,7 +3,7 @@
 # the operator actually needs — but only in the games namespace.
 #
 # A production Helm install binds an equivalent Role in each managed
-# namespace (see charts/kestrel/templates/operator.yaml). This file
+# namespace (see charts/gameplane/templates/operator.yaml). This file
 # exists so `kubectl apply -f operator/config/rbac/` works for local
 # dev without regressing to cluster-wide write grants.
 #
@@ -12,10 +12,10 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: kestrel-operator-manage
-  namespace: kestrel-games
+  name: gameplane-operator-manage
+  namespace: gameplane-games
 rules:
-  - apiGroups: ["kestrel.gg"]
+  - apiGroups: ["gameplane.gg"]
     resources:
       - gameservers
       - backups
@@ -52,13 +52,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: kestrel-operator-manage
-  namespace: kestrel-games
+  name: gameplane-operator-manage
+  namespace: gameplane-games
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: kestrel-operator-manage
+  name: gameplane-operator-manage
 subjects:
   - kind: ServiceAccount
-    name: kestrel-operator
-    namespace: kestrel-system
+    name: gameplane-operator
+    namespace: gameplane-system
