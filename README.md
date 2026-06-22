@@ -5,8 +5,31 @@ A Kubernetes-native game server control panel. Open-source alternative to
 Docker — scales from a single-node k3s homelab to multi-node production
 clusters without changing the operational model.
 
-> Status: **pre-alpha**. CRDs, operator, and dashboard are under active
-> development. Not yet suitable for production workloads.
+> Status: **beta** (`v0.2.0-beta.1`). The operator, API, agent, and dashboard
+> are feature-complete for the v1 scope and stabilized for external testing.
+> See [Beta status & known limitations](#beta-status--known-limitations) before
+> running it for anything you can't afford to lose.
+
+## Beta status & known limitations
+
+Kestrel is in **beta**: the core workflows — deploy a game server, console,
+files, backups/restore, modules, RBAC — work end to end and are covered by
+unit, integration (envtest), and kind-based e2e suites. Before you rely on it,
+know that the following are **deferred past the first beta**:
+
+- **Per-GameServer (owner-based) RBAC** — authorization is namespace-scoped
+  today; server ownership is informational only.
+- **Multi-cluster** — one target cluster per dashboard.
+- **Signed official module bundles** — signature *verification* is supported
+  and opt-in, but the official `modules/*` bundles are not cosign-signed yet.
+- **Bundled observability** — the operator and API expose Prometheus metrics,
+  but the chart ships no ServiceMonitor or Grafana dashboards.
+- **Audit-log export** — audit events are stored in the database; there is no
+  external sink (S3/syslog) or retention policy yet.
+
+CI runs the full suite (unit, envtest, and kind e2e) on every PR. The kind
+e2e jobs can occasionally flake under resource pressure on the self-hosted
+runner; re-running the job clears transient infrastructure failures.
 
 ## Why
 
