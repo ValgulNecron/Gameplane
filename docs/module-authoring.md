@@ -240,21 +240,75 @@ spec:
                                  # public key under data "cosign.pub"
 ```
 
-Keyless (Fulcio certificate identity) — the operator needs outbound access to
-the sigstore trust root and Rekor:
+Keyless (Fulcio certificate identity) — for sources whose author signs with a
+CI OIDC identity instead of a key. The operator needs outbound access to the
+sigstore trust root and Rekor:
 
 ```yaml
   verify:
     keyless:
       issuer: https://token.actions.githubusercontent.com
-      identity: https://github.com/ValgulNecron/gameplane-modules/.github/workflows/release.yml@refs/heads/main
+      identity: https://github.com/<org>/<repo>/.github/workflows/release.yaml@refs/tags/v1.0.0
 ```
+
+The official Gameplane bundles are **keyed**-signed (offline, no Rekor — see
+[Signing official bundles](#signing-official-bundles) below), so verify them
+with the keyed form above.
 
 `spec.verify` is rejected on non-OCI sources (cosign signatures are an OCI
 concept); `git`/`http`/`local`/`upload` rely on the content digest plus a
 `Module.spec.digest` pin instead.
 
 [cosign]: https://docs.sigstore.dev/cosign/overview/
+
+### Signing official bundles
+
+The official `modules/*` bundles are signed by the release pipeline so installs
+can verify them offline. Signing is **keyed** (an ECDSA key, no transparency
+log) — the operator's keyed verify path needs no Fulcio/Rekor connectivity,
+which suits air-gapped and self-hosted clusters.
+
+**One-time key setup (maintainer).** Generate a project signing key and store
+the halves in the right places — the private key never leaves CI secrets, the
+public key ships to users:
+
+```sh
+cosign generate-key-pair                 # writes cosign.key (private) + cosign.pub
+# CI secrets (repo settings): paste the contents of each file
+#   COSIGN_PRIVATE_KEY = <cosign.key>    COSIGN_PASSWORD = <the passphrase>
+# Publish cosign.pub with the release and record it for chart users.
+```
+
+The `release.yaml` `modules` job then runs `modules/build.sh push --sign` on
+every `v*` tag, pushing each bundle to `ghcr.io/<owner>/gameplane-modules` and
+signing it by digest. The job is gated on `COSIGN_PRIVATE_KEY`: until the key
+exists the release simply skips module publishing.
+
+**Verifying the official source (operator).** Paste the published `cosign.pub`
+into the chart and turn verification on:
+
+```yaml
+# values.yaml
+defaultModuleSource:
+  verify:
+    enabled: true
+    cosignPublicKey: |
+      -----BEGIN PUBLIC KEY-----
+      …
+      -----END PUBLIC KEY-----
+```
+
+The chart writes the key to a `gameplane-module-cosign-pub` Secret in the
+operator namespace and sets `spec.verify.key` on the default source.
+
+**Signing your own bundles.** `build.sh --sign` works for any registry; set
+`COSIGN_PRIVATE_KEY` (and `COSIGN_PASSWORD` if the key is encrypted) and point a
+`ModuleSource.spec.verify.key` Secret at the matching public key:
+
+```sh
+export COSIGN_PRIVATE_KEY="$(cat cosign.key)" COSIGN_PASSWORD=…
+modules/build.sh push --registry ghcr.io/you/your-modules --sign
+```
 
 ## Anatomy of a `GameTemplate` spec
 

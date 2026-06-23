@@ -108,7 +108,9 @@ boundary. Three controls protect it:
 - **Signature verification.** `ModuleSource.spec.verify` (OCI sources) makes
   the operator refuse any bundle without a valid cosign signature — keyed (a
   public key) or keyless (a pinned Fulcio issuer + identity). Use it for any
-  source you don't fully control.
+  source you don't fully control. The official `modules/*` bundles are
+  keyed-signed by the release pipeline and verify **offline** (no Rekor/Fulcio
+  reachability needed); turn it on with `defaultModuleSource.verify.enabled`.
 - **Digest pinning.** `Module.spec.digest` pins exact bundle content; a moved
   tag fails the install with `DigestMismatch`.
 
