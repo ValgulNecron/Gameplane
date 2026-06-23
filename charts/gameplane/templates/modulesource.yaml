@@ -19,6 +19,11 @@ spec:
     pullSecretRef:
       name: {{ . | quote }}
     {{- end }}
+  {{- if .Values.defaultModuleSource.verify.enabled }}
+  verify:
+    key:
+      name: gameplane-module-cosign-pub
+  {{- end }}
 {{- end }}
 {{- if .Values.uploadModuleSource.enabled }}
 ---

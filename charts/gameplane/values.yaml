@@ -152,6 +152,15 @@ defaultModuleSource:
   # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
   # namespace for private registries. Leave empty for public registries.
   pullSecretName: ""
+  # Cosign signature verification for this source. Off by default because it
+  # needs the project's published signing public key. Once you have it, paste
+  # the PEM into cosignPublicKey and set enabled: true; the operator then
+  # refuses any bundle from this source that is not signed by that key.
+  # Verification is keyed and offline (no Rekor). The key is published with
+  # each release; see docs/module-authoring.md "Signing official bundles".
+  verify:
+    enabled: false
+    cosignPublicKey: ""   # PEM, e.g. "-----BEGIN PUBLIC KEY-----\n…"
 
 # Upload-backed ModuleSource: bundles uploaded through the dashboard
 # (stored as labeled ConfigMaps in the operator namespace) are indexed

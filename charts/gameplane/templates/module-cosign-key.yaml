@@ -1,0 +1,19 @@
+{{- if and .Values.defaultModuleSource.enabled .Values.defaultModuleSource.verify.enabled }}
+{{- if not .Values.defaultModuleSource.verify.cosignPublicKey }}
+{{- fail "defaultModuleSource.verify.enabled is true but defaultModuleSource.verify.cosignPublicKey is empty — provide the signing public key (PEM)" }}
+{{- end }}
+# Cosign public key the operator verifies official module bundles against.
+# Lives in the operator namespace (the operator resolves verify.key Secrets
+# from --module-namespace, which the chart sets to .Release.Namespace).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gameplane-module-cosign-pub
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    gameplane.gg/managed-by: helm
+type: Opaque
+data:
+  cosign.pub: {{ .Values.defaultModuleSource.verify.cosignPublicKey | b64enc }}
+{{- end }}
