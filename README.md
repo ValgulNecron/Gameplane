@@ -20,8 +20,11 @@ know that the following are **deferred past the first beta**:
 - **Per-GameServer (owner-based) RBAC** — authorization is namespace-scoped
   today; server ownership is informational only.
 - **Multi-cluster** — one target cluster per dashboard.
-- **Signed official module bundles** — signature *verification* is supported
-  and opt-in, but the official `modules/*` bundles are not cosign-signed yet.
+- **Signed official module bundles** — the release pipeline keyed-cosign-signs
+  the official `modules/*` bundles and the operator verifies them offline; this
+  activates once the project's signing key is provisioned (`COSIGN_PRIVATE_KEY`
+  in CI), so until then published bundles may be unsigned. Signature
+  *verification* itself is supported and opt-in today.
 - **Bundled observability** — the operator and API expose Prometheus metrics,
   but the chart ships no ServiceMonitor or Grafana dashboards.
 - **Audit-log export** — audit events are stored in the database; there is no

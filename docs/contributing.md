@@ -60,5 +60,12 @@ the same review, lint, and test gates below.
 ## Release process
 
 Tags matching `v*` trigger the `release.yaml` workflow, which builds
-images, signs them with cosign (roadmap), and pushes the Helm chart to
-the `gameplane` OCI registry.
+images (cosign image signing is roadmap), pushes the Helm chart to the
+`gameplane` OCI registry, and — when a signing key is configured — pushes
+and keyed-cosign-signs the official `modules/*` bundles.
+
+Module signing is gated on a one-time key setup: run `cosign
+generate-key-pair`, set `COSIGN_PRIVATE_KEY`/`COSIGN_PASSWORD` as CI
+secrets, and publish `cosign.pub`. Until then the `modules` job no-ops and
+the release still succeeds. See
+[`module-authoring.md`](module-authoring.md#signing-official-bundles).

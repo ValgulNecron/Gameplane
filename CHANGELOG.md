@@ -7,6 +7,20 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Signed module bundles.** `modules/build.sh` gains an opt-in `--sign` flag
+  that keyed-cosign-signs each pushed bundle by digest (offline; no
+  transparency-log upload), and the `release.yaml` workflow gains a `modules`
+  job that pushes and signs the official `modules/*` bundles on every `v*` tag.
+  The job is gated on a `COSIGN_PRIVATE_KEY` secret, so releases still succeed
+  before a signing key is provisioned.
+- **chart:** `defaultModuleSource.verify` (`enabled` / `cosignPublicKey`, off by
+  default) wires the published signing key into a `gameplane-module-cosign-pub`
+  Secret and sets `spec.verify.key` on the default source, so installs can
+  refuse any unsigned or wrong-key bundle. See
+  [`docs/module-authoring.md`](docs/module-authoring.md#signing-official-bundles).
+
 ## [0.2.0-beta.2] — 2026-06-22
 
 ### Changed
