@@ -12,6 +12,7 @@
 #   modules/build.sh push --registry $REG --plain-http   # all modules, plain-http
 #
 # Required: oras >= 1.2.0  (https://oras.land/docs/installation)
+# For --sign: cosign >= 2.0  (https://docs.sigstore.dev/cosign/installation)
 
 set -euo pipefail
 
@@ -31,9 +32,15 @@ Flags:
   --plain-http       Use plain HTTP (for local kind registries)
   --insecure         Skip TLS verification
   --tag-latest       Also tag :latest in addition to module.yaml's version
+  --sign             cosign-sign each pushed bundle (keyed, offline; no Rekor)
 
 Reads each modules/<name>/module.yaml for the version. The bundle is
 pushed to <registry>/<name>:<version>.
+
+With --sign, set COSIGN_PRIVATE_KEY to the PEM private key (and
+COSIGN_PASSWORD if it is encrypted); each bundle is signed by digest with
+\`cosign sign --tlog-upload=false\`, which the operator verifies offline via
+ModuleSource.spec.verify.key. See docs/module-authoring.md.
 USAGE
 }
 
@@ -50,6 +57,7 @@ TARGET=""
 PLAIN_HTTP=""
 INSECURE=""
 TAG_LATEST=0
+SIGN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -58,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     --plain-http) PLAIN_HTTP=1;        shift ;;
     --insecure)   INSECURE=1;          shift ;;
     --tag-latest) TAG_LATEST=1;        shift ;;
+    --sign)       SIGN=1;              shift ;;
     -h|--help)    usage; exit 0 ;;
     *) echo "unknown flag: $1" >&2; usage; exit 2 ;;
   esac
@@ -65,6 +74,10 @@ done
 
 [[ -n "$REGISTRY" ]] || { echo "--registry required" >&2; exit 2; }
 command -v oras >/dev/null || { echo "oras not in PATH" >&2; exit 2; }
+if (( SIGN )); then
+  command -v cosign >/dev/null || { echo "cosign not in PATH (required for --sign)" >&2; exit 2; }
+  [[ -n "${COSIGN_PRIVATE_KEY:-}" ]] || { echo "--sign requires COSIGN_PRIVATE_KEY (PEM private key) in the environment" >&2; exit 2; }
+fi
 
 # Resolve modules dir from the script's location, so callers can run
 # this from anywhere.
@@ -111,7 +124,24 @@ push_one() {
   [[ -f "$dir/README.md" ]] && layer_args+=( "README.md:$MEDIA_README" )
   [[ -f "$dir/icon.png"  ]] && layer_args+=( "icon.png:$MEDIA_ICON"   )
 
-  ( cd "$dir" && oras "${args[@]}" "${layer_args[@]}" )
+  # Capture combined output so we can recover the pushed manifest digest
+  # for signing; still echo it so the push stays visible in CI logs.
+  local out
+  out="$( ( cd "$dir" && oras "${args[@]}" "${layer_args[@]}" ) 2>&1 )"
+  printf '%s\n' "$out"
+
+  if (( SIGN )); then
+    local digest
+    digest="$(printf '%s\n' "$out" | grep -oE 'sha256:[0-9a-f]{64}' | head -n1)"
+    [[ -n "$digest" ]] || { echo "$name: could not parse pushed digest from oras output" >&2; return 1; }
+    echo ">> signing $REGISTRY/$name@$digest"
+    # Keyed + offline: no transparency-log upload, matching the operator's
+    # offline keyed verify path (IgnoreTlog/Offline). cosign reads the key
+    # from $COSIGN_PRIVATE_KEY and the passphrase from $COSIGN_PASSWORD.
+    local sargs=( sign --key env://COSIGN_PRIVATE_KEY --tlog-upload=false --yes )
+    [[ -n "$PLAIN_HTTP$INSECURE" ]] && sargs+=( --allow-insecure-registry )
+    cosign "${sargs[@]}" "$REGISTRY/$name@$digest"
+  fi
 
   if (( TAG_LATEST )); then
     local latest="$REGISTRY/$name:latest"
