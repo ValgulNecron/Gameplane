@@ -266,8 +266,19 @@ jobs:
     runs-on: ubuntu-latest
     # Serialized after e2e-core: the memory-limited self-hosted runner OOM-kills
     # a kind apiserver when both e2e jobs bring up clusters concurrently.
+    #
+    # The extended suite is split into two batches, each on a FRESH single-node
+    # cluster. The node's memory creeps up across the heavy restic-backup /
+    # volume-snapshot / WS-streaming tests; running all ~24 against one cluster
+    # tips it over and the apiserver is OOM-killed mid-run (connection-refused),
+    # cascading every remaining test to an instant failure. e2e-core (~19
+    # lighter tests) is proven to fit one cluster, so two core-sized batches on
+    # fresh clusters stay under the tipping point. Keep the two lists disjoint,
+    # collectively complete, and the heavy restic/snapshot tests spread evenly.
     needs: [go, helm, e2e-core]
-    timeout-minutes: 32
+    timeout-minutes: 45
+    env:
+      CTX: kind-gameplane-e2e-2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -279,49 +290,70 @@ jobs:
           install_only: true
       - name: build images
         run: make e2e-images
-      - name: bring up cluster + helm install
+      - name: bring up cluster (batch 1)
         run: ./deploy/kind/e2e.sh up gameplane-e2e-2 e2e
-      - name: run go e2e (extended)
+      - name: run go e2e (extended · batch 1)
         run: |
-          # Anchored ^(...)$ list — must stay disjoint from e2e-core.
+          # Anchored ^(...)$ list — disjoint from e2e-core AND from batch 2.
           RUN_REGEX='^('
           RUN_REGEX+='TestGameServer_PVCSurvivesPodDelete|'
           RUN_REGEX+='TestGameServer_CascadingDelete|'
           RUN_REGEX+='TestGameTemplate_DeletionWithLiveServer|'
           RUN_REGEX+='TestModule_FinalizerBlocksWhileTemplateInUse|'
-          RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
-          RUN_REGEX+='TestModule_VerifyRejectsUnsignedBundle|'
-          RUN_REGEX+='TestModuleSource_RejectsSSRFTarget|'
           RUN_REGEX+='TestModuleSourceAndModule|'
           RUN_REGEX+='TestBackup_OperatorMaterializesJob|'
           RUN_REGEX+='TestBackup_FailsOnMissingPVC|'
           RUN_REGEX+='TestBackup_FailsOnBadCredentials|'
           RUN_REGEX+='TestBackupSchedule_CreatesBackupCR|'
           RUN_REGEX+='TestBackupSchedule_SuspendStopsScheduling|'
-          RUN_REGEX+='TestBackupSchedule_RetentionTrimsPast|'
-          RUN_REGEX+='TestBackupSchedule_ConcurrencyForbid|'
-          RUN_REGEX+='TestRestore_RoundTrip|'
           RUN_REGEX+='TestRestore_RejectsMissingBackup|'
-          RUN_REGEX+='TestRestore_FailsOnMissingSnapshot|'
-          RUN_REGEX+='TestAPI_PasswordResetInvalidatesSession|'
-          RUN_REGEX+='TestAPI_LoginRateLimit|'
-          RUN_REGEX+='TestAPI_AuditPaginationAndFilter|'
-          RUN_REGEX+='TestAPI_LogoutInvalidatesSession|'
-          RUN_REGEX+='TestAPI_ConsolePTYRoundTrip|'
           RUN_REGEX+='TestAPI_LogsTailWS'
           RUN_REGEX+=')$'
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER=gameplane-e2e-2 \
             GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
-            go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure
+            go test -tags=e2e -timeout 18m -v -run "$RUN_REGEX" ./...
+      - name: dump cluster state on failure (batch 1)
         if: failure()
         run: |
-          kubectl --context kind-gameplane-e2e-2 get all -A || true
-          kubectl --context kind-gameplane-e2e-2 describe pods -n gameplane-system || true
-          kubectl --context kind-gameplane-e2e-2 logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          kubectl --context kind-gameplane-e2e-2 logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+      - name: recreate cluster (batch 2)
+        run: |
+          ./deploy/kind/e2e.sh down gameplane-e2e-2 || true
+          ./deploy/kind/e2e.sh up gameplane-e2e-2 e2e
+      - name: run go e2e (extended · batch 2)
+        run: |
+          # Anchored ^(...)$ list — disjoint from e2e-core AND from batch 1.
+          RUN_REGEX='^('
+          RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
+          RUN_REGEX+='TestModule_VerifyRejectsUnsignedBundle|'
+          RUN_REGEX+='TestModuleSource_RejectsSSRFTarget|'
+          RUN_REGEX+='TestBackupSchedule_RetentionTrimsPast|'
+          RUN_REGEX+='TestBackupSchedule_ConcurrencyForbid|'
+          RUN_REGEX+='TestRestore_RoundTrip|'
+          RUN_REGEX+='TestRestore_FailsOnMissingSnapshot|'
+          RUN_REGEX+='TestAPI_PasswordResetInvalidatesSession|'
+          RUN_REGEX+='TestAPI_LoginRateLimit|'
+          RUN_REGEX+='TestAPI_AuditPaginationAndFilter|'
+          RUN_REGEX+='TestAPI_LogoutInvalidatesSession|'
+          RUN_REGEX+='TestAPI_ConsolePTYRoundTrip'
+          RUN_REGEX+=')$'
+          cd test/e2e && \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER=gameplane-e2e-2 \
+            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
+            go test -tags=e2e -timeout 18m -v -run "$RUN_REGEX" ./...
+      - name: dump cluster state on failure (batch 2)
+        if: failure()
+        run: |
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
       - name: tear down
         if: always()
         run: ./deploy/kind/e2e.sh down gameplane-e2e-2 || true
