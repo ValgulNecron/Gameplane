@@ -211,8 +211,26 @@ spec:
           ports:
             - { name: metrics, containerPort: 8080 }
             - { name: health,  containerPort: 8081 }
-          livenessProbe:  { httpGet: { path: /healthz, port: health }, initialDelaySeconds: 15 }
-          readinessProbe: { httpGet: { path: /readyz,  port: health }, initialDelaySeconds: 5 }
+          # Generous startup grace. On a resource-constrained node the manager
+          # can take well over the default ~15s to bind its health server while
+          # it syncs informer caches (e.g. VolumeSnapshot). With a tight probe
+          # the kubelet kills it mid-startup (connection refused on :8081), the
+          # SIGTERM cancels the in-flight cache sync ("problem running manager:
+          # ... cache to be synced"), and it crash-loops — stalling all
+          # reconciliation. 30s delay + 6×15s tolerance keeps it alive through a
+          # slow start; readiness is even more lenient (it only gates traffic).
+          livenessProbe:
+            httpGet: { path: /healthz, port: health }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet: { path: /readyz, port: health }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
           resources: {{ toYaml .Values.operator.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
