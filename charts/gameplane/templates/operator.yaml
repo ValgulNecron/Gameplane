@@ -195,7 +195,9 @@ spec:
           image: {{ include "gameplane.operatorImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
+            {{- if .Values.operator.leaderElect }}
             - --leader-elect
+            {{- end }}
             - --agent-image={{ include "gameplane.agentImage" . }}
             - --agent-ca-bundle=/etc/gameplane/agent-ca/ca.crt
             - --agent-client-cert=/etc/gameplane/agent-client/tls.crt

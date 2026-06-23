@@ -343,6 +343,8 @@ jobs:
           kubectl --context "$CTX" get all -A || true
           kubectl --context "$CTX" describe pods -n gameplane-system || true
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          # --previous catches the crash output if the operator restarted.
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
       - name: tear down
         if: always()
