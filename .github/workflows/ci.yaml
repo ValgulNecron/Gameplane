@@ -171,6 +171,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [go, helm]
     timeout-minutes: 26
+    # Shared with e2e-extended / e2e-game-bot so only one kind cluster exists on
+    # the self-hosted runner at a time across all runs (see e2e-extended for the
+    # cross-run collision this prevents). Unique per-run CLUSTER name as backup.
+    concurrency:
+      group: gameplane-kind-e2e
+      cancel-in-progress: false
+    env:
+      CLUSTER: gameplane-e2e-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -185,7 +193,7 @@ jobs:
       - name: build images
         run: make e2e-images
       - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up gameplane-e2e e2e
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (core)
         run: |
           # Anchored ^(...)$ list — prefix-matching (e.g. TestGameServer vs
@@ -220,7 +228,7 @@ jobs:
           RUN_REGEX+=')$'
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=gameplane-e2e \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 19m -v -run "$RUN_REGEX" ./...
       - name: install playwright browser
@@ -239,7 +247,7 @@ jobs:
       - name: run playwright (live)
         env:
           GAMEPLANE_E2E_TARGET: live
-          GAMEPLANE_E2E_CLUSTER: gameplane-e2e
+          GAMEPLANE_E2E_CLUSTER: ${{ env.CLUSTER }}
         run: |
           cd web && npm run test:e2e:live
       - name: dump cluster state on failure
@@ -259,116 +267,29 @@ jobs:
           if-no-files-found: warn
       - name: tear down
         if: always()
-        run: ./deploy/kind/e2e.sh down gameplane-e2e || true
+        run: ./deploy/kind/e2e.sh down "$CLUSTER" || true
 
   e2e-extended:
     name: e2e extended (kind)
     runs-on: ubuntu-latest
-    # Serialized after e2e-core: the memory-limited self-hosted runner OOM-kills
-    # a kind apiserver when both e2e jobs bring up clusters concurrently.
-    #
-    # The extended suite is split into two batches, each on a FRESH single-node
-    # cluster. The node's memory creeps up across the heavy restic-backup /
-    # volume-snapshot / WS-streaming tests; running all ~24 against one cluster
-    # tips it over and the apiserver is OOM-killed mid-run (connection-refused),
-    # cascading every remaining test to an instant failure. e2e-core (~19
-    # lighter tests) is proven to fit one cluster, so two core-sized batches on
-    # fresh clusters stay under the tipping point. Keep the two lists disjoint,
-    # collectively complete, and the heavy restic/snapshot tests spread evenly.
     needs: [go, helm, e2e-core]
-    timeout-minutes: 45
+    timeout-minutes: 32
+    # Serialize ALL kind e2e jobs across EVERY run. The single self-hosted runner
+    # executes jobs concurrently, so two runs (a PR + the main-push build, or two
+    # PRs) would otherwise bring up kind clusters at the same time — contending
+    # for memory AND, because e2e.sh's "clean slate" step deletes any same-named
+    # cluster on `up`, deleting each other's cluster mid-run (apiserver then goes
+    # connection-refused and every remaining test cascades to an instant fail).
+    # The shared group lets only one kind job run at a time; the per-run unique
+    # cluster name (CLUSTER) is a belt-and-suspenders guard if the runner ignores
+    # job concurrency. `needs` only serialized clusters WITHIN one run, never
+    # across runs — which is the actual flake.
+    concurrency:
+      group: gameplane-kind-e2e
+      cancel-in-progress: false
     env:
-      CTX: kind-gameplane-e2e-2
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.25" }
-      - uses: azure/setup-helm@v4
-      - name: install kind
-        uses: helm/kind-action@v1
-        with:
-          install_only: true
-      - name: build images
-        run: make e2e-images
-      - name: bring up cluster (batch 1)
-        run: ./deploy/kind/e2e.sh up gameplane-e2e-2 e2e
-      - name: run go e2e (extended · batch 1)
-        run: |
-          # Anchored ^(...)$ list — disjoint from e2e-core AND from batch 2.
-          RUN_REGEX='^('
-          RUN_REGEX+='TestGameServer_PVCSurvivesPodDelete|'
-          RUN_REGEX+='TestGameServer_CascadingDelete|'
-          RUN_REGEX+='TestGameTemplate_DeletionWithLiveServer|'
-          RUN_REGEX+='TestModule_FinalizerBlocksWhileTemplateInUse|'
-          RUN_REGEX+='TestModuleSourceAndModule|'
-          RUN_REGEX+='TestBackup_OperatorMaterializesJob|'
-          RUN_REGEX+='TestBackup_FailsOnMissingPVC|'
-          RUN_REGEX+='TestBackup_FailsOnBadCredentials|'
-          RUN_REGEX+='TestBackupSchedule_CreatesBackupCR|'
-          RUN_REGEX+='TestBackupSchedule_SuspendStopsScheduling|'
-          RUN_REGEX+='TestRestore_RejectsMissingBackup|'
-          RUN_REGEX+='TestAPI_LogsTailWS'
-          RUN_REGEX+=')$'
-          cd test/e2e && \
-            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=gameplane-e2e-2 \
-            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
-            go test -tags=e2e -timeout 18m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure (batch 1)
-        if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
-      - name: recreate cluster (batch 2)
-        run: |
-          ./deploy/kind/e2e.sh down gameplane-e2e-2 || true
-          ./deploy/kind/e2e.sh up gameplane-e2e-2 e2e
-      - name: run go e2e (extended · batch 2)
-        run: |
-          # Anchored ^(...)$ list — disjoint from e2e-core AND from batch 1.
-          RUN_REGEX='^('
-          RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
-          RUN_REGEX+='TestModule_VerifyRejectsUnsignedBundle|'
-          RUN_REGEX+='TestModuleSource_RejectsSSRFTarget|'
-          RUN_REGEX+='TestBackupSchedule_RetentionTrimsPast|'
-          RUN_REGEX+='TestBackupSchedule_ConcurrencyForbid|'
-          RUN_REGEX+='TestRestore_RoundTrip|'
-          RUN_REGEX+='TestRestore_FailsOnMissingSnapshot|'
-          RUN_REGEX+='TestAPI_PasswordResetInvalidatesSession|'
-          RUN_REGEX+='TestAPI_LoginRateLimit|'
-          RUN_REGEX+='TestAPI_AuditPaginationAndFilter|'
-          RUN_REGEX+='TestAPI_LogoutInvalidatesSession|'
-          RUN_REGEX+='TestAPI_ConsolePTYRoundTrip'
-          RUN_REGEX+=')$'
-          cd test/e2e && \
-            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=gameplane-e2e-2 \
-            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
-            go test -tags=e2e -timeout 18m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure (batch 2)
-        if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
-      - name: tear down
-        if: always()
-        run: ./deploy/kind/e2e.sh down gameplane-e2e-2 || true
-
-  # Boots a REAL Minecraft server through the operator and connects a headless
-  # protocol bot (mcbot) that pings it and completes a login — proving the
-  # server is genuinely playable. Heavier than the other e2e jobs (pulls the
-  # itzg image + runs a JVM), so it's gated behind GAMEPLANE_E2E_GAME_BOT and
-  # serialized last: the memory-limited runner OOM-kills a kind apiserver when
-  # multiple e2e clusters run concurrently.
-  e2e-game-bot:
-    name: e2e game bot (kind)
-    runs-on: ubuntu-latest
-    needs: [go, helm, e2e-core, e2e-extended]
-    timeout-minutes: 25
+      CLUSTER: gameplane-e2e-2-${{ github.run_id }}
+      CTX: kind-gameplane-e2e-2-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -381,22 +302,99 @@ jobs:
       - name: build images
         run: make e2e-images
       - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up gameplane-e2e-3 e2e
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
+      - name: run go e2e (extended)
+        run: |
+          # Anchored ^(...)$ list — must stay disjoint from e2e-core.
+          RUN_REGEX='^('
+          RUN_REGEX+='TestGameServer_PVCSurvivesPodDelete|'
+          RUN_REGEX+='TestGameServer_CascadingDelete|'
+          RUN_REGEX+='TestGameTemplate_DeletionWithLiveServer|'
+          RUN_REGEX+='TestModule_FinalizerBlocksWhileTemplateInUse|'
+          RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
+          RUN_REGEX+='TestModule_VerifyRejectsUnsignedBundle|'
+          RUN_REGEX+='TestModuleSource_RejectsSSRFTarget|'
+          RUN_REGEX+='TestModuleSourceAndModule|'
+          RUN_REGEX+='TestBackup_OperatorMaterializesJob|'
+          RUN_REGEX+='TestBackup_FailsOnMissingPVC|'
+          RUN_REGEX+='TestBackup_FailsOnBadCredentials|'
+          RUN_REGEX+='TestBackupSchedule_CreatesBackupCR|'
+          RUN_REGEX+='TestBackupSchedule_SuspendStopsScheduling|'
+          RUN_REGEX+='TestBackupSchedule_RetentionTrimsPast|'
+          RUN_REGEX+='TestBackupSchedule_ConcurrencyForbid|'
+          RUN_REGEX+='TestRestore_RoundTrip|'
+          RUN_REGEX+='TestRestore_RejectsMissingBackup|'
+          RUN_REGEX+='TestRestore_FailsOnMissingSnapshot|'
+          RUN_REGEX+='TestAPI_PasswordResetInvalidatesSession|'
+          RUN_REGEX+='TestAPI_LoginRateLimit|'
+          RUN_REGEX+='TestAPI_AuditPaginationAndFilter|'
+          RUN_REGEX+='TestAPI_LogoutInvalidatesSession|'
+          RUN_REGEX+='TestAPI_ConsolePTYRoundTrip|'
+          RUN_REGEX+='TestAPI_LogsTailWS'
+          RUN_REGEX+=')$'
+          cd test/e2e && \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
+            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
+            go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+      - name: tear down
+        if: always()
+        run: ./deploy/kind/e2e.sh down "$CLUSTER" || true
+
+  # Boots a REAL Minecraft server through the operator and connects a headless
+  # protocol bot (mcbot) that pings it and completes a login — proving the
+  # server is genuinely playable. Heavier than the other e2e jobs (pulls the
+  # itzg image + runs a JVM), so it's gated behind GAMEPLANE_E2E_GAME_BOT and
+  # serialized last: the memory-limited runner OOM-kills a kind apiserver when
+  # multiple e2e clusters run concurrently.
+  e2e-game-bot:
+    name: e2e game bot (kind)
+    runs-on: ubuntu-latest
+    needs: [go, helm, e2e-core, e2e-extended]
+    timeout-minutes: 25
+    # Shared with e2e-core / e2e-extended: one kind cluster at a time on the
+    # runner across all runs (see e2e-extended). Unique per-run name as backup.
+    concurrency:
+      group: gameplane-kind-e2e
+      cancel-in-progress: false
+    env:
+      CLUSTER: gameplane-e2e-3-${{ github.run_id }}
+      CTX: kind-gameplane-e2e-3-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        run: make e2e-images
+      - name: bring up cluster + helm install
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (game bot)
         run: |
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER=gameplane-e2e-3 \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_GAME_BOT=1 \
             GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 18m -v -run '^TestGameServer_MinecraftBotConnects$' ./...
       - name: dump cluster state on failure
         if: failure()
         run: |
-          kubectl --context kind-gameplane-e2e-3 get all -A || true
-          kubectl --context kind-gameplane-e2e-3 describe pods -n gameplane-games || true
-          kubectl --context kind-gameplane-e2e-3 logs -n gameplane-games e2e-mc-bot-0 -c game --tail=200 || true
-          kubectl --context kind-gameplane-e2e-3 logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-games || true
+          kubectl --context "$CTX" logs -n gameplane-games e2e-mc-bot-0 -c game --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
       - name: tear down
         if: always()
-        run: ./deploy/kind/e2e.sh down gameplane-e2e-3 || true
+        run: ./deploy/kind/e2e.sh down "$CLUSTER" || true
