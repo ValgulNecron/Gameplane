@@ -63,3 +63,46 @@ jobs:
         run: |
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
           helm push dist/gameplane-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+
+  modules:
+    name: push & sign module bundles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The signing key is optional: until the maintainer sets COSIGN_PRIVATE_KEY
+      # the release still succeeds, it just skips publishing module bundles.
+      # (secrets are not usable in `if:` conditions, so gate via a plain output.)
+      - name: signing key present?
+        id: gate
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::COSIGN_PRIVATE_KEY not set — skipping module bundle push/sign."
+          fi
+      - name: install oras
+        if: steps.gate.outputs.enabled == 'true'
+        uses: oras-project/setup-oras@v1
+      - name: install cosign
+        if: steps.gate.outputs.enabled == 'true'
+        uses: sigstore/cosign-installer@v3
+      - name: login to registry
+        if: steps.gate.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: push & sign bundles
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          modules/build.sh push \
+            --registry "ghcr.io/${owner_lc}/gameplane-modules" \
+            --sign --tag-latest
