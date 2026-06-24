@@ -13,6 +13,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -437,11 +438,31 @@ func (r *BackupReconciler) fail(ctx context.Context, b *gameplanev1alpha1.Backup
 }
 
 func (r *BackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&gameplanev1alpha1.Backup{}).
-		Owns(&batchv1.Job{}).
-		Owns(&snapshotv1.VolumeSnapshot{}).
-		Complete(r)
+		Owns(&batchv1.Job{})
+	// Only watch VolumeSnapshots when the CSI snapshot CRDs are installed.
+	// Without them the informer can never sync, so the manager would exit on
+	// startup ("failed to wait for backup caches to sync ... VolumeSnapshot")
+	// and crash-loop, taking down ALL reconciliation. Restic-strategy backups
+	// don't need snapshots, so the operator stays fully functional on clusters
+	// without external-snapshotter (the common single-node homelab case); the
+	// volume-snapshot strategy surfaces a clear error only when actually used.
+	if volumeSnapshotsAvailable(mgr.GetRESTMapper()) {
+		b = b.Owns(&snapshotv1.VolumeSnapshot{})
+	} else {
+		mgr.GetLogger().Info("VolumeSnapshot CRD not present; skipping its watch " +
+			"(volume-snapshot backups unavailable; restic backups unaffected)")
+	}
+	return b.Complete(r)
+}
+
+// volumeSnapshotsAvailable reports whether the cluster has the CSI
+// VolumeSnapshot CRD registered, via the manager's RESTMapper.
+func volumeSnapshotsAvailable(rm meta.RESTMapper) bool {
+	gk := snapshotv1.SchemeGroupVersion.WithKind("VolumeSnapshot").GroupKind()
+	_, err := rm.RESTMapping(gk, snapshotv1.SchemeGroupVersion.Version)
+	return err == nil
 }
 
 // buildBackupPodSpec produces the pod for a single restic backup.
