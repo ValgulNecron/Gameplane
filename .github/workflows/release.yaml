@@ -68,7 +68,12 @@ jobs:
     name: push & sign module bundles
     runs-on: ubuntu-latest
     steps:
+      # The module bundles live in the gameplane-module submodule at modules/,
+      # so this job needs a recursive checkout to read their source. The
+      # submodule is public, so the default GITHUB_TOKEN clones it (no PAT).
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       # The signing key is optional: until the maintainer sets COSIGN_PRIVATE_KEY
       # the release still succeeds, it just skips publishing module bundles.
       # (secrets are not usable in `if:` conditions, so gate via a plain output.)

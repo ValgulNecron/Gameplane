@@ -17,6 +17,14 @@ GOBIN_DIR="$(go env GOPATH)/bin"
 mkdir -p "$GOBIN_DIR"
 case ":$PATH:" in *":$GOBIN_DIR:"*) ;; *) export PATH="$GOBIN_DIR:$PATH" ;; esac
 
+# ---------- submodules (modules/ lives in the gameplane-module repo) ----------
+# The game-module bundles are a git submodule at modules/; init them so
+# `make modules-push` / `make dev-up` find modules/build.sh and the bundles.
+if [ -f .gitmodules ]; then
+	log "git submodule update --init --recursive"
+	git submodule update --init --recursive
+fi
+
 # ---------- kind ----------
 KIND_VERSION="v0.24.0"
 if ! command -v kind >/dev/null 2>&1; then
