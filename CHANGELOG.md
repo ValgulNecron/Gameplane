@@ -9,6 +9,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **chart:** `prometheusRules.enabled` ships a `PrometheusRule` of operator
+  alerts (reconcile errors, workqueue backlog, stuck reconcile) built on the
+  standard controller-runtime metrics, so a degraded operator is caught early.
+  Off by default, like `serviceMonitors`.
 - **Signed module bundles.** `modules/build.sh` gains an opt-in `--sign` flag
   that keyed-cosign-signs each pushed bundle by digest (offline; no
   transparency-log upload), and the `release.yaml` workflow gains a `modules`
