@@ -139,7 +139,12 @@ push_one() {
     # offline keyed verify path (IgnoreTlog/Offline). cosign reads the key
     # from $COSIGN_PRIVATE_KEY and the passphrase from $COSIGN_PASSWORD.
     local sargs=( sign --key env://COSIGN_PRIVATE_KEY --tlog-upload=false --yes )
-    [[ -n "$PLAIN_HTTP$INSECURE" ]] && sargs+=( --allow-insecure-registry )
+    # --plain-http needs --allow-http-registry (force HTTP); --allow-insecure-
+    # registry only skips TLS verification on an HTTPS connection, so against a
+    # plain-HTTP registry it errors "server gave HTTP response to HTTPS client"
+    # (except for localhost, which go-containerregistry auto-treats as HTTP).
+    [[ -n "$PLAIN_HTTP" ]] && sargs+=( --allow-http-registry )
+    [[ -n "$INSECURE"  ]] && sargs+=( --allow-insecure-registry )
     cosign "${sargs[@]}" "$REGISTRY/$name@$digest"
   fi
 
