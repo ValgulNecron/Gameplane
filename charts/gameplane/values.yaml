@@ -147,6 +147,14 @@ prometheusRules:
   enabled: false
   labels: {}
 
+# Grafana dashboard for the operator, shipped as a ConfigMap for the Grafana
+# sidecar to auto-import. Off by default. The default label is what the
+# kube-prometheus-stack / grafana sidecar watches for; override if yours differs.
+grafanaDashboards:
+  enabled: false
+  labels:
+    grafana_dashboard: "1"
+
 podSecurity:
   enforceRestricted: false   # label gamesNamespace with pod-security.kubernetes.io/enforce=restricted
 

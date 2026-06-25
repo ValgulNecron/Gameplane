@@ -25,10 +25,6 @@ know that the following are **deferred past the first beta**:
   activates once the project's signing key is provisioned (`COSIGN_PRIVATE_KEY`
   in CI), so until then published bundles may be unsigned. Signature
   *verification* itself is supported and opt-in today.
-- **Bundled observability** — the operator and API expose Prometheus metrics,
-  and the chart ships ServiceMonitors (`serviceMonitors.enabled`) plus a
-  PrometheusRule of operator alerts (`prometheusRules.enabled`); Grafana
-  dashboards are not bundled yet.
 - **Audit-log export** — audit events are stored in the database; there is no
   external sink (S3/syslog) or retention policy yet.
 
