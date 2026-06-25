@@ -88,6 +88,11 @@ spec:
             - sign
             - --key=k8s://gameplane-system/e2e-sign-keypair
             - --tlog-upload=false
+            # The in-cluster test registry is plain HTTP, so cosign needs
+            # --allow-http-registry (use HTTP). --allow-insecure-registry only
+            # skips TLS verification on an HTTPS connection, which still fails
+            # here with "server gave HTTP response to HTTPS client".
+            - --allow-http-registry
             - --allow-insecure-registry
             - --yes
             - gameplane-test-registry.gameplane-system.svc:5000/e2e-test-game:0.1.0
