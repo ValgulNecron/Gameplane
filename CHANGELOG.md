@@ -27,6 +27,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   refuse any unsigned or wrong-key bundle. See
   [`docs/module-authoring.md`](docs/module-authoring.md#signing-official-bundles).
 
+### Changed
+
+- **Modules moved to their own repo.** The `modules/` tree (the official game
+  template bundles + `build.sh`) now lives in the standalone `gameplane-module`
+  repository, vendored back here as a git submodule at the same path. Nothing
+  changes at runtime — the operator still pulls bundles from an OCI registry —
+  but after cloning you must run `git submodule update --init` (or clone with
+  `--recurse-submodules`) before `make dev-up` / `make modules-push`.
+
 ## [0.2.0-beta.2] — 2026-06-22
 
 ### Changed
@@ -95,5 +104,6 @@ testing. Not yet recommended for unattended production workloads — see
   runner (retry + longer readiness window), eliminating a cascade of flaky
   API e2e failures.
 
-[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.2...HEAD
+[0.2.0-beta.2]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.1...v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/ValgulNecron/gameplane/releases/tag/v0.2.0-beta.1

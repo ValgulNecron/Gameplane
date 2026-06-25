@@ -28,7 +28,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 │   └── internal/{auth,console,files,heartbeat,logs,players,rcon,quiesce}/
 ├── web/                      # React 18 + TS strict + Vite dashboard
 │   └── src/{routes,components,lib,router,styles,test}/
-├── modules/                  # game template bundles (OCI artifacts)
+├── modules/                  # GIT SUBMODULE → gameplane-module repo (game template OCI bundles)
 │   ├── minecraft-java/  valheim/  terraria/
 │   └── build.sh              # OCI bundle builder/pusher (uses oras ≥ 1.2.0)
 ├── charts/gameplane/           # Helm chart
@@ -41,6 +41,8 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ```
 
 The Go modules `operator`, `api`, `agent`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
+
+`modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
 
 ---
 
@@ -261,7 +263,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`web/`** — React 18 + TS strict + Vite. Entry: `web/src/main.tsx`. Routing in `web/src/router/tree.tsx` (TanStack Router). Data fetching is TanStack Query calling through the thin fetch wrapper in `web/src/lib/api.ts`; WebSocket helpers in `web/src/lib/ws.ts`. Pages in `web/src/routes/`. Shared types mirroring CRDs in `web/src/types.ts`.
 
-**`modules/`** — game template bundles distributed as OCI artifacts. Each has `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Built and pushed via `modules/build.sh` (uses `oras ≥ 1.2.0`). Format spec: `docs/module-authoring.md`.
+**`modules/`** — a **git submodule** (the standalone `gameplane-module` repo) holding the official game template bundles distributed as OCI artifacts. Each has `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Built and pushed via `modules/build.sh` (uses `oras ≥ 1.2.0`). Format spec: `docs/module-authoring.md`. Run `git submodule update --init` after clone to populate it.
 
 **Database tables** (managed by `api/internal/db/migrations/`): `users`, `sessions`, `oidc_links`, `audit_events`, `api_tokens`, `config`. Migrations are append-only and applied at startup.
 
@@ -315,9 +317,12 @@ A short cookbook for recurring tasks. Each entry lists the exact files to touch.
 
 ### Add a new game module
 
-1. New directory under `modules/<name>/` with `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Format spec: `docs/module-authoring.md`.
+Modules live in the **`gameplane-module`** repo, checked out here as the `modules/` submodule — so module changes are committed in that repo, then the submodule pointer is bumped in this one.
+
+1. New directory under `modules/<name>/` (i.e. in the `gameplane-module` repo) with `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Format spec: `docs/module-authoring.md`.
 2. `make modules-push` to push to the local registry.
 3. The operator indexes ModuleSources within seconds — verify by checking the Modules page in the dashboard.
+4. Commit in `gameplane-module`, then `git add modules` here and commit the bumped submodule pointer.
 
 ### Add a database migration
 

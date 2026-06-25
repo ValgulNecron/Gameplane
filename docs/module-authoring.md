@@ -12,7 +12,9 @@ materializes into an in-cluster `GameTemplate`.
 
 ## Source layout
 
-A module lives on disk as a directory:
+The official modules live in the standalone **`gameplane-module`** repo, which
+the main repo checks out as the `modules/` submodule. Whether you work in that
+repo directly or through the submodule, a module lives on disk as a directory:
 
 ```
 modules/<name>/
@@ -21,6 +23,10 @@ modules/<name>/
 ├── README.md       # rendered in the catalog detail drawer
 └── icon.png        # optional, 256×256 recommended
 ```
+
+`modules/build.sh` and `make modules-push` are unchanged by the split — the
+submodule mounts the `gameplane-module` repo root at `modules/`, so the paths
+below still resolve.
 
 `template.yaml` is the same `GameTemplate` you would write today, with one
 difference: omit `metadata.name`. The name is set on install from
