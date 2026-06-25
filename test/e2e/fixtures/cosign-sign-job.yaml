@@ -1,0 +1,107 @@
+# Signs the in-cluster e2e bundle (gameplane-test-registry .../e2e-test-game:0.1.0)
+# so the positive verify test can prove a keyed cosign signature is ACCEPTED by
+# the operator (the reject test only proves an unsigned bundle is refused).
+#
+# Flow, both steps using the distroless cosign image (entrypoint = cosign):
+#   1. init container: generate an ECDSA key pair straight into a Secret
+#      (k8s://gameplane-system/e2e-sign-keypair) — the Secret carries
+#      cosign.key / cosign.pub / cosign.password. The operator reads cosign.pub
+#      from that same Secret via ModuleSource.spec.verify.key.
+#   2. main container: cosign sign the bundle by its tag. Keyed + offline
+#      (--tlog-upload=false), against the plain-HTTP registry
+#      (--allow-insecure-registry) — matching the operator's offline keyed
+#      verify path (IgnoreTlog/Offline).
+#
+# backoffLimit 0 / restartPolicy Never: a single pod attempt, so the init
+# container's generate-key-pair never races a Secret it already created. The
+# test deletes this Job and the keypair Secret before each apply for a clean run.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: e2e-cosign-signer
+  namespace: gameplane-system
+  labels:
+    app.kubernetes.io/component: e2e-fixture
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: e2e-cosign-signer
+  namespace: gameplane-system
+  labels:
+    app.kubernetes.io/component: e2e-fixture
+rules:
+  # cosign generate-key-pair k8s://… creates the keypair Secret; loading the
+  # key back for signing reads it.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: e2e-cosign-signer
+  namespace: gameplane-system
+  labels:
+    app.kubernetes.io/component: e2e-fixture
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: e2e-cosign-signer
+subjects:
+  - kind: ServiceAccount
+    name: e2e-cosign-signer
+    namespace: gameplane-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cosign-sign-test-game
+  namespace: gameplane-system
+  labels:
+    app.kubernetes.io/component: e2e-fixture
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: e2e-fixture
+    spec:
+      restartPolicy: Never
+      serviceAccountName: e2e-cosign-signer
+      initContainers:
+        - name: keygen
+          image: ghcr.io/sigstore/cosign/cosign:v2.4.1
+          args:
+            - generate-key-pair
+            - k8s://gameplane-system/e2e-sign-keypair
+          env:
+            - { name: COSIGN_PASSWORD, value: "e2e-pass" }
+            - { name: COSIGN_YES, value: "true" }
+            - { name: HOME, value: /tmp }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      containers:
+        - name: sign
+          image: ghcr.io/sigstore/cosign/cosign:v2.4.1
+          args:
+            - sign
+            - --key=k8s://gameplane-system/e2e-sign-keypair
+            - --tlog-upload=false
+            # The in-cluster test registry is plain HTTP, so cosign needs
+            # --allow-http-registry (use HTTP). --allow-insecure-registry only
+            # skips TLS verification on an HTTPS connection, which still fails
+            # here with "server gave HTTP response to HTTPS client".
+            - --allow-http-registry
+            - --allow-insecure-registry
+            - --yes
+            - gameplane-test-registry.gameplane-system.svc:5000/e2e-test-game:0.1.0
+          env:
+            - { name: COSIGN_PASSWORD, value: "e2e-pass" }
+            - { name: COSIGN_YES, value: "true" }
+            - { name: HOME, value: /tmp }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
