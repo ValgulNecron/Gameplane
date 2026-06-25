@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -12,6 +13,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -85,6 +87,14 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "gameplane-operator.gameplane.gg",
+		// On a resource-constrained node (the homelab target, and the CI
+		// runner) a hammered apiserver can push an informer's initial sync —
+		// e.g. the backup controller's VolumeSnapshot watch — past the default
+		// 2m CacheSyncTimeout. The manager then exits ("problem running
+		// manager: failed to wait for ... caches to sync") and crash-loops,
+		// stalling all reconciliation. A larger window lets it ride out the
+		// slowness and start cleanly.
+		Controller: config.Controller{CacheSyncTimeout: 5 * time.Minute},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create manager")

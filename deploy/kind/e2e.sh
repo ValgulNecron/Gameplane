@@ -79,6 +79,7 @@ EOF
         --set "ingress.enabled=false" \
         --set "operator.agentImage=gameplane-test/agent:${TAG}" \
         --set "api.resources.limits.memory=512Mi" \
+        --set "operator.leaderElect=false" \
         --set "defaultModuleSource.enabled=false" \
         --wait --timeout 5m
 

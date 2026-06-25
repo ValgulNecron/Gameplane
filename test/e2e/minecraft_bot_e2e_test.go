@@ -154,15 +154,25 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 
 	// The bot must complete a real login. ONLINE_MODE=FALSE means the server
 	// skips encryption and answers Login Success for our offline bot.
-	lctx, cancel := context.WithTimeout(ctx, 25*time.Second)
-	defer cancel()
-	res, err := mcbot.Login(lctx, addr, st.Version.Protocol, "gameplane-e2e-bot")
-	if err != nil {
-		t.Fatalf("bot login: %v", err)
-	}
-	if res.Outcome != mcbot.Success {
-		t.Fatalf("bot login outcome = %v (%q); want Success — an offline-mode server should accept the bot",
-			res.Outcome, res.Detail)
-	}
+	//
+	// A Minecraft server answers server-list pings while it is still preparing
+	// the spawn area, but rejects logins until the world is ready — the early
+	// connection is dropped (the server logs "Failed to decode packet hello").
+	// So retry the login until the server is genuinely login-ready, exactly as
+	// the ping above is retried; a single attempt races slow world generation.
+	var res *mcbot.LoginResult
+	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
+		lctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+		r, err := mcbot.Login(lctx, addr, st.Version.Protocol, "gameplane-e2e-bot")
+		if err != nil {
+			return false, "login: " + err.Error()
+		}
+		if r.Outcome != mcbot.Success {
+			return false, fmt.Sprintf("login outcome=%v (%q), want Success", r.Outcome, r.Detail)
+		}
+		res = r
+		return true, ""
+	})
 	t.Logf("bot login succeeded: server accepted %q", res.Detail)
 }
