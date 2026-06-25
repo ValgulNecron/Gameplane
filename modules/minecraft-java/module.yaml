@@ -1,9 +1,0 @@
-apiVersion: gameplane.gg/module/v1
-name: minecraft-java
-displayName: Minecraft (Java Edition)
-version: 2.4.0
-game: minecraft-java
-summary: Vanilla / Paper / Spigot / Bukkit / Purpur / Forge / Fabric / Quilt servers (itzg/minecraft-server) with a version+loader picker, per-loader mod volumes, and in-app Modrinth browse.
-homepage: https://www.minecraft.net/
-license: MIT
-gameplaneMinVersion: 0.2.0
