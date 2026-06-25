@@ -118,10 +118,6 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 	}
 	defer conn.Close()
 
-	if _, err := conn.Write(handshake(int32(protocol), host, port, 2)); err != nil {
-		return nil, fmt.Errorf("mcbot: write handshake: %w", err)
-	}
-
 	// Login Start: name + player UUID (UUID has been mandatory since 1.20.2).
 	var ls bytes.Buffer
 	writeString(&ls, username)
@@ -130,8 +126,19 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 		return nil, fmt.Errorf("mcbot: uuid: %w", err)
 	}
 	ls.Write(uuid)
-	if _, err := conn.Write(buildPacket(0x00, ls.Bytes())); err != nil {
-		return nil, fmt.Errorf("mcbot: write login start: %w", err)
+
+	// Send the handshake and Login Start in a SINGLE write. As two back-to-back
+	// writes, kubectl port-forward (used by the e2e harness) can split them
+	// across the server's handshake->login state transition under load, so the
+	// server decodes the Login Start with the wrong pipeline and drops the
+	// connection ("Failed to decode packet 'serverbound/minecraft:hello'"). One
+	// write keeps both packets in a single segment — the way a real client
+	// sends them — which is reliable through the port-forward proxy.
+	var login bytes.Buffer
+	login.Write(handshake(int32(protocol), host, port, 2))
+	login.Write(buildPacket(0x00, ls.Bytes()))
+	if _, err := conn.Write(login.Bytes()); err != nil {
+		return nil, fmt.Errorf("mcbot: write login: %w", err)
 	}
 
 	rd := &reader{br: bufio.NewReader(conn)}
