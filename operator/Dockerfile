@@ -11,7 +11,12 @@ RUN go mod download
 WORKDIR /src
 COPY operator/ ./operator/
 WORKDIR /src/operator
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags='-s -w' -o /out/manager ./cmd
+# VERSION is injected into main.Version so the operator reports its real build
+# version (it compares this against a module bundle's gameplaneMinVersion). Keep
+# this consistent with api/Dockerfile and agent/Dockerfile, which do the same.
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X main.Version=${VERSION}" -o /out/manager ./cmd
 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
