@@ -123,6 +123,24 @@ control plane handles both.
 └── design.pen    # Pencil design source (do not delete)
 ```
 
+## Install on a cluster
+
+The Helm chart and component images are published to the GitHub Container
+Registry as OCI artifacts — no `helm repo add` required:
+
+```sh
+helm upgrade --install gameplane oci://ghcr.io/valgulnecron/charts/gameplane \
+  --version <version> \
+  --namespace gameplane-system --create-namespace \
+  --set ingress.host=gameplane.your-domain.test
+```
+
+The chart pins matching `ghcr.io/valgulnecron/gameplane/{operator,api,agent}`
+images by `appVersion`. To track the rolling beta instead of a tagged release,
+add `--set image.tag=edge`. Then seed an admin user and log in — see
+[`docs/install.md`](docs/install.md) for the full flow, OIDC, Postgres, and
+values reference.
+
 ## Quickstart (local dev)
 
 Requires: Go 1.22+, Node 20+, Docker, kind, kubectl, helm,
