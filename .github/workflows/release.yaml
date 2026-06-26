@@ -28,7 +28,10 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.component }}
+          # Images live UNDER the gameplane/ path segment so they match the
+          # chart's default image.registry (ghcr.io/<owner>/gameplane) and the
+          # Makefile REGISTRY. metadata-action lowercases the owner for us.
+          images: ghcr.io/${{ github.repository_owner }}/gameplane/${{ matrix.component }}
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
@@ -61,8 +64,11 @@ jobs:
         env:
           HELM_REGISTRY_CONFIG: ${{ runner.temp }}/helm.json
         run: |
+          # OCI references must be lowercase; github.repository_owner keeps the
+          # account's original casing (ValgulNecron), so fold it down.
+          owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-          helm push dist/gameplane-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          helm push dist/gameplane-*.tgz "oci://ghcr.io/${owner_lc}/charts"
 
   modules:
     name: push & sign module bundles
