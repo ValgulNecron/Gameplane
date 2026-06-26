@@ -11,8 +11,13 @@
 ##   podSecurity     — cluster-wide hardening knobs
 
 image:
+  # Component images are published to {registry}/{operator,api,agent} by the
+  # release workflow. The release matches this default; override only to pin a
+  # mirror or fork.
   registry: ghcr.io/valgulnecron/gameplane
-  tag: "0.1.0"
+  # Empty tag => the chart's appVersion (so chart vX pulls images vX). Set to a
+  # channel like "edge" to track the rolling images published on every main push.
+  tag: ""
   pullPolicy: IfNotPresent
   pullSecrets: []
 
