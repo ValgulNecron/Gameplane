@@ -9,19 +9,50 @@
 
 ## One-shot install
 
+The chart and its images are published to the GitHub Container Registry (GHCR)
+as OCI artifacts — no `helm repo add` needed. Install a tagged release straight
+from the registry (replace `<version>` with a release, e.g. `0.2.0-beta.2`):
+
 ```sh
-helm repo add gameplane https://charts.gameplane.gg     # (once the chart is published)
-helm upgrade --install gameplane gameplane/gameplane \
+helm upgrade --install gameplane oci://ghcr.io/valgulnecron/charts/gameplane \
+  --version <version> \
   --namespace gameplane-system --create-namespace \
   --set ingress.host=gameplane.your-domain.test
 ```
 
-From source (during development):
+The chart's `appVersion` pins matching component images
+(`ghcr.io/valgulnecron/gameplane/{operator,api,agent}:<version>`), so no image
+overrides are needed for a released version.
+
+### Edge channel (latest beta)
+
+Every push to `main` publishes rolling `:edge` images. To track them, install
+the chart and point images at the edge tag:
+
+```sh
+helm upgrade --install gameplane oci://ghcr.io/valgulnecron/charts/gameplane \
+  --version <version> --set image.tag=edge \
+  --namespace gameplane-system --create-namespace \
+  --set ingress.host=gameplane.your-domain.test
+```
+
+`:edge` moves with `main`; pin a specific commit with `image.tag=sha-<short>`
+when you need reproducibility.
+
+From source (during development), the chart in this repo always renders against
+the local default image path:
 
 ```sh
 helm upgrade --install gameplane ./charts/gameplane \
   --namespace gameplane-system --create-namespace
 ```
+
+> **Note:** GHCR packages are private on first publish. The maintainer makes the
+> `gameplane/operator`, `gameplane/api`, `gameplane/agent`, and `charts/gameplane`
+> packages public once (GHCR → package → *Package settings* → *Change visibility*)
+> so anonymous `helm install` / `docker pull` works. For a private install,
+> create a `kubernetes.io/dockerconfigjson` pull secret and set
+> `image.pullSecrets`.
 
 ## First-time setup
 
