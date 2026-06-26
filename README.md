@@ -85,7 +85,7 @@ control plane handles both.
 | Path         | Language | Purpose                                                           |
 | ------------ | -------- | ----------------------------------------------------------------- |
 | `operator/`  | Go       | Reconciles CRDs into K8s objects. Built with controller-runtime.  |
-| `api/`       | Go       | Front-end-facing REST + WebSocket gateway. chi, nhooyr/websocket. |
+| `api/`       | Go       | Front-end-facing REST + WebSocket gateway. chi, coder/websocket. |
 | `agent/`     | Go       | Sidecar running in each game pod. RCON, file ops, PTY console.   |
 | `web/`       | TS+React | Dashboard UI. Vite, TanStack Query, xterm.js, Monaco.             |
 | `modules/`   | YAML     | Per-game `GameTemplate` bundles (Minecraft, Valheim, …).          |
@@ -112,7 +112,7 @@ control plane handles both.
 ├── api/          # REST + WS gateway
 ├── agent/        # in-pod sidecar
 ├── web/          # React dashboard
-├── modules/      # game-module bundles (template.yaml + module.yaml)
+├── modules/      # git submodule → gameplane-module repo (OCI bundles)
 │   ├── minecraft-java/
 │   ├── valheim/
 │   ├── terraria/
@@ -127,6 +127,15 @@ control plane handles both.
 
 Requires: Go 1.22+, Node 20+, Docker, kind, kubectl, helm,
 [oras](https://oras.land/docs/installation) (>= 1.2.0).
+
+The game modules live in the separate `gameplane-module` repo, wired in here
+as the `modules/` submodule — clone with submodules (or initialize them after):
+
+```sh
+git clone --recurse-submodules <repo-url>
+# already cloned? populate the submodule:
+git submodule update --init
+```
 
 ```sh
 # spin up a local kind cluster with Gameplane preinstalled

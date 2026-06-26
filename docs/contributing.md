@@ -57,6 +57,10 @@ the same review, lint, and test gates below.
 3. For UI work, include the Pencil node id(s) touched in the PR description
 4. Sign commits (`git commit -s`)
 
+Game-module changes (`modules/`) belong in the separate **`gameplane-module`**
+repo, which this repo vendors as a submodule. Open the module PR there; once it
+merges, bump the submodule pointer here (`git add modules`) in a follow-up PR.
+
 ## Release process
 
 Tags matching `v*` trigger the `release.yaml` workflow, which builds
