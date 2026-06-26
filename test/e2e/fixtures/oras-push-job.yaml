@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/component: e2e-fixture
 data:
   module.yaml: |
-    apiVersion: gameplane.gg/module/v1
+    apiVersion: gameplane.local/module/v1
     name: e2e-test-game
     displayName: E2E Test Game
     version: 0.1.0
@@ -20,12 +20,12 @@ data:
     license: MIT
     gameplaneMinVersion: 0.1.0
   template.yaml: |
-    apiVersion: gameplane.gg/v1alpha1
+    apiVersion: gameplane.local/v1alpha1
     kind: GameTemplate
     metadata:
       name: e2e-test-game
       labels:
-        gameplane.gg/module: e2e-test-game
+        gameplane.local/module: e2e-test-game
     spec:
       displayName: E2E Test Game
       game: e2e-test-game

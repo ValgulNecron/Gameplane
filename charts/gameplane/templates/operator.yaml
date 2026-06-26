@@ -15,28 +15,28 @@ metadata:
   name: {{ .Release.Name }}-operator-watch
   labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [gameservers, gametemplates, backups, backupschedules, restores, modules, modulesources]
     verbs: [get, list, watch]
   # GameTemplate is cluster-scoped; the gametemplate controller updates
   # status (inUseCount) and the module controller creates/deletes
   # templates owned by Module objects.
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [gametemplates, gametemplates/status]
     verbs: [get, list, watch, create, update, patch, delete]
   # Module is cluster-scoped; the module controller updates its own
   # status, manages a finalizer (so a Module can't be deleted while a
   # GameServer references its template), and patches spec mid-reconcile
   # when version tracking resolves "latest" to a concrete tag.
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [modules, modules/status]
     verbs: [get, update, patch]
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [modules/finalizers]
     verbs: [update]
   # ModuleSource is cluster-scoped, read-only on spec; controller writes
   # the cached catalog into status.
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [modulesources/status]
     verbs: [get, update, patch]
   - apiGroups: ["apps"]
@@ -90,13 +90,13 @@ metadata:
   namespace: {{ .Values.gamesNamespace }}
   labels: {{- include "gameplane.labels" . | nindent 4 }}
 rules:
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [gameservers, backups, backupschedules, restores]
     verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [gameservers/status, backups/status, backupschedules/status, restores/status]
     verbs: [get, update, patch]
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources: [gameservers/finalizers, backups/finalizers, backupschedules/finalizers, restores/finalizers]
     verbs: [update]
   - apiGroups: ["apps"]

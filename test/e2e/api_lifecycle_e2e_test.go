@@ -255,7 +255,7 @@ func TestAPI_LifecycleNotFound(t *testing.T) {
 func createGameServerViaAPI(t *testing.T, cli *APIClient, ns, name, tmpl string) {
 	t.Helper()
 	body := map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{

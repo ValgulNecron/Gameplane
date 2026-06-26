@@ -27,7 +27,7 @@ func TestResources_GameServerCRUDRoundTrip(t *testing.T) {
 	name := uniqueResourceName("smp")
 
 	body := map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{
@@ -89,7 +89,7 @@ func TestResources_GameServerCRUDRoundTrip(t *testing.T) {
 func TestResources_TemplateIsClusterScoped(t *testing.T) {
 	name := uniqueResourceName("tmpl")
 	body := map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{
@@ -142,7 +142,7 @@ func TestResources_TemplateIsClusterScoped(t *testing.T) {
 func TestResources_RejectsBadNamespace(t *testing.T) {
 	name := uniqueResourceName("bad")
 	body := map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "x"}},
@@ -174,7 +174,7 @@ func TestResources_GetMissingResource404(t *testing.T) {
 func TestResources_ListReturnsCreated(t *testing.T) {
 	name := uniqueResourceName("listed")
 	body := map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "x"}},
@@ -216,11 +216,11 @@ func TestResources_ListReturnsCreated(t *testing.T) {
 // ---------- helpers ----------
 
 func gvrServers() schema.GroupVersionResource {
-	return schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "gameservers"}
+	return schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gameservers"}
 }
 
 func gvrTemplates() schema.GroupVersionResource {
-	return schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "gametemplates"}
+	return schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gametemplates"}
 }
 
 func getDynamic(t *testing.T, gvr schema.GroupVersionResource, ns, name string) *unstructured.Unstructured {

@@ -18,7 +18,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
-const uploadModuleYAML = `apiVersion: gameplane.gg/module/v1
+const uploadModuleYAML = `apiVersion: gameplane.local/module/v1
 name: factorio
 displayName: Factorio
 version: 2.0.0
@@ -26,7 +26,7 @@ game: factorio
 summary: The factory must grow.
 `
 
-const uploadTemplateYAML = `apiVersion: gameplane.gg/v1alpha1
+const uploadTemplateYAML = `apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
 spec:
   displayName: Factorio
@@ -37,7 +37,7 @@ spec:
 
 func newUploadSource(name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": name},
 		"spec":       map[string]any{"type": "upload"},

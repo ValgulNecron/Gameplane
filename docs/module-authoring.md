@@ -36,7 +36,7 @@ names if needed.
 ## `module.yaml` schema
 
 ```yaml
-apiVersion: gameplane.gg/module/v1
+apiVersion: gameplane.local/module/v1
 name: minecraft-java                       # required, DNS-1123 label
 displayName: Minecraft (Java Edition)      # required
 version: 1.0.0                             # required, semver, must match the OCI tag
@@ -130,7 +130,7 @@ a `module.yaml` (use `spec.allow` to filter by name or glob). Sources
 can be managed from the dashboard (admin) or applied as CRs:
 
 ```yaml
-apiVersion: gameplane.gg/v1alpha1
+apiVersion: gameplane.local/v1alpha1
 kind: ModuleSource
 metadata: { name: community }
 spec:
@@ -164,7 +164,7 @@ local kind registry legitimately live there.
 ### Uploaded bundles
 
 `type: upload` sources index ConfigMaps in the operator namespace
-labeled `gameplane.gg/module-upload: "true"`, each holding one bundle's
+labeled `gameplane.local/module-upload: "true"`, each holding one bundle's
 files under their canonical names. The dashboard's **Upload module**
 flow creates these via `POST /modules/sources/{name}/upload`
 (tar.gz/zip, ≤ 900 KiB), but a hand-applied ConfigMap indexes exactly
@@ -176,7 +176,7 @@ kind: ConfigMap
 metadata:
   name: module-upload-mygame
   namespace: gameplane-system
-  labels: { gameplane.gg/module-upload: "true" }
+  labels: { gameplane.local/module-upload: "true" }
 binaryData:        # or stringData for plain YAML
   module.yaml: <base64>
   template.yaml: <base64>
@@ -190,7 +190,7 @@ pointing at `ghcr.io/valgulnecron/gameplane-modules`), modules show up in the
 `Module` resource:
 
 ```yaml
-apiVersion: gameplane.gg/v1alpha1
+apiVersion: gameplane.local/v1alpha1
 kind: Module
 metadata:
   name: minecraft-java          # becomes GameTemplate name
@@ -235,7 +235,7 @@ wrong key/identity fails the install with a `SignatureInvalid` condition.
 Keyed:
 
 ```yaml
-apiVersion: gameplane.gg/v1alpha1
+apiVersion: gameplane.local/v1alpha1
 kind: ModuleSource
 metadata: { name: trusted }
 spec:
@@ -624,7 +624,7 @@ kubectl get modulesource default -o jsonpath='{.status.modules[*].name}'
 
 # 4. install via UI or CR
 kubectl apply -f - <<EOF
-apiVersion: gameplane.gg/v1alpha1
+apiVersion: gameplane.local/v1alpha1
 kind: Module
 metadata: { name: <name> }
 spec:

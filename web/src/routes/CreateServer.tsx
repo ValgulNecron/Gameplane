@@ -70,8 +70,8 @@ export function parseSourceRanges(raw: string): string[] {
 
 function buildCreateBody(state: WizardState): ServerCreate {
   let nodeSelector: Record<string, string> | undefined;
-  if (state.nodePlacement === "pin") nodeSelector = { "gameplane.gg/pinned": "true" };
-  else if (state.nodePlacement === "gpu") nodeSelector = { "gameplane.gg/gpu": "true" };
+  if (state.nodePlacement === "pin") nodeSelector = { "gameplane.local/pinned": "true" };
+  else if (state.nodePlacement === "gpu") nodeSelector = { "gameplane.local/gpu": "true" };
   return {
     name: state.name,
     description: state.description || undefined,
@@ -696,7 +696,7 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
 function Preview({ state }: { state: WizardState }) {
   const name = state.template?.spec.displayName ?? "Pick a template";
   const yaml = state.template
-    ? `apiVersion: gameplane.gg/v1alpha1
+    ? `apiVersion: gameplane.local/v1alpha1
 kind: GameServer
 metadata:
   name: ${state.name || "server-name"}

@@ -26,7 +26,7 @@ import (
 // GameServer materializes any config. It covers every resolved value,
 // so changes that would otherwise not alter the pod spec (e.g. a
 // Secret-backed value) still roll the StatefulSet.
-const configHashAnnotation = "gameplane.gg/config-hash"
+const configHashAnnotation = "gameplane.local/config-hash"
 
 // materializedConfig is the result of resolving GameServer.spec.config
 // against the referenced template's configSchema.

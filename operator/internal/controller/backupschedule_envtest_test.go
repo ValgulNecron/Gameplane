@@ -152,7 +152,7 @@ func TestSchedule_RetentionTrimsSucceededBackups(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		name := "smp-sched-bk-" + []string{"a", "b", "c", "d", "e"}[i]
 		b := buildBackup(ns, name, "smp", "repo")
-		b.Labels = map[string]string{"gameplane.gg/backup-schedule": "smp-sched"}
+		b.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
 		if err := k8sClient.Create(context.Background(), b); err != nil {
 			t.Fatalf("create backup %d: %v", i, err)
 		}
@@ -209,7 +209,7 @@ func TestSchedule_DoesNotTrimRunningBackups(t *testing.T) {
 
 	// One Running, three Succeeded.
 	running := buildBackup(ns, "smp-sched-running", "smp", "repo")
-	running.Labels = map[string]string{"gameplane.gg/backup-schedule": "smp-sched"}
+	running.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
 	if err := k8sClient.Create(context.Background(), running); err != nil {
 		t.Fatalf("create running backup: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestSchedule_DoesNotTrimRunningBackups(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		name := "smp-sched-old-" + []string{"a", "b", "c"}[i]
 		b := buildBackup(ns, name, "smp", "repo")
-		b.Labels = map[string]string{"gameplane.gg/backup-schedule": "smp-sched"}
+		b.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
 		if err := k8sClient.Create(context.Background(), b); err != nil {
 			t.Fatalf("create old %d: %v", i, err)
 		}
@@ -277,7 +277,7 @@ func TestSchedule_DoesNotTrimBackupReferencedByActiveRestore(t *testing.T) {
 	names := []string{"smp-sched-old", "smp-sched-mid", "smp-sched-new"}
 	for i, n := range names {
 		b := buildBackup(ns, n, "smp", "repo")
-		b.Labels = map[string]string{"gameplane.gg/backup-schedule": "smp-sched"}
+		b.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
 		if err := k8sClient.Create(context.Background(), b); err != nil {
 			t.Fatalf("create %s: %v", n, err)
 		}
@@ -345,7 +345,7 @@ func TestSchedule_RetentionTrimmedConditionSet(t *testing.T) {
 	// One succeeded backup so the trim pass has a candidate to evaluate
 	// (KeepLast=2 keeps it; nothing is deleted, so trim returns nil).
 	b := buildBackup(ns, "smp-sched-bk-a", "smp", "repo")
-	b.Labels = map[string]string{"gameplane.gg/backup-schedule": "smp-sched"}
+	b.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
 	if err := k8sClient.Create(context.Background(), b); err != nil {
 		t.Fatalf("create backup: %v", err)
 	}
@@ -420,7 +420,7 @@ func listBackupsForSchedule(t *testing.T, ns, schedName string) []gameplanev1alp
 		if b.Namespace != ns {
 			continue
 		}
-		if b.Labels["gameplane.gg/backup-schedule"] == schedName {
+		if b.Labels["gameplane.local/backup-schedule"] == schedName {
 			out = append(out, b)
 		}
 	}

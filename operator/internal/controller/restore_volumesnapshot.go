@@ -19,7 +19,7 @@ import (
 // mistaking it for a pre-existing name collision. The new server is
 // intentionally NOT owner-referenced by the Restore (it must outlive it),
 // so this annotation is how the controller tracks it.
-const annoRestoreCreatedBy = "restore.gameplane.gg/created-by"
+const annoRestoreCreatedBy = "restore.gameplane.local/created-by"
 
 // reconcileVolumeSnapshotRestore restores a volume-snapshot Backup by
 // standing up a brand-new GameServer whose data PVC is seeded from the CSI

@@ -168,7 +168,7 @@ func (h modulesHandler) install(w http.ResponseWriter, req *http.Request) {
 	}
 
 	desired := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{

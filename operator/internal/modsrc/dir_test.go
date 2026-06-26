@@ -21,7 +21,7 @@ func moduleDirFS(entries map[string]map[string]string) fstest.MapFS {
 
 func validModuleFiles(name, version string) map[string]string {
 	return map[string]string{
-		FileMetadata: "apiVersion: gameplane.gg/module/v1\nname: " + name +
+		FileMetadata: "apiVersion: gameplane.local/module/v1\nname: " + name +
 			"\ndisplayName: " + strings.ToUpper(name) + "\nversion: " + version +
 			"\ngame: " + name + "\nsummary: test\n",
 		FileTemplate: "spec:\n  game: " + name + "\n",

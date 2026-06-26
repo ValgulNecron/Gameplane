@@ -37,7 +37,7 @@ func fakeKubeClient(objs ...runtime.Object) *kube.Client {
 
 func newModule(name string, spec map[string]any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": name},
 		"spec":       spec,
@@ -52,7 +52,7 @@ func newModuleWithStatus(name string, spec, status map[string]any) *unstructured
 
 func newSource(name string, modules []any) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": name},
 		"status":     map[string]any{"modules": modules},

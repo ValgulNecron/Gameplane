@@ -53,13 +53,13 @@ func TestHelmInstall_AllPodsReady(t *testing.T) {
 func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 	ctx := context.Background()
 	want := []string{
-		"gameservers.gameplane.gg",
-		"gametemplates.gameplane.gg",
-		"backups.gameplane.gg",
-		"backupschedules.gameplane.gg",
-		"restores.gameplane.gg",
-		"modules.gameplane.gg",
-		"modulesources.gameplane.gg",
+		"gameservers.gameplane.local",
+		"gametemplates.gameplane.local",
+		"backups.gameplane.local",
+		"backupschedules.gameplane.local",
+		"restores.gameplane.local",
+		"modules.gameplane.local",
+		"modulesources.gameplane.local",
 	}
 	for _, name := range want {
 		ok, err := envInstance.CRDExists(ctx, name)

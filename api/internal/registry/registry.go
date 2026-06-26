@@ -118,7 +118,7 @@ type Set struct {
 // CurseForge engine (its API requires an x-api-key); empty disables it.
 func NewSet(version, curseforgeKey string) *Set {
 	client := &http.Client{Timeout: 15 * time.Second}
-	ua := "gameplane/" + version + " (+https://gameplane.gg)"
+	ua := "gameplane/" + version + " (+https://github.com/ValgulNecron/gameplane)"
 	s := &Set{
 		modrinth:     newModrinth(client, ua),
 		thunderstore: newThunderstore(client, ua),

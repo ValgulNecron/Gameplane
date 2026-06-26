@@ -84,7 +84,7 @@ func TestModule_VerifySignedBundleInstalls(t *testing.T) {
 	// A verify-enabled OCI source keyed to the cosign-generated public key
 	// (the keypair Secret exposes cosign.pub, which is what the operator reads).
 	src := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": sourceName},
 		"spec": map[string]any{
@@ -121,7 +121,7 @@ func TestModule_VerifySignedBundleInstalls(t *testing.T) {
 
 	// Installing must pass the signature gate and reach Ready.
 	mod := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": moduleCR},
 		"spec": map[string]any{

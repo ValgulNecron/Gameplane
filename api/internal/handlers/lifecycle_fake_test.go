@@ -21,7 +21,7 @@ func mountLifecycleRouter(k *kube.Client) *chi.Mux {
 
 func newServerObj(ns, name string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": "minecraft"}},

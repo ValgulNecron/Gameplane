@@ -4,38 +4,40 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: backups.gameplane.gg
+  name: modules.gameplane.local
 spec:
-  group: gameplane.gg
+  group: gameplane.local
   names:
-    kind: Backup
-    listKind: BackupList
-    plural: backups
+    kind: Module
+    listKind: ModuleList
+    plural: modules
     shortNames:
-    - bk
-    singular: backup
-  scope: Namespaced
+    - mod
+    singular: module
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.serverRef.name
-      name: Server
+    - jsonPath: .spec.source.name
+      name: Source
+      type: string
+    - jsonPath: .spec.name
+      name: Module
+      type: string
+    - jsonPath: .status.appliedVersion
+      name: Version
       type: string
     - jsonPath: .status.phase
       name: Phase
       type: string
-    - jsonPath: .status.size
-      name: Size
-      type: string
-    - jsonPath: .status.completionTime
-      name: Completed
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
       type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
         description: |-
-          Backup represents a one-shot backup of a GameServer's data volume.
-          Recurring backups are expressed as BackupSchedules, which create
-          Backup objects over time.
+          Module is an installed instance of a Gameplane module bundle. The
+          reconciler maintains a GameTemplate owned by this object.
         properties:
           apiVersion:
             description: |-
@@ -55,78 +57,71 @@ spec:
           metadata:
             type: object
           spec:
-            description: BackupSpec is the desired state of a one-shot backup.
+            description: |-
+              ModuleSpec is the user-facing install request for a module. The
+              reconciler pulls the referenced OCI artifact and materializes a
+              GameTemplate owned by this Module.
             properties:
-              quiesce:
-                default: true
+              digest:
                 description: |-
-                  Quiesce, when true, asks the agent to flush/pause the game before
-                  the snapshot (via RCON "save-all" or game-specific hook) and
-                  resume after. Requires an agent that supports the game.
-                type: boolean
-              repoRef:
-                description: |-
-                  RepoRef points at a Secret containing the restic repository URL
-                  and credentials. See docs for the expected key layout. Required for
-                  the restic-snapshot strategy; ignored (and may be omitted) for
-                  volume-snapshot, which captures a CSI snapshot instead of using restic.
-                properties:
-                  key:
-                    minLength: 1
-                    type: string
-                  name:
-                    minLength: 1
-                    type: string
-                required:
-                - key
-                - name
-                type: object
-              serverRef:
-                description: ServerRef is the GameServer whose data volume should
-                  be backed up.
-                properties:
-                  name:
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                type: object
-              strategy:
-                default: restic-snapshot
-                description: |-
-                  Strategy controls how the data is captured.
-                  - "restic-snapshot" (default): run restic against the PVC mount
-                  - "volume-snapshot": use a CSI VolumeSnapshot instead of restic
-                enum:
-                - restic-snapshot
-                - volume-snapshot
+                  Digest, when set, pins the exact bundle content (an OCI manifest
+                  digest like "sha256:…", "git:<sha>", or a sha256 content hash).
+                  Install fails with a DigestMismatch if the resolved bundle's digest
+                  differs, defeating a tag that was moved to point at new content.
                 type: string
-              tags:
-                description: Tags are attached to the restic snapshot for filtering.
-                items:
-                  type: string
-                type: array
-              volumeSnapshotClassName:
+              name:
                 description: |-
-                  VolumeSnapshotClassName names the VolumeSnapshotClass to use when
-                  Strategy=volume-snapshot. Empty selects the cluster's default
-                  snapshot class. Ignored for restic-snapshot.
-                maxLength: 253
+                  Name is the module's logical name within the source. Must match
+                  one of Source.spec.modules[].name. The created GameTemplate is
+                  always named after the Module's metadata.name (not this field), so
+                  a single module can be installed twice under different names.
+                minLength: 1
+                type: string
+              source:
+                description: Source references the ModuleSource this module is pulled
+                  from.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              version:
+                description: |-
+                  Version pins a specific bundle version (semver). When empty the
+                  reconciler tracks the source's LatestVersion and re-pulls when a
+                  new version appears.
                 type: string
             required:
-            - serverRef
+            - name
+            - source
             type: object
-            x-kubernetes-validations:
-            - message: repoRef is required for the restic-snapshot strategy
-              rule: self.strategy == 'volume-snapshot' || has(self.repoRef)
           status:
-            description: BackupStatus is the observed state of a Backup.
+            description: ModuleStatus reports the state of a module install.
             properties:
-              completionTime:
-                format: date-time
+              appliedDigest:
+                description: |-
+                  AppliedDigest is the OCI manifest digest of the bundle that
+                  produced the current GameTemplate, for auditability.
+                type: string
+              appliedTemplate:
+                description: |-
+                  AppliedTemplate is the name of the GameTemplate this Module owns.
+                  Equal to Module.metadata.name on success.
+                type: string
+              appliedVersion:
+                description: |-
+                  AppliedVersion is the bundle version currently materialized into
+                  the GameTemplate. May lag spec.version during reconcile.
                 type: string
               conditions:
-                description: Conditions carry detailed state transitions.
+                description: Conditions tracks Ready, Pulling, and any uninstall blockers.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -182,45 +177,38 @@ spec:
                   - type
                   type: object
                 type: array
-              message:
-                description: Message is a human-readable reason when Phase=Failed.
+              lastError:
+                description: |-
+                  LastError is a short human-readable message for the most recent
+                  failed reconcile. Cleared on success.
                 type: string
               observedGeneration:
                 format: int64
                 type: integer
               phase:
-                description: BackupPhase is a high-level state for a Backup job.
+                description: |-
+                  Phase is a coarse, UI-friendly summary.
+
+                    - Pending: source not yet indexed, or version unresolved
+                    - Pulling: artifact pull in progress
+                    - Ready:   GameTemplate is current with the desired bundle
+                    - Failed:  see Conditions / LastError
                 enum:
                 - Pending
-                - Running
-                - Succeeded
+                - Pulling
+                - Ready
                 - Failed
                 type: string
-              size:
-                anyOf:
-                - type: integer
-                - type: string
-                description: |-
-                  Size is the on-disk size of the snapshot, as reported by the
-                  backup driver. Not always exact for incremental snapshots.
-                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                x-kubernetes-int-or-string: true
-              snapshotID:
-                description: |-
-                  SnapshotID is the restic snapshot ID (or CSI VolumeSnapshot name)
-                  for use in restore operations.
+              previousDigest:
+                description: PreviousDigest is the bundle digest that backed PreviousVersion.
                 type: string
-              startTime:
-                description: StartTime / CompletionTime bracket the actual backup
-                  run.
-                format: date-time
-                type: string
-              volumeSnapshotContentName:
+              previousVersion:
                 description: |-
-                  VolumeSnapshotContentName is the cluster-scoped VolumeSnapshotContent
-                  bound to status.snapshotID, recorded once the VolumeSnapshot reports
-                  readyToUse. Restore checks it to confirm the snapshot actually bound
-                  before standing up a new server. Empty for restic-snapshot backups.
+                  PreviousVersion is the version that was applied before the current
+                  AppliedVersion. It records the last-known-good to roll back to (by
+                  re-pinning spec.version) and is updated only when AppliedVersion
+                  actually changes. A failed upgrade leaves AppliedVersion — and so the
+                  running GameTemplate — untouched, so this is not overwritten then.
                 type: string
             type: object
         type: object

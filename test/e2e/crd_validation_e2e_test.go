@@ -16,7 +16,7 @@ import (
 // error.
 
 func TestCRD_Validation_GameServerWithoutTemplate(t *testing.T) {
-	yaml := `apiVersion: gameplane.gg/v1alpha1
+	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: GameServer
 metadata:
   name: e2e-validation-gs-no-template
@@ -29,7 +29,7 @@ spec:
 }
 
 func TestCRD_Validation_BackupScheduleBadCron(t *testing.T) {
-	yaml := `apiVersion: gameplane.gg/v1alpha1
+	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: BackupSchedule
 metadata:
   name: e2e-validation-bksched-badcron
@@ -46,7 +46,7 @@ spec:
 }
 
 func TestCRD_Validation_BackupRequiresServerRef(t *testing.T) {
-	yaml := `apiVersion: gameplane.gg/v1alpha1
+	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: Backup
 metadata:
   name: e2e-validation-bk-no-serverref
@@ -60,7 +60,7 @@ spec:
 }
 
 func TestCRD_Validation_GameTemplateRequiresImage(t *testing.T) {
-	yaml := `apiVersion: gameplane.gg/v1alpha1
+	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
 metadata:
   name: e2e-validation-tmpl-no-image

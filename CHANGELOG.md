@@ -29,6 +29,14 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Changed
 
+- **BREAKING — CRD API group renamed `gameplane.gg` → `gameplane.local`.** Drops
+  the `.gg` TLD; all seven CRDs, their labels/annotations (`gameplane.local/*`),
+  and RBAC now use the `gameplane.local` group, and manifests are
+  `apiVersion: gameplane.local/v1alpha1`. (A CRD group must be a dotted DNS
+  subdomain, so a bare `gameplane` is not valid.) No tagged release ever shipped
+  the `.gg` group, so this only affects unreleased/edge installs. Recreate CRDs
+  after upgrading (`kubectl apply -f charts/gameplane/crds/`) — existing
+  `*.gameplane.gg` custom resources are not migrated automatically.
 - **Modules moved to their own repo.** The `modules/` tree (the official game
   template bundles + `build.sh`) now lives in the standalone `gameplane-module`
   repository, vendored back here as a git submodule at the same path. Nothing

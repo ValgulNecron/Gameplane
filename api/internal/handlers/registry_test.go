@@ -67,7 +67,7 @@ func newTemplateObj(name string, registryBlock map[string]any, versions []any) *
 		mods["registry"] = map[string]any{"providers": []any{registryBlock}}
 	}
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": name},
 		"spec": map[string]any{
@@ -80,7 +80,7 @@ func newTemplateObj(name string, registryBlock map[string]any, versions []any) *
 
 func serverWithVersion(ns, name, tmpl, version string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{

@@ -250,7 +250,7 @@ func (h modulesHandler) createSource(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	desired := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": in.Name},
 		"spec":       in.spec(),

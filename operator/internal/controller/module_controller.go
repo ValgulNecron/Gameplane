@@ -49,11 +49,11 @@ type ModuleReconciler struct {
 	NewVerifier func(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (verify.Verifier, error)
 }
 
-// +kubebuilder:rbac:groups=gameplane.gg,resources=modules,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=gameplane.gg,resources=modules/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gameplane.gg,resources=modules/finalizers,verbs=update
-// +kubebuilder:rbac:groups=gameplane.gg,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gameplane.gg,resources=gameservers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.local,resources=modules,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=modules/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=modules/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.local,resources=gameservers,verbs=get;list;watch
 
 func (r *ModuleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var mod gameplanev1alpha1.Module

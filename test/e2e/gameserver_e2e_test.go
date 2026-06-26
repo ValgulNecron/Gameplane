@@ -17,8 +17,8 @@ import (
 // gameTemplateGVR / gameServerGVR — typed clients aren't generated for
 // the test/e2e module; we use the dynamic client.
 var (
-	gameTemplateGVR = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "gametemplates"}
-	gameServerGVR   = schema.GroupVersionResource{Group: "gameplane.gg", Version: "v1alpha1", Resource: "gameservers"}
+	gameTemplateGVR = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gametemplates"}
+	gameServerGVR   = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gameservers"}
 )
 
 // TestGameServer_OperatorMaterializesChildren — apply a tiny template
@@ -37,7 +37,7 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 	// pulled here — we don't wait for the pod.
 	tmplName := "e2e-busybox"
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameTemplate",
 		"metadata":   map[string]any{"name": tmplName},
 		"spec": map[string]any{
@@ -80,7 +80,7 @@ func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
 
 	gsName := "e2e-test-srv"
 	gs := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec": map[string]any{

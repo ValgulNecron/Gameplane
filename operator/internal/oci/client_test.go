@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const fixtureModuleYAML = `apiVersion: gameplane.gg/module/v1
+const fixtureModuleYAML = `apiVersion: gameplane.local/module/v1
 name: minecraft-java
 displayName: Minecraft (Java Edition)
 version: 1.0.0
@@ -14,7 +14,7 @@ game: minecraft-java
 summary: Vanilla / Paper / Forge / Fabric
 `
 
-const fixtureTemplateYAML = `apiVersion: gameplane.gg/v1alpha1
+const fixtureTemplateYAML = `apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
 spec:
   displayName: Minecraft (Java Edition)

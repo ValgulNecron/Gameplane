@@ -92,7 +92,7 @@ control plane handles both.
 | `charts/`    | Helm     | `gameplane` install chart for operator + API + optional ingress.    |
 | `deploy/`    | Shell    | Local dev env (kind/k3d) bootstrap scripts.                       |
 
-### CRDs (`gameplane.gg/v1alpha1`)
+### CRDs (`gameplane.local/v1alpha1`)
 
 - **GameTemplate** — reusable blueprint for a game (image, ports, env, volumes, defaults)
 - **GameServer** — an instance of a GameTemplate with user-specific config

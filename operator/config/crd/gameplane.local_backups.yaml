@@ -4,27 +4,27 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: restores.gameplane.gg
+  name: backups.gameplane.local
 spec:
-  group: gameplane.gg
+  group: gameplane.local
   names:
-    kind: Restore
-    listKind: RestoreList
-    plural: restores
+    kind: Backup
+    listKind: BackupList
+    plural: backups
     shortNames:
-    - rs
-    singular: restore
+    - bk
+    singular: backup
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.backupRef.name
-      name: Backup
-      type: string
     - jsonPath: .spec.serverRef.name
       name: Server
       type: string
     - jsonPath: .status.phase
       name: Phase
+      type: string
+    - jsonPath: .status.size
+      name: Size
       type: string
     - jsonPath: .status.completionTime
       name: Completed
@@ -33,9 +33,9 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          Restore represents a one-shot restore of a Backup's snapshot into a
-          GameServer's data volume. The target server is suspended for the
-          duration of the restore Job and resumed on success.
+          Backup represents a one-shot backup of a GameServer's data volume.
+          Recurring backups are expressed as BackupSchedules, which create
+          Backup objects over time.
         properties:
           apiVersion:
             description: |-
@@ -55,31 +55,35 @@ spec:
           metadata:
             type: object
           spec:
-            description: RestoreSpec is the desired state of a one-shot restore.
+            description: BackupSpec is the desired state of a one-shot backup.
             properties:
-              backupRef:
+              quiesce:
+                default: true
                 description: |-
-                  BackupRef is the source Backup. Must live in the same namespace
-                  and have status.phase=Succeeded with a non-empty snapshotID.
+                  Quiesce, when true, asks the agent to flush/pause the game before
+                  the snapshot (via RCON "save-all" or game-specific hook) and
+                  resume after. Requires an agent that supports the game.
+                type: boolean
+              repoRef:
+                description: |-
+                  RepoRef points at a Secret containing the restic repository URL
+                  and credentials. See docs for the expected key layout. Required for
+                  the restic-snapshot strategy; ignored (and may be omitted) for
+                  volume-snapshot, which captures a CSI snapshot instead of using restic.
                 properties:
+                  key:
+                    minLength: 1
+                    type: string
                   name:
                     minLength: 1
                     type: string
                 required:
+                - key
                 - name
                 type: object
               serverRef:
-                description: |-
-                  ServerRef is the target GameServer.
-
-                  For restic-snapshot backups the target must already exist; it is
-                  suspended and its data volume is overwritten in place (it may be a
-                  pre-created empty server, restoring into a fresh server).
-
-                  For volume-snapshot backups the target must NOT already exist: the
-                  restore provisions a brand-new GameServer under this name, copying
-                  the original server's spec and seeding its data volume from the CSI
-                  snapshot. The original server is never touched.
+                description: ServerRef is the GameServer whose data volume should
+                  be backed up.
                 properties:
                   name:
                     minLength: 1
@@ -87,12 +91,36 @@ spec:
                 required:
                 - name
                 type: object
+              strategy:
+                default: restic-snapshot
+                description: |-
+                  Strategy controls how the data is captured.
+                  - "restic-snapshot" (default): run restic against the PVC mount
+                  - "volume-snapshot": use a CSI VolumeSnapshot instead of restic
+                enum:
+                - restic-snapshot
+                - volume-snapshot
+                type: string
+              tags:
+                description: Tags are attached to the restic snapshot for filtering.
+                items:
+                  type: string
+                type: array
+              volumeSnapshotClassName:
+                description: |-
+                  VolumeSnapshotClassName names the VolumeSnapshotClass to use when
+                  Strategy=volume-snapshot. Empty selects the cluster's default
+                  snapshot class. Ignored for restic-snapshot.
+                maxLength: 253
+                type: string
             required:
-            - backupRef
             - serverRef
             type: object
+            x-kubernetes-validations:
+            - message: repoRef is required for the restic-snapshot strategy
+              rule: self.strategy == 'volume-snapshot' || has(self.repoRef)
           status:
-            description: RestoreStatus is the observed state of a Restore.
+            description: BackupStatus is the observed state of a Backup.
             properties:
               completionTime:
                 format: date-time
@@ -161,25 +189,38 @@ spec:
                 format: int64
                 type: integer
               phase:
-                description: RestorePhase is a high-level state for a Restore job.
+                description: BackupPhase is a high-level state for a Backup job.
                 enum:
                 - Pending
-                - Suspending
                 - Running
-                - Resuming
                 - Succeeded
                 - Failed
                 type: string
+              size:
+                anyOf:
+                - type: integer
+                - type: string
+                description: |-
+                  Size is the on-disk size of the snapshot, as reported by the
+                  backup driver. Not always exact for incremental snapshots.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               snapshotID:
                 description: |-
-                  SnapshotID is the restic snapshot used. Resolved from the
-                  referenced Backup at Pending → Suspending transition and pinned
-                  here so retention can't surprise us mid-run.
+                  SnapshotID is the restic snapshot ID (or CSI VolumeSnapshot name)
+                  for use in restore operations.
                 type: string
               startTime:
-                description: StartTime / CompletionTime bracket the actual restore
-                  Job.
+                description: StartTime / CompletionTime bracket the actual backup
+                  run.
                 format: date-time
+                type: string
+              volumeSnapshotContentName:
+                description: |-
+                  VolumeSnapshotContentName is the cluster-scoped VolumeSnapshotContent
+                  bound to status.snapshotID, recorded once the VolumeSnapshot reports
+                  readyToUse. Restore checks it to confirm the snapshot actually bound
+                  before standing up a new server. Empty for restic-snapshot backups.
                 type: string
             type: object
         type: object

@@ -64,7 +64,7 @@ func TestModuleSource_RejectsSSRFTarget(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			src := &unstructured.Unstructured{Object: map[string]any{
-				"apiVersion": "gameplane.gg/v1alpha1",
+				"apiVersion": "gameplane.local/v1alpha1",
 				"kind":       "ModuleSource",
 				"metadata":   map[string]any{"name": tc.source},
 				"spec":       tc.spec,

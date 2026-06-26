@@ -60,7 +60,7 @@ func TestModule_VerifyRejectsUnsignedBundle(t *testing.T) {
 	// A verify-enabled OCI source. Indexing only pulls metadata (it does not
 	// verify), so the catalog still populates; verification gates install.
 	src := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "ModuleSource",
 		"metadata":   map[string]any{"name": sourceName},
 		"spec": map[string]any{
@@ -97,7 +97,7 @@ func TestModule_VerifyRejectsUnsignedBundle(t *testing.T) {
 
 	// Installing must fail at the signature gate.
 	mod := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "Module",
 		"metadata":   map[string]any{"name": moduleCR},
 		"spec": map[string]any{
