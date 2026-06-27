@@ -5,7 +5,7 @@ A Kubernetes-native game server control panel. Open-source alternative to
 Docker — scales from a single-node k3s homelab to multi-node production
 clusters without changing the operational model.
 
-> Status: **beta** (`v0.2.0-beta.2`). The operator, API, agent, and dashboard
+> Status: **beta** (`v0.2.0-beta.3`). The operator, API, agent, and dashboard
 > are feature-complete for the v1 scope and stabilized for external testing.
 > See [Beta status & known limitations](#beta-status--known-limitations) before
 > running it for anything you can't afford to lose.
