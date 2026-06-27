@@ -516,6 +516,88 @@ func TestGameServer_LoadBalancerSourceRanges(t *testing.T) {
 	})
 }
 
+// TestGameServer_RemovedNetworkingConverges — removing a serviceAnnotation
+// and clearing the nodeSelector from the GameServer must converge the child
+// Service/StatefulSet rather than leaving the removed settings active.
+func TestGameServer_RemovedNetworkingConverges(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "conv", tmpl.Name)
+	gs.Spec.NodeSelector = map[string]string{"disktype": "ssd"}
+	gs.Spec.Networking = gameplanev1alpha1.GameServerNetworking{
+		ServiceAnnotations: map[string]string{"k1": "v1", "k2": "v2"},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	// Initial: both annotations present and the nodeSelector set.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "conv"}, &svc); err != nil {
+			return false, err.Error()
+		}
+		if svc.Annotations["k1"] != "v1" || svc.Annotations["k2"] != "v2" {
+			return false, "annotations not applied"
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "conv"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		if ss.Spec.Template.Spec.NodeSelector["disktype"] != "ssd" {
+			return false, "nodeSelector not set"
+		}
+		return true, ""
+	})
+
+	// Remove k2 from the annotations and clear the nodeSelector.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var cur gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "conv"}, &cur); err != nil {
+			return err
+		}
+		cur.Spec.NodeSelector = nil
+		cur.Spec.Networking.ServiceAnnotations = map[string]string{"k1": "v1"}
+		return k8sClient.Update(context.Background(), &cur)
+	}); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+
+	// Converged: k2 pruned, k1 kept, nodeSelector cleared.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "conv"}, &svc); err != nil {
+			return false, err.Error()
+		}
+		if svc.Annotations["k1"] != "v1" {
+			return false, "k1 missing"
+		}
+		if _, ok := svc.Annotations["k2"]; ok {
+			return false, "k2 not pruned"
+		}
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "conv"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		if len(ss.Spec.Template.Spec.NodeSelector) != 0 {
+			return false, "nodeSelector not cleared"
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_ConsoleMode_PTY — when the GameTemplate selects PTY
 // console, the rendered StatefulSet's "game" container must have
 // tty=true and stdin=true. These fields are immutable post-create, so

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -275,15 +277,45 @@ func (r *GameServerReconciler) reconcileService(
 			"app.kubernetes.io/instance": gs.Name,
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
-		if svc.Annotations == nil {
-			svc.Annotations = map[string]string{}
-		}
-		for k, v := range gs.Spec.Networking.ServiceAnnotations {
-			svc.Annotations[k] = v
-		}
+		applyManagedServiceAnnotations(svc, gs.Spec.Networking.ServiceAnnotations)
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
+}
+
+// managedServiceAnnotationsKey records which annotation keys the operator
+// applied from spec.networking.serviceAnnotations on the previous reconcile.
+const managedServiceAnnotationsKey = "gameplane.local/managed-service-annotations"
+
+// applyManagedServiceAnnotations reconciles the user's desired
+// serviceAnnotations onto svc so the Service converges when keys are removed
+// from spec, without clobbering annotations written by other controllers
+// (cloud load balancer, external-dns). It prunes keys the operator set last
+// time but that are gone from spec now, applies the desired set, and records
+// the managed keys in a sentinel annotation for the next pass. (Merging
+// alone, as before, left removed annotations active on the Service.)
+func applyManagedServiceAnnotations(svc *corev1.Service, desired map[string]string) {
+	if svc.Annotations == nil {
+		svc.Annotations = map[string]string{}
+	}
+	if prev := svc.Annotations[managedServiceAnnotationsKey]; prev != "" {
+		for _, k := range strings.Split(prev, ",") {
+			if _, keep := desired[k]; !keep {
+				delete(svc.Annotations, k)
+			}
+		}
+	}
+	keys := make([]string, 0, len(desired))
+	for k, v := range desired {
+		svc.Annotations[k] = v
+		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		delete(svc.Annotations, managedServiceAnnotationsKey)
+		return
+	}
+	sort.Strings(keys)
+	svc.Annotations[managedServiceAnnotationsKey] = strings.Join(keys, ",")
 }
 
 // reconcileAgentService maintains a dedicated ClusterIP Service
@@ -539,9 +571,10 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 			volumes = append(volumes, *v)
 		}
 		ss.Spec.Template.Spec.Volumes = volumes
-		if gs.Spec.NodeSelector != nil {
-			ss.Spec.Template.Spec.NodeSelector = gs.Spec.NodeSelector
-		}
+		// Assign unconditionally so clearing spec.nodeSelector also clears the
+		// pod template's selector (nil resets it); the previous nil-guard left
+		// a removed scheduling pin active on the StatefulSet.
+		ss.Spec.Template.Spec.NodeSelector = gs.Spec.NodeSelector
 		ss.Spec.Template.Spec.Tolerations = gs.Spec.Tolerations
 		ss.Spec.Template.Spec.Affinity = gs.Spec.Affinity
 		// Default to the per-GameServer SA so the agent's heartbeat can
