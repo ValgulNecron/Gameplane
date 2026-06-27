@@ -74,6 +74,11 @@ func TestOCIFetcher_Index(t *testing.T) {
 	if mc.DisplayName != "MC" || mc.Game != "mc" {
 		t.Errorf("mc metadata = %+v", mc)
 	}
+	// The latest bundle's digest must be recorded so the module controller
+	// can detect same-version content drift (fake Pull returns sha256:<ver>).
+	if mc.Digest != "sha256:1.1.0" {
+		t.Errorf("mc digest = %q, want sha256:1.1.0", mc.Digest)
+	}
 }
 
 func TestOCIFetcher_Index_PartialFailureKeepsStub(t *testing.T) {
