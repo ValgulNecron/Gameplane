@@ -30,6 +30,19 @@ func TestMkdir_CreatesMissingAncestors(t *testing.T) {
 	}
 }
 
+// notADirPath plants a regular file under root and returns a request path that
+// tries to descend into it, so resolve() hits an ENOTDIR error — a non-NotExist
+// EvalSymlinks failure — and the handler returns a generic 400 "bad request".
+// A merely-missing parent now resolves successfully (nested creation), so this
+// is how the handlers' resolve-error branch is exercised.
+func notADirPath(t *testing.T, root string) string {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, "notadir"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("plant file: %v", err)
+	}
+	return "/notadir/child"
+}
+
 func TestWrite_CreatesMissingAncestors(t *testing.T) {
 	srvURL, root := newServer(t)
 

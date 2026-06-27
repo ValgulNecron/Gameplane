@@ -150,9 +150,10 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("bad resolve generic 400", func(t *testing.T) {
-		// Parent dir doesn't exist → EvalSymlinks fails → "bad request"
-		// (not the verbatim errPathOutOfRoot path).
-		resp := get(t, srvURL, "/files/read", url.Values{"path": []string{"/no/such/parent/file"}})
+		// An ancestor that is a regular file → EvalSymlinks fails with
+		// ENOTDIR (not NotExist) → generic "bad request" (not the verbatim
+		// errPathOutOfRoot path).
+		resp := get(t, srvURL, "/files/read", url.Values{"path": []string{notADirPath(t, root)}})
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status=%d", resp.StatusCode)
@@ -371,9 +372,10 @@ func TestMkdir(t *testing.T) {
 }
 
 func TestMkdir_BadResolve(t *testing.T) {
-	// Parent path doesn't exist → resolve fails on its EvalSymlinks call.
-	srvURL, _ := newServer(t)
-	resp, err := testPost(t, srvURL+"/files/mkdir?path=/no/such/parent/dir", "", nil)
+	// An ancestor that is a regular file → resolve fails (ENOTDIR). A merely
+	// missing parent now resolves so MkdirAll can create the subtree.
+	srvURL, root := newServer(t)
+	resp, err := testPost(t, srvURL+"/files/mkdir?path="+notADirPath(t, root), "", nil)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -446,8 +448,8 @@ func TestDelete(t *testing.T) {
 		}
 	})
 
-	t.Run("bad resolve on delete (parent missing)", func(t *testing.T) {
-		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/no/such/parent/file", nil)
+	t.Run("bad resolve on delete (not a directory)", func(t *testing.T) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path="+notADirPath(t, root), nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("delete: %v", err)
@@ -494,9 +496,14 @@ func TestResolve_ParentMissing(t *testing.T) {
 	root := t.TempDir()
 	resolved, _ := filepath.EvalSymlinks(root)
 	h := &handler{root: resolved}
-	// Parent dir doesn't exist either; EvalSymlinks fails on it.
-	if _, err := h.resolve("/no/such/parent/file"); err == nil {
-		t.Fatal("expected error")
+	// Missing intermediate dirs must resolve (to the literal path) so the
+	// handlers' MkdirAll can create the whole subtree on write/upload/mkdir.
+	got, err := h.resolve("/no/such/parent/file")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := filepath.Join(resolved, "no/such/parent/file"); got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
