@@ -25,7 +25,7 @@ func (r *BackupScheduleReconciler) trimBackups(
 	var list gameplanev1alpha1.BackupList
 	if err := r.List(ctx, &list,
 		client.InNamespace(sched.Namespace),
-		client.MatchingLabels{"gameplane.gg/backup-schedule": sched.Name},
+		client.MatchingLabels{"gameplane.local/backup-schedule": sched.Name},
 	); err != nil {
 		return err
 	}

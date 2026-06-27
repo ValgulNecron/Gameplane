@@ -62,7 +62,7 @@ func TestModuleSourceAndModule(t *testing.T) {
 	// 3. ModuleSource indexes the registry.
 	t.Run("ModuleSourceIndexesFromOCIRegistry", func(t *testing.T) {
 		src := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "gameplane.gg/v1alpha1",
+			"apiVersion": "gameplane.local/v1alpha1",
 			"kind":       "ModuleSource",
 			"metadata":   map[string]any{"name": sourceName},
 			"spec": map[string]any{
@@ -119,7 +119,7 @@ func TestModuleSourceAndModule(t *testing.T) {
 	// exists here.
 	t.Run("ModuleMaterializesGameTemplate", func(t *testing.T) {
 		mod := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "gameplane.gg/v1alpha1",
+			"apiVersion": "gameplane.local/v1alpha1",
 			"kind":       "Module",
 			"metadata":   map[string]any{"name": moduleCR},
 			"spec": map[string]any{
@@ -169,8 +169,8 @@ func TestModuleSourceAndModule(t *testing.T) {
 		// LabelManagedBy should be set to "Module" so the API can
 		// distinguish module-managed templates from hand-applied ones.
 		labels := tmpl.GetLabels()
-		if labels["gameplane.gg/managed-by"] != "Module" {
-			t.Errorf("template missing managed-by=Module label, got %q", labels["gameplane.gg/managed-by"])
+		if labels["gameplane.local/managed-by"] != "Module" {
+			t.Errorf("template missing managed-by=Module label, got %q", labels["gameplane.local/managed-by"])
 		}
 
 		// Sanity-check that the bundle's port + display metadata round-
@@ -198,7 +198,7 @@ func TestModuleSourceAndModule(t *testing.T) {
 		gs := "e2e-test-game-via-module"
 
 		gsObj := &unstructured.Unstructured{Object: map[string]any{
-			"apiVersion": "gameplane.gg/v1alpha1",
+			"apiVersion": "gameplane.local/v1alpha1",
 			"kind":       "GameServer",
 			"metadata":   map[string]any{"name": gs, "namespace": ns},
 			"spec": map[string]any{

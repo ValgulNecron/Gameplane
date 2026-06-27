@@ -43,8 +43,8 @@ type ModuleSourceReconciler struct {
 	NewFetcher func(ctx context.Context, src *gameplanev1alpha1.ModuleSource) (modsrc.Fetcher, error)
 }
 
-// +kubebuilder:rbac:groups=gameplane.gg,resources=modulesources,verbs=get;list;watch
-// +kubebuilder:rbac:groups=gameplane.gg,resources=modulesources/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gameplane.local,resources=modulesources,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gameplane.local,resources=modulesources/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 

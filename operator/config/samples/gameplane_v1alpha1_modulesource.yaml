@@ -2,7 +2,7 @@
 # the Helm chart already creates a ModuleSource named "default" (see
 # charts/gameplane/templates/modulesource.yaml) and applying this sample
 # alongside the chart should not silently mutate that managed object.
-apiVersion: gameplane.gg/v1alpha1
+apiVersion: gameplane.local/v1alpha1
 kind: ModuleSource
 metadata:
   name: example-source

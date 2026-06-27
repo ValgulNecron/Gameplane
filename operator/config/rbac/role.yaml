@@ -46,7 +46,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gameplane.gg
+  - gameplane.local
   resources:
   - backups
   - backupschedules
@@ -60,7 +60,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gameplane.gg
+  - gameplane.local
   resources:
   - backups/status
   - backupschedules/status
@@ -74,7 +74,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - gameplane.gg
+  - gameplane.local
   resources:
   - gameservers
   verbs:
@@ -85,14 +85,14 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gameplane.gg
+  - gameplane.local
   resources:
   - gameservers/finalizers
   - modules/finalizers
   verbs:
   - update
 - apiGroups:
-  - gameplane.gg
+  - gameplane.local
   resources:
   - modules
   - restores
@@ -103,7 +103,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gameplane.gg
+  - gameplane.local
   resources:
   - modulesources
   verbs:

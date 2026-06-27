@@ -1,10 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - gameplane.gg_gametemplates.yaml
-  - gameplane.gg_gameservers.yaml
-  - gameplane.gg_backups.yaml
-  - gameplane.gg_backupschedules.yaml
-  - gameplane.gg_restores.yaml
-  - gameplane.gg_modulesources.yaml
-  - gameplane.gg_modules.yaml
+  - gameplane.local_gametemplates.yaml
+  - gameplane.local_gameservers.yaml
+  - gameplane.local_backups.yaml
+  - gameplane.local_backupschedules.yaml
+  - gameplane.local_restores.yaml
+  - gameplane.local_modulesources.yaml
+  - gameplane.local_modules.yaml

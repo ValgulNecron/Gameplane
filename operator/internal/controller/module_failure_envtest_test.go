@@ -96,10 +96,10 @@ func TestModule_IncompatibleOperator(t *testing.T) {
 	fake.putBundle(ref, "1.0.0", fakeArtifact{
 		digest: "sha256:mc-1.0.0",
 		files: map[string][]byte{
-			modsrc.FileMetadata: []byte("apiVersion: gameplane.gg/module/v1\n" +
+			modsrc.FileMetadata: []byte("apiVersion: gameplane.local/module/v1\n" +
 				"name: minecraft-java\nversion: 1.0.0\ngame: minecraft-java\n" +
 				"gameplaneMinVersion: 9.9.9\n"),
-			modsrc.FileTemplate: []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\n" +
+			modsrc.FileTemplate: []byte("apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\n" +
 				"spec:\n  displayName: MC\n  game: minecraft-java\n  version: 1.0.0\n" +
 				"  image: ghcr.io/test/mc:1.0.0\n"),
 		},

@@ -49,7 +49,7 @@ func TestBackup_OperatorMaterializesJob(t *testing.T) {
 	// 3. Apply Backup CR.
 	bkName := "e2e-backup"
 	bk := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "Backup",
 		"metadata":   map[string]any{"name": bkName, "namespace": ns},
 		"spec": map[string]any{
@@ -119,7 +119,7 @@ func TestBackupSchedule_CreatesBackupCR(t *testing.T) {
 
 	schedName := "e2e-bksched"
 	sched := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.gg/v1alpha1",
+		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "BackupSchedule",
 		"metadata":   map[string]any{"name": schedName, "namespace": ns},
 		"spec": map[string]any{

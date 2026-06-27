@@ -34,7 +34,7 @@ func (f *fakeOCIClient) Pull(_ context.Context, ref, version string) (string, ma
 
 func moduleFiles(name, version string) map[string][]byte {
 	return map[string][]byte{
-		FileMetadata: []byte("apiVersion: gameplane.gg/module/v1\nname: " + name +
+		FileMetadata: []byte("apiVersion: gameplane.local/module/v1\nname: " + name +
 			"\ndisplayName: " + strings.ToUpper(name) + "\nversion: " + version +
 			"\ngame: " + name + "\nsummary: test\n"),
 		FileTemplate: []byte("spec:\n  game: " + name + "\n"),

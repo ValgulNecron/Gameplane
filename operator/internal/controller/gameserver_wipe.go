@@ -20,9 +20,9 @@ const (
 	// WipeRequestedAnnotation carries the token of a requested data wipe
 	// (set by the API). WipeCompletedAnnotation echoes it back once the
 	// wipe Job has succeeded, so the same request never re-runs.
-	WipeRequestedAnnotation = "gameplane.gg/wipe-data-requested"
-	WipeCompletedAnnotation = "gameplane.gg/wipe-data-completed"
-	wipeTokenLabel          = "gameplane.gg/wipe-token"
+	WipeRequestedAnnotation = "gameplane.local/wipe-data-requested"
+	WipeCompletedAnnotation = "gameplane.local/wipe-data-completed"
+	wipeTokenLabel          = "gameplane.local/wipe-token"
 )
 
 // reconcileWipe runs a one-shot Job that empties the GameServer's data PVC

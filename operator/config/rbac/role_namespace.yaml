@@ -15,7 +15,7 @@ metadata:
   name: gameplane-operator-manage
   namespace: gameplane-games
 rules:
-  - apiGroups: ["gameplane.gg"]
+  - apiGroups: ["gameplane.local"]
     resources:
       - gameservers
       - backups

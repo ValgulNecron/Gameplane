@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: modulesources.gameplane.gg
+  name: modulesources.gameplane.local
 spec:
-  group: gameplane.gg
+  group: gameplane.local
   names:
     kind: ModuleSource
     listKind: ModuleSourceList

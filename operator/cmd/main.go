@@ -86,7 +86,7 @@ func main() {
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "gameplane-operator.gameplane.gg",
+		LeaderElectionID:       "gameplane-operator.gameplane.local",
 		// On a resource-constrained node (the homelab target, and the CI
 		// runner) a hammered apiserver can push an informer's initial sync —
 		// e.g. the backup controller's VolumeSnapshot watch — past the default

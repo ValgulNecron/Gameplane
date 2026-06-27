@@ -394,7 +394,7 @@ function NewDestinationForm({ onClose }: { onClose: () => void }) {
     <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
       <div className="text-sm font-medium">Add destination</div>
       <p className="text-xs text-muted">
-        Stored as a Secret labelled <span className="font-mono">gameplane.gg/backup-destination=true</span>.
+        Stored as a Secret labelled <span className="font-mono">gameplane.local/backup-destination=true</span>.
         Restic URL formats: <span className="font-mono">s3:host/bucket</span>, <span className="font-mono">b2:bucket</span>, <span className="font-mono">azure:account/container</span>, etc.
       </p>
       <div className="grid gap-3 md:grid-cols-2">

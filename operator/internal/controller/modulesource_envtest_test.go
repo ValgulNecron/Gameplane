@@ -126,13 +126,13 @@ func fixtureBundle(name, version, displayName string) fakeArtifact {
 	return fakeArtifact{
 		digest: "sha256:" + name + "-" + version,
 		files: map[string][]byte{
-			modsrc.FileMetadata: []byte("apiVersion: gameplane.gg/module/v1\n" +
+			modsrc.FileMetadata: []byte("apiVersion: gameplane.local/module/v1\n" +
 				"name: " + name + "\n" +
 				"displayName: " + displayName + "\n" +
 				"version: " + version + "\n" +
 				"game: " + name + "\n" +
 				"summary: " + displayName + " — test fixture\n"),
-			modsrc.FileTemplate: []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\n" +
+			modsrc.FileTemplate: []byte("apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\n" +
 				"spec:\n  displayName: " + displayName + "\n  game: " + name +
 				"\n  version: " + version + "\n  image: ghcr.io/test/" + name + ":" + version + "\n"),
 		},
@@ -370,9 +370,9 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 			Labels:    map[string]string{gameplanev1alpha1.LabelModuleUpload: "true"},
 		},
 		BinaryData: map[string][]byte{
-			"module.yaml": []byte("apiVersion: gameplane.gg/module/v1\nname: factorio\n" +
+			"module.yaml": []byte("apiVersion: gameplane.local/module/v1\nname: factorio\n" +
 				"displayName: Factorio\nversion: 2.0.0\ngame: factorio\nsummary: upload fixture\n"),
-			"template.yaml": []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+			"template.yaml": []byte("apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n" +
 				"  displayName: Factorio\n  game: factorio\n  version: 2.0.0\n  image: factoriotools/factorio:stable\n"),
 		},
 	}
@@ -440,7 +440,7 @@ func TestModuleSource_UploadConfigMap(t *testing.T) {
 	if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: ns}, cm); err != nil {
 		t.Fatalf("re-get configmap: %v", err)
 	}
-	cm.BinaryData["template.yaml"] = []byte("apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+	cm.BinaryData["template.yaml"] = []byte("apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n" +
 		"  displayName: Factorio\n  game: factorio\n  version: 2.0.0\n  image: factoriotools/factorio:1.1.110\n")
 	if err := k8sClient.Update(context.Background(), cm); err != nil {
 		t.Fatalf("update configmap: %v", err)
@@ -470,10 +470,10 @@ func writeLocalModule(t *testing.T, dir, name, version string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	meta := "apiVersion: gameplane.gg/module/v1\nname: " + name +
+	meta := "apiVersion: gameplane.local/module/v1\nname: " + name +
 		"\ndisplayName: " + name + "\nversion: " + version +
 		"\ngame: " + name + "\nsummary: local fixture\n"
-	tmplYAML := "apiVersion: gameplane.gg/v1alpha1\nkind: GameTemplate\nspec:\n" +
+	tmplYAML := "apiVersion: gameplane.local/v1alpha1\nkind: GameTemplate\nspec:\n" +
 		"  displayName: " + name + "\n  game: " + name + "\n  version: " + version +
 		"\n  image: ghcr.io/test/" + name + ":" + version + "\n"
 	for file, content := range map[string]string{
@@ -635,7 +635,7 @@ func TestModuleSource_PreservesStaleCatalogOnFailure(t *testing.T) {
 	// Break the registry, then nudge the source so it re-reconciles now
 	// instead of an hour from now.
 	fake.errOn["tags:local/test/good"] = fmt.Errorf("dial tcp: connection refused")
-	patchSourceAnnotation(t, src.Name, "gameplane.gg/test-nudge", "1")
+	patchSourceAnnotation(t, src.Name, "gameplane.local/test-nudge", "1")
 
 	eventually(t, func() (bool, string) {
 		got := getModuleSource(t, src.Name)

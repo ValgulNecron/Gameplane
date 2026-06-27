@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: backupschedules.gameplane.gg
+  name: backupschedules.gameplane.local
 spec:
-  group: gameplane.gg
+  group: gameplane.local
   names:
     kind: BackupSchedule
     listKind: BackupScheduleList

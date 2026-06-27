@@ -205,7 +205,7 @@ func deleteHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 }
 
 // managedTemplateBlocked returns a non-empty reason when the named
-// GameTemplate is managed by a Module (gameplane.gg/managed-by=Module).
+// GameTemplate is managed by a Module (gameplane.local/managed-by=Module).
 // In that case, direct mutations via /templates are refused — the user
 // must go through /modules to install/upgrade/uninstall.
 func managedTemplateBlocked(req *http.Request, k *kube.Client, name string) (string, error) {
@@ -216,8 +216,8 @@ func managedTemplateBlocked(req *http.Request, k *kube.Client, name string) (str
 		}
 		return "", err
 	}
-	if tmpl.GetLabels()["gameplane.gg/managed-by"] == "Module" {
-		modName := tmpl.GetLabels()["gameplane.gg/module-name"]
+	if tmpl.GetLabels()["gameplane.local/managed-by"] == "Module" {
+		modName := tmpl.GetLabels()["gameplane.local/module-name"]
 		if modName == "" {
 			modName = name
 		}
