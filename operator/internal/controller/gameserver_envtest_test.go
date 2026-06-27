@@ -598,6 +598,61 @@ func TestGameServer_RemovedNetworkingConverges(t *testing.T) {
 	})
 }
 
+// TestGameServer_HostportSetsContainerHostPort — expose: Hostport binds each
+// game container port on the node (HostPort == ContainerPort) while the game
+// Service stays ClusterIP.
+func TestGameServer_HostportSetsContainerHostPort(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "hp", tmpl.Name)
+	gs.Spec.Networking = gameplanev1alpha1.GameServerNetworking{Expose: "Hostport"}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "hp"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		var game *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == gameContainerName {
+				game = &ss.Spec.Template.Spec.Containers[i]
+				break
+			}
+		}
+		if game == nil {
+			return false, "no game container yet"
+		}
+		if len(game.Ports) == 0 {
+			return false, "game container has no ports"
+		}
+		for _, p := range game.Ports {
+			if p.HostPort != p.ContainerPort {
+				return false, "hostPort not set for port " + p.Name
+			}
+		}
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "hp"}, &svc); err != nil {
+			return false, err.Error()
+		}
+		if svc.Spec.Type != corev1.ServiceTypeClusterIP {
+			return false, "service type = " + string(svc.Spec.Type)
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_ConsoleMode_PTY — when the GameTemplate selects PTY
 // console, the rendered StatefulSet's "game" container must have
 // tty=true and stdin=true. These fields are immutable post-create, so
