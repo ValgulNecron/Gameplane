@@ -407,6 +407,84 @@ func TestSchedule_NoRetentionLeavesConditionUnset(t *testing.T) {
 	}
 }
 
+// TestSchedule_ForbidSkipsWhileInFlight — with concurrencyPolicy Forbid, an
+// overdue occurrence must not create a second Backup while a previous one is
+// still in flight.
+func TestSchedule_ForbidSkipsWhileInFlight(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	running := buildBackup(ns, "inflight", "smp", "repo")
+	running.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
+	if err := k8sClient.Create(context.Background(), running); err != nil {
+		t.Fatalf("create running backup: %v", err)
+	}
+	running.Status.Phase = gameplanev1alpha1.BackupPhaseRunning
+	if err := k8sClient.Status().Update(context.Background(), running); err != nil {
+		t.Fatalf("status update running: %v", err)
+	}
+
+	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "* * * * *", nil)
+	sched.Spec.ConcurrencyPolicy = "Forbid"
+	if err := k8sClient.Create(context.Background(), sched); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+
+	consistently(t, 3*time.Second, func() (bool, string) {
+		bs := listBackupsForSchedule(t, ns, "smp-sched")
+		if len(bs) != 1 || bs[0].Name != "inflight" {
+			names := []string{}
+			for _, b := range bs {
+				names = append(names, b.Name)
+			}
+			return false, "expected only the in-flight backup, got " + sprintArgs(names)
+		}
+		return true, ""
+	})
+}
+
+// TestSchedule_ReplaceDeletesInFlight — with concurrencyPolicy Replace, an
+// overdue occurrence deletes the in-flight Backup and creates a fresh one.
+func TestSchedule_ReplaceDeletesInFlight(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	running := buildBackup(ns, "old-inflight", "smp", "repo")
+	running.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
+	if err := k8sClient.Create(context.Background(), running); err != nil {
+		t.Fatalf("create running backup: %v", err)
+	}
+	running.Status.Phase = gameplanev1alpha1.BackupPhaseRunning
+	if err := k8sClient.Status().Update(context.Background(), running); err != nil {
+		t.Fatalf("status update running: %v", err)
+	}
+
+	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "* * * * *", nil)
+	sched.Spec.ConcurrencyPolicy = "Replace"
+	if err := k8sClient.Create(context.Background(), sched); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		bs := listBackupsForSchedule(t, ns, "smp-sched")
+		for _, b := range bs {
+			if b.Name == "old-inflight" {
+				return false, "old in-flight backup not yet replaced"
+			}
+		}
+		if len(bs) == 0 {
+			return false, "no replacement backup yet"
+		}
+		return true, ""
+	})
+}
+
 // ---------- helpers used only by this file ----------
 
 func listBackupsForSchedule(t *testing.T, ns, schedName string) []gameplanev1alpha1.Backup {

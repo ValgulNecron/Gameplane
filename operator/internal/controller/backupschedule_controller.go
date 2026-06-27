@@ -3,8 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -66,9 +69,23 @@ func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	next := expr.Next(prev)
 
+	// Track the in-flight (non-terminal) Backups this schedule owns: they
+	// drive the concurrency decision and are surfaced in status.Active.
+	active, err := r.inFlightBackups(ctx, &sched)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	sched.Status.Active = activeBackupRefs(active)
+
 	if !next.After(now) {
-		if err := r.fire(ctx, &sched, now); err != nil {
+		fire, err := r.shouldFire(ctx, &sched, now, next, active)
+		if err != nil {
 			return ctrl.Result{}, err
+		}
+		if fire {
+			if err := r.fire(ctx, &sched, now); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 		sched.Status.LastScheduleTime = &metav1.Time{Time: now}
 		next = expr.Next(now)
@@ -138,6 +155,85 @@ func (r *BackupScheduleReconciler) fire(
 	return r.Create(ctx, b)
 }
 
+// inFlightBackups returns the non-terminal (Pending/Running/unstarted) Backups
+// this schedule owns, identified by the schedule label fire() stamps.
+func (r *BackupScheduleReconciler) inFlightBackups(
+	ctx context.Context, sched *gameplanev1alpha1.BackupSchedule,
+) ([]gameplanev1alpha1.Backup, error) {
+	var list gameplanev1alpha1.BackupList
+	if err := r.List(ctx, &list,
+		client.InNamespace(sched.Namespace),
+		client.MatchingLabels{"gameplane.local/backup-schedule": sched.Name}); err != nil {
+		return nil, err
+	}
+	active := make([]gameplanev1alpha1.Backup, 0, len(list.Items))
+	for i := range list.Items {
+		switch list.Items[i].Status.Phase {
+		case gameplanev1alpha1.BackupPhaseSucceeded, gameplanev1alpha1.BackupPhaseFailed:
+			// Terminal — not in flight.
+		default:
+			active = append(active, list.Items[i])
+		}
+	}
+	return active, nil
+}
+
+// shouldFire decides whether a due schedule creates a Backup now, applying
+// startingDeadlineSeconds (occurrences later than the deadline are skipped) and
+// concurrencyPolicy: Forbid skips while a previous backup is still in flight,
+// Replace deletes the in-flight ones first, Allow always fires. An empty policy
+// is treated as the CRD default (Forbid).
+func (r *BackupScheduleReconciler) shouldFire(
+	ctx context.Context, sched *gameplanev1alpha1.BackupSchedule,
+	now, scheduled time.Time, active []gameplanev1alpha1.Backup,
+) (bool, error) {
+	logger := log.FromContext(ctx)
+	if d := sched.Spec.StartingDeadlineSeconds; d != nil &&
+		now.Sub(scheduled) > time.Duration(*d)*time.Second {
+		logger.Info("skipping backup past starting deadline",
+			"scheduled", scheduled, "deadlineSeconds", *d)
+		return false, nil
+	}
+	switch sched.Spec.ConcurrencyPolicy {
+	case "Allow":
+		// No constraint.
+	case "Replace":
+		for i := range active {
+			if err := r.Delete(ctx, &active[i]); err != nil && !apierrors.IsNotFound(err) {
+				return false, fmt.Errorf("replace in-flight backup %s: %w", active[i].Name, err)
+			}
+		}
+	default: // "" (CRD default) and "Forbid"
+		if len(active) > 0 {
+			logger.Info("skipping backup: a previous one is still in flight",
+				"policy", "Forbid", "active", len(active))
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// activeBackupRefs builds the status.Active object references from the in-flight
+// Backups, sorted by name so unchanged input produces no status churn.
+func activeBackupRefs(active []gameplanev1alpha1.Backup) []corev1.ObjectReference {
+	if len(active) == 0 {
+		return nil
+	}
+	sorted := append([]gameplanev1alpha1.Backup(nil), active...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+	refs := make([]corev1.ObjectReference, 0, len(sorted))
+	for i := range sorted {
+		refs = append(refs, corev1.ObjectReference{
+			APIVersion: gameplanev1alpha1.GroupVersion.String(),
+			Kind:       "Backup",
+			Namespace:  sorted[i].Namespace,
+			Name:       sorted[i].Name,
+			UID:        sorted[i].UID,
+		})
+	}
+	return refs
+}
+
 // persistStatus writes the schedule's status subresource only when it
 // differs from the snapshot taken at the start of Reconcile. Centralising
 // the write means a condition flip is persisted even on reconciles where
@@ -158,7 +254,22 @@ func (r *BackupScheduleReconciler) persistStatus(
 func scheduleStatusEqual(a, b *gameplanev1alpha1.BackupScheduleStatus) bool {
 	return metav1TimeEqual(a.LastScheduleTime, b.LastScheduleTime) &&
 		metav1TimeEqual(a.NextScheduleTime, b.NextScheduleTime) &&
-		sameConditions(a.Conditions, b.Conditions)
+		sameConditions(a.Conditions, b.Conditions) &&
+		activeRefsEqual(a.Active, b.Active)
+}
+
+// activeRefsEqual compares two status.Active slices. Both are produced by
+// activeBackupRefs (sorted by name), so a positional compare is sufficient.
+func activeRefsEqual(a, b []corev1.ObjectReference) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name || a[i].UID != b[i].UID {
+			return false
+		}
+	}
+	return true
 }
 
 func metav1TimeEqual(a, b *metav1.Time) bool {
