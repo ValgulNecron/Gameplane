@@ -106,6 +106,13 @@ networkPolicies:
   # Set this explicitly when your node pool sits outside those ranges
   # (some managed providers do).
   kubeletCIDRs: []
+  # Ports the kubelet may reach on game pods for liveness/readiness probes.
+  # Probe ports vary per game module (e.g. the Minecraft game port, Valheim's
+  # status port, Terraria's game port), so the default is empty, which allows
+  # the kubelet (already scoped to kubeletCIDRs) to reach ANY port on a game
+  # pod. Restrict to specific ports only if your modules use a known fixed set,
+  # e.g. [{ protocol: TCP, port: 8090 }].
+  probePorts: []
   # CIDRs that hold the kube-apiserver endpoint(s) the agent sidecar
   # patches its status heartbeat through. Same fallback semantics as
   # kubeletCIDRs: unset means RFC1918 + link-local on TCP 443/6443.
