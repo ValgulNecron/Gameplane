@@ -105,21 +105,36 @@ func TestRunRetention_DisabledIsNoOp(t *testing.T) {
 	}
 }
 
-// RunRetention sweeps once immediately on start, before the first tick, so a
-// context cancelled right away still gets one prune pass.
+// RunRetention sweeps once immediately on start, before the first tick. The
+// context must stay live during that sweep (a pre-cancelled one would cancel
+// the prune's DB op), so it runs in a goroutine and is cancelled only after
+// the start-up prune is observed.
 func TestRunRetention_SweepsOnStart(t *testing.T) {
 	s := newStore(t)
 	a := New(s)
 	insertEvent(t, s, time.Now().UTC().Add(-48*time.Hour))
 
+	// A long interval means the only sweep is the immediate start-up one.
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	a.RunRetention(ctx, 24*time.Hour, time.Hour,
-		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		a.RunRetention(ctx, 24*time.Hour, time.Hour,
+			slog.New(slog.NewTextHandler(io.Discard, nil)))
+		close(done)
+	}()
 
-	if got := countEvents(t, s); got != 0 {
-		t.Errorf("remaining = %d, want 0 (startup sweep should prune)", got)
+	// The start-up sweep runs before the loop blocks on the ticker; poll
+	// until it prunes (generous deadline keeps this non-flaky).
+	deadline := time.Now().Add(2 * time.Second)
+	for countEvents(t, s) != 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("start-up sweep did not prune within deadline")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	cancel()
+	<-done
 }
 
 func TestShouldLog(t *testing.T) {
