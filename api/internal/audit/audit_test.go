@@ -3,10 +3,13 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/db"
@@ -23,6 +26,100 @@ func newStore(t *testing.T) *db.Store {
 		t.Fatalf("migrate: %v", err)
 	}
 	return s
+}
+
+// insertEvent writes one audit row with an explicit ts so retention tests can
+// place events on either side of a cutoff. ts uses the same RFC3339 format the
+// middleware writes.
+func insertEvent(t *testing.T, s *db.Store, ts time.Time) {
+	t.Helper()
+	if _, err := s.DB.ExecContext(context.Background(),
+		`INSERT INTO audit_events(ts, actor, method, path, status) VALUES (?, 'tester', 'POST', '/x', 200)`,
+		ts.UTC().Format(time.RFC3339),
+	); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+}
+
+func countEvents(t *testing.T, s *db.Store) int {
+	t.Helper()
+	var n int
+	if err := s.DB.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM audit_events`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	return n
+}
+
+func TestPrune(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	now := time.Now().UTC()
+
+	insertEvent(t, s, now.Add(-48*time.Hour)) // old, should be pruned
+	insertEvent(t, s, now.Add(-25*time.Hour)) // old, should be pruned
+	insertEvent(t, s, now.Add(-1*time.Hour))  // recent, should survive
+
+	deleted, err := a.Prune(context.Background(), now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if deleted != 2 {
+		t.Errorf("deleted = %d, want 2", deleted)
+	}
+	if got := countEvents(t, s); got != 1 {
+		t.Errorf("remaining = %d, want 1", got)
+	}
+}
+
+func TestPrune_NothingOlderThanCutoff(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	now := time.Now().UTC()
+	insertEvent(t, s, now.Add(-1*time.Hour))
+
+	deleted, err := a.Prune(context.Background(), now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("deleted = %d, want 0", deleted)
+	}
+	if got := countEvents(t, s); got != 1 {
+		t.Errorf("remaining = %d, want 1", got)
+	}
+}
+
+// RunRetention with a non-positive window is a no-op that returns immediately;
+// it must not prune anything or block.
+func TestRunRetention_DisabledIsNoOp(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	insertEvent(t, s, time.Now().UTC().Add(-1000*time.Hour))
+
+	a.RunRetention(context.Background(), 0, time.Hour,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	if got := countEvents(t, s); got != 1 {
+		t.Errorf("remaining = %d, want 1 (disabled retention must not prune)", got)
+	}
+}
+
+// RunRetention sweeps once immediately on start, before the first tick, so a
+// context cancelled right away still gets one prune pass.
+func TestRunRetention_SweepsOnStart(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	insertEvent(t, s, time.Now().UTC().Add(-48*time.Hour))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	a.RunRetention(ctx, 24*time.Hour, time.Hour,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	if got := countEvents(t, s); got != 0 {
+		t.Errorf("remaining = %d, want 0 (startup sweep should prune)", got)
+	}
 }
 
 func TestShouldLog(t *testing.T) {

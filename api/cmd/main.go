@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -156,6 +157,12 @@ func main() {
 	// endpoint is configured AND the admin enabled the sendMetrics toggle.
 	go telemetry.New(store, k8s, cfg.telemetryEndpoint, Version, 24*time.Hour).Run(ctx)
 
+	// Opt-in audit-event retention. Off by default (0 days = keep forever);
+	// when set, a daily sweep prunes events past the window so the table
+	// doesn't grow unbounded on long-lived installs.
+	go auditor.RunRetention(ctx,
+		time.Duration(cfg.auditRetentionDays)*24*time.Hour, 24*time.Hour, logger)
+
 	srv := &http.Server{
 		Addr:              cfg.addr,
 		Handler:           r,
@@ -190,9 +197,10 @@ type config struct {
 	oidcRedirectURL  string
 	oidcDisplayName  string
 
-	telemetryEndpoint string
-	clusterOps        bool
-	curseforgeAPIKey  string
+	telemetryEndpoint  string
+	clusterOps         bool
+	curseforgeAPIKey   string
+	auditRetentionDays int
 
 	agentCABundle   string
 	agentClientCert string
@@ -213,6 +221,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("GAMEPLANE_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
 	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("GAMEPLANE_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
 	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("GAMEPLANE_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
+	fs.IntVar(&c.auditRetentionDays, "audit-retention-days", envOrInt("GAMEPLANE_AUDIT_RETENTION_DAYS", 0), "delete audit events older than this many days (0 = keep forever)")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("GAMEPLANE_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("GAMEPLANE_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
@@ -225,6 +234,18 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// envOrInt reads an integer env var, falling back to def when unset or
+// unparseable (a malformed value shouldn't crash startup — it degrades to
+// the safe default).
+func envOrInt(key string, def int) int {
+	if v, ok := os.LookupEnv(key); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }
 
 // bodyLimit wraps every request body in MaxBytesReader so a decoder

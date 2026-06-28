@@ -62,6 +62,12 @@ api:
     size: 2Gi
     storageClassName: ""
 
+  # Audit-event retention. 0 keeps audit rows forever (default); set a
+  # positive number of days to have the API prune older events daily so the
+  # audit_events table doesn't grow unbounded on long-lived installs.
+  audit:
+    retentionDays: 0
+
   oidc:
     enabled: false
     issuer: ""
