@@ -259,6 +259,7 @@ export interface GameServerNetworking {
   hostname?: string;
   serviceAnnotations?: Record<string, string>;
   portOverrides?: PortOverride[];
+  sourceRanges?: string[];
 }
 
 export interface GameServerStorage {
