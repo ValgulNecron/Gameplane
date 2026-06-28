@@ -27,6 +27,9 @@ export function NetworkingSection({ draft, onChange }: SectionProps) {
     if (next.portOverrides && next.portOverrides.length) {
       cleaned.portOverrides = next.portOverrides;
     }
+    if (next.sourceRanges && next.sourceRanges.length) {
+      cleaned.sourceRanges = next.sourceRanges;
+    }
     onChange({
       ...draft,
       spec: {
@@ -76,6 +79,30 @@ export function NetworkingSection({ draft, onChange }: SectionProps) {
           onChange={(v) => setNet({ ...net, portOverrides: v })}
         />
       </Field>
+
+      {net.expose === "LoadBalancer" && (
+        <Field
+          label="LoadBalancer IP allow-list"
+          hint="One CIDR per line. Restricts which clients reach the LoadBalancer; empty allows all."
+        >
+          <textarea
+            className="block w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm"
+            rows={3}
+            value={(net.sourceRanges ?? []).join("\n")}
+            onChange={(e) =>
+              setNet({
+                ...net,
+                sourceRanges: e.target.value
+                  .split(/[\n,]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder={"203.0.113.0/24\n10.0.0.0/8"}
+            aria-label="LoadBalancer IP allow-list"
+          />
+        </Field>
+      )}
     </div>
   );
 }
