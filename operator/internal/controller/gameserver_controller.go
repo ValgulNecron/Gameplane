@@ -639,11 +639,18 @@ func buildGameContainer(
 	ver *gameplanev1alpha1.GameVersion, mc *materializedConfig,
 ) corev1.Container {
 	mountPath := effectiveMountPath(tmpl)
+	// expose: Hostport binds each container port directly on the node so the
+	// game is reachable at <node>:<port> without a NodePort/LoadBalancer
+	// Service (the Service stays ClusterIP). Suits single-node k3s/homelab
+	// installs where one pod owns the host port.
+	hostPort := gs.Spec.Networking.Expose == "Hostport"
 	ports := make([]corev1.ContainerPort, 0, len(tmpl.Spec.Ports))
 	for _, p := range tmpl.Spec.Ports {
-		ports = append(ports, corev1.ContainerPort{
-			Name: p.Name, ContainerPort: p.ContainerPort, Protocol: p.Protocol,
-		})
+		cp := corev1.ContainerPort{Name: p.Name, ContainerPort: p.ContainerPort, Protocol: p.Protocol}
+		if hostPort {
+			cp.HostPort = p.ContainerPort
+		}
+		ports = append(ports, cp)
 	}
 	// Later entries win on duplicate names: template defaults, then the
 	// selected version's env (e.g. itzg TYPE/VERSION), then schema-resolved
