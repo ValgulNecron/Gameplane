@@ -75,15 +75,25 @@ func (h *handler) resolve(rel string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	parent := filepath.Dir(abs)
-	resolvedParent, err := filepath.EvalSymlinks(parent)
-	if err != nil {
-		return "", err
+	// The target doesn't exist yet (a new file/dir about to be written).
+	// Walk up to the deepest ancestor that *does* exist and verify it
+	// resolves inside the root, so the symlink-escape check still holds
+	// while allowing nested creation (mkdir -p, or uploading into a new
+	// subtree). Checking only the immediate parent rejected "/one/two/file"
+	// whenever "/one" was absent, making the later MkdirAll unreachable. The
+	// loop terminates at worst at the filesystem root, which always exists.
+	for parent := filepath.Dir(abs); ; parent = filepath.Dir(parent) {
+		resolvedParent, err := filepath.EvalSymlinks(parent)
+		if err == nil {
+			if !strings.HasPrefix(resolvedParent, h.root+string(os.PathSeparator)) && resolvedParent != h.root {
+				return "", errPathOutOfRoot
+			}
+			return abs, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
 	}
-	if !strings.HasPrefix(resolvedParent, h.root+string(os.PathSeparator)) && resolvedParent != h.root {
-		return "", errPathOutOfRoot
-	}
-	return abs, nil
 }
 
 // badRequest writes a 400 with a client-safe message. errPathOutOfRoot is

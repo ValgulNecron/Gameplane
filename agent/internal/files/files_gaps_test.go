@@ -42,8 +42,8 @@ func TestWrite_BodyTooLarge(t *testing.T) {
 
 // TestWrite_BadResolve hits the resolve-error branch on /files/write.
 func TestWrite_BadResolve(t *testing.T) {
-	srvURL, _ := newServer(t)
-	resp, err := testPost(t, srvURL+"/files/write?path=/no/such/parent/file", "text/plain", strings.NewReader("x"))
+	srvURL, root := newServer(t)
+	resp, err := testPost(t, srvURL+"/files/write?path="+notADirPath(t, root), "text/plain", strings.NewReader("x"))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -115,9 +115,9 @@ func TestMkdir_ExistingFile(t *testing.T) {
 
 // TestUpload_ResolveError exercises the resolve-fail branch on /files/upload.
 func TestUpload_ResolveError(t *testing.T) {
-	srvURL, _ := newServer(t)
+	srvURL, root := newServer(t)
 	buf, ct := multipartBody(t, map[string]string{"x.txt": "y"})
-	resp, err := testPost(t, srvURL+"/files/upload?path=/no/such/parent", ct, buf)
+	resp, err := testPost(t, srvURL+"/files/upload?path="+notADirPath(t, root), ct, buf)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}

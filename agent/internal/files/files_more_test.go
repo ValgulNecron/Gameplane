@@ -10,8 +10,8 @@ import (
 
 // TestDownload_ResolveError exercises the resolve-fail branch.
 func TestDownload_ResolveError(t *testing.T) {
-	srvURL, _ := newServer(t)
-	resp := get(t, srvURL, "/files/download", url.Values{"path": []string{"/no/such/parent/file"}})
+	srvURL, root := newServer(t)
+	resp := get(t, srvURL, "/files/download", url.Values{"path": []string{notADirPath(t, root)}})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -20,8 +20,8 @@ func TestDownload_ResolveError(t *testing.T) {
 
 // TestRead_ResolveError covers the resolve-fail branch on /files/read.
 func TestRead_ResolveError(t *testing.T) {
-	srvURL, _ := newServer(t)
-	resp := get(t, srvURL, "/files/read", url.Values{"path": []string{"/no/such/parent/file"}})
+	srvURL, root := newServer(t)
+	resp := get(t, srvURL, "/files/read", url.Values{"path": []string{notADirPath(t, root)}})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -30,8 +30,8 @@ func TestRead_ResolveError(t *testing.T) {
 
 // TestList_ResolveError covers the resolve-fail branch on /files/list.
 func TestList_ResolveError(t *testing.T) {
-	srvURL, _ := newServer(t)
-	resp := get(t, srvURL, "/files/list", url.Values{"path": []string{"/no/such/parent/file"}})
+	srvURL, root := newServer(t)
+	resp := get(t, srvURL, "/files/list", url.Values{"path": []string{notADirPath(t, root)}})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -40,8 +40,8 @@ func TestList_ResolveError(t *testing.T) {
 
 // TestDelete_ResolveError covers the resolve-fail branch on /files/delete.
 func TestDelete_ResolveError(t *testing.T) {
-	srvURL, _ := newServer(t)
-	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path=/no/such/parent/file", nil)
+	srvURL, root := newServer(t)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, srvURL+"/files/delete?path="+notADirPath(t, root), nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("delete: %v", err)
