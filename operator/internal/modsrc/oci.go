@@ -89,6 +89,11 @@ func (f *ociFetcher) indexModule(ctx context.Context, name, ref string) (gamepla
 	entry.Summary = bundle.Metadata.Summary
 	entry.Game = bundle.Metadata.Game
 	entry.Icon = bundle.Metadata.Icon
+	// Record the latest bundle's digest so the module controller can detect
+	// content drift behind a reused tag/version (dir and upload sources do
+	// the same); without it entry.Digest stays empty and the controller's
+	// digest comparison is skipped.
+	entry.Digest = bundle.Digest
 	// Stable order on output so unchanged inputs produce no status churn.
 	sort.Strings(entry.Versions)
 	sort.Slice(entry.Versions, func(i, j int) bool {
