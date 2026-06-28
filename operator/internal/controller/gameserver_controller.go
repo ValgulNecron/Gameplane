@@ -277,7 +277,7 @@ func (r *GameServerReconciler) reconcileService(
 			"app.kubernetes.io/instance": gs.Name,
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
-		applyManagedServiceAnnotations(svc, gs.Spec.Networking.ServiceAnnotations)
+		applyManagedServiceAnnotations(svc, desiredServiceAnnotations(gs))
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
@@ -286,6 +286,30 @@ func (r *GameServerReconciler) reconcileService(
 // managedServiceAnnotationsKey records which annotation keys the operator
 // applied from spec.networking.serviceAnnotations on the previous reconcile.
 const managedServiceAnnotationsKey = "gameplane.local/managed-service-annotations"
+
+// externalDNSHostnameAnnotation is the de-facto-standard external-dns key the
+// operator stamps onto the game Service from spec.networking.hostname so an
+// installed external-dns controller publishes the record. The operator does
+// not create the DNS record itself (see GameServerNetworking.Hostname).
+const externalDNSHostnameAnnotation = "external-dns.alpha.kubernetes.io/hostname"
+
+// desiredServiceAnnotations is the full set of annotations the operator wants
+// to manage on the game Service: the user's spec.networking.serviceAnnotations
+// plus, when spec.networking.hostname is set, the external-dns hostname hint.
+// Set unconditionally on hostname (not gated on Expose type) — external-dns
+// decides what to publish from its own source config. The typed hostname field
+// is applied last so it wins over a same-key entry in serviceAnnotations: it is
+// the explicit, validated, UI-backed field and therefore authoritative.
+func desiredServiceAnnotations(gs *gameplanev1alpha1.GameServer) map[string]string {
+	desired := make(map[string]string, len(gs.Spec.Networking.ServiceAnnotations)+1)
+	for k, v := range gs.Spec.Networking.ServiceAnnotations {
+		desired[k] = v
+	}
+	if h := gs.Spec.Networking.Hostname; h != "" {
+		desired[externalDNSHostnameAnnotation] = h
+	}
+	return desired
+}
 
 // applyManagedServiceAnnotations reconciles the user's desired
 // serviceAnnotations onto svc so the Service converges when keys are removed
@@ -487,7 +511,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		labels := map[string]string{
 			"app.kubernetes.io/name":     "gameplane-game",
 			"app.kubernetes.io/instance": gs.Name,
-			"gameplane.local/template":        tmpl.Name,
+			"gameplane.local/template":   tmpl.Name,
 		}
 		ss.Spec.Replicas = &replicas
 		ss.Spec.ServiceName = gs.Name
