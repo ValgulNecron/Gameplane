@@ -182,6 +182,9 @@ spec:
             {{- if gt (int .Values.api.audit.retentionDays) 0 }}
             - --audit-retention-days={{ .Values.api.audit.retentionDays }}
             {{- end }}
+            {{- if .Values.api.audit.stdout }}
+            - --audit-stdout
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:

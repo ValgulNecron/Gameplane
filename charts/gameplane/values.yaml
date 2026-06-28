@@ -67,6 +67,11 @@ api:
   # audit_events table doesn't grow unbounded on long-lived installs.
   audit:
     retentionDays: 0
+    # When true, the API also emits each audit event as a structured JSON
+    # line on stdout, so a cluster log aggregator (Loki/ELK/CloudWatch) can
+    # capture the audit trail as an external sink. Events always land in the
+    # database regardless; this just mirrors them to the log pipeline.
+    stdout: false
 
   oidc:
     enabled: false

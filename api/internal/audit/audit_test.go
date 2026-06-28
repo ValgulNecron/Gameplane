@@ -137,6 +137,46 @@ func TestRunRetention_SweepsOnStart(t *testing.T) {
 	<-done
 }
 
+func TestMiddleware_StdoutSink(t *testing.T) {
+	s := newStore(t)
+	var buf strings.Builder
+	a := New(s, WithStdoutSink(slog.New(slog.NewJSONHandler(&buf, nil))))
+
+	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+	req := httptest.NewRequest("POST", "/api/v1/servers?name=alpha", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Username: "admin"}))
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	out := buf.String()
+	for _, want := range []string{
+		`"actor":"admin"`, `"method":"POST"`, `"path":"/api/v1/servers"`,
+		`"target":"alpha"`, `"status":201`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("sink output missing %s in: %s", want, out)
+		}
+	}
+	// The sink mirrors, it does not replace the DB record.
+	if got := countEvents(t, s); got != 1 {
+		t.Errorf("db events = %d, want 1", got)
+	}
+}
+
+func TestMiddleware_NoSinkByDefault(t *testing.T) {
+	s := newStore(t)
+	a := New(s) // no WithStdoutSink → sink disabled
+	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("POST", "/api/v1/x", nil)
+	h.ServeHTTP(httptest.NewRecorder(), req) // must not panic without a sink
+	if got := countEvents(t, s); got != 1 {
+		t.Errorf("db events = %d, want 1", got)
+	}
+}
+
 func TestShouldLog(t *testing.T) {
 	cases := []struct {
 		method string
