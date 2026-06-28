@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,12 @@ import (
 // the dashboard surfaces this so an operator can intervene, rather than
 // the failure being swallowed into the controller log only.
 const conditionRetentionTrimmed = "RetentionTrimmed"
+
+// conditionScheduleValid reports whether Spec.Schedule parsed as a cron
+// expression. Status False (reason CronParseError) means the schedule was
+// admitted by the CRD pattern but the controller can't interpret it, so it
+// never fires — surfaced as a condition instead of only a log line.
+const conditionScheduleValid = "ScheduleValid"
 
 // BackupScheduleReconciler computes the next firing time from
 // Spec.Schedule and creates Backup objects when due. Retention trimming
@@ -55,12 +62,33 @@ func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, r.persistStatus(ctx, before, &sched)
 	}
 
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	expr, err := parser.Parse(sched.Spec.Schedule)
+	// Five-field cron by default; the CRD pattern also admits an optional
+	// sixth field for the seconds-prefix dialect, so enable seconds when six
+	// fields are present. Otherwise a six-token schedule is admitted by the
+	// CRD but rejected here, and the schedule silently never fires.
+	fields := cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow
+	if len(strings.Fields(sched.Spec.Schedule)) == 6 {
+		fields |= cron.Second
+	}
+	expr, err := cron.NewParser(fields).Parse(sched.Spec.Schedule)
 	if err != nil {
 		logger.Error(err, "invalid cron expression", "schedule", sched.Spec.Schedule)
-		return ctrl.Result{}, nil
+		sched.Status.Conditions = upsertCondition(sched.Status.Conditions, metav1.Condition{
+			Type:               conditionScheduleValid,
+			Status:             metav1.ConditionFalse,
+			Reason:             "CronParseError",
+			Message:            err.Error(),
+			ObservedGeneration: sched.Generation,
+		})
+		return ctrl.Result{}, r.persistStatus(ctx, before, &sched)
 	}
+	sched.Status.Conditions = upsertCondition(sched.Status.Conditions, metav1.Condition{
+		Type:               conditionScheduleValid,
+		Status:             metav1.ConditionTrue,
+		Reason:             "CronValid",
+		Message:            "schedule is a valid cron expression",
+		ObservedGeneration: sched.Generation,
+	})
 
 	now := time.Now()
 	prev := now.Add(-time.Hour)

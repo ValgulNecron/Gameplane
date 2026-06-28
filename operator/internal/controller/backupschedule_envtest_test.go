@@ -485,6 +485,58 @@ func TestSchedule_ReplaceDeletesInFlight(t *testing.T) {
 	})
 }
 
+// TestSchedule_SecondsCronFires — a six-field (seconds-prefix) schedule must
+// parse and fire rather than being silently rejected by the five-field parser.
+func TestSchedule_SecondsCronFires(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	// "* * * * * *" = every second (six fields).
+	if err := k8sClient.Create(context.Background(),
+		buildBackupSchedule(ns, "smp-sched", "smp", "repo", "* * * * * *", nil)); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		if bs := listBackupsForSchedule(t, ns, "smp-sched"); len(bs) == 0 {
+			return false, "no backup created from six-field schedule"
+		}
+		return true, ""
+	})
+}
+
+// TestSchedule_InvalidCronSetsCondition — a schedule admitted by the CRD
+// pattern but unparseable as cron records ScheduleValid=False instead of
+// failing silently.
+func TestSchedule_InvalidCronSetsCondition(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+	// Six tokens (passes the CRD pattern) but not a valid cron expression.
+	if err := k8sClient.Create(context.Background(),
+		buildBackupSchedule(ns, "smp-sched", "smp", "repo", "bad bad bad bad bad bad", nil)); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		s := getSchedule(t, ns, "smp-sched")
+		c := meta.FindStatusCondition(s.Status.Conditions, "ScheduleValid")
+		if c == nil {
+			return false, "ScheduleValid condition not set"
+		}
+		if c.Status != metav1.ConditionFalse {
+			return false, "ScheduleValid = " + string(c.Status) + ", want False"
+		}
+		return true, ""
+	})
+}
+
 // ---------- helpers used only by this file ----------
 
 func listBackupsForSchedule(t *testing.T, ns, schedName string) []gameplanev1alpha1.Backup {
