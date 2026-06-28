@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -10,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
@@ -123,4 +126,50 @@ func TestLifecycle_Clone(t *testing.T) {
 			t.Fatal("ghost source should not clone")
 		}
 	})
+}
+
+// TestLifecycle_CloneRestampsOwner verifies a clone is stamped with the
+// caller as owner and carries none of the source's server-managed metadata
+// (owner/lifecycle annotations, finalizers, ownerReferences).
+func TestLifecycle_CloneRestampsOwner(t *testing.T) {
+	src := newServerObj("gameplane-games", "alpha")
+	src.SetAnnotations(map[string]string{
+		ownerIDAnnotation:       "1",
+		ownerAnnotation:         "alice",
+		wipeRequestedAnnotation: "true",
+	})
+	src.SetFinalizers([]string{"gameplane.local/cleanup"})
+	src.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: "gameplane.local/v1alpha1", Kind: "GameServer", Name: "owner", UID: "uid-1",
+	}})
+	k := fakeKubeClient(src)
+	r := mountLifecycleRouter(k)
+
+	body, _ := json.Marshal(map[string]any{"newName": "beta"})
+	req := httptest.NewRequest("POST", "/servers/alpha:clone", bytes.NewReader(body))
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 2, Username: "bob"}))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("clone: %d %s", rr.Code, rr.Body)
+	}
+
+	clone, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+		Namespace("gameplane-games").Get(t.Context(), "beta", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get clone: %v", err)
+	}
+	ann := clone.GetAnnotations()
+	if ann[ownerAnnotation] != "bob" || ann[ownerIDAnnotation] != "2" {
+		t.Errorf("clone owner = %v, want bob/2", ann)
+	}
+	if _, ok := ann[wipeRequestedAnnotation]; ok {
+		t.Errorf("clone carried source lifecycle annotation: %v", ann)
+	}
+	if len(clone.GetFinalizers()) != 0 {
+		t.Errorf("clone carried source finalizers: %v", clone.GetFinalizers())
+	}
+	if len(clone.GetOwnerReferences()) != 0 {
+		t.Errorf("clone carried source ownerReferences: %v", clone.GetOwnerReferences())
+	}
 }

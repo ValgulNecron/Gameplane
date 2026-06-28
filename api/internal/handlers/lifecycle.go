@@ -190,6 +190,18 @@ func cloneHandler(k *kube.Client) http.HandlerFunc {
 		clone.SetResourceVersion("")
 		clone.SetUID("")
 		unstructured.RemoveNestedField(clone.Object, "status")
+		// A clone is a brand-new object, not a copy of the source's
+		// server-managed metadata. Drop everything the apiserver/operator
+		// owns so the source's lifecycle/request annotations, finalizers,
+		// ownerReferences, and managedFields don't leak into the clone, then
+		// stamp the caller as owner (mirrors createHandler) so ownership and
+		// audit reflect who cloned rather than who owns the source.
+		clone.SetAnnotations(nil)
+		clone.SetOwnerReferences(nil)
+		clone.SetFinalizers(nil)
+		clone.SetManagedFields(nil)
+		clone.SetCreationTimestamp(metav1.Time{})
+		stampOwner(clone, req)
 
 		created, err := k.Dynamic.Resource(kube.GVRs["servers"]).
 			Namespace(ns).
