@@ -1,5 +1,5 @@
 {
-  "version": "2.13",
+  "version": "2.14",
   "children": [
     {
       "type": "frame",
@@ -25163,6 +25163,577 @@
                                               "fontWeight": "normal"
                                             }
                                           ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "KfrA0",
+                          "name": "Network",
+                          "width": "fill_container",
+                          "fill": "$c:--card",
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "ZWCeF",
+                              "name": "nHdr",
+                              "width": "fill_container",
+                              "stroke": "$c:--border",
+                              "strokeWidth": {
+                                "bottom": 1
+                              },
+                              "strokeAlignment": "inner",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "padding": [
+                                16,
+                                20
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "h4qMs",
+                                  "fill": "$c:--foreground",
+                                  "content": "Network",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "l0SFqd",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "Service exposure, hostname, annotations, and ingress allow-list.",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "iHJZu",
+                              "name": "nBody",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 16,
+                              "padding": [
+                                16,
+                                20
+                              ],
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "YK7bW",
+                                  "name": "nfExpose",
+                                  "width": "fill_container",
+                                  "gap": 24,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "UQ7uK",
+                                      "name": "nfExposeL",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "X0AxU",
+                                          "fill": "$c:--foreground",
+                                          "content": "Expose",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 13,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "FJjea",
+                                          "fill": "$c:--muted-foreground",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "Service type fronting the game pod.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "fsCdb",
+                                      "name": "nfExposeR",
+                                      "width": "fill_container",
+                                      "height": 38,
+                                      "fill": "$c:--background",
+                                      "cornerRadius": 6,
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": 1,
+                                      "strokeAlignment": "inner",
+                                      "padding": [
+                                        10,
+                                        14
+                                      ],
+                                      "justifyContent": "space_between",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ralS4",
+                                          "fill": "$c:--foreground",
+                                          "content": "LoadBalancer",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 13,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "u7mjF",
+                                          "width": 16,
+                                          "height": 16,
+                                          "icon": "keyboard_arrow_down",
+                                          "library": "Material Symbols Sharp",
+                                          "weight": 400,
+                                          "fill": "$c:--muted-foreground"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "e7Q9x",
+                                  "name": "nfHost",
+                                  "width": "fill_container",
+                                  "gap": 24,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "vmsKg",
+                                      "name": "nfHostL",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "fd1Rv",
+                                          "fill": "$c:--foreground",
+                                          "content": "Hostname",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 13,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "T19p5",
+                                          "fill": "$c:--muted-foreground",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "DNS name for ingress / external-dns.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "v4dV9",
+                                      "name": "nfHostR",
+                                      "width": "fill_container",
+                                      "height": 38,
+                                      "fill": "$c:--background",
+                                      "cornerRadius": 6,
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": 1,
+                                      "strokeAlignment": "inner",
+                                      "padding": [
+                                        10,
+                                        14
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "NIrZR",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "mc.example.com",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 13,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "C4SvR5",
+                                  "name": "nfAnnot",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "XiQub",
+                                      "fill": "$c:--foreground",
+                                      "content": "Service annotations",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "500"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "Moi7m",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "Merged into the Service — cloud LB / external-dns config.",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "UpxuH",
+                                      "name": "annRow",
+                                      "width": "fill_container",
+                                      "fill": "$c:--background",
+                                      "cornerRadius": 6,
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": 1,
+                                      "strokeAlignment": "inner",
+                                      "gap": 8,
+                                      "padding": [
+                                        8,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "G11qX",
+                                          "fill": "$c:--foreground",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "service.beta.kubernetes.io/aws-load-balancer-type",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "g1ZsK",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "nlb",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "UpfTD",
+                                          "width": 14,
+                                          "height": 14,
+                                          "icon": "close",
+                                          "library": "Material Symbols Sharp",
+                                          "weight": 400,
+                                          "fill": "$c:--muted-foreground"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "OOhXv",
+                                      "name": "annAdd",
+                                      "width": "fill_container",
+                                      "cornerRadius": 6,
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": 1,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "icon",
+                                          "id": "xJ98a",
+                                          "width": 14,
+                                          "height": 14,
+                                          "icon": "add",
+                                          "library": "Material Symbols Sharp",
+                                          "weight": 400,
+                                          "fill": "$c:--muted-foreground"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "lsnAw",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "Add annotation…",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "v33DFD",
+                                  "name": "nfPorts",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "YP0LZ",
+                                      "fill": "$c:--foreground",
+                                      "content": "Port overrides",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "500"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "hEXe3",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "Pin a NodePort or override the Service port for a named port.",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "kOHGu",
+                                      "name": "pHead",
+                                      "width": "fill_container",
+                                      "fill": "$c:--muted",
+                                      "cornerRadius": 6,
+                                      "gap": 8,
+                                      "padding": [
+                                        6,
+                                        12
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "bPadi",
+                                          "fill": "$c:--muted-foreground",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "Port name",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "VaC17",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "Service port",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "500"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "DHkMZ",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "NodePort",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "500"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "NjlvS",
+                                      "name": "pRow",
+                                      "width": "fill_container",
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": {
+                                        "bottom": 1
+                                      },
+                                      "strokeAlignment": "inner",
+                                      "gap": 8,
+                                      "padding": [
+                                        8,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "CB1xM",
+                                          "fill": "$c:--foreground",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "game",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "SDO1T",
+                                          "fill": "$c:--foreground",
+                                          "content": "25565",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "CBUDv",
+                                          "fill": "$c:--foreground",
+                                          "content": "30565",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "nKcWd",
+                                  "name": "nfAllow",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 6,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "v3KSJ9",
+                                      "fill": "$c:--foreground",
+                                      "content": "LoadBalancer IP allow-list",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "500"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "KfYtK",
+                                      "fill": "$c:--muted-foreground",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "One CIDR per line. Restricts which clients reach the LoadBalancer; empty allows all.",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "Ex4Zs",
+                                      "name": "allowIn",
+                                      "width": "fill_container",
+                                      "fill": "$c:--background",
+                                      "cornerRadius": 6,
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": 1,
+                                      "strokeAlignment": "inner",
+                                      "gap": 6,
+                                      "padding": [
+                                        8,
+                                        12
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "RYts7",
+                                          "name": "cidr1",
+                                          "fill": "$c:--muted",
+                                          "cornerRadius": 4,
+                                          "gap": 6,
+                                          "padding": [
+                                            3,
+                                            10
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "e8Tpm",
+                                              "fill": "$c:--foreground",
+                                              "content": "203.0.113.0/24",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "type": "icon",
+                                              "id": "M8LUMm",
+                                              "width": 12,
+                                              "height": 12,
+                                              "icon": "close",
+                                              "library": "Material Symbols Sharp",
+                                              "weight": 400,
+                                              "fill": "$c:--muted-foreground"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "AEDZN",
+                                          "name": "cidr2",
+                                          "fill": "$c:--muted",
+                                          "cornerRadius": 4,
+                                          "gap": 6,
+                                          "padding": [
+                                            3,
+                                            10
+                                          ],
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "SMErg",
+                                              "fill": "$c:--foreground",
+                                              "content": "10.0.0.0/8",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "type": "icon",
+                                              "id": "ypDTR",
+                                              "width": 12,
+                                              "height": 12,
+                                              "icon": "close",
+                                              "library": "Material Symbols Sharp",
+                                              "weight": 400,
+                                              "fill": "$c:--muted-foreground"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "myeJu",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "Add CIDR…",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -52664,5 +53235,6 @@
     "w": "pencil:shadcn.lib.pen",
     "c": "pencil:lunaris.lib.pen",
     "O": "pencil:nitro.lib.pen"
-  }
+  },
+  "fileToken": "365cd1f6-3bd8-48c3-9294-01ef1a3c7ec3"
 }
