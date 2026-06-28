@@ -25,8 +25,9 @@ know that the following are **deferred past the first beta**:
   activates once the project's signing key is provisioned (`COSIGN_PRIVATE_KEY`
   in CI), so until then published bundles may be unsigned. Signature
   *verification* itself is supported and opt-in today.
-- **Audit-log export** — audit events are stored in the database; there is no
-  external sink (S3/syslog) or retention policy yet.
+- **Audit-log export** — audit events are stored in the database and can be
+  pruned on a configurable retention window (`api.audit.retentionDays`); there
+  is no external sink (S3/syslog) yet.
 
 CI runs the full suite (unit, envtest, and kind e2e) on every PR. The kind
 e2e jobs can occasionally flake under resource pressure on the self-hosted

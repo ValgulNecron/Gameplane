@@ -179,6 +179,9 @@ spec:
             - --agent-ca-bundle=/etc/gameplane/agent-ca/ca.crt
             - --agent-client-cert=/etc/gameplane/agent-client/tls.crt
             - --agent-client-key=/etc/gameplane/agent-client/tls.key
+            {{- if gt (int .Values.api.audit.retentionDays) 0 }}
+            - --audit-retention-days={{ .Values.api.audit.retentionDays }}
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:

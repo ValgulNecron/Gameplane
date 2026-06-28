@@ -5,8 +5,11 @@ package audit
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -145,6 +148,58 @@ func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, err
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// ---- retention ----
+
+// Prune deletes audit events whose ts predates the cutoff and returns the
+// number of rows removed. ts is stored as RFC3339 (see Middleware), a
+// fixed-width zero-padded UTC format, so a lexicographic "<" comparison is
+// also a chronological one — no per-row time parsing needed, and the query
+// stays portable across the sqlite and postgres drivers.
+func (a *Auditor) Prune(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := a.db.DB.ExecContext(ctx,
+		`DELETE FROM audit_events WHERE ts < ?`,
+		cutoff.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("prune audit events: %w", err)
+	}
+	return res.RowsAffected()
+}
+
+// RunRetention periodically prunes audit events older than the retention
+// window, blocking until ctx is cancelled. A sweep runs immediately on start
+// (a long-lived process shouldn't wait a full interval to first prune) and
+// then every interval. A retention of zero or less disables retention and
+// returns immediately, preserving the keep-forever default.
+func (a *Auditor) RunRetention(ctx context.Context, retention, interval time.Duration, logger *slog.Logger) {
+	if retention <= 0 {
+		return
+	}
+	sweep := func() {
+		cutoff := time.Now().Add(-retention)
+		n, err := a.Prune(ctx, cutoff)
+		if err != nil {
+			logger.Warn("audit retention sweep failed", "err", err)
+			return
+		}
+		if n > 0 {
+			logger.Info("audit retention sweep",
+				"deleted", n, "olderThan", cutoff.UTC().Format(time.RFC3339))
+		}
+	}
+	sweep()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sweep()
+		}
+	}
 }
 
 // WriteJSON is a convenience for handlers.
