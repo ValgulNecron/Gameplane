@@ -54,6 +54,30 @@ func TestParseList(t *testing.T) {
 	}
 }
 
+func TestParseCounts(t *testing.T) {
+	cases := []struct {
+		name            string
+		in              string
+		wantOn, wantMax int
+		wantOK          bool
+	}{
+		{"max-of form", "There are 0 of a max of 20 players online:", 0, 20, true},
+		{"populated max-of", "There are 2 of a max of 20 players online: alice, bob", 2, 20, true},
+		{"slash form", "There are 3/30 players online: a, b, c", 3, 30, true},
+		{"unrecognized line", "nonsense", 0, 0, false},
+		{"partial line", "There are 4 of a max", 0, 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			on, mx, ok := ParseCounts(tc.in)
+			if on != tc.wantOn || mx != tc.wantMax || ok != tc.wantOK {
+				t.Errorf("ParseCounts(%q) = (%d, %d, %v), want (%d, %d, %v)",
+					tc.in, on, mx, ok, tc.wantOn, tc.wantMax, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestDeclaredMinecraftCommander(t *testing.T) {
 	c := newTemplateCommander(minecraftActions())
 	caps := c.Capabilities()

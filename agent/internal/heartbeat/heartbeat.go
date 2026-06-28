@@ -1,6 +1,6 @@
 // Package heartbeat periodically patches the owning GameServer's
-// status.agent.{lastHeartbeat, playersOnline, gameVersion} — plus the
-// agent's own cpu/memory/disk usage — so the control plane can
+// status.agent.{lastHeartbeat, playersOnline, playersMax, gameVersion} —
+// plus the agent's own cpu/memory/disk usage — so the control plane can
 // distinguish "pod ready" from "game actually up" and surface live
 // resource usage without a cluster metrics pipeline.
 //
@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
+	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
@@ -106,16 +107,20 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 		"version":       cfg.Version,
 		"gameVersion":   cfg.Game,
 	}
-	// playersOnline is null ("unknown") unless the game actually answered
-	// a player-count query. A failing "list" is common on startup and for
-	// games without RCON; emitting a sentinel like -1 here is wrong
+	// playersOnline/playersMax are null ("unknown") unless the game actually
+	// answered a player-count query. A failing "list" is common on startup
+	// and for games without RCON; emitting a sentinel like -1 here is wrong
 	// because the dashboard sums playersOnline across servers (-1 + -1 =
 	// -2). null/absent is the contract for "unknown" — a JSON merge patch
-	// with null clears any prior value.
-	if online, err := queryOnline(cfg.RCON); err == nil {
+	// with null clears any prior value. playersMax stays null when the game
+	// reports an online count but no maximum, so the dashboard shows "—"
+	// rather than a bogus cap of 0.
+	if online, maxN, err := queryPlayerCounts(cfg.RCON); err == nil {
 		agent["playersOnline"] = online
+		agent["playersMax"] = nullable(int64(maxN), maxN > 0)
 	} else {
 		agent["playersOnline"] = nil
+		agent["playersMax"] = nil
 	}
 	// Resource usage follows the same null-on-unknown contract: an
 	// unreadable source patches null so the dashboard renders "—" rather
@@ -152,25 +157,34 @@ func nullable(v int64, known bool) any {
 	return v
 }
 
-func queryOnline(rc Rcon) (int, error) {
+// queryPlayerCounts issues a single RCON "list" and derives the online count
+// and, when the response is in a recognized Minecraft format, the configured
+// maximum (max is 0 when no maximum is reported). The online count uses a
+// deliberately loose first-number parse so server variants whose phrasing
+// differs from the strict formats players.ParseCounts recognizes still report
+// a live count; max reuses the strict players parser. err is non-nil only when
+// RCON fails or no online count can be parsed at all.
+func queryPlayerCounts(rc Rcon) (online, max int, err error) {
 	raw, err := rc.Exec("list")
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	// Very loose parse — the full parser lives in internal/players.
-	// We only care about the first number.
-	var n int
+	if _, m, ok := players.ParseCounts(raw); ok {
+		max = m
+	}
+	// Very loose parse for online — we only care about the first number.
 	for i := 0; i < len(raw); i++ {
 		if raw[i] < '0' || raw[i] > '9' {
 			continue
 		}
+		n := 0
 		for i < len(raw) && raw[i] >= '0' && raw[i] <= '9' {
 			n = n*10 + int(raw[i]-'0')
 			i++
 		}
-		return n, nil
+		return n, max, nil
 	}
-	return 0, fmt.Errorf("no player count in %q", raw)
+	return 0, max, fmt.Errorf("no player count in %q", raw)
 }
 
 // readNamespace reads the SA-projected namespace file written into

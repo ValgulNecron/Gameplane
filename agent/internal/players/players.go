@@ -309,22 +309,46 @@ var (
 	reSlash = regexp.MustCompile(`There are (\d+)/(\d+) players online:?\s*(.*)`)
 )
 
-func parseList(raw string) Snapshot {
+// matchList runs the known "list" response formats against raw and returns
+// the matching regexp submatches, or nil when none match.
+func matchList(raw string) []string {
 	line := strings.TrimSpace(strings.ReplaceAll(raw, "\r", ""))
 	for _, re := range []*regexp.Regexp{reMaxOf, reSlash} {
 		if m := re.FindStringSubmatch(line); m != nil {
-			online, _ := strconv.Atoi(m[1])
-			maxN, _ := strconv.Atoi(m[2])
-			names := []string{}
-			if len(m) > 3 && strings.TrimSpace(m[3]) != "" {
-				for _, n := range strings.Split(m[3], ",") {
-					if s := strings.TrimSpace(n); s != "" {
-						names = append(names, s)
-					}
-				}
-			}
-			return Snapshot{Online: online, Max: maxN, Players: names}
+			return m
 		}
 	}
-	return Snapshot{Players: []string{}}
+	return nil
+}
+
+// ParseCounts extracts the online and max player counts from a raw RCON
+// "list" response. ok is false when the response matches no known format, in
+// which case the caller should treat both counts as unknown. It exists so the
+// heartbeat can reuse this parser instead of duplicating the formats.
+func ParseCounts(raw string) (online, max int, ok bool) {
+	m := matchList(raw)
+	if m == nil {
+		return 0, 0, false
+	}
+	online, _ = strconv.Atoi(m[1])
+	max, _ = strconv.Atoi(m[2])
+	return online, max, true
+}
+
+func parseList(raw string) Snapshot {
+	m := matchList(raw)
+	if m == nil {
+		return Snapshot{Players: []string{}}
+	}
+	online, _ := strconv.Atoi(m[1])
+	maxN, _ := strconv.Atoi(m[2])
+	names := []string{}
+	if len(m) > 3 && strings.TrimSpace(m[3]) != "" {
+		for _, n := range strings.Split(m[3], ",") {
+			if s := strings.TrimSpace(n); s != "" {
+				names = append(names, s)
+			}
+		}
+	}
+	return Snapshot{Online: online, Max: maxN, Players: names}
 }

@@ -76,6 +76,55 @@ func TestSendOnce(t *testing.T) {
 	}
 }
 
+// runSendOnce runs one heartbeat with the given RCON "list" output and returns
+// the agent sub-map of the captured status patch.
+func runSendOnce(t *testing.T, rconOut string) map[string]any {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+	if err := sendOnce(context.Background(), dyn, Config{
+		ServerName: "srv", Namespace: "ns", RCON: fakeRcon{out: rconOut},
+	}); err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(captured, &got); err != nil {
+		t.Fatalf("unmarshal patch: %v", err)
+	}
+	return got["status"].(map[string]any)["agent"].(map[string]any)
+}
+
+func TestSendOnce_EmitsPlayersMax(t *testing.T) {
+	t.Run("known max", func(t *testing.T) {
+		agent := runSendOnce(t, "There are 5 of a max of 30 players online:")
+		if agent["playersOnline"].(float64) != 5 {
+			t.Fatalf("playersOnline=%v", agent["playersOnline"])
+		}
+		if agent["playersMax"].(float64) != 30 {
+			t.Fatalf("playersMax=%v, want 30", agent["playersMax"])
+		}
+	})
+	t.Run("online but no max reported is null", func(t *testing.T) {
+		agent := runSendOnce(t, "There are 132 players")
+		if agent["playersOnline"].(float64) != 132 {
+			t.Fatalf("playersOnline=%v", agent["playersOnline"])
+		}
+		v, present := agent["playersMax"]
+		if !present {
+			t.Fatalf("playersMax key missing: %+v", agent)
+		}
+		if v != nil {
+			t.Fatalf("playersMax=%v, want null when no max reported", v)
+		}
+	})
+}
+
 func TestSendOnce_EmitsKnownUsage(t *testing.T) {
 	scheme := runtime.NewScheme()
 	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
@@ -211,28 +260,34 @@ func TestSendOnce_PatchErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestQueryOnline(t *testing.T) {
+func TestQueryPlayerCounts(t *testing.T) {
 	cases := []struct {
-		name string
-		out  string
-		err  error
-		want int
-		ok   bool
+		name    string
+		out     string
+		err     error
+		want    int
+		wantMax int
+		ok      bool
 	}{
-		{"basic count", "There are 7 of a max of 20", nil, 7, true},
-		{"no digits", "Server starting...", nil, 0, false},
-		{"leading zero", "0 players", nil, 0, true},
-		{"multi-digit", "There are 132 players", nil, 132, true},
-		{"rcon error", "", errors.New("boom"), 0, false},
+		{"max-of format", "There are 7 of a max of 20 players online:", nil, 7, 20, true},
+		{"slash format", "There are 3/16 players online:", nil, 3, 16, true},
+		{"partial line has no max", "There are 7 of a max", nil, 7, 0, true},
+		{"no digits", "Server starting...", nil, 0, 0, false},
+		{"leading zero", "0 players", nil, 0, 0, true},
+		{"multi-digit no max", "There are 132 players", nil, 132, 0, true},
+		{"rcon error", "", errors.New("boom"), 0, 0, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			n, err := queryOnline(fakeRcon{out: tc.out, err: tc.err})
+			n, maxN, err := queryPlayerCounts(fakeRcon{out: tc.out, err: tc.err})
 			if (err == nil) != tc.ok {
 				t.Fatalf("err=%v ok=%v", err, tc.ok)
 			}
 			if n != tc.want {
-				t.Fatalf("got %d, want %d", n, tc.want)
+				t.Fatalf("online got %d, want %d", n, tc.want)
+			}
+			if maxN != tc.wantMax {
+				t.Fatalf("max got %d, want %d", maxN, tc.wantMax)
 			}
 		})
 	}
