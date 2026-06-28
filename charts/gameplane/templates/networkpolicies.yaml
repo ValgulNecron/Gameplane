@@ -130,8 +130,12 @@ spec:
         - ipBlock: { cidr: 192.168.0.0/16 }
         - ipBlock: { cidr: 169.254.0.0/16 }
         {{- end }}
+      {{- with .Values.networkPolicies.probePorts }}
       ports:
-        - { protocol: TCP, port: 8090 }
+        {{- range . }}
+        - { protocol: {{ .protocol }}, port: {{ .port }} }
+        {{- end }}
+      {{- end }}
 {{- if .Values.networkPolicies.gameEgress.enabled }}
 ---
 # Allow game pods to reach the public internet for binary/asset/mod
