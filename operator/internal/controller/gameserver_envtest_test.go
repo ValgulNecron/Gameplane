@@ -598,6 +598,69 @@ func TestGameServer_RemovedNetworkingConverges(t *testing.T) {
 	})
 }
 
+// TestGameServer_HostnameSetsExternalDNSAnnotation — spec.networking.hostname
+// is published as the external-dns hostname annotation on the game Service and
+// pruned (via the managed-annotations sentinel) once the hostname is cleared.
+func TestGameServer_HostnameSetsExternalDNSAnnotation(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "dns", tmpl.Name)
+	gs.Spec.Networking = gameplanev1alpha1.GameServerNetworking{Hostname: "mc.example.com"}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	// The external-dns hint is stamped on the game Service and recorded as a
+	// managed key so a later hostname removal converges.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "dns"}, &svc); err != nil {
+			return false, err.Error()
+		}
+		if svc.Annotations[externalDNSHostnameAnnotation] != "mc.example.com" {
+			return false, "external-dns annotation not set: " + svc.Annotations[externalDNSHostnameAnnotation]
+		}
+		if !strings.Contains(svc.Annotations[managedServiceAnnotationsKey], externalDNSHostnameAnnotation) {
+			return false, "sentinel missing external-dns key: " + svc.Annotations[managedServiceAnnotationsKey]
+		}
+		return true, ""
+	})
+
+	// Clear the hostname: the annotation drops out of the desired set and the
+	// existing prune logic removes it from the Service.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var cur gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "dns"}, &cur); err != nil {
+			return err
+		}
+		cur.Spec.Networking.Hostname = ""
+		return k8sClient.Update(context.Background(), &cur)
+	}); err != nil {
+		t.Fatalf("update gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "dns"}, &svc); err != nil {
+			return false, err.Error()
+		}
+		if _, ok := svc.Annotations[externalDNSHostnameAnnotation]; ok {
+			return false, "external-dns annotation not pruned: " + svc.Annotations[externalDNSHostnameAnnotation]
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_HostportSetsContainerHostPort — expose: Hostport binds each
 // game container port on the node (HostPort == ContainerPort) while the game
 // Service stays ClusterIP.
