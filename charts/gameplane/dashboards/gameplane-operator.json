@@ -3,7 +3,7 @@
   "uid": "gameplane-operator",
   "tags": ["gameplane"],
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "editable": true,
   "refresh": "30s",
   "time": { "from": "now-6h", "to": "now" },
@@ -106,6 +106,25 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 30, "stacking": { "mode": "normal", "group": "A" } } } },
       "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max by (phase) (gameplane_gameservers)", "legendFormat": "{{phase}}" } ]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Backups failed",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max(gameplane_backups{phase=\"Failed\"})" } ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Backups by phase",
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 30, "stacking": { "mode": "normal", "group": "A" } } } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max by (phase) (gameplane_backups)", "legendFormat": "{{phase}}" } ]
     }
   ]
 }

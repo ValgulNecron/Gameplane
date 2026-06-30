@@ -17,6 +17,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `prometheusRules.enabled` gains a `GameplaneGameServerFailed` alert. Until
   now the dashboard and alerts plotted only controller-runtime internals; this
   is the first domain metric.
+- **operator:** companion fleet metric `gameplane_backups{phase=…}` (one gauge
+  per Backup phase), with a "Backups failed" stat + stacked "Backups by phase"
+  graph on the dashboard and a `GameplaneBackupFailed` alert — a silently failed
+  backup is a data-loss risk, so it's worth paging on.
 
 ## [0.2.0-beta.3] — 2026-06-27
 
