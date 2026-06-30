@@ -1,28 +1,41 @@
 {{- if .Values.defaultModuleSource.enabled }}
+{{- $src := .Values.defaultModuleSource }}
+{{- $type := $src.type | default "git" }}
 apiVersion: gameplane.local/v1alpha1
 kind: ModuleSource
 metadata:
-  name: {{ .Values.defaultModuleSource.name | default "default" }}
+  name: {{ $src.name | default "default" }}
   labels:
     {{- include "gameplane.labels" . | nindent 4 }}
 spec:
-  type: oci
-  refreshInterval: {{ .Values.defaultModuleSource.refreshInterval | default "1h" }}
+  type: {{ $type }}
+  refreshInterval: {{ $src.refreshInterval | default "1h" }}
+  {{- if eq $type "git" }}
+  git:
+    url: {{ $src.git.url | quote }}
+    ref: {{ $src.git.ref | default "main" | quote }}
+    {{- with $src.git.subPath }}
+    subPath: {{ . | quote }}
+    {{- end }}
+  {{- else if eq $type "oci" }}
   oci:
-    url: {{ .Values.defaultModuleSource.url | quote }}
-    insecure: {{ .Values.defaultModuleSource.insecure | default false }}
+    url: {{ $src.oci.url | quote }}
+    insecure: {{ $src.oci.insecure | default false }}
     modules:
-      {{- range .Values.defaultModuleSource.modules }}
+      {{- range $src.oci.modules }}
       - name: {{ . | quote }}
       {{- end }}
-    {{- with .Values.defaultModuleSource.pullSecretName }}
+    {{- with $src.oci.pullSecretName }}
     pullSecretRef:
       name: {{ . | quote }}
     {{- end }}
-  {{- if .Values.defaultModuleSource.verify.enabled }}
+  {{- if $src.oci.verify.enabled }}
   verify:
     key:
       name: gameplane-module-cosign-pub
+  {{- end }}
+  {{- else }}
+  {{- fail (printf "defaultModuleSource.type must be \"git\" or \"oci\", got %q" $type) }}
   {{- end }}
 {{- end }}
 {{- if .Values.uploadModuleSource.enabled }}

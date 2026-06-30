@@ -281,8 +281,9 @@ dev-install: ## Install Gameplane Helm chart into the selected cluster
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
 		--set image.registry=$(REGISTRY) \
-		--set defaultModuleSource.url=$(MODULE_SOURCE_URL) \
-		--set defaultModuleSource.insecure=$(MODULE_SOURCE_INSECURE)
+		--set defaultModuleSource.type=oci \
+		--set defaultModuleSource.oci.url=$(MODULE_SOURCE_URL) \
+		--set defaultModuleSource.oci.insecure=$(MODULE_SOURCE_INSECURE)
 
 dev-down: ## Tear down: delete the kind cluster, or uninstall on a remote cluster
 ifeq ($(CLUSTER),remote)

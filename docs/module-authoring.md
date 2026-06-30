@@ -290,18 +290,21 @@ every `v*` tag, pushing each bundle to `ghcr.io/<owner>/gameplane-modules` and
 signing it by digest. The job is gated on `COSIGN_PRIVATE_KEY`: until the key
 exists the release simply skips module publishing.
 
-**Verifying the official source (operator).** Paste the published `cosign.pub`
-into the chart and turn verification on:
+**Verifying the official source (operator).** Signing is an OCI concept, so
+switch the default source to `type: oci`, paste the published `cosign.pub` into
+the chart, and turn verification on:
 
 ```yaml
 # values.yaml
 defaultModuleSource:
-  verify:
-    enabled: true
-    cosignPublicKey: |
-      -----BEGIN PUBLIC KEY-----
-      …
-      -----END PUBLIC KEY-----
+  type: oci
+  oci:
+    verify:
+      enabled: true
+      cosignPublicKey: |
+        -----BEGIN PUBLIC KEY-----
+        …
+        -----END PUBLIC KEY-----
 ```
 
 The chart writes the key to a `gameplane-module-cosign-pub` Secret in the

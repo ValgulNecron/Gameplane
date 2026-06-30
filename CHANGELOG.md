@@ -22,6 +22,16 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   graph on the dashboard and a `GameplaneBackupFailed` alert — a silently failed
   backup is a data-loss risk, so it's worth paging on.
 
+### Changed
+
+- **chart:** the bundled `defaultModuleSource` now defaults to a **git** source
+  that indexes the public `gameplane-module` repository, so the official games
+  appear in the Modules page out of the box — no OCI registry to publish first.
+  Set `defaultModuleSource.type: oci` to pull (optionally cosign-signed) bundles
+  from a registry instead. **Breaking values change:** the former top-level
+  `url` / `insecure` / `modules` / `pullSecretName` / `verify` keys moved under
+  `defaultModuleSource.oci.*`.
+
 ### Fixed
 
 - **operator:** the Servers list "Node" column was always blank — nothing ever
