@@ -291,8 +291,9 @@ signing it by digest. The job is gated on `COSIGN_PRIVATE_KEY`: until the key
 exists the release simply skips module publishing.
 
 **Verifying the official source (operator).** Signing is an OCI concept, so
-switch the default source to `type: oci`, paste the published `cosign.pub` into
-the chart, and turn verification on:
+switch the default source to `type: oci` and turn verification on. The official
+module-signing public key already ships in the chart's
+`defaultModuleSource.oci.verify.cosignPublicKey`, so you only flip `enabled`:
 
 ```yaml
 # values.yaml
@@ -301,10 +302,8 @@ defaultModuleSource:
   oci:
     verify:
       enabled: true
-      cosignPublicKey: |
-        -----BEGIN PUBLIC KEY-----
-        …
-        -----END PUBLIC KEY-----
+      # cosignPublicKey ships with the chart (the official ed25519 key);
+      # override it only to pin a different signer.
 ```
 
 The chart writes the key to a `gameplane-module-cosign-pub` Secret in the

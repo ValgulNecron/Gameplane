@@ -31,6 +31,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   from a registry instead. **Breaking values change:** the former top-level
   `url` / `insecure` / `modules` / `pullSecretName` / `verify` keys moved under
   `defaultModuleSource.oci.*`.
+- **chart:** the official module-signing public key (ed25519) now ships in
+  `defaultModuleSource.oci.verify.cosignPublicKey`, so verifying official bundles
+  is just `type: oci` + `oci.verify.enabled: true` — no key to paste. Still off
+  by default.
 
 ### Fixed
 

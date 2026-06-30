@@ -211,15 +211,17 @@ defaultModuleSource:
     # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
     # namespace for private registries. Leave empty for public registries.
     pullSecretName: ""
-    # Cosign signature verification (oci only). Off by default because it needs
-    # the project's published signing public key. Once you have it, paste the
-    # PEM into cosignPublicKey and set enabled: true; the operator then refuses
-    # any bundle from this source not signed by that key. Verification is keyed
-    # and offline (no Rekor). The key is published with each release; see
+    # Cosign signature verification (oci only). The official Gameplane
+    # module-signing public key (ed25519) ships below; set enabled: true (with
+    # type: oci) to refuse any official bundle not signed by the matching
+    # private key. Verification is keyed and offline (no Rekor). See
     # docs/module-authoring.md "Signing official bundles".
     verify:
       enabled: false
-      cosignPublicKey: ""   # PEM, e.g. "-----BEGIN PUBLIC KEY-----\n…"
+      cosignPublicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAYckd3bJCpDVzsH0RzBcx0Hpb1S85yY77yRxWwFwzqww=
+        -----END PUBLIC KEY-----
 
 # Upload-backed ModuleSource: bundles uploaded through the dashboard
 # (stored as labeled ConfigMaps in the operator namespace) are indexed
