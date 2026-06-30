@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -173,6 +174,12 @@ func main() {
 		setupLog.Error(err, "unable to set up controller", "controller", "Module")
 		os.Exit(1)
 	}
+
+	// Fleet metrics: report how many GameServers sit in each phase, served on
+	// the manager's existing /metrics endpoint. The collector reads the shared
+	// cache (populated by the GameServer controller's watch above) at scrape
+	// time, so registration order relative to Start doesn't matter.
+	metrics.Registry.MustRegister(controller.NewGameServerCollector(mgr.GetClient()))
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

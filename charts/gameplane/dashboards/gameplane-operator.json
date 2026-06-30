@@ -3,7 +3,7 @@
   "uid": "gameplane-operator",
   "tags": ["gameplane"],
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "30s",
   "time": { "from": "now-6h", "to": "now" },
@@ -77,6 +77,35 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
       "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum by (name) (workqueue_depth)", "legendFormat": "{{name}}" } ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "GameServers running",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max(gameplane_gameservers{phase=\"Running\"})" } ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "GameServers failed",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max(gameplane_gameservers{phase=\"Failed\"})" } ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "GameServers by phase",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 30, "stacking": { "mode": "normal", "group": "A" } } } },
+      "targets": [ { "refId": "A", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max by (phase) (gameplane_gameservers)", "legendFormat": "{{phase}}" } ]
     }
   ]
 }
