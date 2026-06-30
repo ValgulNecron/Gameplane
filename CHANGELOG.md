@@ -40,6 +40,13 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   surfaced at `gameplane_audit_webhook_events_total{result=sent|failed|dropped}`
   on `/metrics`). An optional `Authorization` header is Secret-sourced
   (`api.audit.webhook.authSecretRef`), never a flag.
+- **audit-syslog-bridge:** a new, generic HTTP-JSON → **syslog** relay image that
+  sits behind the audit webhook sink, so audit events can be forwarded to a
+  syslog/SIEM collector (RFC 5424 over TCP, TCP+TLS, or UDP). Deploy the bundled
+  relay with `api.audit.webhook.syslogBridge.enabled=true` +
+  `…syslogBridge.syslog.addr`, and the chart auto-points the webhook at it (off
+  by default). The bridge forwards the request body verbatim, so it works for
+  any JSON webhook source, not just Gameplane.
 
 ### Changed
 
