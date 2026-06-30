@@ -63,7 +63,7 @@
                           "type": "text",
                           "id": "EEzYJ",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -299,7 +299,7 @@
                       "type": "text",
                       "id": "yGnvz",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -3015,7 +3015,7 @@
                           "type": "text",
                           "id": "0Glul",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -3317,7 +3317,7 @@
                       "type": "text",
                       "id": "LQQBz",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -4654,7 +4654,7 @@
                                           "type": "text",
                                           "id": "Umh55",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "backup-2026-04-17-06 · 824 MB → s3://kestrel-backups",
+                                          "content": "backup-2026-04-17-06 · 824 MB → s3://gameplane-backups",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -5695,7 +5695,7 @@
                           "type": "text",
                           "id": "6VWbc",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -5997,7 +5997,7 @@
                       "type": "text",
                       "id": "zzKoG",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -7599,7 +7599,7 @@
                           "type": "text",
                           "id": "fv0Wk",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -7901,7 +7901,7 @@
                       "type": "text",
                       "id": "9vSp0",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -9748,7 +9748,7 @@
                           "type": "text",
                           "id": "WMk1z",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -10050,7 +10050,7 @@
                       "type": "text",
                       "id": "gb2cG",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -12023,7 +12023,7 @@
                                   "type": "text",
                                   "id": "0pMNo",
                                   "fill": "#d4d4d4",
-                                  "content": "motd=§6Kestrel§r §7·§r mc-survival",
+                                  "content": "motd=§6Gameplane§r §7·§r mc-survival",
                                   "lineHeight": 1.6,
                                   "fontFamily": "$c:--font-primary",
                                   "fontSize": 12,
@@ -12125,7 +12125,7 @@
                           "type": "text",
                           "id": "p9gBV",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -12427,7 +12427,7 @@
                       "type": "text",
                       "id": "4dUx9",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -14565,7 +14565,7 @@
                           "type": "text",
                           "id": "BMO5g",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -14867,7 +14867,7 @@
                       "type": "text",
                       "id": "ftyA2",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -15691,7 +15691,7 @@
                           "type": "text",
                           "id": "lyIwQ",
                           "fill": "$c:--muted-foreground",
-                          "content": "s3://kestrel-backups",
+                          "content": "s3://gameplane-backups",
                           "fontFamily": "$c:--font-secondary",
                           "fontSize": 11,
                           "fontWeight": "normal"
@@ -17915,7 +17915,7 @@
                           "type": "text",
                           "id": "oPGer",
                           "fill": "#7bb4f5",
-                          "content": "apiVersion: kestrel.gg/v1alpha1",
+                          "content": "apiVersion: gameplane.local/v1alpha1",
                           "lineHeight": 1.6,
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 11,
@@ -18347,7 +18347,7 @@
                           "type": "text",
                           "id": "2FJDg",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 20,
                           "fontWeight": "600"
@@ -18386,7 +18386,7 @@
                       "type": "text",
                       "id": "qIlem",
                       "fill": "$c:--muted-foreground",
-                      "content": "Welcome to Kestrel",
+                      "content": "Welcome to Gameplane",
                       "fontFamily": "$c:--font-secondary",
                       "fontSize": 13,
                       "fontWeight": "normal"
@@ -18951,7 +18951,7 @@
                           "type": "text",
                           "id": "LYnzf",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -19257,7 +19257,7 @@
                       "type": "text",
                       "id": "B4cOH",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -20711,7 +20711,7 @@
                           "type": "text",
                           "id": "lmnKl",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -21019,7 +21019,7 @@
                       "type": "text",
                       "id": "sX4aD",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -23113,7 +23113,7 @@
                               "type": "text",
                               "id": "jmqmX",
                               "fill": "$c:--muted-foreground",
-                              "content": "docs: kestrel.dev/modules",
+                              "content": "docs: gameplane.dev/modules",
                               "fontFamily": "$c:--font-secondary",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -23218,7 +23218,7 @@
                           "type": "text",
                           "id": "rxdm6",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -23520,7 +23520,7 @@
                       "type": "text",
                       "id": "QZ0NT",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -28908,7 +28908,7 @@
                           "type": "text",
                           "id": "h5gd1",
                           "fill": "$c:--muted-foreground",
-                          "content": ".kestrel.homelab-01.dev",
+                          "content": ".gameplane.homelab-01.dev",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 14,
                           "fontWeight": "normal"
@@ -29447,7 +29447,7 @@
                   "type": "text",
                   "id": "OfkK6",
                   "fill": "$c:--muted-foreground",
-                  "content": "Port mc-hardcore:25565 (TCP) will be reachable at mc-hardcore.kestrel.homelab-01.dev",
+                  "content": "Port mc-hardcore:25565 (TCP) will be reachable at mc-hardcore.gameplane.homelab-01.dev",
                   "fontFamily": "$c:--font-primary",
                   "fontSize": 12,
                   "fontWeight": "normal"
@@ -29814,7 +29814,7 @@
                                   "type": "text",
                                   "id": "xKNPc",
                                   "fill": "$c:--foreground",
-                                  "content": "kestrel-games",
+                                  "content": "gameplane-games",
                                   "fontFamily": "$c:--font-primary",
                                   "fontSize": 12,
                                   "fontWeight": "500"
@@ -30112,7 +30112,7 @@
                                   "type": "text",
                                   "id": "kX2uo",
                                   "fill": "$c:--foreground",
-                                  "content": "mc-hardcore.kestrel.homelab-01.dev",
+                                  "content": "mc-hardcore.gameplane.homelab-01.dev",
                                   "fontFamily": "$c:--font-primary",
                                   "fontSize": 12,
                                   "fontWeight": "500"
@@ -30286,7 +30286,7 @@
                           "type": "text",
                           "id": "YAqOY",
                           "fill": "#7bb4f5",
-                          "content": "apiVersion: kestrel.gg/v1alpha1",
+                          "content": "apiVersion: gameplane.local/v1alpha1",
                           "lineHeight": 1.6,
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 11,
@@ -30326,7 +30326,7 @@
                           "type": "text",
                           "id": "6oldm",
                           "fill": "#a7e39a",
-                          "content": "  namespace: kestrel-games",
+                          "content": "  namespace: gameplane-games",
                           "lineHeight": 1.6,
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 11,
@@ -30663,7 +30663,7 @@
                           "type": "text",
                           "id": "yjlk1",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -30969,7 +30969,7 @@
                       "type": "text",
                       "id": "qkxdg",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -31080,7 +31080,7 @@
                           "type": "text",
                           "id": "rdjXN",
                           "fill": "$c:--muted-foreground",
-                          "content": "Manage access to the kestrel control plane.",
+                          "content": "Manage access to the Gameplane control plane.",
                           "fontFamily": "$c:--font-secondary",
                           "fontSize": 13,
                           "fontWeight": "normal"
@@ -31494,7 +31494,7 @@
                                   "type": "text",
                                   "id": "ymYt7",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "valgul@kestrel.dev · you",
+                                  "content": "valgul@gameplane.dev · you",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -31687,7 +31687,7 @@
                                   "type": "text",
                                   "id": "YPpL3",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "alex.chen@kestrel.dev",
+                                  "content": "alex.chen@gameplane.dev",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -31880,7 +31880,7 @@
                                   "type": "text",
                                   "id": "KoczX",
                                   "fill": "$c:--color-warning-foreground",
-                                  "content": "maria.santos@kestrel.dev · invited",
+                                  "content": "maria.santos@gameplane.dev · invited",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -32074,7 +32074,7 @@
                                   "type": "text",
                                   "id": "ScBRa",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "jordan.li@kestrel.dev",
+                                  "content": "jordan.li@gameplane.dev",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -32267,7 +32267,7 @@
                                   "type": "text",
                                   "id": "rPTl9",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "sam.taylor@kestrel.dev",
+                                  "content": "sam.taylor@gameplane.dev",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -32676,7 +32676,7 @@
                           "type": "text",
                           "id": "oSXTW",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -32982,7 +32982,7 @@
                       "type": "text",
                       "id": "RDk7G",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -33093,7 +33093,7 @@
                           "type": "text",
                           "id": "Y9ErA",
                           "fill": "$c:--muted-foreground",
-                          "content": "Platform-wide configuration for this kestrel instance.",
+                          "content": "Platform-wide configuration for this Gameplane instance.",
                           "fontFamily": "$c:--font-secondary",
                           "fontSize": 13,
                           "fontWeight": "normal"
@@ -33447,7 +33447,7 @@
                                   "type": "text",
                                   "id": "blLH9",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "Basic identity for this kestrel instance.",
+                                  "content": "Basic identity for this Gameplane instance.",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
@@ -33591,7 +33591,7 @@
                                           "type": "text",
                                           "id": "JB4QL",
                                           "fill": "$c:--foreground",
-                                          "content": "https://kestrel.homelab-01.dev",
+                                          "content": "https://gameplane.homelab-01.dev",
                                           "fontFamily": "$c:--font-primary",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
@@ -33659,7 +33659,7 @@
                                           "type": "text",
                                           "id": "06eyd",
                                           "fill": "$c:--foreground",
-                                          "content": "kestrel-games",
+                                          "content": "gameplane-games",
                                           "fontFamily": "$c:--font-primary",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
@@ -33900,7 +33900,7 @@
                                           "type": "text",
                                           "id": "mFB8C",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "https://auth.homelab-01.dev/realms/kestrel · 4 users mapped",
+                                          "content": "https://auth.homelab-01.dev/realms/gameplane · 4 users mapped",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -33999,7 +33999,7 @@
                                           "type": "text",
                                           "id": "mog1g",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "domain: kestrel.dev · 1 user mapped",
+                                          "content": "domain: gameplane.dev · 1 user mapped",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -34231,7 +34231,7 @@
                                           "type": "text",
                                           "id": "kE5k3",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "bucket: kestrel-backups · region: us-east-1 · 38.2 GB stored",
+                                          "content": "bucket: gameplane-backups · region: us-east-1 · 38.2 GB stored",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -34382,7 +34382,7 @@
                                           "type": "text",
                                           "id": "xcE6z",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "account: valgul · bucket: kestrel-offsite · weekly mirror",
+                                          "content": "account: valgul · bucket: gameplane-offsite · weekly mirror",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -34523,7 +34523,7 @@
                                           "type": "text",
                                           "id": "K2U4T",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "#kestrel-alerts · routes: backup-failed, crash-loop, player-join",
+                                          "content": "#gameplane-alerts · routes: backup-failed, crash-loop, player-join",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -34699,7 +34699,7 @@
                                           "type": "text",
                                           "id": "EBKBo",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "smtp.fastmail.com:465 · from: kestrel@homelab-01.dev",
+                                          "content": "smtp.fastmail.com:465 · from: gameplane@homelab-01.dev",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
@@ -34805,7 +34805,7 @@
                           "type": "text",
                           "id": "FpOwN",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -35111,7 +35111,7 @@
                       "type": "text",
                       "id": "oHSAi",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -35637,7 +35637,7 @@
                                   "type": "text",
                                   "id": "aAB1s",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "valgul@kestrel.dev · you",
+                                  "content": "valgul@gameplane.dev · you",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -35830,7 +35830,7 @@
                                   "type": "text",
                                   "id": "M22KuN",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "alex.chen@kestrel.dev",
+                                  "content": "alex.chen@gameplane.dev",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -36023,7 +36023,7 @@
                                   "type": "text",
                                   "id": "MDXWP",
                                   "fill": "$c:--color-warning-foreground",
-                                  "content": "maria.santos@kestrel.dev · invited",
+                                  "content": "maria.santos@gameplane.dev · invited",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -36217,7 +36217,7 @@
                                   "type": "text",
                                   "id": "IqySc",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "jordan.li@kestrel.dev",
+                                  "content": "jordan.li@gameplane.dev",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -36410,7 +36410,7 @@
                                   "type": "text",
                                   "id": "pkkRq",
                                   "fill": "$c:--muted-foreground",
-                                  "content": "sam.taylor@kestrel.dev",
+                                  "content": "sam.taylor@gameplane.dev",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -37045,7 +37045,7 @@
               "fill": "$c:--muted-foreground",
               "textGrowth": "fixed-width",
               "width": "fill_container",
-              "content": "• Node placement \"pin\" → spec.nodeSelector[\"kestrel.gg/pinned\"]=\"true\". \"gpu\" → spec.nodeSelector[\"kestrel.gg/gpu\"]=\"true\". \"auto\" → omit.\n• Drop metadata.namespace from POST body — API enforces from the session.\n• On success: queryClient.invalidateQueries([\"servers\"]) before nav.",
+              "content": "• Node placement \"pin\" → spec.nodeSelector[\"gameplane.local/pinned\"]=\"true\". \"gpu\" → spec.nodeSelector[\"gameplane.local/gpu\"]=\"true\". \"auto\" → omit.\n• Drop metadata.namespace from POST body — API enforces from the session.\n• On success: queryClient.invalidateQueries([\"servers\"]) before nav.",
               "lineHeight": 1.5,
               "fontFamily": "$c:--font-secondary",
               "fontSize": 12,
@@ -38223,7 +38223,7 @@
                           "type": "text",
                           "id": "zDV3X",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -38283,7 +38283,7 @@
                       "type": "text",
                       "id": "Y17hlr",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -40116,7 +40116,7 @@
                       "id": "GL4wS",
                       "name": "spLoc",
                       "fill": "$c:--muted-foreground",
-                      "content": "ghcr.io/kestrel-gg/modules",
+                      "content": "ghcr.io/valgulnecron/gameplane-modules",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 11,
                       "fontWeight": "normal"
@@ -40291,7 +40291,7 @@
                       "id": "qXuKq",
                       "name": "spLoc",
                       "fill": "$c:--muted-foreground",
-                      "content": "github.com/example/kestrel-modules@main",
+                      "content": "github.com/ValgulNecron/gameplane-module@main",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 11,
                       "fontWeight": "normal"
@@ -40925,7 +40925,7 @@
                       "id": "aC20v",
                       "name": "asValue",
                       "fill": "$c:--foreground",
-                      "content": "https://github.com/example/kestrel-modules",
+                      "content": "https://github.com/ValgulNecron/gameplane-module",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 13,
                       "fontWeight": "normal"
@@ -41290,7 +41290,7 @@
                       "id": "XgWRM",
                       "name": "asValue",
                       "fill": "$c:--foreground",
-                      "content": "github.com/kestrel-gg/modules/.github/workflows/release.yml",
+                      "content": "github.com/ValgulNecron/gameplane-module/.github/workflows/release.yml",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 13,
                       "fontWeight": "normal"
@@ -41770,7 +41770,7 @@
                           "type": "text",
                           "id": "c93SyR",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -42006,7 +42006,7 @@
                       "type": "text",
                       "id": "LVidw",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -44359,7 +44359,7 @@
                           "type": "text",
                           "id": "V9gRR",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -44661,7 +44661,7 @@
                       "type": "text",
                       "id": "rjMza",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -45774,7 +45774,7 @@
                           "type": "text",
                           "id": "i0vWui",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -46076,7 +46076,7 @@
                       "type": "text",
                       "id": "nRk7q",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
@@ -47879,7 +47879,7 @@
                           "type": "text",
                           "id": "lg8Fj",
                           "fill": "$c:--foreground",
-                          "content": "kestrel",
+                          "content": "gameplane",
                           "fontFamily": "$c:--font-primary",
                           "fontSize": 16,
                           "fontWeight": "600"
@@ -48181,7 +48181,7 @@
                       "type": "text",
                       "id": "pwG1E",
                       "fill": "$c:--muted-foreground",
-                      "content": "kestrel",
+                      "content": "gameplane",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "normal"
