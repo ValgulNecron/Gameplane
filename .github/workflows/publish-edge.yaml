@@ -60,7 +60,8 @@ jobs:
           tags: |
             type=raw,value=edge
             type=sha,prefix=sha-,format=short
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.component }}/Dockerfile
@@ -72,3 +73,31 @@ jobs:
             VERSION=edge-${{ github.sha }}
           cache-from: type=gha,scope=edge-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=edge-${{ matrix.component }}
+      # Keyed-sign the pushed image by digest (offline, no Rekor), mirroring the
+      # module-bundle signing in release.yaml. Gated on COSIGN_PRIVATE_KEY so the
+      # edge publish still succeeds before the signing key is provisioned
+      # (secrets aren't usable in `if:`, so gate via a plain step output).
+      - name: signing key present?
+        id: gate
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::COSIGN_PRIVATE_KEY not set — skipping image signing."
+          fi
+      - name: install cosign
+        if: steps.gate.outputs.enabled == 'true'
+        uses: sigstore/cosign-installer@v3
+      - name: sign image (keyed, offline)
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY \
+            "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"

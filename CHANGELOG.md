@@ -21,6 +21,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   per Backup phase), with a "Backups failed" stat + stacked "Backups by phase"
   graph on the dashboard and a `GameplaneBackupFailed` alert — a silently failed
   backup is a data-loss risk, so it's worth paging on.
+- **ci:** the published component images (`:edge` on every `main` push and the
+  versioned images on a `v*` release) are now keyed-cosign-signed by digest
+  (offline, no Rekor), matching the official module bundles. Verify with
+  `cosign verify --key cosign.pub ghcr.io/valgulnecron/gameplane/<component>`.
+  Gated on `COSIGN_PRIVATE_KEY`, so publishing still works before the key is set.
+  Signing and publishing run only on `main`/tags, never on PRs.
 
 ### Fixed
 
