@@ -28,11 +28,18 @@ func gsWithPhase(name string, phase gameplanev1alpha1.GameServerPhase) *gameplan
 	}
 }
 
+func backupWithPhase(name string, phase gameplanev1alpha1.BackupPhase) *gameplanev1alpha1.Backup {
+	return &gameplanev1alpha1.Backup{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "gameplane-games"},
+		Status:     gameplanev1alpha1.BackupStatus{Phase: phase},
+	}
+}
+
 // collectPhaseCounts registers the collector with a throwaway registry, gathers
-// once, and returns the gameplane_gameservers value keyed by its phase label.
-// Going through a real Gather exercises Describe/Collect end to end without
-// pulling in the testutil package (and its extra module deps).
-func collectPhaseCounts(t *testing.T, c prometheus.Collector) map[string]float64 {
+// once, and returns the named metric's value keyed by its phase label. Going
+// through a real Gather exercises Describe/Collect end to end without pulling in
+// the testutil package (and its extra module deps).
+func collectPhaseCounts(t *testing.T, c prometheus.Collector, metricName string) map[string]float64 {
 	t.Helper()
 	reg := prometheus.NewRegistry()
 	if err := reg.Register(c); err != nil {
@@ -44,7 +51,7 @@ func collectPhaseCounts(t *testing.T, c prometheus.Collector) map[string]float64
 	}
 	out := map[string]float64{}
 	for _, mf := range mfs {
-		if mf.GetName() != "gameplane_gameservers" {
+		if mf.GetName() != metricName {
 			continue
 		}
 		for _, m := range mf.GetMetric() {
@@ -71,7 +78,7 @@ func TestGameServerCollector(t *testing.T) {
 		gsWithPhase("f", ""),
 	).Build()
 
-	got := collectPhaseCounts(t, NewGameServerCollector(cl))
+	got := collectPhaseCounts(t, NewGameServerCollector(cl), "gameplane_gameservers")
 
 	// Every phase reports a sample (0 when empty), and the counts sum to the
 	// fleet size (6): 3 Running, 1 Failed, 2 Pending (one explicit + the
@@ -93,7 +100,7 @@ func TestGameServerCollector(t *testing.T) {
 func TestGameServerCollectorEmptyFleet(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(metricsScheme(t)).Build()
 
-	got := collectPhaseCounts(t, NewGameServerCollector(cl))
+	got := collectPhaseCounts(t, NewGameServerCollector(cl), "gameplane_gameservers")
 
 	// An empty fleet still reports one zero-valued series per known phase, so
 	// the dashboard shows a flat 0 line rather than a gap.
@@ -104,5 +111,28 @@ func TestGameServerCollectorEmptyFleet(t *testing.T) {
 		if v := got[string(phase)]; v != 0 {
 			t.Errorf("empty fleet: phase %q = %v, want 0", phase, v)
 		}
+	}
+}
+
+func TestBackupCollector(t *testing.T) {
+	cl := fake.NewClientBuilder().WithScheme(metricsScheme(t)).WithObjects(
+		backupWithPhase("a", gameplanev1alpha1.BackupPhaseSucceeded),
+		backupWithPhase("b", gameplanev1alpha1.BackupPhaseSucceeded),
+		backupWithPhase("c", gameplanev1alpha1.BackupPhaseFailed),
+		backupWithPhase("d", gameplanev1alpha1.BackupPhaseRunning),
+		// No phase yet (just created, not reconciled) — bucketed as Pending.
+		backupWithPhase("e", ""),
+	).Build()
+
+	got := collectPhaseCounts(t, NewBackupCollector(cl), "gameplane_backups")
+
+	want := map[string]float64{
+		"Pending":   1,
+		"Running":   1,
+		"Succeeded": 2,
+		"Failed":    1,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("backup phase counts:\n got %v\nwant %v", got, want)
 	}
 }

@@ -56,10 +56,10 @@ spec:
               A {{`{{ $labels.name }}`}} reconcile has been running for over 5
               minutes ({{`{{ $value | printf "%.0f" }}`}}s).
     - name: gameplane.fleet
-      # Alerts on the operator's domain metric (gameplane_gameservers), labelled
-      # by GameServer lifecycle phase. max() collapses the series across operator
-      # replicas — each replica's /metrics reports the same cache-derived counts,
-      # so without it a 2-replica install would double-count.
+      # Alerts on the operator's domain metrics (gameplane_gameservers,
+      # gameplane_backups), labelled by phase. max() collapses each series across
+      # operator replicas — every replica's /metrics reports the same
+      # cache-derived counts, so without it a 2-replica install would double-count.
       rules:
         - alert: GameplaneGameServerFailed
           # One or more GameServers stuck in the Failed phase — a crashed game
@@ -73,4 +73,17 @@ spec:
             description: >-
               {{`{{ $value }}`}} GameServer(s) have been in the Failed phase for
               over 10 minutes. Check the GameServer status and the operator logs.
+        - alert: GameplaneBackupFailed
+          # A failed Backup is a data-loss risk and lingers as a Failed object
+          # until retention prunes it or a later backup succeeds — page on it.
+          expr: max(gameplane_backups{phase="Failed"}) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Gameplane Backup(s) in the Failed phase
+            description: >-
+              {{`{{ $value }}`}} Backup(s) are in the Failed phase. A backup
+              failed and has not been superseded; check the Backup status and the
+              operator logs before relying on restore.
 {{- end }}

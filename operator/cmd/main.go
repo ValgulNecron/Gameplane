@@ -175,11 +175,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Fleet metrics: report how many GameServers sit in each phase, served on
-	// the manager's existing /metrics endpoint. The collector reads the shared
-	// cache (populated by the GameServer controller's watch above) at scrape
+	// Fleet metrics: report how many GameServers and Backups sit in each phase,
+	// served on the manager's existing /metrics endpoint. The collectors read
+	// the shared cache (populated by the controllers' watches above) at scrape
 	// time, so registration order relative to Start doesn't matter.
-	metrics.Registry.MustRegister(controller.NewGameServerCollector(mgr.GetClient()))
+	metrics.Registry.MustRegister(
+		controller.NewGameServerCollector(mgr.GetClient()),
+		controller.NewBackupCollector(mgr.GetClient()),
+	)
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
