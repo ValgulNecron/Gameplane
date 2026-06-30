@@ -27,6 +27,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `cosign verify --key cosign.pub ghcr.io/valgulnecron/gameplane/<component>`.
   Gated on `COSIGN_PRIVATE_KEY`, so publishing still works before the key is set.
   Signing and publishing run only on `main`/tags, never on PRs.
+- **api:** server-side audit-log export — `GET /admin/audit/export?format=csv|json`
+  (admin-only) streams the **entire** audit trail, optionally bounded by RFC3339
+  `since`/`until`. Unlike the dashboard's client-side CSV (only the loaded page),
+  this returns the full log in one download for compliance/archival, streamed
+  row-by-row so a large table isn't buffered in memory.
 
 ### Changed
 

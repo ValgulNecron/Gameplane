@@ -181,6 +181,35 @@ func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, err
 	return out, rows.Err()
 }
 
+// Stream invokes fn for every audit event within the optional time window,
+// oldest-first. since/until are RFC3339 bounds (inclusive); an empty string
+// means unbounded. It iterates rows rather than buffering, so the whole table
+// can be exported without holding it in memory. ts is stored as fixed-width
+// RFC3339 (see Middleware), so the lexicographic comparison is chronological —
+// no per-row parsing, and it stays portable across the sqlite and pgx drivers.
+func (a *Auditor) Stream(ctx context.Context, since, until string, fn func(Event) error) error {
+	rows, err := a.db.DB.QueryContext(ctx,
+		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,'')
+		 FROM audit_events
+		 WHERE (? = '' OR ts >= ?) AND (? = '' OR ts <= ?)
+		 ORDER BY id ASC`, since, since, until, until,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP); err != nil {
+			return err
+		}
+		if err := fn(e); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 // ---- retention ----
 
 // Prune deletes audit events whose ts predates the cutoff and returns the
