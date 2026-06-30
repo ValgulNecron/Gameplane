@@ -20,11 +20,13 @@ know that the following are **deferred past the first beta**:
 - **Per-GameServer (owner-based) RBAC** — authorization is namespace-scoped
   today; server ownership is informational only.
 - **Multi-cluster** — one target cluster per dashboard.
-- **Audit-log push sink** — audit events are stored in the database, pruned on a
-  configurable retention window (`api.audit.retentionDays`), exportable in full
-  via `GET /admin/audit/export` (CSV/JSON), and mirrored to stdout as structured
-  JSON for a cluster log aggregator (`api.audit.stdout`); a direct *push* sink
-  (S3/syslog) is not built in yet.
+- **Native S3/syslog audit sinks** — audit events are stored in the database,
+  pruned on a configurable retention window (`api.audit.retentionDays`),
+  exportable in full via `GET /admin/audit/export` (CSV/JSON), mirrored to
+  stdout as structured JSON (`api.audit.stdout`), and **pushed to any HTTP/JSON
+  receiver via an outbound webhook** (`api.audit.webhook.url`). A *native* S3 or
+  syslog sink isn't built in, but either can sit behind the webhook — a small
+  HTTP receiver does the transport.
 
 CI runs the full suite (unit, envtest, and kind e2e) on every PR. The kind
 e2e jobs can occasionally flake under resource pressure on the self-hosted

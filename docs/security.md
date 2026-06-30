@@ -129,6 +129,9 @@ Secrets Gameplane reads or creates, by convention:
 - `gameplane-agent-client` — API's client cert/key
 - `gameplane-oidc` — OIDC client secret (user-supplied)
 - `gameplane-backup-repo` — restic repo URL + password (user-supplied)
+- audit-webhook auth — any Secret you reference via
+  `api.audit.webhook.authSecretRef` (user-supplied). The token is injected as an
+  env var, never a flag, so it does not appear in the pod spec or `ps` output.
 
 Rotation: deleting the `-rcon` secret triggers a reconciliation and
 generates a fresh password on the next pod restart.
