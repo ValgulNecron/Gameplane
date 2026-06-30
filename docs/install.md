@@ -87,7 +87,9 @@ Top-level knobs (see `values.yaml` for the full list):
 - `ingress.host` — dashboard hostname
 - `networkPolicies.enabled` — default-deny in games namespace (recommended on)
 - `podSecurity.enforceRestricted` — label games namespace for Pod Security Standards
-- `defaultModuleSource.*` — the OCI registry catalog shipped by default
+- `defaultModuleSource.*` — the official game catalog shipped by default;
+  `type: git` (default) indexes the public `gameplane-module` repo directly, or
+  `type: oci` pulls signed bundles from a registry (`defaultModuleSource.oci.*`)
 - `uploadModuleSource.enabled` — the `uploads` source backing dashboard bundle uploads (default on)
 - `operator.localModules.{enabled,hostPath,existingClaim,mountPath}` — mount a
   directory of module bundles into the operator for `local`-type sources

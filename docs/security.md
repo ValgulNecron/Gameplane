@@ -110,7 +110,8 @@ boundary. Three controls protect it:
   public key) or keyless (a pinned Fulcio issuer + identity). Use it for any
   source you don't fully control. The official `modules/*` bundles are
   keyed-signed by the release pipeline and verify **offline** (no Rekor/Fulcio
-  reachability needed); turn it on with `defaultModuleSource.verify.enabled`.
+  reachability needed). Signing is an OCI concept, so switch the default source
+  to `type: oci` and enable `defaultModuleSource.oci.verify.enabled`.
 - **Digest pinning.** `Module.spec.digest` pins exact bundle content; a moved
   tag fails the install with `DigestMismatch`.
 

@@ -183,31 +183,45 @@ podSecurity:
   enforceRestricted: false   # label gamesNamespace with pod-security.kubernetes.io/enforce=restricted
 
 # Default ModuleSource shipped with the chart. Disable when you manage
-# ModuleSource resources via GitOps. The operator pulls module bundles
-# from this registry on a schedule and the dashboard's Modules page
-# renders the resulting catalog.
+# ModuleSource resources via GitOps. The operator indexes this source on a
+# schedule and the dashboard's Modules page renders the resulting catalog.
 defaultModuleSource:
   enabled: true
   name: default
-  url: ghcr.io/valgulnecron/gameplane-modules
   refreshInterval: 1h
-  insecure: false       # set true for plain-HTTP local registries
-  modules:
-    - minecraft-java
-    - valheim
-    - terraria
-  # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
-  # namespace for private registries. Leave empty for public registries.
-  pullSecretName: ""
-  # Cosign signature verification for this source. Off by default because it
-  # needs the project's published signing public key. Once you have it, paste
-  # the PEM into cosignPublicKey and set enabled: true; the operator then
-  # refuses any bundle from this source that is not signed by that key.
-  # Verification is keyed and offline (no Rekor). The key is published with
-  # each release; see docs/module-authoring.md "Signing official bundles".
-  verify:
-    enabled: false
-    cosignPublicKey: ""   # PEM, e.g. "-----BEGIN PUBLIC KEY-----\n…"
+  # Where the official catalog comes from:
+  #   git — index the gameplane-module repository directly (default). Works out
+  #         of the box with nothing to publish: the official games show up in
+  #         the Modules page from the public repo below.
+  #   oci — pull pre-built, optionally cosign-signed bundles from a registry.
+  #         Used by local dev (the kind registry) and for mirroring the signed
+  #         official bundles.
+  type: git
+  git:
+    url: https://github.com/ValgulNecron/gameplane-module.git
+    ref: main
+    subPath: ""           # module directories live at the repo root
+  oci:
+    url: ghcr.io/valgulnecron/gameplane-modules
+    insecure: false       # set true for plain-HTTP local registries
+    modules:
+      - minecraft-java
+      - valheim
+      - terraria
+    # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
+    # namespace for private registries. Leave empty for public registries.
+    pullSecretName: ""
+    # Cosign signature verification (oci only). The official Gameplane
+    # module-signing public key (ed25519) ships below; set enabled: true (with
+    # type: oci) to refuse any official bundle not signed by the matching
+    # private key. Verification is keyed and offline (no Rekor). See
+    # docs/module-authoring.md "Signing official bundles".
+    verify:
+      enabled: false
+      cosignPublicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAYckd3bJCpDVzsH0RzBcx0Hpb1S85yY77yRxWwFwzqww=
+        -----END PUBLIC KEY-----
 
 # Upload-backed ModuleSource: bundles uploaded through the dashboard
 # (stored as labeled ConfigMaps in the operator namespace) are indexed
