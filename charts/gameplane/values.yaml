@@ -162,10 +162,11 @@ serviceMonitors:
   labels: {}
 
 # PrometheusRule (alerts) for the operator, off by default like serviceMonitors.
-# Alerts use the operator's standard controller-runtime metrics (scraped by the
-# operator ServiceMonitor above), so they are portable across Prometheus setups
-# — no install-specific job/relabel assumptions. `labels` are added to the rule
-# so a Prometheus Operator ruleSelector can pick it up.
+# Alerts use only the operator's own metrics — controller-runtime internals plus
+# the gameplane_* fleet gauges (scraped by the operator ServiceMonitor above) —
+# so they are portable across Prometheus setups with no install-specific
+# job/relabel assumptions. `labels` are added to the rule so a Prometheus
+# Operator ruleSelector can pick it up.
 prometheusRules:
   enabled: false
   labels: {}
