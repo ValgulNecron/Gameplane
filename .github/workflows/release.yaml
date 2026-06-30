@@ -65,6 +65,10 @@ jobs:
       - name: install cosign
         if: steps.gate.outputs.enabled == 'true'
         uses: sigstore/cosign-installer@v3
+        with:
+          # Pin cosign v2: v3 dropped the offline-keyed `--tlog-upload=false`
+          # flag the image/bundle signing uses (it now requires a signing-config).
+          cosign-release: 'v2.4.3'
       - name: sign image (keyed, offline)
         if: steps.gate.outputs.enabled == 'true'
         env:
@@ -129,6 +133,10 @@ jobs:
       - name: install cosign
         if: steps.gate.outputs.enabled == 'true'
         uses: sigstore/cosign-installer@v3
+        with:
+          # Pin cosign v2: v3 dropped the offline-keyed `--tlog-upload=false`
+          # flag the image/bundle signing uses (it now requires a signing-config).
+          cosign-release: 'v2.4.3'
       - name: login to registry
         if: steps.gate.outputs.enabled == 'true'
         uses: docker/login-action@v3
