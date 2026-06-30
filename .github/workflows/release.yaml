@@ -36,7 +36,8 @@ jobs:
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.component }}/Dockerfile
@@ -46,6 +47,34 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ github.ref_name }}
+      # Keyed-sign the released image by digest (offline, no Rekor), same as the
+      # module bundles below. Gated on COSIGN_PRIVATE_KEY so a release still
+      # succeeds before the signing key is provisioned (secrets aren't usable in
+      # `if:`, so gate via a plain step output).
+      - name: signing key present?
+        id: gate
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::COSIGN_PRIVATE_KEY not set — skipping image signing."
+          fi
+      - name: install cosign
+        if: steps.gate.outputs.enabled == 'true'
+        uses: sigstore/cosign-installer@v3
+      - name: sign image (keyed, offline)
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY \
+            "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
 
   chart:
     name: package Helm chart
