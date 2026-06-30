@@ -20,10 +20,29 @@ import (
 )
 
 type Auditor struct {
-	db *db.Store
+	db   *db.Store
+	sink *slog.Logger // structured stdout sink; nil disables it
 }
 
-func New(store *db.Store) *Auditor { return &Auditor{db: store} }
+// Option configures an Auditor.
+type Option func(*Auditor)
+
+// WithStdoutSink mirrors each audited event to logger as a structured log
+// line, so cluster log aggregation (Loki/ELK/CloudWatch scraping the pod's
+// stdout) captures the audit trail — the Kubernetes-native "external sink".
+// A nil logger leaves the sink disabled (the default; events still land in
+// the database).
+func WithStdoutSink(logger *slog.Logger) Option {
+	return func(a *Auditor) { a.sink = logger }
+}
+
+func New(store *db.Store, opts ...Option) *Auditor {
+	a := &Auditor{db: store}
+	for _, o := range opts {
+		o(a)
+	}
+	return a
+}
 
 // Middleware logs every mutating request after the handler returns.
 // Reads and health probes are skipped to keep the audit log signal-dense.
@@ -52,13 +71,25 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 				// context the audit middleware can't see, so this stays nil.
 				actor = u.Username
 			}
-			_, _ = a.db.DB.ExecContext(req.Context(),
+			target := req.URL.Query().Get("name")
+			_, err := a.db.DB.ExecContext(req.Context(),
 				`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
 				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 				time.Now().UTC().Format(time.RFC3339),
-				actor, req.Method, req.URL.Path, req.URL.Query().Get("name"),
+				actor, req.Method, req.URL.Path, target,
 				rw.status, req.RemoteAddr,
 			)
+			if err != nil {
+				// A dropped security-audit write must not be silent — surface it
+				// so an operator notices the trail has a hole.
+				slog.Warn("audit insert failed",
+					"err", err, "actor", actor, "method", req.Method, "path", req.URL.Path)
+			}
+			if a.sink != nil {
+				a.sink.Info("audit",
+					"actor", actor, "method", req.Method, "path", req.URL.Path,
+					"target", target, "status", rw.status, "ip", req.RemoteAddr)
+			}
 		})
 	}
 }
