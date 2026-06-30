@@ -88,6 +88,7 @@ control plane handles both.
 | `operator/`  | Go       | Reconciles CRDs into K8s objects. Built with controller-runtime.  |
 | `api/`       | Go       | Front-end-facing REST + WebSocket gateway. chi, coder/websocket. |
 | `agent/`     | Go       | Sidecar running in each game pod. RCON, file ops, PTY console.   |
+| `audit-syslog-bridge/` | Go | Optional HTTP-JSON → syslog relay behind the audit webhook sink. |
 | `web/`       | TS+React | Dashboard UI. Vite, TanStack Query, xterm.js, Monaco.             |
 | `modules/`   | YAML     | Per-game `GameTemplate` bundles (Minecraft, Valheim, …).          |
 | `charts/`    | Helm     | `gameplane` install chart for operator + API + optional ingress.    |
