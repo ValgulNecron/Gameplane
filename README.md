@@ -20,11 +20,6 @@ know that the following are **deferred past the first beta**:
 - **Per-GameServer (owner-based) RBAC** — authorization is namespace-scoped
   today; server ownership is informational only.
 - **Multi-cluster** — one target cluster per dashboard.
-- **Signed official module bundles** — the release pipeline keyed-cosign-signs
-  the official `modules/*` bundles and the operator verifies them offline; this
-  activates once the project's signing key is provisioned (`COSIGN_PRIVATE_KEY`
-  in CI), so until then published bundles may be unsigned. Signature
-  *verification* itself is supported and opt-in today.
 - **Audit-log export** — audit events are stored in the database, can be pruned
   on a configurable retention window (`api.audit.retentionDays`), and can be
   mirrored to stdout as structured JSON for a cluster log aggregator to ship
