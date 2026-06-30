@@ -22,6 +22,13 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   graph on the dashboard and a `GameplaneBackupFailed` alert — a silently failed
   backup is a data-loss risk, so it's worth paging on.
 
+### Fixed
+
+- **operator:** the Servers list "Node" column was always blank — nothing ever
+  set the `gameplane.local/node` annotation the dashboard reads. The GameServer
+  reconciler now keeps it in sync with the node the game pod is scheduled on
+  (and clears it when the server is stopped), so the column shows real placement.
+
 ## [0.2.0-beta.3] — 2026-06-27
 
 ### Added
