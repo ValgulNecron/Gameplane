@@ -91,6 +91,50 @@ Top-level knobs (see `values.yaml` for the full list):
 - `uploadModuleSource.enabled` — the `uploads` source backing dashboard bundle uploads (default on)
 - `operator.localModules.{enabled,hostPath,existingClaim,mountPath}` — mount a
   directory of module bundles into the operator for `local`-type sources
+- `serviceMonitors.enabled` / `prometheusRules.enabled` / `grafanaDashboards.enabled`
+  — opt-in Prometheus Operator integration (see [Observability](#observability))
+
+## Observability
+
+The operator and API expose Prometheus metrics on `/metrics` (operator `:8080`,
+API `:8000`). Three **off-by-default** chart toggles wire them into a
+Prometheus-Operator stack (e.g. kube-prometheus-stack):
+
+- `serviceMonitors.enabled` — `ServiceMonitor`s so Prometheus scrapes the
+  operator and API.
+- `prometheusRules.enabled` — a `PrometheusRule` of operator alerts.
+- `grafanaDashboards.enabled` — a Grafana dashboard `ConfigMap` the Grafana
+  sidecar auto-imports (relabel via `grafanaDashboards.labels` if your sidecar
+  watches a different label).
+
+All three add `labels:` you can set so a Prometheus/Grafana selector picks the
+objects up.
+
+### Metrics
+
+Beyond the standard `controller-runtime_*` / `workqueue_*` series, the operator
+exports **fleet gauges** computed from its cache at scrape time:
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `gameplane_gameservers` | `phase` | GameServers per lifecycle phase (Pending/Starting/Running/Stopping/Stopped/Suspended/Failed) |
+| `gameplane_backups` | `phase` | Backups per phase (Pending/Running/Succeeded/Failed) |
+
+Every phase is always present (0 when empty). With 2+ operator replicas each
+replica reports the same cache-derived counts, so aggregate with
+`max by (phase) (...)` (the bundled dashboard and alerts already do).
+
+### Alerts
+
+`prometheusRules.enabled` ships (group `gameplane.operator` unless noted):
+
+- `GameplaneOperatorReconcileErrors` — a controller failing reconciles for 10m.
+- `GameplaneOperatorWorkqueueBacklog` — a workqueue over 50 items for 15m.
+- `GameplaneOperatorReconcileStuck` — a single reconcile running over 5m.
+- `GameplaneGameServerFailed` *(group `gameplane.fleet`)* — any GameServer in
+  the Failed phase for 10m.
+- `GameplaneBackupFailed` *(group `gameplane.fleet`)* — any Backup in the Failed
+  phase for 15m (a failed backup is a data-loss risk until superseded or pruned).
 
 ## Installing a module
 
