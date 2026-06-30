@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -73,6 +73,72 @@ describe("ServersPage", () => {
     await screen.findByText("a");
     expect(screen.queryByText("-1")).not.toBeInTheDocument();
     expect(screen.queryByText("-2")).not.toBeInTheDocument();
+  });
+
+  it("shows CPU and memory usage from the agent heartbeat", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            // Telemetry lives under status.agent (cgroup + statfs); the table
+            // shows it as a percent of the limit when a limit is reported.
+            makeServer({
+              metadata: { name: "metrics-on" },
+              status: {
+                phase: "Running",
+                agent: {
+                  cpuMillicores: 500,
+                  cpuLimitMillicores: 2000, // 25%
+                  memoryBytes: 536870912,
+                  memoryLimitBytes: 1073741824, // 50%
+                },
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("metrics-on");
+    expect(screen.getByText("25%")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+  });
+
+  it("falls back to absolute cores when CPU has no limit", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "no-limit" },
+              status: { phase: "Running", agent: { cpuMillicores: 1500 } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("no-limit");
+    expect(screen.getByText("1.50 cores")).toBeInTheDocument();
+  });
+
+  it("renders dashes for CPU and memory when the heartbeat omits them", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "metrics-off" },
+              status: { phase: "Running", agent: { playersOnline: 0 } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    const row = (await screen.findByText("metrics-off")).closest("tr") as HTMLElement;
+    // Both the CPU and Memory cells fall back to "—" (so does Node).
+    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
   it("renders empty stats gracefully when /cluster/stats fails", async () => {

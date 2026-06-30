@@ -189,12 +189,33 @@ function ServerRow({
   onAct: (args: { name: string; verb: LifecycleVerb }) => void;
 }) {
   const phase = gs.status?.phase;
-  const players = gs.status?.agent?.playersOnline;
-  const maxPlayers = gs.status?.agent?.playersMax;
-  const node = (gs.status as unknown as { node?: string })?.node
-    ?? gs.metadata.annotations?.["gameplane.local/node"];
-  const cpu = (gs.status as unknown as { cpuPercent?: number })?.cpuPercent;
-  const mem = (gs.status as unknown as { memoryBytes?: number })?.memoryBytes;
+  const agent = gs.status?.agent;
+  const players = agent?.playersOnline;
+  const maxPlayers = agent?.playersMax;
+  const node = gs.metadata.annotations?.["gameplane.local/node"];
+
+  // Resource usage comes from the agent's heartbeat (cgroup + statfs).
+  // null/undefined means "unknown" (unreadable source, or a stale heartbeat
+  // the API blanked) — render "—", not a misleading 0. Mirrors Overview.tsx.
+  const cpuKnown = typeof agent?.cpuMillicores === "number";
+  const cpuMilli = cpuKnown ? (agent?.cpuMillicores as number) : 0;
+  const cpuLimitMilli =
+    typeof agent?.cpuLimitMillicores === "number" ? (agent?.cpuLimitMillicores as number) : 0;
+  const cpuLabel = cpuKnown
+    ? cpuLimitMilli
+      ? `${((cpuMilli / cpuLimitMilli) * 100).toFixed(0)}%`
+      : `${(cpuMilli / 1000).toFixed(2)} cores`
+    : "—";
+
+  const memKnown = typeof agent?.memoryBytes === "number";
+  const memUsed = memKnown ? (agent?.memoryBytes as number) : 0;
+  const memLimit =
+    typeof agent?.memoryLimitBytes === "number" ? (agent?.memoryLimitBytes as number) : 0;
+  const memLabel = memKnown
+    ? memLimit
+      ? `${((memUsed / memLimit) * 100).toFixed(0)}%`
+      : formatBytes(memUsed)
+    : "—";
 
   return (
     <tr className="hover:bg-surface/40">
@@ -217,12 +238,8 @@ function ServerRow({
       </td>
       <td className="px-4 py-3 text-muted">{gs.spec.templateRef.name}</td>
       <td className="px-4 py-3"><PhaseBadge phase={phase} /></td>
-      <td className="px-4 py-3 font-mono">
-        {typeof cpu === "number" ? `${cpu.toFixed(1)}%` : "—"}
-      </td>
-      <td className="px-4 py-3 font-mono">
-        {typeof mem === "number" ? formatBytes(mem) : "—"}
-      </td>
+      <td className="px-4 py-3 font-mono">{cpuLabel}</td>
+      <td className="px-4 py-3 font-mono">{memLabel}</td>
       <td className="px-4 py-3 font-mono">
         {typeof players === "number" ? `${players}/${maxPlayers ?? "—"}` : "—"}
       </td>
