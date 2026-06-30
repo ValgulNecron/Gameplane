@@ -72,6 +72,20 @@ api:
     # capture the audit trail as an external sink. Events always land in the
     # database regardless; this just mirrors them to the log pipeline.
     stdout: false
+    # Outbound webhook push sink. When url is set, the API POSTs each audit
+    # event as JSON to it (best-effort, non-blocking — events always land in
+    # the database regardless). Point it at any HTTP/JSON receiver: a log
+    # aggregator (Loki push, Splunk HEC, Vector), a SIEM, or the bundled
+    # audit-syslog bridge (see syslogBridge below).
+    webhook:
+      url: ""
+      # Optional Authorization header for the webhook, sourced from a Secret
+      # (never passed as a flag, so the credential isn't visible in the pod
+      # spec). Leave name empty to send no Authorization header. The Secret's
+      # value is used verbatim, e.g. "Bearer <token>".
+      authSecretRef:
+        name: ""
+        key: token
 
   oidc:
     enabled: false

@@ -185,6 +185,9 @@ spec:
             {{- if .Values.api.audit.stdout }}
             - --audit-stdout
             {{- end }}
+            {{- if .Values.api.audit.webhook.url }}
+            - --audit-webhook-url={{ .Values.api.audit.webhook.url }}
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:
@@ -199,6 +202,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.api.oidc.clientSecretRef.name }}
                   key:  {{ .Values.api.oidc.clientSecretRef.key }}
+            {{- end }}
+            {{- if .Values.api.audit.webhook.authSecretRef.name }}
+            - name: GAMEPLANE_AUDIT_WEBHOOK_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.audit.webhook.authSecretRef.name }}
+                  key:  {{ .Values.api.audit.webhook.authSecretRef.key }}
             {{- end }}
           ports:
             - { name: http,    containerPort: 8000 }
