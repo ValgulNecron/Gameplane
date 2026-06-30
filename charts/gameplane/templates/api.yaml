@@ -185,8 +185,12 @@ spec:
             {{- if .Values.api.audit.stdout }}
             - --audit-stdout
             {{- end }}
-            {{- if .Values.api.audit.webhook.url }}
-            - --audit-webhook-url={{ .Values.api.audit.webhook.url }}
+            {{- $webhookURL := .Values.api.audit.webhook.url }}
+            {{- if and (not $webhookURL) .Values.api.audit.webhook.syslogBridge.enabled }}
+            {{- $webhookURL = printf "http://gameplane-audit-syslog-bridge.%s.svc:8514/" .Release.Namespace }}
+            {{- end }}
+            {{- if $webhookURL }}
+            - --audit-webhook-url={{ $webhookURL }}
             {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE

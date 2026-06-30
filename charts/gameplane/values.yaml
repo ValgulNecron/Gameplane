@@ -86,6 +86,21 @@ api:
       authSecretRef:
         name: ""
         key: token
+      # Bundled HTTP-JSON → syslog bridge (the audit-syslog-bridge image). When
+      # enabled, the chart deploys the relay and — unless webhook.url is set
+      # above — automatically points the API's audit webhook at it, so each
+      # audit event is forwarded to your syslog/SIEM collector. Off by default.
+      syslogBridge:
+        enabled: false
+        syslog:
+          addr: ""        # collector host:port, e.g. syslog.example:514 (required when enabled)
+          network: tcp    # tcp | udp
+          tls: false      # wrap a tcp connection in (verified) TLS
+        appName: gameplane-audit
+        facility: local0  # RFC 5424 facility: kern/user/daemon/auth/.../local0..local7
+        severity: info    # emerg/alert/crit/err/warning/notice/info/debug
+        replicas: 1
+        resources: {}
 
   oidc:
     enabled: false
