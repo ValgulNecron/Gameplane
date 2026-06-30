@@ -170,6 +170,11 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile StatefulSet")
 		return ctrl.Result{}, err
 	}
+	// Node placement is a cosmetic annotation for the dashboard; a transient
+	// pod-get hiccup shouldn't stall the rest of reconciliation, so log and go.
+	if err := r.reconcileNodePlacement(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile node placement")
+	}
 	if err := r.reconcileBackupSchedule(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile BackupSchedule")
 		return ctrl.Result{}, err
