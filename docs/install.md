@@ -158,6 +158,18 @@ a slow or down sink never blocks or fails a request.
   `/metrics` to confirm the mirror is healthy.
 - `api.audit.webhook.authSecretRef` — optional `Authorization` header for the
   webhook, sourced from a Secret (never a flag — see [security](security.md)).
+- `api.audit.webhook.syslogBridge.enabled` — deploy the bundled
+  [audit-syslog bridge](../audit-syslog-bridge/README.md) and point the webhook
+  at it automatically, so events are forwarded to a **syslog** collector. Set
+  `syslogBridge.syslog.addr` to your collector `host:port` (required when
+  enabled), and optionally `network` (`tcp`/`udp`), `tls`, `facility`, and
+  `severity`. Setting `webhook.url` explicitly overrides the auto-wiring.
+
+  ```sh
+  helm upgrade ... \
+    --set api.audit.webhook.syslogBridge.enabled=true \
+    --set api.audit.webhook.syslogBridge.syslog.addr=syslog.example:514
+  ```
 
 ## Installing a module
 
