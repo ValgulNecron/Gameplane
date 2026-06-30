@@ -7,6 +7,17 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **operator:** fleet metric `gameplane_gameservers{phase=…}` exported on the
+  operator's `/metrics` endpoint — one gauge per GameServer lifecycle phase,
+  computed from the controller cache at scrape time (so it never drifts from
+  reconcile state). The bundled Grafana dashboard gains "GameServers
+  running/failed" stats and a stacked "GameServers by phase" graph, and
+  `prometheusRules.enabled` gains a `GameplaneGameServerFailed` alert. Until
+  now the dashboard and alerts plotted only controller-runtime internals; this
+  is the first domain metric.
+
 ## [0.2.0-beta.3] — 2026-06-27
 
 ### Added

@@ -55,4 +55,22 @@ spec:
             description: >-
               A {{`{{ $labels.name }}`}} reconcile has been running for over 5
               minutes ({{`{{ $value | printf "%.0f" }}`}}s).
+    - name: gameplane.fleet
+      # Alerts on the operator's domain metric (gameplane_gameservers), labelled
+      # by GameServer lifecycle phase. max() collapses the series across operator
+      # replicas — each replica's /metrics reports the same cache-derived counts,
+      # so without it a 2-replica install would double-count.
+      rules:
+        - alert: GameplaneGameServerFailed
+          # One or more GameServers stuck in the Failed phase — a crashed game
+          # process, a bad template, or a wedged reconcile the user should see.
+          expr: max(gameplane_gameservers{phase="Failed"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Gameplane GameServer(s) in the Failed phase
+            description: >-
+              {{`{{ $value }}`}} GameServer(s) have been in the Failed phase for
+              over 10 minutes. Check the GameServer status and the operator logs.
 {{- end }}
