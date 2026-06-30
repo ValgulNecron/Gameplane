@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [operator, api, agent]
+        component: [operator, api, agent, audit-syslog-bridge]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
