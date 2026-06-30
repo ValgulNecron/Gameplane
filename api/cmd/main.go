@@ -98,6 +98,12 @@ func main() {
 	if cfg.auditStdout {
 		auditOpts = append(auditOpts, audit.WithStdoutSink(logger))
 	}
+	if cfg.auditWebhookURL != "" {
+		webhook := audit.NewWebhookSink(cfg.auditWebhookURL, cfg.auditWebhookAuth)
+		go webhook.Start(ctx)
+		auditOpts = append(auditOpts, audit.WithWebhookSink(webhook))
+		logger.Info("audit webhook sink enabled", "url", cfg.auditWebhookURL)
+	}
 	auditor := audit.New(store, auditOpts...)
 
 	r := chi.NewRouter()
@@ -206,6 +212,8 @@ type config struct {
 	curseforgeAPIKey   string
 	auditRetentionDays int
 	auditStdout        bool
+	auditWebhookURL    string
+	auditWebhookAuth   string
 
 	agentCABundle   string
 	agentClientCert string
@@ -228,6 +236,11 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("GAMEPLANE_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
 	fs.IntVar(&c.auditRetentionDays, "audit-retention-days", envOrInt("GAMEPLANE_AUDIT_RETENTION_DAYS", 0), "delete audit events older than this many days (0 = keep forever)")
 	fs.BoolVar(&c.auditStdout, "audit-stdout", envOr("GAMEPLANE_AUDIT_STDOUT", "") == "true", "also emit each audit event as a structured stdout log line (for external log aggregation)")
+	fs.StringVar(&c.auditWebhookURL, "audit-webhook-url", envOr("GAMEPLANE_AUDIT_WEBHOOK_URL", ""), "POST each audit event as JSON to this URL (empty = disabled)")
+	// The auth header is a credential, so it comes from the environment (a
+	// mounted Secret) only — never a flag, since flag values are visible in the
+	// pod spec and `ps`.
+	c.auditWebhookAuth = envOr("GAMEPLANE_AUDIT_WEBHOOK_AUTH", "")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("GAMEPLANE_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("GAMEPLANE_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
