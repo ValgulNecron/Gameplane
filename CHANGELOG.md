@@ -7,6 +7,8 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0-beta.4] — 2026-07-01
+
 ### Added
 
 - **operator:** fleet metric `gameplane_gameservers{phase=…}` exported on the
@@ -176,7 +178,8 @@ testing. Not yet recommended for unattended production workloads — see
   runner (retry + longer readiness window), eliminating a cascade of flaky
   API e2e failures.
 
-[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.3...HEAD
+[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.4...HEAD
+[0.2.0-beta.4]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.3...v0.2.0-beta.4
 [0.2.0-beta.3]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.2...v0.2.0-beta.3
 [0.2.0-beta.2]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.1...v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/ValgulNecron/gameplane/releases/tag/v0.2.0-beta.1
