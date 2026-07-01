@@ -57,19 +57,19 @@ test.describe("backups page", () => {
     await page.goto("/backups");
     await page.waitForLoadState("domcontentloaded");
 
-    // The page contains four native <select>s: the BackupFilters
-    // server/phase pair, the Back up now server picker, and the
-    // (sometimes-hidden) destination picker. Scope to the
-    // "Back up now" card via its label text rather than relying on
-    // .nth() index, which is brittle if the filters shape changes.
-    const backupNow = page.getByText("Back up now", { exact: true }).locator("..");
-    await backupNow.locator("select").first().selectOption("alpha");
+    // "Back up now" is a header button that opens the snapshot dialog;
+    // the server picker (and the sometimes-hidden destination picker)
+    // live inside it. Scope to the dialog so the BackupFilters selects
+    // on the page behind never match.
+    await page.getByRole("button", { name: /^back up now$/i }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.locator("select").first().selectOption("alpha");
 
     // The button only enables once both the server (we just set) AND
     // the backup destination (auto-set by useEffect once destinations
     // resolve from /backup-destinations) are populated. Wait for that
     // state rather than racing the effect.
-    const runBtn = page.getByRole("button", { name: /run snapshot/i });
+    const runBtn = dialog.getByRole("button", { name: /run snapshot/i });
     await expect(runBtn).toBeEnabled({ timeout: 10_000 });
 
     const created = page.waitForRequest(
