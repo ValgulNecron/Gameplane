@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -139,12 +140,16 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if s.authHeader != "" && r.Header.Get("Authorization") != s.authHeader {
+	if s.authHeader != "" &&
+		subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte(s.authHeader)) != 1 {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
+		// Log the cause: without this an operator seeing the API's audit-webhook
+		// counter tick "failed" has nothing on the bridge side to explain the gap.
+		slog.Warn("read request body", "err", err)
 		http.Error(w, "read body", http.StatusBadRequest)
 		return
 	}
@@ -233,20 +238,30 @@ func (f *forwarder) send(frame []byte) error {
 			return err
 		}
 	}
-	if _, err := f.conn.Write(frame); err != nil {
+	if err := f.write(frame); err != nil {
 		// The collector may have dropped a long-idle connection; reconnect once.
 		_ = f.conn.Close()
 		f.conn = nil
 		if err := f.dial(); err != nil {
 			return err
 		}
-		if _, err := f.conn.Write(frame); err != nil {
+		if err := f.write(frame); err != nil {
 			_ = f.conn.Close()
 			f.conn = nil
 			return fmt.Errorf("write syslog %s/%s: %w", f.network, f.addr, err)
 		}
 	}
 	return nil
+}
+
+// write bounds a single frame write with a deadline. Without it, a collector
+// that accepts the TCP connection but stops draining it would block Write
+// forever while holding f.mu, wedging every subsequent audit POST behind the
+// mutex until the pod is restarted.
+func (f *forwarder) write(frame []byte) error {
+	_ = f.conn.SetWriteDeadline(time.Now().Add(f.dialTimeout))
+	_, err := f.conn.Write(frame)
+	return err
 }
 
 // run wires OS signal handling to serve. main's thin wrapper; the testable

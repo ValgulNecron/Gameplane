@@ -21,8 +21,24 @@ JSON-webhook source, not just audit events. Nothing in it is Gameplane-specific.
 - Other methods → `405`; empty body → `400`; a configured-but-mismatched auth
   header → `401`; a failed forward to the collector → `502`.
 
-The forwarder reuses a lazily-dialed connection and reconnects once on a write
-error.
+The forwarder reuses a lazily-dialed connection, bounds each write with a
+deadline (so a hung collector can't wedge the relay), and reconnects once on a
+write error.
+
+## Transport: prefer TCP
+
+`SYSLOG_NETWORK=tcp` (the default) is recommended for an audit/compliance trail:
+
+- **UDP has no delivery confirmation.** A connected-UDP write succeeds locally
+  even when the collector is down, so the bridge returns `204` and the API
+  counts the event `sent` while nothing actually arrives. TCP surfaces a dead
+  collector as a `502` (→ API `failed`), which is the signal you want.
+- **UDP caps message size.** A record whose JSON body approaches the 64 KiB
+  intake limit can exceed the single-datagram ceiling and be dropped; TCP
+  streams it fine.
+
+`AUTH_HEADER` gates who may inject records — set it (the chart wires it from the
+same Secret as the API's webhook token). Without it the relay accepts any POST.
 
 ## Configuration (environment variables)
 
