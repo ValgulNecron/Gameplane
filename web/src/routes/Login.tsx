@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { APIError } from "@/lib/api";
 import { Auth } from "@/lib/endpoints";
 import type { LoginProvider } from "@/types";
@@ -108,9 +109,8 @@ export function LoginPage() {
                   Forgot?
                 </button>
               </div>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 name="password"
                 autoComplete="current-password"
                 value={p}
