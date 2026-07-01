@@ -95,12 +95,15 @@ func main() {
 	}
 
 	var auditOpts []audit.Option
+	var webhookDone <-chan struct{}
 	if cfg.auditStdout {
 		auditOpts = append(auditOpts, audit.WithStdoutSink(logger))
 	}
 	if cfg.auditWebhookURL != "" {
 		webhook := audit.NewWebhookSink(cfg.auditWebhookURL, cfg.auditWebhookAuth)
-		go webhook.Start(ctx)
+		done := make(chan struct{})
+		go func() { webhook.Start(ctx); close(done) }()
+		webhookDone = done
 		auditOpts = append(auditOpts, audit.WithWebhookSink(webhook))
 		logger.Info("audit webhook sink enabled", "url", cfg.auditWebhookURL)
 	}
@@ -194,6 +197,16 @@ func main() {
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutCancel()
 	_ = srv.Shutdown(shutCtx)
+	// The webhook worker flushes its buffered audit events once ctx is
+	// cancelled; wait for that drain (bounded) so a rolling restart doesn't cut
+	// off the final events instead of letting them reach the external sink.
+	if webhookDone != nil {
+		select {
+		case <-webhookDone:
+		case <-time.After(3 * time.Second):
+			logger.Warn("audit webhook drain did not finish before deadline")
+		}
+	}
 }
 
 type config struct {

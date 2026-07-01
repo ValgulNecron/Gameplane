@@ -168,7 +168,7 @@ func TestWebhookSink_CountsConnectionFailure(t *testing.T) {
 
 	s := NewWebhookSink(url, "")
 	before := counterValue(t, "failed")
-	s.post(context.Background(), Event{Actor: "x", TS: "2026-06-30T00:00:00Z"})
+	s.post(Event{Actor: "x", TS: "2026-06-30T00:00:00Z"})
 	if delta := counterValue(t, "failed") - before; delta != 1 {
 		t.Errorf("failed delta = %v, want 1", delta)
 	}
@@ -182,7 +182,7 @@ func TestWebhookSink_CountsNon2xx(t *testing.T) {
 
 	s := NewWebhookSink(srv.URL, "")
 	before := counterValue(t, "failed")
-	s.post(context.Background(), Event{Actor: "x"})
+	s.post(Event{Actor: "x"})
 	if delta := counterValue(t, "failed") - before; delta != 1 {
 		t.Errorf("failed delta = %v, want 1", delta)
 	}
