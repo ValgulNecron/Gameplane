@@ -90,10 +90,23 @@ api:
       # enabled, the chart deploys the relay and — unless webhook.url is set
       # above — automatically points the API's audit webhook at it, so each
       # audit event is forwarded to your syslog/SIEM collector. Off by default.
+      #
+      # Auth: the bridge Service is a ClusterIP other pods can reach. Set
+      # `authSecretRef` above and the SAME token guards both the API→bridge call
+      # and the bridge's inbound check, so only the API can inject records —
+      # strongly recommended. Without it the bridge accepts unauthenticated POSTs
+      # (rely on NetworkPolicies to restrict who can reach :8514).
+      #
+      # Setting webhook.url explicitly disables the auto-wiring, so don't enable
+      # the bridge and set webhook.url at the same time (the bridge would run
+      # idle while the API points elsewhere).
       syslogBridge:
         enabled: false
         syslog:
           addr: ""        # collector host:port, e.g. syslog.example:514 (required when enabled)
+          # tcp is recommended: udp gives no delivery confirmation (a down
+          # collector still shows result=sent), and audit records over ~64 KiB
+          # exceed the single-datagram limit. Prefer tcp for a reliable trail.
           network: tcp    # tcp | udp
           tls: false      # wrap a tcp connection in (verified) TLS
         appName: gameplane-audit

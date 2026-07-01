@@ -39,6 +39,16 @@ spec:
             - { name: APP_NAME,       value: {{ $b.appName | quote }} }
             - { name: FACILITY,       value: {{ $b.facility | quote }} }
             - { name: SEVERITY,       value: {{ $b.severity | quote }} }
+            {{- if .Values.api.audit.webhook.authSecretRef.name }}
+            # Require the same shared token the API sends as its Authorization
+            # header, so the bridge rejects unauthenticated POSTs from other
+            # workloads. Sourced from the Secret, never a flag/plain value.
+            - name: AUTH_HEADER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.audit.webhook.authSecretRef.name }}
+                  key:  {{ .Values.api.audit.webhook.authSecretRef.key }}
+            {{- end }}
           ports:
             - { name: http, containerPort: 8514 }
           livenessProbe:  { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 5 }
