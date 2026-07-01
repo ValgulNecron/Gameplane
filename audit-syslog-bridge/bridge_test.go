@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -319,6 +320,35 @@ func TestEnvOr(t *testing.T) {
 	}
 	if got := envOr("BRIDGE_TEST_UNSET_KEY", "fallback"); got != "fallback" {
 		t.Errorf("envOr unset = %q", got)
+	}
+}
+
+func TestServe_ConfigError(t *testing.T) {
+	// Empty syslog addr fails validation before any listener is opened.
+	if err := serve(context.Background(), config{network: "tcp", facility: "local0", severity: "info"}); err == nil {
+		t.Fatal("want error for missing syslog addr")
+	}
+}
+
+func TestServe_ShutsDownOnContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cfg := config{
+		listen: "127.0.0.1:0", syslogAddr: "127.0.0.1:9", network: "tcp",
+		appName: "x", facility: "local0", severity: "info", dialTimeout: time.Second,
+	}
+	done := make(chan error, 1)
+	go func() { done <- serve(ctx, cfg) }()
+
+	// Give ListenAndServe a moment to bind, then trigger graceful shutdown.
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serve returned %v, want nil on clean shutdown", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("serve did not return after context cancel")
 	}
 }
 

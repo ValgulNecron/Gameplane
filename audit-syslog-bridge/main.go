@@ -249,7 +249,17 @@ func (f *forwarder) send(frame []byte) error {
 	return nil
 }
 
+// run wires OS signal handling to serve. main's thin wrapper; the testable
+// lifecycle lives in serve.
 func run(cfg config) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return serve(ctx, cfg)
+}
+
+// serve builds the relay and runs the HTTP server until ctx is cancelled (then
+// it drains with a 5s deadline) or ListenAndServe fails.
+func serve(ctx context.Context, cfg config) error {
 	s, err := newServer(cfg)
 	if err != nil {
 		return err
@@ -271,8 +281,6 @@ func run(cfg config) error {
 		close(errCh)
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	select {
 	case err := <-errCh:
 		return err
