@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search,
 }));
 
-import { CreateServerWizard, parseSourceRanges } from "./CreateServer";
+import { CreateServerWizard, nonEmptyPortOverrides, parseSourceRanges } from "./CreateServer";
 import { gameCategory } from "@/lib/games";
 
 interface FetchInit {
@@ -251,6 +251,19 @@ describe("parseSourceRanges", () => {
   });
 });
 
+describe("nonEmptyPortOverrides", () => {
+  it("drops rows with a blank or whitespace-only name", () => {
+    expect(
+      nonEmptyPortOverrides([
+        { name: "game", nodePort: 30005 },
+        { name: "" },
+        { name: "  " },
+      ]),
+    ).toEqual([{ name: "game", nodePort: 30005 }]);
+    expect(nonEmptyPortOverrides([])).toEqual([]);
+  });
+});
+
 describe("CreateServerWizard networking", () => {
   it("sends sourceRanges when LoadBalancer + CIDRs are set", async () => {
     fetchMock
@@ -272,6 +285,50 @@ describe("CreateServerWizard networking", () => {
     const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
     const body = JSON.parse((postCall[1] as FetchInit).body as string);
     expect(body.spec.networking.sourceRanges).toEqual(["203.0.113.0/24", "10.0.0.0/8"]);
+  });
+
+  it("sends portOverrides when a named override is added", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
+      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Add override/i }));
+    fireEvent.change(screen.getByPlaceholderText("game"), { target: { value: "game" } });
+    fireEvent.change(screen.getByPlaceholderText("30000-32767"), { target: { value: "30005" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    // The review summary lists the named override.
+    expect(screen.getByText("Port overrides")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.portOverrides).toEqual([{ name: "game", nodePort: 30005 }]);
+  });
+
+  it("omits portOverrides when the only row is left blank", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
+      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    // An added-but-never-named row must not pollute the payload.
+    fireEvent.click(screen.getByRole("button", { name: /Add override/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    expect(screen.queryByText("Port overrides")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.portOverrides).toBeUndefined();
   });
 });
 
