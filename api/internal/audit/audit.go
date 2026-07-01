@@ -5,23 +5,38 @@ package audit
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
+// webhookEvents counts audit-event webhook deliveries by outcome. A "dropped"
+// or "failed" delta is operationally important — it means the external audit
+// mirror has a gap — so it's surfaced at /metrics (default registry, served by
+// promhttp).
+var webhookEvents = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "gameplane_audit_webhook_events_total",
+	Help: "Audit-event webhook deliveries by result (sent, failed, dropped).",
+}, []string{"result"})
+
 type Auditor struct {
-	db   *db.Store
-	sink *slog.Logger // structured stdout sink; nil disables it
+	db      *db.Store
+	sink    *slog.Logger // structured stdout sink; nil disables it
+	webhook *WebhookSink // outbound HTTP push sink; nil disables it
 }
 
 // Option configures an Auditor.
@@ -34,6 +49,141 @@ type Option func(*Auditor)
 // the database).
 func WithStdoutSink(logger *slog.Logger) Option {
 	return func(a *Auditor) { a.sink = logger }
+}
+
+// WithWebhookSink pushes each audited event to an external HTTP endpoint. A nil
+// sink leaves it disabled (the default). The sink's worker must be started
+// (sink.Start) by the caller; see NewWebhookSink.
+func WithWebhookSink(s *WebhookSink) Option {
+	return func(a *Auditor) { a.webhook = s }
+}
+
+// webhookBuffer bounds how many unsent events the webhook sink holds before it
+// starts dropping. Audit events are low-rate (one per mutating request), so a
+// healthy endpoint never approaches this; the bound exists so a stalled
+// endpoint can't grow memory without limit.
+const webhookBuffer = 1024
+
+// WebhookSink mirrors each audit event to an external HTTP endpoint by POSTing
+// it as JSON. Delivery is best-effort and fully decoupled from the request
+// path: events are handed to a bounded buffer and shipped by a single
+// background worker, so a slow or unreachable endpoint never blocks — or fails
+// — an audited request. The database stays the source of truth; this is the
+// same "mirror, don't gate" contract as the stdout sink, just pushed rather
+// than scraped.
+type WebhookSink struct {
+	url    string
+	auth   string // optional Authorization header value; "" omits the header
+	client *http.Client
+	ch     chan Event
+}
+
+// NewWebhookSink returns a sink that POSTs audit events as JSON to url.
+// authHeader, when non-empty, is sent verbatim as the Authorization header
+// (e.g. "Bearer <token>"). Call Start to launch the delivery worker.
+func NewWebhookSink(url, authHeader string) *WebhookSink {
+	return &WebhookSink{
+		url:    url,
+		auth:   authHeader,
+		client: &http.Client{Timeout: 5 * time.Second},
+		ch:     make(chan Event, webhookBuffer),
+	}
+}
+
+// Enqueue hands an event to the worker without ever blocking. When the buffer
+// is full (a stalled endpoint backing up), the event is dropped and counted —
+// a dropped mirror leaves a hole in the external trail, so it must be visible.
+func (s *WebhookSink) Enqueue(e Event) {
+	select {
+	case s.ch <- e:
+	default:
+		webhookEvents.WithLabelValues("dropped").Inc()
+	}
+}
+
+// Start runs the delivery worker until ctx is cancelled, then best-effort
+// drains whatever is already buffered within a short deadline. It blocks; run
+// it in a goroutine.
+func (s *WebhookSink) Start(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			s.drain()
+			return
+		case e := <-s.ch:
+			s.post(e)
+		}
+	}
+}
+
+// drain ships already-buffered events on shutdown, bounded by a short deadline
+// so a wedged endpoint can't stall process exit.
+func (s *WebhookSink) drain() {
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-s.ch:
+			s.post(e)
+		case <-deadline:
+			return
+		default:
+			return
+		}
+	}
+}
+
+// post delivers one event. It deliberately uses a detached context (bounded by
+// the client's own timeout) rather than the worker's lifecycle context: at
+// shutdown the select in Start can still pick a buffered event after ctx is
+// cancelled, and a cancelled context would fail that delivery even though the
+// event could have been shipped. The client timeout still bounds each attempt.
+func (s *WebhookSink) post(e Event) {
+	body, err := json.Marshal(webhookPayload{
+		TS: e.TS, Actor: e.Actor, Method: e.Method, Path: e.Path,
+		Target: e.Target, Status: e.Status, IP: e.IP,
+	})
+	if err != nil {
+		webhookEvents.WithLabelValues("failed").Inc()
+		slog.Warn("audit webhook marshal failed", "err", err)
+		return
+	}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, bytes.NewReader(body))
+	if err != nil {
+		webhookEvents.WithLabelValues("failed").Inc()
+		slog.Warn("audit webhook build request failed", "err", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if s.auth != "" {
+		req.Header.Set("Authorization", s.auth)
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		webhookEvents.WithLabelValues("failed").Inc()
+		slog.Warn("audit webhook post failed", "err", err, "url", s.url)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode >= 300 {
+		webhookEvents.WithLabelValues("failed").Inc()
+		slog.Warn("audit webhook non-2xx", "status", resp.StatusCode, "url", s.url)
+		return
+	}
+	webhookEvents.WithLabelValues("sent").Inc()
+}
+
+// webhookPayload is the JSON shipped to the webhook: the audit event minus the
+// database row id, which isn't known at emit time and is meaningless to an
+// external sink (which keys on ts/actor/path).
+type webhookPayload struct {
+	TS     string `json:"ts"`
+	Actor  string `json:"actor"`
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Target string `json:"target,omitempty"`
+	Status int    `json:"status"`
+	IP     string `json:"ip,omitempty"`
 }
 
 func New(store *db.Store, opts ...Option) *Auditor {
@@ -72,10 +222,13 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 				actor = u.Username
 			}
 			target := req.URL.Query().Get("name")
+			// Stamp once so the DB row, stdout line, and webhook payload all
+			// agree on the event time.
+			ts := time.Now().UTC().Format(time.RFC3339)
 			_, err := a.db.DB.ExecContext(req.Context(),
 				`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
 				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				time.Now().UTC().Format(time.RFC3339),
+				ts,
 				actor, req.Method, req.URL.Path, target,
 				rw.status, req.RemoteAddr,
 			)
@@ -89,6 +242,12 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 				a.sink.Info("audit",
 					"actor", actor, "method", req.Method, "path", req.URL.Path,
 					"target", target, "status", rw.status, "ip", req.RemoteAddr)
+			}
+			if a.webhook != nil {
+				a.webhook.Enqueue(Event{
+					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
+					Target: target, Status: rw.status, IP: req.RemoteAddr,
+				})
 			}
 		})
 	}

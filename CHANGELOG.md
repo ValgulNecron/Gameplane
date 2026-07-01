@@ -32,6 +32,14 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `since`/`until`. Unlike the dashboard's client-side CSV (only the loaded page),
   this returns the full log in one download for compliance/archival, streamed
   row-by-row so a large table isn't buffered in memory.
+- **api:** outbound **audit-log webhook push sink** — set `api.audit.webhook.url`
+  and the API POSTs each audit event as JSON to that endpoint (a log aggregator's
+  push API, a SIEM, or your own receiver), alongside the database. It mirrors,
+  never gates: events always persist, and a slow or unreachable endpoint never
+  blocks or fails a request (bounded async buffer, drop-and-count on overflow,
+  surfaced at `gameplane_audit_webhook_events_total{result=sent|failed|dropped}`
+  on `/metrics`). An optional `Authorization` header is Secret-sourced
+  (`api.audit.webhook.authSecretRef`), never a flag.
 
 ### Changed
 

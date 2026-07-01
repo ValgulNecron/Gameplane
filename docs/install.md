@@ -138,6 +138,27 @@ replica reports the same cache-derived counts, so aggregate with
 - `GameplaneBackupFailed` *(group `gameplane.fleet`)* — any Backup in the Failed
   phase for 15m (a failed backup is a data-loss risk until superseded or pruned).
 
+### Audit log
+
+Every mutating API request is recorded to the `audit_events` table and served at
+`GET /admin/audit` (and `GET /admin/audit/export` for a full CSV/JSON dump).
+Beyond the database, the trail can be fanned out to external systems — each sink
+**mirrors**, it never gates: events always land in the database regardless, and
+a slow or down sink never blocks or fails a request.
+
+- `api.audit.retentionDays` — prune events older than N days (`0` = keep
+  forever, the default).
+- `api.audit.stdout` — also emit each event as a structured JSON log line, for a
+  cluster log aggregator (Loki/ELK/CloudWatch) scraping the pod's stdout.
+- `api.audit.webhook.url` — POST each event as JSON to an HTTP receiver (a log
+  aggregator's push endpoint, a SIEM, or your own collector). Delivery is
+  best-effort from a bounded in-memory buffer; if the endpoint stalls, events
+  are dropped rather than queued unboundedly. Watch
+  `gameplane_audit_webhook_events_total{result="sent|failed|dropped"}` on
+  `/metrics` to confirm the mirror is healthy.
+- `api.audit.webhook.authSecretRef` — optional `Authorization` header for the
+  webhook, sourced from a Secret (never a flag — see [security](security.md)).
+
 ## Installing a module
 
 The chart ships two `ModuleSource`s: `default` (the official OCI
