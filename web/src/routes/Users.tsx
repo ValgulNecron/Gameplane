@@ -274,6 +274,11 @@ function UserRow({
             <div className="truncate text-[11px] text-muted">
               {u.displayName || u.email || "—"}
             </div>
+            {/* Email subline — skipped when the email is already what the
+                line above shows (no display name set). */}
+            {u.email && u.displayName && u.displayName !== u.email && (
+              <div className="truncate text-[11px] text-muted">{u.email}</div>
+            )}
           </div>
         </div>
       </td>
