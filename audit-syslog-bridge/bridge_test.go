@@ -255,34 +255,39 @@ func TestHandle_ForwardFailureIs502(t *testing.T) {
 	}
 }
 
-func TestForwarder_ReusesConnAndReconnects(t *testing.T) {
+func TestForwarder_ReusesConnection(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	received := make(chan string, 4)
+	defer ln.Close()
+
+	// Accept exactly one connection and accumulate everything read on it. Both
+	// sends must arrive on this same connection — if the forwarder opened a
+	// second one for "two", it would sit unaccepted and the test would time out,
+	// so this proves connection reuse. Accumulating (rather than counting reads)
+	// is robust to TCP coalescing "one"+"two" into a single Read.
+	got := make(chan string, 1)
 	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		var acc []byte
+		tmp := make([]byte, 256)
 		for {
-			conn, err := ln.Accept()
+			n, err := conn.Read(tmp)
+			acc = append(acc, tmp[:n]...)
+			if strings.Contains(string(acc), "one") && strings.Contains(string(acc), "two") {
+				got <- string(acc)
+				return
+			}
 			if err != nil {
 				return
 			}
-			go func(c net.Conn) {
-				defer c.Close()
-				buf := make([]byte, 1024)
-				for {
-					n, err := c.Read(buf)
-					if n > 0 {
-						received <- string(buf[:n])
-					}
-					if err != nil {
-						return
-					}
-				}
-			}(conn)
 		}
 	}()
-	defer ln.Close()
 
 	f := newForwarder("tcp", ln.Addr().String(), false, time.Second)
 	if err := f.send([]byte("one")); err != nil {
@@ -291,12 +296,13 @@ func TestForwarder_ReusesConnAndReconnects(t *testing.T) {
 	if err := f.send([]byte("two")); err != nil {
 		t.Fatalf("send two: %v", err)
 	}
-	for i := 0; i < 2; i++ {
-		select {
-		case <-received:
-		case <-time.After(2 * time.Second):
-			t.Fatal("did not receive both frames")
+	select {
+	case s := <-got:
+		if !strings.Contains(s, "one") || !strings.Contains(s, "two") {
+			t.Errorf("received %q, want both frames", s)
 		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("did not receive both frames on a reused connection")
 	}
 }
 
