@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Plus } from "lucide-react";
 import { Backups, Restores, Schedules, Servers } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FieldLabel } from "@/components/ui/field";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatRelative } from "@/lib/utils";
 import { PhaseBadge } from "@/components/ui/badge";
@@ -35,6 +38,7 @@ function readTab(): Tab {
 
 export function BackupsPage() {
   const [tab, setTab] = useState<Tab>(() => readTab());
+  const [backupNow, setBackupNow] = useState(false);
   useEffect(() => {
     const url = new URL(window.location.href);
     if (tab === "backups") url.searchParams.delete("tab");
@@ -47,7 +51,13 @@ export function BackupsPage() {
       <PageHeader
         title="Backups"
         subtitle="Snapshots, schedules, and restores across all servers in this cluster."
+        actions={
+          <Button onClick={() => setBackupNow(true)}>
+            <Plus className="h-4 w-4" /> Back up now
+          </Button>
+        }
       />
+      {backupNow && <BackupNowDialog onClose={() => setBackupNow(false)} />}
       <div className="flex items-center gap-1 border-b border-border">
         {TABS.map((t) => (
           <button
@@ -73,14 +83,11 @@ export function BackupsPage() {
 }
 
 function BackupsTabPanel() {
-  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [server, setServer] = useState("");
   const [phase, setPhase] = useState("");
   const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
-  const [createServer, setCreateServer] = useState("");
-  const [createDest, setCreateDest] = useState("");
 
   const { data: backups } = useQuery({
     queryKey: ["backups"],
@@ -91,15 +98,6 @@ function BackupsTabPanel() {
     queryKey: ["servers"],
     queryFn: () => Servers.list(),
   });
-  const { data: destinations = [] } = useBackupDestinations();
-
-  // When destinations resolve, default to the first one. The user can
-  // still pick a different one if more than one exists.
-  useEffect(() => {
-    if (!createDest && destinations.length > 0) {
-      setCreateDest(destinations[0].name);
-    }
-  }, [destinations, createDest]);
 
   const items = useMemo(() => backups?.items ?? [], [backups]);
   const filtered = useMemo(() => {
@@ -115,20 +113,6 @@ function BackupsTabPanel() {
     });
   }, [items, search, server, phase]);
 
-  const createNow = useMutation({
-    mutationFn: () =>
-      Backups.create({
-        serverRef: { name: createServer },
-        repoRef: { name: createDest, key: "repo" },
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["backups"] });
-      setCreateServer("");
-    },
-  });
-
-  const noDestinations = destinations.length === 0;
-
   return (
     <div className="space-y-4">
       <BackupFilters
@@ -142,56 +126,6 @@ function BackupsTabPanel() {
         phases={BACKUP_PHASES}
         trailing={`${filtered.length} of ${items.length} ${items.length === 1 ? "backup" : "backups"}`}
       />
-
-      <Card className="p-4">
-        <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-1.5">
-            <div className="text-xs font-medium text-fg">Back up now</div>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
-              value={createServer}
-              onChange={(e) => setCreateServer(e.target.value)}
-            >
-              <option value="" disabled>Select a server…</option>
-              {(serversList?.items ?? []).map((s) => (
-                <option key={s.metadata.name} value={s.metadata.name}>
-                  {s.metadata.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {destinations.length > 1 && (
-            <div className="w-56 space-y-1.5">
-              <div className="text-xs font-medium text-fg">Destination</div>
-              <select
-                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
-                value={createDest}
-                onChange={(e) => setCreateDest(e.target.value)}
-              >
-                {destinations.map((d) => (
-                  <option key={d.name} value={d.name}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          <Button
-            disabled={!createServer || !createDest || createNow.isPending || noDestinations}
-            onClick={() => createNow.mutate()}
-          >
-            {createNow.isPending ? "Starting…" : "Run snapshot"}
-          </Button>
-        </div>
-        {noDestinations && (
-          <div className="pt-3 text-xs text-muted">
-            No backup destinations configured. Add one in{" "}
-            <Link to="/admin" className="text-primary hover:underline">
-              admin settings
-            </Link>{" "}
-            to enable snapshots.
-          </div>
-        )}
-        {createNow.error && <div className="pt-3"><ErrorBanner err={createNow.error} /></div>}
-      </Card>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <table className="w-full text-sm">
@@ -241,6 +175,113 @@ function BackupsTabPanel() {
         }}
       />
     </div>
+  );
+}
+
+// The "Back up now" form, relocated from an inline card above the table to a
+// dialog launched from the page header (design frame 4avx0). The query and
+// mutation logic is unchanged; the dialog closes once the snapshot starts.
+function BackupNowDialog({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [createServer, setCreateServer] = useState("");
+  const [createDest, setCreateDest] = useState("");
+
+  const { data: serversList } = useQuery({
+    queryKey: ["servers"],
+    queryFn: () => Servers.list(),
+  });
+  const { data: destinations = [] } = useBackupDestinations();
+
+  // When destinations resolve, default to the first one. The user can
+  // still pick a different one if more than one exists.
+  useEffect(() => {
+    if (!createDest && destinations.length > 0) {
+      setCreateDest(destinations[0].name);
+    }
+  }, [destinations, createDest]);
+
+  const createNow = useMutation({
+    mutationFn: () =>
+      Backups.create({
+        serverRef: { name: createServer },
+        repoRef: { name: createDest, key: "repo" },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["backups"] });
+      onClose();
+    },
+  });
+
+  const noDestinations = destinations.length === 0;
+
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-card p-5 text-fg shadow-2xl">
+          <Dialog.Title className="text-base font-semibold">Back up now</Dialog.Title>
+          <Dialog.Description className="pt-1 text-sm text-muted">
+            Run a one-off snapshot outside any schedule.
+          </Dialog.Description>
+          <div className="space-y-4 pt-4">
+            <FieldLabel label="Server">
+              <select
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+                value={createServer}
+                onChange={(e) => setCreateServer(e.target.value)}
+              >
+                <option value="" disabled>Select a server…</option>
+                {(serversList?.items ?? []).map((s) => (
+                  <option key={s.metadata.name} value={s.metadata.name}>
+                    {s.metadata.name}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+            {destinations.length > 1 && (
+              <FieldLabel label="Destination">
+                <select
+                  className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
+                  value={createDest}
+                  onChange={(e) => setCreateDest(e.target.value)}
+                >
+                  {destinations.map((d) => (
+                    <option key={d.name} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+              </FieldLabel>
+            )}
+            {noDestinations && (
+              <div className="text-xs text-muted">
+                No backup destinations configured. Add one in{" "}
+                <Link to="/admin" className="text-primary hover:underline">
+                  admin settings
+                </Link>{" "}
+                to enable snapshots.
+              </div>
+            )}
+            {createNow.error && <ErrorBanner err={createNow.error} />}
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-5">
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={createNow.isPending}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!createServer || !createDest || createNow.isPending || noDestinations}
+              onClick={() => createNow.mutate()}
+            >
+              {createNow.isPending ? "Starting…" : "Run snapshot"}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

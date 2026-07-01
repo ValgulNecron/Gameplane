@@ -29,6 +29,8 @@ describe("BackupsPage flows", () => {
   it("disables 'Run snapshot' and explains when no destination is configured", async () => {
     server.use(http.get("/backup-destinations", () => HttpResponse.json({ items: [] })));
     renderWithQuery(<BackupsPage />);
+    // "Back up now" lives in the page header and opens the snapshot dialog.
+    await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
     expect(await screen.findByText(/No backup destinations configured/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Run snapshot/i })).toBeDisabled();
   });
@@ -44,11 +46,15 @@ describe("BackupsPage flows", () => {
     );
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-2026-05-07"); // default backup row
+    await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
+    await screen.findByRole("option", { name: "alpha" });
     await userEvent.selectOptions(serverSelect(), "alpha");
     const run = screen.getByRole("button", { name: /Run snapshot/i });
     await waitFor(() => expect(run).toBeEnabled());
     await userEvent.click(run);
     await waitFor(() => expect(posted).not.toBeNull());
+    // Success closes the dialog again.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("filters the backup list by search text", async () => {

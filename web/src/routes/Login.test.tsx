@@ -38,7 +38,11 @@ describe("LoginPage", () => {
   it("submits credentials and navigates to / on success", async () => {
     render(<LoginPage />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "hunter2" } });
+    // The show/hide toggle also carries "password" in its aria-label, so
+    // scope the query to the input element.
+    fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), {
+      target: { value: "hunter2" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
@@ -53,7 +57,9 @@ describe("LoginPage", () => {
     loginResponse = () => new Response("nope", { status: 401 });
     render(<LoginPage />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "x" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "y" } });
+    fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), {
+      target: { value: "y" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
     expect(await screen.findByText("Invalid credentials")).toBeInTheDocument();
@@ -84,6 +90,17 @@ describe("LoginPage", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /Continue with/i })).not.toBeInTheDocument(),
     );
+  });
+
+  it("reveals the typed password when the eye toggle is clicked", async () => {
+    render(<LoginPage />);
+    const pw = screen.getByLabelText(/password/i, { selector: "input" }) as HTMLInputElement;
+    fireEvent.change(pw, { target: { value: "hunter2" } });
+    expect(pw.type).toBe("password");
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(pw.type).toBe("text");
+    fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(pw.type).toBe("password");
   });
 
   it("renders no version string on the pre-auth page", () => {

@@ -21,6 +21,7 @@ import type {
   ModuleSourceSpec,
   PermissionGroup,
   PlayersResp,
+  PortOverride,
   RegistryFile,
   RegistryProject,
   RegistryProviderInfo,
@@ -48,7 +49,12 @@ export interface ServerCreate {
   version?: string;
   config?: Record<string, string>;
   storage?: { size?: string };
-  networking?: { expose?: string; hostname?: string; sourceRanges?: string[] };
+  networking?: {
+    expose?: string;
+    hostname?: string;
+    sourceRanges?: string[];
+    portOverrides?: PortOverride[];
+  };
   resources?: unknown;
   nodeSelector?: Record<string, string>;
 }

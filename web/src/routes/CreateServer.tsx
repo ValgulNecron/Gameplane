@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameIcon } from "@/components/ui/game-icon";
+import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { APIError } from "@/lib/api";
 import { Servers, Templates, type ServerCreate } from "@/lib/endpoints";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { GAME_CATEGORIES, gameCategory, type GameCategory } from "@/lib/games";
-import type { GameTemplate } from "@/types";
+import type { GameTemplate, PortOverride } from "@/types";
 
 // Wizard steps are derived per-template: the "version" step only appears when
 // the template declares a version catalog (spec.versions). Templates without
@@ -49,6 +50,7 @@ interface WizardState {
   expose: "ClusterIP" | "NodePort" | "LoadBalancer";
   hostname: string;
   sourceRanges: string;
+  portOverrides: PortOverride[];
 }
 
 const initial: WizardState = {
@@ -57,6 +59,7 @@ const initial: WizardState = {
   cpuLimit: "4", memoryLimit: "8",
   storageSize: "50Gi", nodePlacement: "auto",
   expose: "NodePort", hostname: "", sourceRanges: "",
+  portOverrides: [],
 };
 
 // Split the CIDR allow-list textarea (newline- or comma-separated) into a
@@ -66,6 +69,12 @@ export function parseSourceRanges(raw: string): string[] {
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+// Drop rows whose port name is blank (an untouched "Add override" row) so an
+// abandoned editor never pollutes the create payload.
+export function nonEmptyPortOverrides(overrides: PortOverride[]): PortOverride[] {
+  return overrides.filter((p) => p.name.trim() !== "");
 }
 
 function buildCreateBody(state: WizardState): ServerCreate {
@@ -82,6 +91,10 @@ function buildCreateBody(state: WizardState): ServerCreate {
     networking: {
       expose: state.expose,
       hostname: state.hostname || undefined,
+      // Only included when at least one override names a template port.
+      ...(nonEmptyPortOverrides(state.portOverrides).length > 0
+        ? { portOverrides: nonEmptyPortOverrides(state.portOverrides) }
+        : {}),
       // Only meaningful for LoadBalancer; omit otherwise so we don't store a
       // range the operator would ignore.
       ...(state.expose === "LoadBalancer" && parseSourceRanges(state.sourceRanges).length > 0
@@ -605,6 +618,18 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
           placeholder="mc.example.dev"
         />
       </label>
+      {/* A div, not a label: the editor holds several inputs and buttons, and
+          a label wrapping multiple interactive elements mis-associates them. */}
+      <div className="space-y-1.5">
+        <span className="text-xs text-muted">Port overrides (optional)</span>
+        <PortOverridesEditor
+          values={state.portOverrides}
+          onChange={(v) => setState({ ...state, portOverrides: v })}
+        />
+        <span className="block text-[11px] text-muted">
+          Pin a NodePort or override the Service port for a named template port.
+        </span>
+      </div>
       {state.expose === "LoadBalancer" && (
         <label className="block space-y-1.5">
           <span className="text-xs text-muted">IP allow-list (CIDRs, optional)</span>
@@ -653,6 +678,14 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
       rows: [
         ["Expose", state.expose],
         ["Hostname", state.hostname || "—"],
+        ...(nonEmptyPortOverrides(state.portOverrides).length > 0
+          ? [[
+              "Port overrides",
+              nonEmptyPortOverrides(state.portOverrides)
+                .map((p) => p.name)
+                .join(", "),
+            ] as [string, string]]
+          : []),
         ...(state.expose === "LoadBalancer"
           ? [["IP allow-list", parseSourceRanges(state.sourceRanges).join(", ") || "all"] as [string, string]]
           : []),
