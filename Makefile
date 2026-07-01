@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard operator api agent
+GO_MODULES     := netguard operator api agent audit-syslog-bridge
 GO_INTEGRATION_MODULES := operator api
 GO_BUILDFLAGS  ?= -trimpath
 
@@ -225,7 +225,7 @@ lint-web: ## Run web linters
 
 # -------- images --------
 .PHONY: images
-images: image-operator image-api image-agent ## Build all container images
+images: image-operator image-api image-agent image-audit-syslog ## Build all container images
 
 image-operator: ## Build operator image
 	docker build -t $(REGISTRY)/operator:$(TAG) -f operator/Dockerfile .
@@ -235,6 +235,9 @@ image-api: ## Build API image
 
 image-agent: ## Build agent image
 	docker build -t $(REGISTRY)/agent:$(TAG) -f agent/Dockerfile .
+
+image-audit-syslog: ## Build audit-syslog-bridge image
+	docker build -t $(REGISTRY)/audit-syslog-bridge:$(TAG) -f audit-syslog-bridge/Dockerfile .
 
 # -------- codegen --------
 .PHONY: generate manifests

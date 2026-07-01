@@ -20,13 +20,14 @@ know that the following are **deferred past the first beta**:
 - **Per-GameServer (owner-based) RBAC** — authorization is namespace-scoped
   today; server ownership is informational only.
 - **Multi-cluster** — one target cluster per dashboard.
-- **Native S3/syslog audit sinks** — audit events are stored in the database,
-  pruned on a configurable retention window (`api.audit.retentionDays`),
-  exportable in full via `GET /admin/audit/export` (CSV/JSON), mirrored to
-  stdout as structured JSON (`api.audit.stdout`), and **pushed to any HTTP/JSON
-  receiver via an outbound webhook** (`api.audit.webhook.url`). A *native* S3 or
-  syslog sink isn't built in, but either can sit behind the webhook — a small
-  HTTP receiver does the transport.
+- **Native S3 audit sink** — audit events are stored in the database, pruned on
+  a configurable retention window (`api.audit.retentionDays`), exportable in
+  full via `GET /admin/audit/export` (CSV/JSON), mirrored to stdout as
+  structured JSON (`api.audit.stdout`), pushed to any HTTP/JSON receiver via an
+  outbound webhook (`api.audit.webhook.url`), and forwarded to **syslog** through
+  a bundled bridge (`api.audit.webhook.syslogBridge.enabled`). A *native* S3
+  sink isn't built in, but S3 (or anything else) can sit behind the webhook with
+  a small receiver.
 
 CI runs the full suite (unit, envtest, and kind e2e) on every PR. The kind
 e2e jobs can occasionally flake under resource pressure on the self-hosted
@@ -87,6 +88,7 @@ control plane handles both.
 | `operator/`  | Go       | Reconciles CRDs into K8s objects. Built with controller-runtime.  |
 | `api/`       | Go       | Front-end-facing REST + WebSocket gateway. chi, coder/websocket. |
 | `agent/`     | Go       | Sidecar running in each game pod. RCON, file ops, PTY console.   |
+| `audit-syslog-bridge/` | Go | Optional HTTP-JSON → syslog relay behind the audit webhook sink. |
 | `web/`       | TS+React | Dashboard UI. Vite, TanStack Query, xterm.js, Monaco.             |
 | `modules/`   | YAML     | Per-game `GameTemplate` bundles (Minecraft, Valheim, …).          |
 | `charts/`    | Helm     | `gameplane` install chart for operator + API + optional ingress.    |
