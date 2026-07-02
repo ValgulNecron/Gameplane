@@ -7,6 +7,14 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **web:** the last UI-audit parity items — a show/hide toggle on the login
+  password field, user emails shown under display names on the Users page,
+  port overrides editable in the Create Server wizard's Network step (the CRD
+  and Settings tab already supported them), and "Back up now" relocated to a
+  header button + dialog on the Backups page, matching the design.
+
 ## [0.2.0-beta.4] — 2026-07-01
 
 ### Added
