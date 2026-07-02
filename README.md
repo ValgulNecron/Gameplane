@@ -10,6 +10,11 @@ clusters without changing the operational model.
 > See [Beta status & known limitations](#beta-status--known-limitations) before
 > running it for anything you can't afford to lose.
 
+**Website:** <https://valgulnecron.github.io/gameplane-website/> — features,
+docs, and comparisons. Source lives in
+[`gameplane-website`](https://github.com/ValgulNecron/gameplane-website),
+mounted here as the `website/` submodule.
+
 ## Beta status & known limitations
 
 Gameplane is in **beta**: the core workflows — deploy a game server, console,
@@ -119,6 +124,7 @@ control plane handles both.
 │   ├── valheim/
 │   ├── terraria/
 │   └── build.sh  # OCI bundle builder/pusher (uses oras)
+├── website/      # git submodule → gameplane-website repo (public site)
 ├── charts/gameplane/       # Helm chart
 ├── deploy/kind/          # local dev cluster
 ├── docs/

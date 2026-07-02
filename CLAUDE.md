@@ -31,6 +31,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── modules/                  # GIT SUBMODULE → gameplane-module repo (game template OCI bundles)
 │   ├── minecraft-java/  valheim/  terraria/
 │   └── build.sh              # OCI bundle builder/pusher (uses oras ≥ 1.2.0)
+├── website/                  # GIT SUBMODULE → gameplane-website repo (public marketing + docs site)
 ├── charts/gameplane/           # Helm chart
 ├── deploy/kind/              # local dev cluster scripts
 ├── test/e2e/                 # kind-based E2E suite (build tag: e2e)
@@ -43,6 +44,8 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 The Go modules `operator`, `api`, `agent`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
 
 `modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
+
+`website/` is a **git submodule** pointing at the separate `gameplane-website` repo — the public marketing + docs site (Astro + Tailwind 4, deployed to GitHub Pages at <https://valgulnecron.github.io/gameplane-website/>). Nothing in this repo's build depends on it; it's safe to leave uninitialized.
 
 ---
 
@@ -323,6 +326,16 @@ Modules live in the **`gameplane-module`** repo, checked out here as the `module
 2. `make modules-push` to push to the local registry.
 3. The operator indexes ModuleSources within seconds — verify by checking the Modules page in the dashboard.
 4. Commit in `gameplane-module`, then `git add modules` here and commit the bumped submodule pointer.
+
+### Update the public website
+
+The site lives in the **`gameplane-website`** repo, checked out here as the `website/` submodule — website changes are committed there, then the submodule pointer is bumped in this repo.
+
+1. **Design first**: the site's screens are the **Group/Public Website** frames in `design.pen` (same Pencil MCP workflow as rule 1). Backend-only or copy-only tweaks don't need a Pencil pass.
+2. Commit in `website/` (same conventions: signed, conventional prefixes; its own `AGENTS.md` has the specifics — semantic tokens only, every internal link through `withBase()`).
+3. Push to the website repo's `main` — its `deploy.yaml` publishes GitHub Pages automatically; `ci.yaml` gates PRs with lint + `astro check` + build.
+4. `git add website` here and commit the bumped submodule pointer.
+5. **On each release**: update the website's `src/content/docs/changelog.mdx` and the `VERSION` constant in `src/config.ts` (the changelog page is a snapshot of `CHANGELOG.md`, synced manually).
 
 ### Add a database migration
 
