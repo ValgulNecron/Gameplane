@@ -2,3 +2,7 @@
 	path = modules
 	url = ../gameplane-module.git
 	branch = main
+[submodule "website"]
+	path = website
+	url = ../gameplane-website.git
+	branch = main
