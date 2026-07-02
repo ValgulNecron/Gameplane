@@ -63,10 +63,10 @@ merges, bump the submodule pointer here (`git add modules`) in a follow-up PR.
 
 ## Release process
 
-Tags matching `v*` trigger the `release.yaml` workflow, which builds
-images (cosign image signing is roadmap), pushes the Helm chart to the
-`gameplane` OCI registry, and — when a signing key is configured — pushes
-and keyed-cosign-signs the official `modules/*` bundles.
+Tags matching `v*` trigger the `release.yaml` workflow, which builds the
+component images, pushes the Helm chart to the `gameplane` OCI registry,
+and — when a signing key is configured — keyed-cosign-signs the images by
+digest and pushes and signs the official `modules/*` bundles.
 
 Module signing is gated on a one-time key setup: run `cosign
 generate-key-pair`, set `COSIGN_PRIVATE_KEY`/`COSIGN_PASSWORD` as CI
