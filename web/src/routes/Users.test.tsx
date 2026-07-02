@@ -123,6 +123,25 @@ describe("UsersPage", () => {
     expect(screen.getAllByText("Local").length).toBeGreaterThan(0);
   });
 
+  it("shows the email under the display name without duplicating it", async () => {
+    const bob: ExtendedUser = {
+      id: 3,
+      username: "bob",
+      displayName: "",
+      email: "bob@example.com",
+      role: "viewer",
+      provider: "local",
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+    list.mockResolvedValue([ME, ALICE, bob]);
+    renderPage();
+    // Alice has a display name, so her email renders as a subline.
+    expect(await screen.findByText("alice@example.com")).toBeInTheDocument();
+    // Bob has no display name — his email already IS the name line, so it
+    // must not repeat as a subline.
+    expect(screen.getAllByText("bob@example.com").length).toBe(1);
+  });
+
   it("opens the action menu for a row", async () => {
     const user = userEvent.setup();
     renderPage();
