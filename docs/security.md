@@ -80,7 +80,8 @@ allowIngress implicitly.
 
 ## Pod security
 
-Every Gameplane-managed pod (operator, api, agent) runs as:
+Every Gameplane-managed pod (operator, api, agent, and the optional
+audit-syslog-bridge) runs as:
 
 - `runAsNonRoot: true` (uid 65532)
 - `readOnlyRootFilesystem: true`
@@ -98,13 +99,14 @@ A `GameTemplate` materialized from a module chooses the container image,
 command, and config a game pod runs — so a module source is a trust
 boundary. Three controls protect it:
 
-- **Fetch SSRF guard.** The operator's `git`/`http` source fetchers refuse
-  link-local, cloud-metadata (`169.254.169.254`), unspecified, and multicast
-  destinations, at dial time (so a DNS name rebinding to one is caught). This
-  blocks a source from being aimed at the instance-metadata endpoint to steal
-  the operator's IAM credentials. Private/loopback addresses stay reachable
-  for self-hosted registries. `ModuleSource` mutation is admin-only, so this
-  is defense-in-depth.
+- **Fetch SSRF guard.** The operator's `git`/`http` source fetchers
+  (`netguard.IsAllowed`) refuse link-local, cloud-metadata
+  (`169.254.169.254`), unspecified, and multicast destinations, at dial time
+  (so a DNS name rebinding to one is caught). This blocks a source from being
+  aimed at the instance-metadata endpoint to steal the operator's IAM
+  credentials. Private/loopback addresses stay reachable for self-hosted
+  registries. `ModuleSource` mutation is admin-only, so this is
+  defense-in-depth.
 - **Signature verification.** `ModuleSource.spec.verify` (OCI sources) makes
   the operator refuse any bundle without a valid cosign signature — keyed (a
   public key) or keyless (a pinned Fulcio issuer + identity). Use it for any
@@ -119,6 +121,25 @@ Verification and pinning are opt-in. A source with neither is trusted to
 serve a `GameTemplate` whose image/command runs in your cluster — only point
 Gameplane at module sources you trust, and prefer signed, pinned installs for
 third-party games. Authoring details: [`module-authoring.md`](module-authoring.md).
+
+## Runtime mod installs (agent)
+
+Separately from the module supply chain above, a running server can install
+mods/plugins at runtime if its template declares
+`capabilities.mods.install` — a user-supplied URL the agent downloads into
+the server's data volume (see
+[`module-authoring.md`](module-authoring.md#mods)). This is a distinct trust
+boundary: the target is whatever host the logged-in user types, not an
+admin-configured `ModuleSource`, so it is guarded more strictly
+(`netguard.IsPublic`): only globally routable addresses are allowed —
+loopback, private/ULA, link-local, and CGNAT/reserved ranges are all
+refused, not just the cloud-metadata range. An `allowedHosts` allow-list is
+also required before installs are enabled at all, and redirects are
+re-checked against both the host allow-list and the address guard. This
+guard and the operator's fetch guard above share their dial-time enforcement
+machinery in the `netguard/` module; its package doc explains why the two
+policies (`IsAllowed` vs `IsPublic`) stay separately selectable rather than
+being collapsed into one.
 
 ## Secrets
 

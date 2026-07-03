@@ -14,6 +14,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 
 ```
 .
+├── netguard/                 # shared SSRF dial-guard package (Go) — used by operator + agent
 ├── operator/                 # controller-runtime operator (Go)
 │   ├── api/v1alpha1/         # CRD Go types — edit here, then `make generate manifests`
 │   │   └── zz_generated.deepcopy.go    # GENERATED — do not hand-edit
@@ -26,6 +27,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── agent/                    # in-pod sidecar (Go)
 │   ├── cmd/main.go
 │   └── internal/{auth,console,files,heartbeat,logs,players,rcon,quiesce}/
+├── audit-syslog-bridge/      # optional HTTP-JSON → syslog relay image (Go), behind the audit webhook sink
 ├── web/                      # React 18 + TS strict + Vite dashboard
 │   └── src/{routes,components,lib,router,styles,test}/
 ├── modules/                  # GIT SUBMODULE → gameplane-module repo (game template OCI bundles)
@@ -37,11 +39,12 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── test/e2e/                 # kind-based E2E suite (build tag: e2e)
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
 ├── design.pen                # Pencil design source — encrypted, MCP only
-├── go.work                   # Go workspace linking operator/api/agent/test/e2e
+├── cosign.pub                # public key for verifying signed images + module bundles
+├── go.work                   # Go workspace linking netguard/operator/api/agent/audit-syslog-bridge/test/e2e
 └── Makefile                  # canonical entry point for every command
 ```
 
-The Go modules `operator`, `api`, `agent`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
+The Go modules `netguard`, `operator`, `api`, `agent`, `audit-syslog-bridge`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
 
 `modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
 
@@ -69,17 +72,17 @@ make dev-install   # re-run helm upgrade against the local cluster
 
 ```sh
 make build                       # all components (Go + web)
-make build-go                    # binaries: operator, api, agent
+make build-go                    # compiles every Go module: netguard, operator, api, agent, audit-syslog-bridge
 make build-web                   # web/dist via `npm ci && npm run build`
-make images                      # docker images for all three Go services
-make image-operator              # one image; same for image-api, image-agent
+make images                      # docker images: operator, api, agent, audit-syslog-bridge
+make image-operator              # one image; same for image-api, image-agent, image-audit-syslog
 ```
 
 ### Test (three tiers)
 
 ```sh
 make test                # everything (≈ seconds)
-make test-go             # Go unit tests across operator/api/agent
+make test-go             # Go unit tests across netguard, operator, api, agent, audit-syslog-bridge
 make test-web            # vitest for web
 
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
@@ -90,9 +93,11 @@ make test-e2e-keep       # re-run e2e against an already-up cluster
 Per-component fallbacks when you want to focus:
 
 ```sh
+cd netguard && go test ./...
 cd operator && go test ./...
 cd api      && go test ./...
 cd agent    && go test ./...
+cd audit-syslog-bridge && go test ./...
 cd web      && npm test
 ```
 
@@ -107,7 +112,7 @@ make cover           # full coverage with threshold gates (CI-equivalent)
 make cover-ratchet   # measured-vs-threshold delta per module
 ```
 
-Coverage gates: `operator/.testcoverage.yml` (71%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (91%), `web/vitest.config.ts` (lines 84% / functions 69% / branches 80%). Don't lower thresholds without a reason; ratchet them up when adding tests.
+Coverage gates: `netguard/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
 
 ### Codegen — mandatory after CRD type edits
 
@@ -251,6 +256,8 @@ Every piece of work goes on its own branch (rule 8). The moment that branch is m
 
 The detail lives in `docs/architecture.md`; this is the index.
 
+**`netguard/`** — shared Go package: the SSRF dial-guard used by both the operator (`IsAllowed`, permissive — ModuleSource `git`/`http` fetches, since self-hosted registries legitimately live on private/loopback addresses) and the agent (`IsPublic`, strict — `capabilities.mods.install` downloads, which are less trusted). Enforcement happens at dial time via a `net.Dialer.Control` hook, defeating DNS rebinding past a name-based allowlist. See the package doc comment for why the two policies must stay separately selectable.
+
 **`operator/`** — controller-runtime. Reconciles 7 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
 
 **`api/`** — chi router; REST + WebSocket. Entry: `api/cmd/main.go`, with subcommands `serve` and `bootstrap-admin`. Layout:
@@ -264,6 +271,8 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`agent/`** — sidecar that runs in every game pod. Entry: `agent/cmd/main.go`. Endpoints: console (PTY/RCON), files, logs, players, heartbeat, quiesce. Speaks token-auth + mTLS back to the operator/API.
 
+**`audit-syslog-bridge/`** — optional, schema-agnostic HTTP-JSON → syslog (RFC 5424) relay image. Sits behind the API's audit webhook sink (`api.audit.webhook.syslogBridge.enabled`) to forward audit events to a syslog/SIEM collector; forwards any JSON webhook body verbatim, so it isn't Gameplane-specific. See `audit-syslog-bridge/README.md`.
+
 **`web/`** — React 18 + TS strict + Vite. Entry: `web/src/main.tsx`. Routing in `web/src/router/tree.tsx` (TanStack Router). Data fetching is TanStack Query calling through the thin fetch wrapper in `web/src/lib/api.ts`; WebSocket helpers in `web/src/lib/ws.ts`. Pages in `web/src/routes/`. Shared types mirroring CRDs in `web/src/types.ts`.
 
 **`modules/`** — a **git submodule** (the standalone `gameplane-module` repo) holding the official game template bundles distributed as OCI artifacts. Each has `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Built and pushed via `modules/build.sh` (uses `oras ≥ 1.2.0`). Format spec: `docs/module-authoring.md`. Run `git submodule update --init` after clone to populate it.
@@ -276,12 +285,13 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 | Layer | What's used |
 |---|---|
-| Go runtime | 1.25 (operator, api, agent share `go.work`) |
+| Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge share `go.work`) |
 | K8s libs | `controller-runtime` v0.19.0, `client-go` v0.35.0, envtest 1.31 |
-| HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 *(README says nhooyr/websocket — README is stale; `go.mod` is canonical)* |
+| HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 |
 | Persistence | `modernc.org/sqlite` **or** `pgx/v5` (driver-selectable at runtime) |
 | Auth | `argon2id` (local), `coreos/go-oidc/v3` (OIDC) |
 | OCI | `oras-go/v2` for the operator pull side; `oras` CLI ≥ 1.2.0 for build/push |
+| Supply chain | `sigstore/cosign` — keyed/offline (no Rekor) signing of published images and official module bundles; verify with the repo-root `cosign.pub` |
 | Cron | `robfig/cron/v3` (BackupSchedule) |
 | Frontend core | React 18.3, TypeScript 5.6 strict, Vite 5.4 |
 | Frontend libs | TanStack Router, TanStack Query, Radix + shadcn/ui, Tailwind 3.4, lucide-react, Monaco editor, xterm.js |
@@ -352,6 +362,7 @@ The site lives in the **`gameplane-website`** repo, checked out here as the `web
 - **`docs/security.md`** — auth, RBAC, threat model, pod security defaults, and the pre-auth privacy rule.
 - **`docs/install.md`** — Helm values, K8s/Helm prerequisites, OIDC setup.
 - **`docs/module-authoring.md`** — OCI bundle format for game templates.
+- **`audit-syslog-bridge/README.md`** — the syslog relay's config vars, transport tradeoffs (why TCP over UDP), and standalone `docker run` usage.
 - **`Makefile`** — canonical source of every build/test/dev command (this file paraphrases it; if they disagree, `Makefile` wins).
 - **`.golangci.yml`** and **`web/eslint.config.js`** — the linter rule sets that "fix, don't silence" applies to.
 - **`.editorconfig`** — indentation: tabs in Go, 2 spaces elsewhere; LF line endings.

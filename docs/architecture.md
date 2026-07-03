@@ -1,7 +1,8 @@
 # Architecture
 
-Gameplane is split across four long-lived components and a short-lived
-per-pod sidecar.
+Gameplane is split across long-lived components — dashboard, API, operator,
+and an optional audit-syslog-bridge relay — plus a short-lived per-pod agent
+sidecar.
 
 ```
 ┌───────────────────────────────────────────────────────┐
@@ -136,5 +137,11 @@ converge on the same outcome. Format spec: `docs/module-authoring.md`.
 - **API → Agent**: mTLS; client cert signed by operator-managed CA mounted into API pod.
 - **Agent → K8s**: in-pod ServiceAccount, scoped to updating its owning GameServer's status.
 - **Operator → K8s**: cluster-wide CRUD on Gameplane CRDs + workload primitives it manages.
+- **Operator/Agent → external fetches**: a shared dial-time SSRF guard
+  (`netguard/`) refuses cloud-metadata and other unroutable-for-the-caller
+  addresses — permissive for the operator's admin-configured ModuleSource
+  fetches, strict for the agent's user-triggered mod-install downloads.
+- **API → audit-syslog-bridge (optional)**: plaintext or TLS syslog forward
+  for the audit trail, enabled via `api.audit.webhook.syslogBridge.enabled`.
 
 See `docs/security.md` for the threat model.
