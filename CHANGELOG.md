@@ -7,8 +7,22 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0-beta.5] — 2026-07-03
+
 ### Added
 
+- **ci/supply-chain:** the cosign **public key is now published** — committed
+  at the repo root as [`cosign.pub`](cosign.pub), exported by CI (job summary +
+  artifact on every edge publish), and shipped as a release asset. Both publish
+  workflows now **verify each signature right after signing** with the key
+  derived from the CI secret, and fail the publish if the committed
+  `cosign.pub` drifts from the signing key. README and docs gained
+  `cosign verify` instructions (the key is Ed25519; offline/keyed, so
+  verification takes `--insecure-ignore-tlog=true`).
+- **ci:** tagged releases now get a **GitHub Release page automatically** —
+  notes extracted from the tag's CHANGELOG section, prereleases flagged,
+  `cosign.pub` attached, idempotent on re-runs. (beta.4's page was backfilled
+  by hand.)
 - **website:** Gameplane has a public marketing + docs site at
   <https://valgulnecron.github.io/gameplane-website/> — features, game
   showcase, an AMP comparison, and the full documentation set, designed
@@ -21,6 +35,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   port overrides editable in the Create Server wizard's Network step (the CRD
   and Settings tab already supported them), and "Back up now" relocated to a
   header button + dialog on the Backups page, matching the design.
+
+### Changed
+
+- **ci:** the three kind e2e jobs (core / extended / game bot) were collapsed
+  into a single job running the same three suites, in the same order, against
+  one cluster — they were already fully serialized by the shared concurrency
+  group, so the split only cost duplicate image builds, cluster setups, and
+  queue slots (~15-20 min per run). Docs-only changes no longer trigger the
+  test pipeline at all (`paths-ignore`); no test was removed.
 
 ## [0.2.0-beta.4] — 2026-07-01
 
