@@ -76,6 +76,10 @@ func TestValidateNotifications(t *testing.T) {
 		{"duplicate", `{"sinks":[{"name":"a","kind":"discord"},{"name":"a","kind":"slack"}]}`, false, "duplicate"},
 		{"bad kind", `{"sinks":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
 		{"happy", `{"sinks":[{"name":"x","kind":"smtp"}]}`, true, ""},
+		{"bad configRef", `{"sinks":[{"name":"a","kind":"discord","configRef":"Not_A_Label"}]}`, false, "configRef"},
+		{"happy configRef+events", `{"sinks":[{"name":"a","kind":"discord","enabled":true,"configRef":"team-hook","events":["backup.failed","server.unhealthy"]}]}`, true, ""},
+		{"unknown event", `{"sinks":[{"name":"a","kind":"discord","events":["server.rebooted"]}]}`, false, "unknown event"},
+		{"duplicate event", `{"sinks":[{"name":"a","kind":"discord","events":["backup.failed","backup.failed"]}]}`, false, "duplicate"},
 		{"bad json", `{`, false, "invalid json"},
 	}
 	for _, tc := range cases {
@@ -88,6 +92,18 @@ func TestValidateNotifications(t *testing.T) {
 				t.Fatalf("got %v want %q", err, tc.errs)
 			}
 		})
+	}
+}
+
+// Sink rows persisted before configRef/events existed must keep loading
+// and must canonicalize without sprouting the new fields.
+func TestValidateNotificationsLegacyBlob(t *testing.T) {
+	canon, err := validateNotifications([]byte(`{"sinks":[{"name":"a","kind":"discord","enabled":true}]}`))
+	if err != nil {
+		t.Fatalf("legacy blob: %v", err)
+	}
+	if string(canon) != `{"sinks":[{"name":"a","kind":"discord","enabled":true}]}` {
+		t.Fatalf("canonicalized output: got %s", canon)
 	}
 }
 
