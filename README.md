@@ -203,7 +203,8 @@ bundle format and how to author additional modules.
 ## Contributing
 
 Design changes go through `design.pen` (Pencil) before any UI code is
-written. See `docs/contributing.md` (coming soon).
+written. See [`docs/contributing.md`](docs/contributing.md) for the
+full guide: code style, test tiers, and the PR process.
 
 ## License
 
