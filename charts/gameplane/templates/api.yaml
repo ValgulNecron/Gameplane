@@ -113,6 +113,13 @@ rules:
   - apiGroups: [""]
     resources: [configmaps]
     verbs: [get, list, create, update, delete]
+  # Notification sink credentials are read (never written) from Secrets
+  # here in the control-plane namespace; the API additionally refuses any
+  # Secret not labelled gameplane.local/notification-sink=true
+  # (api/internal/notify/sinks.go).
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
