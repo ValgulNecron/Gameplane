@@ -23,6 +23,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/handlers"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/notify"
 	"github.com/ValgulNecron/gameplane/api/internal/rbac"
 	"github.com/ValgulNecron/gameplane/api/internal/registry"
 	"github.com/ValgulNecron/gameplane/api/internal/telemetry"
@@ -108,6 +109,13 @@ func main() {
 		logger.Info("audit webhook sink enabled", "url", cfg.auditWebhookURL)
 	}
 	auditor := audit.New(store, auditOpts...)
+
+	// Notification delivery: watch CRD status transitions (server health,
+	// backup/restore outcomes) and push matching events to the sinks
+	// configured in Admin Settings. Best-effort mirror — never gates
+	// reconciliation or requests.
+	notifier := notify.New(store, k8s, cfg.namespace)
+	go notifier.Run(ctx)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, middleware.RealIP)

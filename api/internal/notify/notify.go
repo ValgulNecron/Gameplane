@@ -105,6 +105,7 @@ func (n *Notifier) Enqueue(e Event) {
 // at shutdown are dropped — notifications mirror state that the dashboard
 // and kubectl also show, so exit is never held up for a retrying endpoint.
 func (n *Notifier) Run(ctx context.Context) {
+	n.runWatchers(ctx)
 	for {
 		select {
 		case <-ctx.Done():
