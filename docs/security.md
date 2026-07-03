@@ -141,6 +141,23 @@ machinery in the `netguard/` module; its package doc explains why the two
 policies (`IsAllowed` vs `IsPublic`) stay separately selectable rather than
 being collapsed into one.
 
+## Notifications
+
+Notification sinks ([docs](notifications.md)) are a third outbound-dial
+surface, between the two above in trust: the URLs are configured at runtime
+through the dashboard (unlike the deploy-time audit webhook flag), but only
+by users holding `config:manage` — admin-tier, the same trust class as the
+operator's `ModuleSource`s. They get the same guard: every sink dial
+(HTTP and SMTP) goes through `netguard.IsAllowed`, so LAN/in-cluster
+receivers (ntfy, a syslog bridge, an SMTP smarthost) keep working while
+link-local (cloud metadata), unspecified, multicast, and NAT64/6to4
+destinations are refused at dial time — DNS rebinding can't slip past.
+Two further containments: sink credentials resolve only from Secrets
+labelled `gameplane.local/notification-sink=true` in the control-plane
+namespace (so a sink `configRef` can't be aimed at an arbitrary Secret),
+and delivery errors are sanitized to never echo the sink URL, whose path
+often embeds a capability token.
+
 ## Secrets
 
 Secrets Gameplane reads or creates, by convention:
@@ -153,6 +170,10 @@ Secrets Gameplane reads or creates, by convention:
 - audit-webhook auth — any Secret you reference via
   `api.audit.webhook.authSecretRef` (user-supplied). The token is injected as an
   env var, never a flag, so it does not appear in the pod spec or `ps` output.
+- notification sinks — any Secret labelled
+  `gameplane.local/notification-sink=true` in the control-plane namespace
+  (user-supplied; referenced by name from Admin Settings → Notifications, read
+  by the API at delivery time — see [notifications](notifications.md)).
 
 Rotation: deleting the `-rcon` secret triggers a reconciliation and
 generates a fresh password on the next pod restart.

@@ -154,6 +154,17 @@ replica reports the same cache-derived counts, so aggregate with
 - `GameplaneBackupFailed` *(group `gameplane.fleet`)* — any Backup in the Failed
   phase for 15m (a failed backup is a data-loss risk until superseded or pruned).
 
+### Notifications
+
+Prometheus alerts cover operators watching a dashboard; for pushing events to
+where a game-server admin actually lives — Discord, Slack, email, or any
+webhook receiver — configure notification sinks under **Admin Settings →
+Notifications**. No Helm values are involved: sinks are runtime config, with
+credentials in labelled Secrets. Event types, Secret shapes, and the
+test-send endpoint are documented in [notifications.md](notifications.md);
+delivery health is visible at `/metrics` as
+`gameplane_notify_deliveries_total`.
+
 ### Audit log
 
 Every mutating API request is recorded to the `audit_events` table and served at
