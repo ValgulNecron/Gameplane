@@ -121,6 +121,53 @@ jobs:
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
           helm push dist/gameplane-*.tgz "oci://ghcr.io/${owner_lc}/charts"
 
+  # Publish the GitHub Release page for the tag, with the matching CHANGELOG
+  # section as the notes. beta.3's page was created by hand and beta.4's was
+  # forgotten entirely — this makes the page part of the release, not a
+  # follow-up chore.
+  github-release:
+    name: publish GitHub release
+    runs-on: ubuntu-latest
+    needs: [images, chart]
+    steps:
+      - uses: actions/checkout@v4
+      - name: extract changelog section
+        run: |
+          awk -v ver="${GITHUB_REF_NAME#v}" '
+            $0 ~ "^## \\[" ver "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::warning::no CHANGELOG section for ${GITHUB_REF_NAME#v} — falling back to generated notes"
+            rm notes.md
+          fi
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Idempotent: re-running the workflow must not fail on an existing
+          # release (and must not clobber hand-edited notes).
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME already exists — skipping"
+            exit 0
+          fi
+          args=(--verify-tag --title "$GITHUB_REF_NAME")
+          case "$GITHUB_REF_NAME" in
+            *-*) args+=(--prerelease) ;;
+          esac
+          if [ -f notes.md ]; then
+            args+=(--notes-file notes.md)
+          else
+            args+=(--generate-notes)
+          fi
+          # Ship the signature-verification key with the release once it is
+          # committed in the repo.
+          assets=()
+          if [ -f cosign.pub ]; then assets=(cosign.pub); fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            "${args[@]}" "${assets[@]}"
+
   modules:
     name: push & sign module bundles
     runs-on: ubuntu-latest
