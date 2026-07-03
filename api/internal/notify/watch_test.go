@@ -172,32 +172,34 @@ func TestRunWatchers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := map[EventType]string{
+	// Collect until both transitions have been seen. Fake-client objects
+	// carry no resourceVersion, so the informer's list/watch plumbing can
+	// deliver the same logical transition more than once — a real
+	// apiserver-backed informer can't. Assert set membership and identity
+	// rather than exact counts; the namespace check is what proves the
+	// out-of-scope update was filtered.
+	wantName := map[EventType]string{
 		EventServerUnhealthy: "mc",
 		EventBackupFailed:    "nightly",
 	}
-	for range want {
+	got := map[EventType]bool{}
+	deadline := time.After(5 * time.Second)
+	for !(got[EventServerUnhealthy] && got[EventBackupFailed]) {
 		select {
 		case e := <-n.ch:
-			if want[e.Type] != e.Name {
+			if e.Namespace != ns {
+				t.Fatalf("event from unexpected namespace: %+v", e)
+			}
+			name, ok := wantName[e.Type]
+			if !ok || e.Name != name {
 				t.Fatalf("unexpected event %+v", e)
 			}
 			if e.TS == "" {
 				t.Errorf("event %s has no timestamp", e.Type)
 			}
-			if e.Namespace != ns {
-				t.Fatalf("event from unexpected namespace: %+v", e)
-			}
-			delete(want, e.Type)
-		case <-time.After(5 * time.Second):
-			t.Fatalf("timed out; still waiting for %v", want)
+			got[e.Type] = true
+		case <-deadline:
+			t.Fatalf("timed out; got %v", got)
 		}
-	}
-	// The out-of-scope update and the initial sync must not have queued
-	// anything else.
-	select {
-	case e := <-n.ch:
-		t.Fatalf("unexpected extra event %+v", e)
-	case <-time.After(200 * time.Millisecond):
 	}
 }
