@@ -9,6 +9,13 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **website:** Gameplane has a public marketing + docs site at
+  <https://valgulnecron.github.io/gameplane-website/> — features, game
+  showcase, an AMP comparison, and the full documentation set, designed
+  screen-first in `design.pen` (18 frames) and built with Astro. The source
+  lives in the separate
+  [`gameplane-website`](https://github.com/ValgulNecron/gameplane-website)
+  repo, mounted here as the `website/` submodule.
 - **web:** the last UI-audit parity items — a show/hide toggle on the login
   password field, user emails shown under display names on the Users page,
   port overrides editable in the Create Server wizard's Network step (the CRD
