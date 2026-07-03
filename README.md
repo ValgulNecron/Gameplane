@@ -90,6 +90,7 @@ control plane handles both.
 
 | Path         | Language | Purpose                                                           |
 | ------------ | -------- | ----------------------------------------------------------------- |
+| `netguard/`  | Go       | Shared SSRF dial-guard used by the operator (module fetches) and agent (mod installs). |
 | `operator/`  | Go       | Reconciles CRDs into K8s objects. Built with controller-runtime.  |
 | `api/`       | Go       | Front-end-facing REST + WebSocket gateway. chi, coder/websocket. |
 | `agent/`     | Go       | Sidecar running in each game pod. RCON, file ops, PTY console.   |
@@ -111,6 +112,7 @@ control plane handles both.
 
 ```
 .
+├── netguard/     # shared SSRF dial-guard (operator + agent)
 ├── operator/     # controller-runtime operator
 │   ├── api/v1alpha1/     # CRD Go types
 │   ├── internal/controller/
@@ -118,6 +120,7 @@ control plane handles both.
 │   └── config/{crd,rbac,samples}
 ├── api/          # REST + WS gateway
 ├── agent/        # in-pod sidecar
+├── audit-syslog-bridge/  # optional HTTP-JSON → syslog relay
 ├── web/          # React dashboard
 ├── modules/      # git submodule → gameplane-module repo (OCI bundles)
 │   ├── minecraft-java/
@@ -128,6 +131,7 @@ control plane handles both.
 ├── charts/gameplane/       # Helm chart
 ├── deploy/kind/          # local dev cluster
 ├── docs/
+├── cosign.pub    # public key for verifying signed images + module bundles
 └── design.pen    # Pencil design source (do not delete)
 ```
 
