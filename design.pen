@@ -2963,6 +2963,7 @@
       "theme": {
         "c:Mode": "Dark"
       },
+      "clip": true,
       "width": 1440,
       "height": 900,
       "fill": "$c:--background",
@@ -3423,7 +3424,7 @@
                           "name": "srvIconBig",
                           "width": 56,
                           "height": 56,
-                          "fill": "#5B8A3A",
+                          "fill": "#5B9A3E",
                           "cornerRadius": 8,
                           "justifyContent": "center",
                           "alignItems": "center",
@@ -5325,6 +5326,139 @@
                         },
                         {
                           "type": "frame",
+                          "id": "jOJyD",
+                          "name": "Game Status",
+                          "width": "fill_container",
+                          "fill": "$c:--card",
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "layout": "vertical",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "TgOjk",
+                              "name": "gsHdr",
+                              "width": "fill_container",
+                              "stroke": "$c:--border",
+                              "strokeWidth": {
+                                "bottom": 1
+                              },
+                              "strokeAlignment": "inner",
+                              "padding": [
+                                16,
+                                20
+                              ],
+                              "justifyContent": "space_between",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "s04dOR",
+                                  "fill": "$c:--foreground",
+                                  "content": "Game status",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                },
+                                {
+                                  "type": "icon",
+                                  "id": "ayFTk",
+                                  "width": 16,
+                                  "height": 16,
+                                  "icon": "monitoring",
+                                  "library": "Material Symbols Sharp",
+                                  "weight": 400,
+                                  "fill": "$c:--muted-foreground"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "o9wXQ5",
+                              "name": "gsBody",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": [
+                                16,
+                                20
+                              ],
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "FsxOr",
+                                  "name": "gsRow1",
+                                  "width": "fill_container",
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    8,
+                                    12
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "qMAHM",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "World seed",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "oAQAK",
+                                      "fill": "$c:--foreground",
+                                      "content": "-4530634556500121041",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "LXjzm",
+                                  "name": "gsRow2",
+                                  "width": "fill_container",
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 4,
+                                  "padding": [
+                                    8,
+                                    12
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "HLZYR",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "Difficulty",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "xL90T",
+                                      "fill": "$c:--foreground",
+                                      "content": "Normal",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
                           "id": "CF3u0",
                           "name": "Quick Actions",
                           "width": "fill_container",
@@ -5371,7 +5505,7 @@
                               "children": [
                                 {
                                   "type": "frame",
-                                  "id": "PvDG5",
+                                  "id": "TDQ4v",
                                   "name": "qa1",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -5384,17 +5518,17 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "nrZeu",
+                                      "id": "FW9kb",
                                       "width": 18,
                                       "height": 18,
-                                      "icon": "save",
+                                      "icon": "campaign",
                                       "library": "Material Symbols Sharp",
                                       "weight": 400,
-                                      "fill": "$c:--foreground"
+                                      "fill": "$c:--muted-foreground"
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "2W8hl",
+                                      "id": "Iu2kl",
                                       "name": "qa1b",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -5402,39 +5536,31 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "sQggF",
+                                          "id": "riEcf",
                                           "fill": "$c:--foreground",
-                                          "content": "Create backup now",
+                                          "content": "Broadcast message",
                                           "fontFamily": "$c:--font-primary",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
                                         },
                                         {
                                           "type": "text",
-                                          "id": "QtkEK",
+                                          "id": "bQgAI",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "Snapshot world + configs",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "Send a chat message to everyone on the server.",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
                                       ]
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "0TNL3",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "chevron_right",
-                                      "library": "Material Symbols Sharp",
-                                      "weight": 300,
-                                      "fill": "$c:--muted-foreground"
                                     }
                                   ]
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "bSEzT",
+                                  "id": "nBamf",
                                   "name": "qa2",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -5447,17 +5573,17 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "lRex2",
+                                      "id": "svdHQ",
                                       "width": 18,
                                       "height": 18,
-                                      "icon": "public",
+                                      "icon": "schedule",
                                       "library": "Material Symbols Sharp",
                                       "weight": 400,
-                                      "fill": "$c:--foreground"
+                                      "fill": "$c:--muted-foreground"
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "63Onw",
+                                      "id": "uRQtI",
                                       "name": "qa2b",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -5465,39 +5591,20 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "wW7uG",
+                                          "id": "k1kzM",
                                           "fill": "$c:--foreground",
-                                          "content": "Send broadcast",
+                                          "content": "Set time",
                                           "fontFamily": "$c:--font-primary",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
-                                        },
-                                        {
-                                          "type": "text",
-                                          "id": "b0WPl",
-                                          "fill": "$c:--muted-foreground",
-                                          "content": "Message all players",
-                                          "fontFamily": "$c:--font-secondary",
-                                          "fontSize": 11,
-                                          "fontWeight": "normal"
                                         }
                                       ]
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "mHOp2",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "chevron_right",
-                                      "library": "Material Symbols Sharp",
-                                      "weight": 300,
-                                      "fill": "$c:--muted-foreground"
                                     }
                                   ]
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "n2fJj",
+                                  "id": "BtE3n",
                                   "name": "qa3",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -5510,17 +5617,17 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "QhngG",
+                                      "id": "I1PNc",
                                       "width": 18,
                                       "height": 18,
-                                      "icon": "upload",
+                                      "icon": "cloud",
                                       "library": "Material Symbols Sharp",
                                       "weight": 400,
-                                      "fill": "$c:--foreground"
+                                      "fill": "$c:--muted-foreground"
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "Rts4q",
+                                      "id": "cagTk",
                                       "name": "qa3b",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -5528,39 +5635,20 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "tcDj6",
+                                          "id": "WWMcm",
                                           "fill": "$c:--foreground",
-                                          "content": "Install plugin / mod",
+                                          "content": "Set weather",
                                           "fontFamily": "$c:--font-primary",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
-                                        },
-                                        {
-                                          "type": "text",
-                                          "id": "ssTNd",
-                                          "fill": "$c:--muted-foreground",
-                                          "content": "From .jar or URL",
-                                          "fontFamily": "$c:--font-secondary",
-                                          "fontSize": 11,
-                                          "fontWeight": "normal"
                                         }
                                       ]
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "mFPLG",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "chevron_right",
-                                      "library": "Material Symbols Sharp",
-                                      "weight": 300,
-                                      "fill": "$c:--muted-foreground"
                                     }
                                   ]
                                 },
                                 {
                                   "type": "frame",
-                                  "id": "3L61Z",
+                                  "id": "P8E4gc",
                                   "name": "qa4",
                                   "width": "fill_container",
                                   "cornerRadius": 6,
@@ -5573,17 +5661,17 @@
                                   "children": [
                                     {
                                       "type": "icon",
-                                      "id": "2BunA",
+                                      "id": "xYLhN",
                                       "width": 18,
                                       "height": 18,
-                                      "icon": "delete",
+                                      "icon": "person_add",
                                       "library": "Material Symbols Sharp",
                                       "weight": 400,
-                                      "fill": "$c:--destructive"
+                                      "fill": "$c:--muted-foreground"
                                     },
                                     {
                                       "type": "frame",
-                                      "id": "ld62y",
+                                      "id": "eAonQ",
                                       "name": "qa4b",
                                       "width": "fill_container",
                                       "layout": "vertical",
@@ -5591,33 +5679,113 @@
                                       "children": [
                                         {
                                           "type": "text",
-                                          "id": "dD80l",
-                                          "fill": "$c:--destructive",
-                                          "content": "Delete server",
+                                          "id": "Bpbfs",
+                                          "fill": "$c:--foreground",
+                                          "content": "Whitelist player",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 13,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "GFO2p",
+                                  "name": "qa5",
+                                  "width": "fill_container",
+                                  "cornerRadius": 6,
+                                  "gap": 12,
+                                  "padding": [
+                                    10,
+                                    12
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "g8bYQ6",
+                                      "width": 18,
+                                      "height": 18,
+                                      "icon": "person_remove",
+                                      "library": "Material Symbols Sharp",
+                                      "weight": 400,
+                                      "fill": "$c:--muted-foreground"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "rV4ZM",
+                                      "name": "qa5b",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "d3l6u",
+                                          "fill": "$c:--foreground",
+                                          "content": "Remove from whitelist",
+                                          "fontFamily": "$c:--font-primary",
+                                          "fontSize": 13,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "yPrGj",
+                                  "name": "qa6",
+                                  "width": "fill_container",
+                                  "cornerRadius": 6,
+                                  "gap": 12,
+                                  "padding": [
+                                    10,
+                                    12
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "qDJnO",
+                                      "width": 18,
+                                      "height": 18,
+                                      "icon": "save",
+                                      "library": "Material Symbols Sharp",
+                                      "weight": 400,
+                                      "fill": "$c:--muted-foreground"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "mWfks",
+                                      "name": "qa6b",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "YdEYR",
+                                          "fill": "$c:--foreground",
+                                          "content": "Save world",
                                           "fontFamily": "$c:--font-primary",
                                           "fontSize": 13,
                                           "fontWeight": "normal"
                                         },
                                         {
                                           "type": "text",
-                                          "id": "DQyTJ",
+                                          "id": "SUjCD",
                                           "fill": "$c:--muted-foreground",
-                                          "content": "Deletes pod + PVC (irreversible)",
+                                          "textGrowth": "fixed-width",
+                                          "width": "fill_container",
+                                          "content": "Flush the world to disk now.",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 11,
                                           "fontWeight": "normal"
                                         }
                                       ]
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "g9nLr",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "chevron_right",
-                                      "library": "Material Symbols Sharp",
-                                      "weight": 300,
-                                      "fill": "$c:--muted-foreground"
                                     }
                                   ]
                                 }
@@ -69066,6 +69234,545 @@
                   "fontWeight": "normal"
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "g19c84",
+      "x": 6560,
+      "y": 1960,
+      "name": "Screen/Server Detail — Capabilities (added)",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "clip": true,
+      "width": 1040,
+      "fill": "$c:--background",
+      "cornerRadius": 12,
+      "stroke": "$c:--border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 24,
+      "children": [
+        {
+          "type": "text",
+          "id": "fYFCx",
+          "name": "title",
+          "fill": "$c:--foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Server Detail — capability-driven surfaces (added)",
+          "fontFamily": "$c:--font-secondary",
+          "fontSize": 18,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "ZhlwD",
+          "name": "subtitle",
+          "fill": "$c:--muted-foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "The server detail page is driven by the GameTemplate's declared capabilities: tabs hide when the game has no console or log file, Quick actions renders spec.capabilities.actions, Game status renders spec.capabilities.status.metrics, and the server icon tints from spec.accentColor. The base Overview screen is updated in place; below are the added interaction states. Engineering reference.",
+          "lineHeight": 1.5,
+          "fontFamily": "$c:--font-secondary",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "jcm4e",
+          "name": "dialogs",
+          "width": "fill_container",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "E4xmmS",
+              "name": "g1",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "XMKwj",
+                  "fill": "$c:--muted-foreground",
+                  "content": "ACTION DIALOG — REQUIRED STRING PARAM",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 10,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "mLKof",
+                  "name": "Dialog/Run Action — Broadcast",
+                  "width": "fill_container",
+                  "fill": "$c:--card",
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 14,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tdnvt",
+                      "name": "hdr",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Kdyo0",
+                          "fill": "$c:--foreground",
+                          "content": "Broadcast message",
+                          "fontFamily": "$c:--font-primary",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "j2MoSM",
+                          "fill": "$c:--muted-foreground",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Send a chat message to everyone on the server.",
+                          "lineHeight": 1.4,
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GXP8Q",
+                      "name": "field Message",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "L4iTF",
+                          "name": "label",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cozeL",
+                              "fill": "$c:--muted-foreground",
+                              "content": "Message",
+                              "fontFamily": "$c:--font-secondary",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "hLhE2",
+                              "fill": "$c:--destructive",
+                              "content": "*",
+                              "fontFamily": "$c:--font-secondary",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ykGXZ",
+                          "name": "box",
+                          "width": "fill_container",
+                          "height": 38,
+                          "stroke": "$c:--input",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "v4Ctj",
+                              "fill": "$c:--foreground",
+                              "content": "Server restarting in 10 minutes",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Ez7Tz",
+                      "name": "footer",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "mnfVh",
+                          "name": "cancel",
+                          "cornerRadius": 999,
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            9,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "vFeT1",
+                              "fill": "$c:--foreground",
+                              "content": "Cancel",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "b2jT7",
+                          "name": "run",
+                          "fill": "$c:--primary",
+                          "cornerRadius": 999,
+                          "padding": [
+                            9,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "IFtKv",
+                              "fill": "$c:--primary-foreground",
+                              "content": "Run",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ScydB",
+              "name": "g2",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YaRwD",
+                  "fill": "$c:--muted-foreground",
+                  "content": "ACTION DIALOG — ENUM PARAM",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 10,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "XliV5",
+                  "name": "Dialog/Run Action — Set time",
+                  "width": "fill_container",
+                  "fill": "$c:--card",
+                  "stroke": "$c:--border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 14,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CzQEw",
+                      "fill": "$c:--foreground",
+                      "content": "Set time",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 16,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Pemvy",
+                      "name": "field Time of day",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "SxQ6A",
+                          "fill": "$c:--muted-foreground",
+                          "content": "Time of day",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xdmUl",
+                          "name": "box",
+                          "width": "fill_container",
+                          "height": 38,
+                          "stroke": "$c:--input",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "v0yuLt",
+                              "fill": "$c:--foreground",
+                              "content": "day",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "CENt0",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "keyboard_arrow_down",
+                              "library": "Material Symbols Sharp",
+                              "weight": 400,
+                              "fill": "$c:--muted-foreground"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ADsxm",
+                      "name": "footer",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "justifyContent": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "oK3tO",
+                          "name": "cancel",
+                          "cornerRadius": 999,
+                          "stroke": "$c:--border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            9,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "hlrCw",
+                              "fill": "$c:--foreground",
+                              "content": "Cancel",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "HUEMT",
+                          "name": "run",
+                          "fill": "$c:--primary",
+                          "cornerRadius": 999,
+                          "padding": [
+                            9,
+                            16
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "sF5HU",
+                              "fill": "$c:--primary-foreground",
+                              "content": "Run",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "sUkWM",
+          "name": "states",
+          "width": "fill_container",
+          "fill": "$c:--card",
+          "cornerRadius": 8,
+          "stroke": "$c:--border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 10,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "E8INmK",
+              "fill": "$c:--muted-foreground",
+              "content": "RUN RESULT + NO-CONSOLE STATES",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 10,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "SYhiS",
+              "name": "result banner",
+              "width": "fill_container",
+              "fill": "$c:--muted",
+              "cornerRadius": 6,
+              "stroke": "$c:--border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "padding": [
+                8,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "u9oSb1",
+                  "fill": "$c:--foreground",
+                  "content": "Set the time to 1000",
+                  "fontFamily": "$c:--font-primary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "uT4OX",
+                  "fill": "$c:--muted-foreground",
+                  "content": "dismiss",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mmTUM",
+              "name": "error banner",
+              "width": "fill_container",
+              "fill": "#7f1d1d26",
+              "cornerRadius": 6,
+              "stroke": "#7f1d1d",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "padding": [
+                8,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R3AeV3",
+                  "fill": "$c:--destructive",
+                  "content": "action failed: console unavailable",
+                  "fontFamily": "$c:--font-primary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "U0RvwV",
+                  "fill": "$c:--muted-foreground",
+                  "content": "dismiss",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "mPO2U",
+              "fill": "$c:--muted-foreground",
+              "content": "Actions need a live console; this game has none.",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ngKTE",
+          "name": "Notes",
+          "width": "fill_container",
+          "fill": "$c:--card",
+          "cornerRadius": 8,
+          "stroke": "$c:--border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "udV08",
+              "fill": "$c:--foreground",
+              "content": "Implementation notes",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "bJkgC",
+              "fill": "$c:--muted-foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "• Tabs are capability-driven: Console is hidden when the template declares no live console (consoleMode none / no RCON); Logs is hidden when the game logs only to stdout (no logPath). If the active tab disappears once the template resolves, the page falls back to Overview.\n• Quick actions = spec.capabilities.actions. No-param actions run on click; actions with params or confirm: true open the typed dialog (string / int / enum / bool). Client-side validation mirrors the agent: required fields, whole numbers for int, no control characters. POST /servers/{name}/actions/run, gated to operator+ — buttons render disabled for viewers. Actions with danger: true render icon + label in destructive red, and the dialog's Run button turns destructive.\n• Game status = spec.capabilities.status.metrics, read from GET /servers/{name}/status every 10s while running. Declared metrics keep the layout stable: value shows — until the first reading and offline when the server is stopped. The card is hidden when the template declares no metrics or has no RCON.\n• The run result banner (raw console output, truncated to 200 chars, dismissible) pins above the actions list; errors use the destructive variant. Templates without a console show the muted hint instead.\n• The server icon tints from spec.accentColor (minecraft #5B9A3E, valheim #D99A2B, terraria #4A90D9), falling back to the legacy per-game palette.",
+              "lineHeight": 1.5,
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
             }
           ]
         }
