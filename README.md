@@ -149,6 +149,16 @@ add `--set image.tag=edge`. Then seed an admin user and log in — see
 [`docs/install.md`](docs/install.md) for the full flow, OIDC, Postgres, and
 values reference.
 
+All published images and module bundles are signed with the project's
+cosign key ([`cosign.pub`](cosign.pub), also baked into the chart for
+module verification). Signing is offline/keyed — no transparency log —
+so verification needs the matching flag:
+
+```sh
+cosign verify --key cosign.pub --insecure-ignore-tlog=true \
+  ghcr.io/valgulnecron/gameplane/operator:<version>
+```
+
 ## Quickstart (local dev)
 
 Requires: Go 1.22+, Node 20+, Docker, kind, kubectl, helm,
@@ -193,7 +203,8 @@ bundle format and how to author additional modules.
 ## Contributing
 
 Design changes go through `design.pen` (Pencil) before any UI code is
-written. See `docs/contributing.md` (coming soon).
+written. See [`docs/contributing.md`](docs/contributing.md) for the
+full guide: code style, test tiers, and the PR process.
 
 ## License
 
