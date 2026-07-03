@@ -270,7 +270,7 @@ concept); `git`/`http`/`local`/`upload` rely on the content digest plus a
 ### Signing official bundles
 
 The official `modules/*` bundles are signed by the release pipeline so installs
-can verify them offline. Signing is **keyed** (an ECDSA key, no transparency
+can verify them offline. Signing is **keyed** (an Ed25519 key, no transparency
 log) — the operator's keyed verify path needs no Fulcio/Rekor connectivity,
 which suits air-gapped and self-hosted clusters.
 
@@ -282,7 +282,8 @@ public key ships to users:
 cosign generate-key-pair                 # writes cosign.key (private) + cosign.pub
 # CI secrets (repo settings): paste the contents of each file
 #   COSIGN_PRIVATE_KEY = <cosign.key>    COSIGN_PASSWORD = <the passphrase>
-# Publish cosign.pub with the release and record it for chart users.
+# Commit cosign.pub at the repo root — CI drift-checks it against the
+# private key on every publish, and it ships as a release asset.
 ```
 
 The `release.yaml` `modules` job then runs `modules/build.sh push --sign` on
@@ -302,7 +303,8 @@ defaultModuleSource:
   oci:
     verify:
       enabled: true
-      # cosignPublicKey ships with the chart (the official ed25519 key);
+      # cosignPublicKey ships with the chart (the official Ed25519 key,
+      # same as the repo-root cosign.pub);
       # override it only to pin a different signer.
 ```
 

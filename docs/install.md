@@ -39,6 +39,22 @@ helm upgrade --install gameplane oci://ghcr.io/valgulnecron/charts/gameplane \
 `:edge` moves with `main`; pin a specific commit with `image.tag=sha-<short>`
 when you need reproducibility.
 
+### Verifying image signatures
+
+Every published image (tagged releases and `:edge`) is signed with the
+project's cosign key, [`cosign.pub`](../cosign.pub) at the repo root. The
+signatures are offline/keyed (no transparency log), so pass the matching
+flag:
+
+```sh
+cosign verify --key cosign.pub --insecure-ignore-tlog=true \
+  ghcr.io/valgulnecron/gameplane/operator:<version>
+```
+
+The official module bundles are signed with the same key; the chart already
+carries it, so bundle verification is just a values flip — see
+[`module-authoring.md`](module-authoring.md#signing-official-bundles).
+
 From source (during development), the chart in this repo always renders against
 the local default image path:
 
