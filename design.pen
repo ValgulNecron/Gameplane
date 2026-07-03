@@ -52516,15 +52516,6 @@
                     },
                     {
                       "type": "text",
-                      "id": "iGsEZ",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Docs",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
                       "id": "rqEKs",
                       "fill": "$c:--muted-foreground",
                       "content": "Compare",
@@ -52537,6 +52528,15 @@
                       "id": "ShCF3",
                       "fill": "$c:--muted-foreground",
                       "content": "Showcase",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "iGsEZ",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Docs",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "500"
@@ -58799,15 +58799,6 @@
                     },
                     {
                       "type": "text",
-                      "id": "t0Ut1",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Docs",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
                       "id": "xGX9k",
                       "fill": "$c:--muted-foreground",
                       "content": "Compare",
@@ -58820,6 +58811,15 @@
                       "id": "D3JKs",
                       "fill": "$c:--muted-foreground",
                       "content": "Showcase",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "t0Ut1",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Docs",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "500"
@@ -59884,15 +59884,6 @@
                     },
                     {
                       "type": "text",
-                      "id": "RXbR8",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Docs",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
                       "id": "VHgGV",
                       "fill": "$c:--muted-foreground",
                       "content": "Compare",
@@ -59905,6 +59896,15 @@
                       "id": "XGm72",
                       "fill": "$c:--muted-foreground",
                       "content": "Showcase",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RXbR8",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Docs",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "500"
@@ -61180,15 +61180,6 @@
                     },
                     {
                       "type": "text",
-                      "id": "UYr8Z",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Docs",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
                       "id": "Cb85H",
                       "fill": "$c:--muted-foreground",
                       "content": "Compare",
@@ -61201,6 +61192,15 @@
                       "id": "F3r6MK",
                       "fill": "$c:--muted-foreground",
                       "content": "Showcase",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "UYr8Z",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Docs",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "500"
@@ -62408,15 +62408,6 @@
                     },
                     {
                       "type": "text",
-                      "id": "VVCpR",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Docs",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
                       "id": "E7kFV",
                       "fill": "$c:--muted-foreground",
                       "content": "Compare",
@@ -62429,6 +62420,15 @@
                       "id": "ldfG6",
                       "fill": "$c:--muted-foreground",
                       "content": "Showcase",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VVCpR",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Docs",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "500"
@@ -66831,15 +66831,6 @@
                     },
                     {
                       "type": "text",
-                      "id": "Tfr1m",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Docs",
-                      "fontFamily": "$c:--font-primary",
-                      "fontSize": 14,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "type": "text",
                       "id": "ylFGl",
                       "fill": "$c:--muted-foreground",
                       "content": "Compare",
@@ -66852,6 +66843,15 @@
                       "id": "dgsPz",
                       "fill": "$c:--muted-foreground",
                       "content": "Showcase",
+                      "fontFamily": "$c:--font-primary",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Tfr1m",
+                      "fill": "$c:--muted-foreground",
+                      "content": "Docs",
                       "fontFamily": "$c:--font-primary",
                       "fontSize": 14,
                       "fontWeight": "500"
