@@ -79,6 +79,24 @@ jobs:
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY \
             "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
+      # Round-trip check, mirroring publish-edge.yaml: verify the signature
+      # just pushed with the key derived from the signing secret, and fail the
+      # release if a committed cosign.pub no longer matches that key.
+      - name: verify signature & check published key
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile "$RUNNER_TEMP/cosign.pub"
+          cosign verify --key "$RUNNER_TEMP/cosign.pub" --insecure-ignore-tlog=true \
+            "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
+          if [ -f cosign.pub ] && ! cmp -s cosign.pub "$RUNNER_TEMP/cosign.pub"; then
+            echo "::error::committed cosign.pub does not match COSIGN_PRIVATE_KEY — update the published key"
+            exit 1
+          fi
 
   chart:
     name: package Helm chart
