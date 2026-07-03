@@ -461,6 +461,9 @@ export const handlers = [
   }),
   http.get("/admin/config", () => HttpResponse.json(makeConfig())),
   http.put("/admin/config/:section", () => new HttpResponse(null, { status: 204 })),
+  http.post("/admin/notifications/sinks/:name/test", () =>
+    HttpResponse.json({ delivered: true }),
+  ),
 
   // Legacy admin/users path retained in case any existing test still
   // points at it; canonical /users handler above takes precedence for

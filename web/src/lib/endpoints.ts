@@ -400,6 +400,16 @@ export const Audit = {
   },
 };
 
+export const Notifications = {
+  // Test-fires the *persisted* sink synchronously; the response carries the
+  // real delivery outcome (502 body = the delivery error, URL-sanitized).
+  test: (name: string) =>
+    api<{ delivered: boolean }>(
+      `/admin/notifications/sinks/${encodeURIComponent(name)}/test`,
+      { method: "POST" },
+    ),
+};
+
 // FileEntry mirrors the agent's response shape (agent/openapi.yaml). The
 // dashboard ignores `mode`, but it's typed here for completeness.
 export interface FileEntry {
