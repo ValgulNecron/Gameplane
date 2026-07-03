@@ -165,6 +165,7 @@ func main() {
 		handlers.MountRoles(p, store)
 		handlers.MountAudit(p, auditor)
 		handlers.MountConfig(p, store)
+		handlers.MountNotifications(p, notifier)
 		handlers.MountCluster(p, k8s, store, Version)
 		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
 		handlers.MountEvents(p, k8s)

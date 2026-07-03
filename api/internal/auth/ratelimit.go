@@ -106,6 +106,12 @@ var LoginUserLimiter = newTokenBucket(3.0/60.0, 6)
 // overwhelm the IdP and the local DB. Tight burst; generous refill.
 var OIDCCallbackLimiter = newTokenBucket(10.0/60.0, 10)
 
+// NotifyTestLimiter guards the notification test-send endpoint. Each hit
+// dials an admin-configured external endpoint synchronously, so it gets a
+// far tighter budget than ordinary mutations: enough to poke every sink
+// while setting things up, not enough to use the API as a POST cannon.
+var NotifyTestLimiter = newTokenBucket(12.0/60.0, 3)
+
 // MutationLimiter caps authenticated writes per IP. The login bucket is
 // narrow (argon2 is expensive); this one is broad — 60/min with 60
 // burst — and only exists to keep a single client from pegging the
