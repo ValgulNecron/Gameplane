@@ -4,13 +4,16 @@ on:
   push:
     branches: [main]
     # Docs-only changes can't affect anything the suites test — don't spend
-    # ~50 min of kind queue on a markdown diff. Any non-ignored file in the
-    # change set still triggers the full run.
+    # kind minutes on a markdown diff. Any non-ignored file in the change
+    # set still triggers the full run. "website" (no slash) matches the
+    # submodule gitlink itself — a plain submodule pointer bump; the /**
+    # variant covers any future in-tree files under that path.
     paths-ignore:
       - "**.md"
       - "docs/**"
       - "design.pen"
       - "website"
+      - "website/**"
       - "LICENSE"
   pull_request:
     paths-ignore:
@@ -18,33 +21,36 @@ on:
       - "docs/**"
       - "design.pen"
       - "website"
+      - "website/**"
       - "LICENSE"
 
-# One self-hosted runner: cancel superseded runs so rapid pushes don't
-# stack overlapping runs and starve the heavy jobs (go -race, chromium).
+# Cancel superseded runs so rapid pushes to the same ref don't waste
+# runner minutes on stale commits.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  # Lets the coverage steps publish a per-module commit status carrying the
-  # measured % (readable via the API, since this runner has no artifact
-  # backend and job logs need a web session).
+  # Lets the coverage steps publish a per-module commit status carrying
+  # the measured %.
   statuses: write
 
+# All jobs run on GitHub-hosted runners: each job gets its own isolated
+# VM, so jobs never contend for memory or ports and there is nothing to
+# serialize. The e2e suites are split into independent jobs, each with
+# its own kind cluster, so the slowest suite — not the sum of all of
+# them — sets the wall-clock time.
 jobs:
   # Unit tests, envtest integration (operator/api), and the coverage
-  # gate run in ONE job per module. Folding them together removes the
-  # cross-job artifact hand-off (upload/download-artifact), which the
-  # self-hosted Forgejo runner's artifact backend doesn't support — the
-  # gate now reads the profiles it just produced, on the same runner.
+  # gate run in ONE job per module: the gate reads the profiles it just
+  # produced, with no cross-job artifact hand-off.
   go:
     name: go (${{ matrix.module }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         module: [netguard, operator, api, agent, audit-syslog-bridge]
     steps:
@@ -57,11 +63,9 @@ jobs:
       - name: go vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
-      # NOTE: -race is omitted on purpose. It multiplies memory use several-
-      # fold and OOM-kills the larger modules on the memory-constrained
-      # self-hosted runner (netguard passes, operator/api/agent get killed).
-      # Coverage uses -covermode=atomic, which is valid without -race.
-      # Restore -race (or a separate race-only job) once the runner has more RAM.
+      # NOTE: -race is omitted on purpose to keep this job fast; coverage
+      # uses -covermode=atomic, which is valid without -race. `make cover`
+      # still runs -race for local/manual use.
       - name: unit test + coverage
         working-directory: ${{ matrix.module }}
         run: |
@@ -83,6 +87,7 @@ jobs:
   web:
     name: web
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults: { run: { working-directory: web } }
     steps:
       - uses: actions/checkout@v4
@@ -95,8 +100,8 @@ jobs:
         if: always()
         continue-on-error: true
         env:
-          GJ_TOKEN: ${{ github.token }}
-          SERVER: ${{ github.server_url }}
+          GH_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_SHA: ${{ github.sha }}
@@ -105,12 +110,10 @@ jobs:
           [ -f coverage/coverage-summary.json ] || exit 0
           DESC=$(node -e "const t=require('./coverage/coverage-summary.json').total;console.log('L'+t.lines.pct+' S'+t.statements.pct+' B'+t.branches.pct+' F'+t.functions.pct)")
           SHA="$HEAD_SHA"; [ -z "$SHA" ] && SHA="$RUN_SHA"
-          curl -sS -X POST -H "Authorization: token $GJ_TOKEN" -H "Content-Type: application/json" \
-            "$SERVER/api/v1/repos/$REPO/statuses/$SHA" \
+          curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/json" \
+            "$API_URL/repos/$REPO/statuses/$SHA" \
             -d "{\"context\":\"coverage/web\",\"state\":\"success\",\"description\":\"$DESC\"}" >/dev/null || true
       - name: upload web coverage
-        # Best-effort: the vitest thresholds in the step above are the gate.
-        # Don't fail the job if the runner's artifact backend is unavailable.
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -132,16 +135,6 @@ jobs:
       - run: npm ci
       - name: install chromium
         run: npx playwright install --with-deps chromium
-      - name: free dev-server port (clear vite leaked by a cancelled run)
-        run: |
-          # CI sets reuseExistingServer:false, so Playwright aborts if :5173
-          # is taken. On this non-ephemeral runner a vite orphaned by a
-          # cancel-in-progress run can still hold it. Killing a free port is a
-          # no-op, so this is safe to run unconditionally.
-          (command -v fuser >/dev/null && fuser -k 5173/tcp) 2>/dev/null || true
-          (command -v lsof  >/dev/null && lsof -ti tcp:5173 | xargs -r kill -9) 2>/dev/null || true
-          pkill -f 'vite.*5173' 2>/dev/null || true
-          true
       - name: playwright (mock)
         run: npm run test:e2e:mock
       - name: upload playwright report
@@ -156,6 +149,7 @@ jobs:
   helm:
     name: helm lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
@@ -164,6 +158,7 @@ jobs:
   chart-template:
     name: chart render
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
@@ -174,38 +169,27 @@ jobs:
           grep -q 'kind: ClusterRole' /tmp/rendered.yaml
           grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
 
-  # One kind cluster runs all three e2e suites back to back. These used to
-  # be three chained jobs with a cluster each — but the shared concurrency
-  # group serializes every kind job across runs anyway, so the split only
-  # bought two extra image builds, two extra cluster setups/teardowns, and
-  # three chances per run to queue behind (or get evicted by) another run's
-  # e2e jobs. Same tests, same order, one setup. The suites are
-  # REUSE_CLUSTER-safe by design (they also run against long-lived dev
-  # clusters), and one cluster under load is lighter on the memory-limited
-  # runner than the multi-cluster overlap that used to OOM it.
-  e2e:
-    name: e2e (kind)
+  # ---------------------------------------------------------------------
+  # kind e2e — one job per suite, each with its own throwaway cluster on
+  # its own VM. No `needs` edges: a broken unit test doesn't gate e2e
+  # feedback, and the per-ref concurrency group above still cancels
+  # superseded runs. VMs are discarded after the job, so there is no
+  # teardown step and no cross-run cluster-name collision to guard.
+  # The -run regexes are anchored ^(...)$ — prefix matching (e.g.
+  # TestGameServer vs TestGameServer_Cascading) would silently run tests
+  # in more than one bucket.
+  # ---------------------------------------------------------------------
+  e2e-core:
+    name: e2e core (kind)
     runs-on: ubuntu-latest
-    needs: [go, helm]
-    timeout-minutes: 75
-    # One kind job at a time across EVERY run: the runner executes jobs
-    # concurrently, so two runs would otherwise bring up kind clusters at the
-    # same time — contending for memory AND, because e2e.sh's "clean slate"
-    # step deletes any same-named cluster on `up`, deleting each other's
-    # cluster mid-run. The per-run unique CLUSTER name is a belt-and-
-    # suspenders guard if the runner ignores job concurrency.
-    concurrency:
-      group: gameplane-kind-e2e
-      cancel-in-progress: false
+    timeout-minutes: 30
     env:
-      CLUSTER: gameplane-e2e-${{ github.run_id }}
-      CTX: kind-gameplane-e2e-${{ github.run_id }}
+      CLUSTER: gameplane-e2e
+      CTX: kind-gameplane-e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with: { go-version: "1.25" }
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
@@ -217,8 +201,6 @@ jobs:
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (core)
         run: |
-          # Anchored ^(...)$ list — prefix-matching (e.g. TestGameServer vs
-          # TestGameServer_Cascading) would silently run tests in both buckets.
           RUN_REGEX='^('
           RUN_REGEX+='TestHelmInstall_AllPodsReady|'
           RUN_REGEX+='TestHelmInstall_AllCRDsPresent|'
@@ -250,30 +232,41 @@ jobs:
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
-            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 19m -v -run "$RUN_REGEX" ./...
-      - name: install playwright browser
+      - name: dump cluster state on failure
+        if: failure()
         run: |
-          cd web && npm ci && npx playwright install --with-deps chromium
-      - name: free dev-server port (clear vite leaked by a cancelled run)
-        run: |
-          # CI sets reuseExistingServer:false, so Playwright aborts if :5173
-          # is taken. On this non-ephemeral runner a vite orphaned by a
-          # cancel-in-progress run can still hold it. Killing a free port is a
-          # no-op, so this is safe to run unconditionally.
-          (command -v fuser >/dev/null && fuser -k 5173/tcp) 2>/dev/null || true
-          (command -v lsof  >/dev/null && lsof -ti tcp:5173 | xargs -r kill -9) 2>/dev/null || true
-          pkill -f 'vite.*5173' 2>/dev/null || true
-          true
-      - name: run playwright (live)
-        env:
-          GAMEPLANE_E2E_TARGET: live
-          GAMEPLANE_E2E_CLUSTER: ${{ env.CLUSTER }}
-        run: |
-          cd web && npm run test:e2e:live
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" describe pods -n gameplane-games || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          # --previous catches the crash output if the operator restarted.
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+
+  e2e-extended:
+    name: e2e extended (kind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLUSTER: gameplane-e2e
+      CTX: kind-gameplane-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        run: make e2e-images
+      - name: bring up cluster + helm install
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (extended)
         run: |
-          # Anchored ^(...)$ list — must stay disjoint from the core bucket.
+          # Must stay disjoint from the core bucket.
           RUN_REGEX='^('
           RUN_REGEX+='TestGameServer_PVCSurvivesPodDelete|'
           RUN_REGEX+='TestGameServer_CascadingDelete|'
@@ -304,26 +297,7 @@ jobs:
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
-            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
             go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
-      - name: run go e2e (game bot)
-        # Advisory (non-blocking). The bot is proven correct — it logs into a
-        # real Minecraft 1.21.4 server locally (direct AND via kubectl
-        # port-forward) — but under the loaded CI runner the port-forward path
-        # corrupts the login handshake so the server drops it ("Failed to decode
-        # packet 'serverbound/minecraft:hello'"), consistently and only in CI.
-        # Until the harness is moved off port-forward (run the bot in-cluster),
-        # this least-critical liveness check must not block merges; it still
-        # runs and its result is visible in the log.
-        # TODO: run the bot in-cluster, then drop continue-on-error.
-        continue-on-error: true
-        run: |
-          cd test/e2e && \
-            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
-            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
-            GAMEPLANE_E2E_GAME_BOT=1 \
-            GAMEPLANE_E2E_KEEP_ON_FAILURE=1 \
-            go test -tags=e2e -timeout 18m -v -run '^TestGameServer_MinecraftBotConnects$' ./...
       - name: dump cluster state on failure
         if: failure()
         run: |
@@ -334,6 +308,53 @@ jobs:
           # --previous catches the crash output if the operator restarted.
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+
+  e2e-web-live:
+    name: e2e web live (kind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLUSTER: gameplane-e2e
+      CTX: kind-gameplane-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        run: make e2e-images
+      - name: bring up cluster + helm install
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
+      - name: bootstrap admin
+        # Playwright's live-mode globalSetup (web/e2e/globalSetup.ts) reads
+        # the admin password from test/e2e/.tmp/admin-password, which this
+        # test writes.
+        run: |
+          cd test/e2e && \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
+            go test -tags=e2e -timeout 5m -v -run '^TestAPI_BootstrapAndLogin$' ./...
+      - name: install playwright browser
+        run: |
+          cd web && npm ci && npx playwright install --with-deps chromium
+      - name: run playwright (live)
+        env:
+          GAMEPLANE_E2E_TARGET: live
+          GAMEPLANE_E2E_CLUSTER: ${{ env.CLUSTER }}
+        run: |
+          cd web && npm run test:e2e:live
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
       - name: upload playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -342,6 +363,49 @@ jobs:
           path: web/playwright-report
           retention-days: 7
           if-no-files-found: warn
-      - name: tear down
-        if: always()
-        run: ./deploy/kind/e2e.sh down "$CLUSTER" || true
+
+  e2e-game-bot:
+    name: e2e game bot (kind, advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLUSTER: gameplane-e2e
+      CTX: kind-gameplane-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        run: make e2e-images
+      - name: bring up cluster + helm install
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
+      - name: run go e2e (game bot)
+        # Advisory (non-blocking). The bot is proven correct — it logs into a
+        # real Minecraft 1.21.4 server locally (direct AND via kubectl
+        # port-forward) — but under a loaded runner the port-forward path
+        # can corrupt the login handshake so the server drops it ("Failed to
+        # decode packet 'serverbound/minecraft:hello'"). Until the harness is
+        # moved off port-forward (run the bot in-cluster), this least-critical
+        # liveness check must not block merges; it still runs and its result
+        # is visible in the log.
+        # TODO: run the bot in-cluster, then drop continue-on-error.
+        continue-on-error: true
+        run: |
+          cd test/e2e && \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
+            GAMEPLANE_E2E_GAME_BOT=1 \
+            go test -tags=e2e -timeout 18m -v -run '^TestGameServer_MinecraftBotConnects$' ./...
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" describe pods -n gameplane-games || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
