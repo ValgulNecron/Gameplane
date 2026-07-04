@@ -67,7 +67,7 @@ export interface ModRegistryDecl {
 
 // One declared registry provider on a template.
 export interface ModProviderDecl {
-  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar";
+  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar" | "factorio";
   community?: string;
   modpacks?: ModpackDecl;
 }
@@ -171,16 +171,20 @@ export interface RegistryProject {
   iconUrl?: string;
   downloads?: number;
   pageUrl?: string;
-  provider: "modrinth" | "thunderstore";
+  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar" | "factorio";
 }
 
 // A downloadable artifact of a RegistryVersion; downloadUrl is handed to
-// the existing install endpoint.
+// the existing install endpoint. requiresAuth marks files the portal only
+// serves with the user's own credentials (e.g. Factorio's username+token
+// query params) — the UI offers a from-URL handoff instead of one-click
+// install.
 export interface RegistryFile {
   filename: string;
   downloadUrl: string;
   size?: number;
   primary?: boolean;
+  requiresAuth?: boolean;
 }
 
 // One release of a RegistryProject (newest first), already filtered to the

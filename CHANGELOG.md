@@ -9,6 +9,16 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **registry:** a fifth mod-registry engine — the official **Factorio mod
+  portal** (`mods.factorio.com`). Templates can declare
+  `capabilities.mods.registry.providers: [{provider: factorio}]` to browse
+  and search the portal (keyless, catalog cached with a TTL, filtered by the
+  active version's `gameVersion` major token). Portal downloads require the
+  player's own factorio.com credentials, which the server must never embed
+  in URLs it returns to browsers — files are flagged `requiresAuth: true`
+  and the dashboard hands off to the from-URL install form instead of
+  one-click install. Groundwork for the upcoming official Factorio module.
+
 - **notifications:** the sinks configured under Admin Settings →
   Notifications now actually **deliver**. The API watches GameServer /
   Backup / Restore status transitions and pushes matching events —

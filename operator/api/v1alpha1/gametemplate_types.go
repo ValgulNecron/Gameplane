@@ -330,8 +330,11 @@ type ModProvider struct {
 	// Provider names the built-in registry engine: "modrinth" (Minecraft
 	// mods/plugins, keyless), "thunderstore" (BepInEx games, keyless,
 	// per-community), "curseforge" (Minecraft mods/modpacks, needs an API
-	// key), or "hangar" (PaperMC plugins, keyless).
-	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar
+	// key), "hangar" (PaperMC plugins, keyless), or "factorio" (the official
+	// Factorio mod portal; browse is keyless, downloads need the player's
+	// own factorio.com credentials so installs hand off to the from-URL
+	// form).
+	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar;factorio
 	Provider string `json:"provider"`
 
 	// Community is the Thunderstore community slug whose package index to

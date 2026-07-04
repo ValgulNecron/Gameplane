@@ -18,6 +18,9 @@ func TestSetFor(t *testing.T) {
 	if p, ok := s.For(Config{Provider: "hangar"}); !ok || p == nil {
 		t.Errorf("hangar: ok=%v p=%v", ok, p)
 	}
+	if p, ok := s.For(Config{Provider: "factorio"}); !ok || p == nil {
+		t.Errorf("factorio: ok=%v p=%v", ok, p)
+	}
 	// CurseForge is key-gated: not selectable without a key.
 	if _, ok := s.For(Config{Provider: "curseforge"}); ok {
 		t.Error("curseforge without a key should not be selectable")
@@ -32,7 +35,7 @@ func TestSetFor(t *testing.T) {
 
 func TestSetAvailable(t *testing.T) {
 	noKey := NewSet("test", "")
-	for _, p := range []string{"modrinth", "thunderstore", "hangar"} {
+	for _, p := range []string{"modrinth", "thunderstore", "hangar", "factorio"} {
 		if !noKey.Available(p) {
 			t.Errorf("%s should be available", p)
 		}
