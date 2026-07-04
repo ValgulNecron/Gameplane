@@ -25,11 +25,13 @@ cd "$(dirname "$0")"
 # login rate limiter is per-IP (5/min, burst 10) plus per-username
 # (3/min, burst 6), and every test in a job shares one client IP through
 # the kubectl port-forward — so admin logins, not CPU, bound an API
-# bucket's wall clock. `operator` does zero logins and runs wide;
-# the two api buckets each stay within their cluster's login budget.
-# `ratelimit` deliberately drains the shared limiter, so it runs as a
-# separate, LAST `go test` invocation (Go runs non-parallel tests first
-# — inside the main bucket it would starve everyone else's logins).
+# bucket's wall clock. `operator` does zero logins and runs wide; each
+# api bucket stays within its own cluster's login budget (~7 admin
+# logins ≈ the per-user burst, so retries absorb the overflow instead
+# of exhausting it). `ratelimit` deliberately drains the shared limiter,
+# so it runs as a separate, LAST `go test` invocation (Go runs
+# non-parallel tests first — inside the main bucket it would starve
+# everyone else's logins).
 
 bucket_operator() { cat <<'EOF'
 TestHelmInstall_AllPodsReady
@@ -80,21 +82,25 @@ TestAPI_PerNamespaceBinding_GrantsScopedAccess
 EOF
 }
 
-bucket_api_servers() { cat <<'EOF'
+bucket_api_rbac() { cat <<'EOF'
 TestAPI_RBAC_ViewerCannotMutate
 TestAPI_RBAC_ViewerCannotMutate_Matrix
 TestAPI_RBAC_OperatorCanWriteServers_NotUsers
 TestAPI_RBAC_AdminCanReachAll
 TestAPI_OperatorCannotInviteUsers
-TestAPI_LifecycleStartStop
-TestAPI_LifecycleRestart
 TestAPI_LifecycleClone
 TestAPI_LifecycleNotFound
+EOF
+}
+
+bucket_api_agent() { cat <<'EOF'
 TestAPI_AgentFilesRoundTrip
 TestAPI_AgentPlayers
 TestAPI_AgentUnreachable
 TestAPI_ConsolePTYRoundTrip
 TestAPI_LogsTailWS
+TestAPI_LifecycleStartStop
+TestAPI_LifecycleRestart
 EOF
 }
 
@@ -114,14 +120,15 @@ EOF
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' operator api-auth api-servers ratelimit bot
+	printf '%s\n' operator api-auth api-rbac api-agent ratelimit bot
 }
 
 list_bucket() {
 	case "$1" in
 	operator) bucket_operator ;;
 	api-auth) bucket_api_auth ;;
-	api-servers) bucket_api_servers ;;
+	api-rbac) bucket_api_rbac ;;
+	api-agent) bucket_api_agent ;;
 	ratelimit) bucket_ratelimit ;;
 	bot) bucket_bot ;;
 	*)

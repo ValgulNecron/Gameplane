@@ -188,7 +188,7 @@ test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/de
 		go test -tags=e2e -timeout 35m -v ./...
 
 .PHONY: test-e2e-bucket
-test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-servers|ratelimit|bot)
+test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot)
 	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
 		go test -tags=e2e -timeout 35m -v -run "$$(./buckets.sh regex $(BUCKET))" ./...
 

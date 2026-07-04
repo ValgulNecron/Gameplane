@@ -55,9 +55,12 @@ func TestAPI_BootstrapAndLogin(t *testing.T) {
 // against a real user, and a login attempt for a nonexistent user,
 // must be indistinguishable. Otherwise the response timing or body
 // becomes a username-enumeration oracle.
+// NOT t.Parallel(): this test observes RAW login status codes (it
+// deliberately bypasses APIClient's 429 retry), so it needs a login
+// rate limiter that parallel neighbors haven't drained. Go runs
+// non-parallel tests to completion before the parallel phase starts,
+// which guarantees a fresh bucket here.
 func TestAPI_LoginPrivacy(t *testing.T) {
-	t.Parallel()
-
 	// Make sure the admin row exists so the "real user, wrong password"
 	// branch actually exercises VerifyPassword (not the dummy).
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
