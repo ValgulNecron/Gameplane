@@ -126,6 +126,18 @@ export const Servers = {
   // checked against its registry provider server-side in one call.
   modUpdates: (name: string) =>
     api<ModUpdatesResponse>(`/servers/${name}/mods/updates`),
+  // Direct mod upload (multipart) — same name/extension/size checks as a
+  // URL install; the manifest records provider "upload".
+  uploadMod: async (name: string, file: File): Promise<InstalledMod> => {
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const res = await filesFetch(`/servers/${encodeURIComponent(name)}/mods/upload`, {
+      method: "POST",
+      headers: csrfHeaders(),
+      body: fd,
+    });
+    return (await res.json()) as InstalledMod;
+  },
   // Registries the server's game declares, with availability (e.g.
   // CurseForge needs an API key) — drives the provider switch.
   registryProviders: (name: string) =>

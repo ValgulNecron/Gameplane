@@ -73,9 +73,12 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	r.Get("/servers/{name}/status", p.httpProxy("/status"))
 	// Mod/plugin management. Listing is a GET → viewer+; install (POST)
 	// and remove (DELETE) are mutations → operator+, by the same rbac
-	// method+segment rules as the rest of /servers.
+	// method+segment rules as the rest of /servers. Upload gets its own
+	// body cap matching the largest module install policy (the agent still
+	// enforces the module's real per-file limit).
 	r.Get("/servers/{name}/mods", p.httpProxy("/mods"))
 	r.Post("/servers/{name}/mods/install", p.httpProxy("/mods/install"))
+	r.Post("/servers/{name}/mods/upload", p.httpProxyLimit("/mods/upload", 512<<20))
 	r.Delete("/servers/{name}/mods", p.httpProxy("/mods"))
 }
 
@@ -155,7 +158,16 @@ func copyWS(req *http.Request, src, dst *websocket.Conn) error {
 	}
 }
 
+// httpProxy forwards a request to the agent with the default 64 MiB body
+// cap — enough for modest uploads through the file-browser proxy while
+// blocking unbounded spam.
 func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
+	return p.httpProxyLimit(agentPath, 64<<20)
+}
+
+// httpProxyLimit is httpProxy with an explicit request-body cap, for the
+// few routes that legitimately carry more (mod uploads).
+func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if p.tls == nil {
 			http.Error(w, "agent mTLS not configured", http.StatusServiceUnavailable)
@@ -173,12 +185,9 @@ func (p *proxy) httpProxy(agentPath string) http.HandlerFunc {
 			upstream += "?" + req.URL.RawQuery
 		}
 
-		// Cap upstream body the same way we cap our own. 64 MiB is
-		// chosen to allow modest uploads through the file-browser
-		// proxy while blocking unbounded spam.
 		upReq, err := http.NewRequestWithContext(
 			req.Context(), req.Method, upstream,
-			http.MaxBytesReader(w, req.Body, 64<<20),
+			http.MaxBytesReader(w, req.Body, maxBody),
 		)
 		if err != nil {
 			httperr.Write(w, req, err)

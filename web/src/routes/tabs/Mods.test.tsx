@@ -35,6 +35,7 @@ interface Routes {
   versions?: RegistryVersion[];
   providers?: { provider: string; available: boolean; modpacks: boolean }[];
   onInstall?: (body: { url: string; name?: string; replaces?: string; meta?: unknown }) => void;
+  onUpload?: (body: unknown) => void;
   onRemove?: (url: string) => void;
 }
 
@@ -65,6 +66,10 @@ function route(r: Routes) {
     }
     if (url.includes("/mods/updates")) {
       return Promise.resolve(jsonRes(r.updates ?? { checkedAt: new Date().toISOString(), updates: [] }));
+    }
+    if (url.includes("/mods/upload")) {
+      r.onUpload?.(opts?.body);
+      return Promise.resolve(jsonRes({ name: "uploaded.jar", size: 7, meta: { provider: "upload" } }));
     }
     if (url.includes("/mods/install")) {
       const body = JSON.parse(opts?.body ?? "{}") as { url: string; name?: string };
@@ -155,11 +160,18 @@ describe("ModsTab", () => {
     expect(await screen.findByTestId("mods-active")).toHaveTextContent("1.21.4 · Forge · mods");
   });
 
-  it("hides Install when the module declares no install policy", async () => {
+  it("offers upload-only install when the module declares no install policy", async () => {
     route({ mods: [] });
     renderWithQuery(<ModsTab name="s1" tmpl={tmpl(listOnly)} />);
     await screen.findByText("No mods installed.");
-    expect(screen.queryByRole("button", { name: /install mod/i })).not.toBeInTheDocument();
+    // Uploads carry no SSRF risk, so the install page stays reachable —
+    // but only the Upload mode is offered (no URL/browse).
+    const open = screen.getByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+    expect(await screen.findByText(/Drop a mod file here/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "From URL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Browse registry" })).not.toBeInTheDocument();
   });
 
   it("installs a mod by URL", async () => {
@@ -451,6 +463,30 @@ describe("ModsTab", () => {
 
     await waitFor(() => expect(installs).toHaveLength(2));
     expect(installs.map((i) => i.replaces)).toEqual(["sodium-0.6.9.jar", "lithium-0.12.jar"]);
+  });
+
+  it("uploads a local file from the Upload mode", async () => {
+    const uploads: unknown[] = [];
+    route({ mods: [], onUpload: (b) => uploads.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+    fireEvent.click(await screen.findByRole("button", { name: "Upload file" }));
+
+    const file = new File(["JAR"], "custom.jar", { type: "application/java-archive" });
+    const input = document.getElementById("mod-file") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    const submit = screen.getByRole("button", { name: "Upload" });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    expect(uploads[0]).toBeInstanceOf(FormData);
+    expect((uploads[0] as FormData).get("file")).toBeInstanceOf(File);
+    expect(await screen.findByText(/Uploaded uploaded.jar/)).toBeInTheDocument();
   });
 
   it("hands requiresAuth registry files off to the URL form", async () => {

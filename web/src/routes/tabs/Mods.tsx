@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpCircle, Download, Package, Plus, RotateCw, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpCircle, Download, Package, Plus, RotateCw, Trash2, Upload } from "lucide-react";
 
 import type {
   GameServer,
@@ -37,6 +37,9 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
   const canManage = can(me, "servers:write");
 
   const caps = tmpl?.spec.capabilities?.mods;
+  // URL installs need the module's install (allowlist) block; uploads only
+  // need a mods directory, so the install page is reachable whenever the
+  // template declares mods at all.
   const canInstall = !!caps?.install;
   // Browse mode is offered when the template declares a registry. The
   // server is authoritative (it 501s when its game has no registry); the
@@ -102,6 +105,15 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
     },
   });
 
+  const upload = useMutation({
+    mutationFn: (file: File) => Servers.uploadMod(name, file),
+    onSuccess: (mod) => {
+      setBanner({ kind: "ok", text: `Uploaded ${mod.name}` });
+      return qc.invalidateQueries({ queryKey: ["mods", name] });
+    },
+    onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
+  });
+
   const updateAll = useMutation({
     mutationFn: async () => {
       // Sequential on purpose: each install is a download on the agent;
@@ -138,13 +150,21 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
 
   // Dedicated install/browse page (replaces the old popup), matching the
   // Modpacks tab. Rendered after all hooks to keep hook order stable.
+  const extensions =
+    (active?.loader ? caps?.loaders?.[active.loader]?.extensions : undefined) ??
+    caps?.extensions ??
+    [];
+
   if (browsing) {
     return (
       <InstallPage
         name={name}
+        canInstall={canInstall}
         canBrowse={canBrowse}
         allowedHosts={caps?.install?.allowedHosts ?? []}
+        extensions={extensions}
         pending={install.isPending}
+        uploadPending={upload.isPending}
         banner={banner}
         onDismiss={() => setBanner(null)}
         onBack={() => {
@@ -152,6 +172,7 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
           setBanner(null);
         }}
         onInstall={(body) => install.mutate(body)}
+        onUpload={(file) => upload.mutate(file)}
       />
     );
   }
@@ -201,16 +222,14 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
               {updateAll.isPending ? "Updating…" : `Update all (${updateByName.size})`}
             </Button>
           )}
-          {canInstall && (
-            <Button
-              size="sm"
-              onClick={() => setBrowsing(true)}
-              disabled={!canManage}
-              title={canManage ? undefined : "Requires operator role"}
-            >
-              <Plus className="h-4 w-4" /> Install mod
-            </Button>
-          )}
+          <Button
+            size="sm"
+            onClick={() => setBrowsing(true)}
+            disabled={!canManage}
+            title={canManage ? undefined : "Requires operator role"}
+          >
+            <Plus className="h-4 w-4" /> Install mod
+          </Button>
         </div>
       </header>
 
@@ -245,11 +264,13 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-12 text-center">
           <Package className="h-6 w-6 text-muted" />
           <p className="text-sm text-muted">No mods installed.</p>
-          {canInstall && canManage && (
+          {canManage && (
             <p className="text-xs text-muted">
               {canBrowse
-                ? "Use “Install mod” to search a registry or add one from a URL."
-                : "Use “Install mod” to add one from a URL."}
+                ? "Use “Install mod” to search a registry, add one from a URL, or upload a file."
+                : canInstall
+                  ? "Use “Install mod” to add one from a URL or upload a file."
+                  : "Use “Install mod” to upload a file."}
             </p>
           )}
         </div>
@@ -341,32 +362,46 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
   );
 }
 
-type InstallMode = "search" | "url";
+type InstallMode = "search" | "url" | "upload";
 
 // InstallPage is the dedicated in-tab install view (replaces the old
-// popup): browse a registry (when the template declares one) or add a mod
-// from a URL. Both paths converge on the same install endpoint; the agent
-// enforces the host allowlist and size cap.
+// popup): browse a registry (when the template declares one), add a mod
+// from a URL (when the module allows downloads), or upload a local file
+// (always — uploads carry no SSRF risk, so they need no allowlist). All
+// paths converge on agent endpoints that enforce the same checks.
 function InstallPage({
   name,
+  canInstall,
   canBrowse,
   allowedHosts,
+  extensions,
   pending,
+  uploadPending,
   banner,
   onDismiss,
   onBack,
   onInstall,
+  onUpload,
 }: {
   name: string;
+  canInstall: boolean;
   canBrowse: boolean;
   allowedHosts: string[];
+  extensions: string[];
   pending: boolean;
+  uploadPending: boolean;
   banner: Banner | null;
   onDismiss: () => void;
   onBack: () => void;
   onInstall: (body: InstallBody) => void;
+  onUpload: (file: File) => void;
 }) {
-  const [mode, setMode] = useState<InstallMode>(canBrowse ? "search" : "url");
+  const modes: { key: InstallMode; label: string }[] = [
+    ...(canBrowse ? [{ key: "search" as const, label: "Browse registry" }] : []),
+    ...(canInstall ? [{ key: "url" as const, label: "From URL" }] : []),
+    { key: "upload", label: "Upload file" },
+  ];
+  const [mode, setMode] = useState<InstallMode>(modes[0].key);
   // Prefilled by the browse view for registry files the panel can't
   // one-click install (requiresAuth, e.g. the Factorio portal) — the user
   // appends their own credentials in the URL form.
@@ -393,33 +428,34 @@ function InstallPage({
             <p className="text-[11px] text-muted">
               {browsing
                 ? "Browse a registry and install for this server’s version + loader."
-                : "Download a mod from a URL into the server’s mods directory."}
+                : mode === "upload"
+                  ? "Upload a mod file from your machine into the server’s mods directory."
+                  : "Download a mod from a URL into the server’s mods directory."}
             </p>
           </div>
-          {canBrowse && (
+          {modes.length > 1 && (
             <div className="flex w-fit rounded border border-border text-xs">
-              <button
-                type="button"
-                onClick={() => setMode("search")}
-                aria-pressed={browsing}
-                className={cn(
-                  "h-8 rounded-l px-3",
-                  browsing ? "bg-primary font-medium text-primary-foreground" : "text-muted",
-                )}
-              >
-                Browse registry
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("url")}
-                aria-pressed={!browsing}
-                className={cn(
-                  "h-8 rounded-r border-l border-border px-3",
-                  !browsing ? "bg-surface font-medium" : "text-muted",
-                )}
-              >
-                From URL
-              </button>
+              {modes.map((m, i) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setMode(m.key)}
+                  aria-pressed={mode === m.key}
+                  className={cn(
+                    "h-8 px-3",
+                    i === 0 && "rounded-l",
+                    i === modes.length - 1 && "rounded-r",
+                    i > 0 && "border-l border-border",
+                    mode === m.key
+                      ? m.key === "search"
+                        ? "bg-primary font-medium text-primary-foreground"
+                        : "bg-surface font-medium"
+                      : "text-muted",
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -447,6 +483,13 @@ function InstallPage({
         <div className="min-h-0 flex-1">
           <BrowseForm name={name} pending={pending} onInstall={onInstall} onUseUrl={useUrlForm} />
         </div>
+      ) : mode === "upload" ? (
+        <UploadForm
+          extensions={extensions}
+          pending={uploadPending}
+          onCancel={onBack}
+          onUpload={onUpload}
+        />
       ) : (
         <UrlForm
           key={urlPrefill}
@@ -531,6 +574,70 @@ function UrlForm({
           }
         >
           {pending ? "Installing…" : "Install"}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+// UploadForm sends a local file to the agent (multipart). The agent applies
+// the same name/extension/size checks as URL installs; extract-mode loaders
+// unpack archives the same way. Uploads are recorded as provider "upload"
+// in the manifest and are never update-checked.
+function UploadForm({
+  extensions,
+  pending,
+  onCancel,
+  onUpload,
+}: {
+  extensions: string[];
+  pending: boolean;
+  onCancel: () => void;
+  onUpload: (file: File) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+
+  return (
+    <>
+      <div className="space-y-3 pt-4">
+        <label
+          htmlFor="mod-file"
+          className="flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-border px-6 py-10 text-center hover:bg-surface/40"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const dropped = e.dataTransfer.files?.[0];
+            if (dropped) setFile(dropped);
+          }}
+        >
+          <Upload className="h-6 w-6 text-muted" />
+          <span className="text-sm font-medium">
+            {file ? file.name : "Drop a mod file here, or click to browse"}
+          </span>
+          <span className="text-[11px] text-muted">
+            {extensions.length > 0
+              ? `Accepted: ${extensions.join(", ")} · lands in the active loader’s mod volume`
+              : "Lands in the active loader’s mod volume"}
+          </span>
+          <input
+            id="mod-file"
+            type="file"
+            className="sr-only"
+            accept={extensions.join(",") || undefined}
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        <p className="text-[11px] text-muted">
+          Uploads are recorded as provider “upload” in the manifest — they’re never update-checked.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-5">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={!file || pending} onClick={() => file && onUpload(file)}>
+          {pending ? "Uploading…" : "Upload"}
         </Button>
       </div>
     </>
