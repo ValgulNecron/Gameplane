@@ -9,6 +9,17 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **agent/mods:** installed mods now carry an **install manifest**. Each mod
+  volume keeps a hidden `.gameplane-mods.json` ledger recording where every
+  panel-installed mod came from (registry provider, project, version, source
+  URL, install time); `GET /mods` merges it into listings (`meta` per mod,
+  `null` for files placed out-of-band), and `POST /mods/install` accepts
+  optional `meta` (registry identity to record) and `replaces` (an existing
+  mod to swap out atomically — the new file lands first, so a crash can only
+  ever leave a duplicate, not a missing mod). A corrupt manifest degrades to
+  "unmanaged" listings and self-heals on the next install/remove. This is the
+  foundation for update detection and one-click mod upgrades in the dashboard.
+
 - **notifications:** the sinks configured under Admin Settings →
   Notifications now actually **deliver**. The API watches GameServer /
   Backup / Restore status transitions and pushes matching events —

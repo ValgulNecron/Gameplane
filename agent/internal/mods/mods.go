@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -43,13 +44,16 @@ type handler struct {
 	extract  bool     // unpack downloaded archives into per-mod folders
 	maxBytes int64
 	client   *http.Client
+	mu       sync.Mutex // serializes manifest read-modify-write cycles
 }
 
-// Mod is one installed mod file.
+// Mod is one installed mod file. Meta is nil for unmanaged files (placed
+// out-of-band or installed before the manifest existed).
 type Mod struct {
-	Name    string `json:"name"`
-	Size    int64  `json:"size"`
-	ModTime string `json:"modTime"`
+	Name    string   `json:"name"`
+	Size    int64    `json:"size"`
+	ModTime string   `json:"modTime"`
+	Meta    *ModMeta `json:"meta,omitempty"`
 }
 
 // Mount registers the mods endpoints. spec is the module's declared mods
@@ -107,11 +111,12 @@ func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "could not read mods directory")
 		return
 	}
+	meta := loadManifest(h.dir).Mods
 	out := []Mod{}
 	for _, e := range entries {
 		name := e.Name()
 		if strings.HasPrefix(name, ".") {
-			continue // in-flight temp dirs/files
+			continue // in-flight temp dirs/files and the manifest itself
 		}
 		info, err := e.Info()
 		if err != nil {
@@ -126,6 +131,7 @@ func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 				Name:    name,
 				Size:    dirSize(filepath.Join(h.dir, name)),
 				ModTime: info.ModTime().UTC().Format(time.RFC3339),
+				Meta:    meta[name],
 			})
 			continue
 		}
@@ -136,6 +142,7 @@ func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 			Name:    name,
 			Size:    info.Size(),
 			ModTime: info.ModTime().UTC().Format(time.RFC3339),
+			Meta:    meta[name],
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -144,6 +151,12 @@ func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 type installReq struct {
 	URL  string `json:"url"`
 	Name string `json:"name,omitempty"`
+	// Replaces names an existing mod to swap out after the new one lands
+	// (in-place upgrade): install new → remove old → swap manifest entry.
+	Replaces string `json:"replaces,omitempty"`
+	// Meta is the registry identity recorded in the manifest. Absent for a
+	// plain URL install, which makes the result unmanaged.
+	Meta *ModMeta `json:"meta,omitempty"`
 }
 
 func (h *handler) install(w http.ResponseWriter, req *http.Request) {
@@ -180,6 +193,14 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 		writeErr(w, http.StatusBadRequest, "file type is not an accepted mod for this game")
 		return
 	}
+	replaces := ""
+	if body.Replaces != "" {
+		replaces, err = safeName(body.Replaces)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "replaces: "+err.Error())
+			return
+		}
+	}
 
 	// Extract loaders (e.g. BepInEx): the download is an archive unpacked
 	// into its own folder so the loader's recursive scan finds the files.
@@ -207,7 +228,42 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 		writeErr(w, http.StatusBadGateway, "could not download the mod")
 		return
 	}
-	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: size})
+
+	// Upgrade path: the new mod is in place, so removing the old one now
+	// can only leave a visible duplicate on crash — never a missing mod.
+	if replaces != "" && replaces != installName {
+		if rmErr := h.removeEntry(replaces); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			slog.Warn("mod replace cleanup", "name", replaces, "err", rmErr)
+		}
+	}
+	meta := body.Meta
+	if meta != nil {
+		stamped := *meta
+		stamped.SourceURL = u.String()
+		stamped.InstalledAt = time.Now().UTC().Format(time.RFC3339)
+		meta = &stamped
+	}
+	h.updateManifest(func(mods map[string]*ModMeta) {
+		delete(mods, replaces)
+		if meta != nil {
+			mods[installName] = meta
+		} else {
+			// A plain URL (re)install carries no identity — drop any stale
+			// entry so the listing doesn't claim a provenance it lost.
+			delete(mods, installName)
+		}
+	})
+	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: size, Meta: meta})
+}
+
+// removeEntry deletes an installed mod by name — the whole folder for
+// extract loaders, a single file otherwise.
+func (h *handler) removeEntry(name string) error {
+	target := filepath.Join(h.dir, name)
+	if h.extract {
+		return os.RemoveAll(target)
+	}
+	return os.Remove(target)
 }
 
 // downloadTemp streams url into a temp file under the mods dir, enforcing
@@ -391,17 +447,14 @@ func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
 		writeErr(w, http.StatusNotFound, "no such mod")
 		return
 	}
-	// Extract loaders store mods as folders; remove the whole tree.
-	if h.extract {
-		err = os.RemoveAll(target)
-	} else {
-		err = os.Remove(target)
-	}
-	if err != nil {
+	if err := h.removeEntry(name); err != nil {
 		slog.Warn("mod remove", "err", err)
 		writeErr(w, http.StatusInternalServerError, "could not remove mod")
 		return
 	}
+	h.updateManifest(func(mods map[string]*ModMeta) {
+		delete(mods, name)
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
