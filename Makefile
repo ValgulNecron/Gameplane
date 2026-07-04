@@ -187,6 +187,11 @@ test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/de
 	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
 		go test -tags=e2e -timeout 35m -v ./...
 
+.PHONY: test-e2e-bucket
+test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=core|extended|bot)
+	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
+		go test -tags=e2e -timeout 35m -v -run "$$(./buckets.sh regex $(BUCKET))" ./...
+
 .PHONY: e2e-up
 e2e-up: e2e-images ## Bring up the e2e kind cluster + install chart (no tests)
 	./deploy/kind/e2e.sh up $(KIND_E2E_CLUSTER) $(KIND_E2E_TAG)

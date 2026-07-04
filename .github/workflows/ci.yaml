@@ -175,10 +175,18 @@ jobs:
   # feedback, and the per-ref concurrency group above still cancels
   # superseded runs. VMs are discarded after the job, so there is no
   # teardown step and no cross-run cluster-name collision to guard.
-  # The -run regexes are anchored ^(...)$ — prefix matching (e.g.
-  # TestGameServer vs TestGameServer_Cascading) would silently run tests
-  # in more than one bucket.
+  # Which tests run in which job is defined ONLY in test/e2e/buckets.sh;
+  # the e2e-buckets job proves the buckets cover the whole suite.
   # ---------------------------------------------------------------------
+  e2e-buckets:
+    name: e2e bucket coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: verify buckets are disjoint + exhaustive
+        run: ./test/e2e/buckets.sh verify
+
   e2e-core:
     name: e2e core (kind)
     runs-on: ubuntu-latest
@@ -201,34 +209,7 @@ jobs:
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (core)
         run: |
-          RUN_REGEX='^('
-          RUN_REGEX+='TestHelmInstall_AllPodsReady|'
-          RUN_REGEX+='TestHelmInstall_AllCRDsPresent|'
-          RUN_REGEX+='TestHelmInstall_APIHealthz|'
-          RUN_REGEX+='TestHelmInstall_APILogsClean|'
-          RUN_REGEX+='TestHelmInstall_OperatorLogsClean|'
-          RUN_REGEX+='TestCRD_Validation_GameServerWithoutTemplate|'
-          RUN_REGEX+='TestCRD_Validation_BackupScheduleBadCron|'
-          RUN_REGEX+='TestCRD_Validation_BackupRequiresServerRef|'
-          RUN_REGEX+='TestCRD_Validation_GameTemplateRequiresImage|'
-          RUN_REGEX+='TestGameServer_OperatorMaterializesChildren|'
-          RUN_REGEX+='TestGameServer_SuspendScalesToZeroAndBack|'
-          RUN_REGEX+='TestAPI_BootstrapAndLogin|'
-          RUN_REGEX+='TestAPI_LoginPrivacy|'
-          RUN_REGEX+='TestAPI_AuditEmitsOnMutation|'
-          RUN_REGEX+='TestAPI_RBAC_ViewerCannotMutate|'
-          RUN_REGEX+='TestAPI_RBAC_ViewerCannotMutate_Matrix|'
-          RUN_REGEX+='TestAPI_RBAC_OperatorCanWriteServers_NotUsers|'
-          RUN_REGEX+='TestAPI_RBAC_AdminCanReachAll|'
-          RUN_REGEX+='TestAPI_OperatorCannotInviteUsers|'
-          RUN_REGEX+='TestAPI_LifecycleStartStop|'
-          RUN_REGEX+='TestAPI_LifecycleRestart|'
-          RUN_REGEX+='TestAPI_LifecycleClone|'
-          RUN_REGEX+='TestAPI_LifecycleNotFound|'
-          RUN_REGEX+='TestAPI_AgentFilesRoundTrip|'
-          RUN_REGEX+='TestAPI_AgentPlayers|'
-          RUN_REGEX+='TestAPI_AgentUnreachable'
-          RUN_REGEX+=')$'
+          RUN_REGEX="$(./test/e2e/buckets.sh regex core)"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
@@ -266,34 +247,7 @@ jobs:
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (extended)
         run: |
-          # Must stay disjoint from the core bucket.
-          RUN_REGEX='^('
-          RUN_REGEX+='TestGameServer_PVCSurvivesPodDelete|'
-          RUN_REGEX+='TestGameServer_CascadingDelete|'
-          RUN_REGEX+='TestGameTemplate_DeletionWithLiveServer|'
-          RUN_REGEX+='TestModule_FinalizerBlocksWhileTemplateInUse|'
-          RUN_REGEX+='TestModule_FailsOnUnreachableRegistry|'
-          RUN_REGEX+='TestModule_VerifyRejectsUnsignedBundle|'
-          RUN_REGEX+='TestModule_VerifySignedBundleInstalls|'
-          RUN_REGEX+='TestModuleSource_RejectsSSRFTarget|'
-          RUN_REGEX+='TestModuleSourceAndModule|'
-          RUN_REGEX+='TestBackup_OperatorMaterializesJob|'
-          RUN_REGEX+='TestBackup_FailsOnMissingPVC|'
-          RUN_REGEX+='TestBackup_FailsOnBadCredentials|'
-          RUN_REGEX+='TestBackupSchedule_CreatesBackupCR|'
-          RUN_REGEX+='TestBackupSchedule_SuspendStopsScheduling|'
-          RUN_REGEX+='TestBackupSchedule_RetentionTrimsPast|'
-          RUN_REGEX+='TestBackupSchedule_ConcurrencyForbid|'
-          RUN_REGEX+='TestRestore_RoundTrip|'
-          RUN_REGEX+='TestRestore_RejectsMissingBackup|'
-          RUN_REGEX+='TestRestore_FailsOnMissingSnapshot|'
-          RUN_REGEX+='TestAPI_PasswordResetInvalidatesSession|'
-          RUN_REGEX+='TestAPI_LoginRateLimit|'
-          RUN_REGEX+='TestAPI_AuditPaginationAndFilter|'
-          RUN_REGEX+='TestAPI_LogoutInvalidatesSession|'
-          RUN_REGEX+='TestAPI_ConsolePTYRoundTrip|'
-          RUN_REGEX+='TestAPI_LogsTailWS'
-          RUN_REGEX+=')$'
+          RUN_REGEX="$(./test/e2e/buckets.sh regex extended)"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
@@ -396,11 +350,12 @@ jobs:
         # TODO: run the bot in-cluster, then drop continue-on-error.
         continue-on-error: true
         run: |
+          RUN_REGEX="$(./test/e2e/buckets.sh regex bot)"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_GAME_BOT=1 \
-            go test -tags=e2e -timeout 18m -v -run '^TestGameServer_MinecraftBotConnects$' ./...
+            go test -tags=e2e -timeout 18m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure
         if: failure()
         run: |
