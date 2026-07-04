@@ -109,6 +109,29 @@ func formatWebhook(e Event) ([]byte, error) {
 	return json.Marshal(e)
 }
 
+// formatNtfy renders e for an ntfy topic POST: the detail is the
+// plain-text body and the metadata rides in ntfy's Title/Priority/Tags
+// headers. Header values are sanitized — the instance name inside the
+// title is free-text admin config and must not inject headers.
+func formatNtfy(e Event) ([]byte, map[string]string) {
+	headers := map[string]string{
+		"Content-Type": "text/plain; charset=utf-8",
+		"Title":        sanitizeHeader(title(e)),
+	}
+	switch {
+	case e.Test:
+		headers["Priority"] = "default"
+		headers["Tags"] = "white_check_mark"
+	case isFailure(e.Type):
+		headers["Priority"] = "high"
+		headers["Tags"] = "rotating_light"
+	default:
+		headers["Priority"] = "default"
+		headers["Tags"] = "green_circle"
+	}
+	return []byte(detail(e)), headers
+}
+
 // formatEmail renders the subject and plain-text body for SMTP sinks. The
 // subject is header-sanitized: instance names are free-text admin config
 // and must not be able to inject additional headers.
