@@ -49,6 +49,7 @@ func TestVerifyPassword_BadKeyLength(t *testing.T) {
 }
 
 func TestVerifyPassword_RoundTrip(t *testing.T) {
+	SetFastHashParams(t)
 	hash, err := HashPassword("hunter2")
 	if err != nil {
 		t.Fatalf("hash: %v", err)

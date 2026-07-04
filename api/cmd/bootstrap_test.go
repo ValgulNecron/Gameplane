@@ -22,6 +22,7 @@ func dsnIn(t *testing.T) string {
 
 func runBootstrap(t *testing.T, dsn, stdin string, args ...string) (string, error) {
 	t.Helper()
+	auth.SetFastHashParams(t)
 	full := append([]string{"--db-driver=sqlite", "--db-dsn=" + dsn}, args...)
 	var stderr bytes.Buffer
 	err := bootstrapAdmin(context.Background(), full, strings.NewReader(stdin), &stderr)
