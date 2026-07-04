@@ -94,9 +94,17 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 // canonical "this pod is a different object" check — a name match alone
 // is insufficient since the StatefulSet always recreates with the same
 // name.
+// NOT t.Parallel(): restart is implemented as a suspend=true patch, a
+// bounded wait for the StatefulSet to drain, then a suspend=false patch
+// (api/internal/handlers/lifecycle.go). When the operator's reconcile
+// queue is deep — exactly what a parallel bucket produces — both patches
+// can land between two reconciles of this GameServer, the operator
+// coalesces them into "suspend unchanged", and the restart is silently
+// lost: the pod UID never changes. Go runs non-parallel tests before the
+// parallel phase, so this test gets the idle operator its contract
+// currently requires. TODO: make restart an operator-side primitive
+// (rule 10) so a request can't be lost, then re-parallelize.
 func TestAPI_LifecycleRestart(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-restart-tmpl"

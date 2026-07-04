@@ -233,6 +233,10 @@ jobs:
             test_timeout: 15m
             job_timeout: 30
             tail: ratelimit
+          - bucket: api-roles
+            parallel: 3
+            test_timeout: 10m
+            job_timeout: 25
           - bucket: api-rbac
             parallel: 4
             test_timeout: 10m

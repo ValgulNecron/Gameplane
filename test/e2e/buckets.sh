@@ -76,6 +76,10 @@ TestAPI_AuditEmitsOnMutation
 TestAPI_AuditPaginationAndFilter
 TestAPI_LogoutInvalidatesSession
 TestAPI_PasswordResetInvalidatesSession
+EOF
+}
+
+bucket_api_roles() { cat <<'EOF'
 TestAPI_CustomRole_Lifecycle
 TestAPI_BuiltinRole_Immutable
 TestAPI_PerNamespaceBinding_GrantsScopedAccess
@@ -120,13 +124,14 @@ EOF
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' operator api-auth api-rbac api-agent ratelimit bot
+	printf '%s\n' operator api-auth api-roles api-rbac api-agent ratelimit bot
 }
 
 list_bucket() {
 	case "$1" in
 	operator) bucket_operator ;;
 	api-auth) bucket_api_auth ;;
+	api-roles) bucket_api_roles ;;
 	api-rbac) bucket_api_rbac ;;
 	api-agent) bucket_api_agent ;;
 	ratelimit) bucket_ratelimit ;;
