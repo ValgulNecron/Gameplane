@@ -19,6 +19,16 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   ever leave a duplicate, not a missing mod). A corrupt manifest degrades to
   "unmanaged" listings and self-heals on the next install/remove. This is the
   foundation for update detection and one-click mod upgrades in the dashboard.
+- **api/mods:** batch **mod update detection** — `GET
+  /servers/{name}/mods/updates` reads the server's install manifest from the
+  agent and checks every managed mod against its registry provider (latest
+  release compatible with the active loader + game version), returning the
+  update list plus per-mod errors in one call. Results are TTL-cached and
+  upstream lookups are concurrency-bounded, so page revisits don't hammer
+  Modrinth & co. Upgrades ride the existing install endpoint's `replaces`
+  field. A new `api-mods` e2e bucket proves the manifest round-trip
+  (install with metadata → listed with metadata → in-place upgrade →
+  remove) through the full API → agent → volume stack.
 - **registry:** a fifth mod-registry engine — the official **Factorio mod
   portal** (`mods.factorio.com`). Templates can declare
   `capabilities.mods.registry.providers: [{provider: factorio}]` to browse

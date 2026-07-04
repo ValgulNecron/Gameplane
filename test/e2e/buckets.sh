@@ -108,6 +108,11 @@ TestAPI_LifecycleRestart
 EOF
 }
 
+bucket_api_mods() { cat <<'EOF'
+TestAPI_ModManifestInstallUpgrade
+EOF
+}
+
 bucket_ratelimit() { cat <<'EOF'
 TestAPI_LoginRateLimit
 EOF
@@ -124,7 +129,7 @@ EOF
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' operator api-auth api-roles api-rbac api-agent ratelimit bot
+	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot
 }
 
 list_bucket() {
@@ -134,6 +139,7 @@ list_bucket() {
 	api-roles) bucket_api_roles ;;
 	api-rbac) bucket_api_rbac ;;
 	api-agent) bucket_api_agent ;;
+	api-mods) bucket_api_mods ;;
 	ratelimit) bucket_ratelimit ;;
 	bot) bucket_bot ;;
 	*)

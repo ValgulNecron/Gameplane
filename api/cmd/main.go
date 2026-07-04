@@ -171,7 +171,16 @@ func main() {
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
 		handlers.MountModules(p, k8s, cfg.namespace)
-		handlers.MountRegistry(p, k8s, registry.NewSet(Version, cfg.curseforgeAPIKey))
+		regSet := registry.NewSet(Version, cfg.curseforgeAPIKey)
+		handlers.MountRegistry(p, k8s, regSet)
+		// The update check reads the agent's mod manifest server-side over
+		// the same mTLS material as the proxy. Missing material degrades
+		// the endpoint to 503 (nil lister), matching the proxied routes.
+		var agentLister handlers.AgentModLister
+		if ac, err := ws.NewAgentClient(cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey); err == nil {
+			agentLister = ac
+		}
+		handlers.MountModUpdates(p, k8s, regSet, agentLister)
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 

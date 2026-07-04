@@ -245,6 +245,10 @@ jobs:
             parallel: 4
             test_timeout: 15m
             job_timeout: 30
+          - bucket: api-mods
+            parallel: 2
+            test_timeout: 15m
+            job_timeout: 30
     env:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
