@@ -11,7 +11,13 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search,
 }));
 
-import { CreateServerWizard, nonEmptyPortOverrides, parseSourceRanges } from "./CreateServer";
+import {
+  CreateServerWizard,
+  cpuRequest,
+  nodeCaps,
+  nonEmptyPortOverrides,
+  parseSourceRanges,
+} from "./CreateServer";
 import { gameCategory } from "@/lib/games";
 
 interface FetchInit {
@@ -261,6 +267,35 @@ describe("nonEmptyPortOverrides", () => {
       ]),
     ).toEqual([{ name: "game", nodePort: 30005 }]);
     expect(nonEmptyPortOverrides([])).toEqual([]);
+  });
+});
+
+describe("cpuRequest", () => {
+  it("reserves at most one core so a pod schedules on a busy node", () => {
+    // The bug this fixes: a limit-only payload made K8s set request=limit,
+    // so a 4-core limit needed a fully-empty node. Request stays ≤ 1.
+    expect(cpuRequest("4")).toBe("1");
+    expect(cpuRequest("2")).toBe("1");
+    // Sub-core limits reserve exactly what they ask for.
+    expect(cpuRequest("1")).toBe("1");
+    expect(cpuRequest("0.5")).toBe("0.5");
+    // Garbage falls back to a tiny floor rather than NaN.
+    expect(cpuRequest("")).toBe("250m");
+  });
+});
+
+describe("nodeCaps", () => {
+  it("returns the largest single node's CPU cores and memory GiB", () => {
+    const caps = nodeCaps([
+      { cpu: { capacity: 4 }, memory: { capacity: 14656061440 } }, // ~13.6 GiB
+      { cpu: { capacity: 8 }, memory: { capacity: 8 * 1024 ** 3 } },
+    ]);
+    expect(caps.maxCpu).toBe(8);
+    // Largest memory node is the ~13.6 GiB one → floor to 13 GiB.
+    expect(caps.maxMemGi).toBe(13);
+  });
+  it("is {0,0} when node data is unavailable (no cap)", () => {
+    expect(nodeCaps([])).toEqual({ maxCpu: 0, maxMemGi: 0 });
   });
 });
 

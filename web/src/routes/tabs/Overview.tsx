@@ -17,6 +17,14 @@ interface Event {
   source?: string;
 }
 
+// humanizeBytes rewrites raw byte counts in kubelet event messages
+// ("Image size: 333546371 bytes") into a readable form ("Image size:
+// 318 MB"). Only 7+ digit runs followed by "bytes" are touched, so small
+// numbers elsewhere in a message are left alone.
+export function humanizeBytes(msg: string): string {
+  return msg.replace(/\b(\d{7,})\s*bytes\b/g, (_m, n: string) => formatBytes(Number(n)));
+}
+
 // Maps a Kubernetes event onto the card's view model: Warning → warn,
 // everything else → info; the reason prefixes the message ("Pulling:
 // pulling image…") and the reporting component is the source.
@@ -25,7 +33,7 @@ function mapServerEvent(e: ServerEvent): Event {
     id: e.id,
     ts: e.time,
     kind: e.type === "Warning" ? "warn" : "info",
-    message: e.reason ? `${e.reason}: ${e.message}` : e.message,
+    message: humanizeBytes(e.reason ? `${e.reason}: ${e.message}` : e.message),
     source: e.source || undefined,
   };
 }
