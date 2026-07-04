@@ -211,10 +211,32 @@ jobs:
       - name: verify buckets are disjoint + exhaustive
         run: ./test/e2e/buckets.sh verify
 
-  e2e-core:
-    name: e2e core (kind)
+  e2e-go:
+    name: e2e ${{ matrix.bucket }} (kind)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.job_timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Buckets are cut by login pressure, not feature area — see the
+        # header comment in test/e2e/buckets.sh. The suite runs with
+        # t.Parallel(); `parallel` bounds in-flight tests per bucket
+        # (operator does zero logins and is wait-dominated, so it runs
+        # wide; the api buckets stay within the login limiter's budget).
+        include:
+          - bucket: operator
+            parallel: 8
+            test_timeout: 20m
+            job_timeout: 35
+          - bucket: api-auth
+            parallel: 4
+            test_timeout: 15m
+            job_timeout: 30
+            tail: ratelimit
+          - bucket: api-servers
+            parallel: 4
+            test_timeout: 15m
+            job_timeout: 30
     env:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
@@ -240,60 +262,25 @@ jobs:
         uses: ./.github/actions/e2e-images
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
-      - name: run go e2e (core)
+      - name: run go e2e (${{ matrix.bucket }})
         run: |
-          RUN_REGEX="$(./test/e2e/buckets.sh regex core)"
+          RUN_REGEX="$(./test/e2e/buckets.sh regex '${{ matrix.bucket }}')"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
-            go test -tags=e2e -timeout 19m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure
-        if: failure()
+            go test -tags=e2e -timeout ${{ matrix.test_timeout }} -v \
+              -parallel ${{ matrix.parallel }} -run "$RUN_REGEX" ./...
+      - name: run go e2e (ratelimit tail)
+        # LAST on purpose: this test deliberately drains the shared per-IP
+        # and per-username login buckets; anything running after it queues
+        # behind the refill.
+        if: matrix.tail == 'ratelimit'
         run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" describe pods -n gameplane-games || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          # --previous catches the crash output if the operator restarted.
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
-
-  e2e-extended:
-    name: e2e extended (kind)
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    env:
-      CLUSTER: gameplane-e2e
-      CTX: kind-gameplane-e2e
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: "1.25", cache: false }
-      - name: go module + build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
-          restore-keys: |
-            go-${{ runner.os }}-e2e-
-      - uses: azure/setup-helm@v4
-      - name: install kind
-        uses: helm/kind-action@v1
-        with:
-          install_only: true
-      - name: build images
-        uses: ./.github/actions/e2e-images
-      - name: bring up cluster + helm install
-        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
-      - name: run go e2e (extended)
-        run: |
-          RUN_REGEX="$(./test/e2e/buckets.sh regex extended)"
+          RUN_REGEX="$(./test/e2e/buckets.sh regex ratelimit)"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
-            go test -tags=e2e -timeout 26m -v -run "$RUN_REGEX" ./...
+            go test -tags=e2e -timeout 5m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure
         if: failure()
         run: |

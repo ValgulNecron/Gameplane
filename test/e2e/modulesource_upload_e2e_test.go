@@ -20,6 +20,8 @@ import (
 // a registry module. No extra infrastructure (registry, oras job) is
 // needed.
 func TestModuleSourceUpload(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	const (

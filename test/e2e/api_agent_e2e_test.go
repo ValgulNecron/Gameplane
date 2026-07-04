@@ -87,6 +87,8 @@ func waitAgentReachable(t *testing.T, cli *APIClient, gs string) {
 // generous timeouts on the Ready wait but keep per-request timeouts
 // tight to surface plumbing regressions cleanly.
 func TestAPI_AgentFilesRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ns := "gameplane-games"
 	tmpl := "e2e-agent-files-tmpl"
 	gs := "e2e-agent-files-gs"
@@ -204,6 +206,8 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 // JSON with the expected keys, which proves the API correctly proxied
 // to the agent and decoded its response.
 func TestAPI_AgentPlayers(t *testing.T) {
+	t.Parallel()
+
 	ns := "gameplane-games"
 	tmpl := "e2e-agent-players-tmpl"
 	gs := "e2e-agent-players-gs"
@@ -241,6 +245,8 @@ func TestAPI_AgentPlayers(t *testing.T) {
 // from a real auth failure or other 4xx; we assert the response code is
 // in that "agent down" range.
 func TestAPI_AgentUnreachable(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-agent-unreach-tmpl"

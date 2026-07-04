@@ -27,6 +27,8 @@ import (
 // restore actually used must match the Backup's snapshotID, even if
 // retention deletes other snapshots in the meantime).
 func TestRestore_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-restore-busybox"
@@ -34,8 +36,7 @@ func TestRestore_RoundTrip(t *testing.T) {
 	bkName := "e2e-restore-bk"
 	rsName := "e2e-restore-rs"
 
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
@@ -192,6 +193,8 @@ func TestRestore_RoundTrip(t *testing.T) {
 // even create one), so the test is fast — it stays at Pending until the
 // reconciler resolves the missing backup, then transitions to Failed.
 func TestRestore_RejectsMissingBackup(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	rsName := "e2e-restore-missing-backup"

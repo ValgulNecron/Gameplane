@@ -18,6 +18,8 @@ import (
 // this one walks every protected segment so a regression that flips
 // any single rule shows up in CI.
 func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -99,6 +101,8 @@ func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
 // role can write GameServer-shaped resources but is still locked out of
 // admin-only segments (users, audit, destinations, modules write paths).
 func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -181,6 +185,8 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 // /users gate produces a clearly-named failure rather than getting
 // buried inside a tabular row.
 func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -214,6 +220,8 @@ func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
 // admin role too — without this, an over-tight rule could go unnoticed
 // behind the simpler "viewer is 403" tests.
 func TestAPI_RBAC_AdminCanReachAll(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)

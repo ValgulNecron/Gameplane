@@ -23,6 +23,12 @@ import (
 // so we don't pay the OCI bring-up cost twice — but we drive a fresh
 // Module/GameServer pair to keep the assertions independent.
 func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
+	t.Parallel()
+	// Shares the fixed-name oras-push Job with the other module tests —
+	// serialize against them (see ociPushMu).
+	ociPushMu.Lock()
+	defer ociPushMu.Unlock()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 
@@ -169,6 +175,8 @@ func TestModule_FinalizerBlocksWhileTemplateInUse(t *testing.T) {
 // independent lifecycle objects (they're snapshots, not workload
 // children) and survive the GameServer's deletion.
 func TestGameServer_CascadingDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-cascade-tmpl"
@@ -241,6 +249,8 @@ func TestGameServer_CascadingDelete(t *testing.T) {
 // contract means live workloads keep running with the cached spec until
 // the GameServer itself is deleted.
 func TestGameTemplate_DeletionWithLiveServer(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-tmpldelete-template"

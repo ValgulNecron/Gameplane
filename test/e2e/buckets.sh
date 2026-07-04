@@ -20,8 +20,18 @@ cd "$(dirname "$0")"
 # The regexes are anchored ^(...)$ — prefix matching (e.g. TestGameServer
 # vs TestGameServer_Cascading) would silently run tests in more than one
 # bucket.
+#
+# The buckets are cut by LOGIN PRESSURE, not by feature area. The API's
+# login rate limiter is per-IP (5/min, burst 10) plus per-username
+# (3/min, burst 6), and every test in a job shares one client IP through
+# the kubectl port-forward — so admin logins, not CPU, bound an API
+# bucket's wall clock. `operator` does zero logins and runs wide;
+# the two api buckets each stay within their cluster's login budget.
+# `ratelimit` deliberately drains the shared limiter, so it runs as a
+# separate, LAST `go test` invocation (Go runs non-parallel tests first
+# — inside the main bucket it would starve everyone else's logins).
 
-bucket_core() { cat <<'EOF'
+bucket_operator() { cat <<'EOF'
 TestHelmInstall_AllPodsReady
 TestHelmInstall_AllCRDsPresent
 TestHelmInstall_APIHealthz
@@ -34,28 +44,6 @@ TestCRD_Validation_GameTemplateRequiresImage
 TestGameServer_OperatorMaterializesChildren
 TestGameServer_SuspendScalesToZeroAndBack
 TestGameServer_HeartbeatReachesRunning
-TestAPI_BootstrapAndLogin
-TestAPI_LoginPrivacy
-TestAPI_AuditEmitsOnMutation
-TestAPI_RBAC_ViewerCannotMutate
-TestAPI_RBAC_ViewerCannotMutate_Matrix
-TestAPI_RBAC_OperatorCanWriteServers_NotUsers
-TestAPI_RBAC_AdminCanReachAll
-TestAPI_OperatorCannotInviteUsers
-TestAPI_LifecycleStartStop
-TestAPI_LifecycleRestart
-TestAPI_LifecycleClone
-TestAPI_LifecycleNotFound
-TestAPI_AgentFilesRoundTrip
-TestAPI_AgentPlayers
-TestAPI_AgentUnreachable
-TestAPI_CustomRole_Lifecycle
-TestAPI_BuiltinRole_Immutable
-TestAPI_PerNamespaceBinding_GrantsScopedAccess
-EOF
-}
-
-bucket_extended() { cat <<'EOF'
 TestGameServer_PVCSurvivesPodDelete
 TestGameServer_CascadingDelete
 TestGameTemplate_DeletionWithLiveServer
@@ -76,12 +64,42 @@ TestBackupSchedule_ConcurrencyForbid
 TestRestore_RoundTrip
 TestRestore_RejectsMissingBackup
 TestRestore_FailsOnMissingSnapshot
-TestAPI_PasswordResetInvalidatesSession
-TestAPI_LoginRateLimit
+EOF
+}
+
+bucket_api_auth() { cat <<'EOF'
+TestAPI_BootstrapAndLogin
+TestAPI_LoginPrivacy
+TestAPI_AuditEmitsOnMutation
 TestAPI_AuditPaginationAndFilter
 TestAPI_LogoutInvalidatesSession
+TestAPI_PasswordResetInvalidatesSession
+TestAPI_CustomRole_Lifecycle
+TestAPI_BuiltinRole_Immutable
+TestAPI_PerNamespaceBinding_GrantsScopedAccess
+EOF
+}
+
+bucket_api_servers() { cat <<'EOF'
+TestAPI_RBAC_ViewerCannotMutate
+TestAPI_RBAC_ViewerCannotMutate_Matrix
+TestAPI_RBAC_OperatorCanWriteServers_NotUsers
+TestAPI_RBAC_AdminCanReachAll
+TestAPI_OperatorCannotInviteUsers
+TestAPI_LifecycleStartStop
+TestAPI_LifecycleRestart
+TestAPI_LifecycleClone
+TestAPI_LifecycleNotFound
+TestAPI_AgentFilesRoundTrip
+TestAPI_AgentPlayers
+TestAPI_AgentUnreachable
 TestAPI_ConsolePTYRoundTrip
 TestAPI_LogsTailWS
+EOF
+}
+
+bucket_ratelimit() { cat <<'EOF'
+TestAPI_LoginRateLimit
 EOF
 }
 
@@ -96,13 +114,15 @@ EOF
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' core extended bot
+	printf '%s\n' operator api-auth api-servers ratelimit bot
 }
 
 list_bucket() {
 	case "$1" in
-	core) bucket_core ;;
-	extended) bucket_extended ;;
+	operator) bucket_operator ;;
+	api-auth) bucket_api_auth ;;
+	api-servers) bucket_api_servers ;;
+	ratelimit) bucket_ratelimit ;;
 	bot) bucket_bot ;;
 	*)
 		echo "unknown bucket: $1 (known: $(bucket_names | tr '\n' ' '))" >&2

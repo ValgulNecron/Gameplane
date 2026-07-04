@@ -27,6 +27,8 @@ const (
 // for handoff to the Playwright live-mode suite (PR3). The directory is
 // gitignored.
 func TestAPI_BootstrapAndLogin(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	envInstance.WriteAdminPasswordFile(t, adminPassword)
 
@@ -54,6 +56,8 @@ func TestAPI_BootstrapAndLogin(t *testing.T) {
 // must be indistinguishable. Otherwise the response timing or body
 // becomes a username-enumeration oracle.
 func TestAPI_LoginPrivacy(t *testing.T) {
+	t.Parallel()
+
 	// Make sure the admin row exists so the "real user, wrong password"
 	// branch actually exercises VerifyPassword (not the dummy).
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
@@ -106,6 +110,8 @@ func TestAPI_LoginPrivacy(t *testing.T) {
 // (which requires operator+). The audit row for the rejected call
 // should land with status=403 — checked from the same admin session.
 func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -155,6 +161,8 @@ func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
 // own row blanks out the cookie we're using to read /admin/audit.
 // PATCH /users/{id} with a display-name change avoids that pitfall.
 func TestAPI_AuditEmitsOnMutation(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)

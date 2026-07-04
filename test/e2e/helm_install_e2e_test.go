@@ -17,40 +17,54 @@ import (
 // the timeout. This is the smoke check that catches "image pull broken",
 // "manifest typo", "operator panics on startup", etc.
 func TestHelmInstall_AllPodsReady(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
-	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
-		pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").
-			List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, "list pods: " + err.Error()
-		}
-		if len(pods.Items) == 0 {
-			return false, "no pods in gameplane-system yet"
-		}
-		notReady := []string{}
-		for _, p := range pods.Items {
-			ready := false
-			for _, c := range p.Status.Conditions {
-				if c.Type == "Ready" && c.Status == "True" {
-					ready = true
-					break
+	// Scope to the chart's own workloads. The parallel suite runs one-shot
+	// helper pods (healthz probes, oras/cosign Jobs, the restic warm-up) in
+	// this namespace whose Succeeded phase would otherwise read here as
+	// "not Ready".
+	for _, sel := range []string{
+		"app.kubernetes.io/name=gameplane-operator",
+		"app.kubernetes.io/name=gameplane-api",
+	} {
+		sel := sel
+		envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+			pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").
+				List(ctx, metav1.ListOptions{LabelSelector: sel})
+			if err != nil {
+				return false, "list pods: " + err.Error()
+			}
+			if len(pods.Items) == 0 {
+				return false, "no pods for " + sel + " yet"
+			}
+			notReady := []string{}
+			for _, p := range pods.Items {
+				ready := false
+				for _, c := range p.Status.Conditions {
+					if c.Type == "Ready" && c.Status == "True" {
+						ready = true
+						break
+					}
+				}
+				if !ready {
+					notReady = append(notReady, p.Name+"="+string(p.Status.Phase))
 				}
 			}
-			if !ready {
-				notReady = append(notReady, p.Name+"="+string(p.Status.Phase))
+			if len(notReady) > 0 {
+				return false, "pods not Ready: " + strings.Join(notReady, ", ")
 			}
-		}
-		if len(notReady) > 0 {
-			return false, "pods not Ready: " + strings.Join(notReady, ", ")
-		}
-		return true, ""
-	})
+			return true, ""
+		})
+	}
 }
 
 // TestHelmInstall_AllCRDsPresent — every Gameplane CRD declared by the
 // chart is reachable via discovery. Catches a missing CRD YAML in
 // `charts/gameplane/crds/` from a future refactor.
 func TestHelmInstall_AllCRDsPresent(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	want := []string{
 		"gameservers.gameplane.local",
@@ -77,6 +91,8 @@ func TestHelmInstall_AllCRDsPresent(t *testing.T) {
 // failure would surface here. We tolerate WARN since a few are
 // expected during initial reconciliation.
 func TestHelmInstall_OperatorLogsClean(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/name=gameplane-operator",
@@ -107,6 +123,8 @@ func TestHelmInstall_OperatorLogsClean(t *testing.T) {
 // repeated request-handling crashes that pod-Ready alone might miss
 // during a slow-starting readiness probe.
 func TestHelmInstall_APILogsClean(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	pods, err := envInstance.K8s.CoreV1().Pods("gameplane-system").List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/name=gameplane-api",
@@ -140,6 +158,8 @@ func TestHelmInstall_APILogsClean(t *testing.T) {
 // pull from the public registry into kind; the 90s budget is mostly
 // to absorb that.
 func TestHelmInstall_APIHealthz(t *testing.T) {
+	t.Parallel()
+
 	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
 		// Random suffix so an Eventually retry doesn't collide with a
 		// not-yet-cleaned-up pod from the previous tick.

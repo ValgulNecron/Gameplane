@@ -31,6 +31,8 @@ type ptyEnvelope struct {
 // Doesn't depend on the agent sidecar: console-pty attaches via the
 // kubelet API, not the agent's mTLS endpoint.
 func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-ws-pty-tmpl"
@@ -114,6 +116,8 @@ func TestAPI_ConsolePTYRoundTrip(t *testing.T) {
 // marker emitted by the game container surfaces in the streamed frames.
 // The route is proxied to the agent sidecar over mTLS.
 func TestAPI_LogsTailWS(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-ws-logs-tmpl"

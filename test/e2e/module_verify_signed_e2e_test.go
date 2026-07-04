@@ -24,6 +24,13 @@ import (
 // envtest suite only covers with a fake verifier and which the release pipeline
 // (modules/build.sh --sign) relies on.
 func TestModule_VerifySignedBundleInstalls(t *testing.T) {
+	t.Parallel()
+	// Shares the fixed-name oras-push Job with the other module tests and
+	// additionally owns the cosign keypair Secret + sign Job — serialize
+	// against the other module tests (see ociPushMu).
+	ociPushMu.Lock()
+	defer ociPushMu.Unlock()
+
 	parent := t
 	ctx := context.Background()
 

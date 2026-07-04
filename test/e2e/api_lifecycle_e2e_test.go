@@ -23,6 +23,8 @@ import (
 // We verify both steps rather than just the API response, otherwise a
 // regression that drops the patch silently would still pass the test.
 func TestAPI_LifecycleStartStop(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-tmpl"
@@ -93,6 +95,8 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 // is insufficient since the StatefulSet always recreates with the same
 // name.
 func TestAPI_LifecycleRestart(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-restart-tmpl"
@@ -153,6 +157,8 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 // and ends up with its own PVC (proving the operator went through its
 // usual materialize path on the new CR).
 func TestAPI_LifecycleClone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-clone-tmpl"
@@ -235,6 +241,8 @@ func TestAPI_LifecycleClone(t *testing.T) {
 // must surface as 404, not 500. Catches regressions where a panic in
 // the patch path turns into a generic error.
 func TestAPI_LifecycleNotFound(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer cli.Close()
