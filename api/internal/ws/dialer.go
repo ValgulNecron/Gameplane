@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -93,7 +92,7 @@ func (p *proxy) agentHost(name, namespace string) string {
 	// <gs>-agent for the sidecar (the game's own Service may be
 	// NodePort/LoadBalancer and per-pod DNS only resolves under
 	// headless Services). Agent listens on :8090.
-	return fmt.Sprintf("%s-agent.%s.svc.cluster.local:8090", name, namespace)
+	return agentHostFor(name, namespace)
 }
 
 func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
