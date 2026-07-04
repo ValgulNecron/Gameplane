@@ -115,6 +115,31 @@ api:
         replicas: 1
         resources: {}
 
+  # Anonymous usage telemetry ({version, servers, templates} once a day —
+  # see docs/install.md). Two independent gates: the admin toggle in the
+  # dashboard decides WHETHER anything is sent, this block decides WHERE.
+  # With endpoint empty and receiver.enabled false (the defaults),
+  # telemetry is off entirely.
+  telemetry:
+    # External receiver URL, e.g. https://telemetry.example.com/ingest.
+    # Setting it disables the receiver auto-wiring below.
+    endpoint: ""
+    # Optional shared ingest token, sourced from a Secret (never a flag).
+    # The API sends it verbatim as the Authorization header and the
+    # bundled receiver requires it — recommended when the receiver is
+    # enabled, since its Service is reachable by other in-cluster pods.
+    authSecretRef:
+      name: ""
+      key: token
+    # Bundled in-cluster receiver (the telemetry-receiver image): accepts
+    # reports on /ingest and exposes aggregate Prometheus metrics on
+    # /metrics. When enabled and endpoint is empty above, the API is
+    # pointed at it automatically.
+    receiver:
+      enabled: false
+      replicas: 1
+      resources: {}
+
   oidc:
     enabled: false
     issuer: ""

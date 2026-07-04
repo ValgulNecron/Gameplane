@@ -28,12 +28,16 @@ type Reporter struct {
 	store    *db.Store
 	k        *kube.Client
 	endpoint string
+	auth     string
 	version  string
 	interval time.Duration
 	client   *http.Client
 }
 
-func New(store *db.Store, k *kube.Client, endpoint, version string, interval time.Duration) *Reporter {
+// New builds a Reporter. auth, when non-empty, is sent verbatim as the
+// Authorization header on every report — the telemetry-receiver checks
+// it when deployed with an ingest token.
+func New(store *db.Store, k *kube.Client, endpoint, auth, version string, interval time.Duration) *Reporter {
 	if interval <= 0 {
 		interval = 24 * time.Hour
 	}
@@ -41,6 +45,7 @@ func New(store *db.Store, k *kube.Client, endpoint, version string, interval tim
 		store:    store,
 		k:        k,
 		endpoint: endpoint,
+		auth:     auth,
 		version:  version,
 		interval: interval,
 		client:   &http.Client{Timeout: 15 * time.Second},
@@ -114,6 +119,9 @@ func (r *Reporter) reportOnce(ctx context.Context) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if r.auth != "" {
+		req.Header.Set("Authorization", r.auth)
+	}
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return err

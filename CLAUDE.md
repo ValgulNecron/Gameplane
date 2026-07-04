@@ -28,6 +28,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 │   ├── cmd/main.go
 │   └── internal/{auth,console,files,heartbeat,logs,players,rcon,quiesce}/
 ├── audit-syslog-bridge/      # optional HTTP-JSON → syslog relay image (Go), behind the audit webhook sink
+├── telemetry-receiver/       # optional anonymous-usage-telemetry collector image (Go), behind the API's telemetry reporter
 ├── web/                      # React 18 + TS strict + Vite dashboard
 │   └── src/{routes,components,lib,router,styles,test}/
 ├── modules/                  # GIT SUBMODULE → gameplane-module repo (game template OCI bundles)
@@ -40,11 +41,11 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
 ├── design.pen                # Pencil design source — encrypted, MCP only
 ├── cosign.pub                # public key for verifying signed images + module bundles
-├── go.work                   # Go workspace linking netguard/operator/api/agent/audit-syslog-bridge/test/e2e
+├── go.work                   # Go workspace linking netguard/operator/api/agent/audit-syslog-bridge/telemetry-receiver/test/e2e
 └── Makefile                  # canonical entry point for every command
 ```
 
-The Go modules `netguard`, `operator`, `api`, `agent`, `audit-syslog-bridge`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
+The Go modules `netguard`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
 
 `modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
 
@@ -72,9 +73,9 @@ make dev-install   # re-run helm upgrade against the local cluster
 
 ```sh
 make build                       # all components (Go + web)
-make build-go                    # compiles every Go module: netguard, operator, api, agent, audit-syslog-bridge
+make build-go                    # compiles every Go module: netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver
 make build-web                   # web/dist via `npm ci && npm run build`
-make images                      # docker images: operator, api, agent, audit-syslog-bridge
+make images                      # docker images: operator, api, agent, audit-syslog-bridge, telemetry-receiver
 make image-operator              # one image; same for image-api, image-agent, image-audit-syslog
 ```
 
@@ -82,7 +83,7 @@ make image-operator              # one image; same for image-api, image-agent, i
 
 ```sh
 make test                # everything (≈ seconds)
-make test-go             # Go unit tests across netguard, operator, api, agent, audit-syslog-bridge
+make test-go             # Go unit tests across netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver
 make test-web            # vitest for web
 
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
@@ -105,6 +106,7 @@ cd operator && go test ./...
 cd api      && go test ./...
 cd agent    && go test ./...
 cd audit-syslog-bridge && go test ./...
+cd telemetry-receiver && go test ./...
 cd web      && npm test
 ```
 
@@ -119,7 +121,7 @@ make cover           # full coverage with threshold gates (CI-equivalent)
 make cover-ratchet   # measured-vs-threshold delta per module
 ```
 
-Coverage gates: `netguard/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
+Coverage gates: `netguard/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
 
 ### Codegen — mandatory after CRD type edits
 
@@ -281,6 +283,8 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`audit-syslog-bridge/`** — optional, schema-agnostic HTTP-JSON → syslog (RFC 5424) relay image. Sits behind the API's audit webhook sink (`api.audit.webhook.syslogBridge.enabled`) to forward audit events to a syslog/SIEM collector; forwards any JSON webhook body verbatim, so it isn't Gameplane-specific. See `audit-syslog-bridge/README.md`.
 
+**`telemetry-receiver/`** — optional collector for the anonymous usage telemetry the API reports daily (`{version, servers, templates}`; opt-in via the admin toggle). Validates, logs, and aggregates into Prometheus metrics; deployed via `api.telemetry.receiver.enabled` (API auto-pointed at it) or run standalone for a public endpoint. See `telemetry-receiver/README.md`.
+
 **`web/`** — React 18 + TS strict + Vite. Entry: `web/src/main.tsx`. Routing in `web/src/router/tree.tsx` (TanStack Router). Data fetching is TanStack Query calling through the thin fetch wrapper in `web/src/lib/api.ts`; WebSocket helpers in `web/src/lib/ws.ts`. Pages in `web/src/routes/`. Shared types mirroring CRDs in `web/src/types.ts`.
 
 **`modules/`** — a **git submodule** (the standalone `gameplane-module` repo) holding the official game template bundles distributed as OCI artifacts. Each has `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Built and pushed via `modules/build.sh` (uses `oras ≥ 1.2.0`). Format spec: `docs/module-authoring.md`. Run `git submodule update --init` after clone to populate it.
@@ -293,7 +297,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 | Layer | What's used |
 |---|---|
-| Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge share `go.work`) |
+| Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver share `go.work`) |
 | K8s libs | `controller-runtime` v0.19.0, `client-go` v0.35.0, envtest 1.31 |
 | HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 |
 | Persistence | `modernc.org/sqlite` **or** `pgx/v5` (driver-selectable at runtime) |

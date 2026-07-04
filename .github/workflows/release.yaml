@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [operator, api, agent, audit-syslog-bridge]
+        component: [operator, api, agent, audit-syslog-bridge, telemetry-receiver]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

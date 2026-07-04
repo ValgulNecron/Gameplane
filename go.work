@@ -6,5 +6,6 @@ use (
 	./api
 	./agent
 	./audit-syslog-bridge
+	./telemetry-receiver
 	./test/e2e
 )

@@ -7,6 +7,21 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **telemetry:** a home for the anonymous-usage reports — the new standalone
+  **`telemetry-receiver`** component (own Go module + image, like the
+  audit-syslog bridge) accepts the API's daily `{version, servers,
+  templates}` POST on `/ingest`, logs it structurally, and exposes
+  aggregate Prometheus metrics (`gameplane_telemetry_reports_total` by
+  version, fleet-size histograms). The chart can deploy it with
+  `api.telemetry.receiver.enabled=true` (the API is auto-pointed at it),
+  or aim the API at an external receiver via `api.telemetry.endpoint`;
+  an optional shared ingest token (`api.telemetry.authSecretRef`) guards
+  `/ingest` and rides the API's new `GAMEPLANE_TELEMETRY_AUTH` env.
+  Previously the Admin Settings toggle worked but there was nowhere for
+  the data to go.
+
 ### Fixed
 
 - **web:** the Create Server wizard no longer produces **unschedulable

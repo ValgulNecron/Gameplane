@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [netguard, operator, api, agent, audit-syslog-bridge]
+        module: [netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

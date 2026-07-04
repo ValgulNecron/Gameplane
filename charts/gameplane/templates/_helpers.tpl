@@ -28,6 +28,10 @@ track a rolling channel.
 {{- printf "%s/audit-syslog-bridge:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
 {{- end -}}
 
+{{- define "gameplane.telemetryReceiverImage" -}}
+{{- printf "%s/telemetry-receiver:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+
 {{- /*
 gameplane.labels intentionally omits app.kubernetes.io/name so each
 resource can set its own (e.g. "gameplane-api", "gameplane-operator")

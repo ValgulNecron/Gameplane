@@ -1,8 +1,8 @@
 # Architecture
 
 Gameplane is split across long-lived components — dashboard, API, operator,
-and an optional audit-syslog-bridge relay — plus a short-lived per-pod agent
-sidecar.
+and optional audit-syslog-bridge / telemetry-receiver satellites — plus a
+short-lived per-pod agent sidecar.
 
 ```
 ┌───────────────────────────────────────────────────────┐
@@ -143,5 +143,8 @@ converge on the same outcome. Format spec: `docs/module-authoring.md`.
   fetches, strict for the agent's user-triggered mod-install downloads.
 - **API → audit-syslog-bridge (optional)**: plaintext or TLS syslog forward
   for the audit trail, enabled via `api.audit.webhook.syslogBridge.enabled`.
+- **API → telemetry-receiver (optional)**: the anonymous daily usage report
+  (admin-toggle gated), auto-wired via `api.telemetry.receiver.enabled` or
+  aimed at an external URL via `api.telemetry.endpoint`.
 
 See `docs/security.md` for the threat model.
