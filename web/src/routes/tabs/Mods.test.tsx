@@ -441,7 +441,11 @@ describe("ModsTab", () => {
     });
     renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /check updates/i }));
+    // The check button stays disabled until the mod list has loaded —
+    // clicking early is a silent no-op and the test would hang.
+    const check = await screen.findByRole("button", { name: /check updates/i });
+    await waitFor(() => expect(check).not.toBeDisabled());
+    fireEvent.click(check);
     const all = await screen.findByRole("button", { name: /update all \(2\)/i });
     fireEvent.click(all);
 
