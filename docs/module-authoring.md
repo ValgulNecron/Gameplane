@@ -322,7 +322,15 @@ modules/build.sh push --registry ghcr.io/you/your-modules --sign
 
 ## Anatomy of a `GameTemplate` spec
 
-(Most of what follows is unchanged from the pre-OCI authoring guide.)
+The CRD types in `operator/api/v1alpha1/gametemplate_types.go` are the
+source of truth; this section documents every author-facing block. The
+official modules are the canonical examples: **minecraft-java**
+(env-versioned catalog, per-loader mod volumes, three registries,
+env-mode modpacks), **valheim** (channel catalog, extract-mode BepInEx
+mods, deps-mode Thunderstore packs), **terraria** (tag catalog, pty
+console, configFiles), **factorio** (tag catalog, pty console,
+wizard-managed server-settings.json, portal registry), **palworld**
+(wrapper channels, RCON via a shared admin env, pak mods).
 
 ### Branding
 
@@ -336,6 +344,55 @@ spec:
 dashboard — the app no longer hardcodes a per-game palette, so a new
 game shows the right color without any frontend change. Omit it for a
 neutral default.
+
+### Version catalog (`spec.versions`)
+
+`spec.versions` declares the selectable game versions/flavors. The "New
+server" wizard shows the catalog as a picker, and an existing server can
+switch entries later from **Settings → Version** (the operator re-renders
+the StatefulSet and restarts the pod on the new entry).
+
+```yaml
+image: itzg/minecraft-server:java21   # fallback when no version is selected
+versions:
+  - id: "1.21.4-paper"        # what GameServer.spec.version stores (≤ 40 chars)
+    displayName: "1.21.4 · Paper"
+    image: itzg/minecraft-server:java21   # full image ref for this entry
+    loader: paper             # keys into capabilities.mods.loaders (below)
+    gameVersion: "1.21.4"     # upstream token passed to mod registries
+    default: true             # pre-selected in the wizard (one entry)
+    env:                      # appended when selected
+      - { name: TYPE, value: PAPER }
+      - { name: VERSION, value: "1.21.4" }
+```
+
+How authors express "a version" is up to the image (all three styles are
+used by the official modules):
+
+- **env-versioned** — one image, per-entry `env` selects the software
+  (minecraft-java: itzg `TYPE`/`VERSION`; the tag only pins the Java
+  runtime);
+- **tag-versioned** — the image tag *is* the game version (factorio:
+  `stable`/`latest`/pinned; terraria: `tmodloader-*`);
+- **channel** — entries select an upstream channel via env (valheim:
+  `stable` vs `public-test`).
+
+Semantics:
+
+- `GameServer.spec.version` selects an entry by `id`; empty falls back to
+  the `default: true` entry (else the first). An id that matches no entry
+  **fails the server loudly** (phase `Failed`) instead of silently using
+  the template image. `GameServer.spec.image` overrides whatever image
+  the entry resolves to.
+- Env precedence: template `env` < the entry's `env` < schema-resolved
+  config < GameServer `spec.env`.
+- **Each (version + loader) combination gets its own mod volume** —
+  switching entries mounts that combo's PVC and leaves the others intact,
+  so a Paper plugin set survives a detour through Fabric. See §Mods.
+- At most 64 entries; `loader` must match a key of
+  `capabilities.mods.loaders` (or be absent/`vanilla`-style for entries
+  with no mod manager). Use the registry's loader token verbatim (e.g.
+  Modrinth's `paper`/`fabric`/`neoforge`) so browse filtering works.
 
 ### Config schema → wizard
 
@@ -448,14 +505,40 @@ For Source-protocol games (Minecraft, Valve engine titles) set:
 rcon:
   protocol: source
   port: 25575
+  passwordEnv: RCON_PASSWORD   # env the game image reads the password from
 ```
 
-The operator mints a password secret per GameServer and mounts it to the
-agent. The dashboard's console tab then works automatically.
+The operator mints a password secret per GameServer, injects it into the
+game container via `passwordEnv`, and mounts the same value for the agent
+— the dashboard's console tab (and every RCON-backed capability) then
+works automatically. Some images reuse one env for RCON and in-game admin
+(Palworld's `ADMIN_PASSWORD`); that's fine — name it here.
 
-For games without RCON (e.g. Valheim) set `protocol: none` — the agent
-won't try to connect, and the console tab degrades to "server doesn't
-support a live console" rather than failing.
+For games without usable RCON set `protocol: none`. Two real cases from
+the official modules:
+
+- the game simply has none (Valheim, Terraria);
+- the image manages its own RCON password in a file the operator can't
+  inject into (factoriotools reads `/factorio/config/rconpw`), so the
+  agent could never authenticate — declare `none` rather than shipping a
+  console that always fails.
+
+### Console mode and game log
+
+```yaml
+consoleMode: pty              # attach to container stdin/stdout
+logPath: /data/logs/latest.log   # agent tails this for the "Game log" view
+```
+
+With `rcon.protocol: none`, set `consoleMode: pty` if the server reads
+commands on stdin (Terraria, Factorio) — the Console tab then attaches
+via the kubelet's pod-attach API instead. Without either, the tab shows
+"no live console" and RCON-backed capabilities (players, quiesce,
+lifecycle, actions, status) are reported unsupported.
+
+`logPath` is an absolute in-container path pointing the agent at the
+game's own logfile. Omit it for games that log only to stdout; the Logs
+tab's "Container output" source covers those.
 
 ### Capabilities (moderation + backup quiesce)
 
@@ -473,10 +556,17 @@ capabilities:
     banList:
       command: "banlist players"
       entryRegex: '^\s*(?P<name>\w+)\s+was banned by\s+(?P<source>[^:]+?)(?::\s*(?P<reason>.*))?\s*$'
+    whitelist:                                 # optional allow-list management
+      list: "whitelist list"
+      add: "whitelist add {{.Player}}"
+      remove: "whitelist remove {{.Player}}"
+      listRegex: 'whitelisted player[s()]*:\s*(?P<names>.+)$'
   quiesce:
     quiesce: ["save-off", "save-all flush"]   # run before a backup snapshot
     unquiesce: ["save-on"]                    # run after
     failurePattern: "saving failed"           # output regex that fails the step
+  lifecycle:
+    stop: ["stop"]                            # graceful-stop console sequence
 ```
 
 - Moderation commands are Go `text/template`s rendered with `.Player`
@@ -484,11 +574,20 @@ capabilities:
   Unset actions are reported as unsupported and the UI hides them.
 - `banList.entryRegex` matches one banned player per output line via
   the named groups `name` (required), `source` and `reason`.
+- `whitelist` adds allow-list management to the Players tab: `add` /
+  `remove` are `.Player` templates and `listRegex` extracts the
+  comma-separated tail of the `list` command's output via the named
+  group `names`.
 - The quiesce sequence runs in order; any command error — or output
   matching `failurePattern` (case-insensitive) — aborts the backup and
   best-effort runs `unquiesce` so the game is never left paused.
   Games that can't quiesce simply omit the block; backups proceed
   without pausing.
+- `lifecycle.stop` runs before the pod is scaled down (stop button,
+  restarts): the operator issues the sequence over RCON and waits for
+  the server to exit on its own, so a SIGTERM never interrupts an
+  in-progress world save (`["Save", "Shutdown 1"]` on Palworld,
+  `["stop"]` on Minecraft). Omit it for games that save on SIGTERM.
 
 > The agent has **no per-game special-casing** — every capability above
 > (and the two below) comes from this block. A template that declares
@@ -564,37 +663,119 @@ endpoint returns nothing and the dashboard omits the panel.
 #### Mods
 
 `capabilities.mods` declares where this game's mods/plugins live and how
-the dashboard may install new ones. Mods are plain files under a
-directory on the data volume; the dashboard lists, installs, and removes
-them generically by calling the agent — no RCON required.
+the dashboard may install new ones. Mods are plain files (or, for
+extract-mode loaders, folders) on a volume; the dashboard lists,
+installs, uploads, updates, and removes them generically by calling the
+agent — no RCON required.
+
+Two layouts, mutually exclusive:
 
 ```yaml
 capabilities:
   mods:
-    path: mods                      # relative to storage.mountPath
-    extensions: [".jar"]            # optional: what counts as a mod
-    install:                        # omit to offer listing/removal only
-      allowedHosts:                 # SSRF allowlist (required for installs)
+    # Per-loader map (use with spec.versions): the active version's
+    # `loader` selects the directory, and every (version + loader) combo
+    # gets its OWN PVC — switching versions never clobbers another
+    # combo's mod set. Max 16 keys.
+    loaders:
+      paper:  { displayName: Plugins (Paper), path: plugins, extensions: [".jar"] }
+      fabric: { displayName: Mods (Fabric),   path: mods,    extensions: [".jar"] }
+      bepinex:
+        path: bepinex/plugins
+        extensions: [".zip"]
+        extract: true               # unpack archives into per-mod folders
+    install:
+      allowedHosts:                 # SSRF allowlist (required for URL installs)
         - cdn.modrinth.com
         - ".curseforge.com"         # leading dot → host + subdomains
-      maxSizeMB: 256                # default 256
+      maxSizeMB: 512                # default 256, max 4096
+    registry:                       # optional in-app browse — see below
+      providers:
+        - provider: modrinth
 ```
 
-- **Listing/removal** operate directly on `path`; they work with or
-  without an `install` block.
-- **Install** downloads a user-supplied URL into `path`. It is refused
-  unless the URL's host matches `allowedHosts` (exact host or a
-  `.suffix` for a domain + subdomains) *and* the resolved address is
-  publicly routable — the agent blocks loopback, private (RFC1918/ULA),
-  link-local, and metadata addresses so it can't be tricked into
-  fetching cluster-internal services. Downloads are size-capped and
-  redirects are re-checked against the allowlist.
-- Filenames are sanitized against path traversal. `path` itself must be
-  relative to the data mount with no `..`.
+```yaml
+capabilities:
+  mods:
+    path: mods                      # legacy single directory, relative to
+    extensions: [".jar"]            #   storage.mountPath — for games with
+    install: { ... }                #   no version/loader dimension
+```
 
-> The mods directory is game- and often flavor-specific (Forge/Fabric use
-> `mods`, Bukkit/Paper use `plugins`). Pick the one your image and
-> default server type expect.
+- **Listing/removal** work with or without an `install` block. A version
+  entry whose `loader` has no map key (e.g. vanilla) gets no Mods tab at
+  all.
+- **URL install** downloads a user-supplied URL into the active
+  directory. It is refused unless the URL's host matches `allowedHosts`
+  (exact host or a `.suffix` for domain + subdomains) *and* the resolved
+  address is publicly routable — the agent blocks loopback, private
+  (RFC1918/ULA), link-local, and metadata addresses so it can't be
+  tricked into fetching cluster-internal services. Downloads are
+  size-capped and redirects are re-checked against the allowlist.
+- **Upload** (the install page's third mode) sends a local file to the
+  agent as multipart. Same filename/extension/size checks; works even
+  without an `install` block, since an upload carries no SSRF risk —
+  handy for locally built mods (e.g. `.pak` files on Palworld).
+- **Extract mode** (`extract: true`) unpacks downloaded/uploaded `.zip`
+  archives into a per-mod folder (BepInEx-style layouts); listing and
+  removal then operate on folders. Zip-slip and total-size are guarded.
+- Filenames are sanitized against path traversal; each `path` must be
+  relative with no `..`.
+
+**Install manifest.** Every mod volume carries a hidden
+`.gameplane-mods.json` ledger the agent maintains: registry installs
+record their provider/project/version, uploads record provider
+`upload`, and files placed outside the panel show as *unmanaged*. This
+powers the Mods tab's provenance badges, the batch update check
+(`GET /servers/{name}/mods/updates`), and one-click in-place upgrades —
+module authors get all of it for free; there is nothing to declare.
+
+##### Registry browse (`capabilities.mods.registry`)
+
+Declaring `registry.providers` turns the install page's browse mode on:
+the dashboard searches the registry filtered to the active version's
+`loader` + `gameVersion` and one-click installs the chosen file through
+the same allowlisted download path (so keep the registry's CDN hosts in
+`allowedHosts`).
+
+```yaml
+registry:
+  providers:
+    - provider: modrinth            # Minecraft mods/plugins (keyless)
+      modpacks:                     # optional Modpacks tab — see below
+        refEnv: MODRINTH_MODPACK
+        env: [{ name: TYPE, value: MODRINTH }]
+    - provider: curseforge          # Minecraft; needs an admin API key
+    - provider: hangar              # PaperMC plugins (keyless)
+    - provider: thunderstore        # BepInEx games (keyless)
+      community: valheim            # required: the community slug
+      modpacks: {}                  # deps-mode packs (no refEnv)
+    - provider: factorio            # official Factorio mod portal
+```
+
+- Up to 8 providers; the first is the dashboard's default and a switch
+  appears when there's more than one. A provider whose engine needs
+  unmet server config (CurseForge without `--curseforge-api-key`) is
+  hidden until configured.
+- `thunderstore` requires `community`; the others ignore it.
+- **`factorio` is browse-only**: the portal's downloads require the
+  player's own factorio.com credentials, which Gameplane never stores —
+  files are flagged `requiresAuth` and the dashboard hands the user to
+  the from-URL form to append `?username=…&token=…` themselves. Keep
+  `mods.factorio.com` / `.factorio.com` in `allowedHosts`.
+
+##### Modpacks (`providers[].modpacks`)
+
+Declaring `modpacks` on a provider adds a Modpacks tab. Two install
+modes, chosen by `refEnv`:
+
+- **env-mode** (`refEnv` set): installing a pack pins its slug into the
+  named env on the GameServer (plus any fixed `env` listed) and the
+  server restarts — the game image installs the pack itself on boot
+  (Modrinth packs on the itzg image). One pack active per server.
+- **deps-mode** (`modpacks: {}`): the pack is resolved into its
+  dependency mods, which install one-by-one through the normal install
+  path (Thunderstore/BepInEx packs).
 
 ### Probes
 
@@ -643,4 +824,24 @@ kubectl get gametemplate <name> -o yaml
 Bump `module.yaml#version`, re-push under the new tag, and the catalog
 reports an upgrade available within `refreshInterval`. Click **Upgrade**
 in the UI (or `kubectl patch module <name> --type merge -p
-'{"spec":{"version":"<v>"}}'`).
+'{"spec":{"version":"<v>"}}'`). Keep `template.yaml`'s `spec.version` in
+lockstep with the bundle version — the official modules do, and drift
+between the two confuses pinning.
+
+Worth exercising manually for modules that declare `spec.versions` and
+per-loader mods:
+
+```sh
+# switch the running server to another catalog entry (Settings → Version
+# does the same) and watch the StatefulSet re-render
+kubectl patch gameserver <gs> -n gameplane-games --type merge \
+  -p '{"spec":{"version":"<other-id>"}}'
+
+# each (version+loader) combo gets its own PVC; the previous combo's
+# volume must survive the switch
+kubectl get pvc -n gameplane-games | grep <gs>-mods-
+```
+
+From the dashboard, also try the Mods tab end to end: install one from
+the registry (badge should show provider + version), **Check updates**,
+upload a local file (badge `upload`), and remove it.
