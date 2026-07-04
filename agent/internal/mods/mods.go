@@ -63,6 +63,7 @@ func Mount(r chi.Router, dataRoot string, spec *caps.Mods) {
 	h := newHandler(dataRoot, spec)
 	r.Get("/mods", h.list)
 	r.Post("/mods/install", h.install)
+	r.Post("/mods/upload", h.upload)
 	r.Delete("/mods", h.remove)
 }
 
@@ -256,6 +257,105 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: size, Meta: meta})
 }
 
+// upload receives a mod file as multipart form data (field "file") and
+// installs it like a URL install: same name/extension/size checks, dot-temp
+// + rename, archive extraction for extract loaders. Enabled whenever a mods
+// directory is configured — an upload carries no SSRF risk, so it doesn't
+// require the install (host allowlist) block. The manifest records provider
+// "upload", which the update check skips.
+func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
+	if h.dir == "" {
+		writeErr(w, http.StatusNotImplemented, "mods are not configured for this game")
+		return
+	}
+	maxBytes := h.maxBytes
+	if maxBytes <= 0 {
+		maxBytes = defaultMaxBytes
+	}
+	// 1 MiB of multipart-framing headroom; the exact per-file cap is
+	// enforced on the copy below.
+	req.Body = http.MaxBytesReader(w, req.Body, maxBytes+(1<<20))
+	file, hdr, err := req.FormFile("file")
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+			return
+		}
+		writeErr(w, http.StatusBadRequest, `multipart form with a "file" field is required`)
+		return
+	}
+	defer file.Close()
+
+	name, err := safeName(hdr.Filename)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.extAllowed(name) {
+		writeErr(w, http.StatusBadRequest, "file type is not an accepted mod for this game")
+		return
+	}
+
+	if err := os.MkdirAll(h.dir, 0o755); err != nil {
+		slog.Warn("mod upload mkdir", "err", err)
+		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		return
+	}
+	tmp, err := os.CreateTemp(h.dir, ".up-*")
+	if err != nil {
+		slog.Warn("mod upload temp", "err", err)
+		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		return
+	}
+	tmpName := tmp.Name()
+	n, err := io.Copy(tmp, io.LimitReader(file, maxBytes+1))
+	closeErr := tmp.Close()
+	if err != nil || closeErr != nil || n > maxBytes {
+		os.Remove(tmpName)
+		if n > maxBytes {
+			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+			return
+		}
+		slog.Warn("mod upload copy", "err", err, "closeErr", closeErr)
+		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		return
+	}
+
+	installName := name
+	if h.extract {
+		installName = archiveFolderName(name)
+		swapErr := h.swapInArchive(tmpName, installName, maxBytes)
+		os.Remove(tmpName)
+		switch {
+		case errors.Is(swapErr, errBadArchive):
+			writeErr(w, http.StatusBadRequest, "uploaded file is not a valid archive")
+			return
+		case errors.Is(swapErr, errTooLarge):
+			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+			return
+		case swapErr != nil:
+			slog.Warn("mod upload extract", "err", swapErr)
+			writeErr(w, http.StatusInternalServerError, "could not unpack the upload")
+			return
+		}
+	} else if err := os.Rename(tmpName, filepath.Join(h.dir, name)); err != nil {
+		os.Remove(tmpName)
+		slog.Warn("mod upload rename", "err", err)
+		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		return
+	}
+
+	meta := &ModMeta{
+		Provider:    "upload",
+		InstalledAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	h.updateManifest(func(mods map[string]*ModMeta) {
+		mods[installName] = meta
+	})
+	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: n, Meta: meta})
+}
+
 // removeEntry deletes an installed mod by name — the whole folder for
 // extract loaders, a single file otherwise.
 func (h *handler) removeEntry(name string) error {
@@ -333,25 +433,33 @@ func (h *handler) installArchive(ctx context.Context, url, folder string) (int64
 		return 0, err
 	}
 	defer os.Remove(tmpZip)
-
-	staging, err := os.MkdirTemp(h.dir, ".ex-*")
-	if err != nil {
+	if err := h.swapInArchive(tmpZip, folder, h.maxBytes); err != nil {
 		return 0, err
 	}
-	if err := unzipInto(tmpZip, staging, h.maxBytes); err != nil {
+	return size, nil
+}
+
+// swapInArchive unpacks tmpZip into <dir>/<folder>/, replacing any existing
+// folder of that name — the shared tail of URL installs and uploads.
+func (h *handler) swapInArchive(tmpZip, folder string, maxBytes int64) error {
+	staging, err := os.MkdirTemp(h.dir, ".ex-*")
+	if err != nil {
+		return err
+	}
+	if err := unzipInto(tmpZip, staging, maxBytes); err != nil {
 		os.RemoveAll(staging)
-		return 0, err
+		return err
 	}
 	final := filepath.Join(h.dir, folder)
 	if err := os.RemoveAll(final); err != nil {
 		os.RemoveAll(staging)
-		return 0, err
+		return err
 	}
 	if err := os.Rename(staging, final); err != nil {
 		os.RemoveAll(staging)
-		return 0, err
+		return err
 	}
-	return size, nil
+	return nil
 }
 
 // unzipInto extracts zipPath into dst, guarding against zip-slip and

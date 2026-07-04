@@ -9,6 +9,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **mods:** direct **file upload** — a third "Upload file" mode on the Mods
+  install page sends a local mod straight to the server (multipart to the
+  agent, drop zone + progress in the dialog). The agent applies the same
+  name/extension/size checks as URL installs and unpacks archives for
+  extract-mode loaders; uploads are recorded as provider `upload` in the
+  install manifest and are never update-checked. Because an upload carries
+  no SSRF risk, it works even for modules without a download allowlist
+  (e.g. installing locally built `.pak` files on a Palworld server).
+
 - **web:** servers can now **switch game version after creation** — a new
   "Version" section in Server Settings (shown when the template declares a
   version catalog) offers the same version+loader picker as the Create
