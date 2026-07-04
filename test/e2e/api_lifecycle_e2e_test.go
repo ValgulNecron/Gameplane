@@ -110,6 +110,16 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 	createGameServerViaAPI(t, cli, ns, gs, tmpl)
 	waitStatefulSetReplicas(t, ns, gs, 1, 90*time.Second)
 
+	// Restart a genuinely RUNNING server (which is what the dashboard's
+	// restart button acts on). Without the agent sidecar up, the
+	// operator's graceful stop can't issue the agent stop sequence and
+	// waits out the 30s stop-grace period — under parallel-suite load
+	// that pushes the drain past the restart handler's 45s window, the
+	// resume patch races the reconcile, and the two suspend patches
+	// coalesce into a no-op: the pod never recycles and its UID never
+	// changes.
+	requireAgentReady(t, ns, gs)
+
 	// Capture the original pod UID. The pod must exist before :restart;
 	// otherwise we can't tell a "fresh first start" from a "restart".
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
