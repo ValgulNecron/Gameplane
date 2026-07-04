@@ -1,8 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Download, Package, Plus, RotateCw, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpCircle, Download, Package, Plus, RotateCw, Trash2 } from "lucide-react";
 
-import type { GameServer, GameTemplate, InstalledMod, RegistryProject } from "@/types";
+import type {
+  GameServer,
+  GameTemplate,
+  InstalledMod,
+  ModMeta,
+  ModUpdate,
+  RegistryProject,
+} from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { resolveModVolume } from "@/lib/capabilities";
@@ -14,6 +21,11 @@ import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry
 import { cn, formatBytes, formatRelative } from "@/lib/utils";
 
 type Banner = { kind: "ok" | "err"; text: string };
+
+// InstallBody is the proxied agent install request: plain URL installs,
+// registry installs (meta records provenance in the agent's manifest), and
+// in-place upgrades (replaces swaps out the old file).
+type InstallBody = { url: string; name?: string; replaces?: string; meta?: ModMeta };
 
 // ModsTab is the generic mod/plugin manager. It's rendered only when the
 // template declares spec.capabilities.mods; everything game-specific
@@ -48,15 +60,67 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
     queryFn: () => Servers.mods(name),
   });
 
+  // Update check is on demand (button), not on mount — it fans out to
+  // external registries server-side, so the tab shouldn't trigger it on
+  // every visit. Results stay cached for the session.
+  const updates = useQuery({
+    queryKey: ["mod-updates", name],
+    queryFn: () => Servers.modUpdates(name),
+    enabled: false,
+  });
+  const updateByName = useMemo(() => {
+    const out = new Map<string, ModUpdate>();
+    for (const u of updates.data?.updates ?? []) out.set(u.name, u);
+    return out;
+  }, [updates.data]);
+
   // Install stays on the browse page (so you can add several); the banner
   // reports each result and the installed list refreshes underneath.
   const install = useMutation({
-    mutationFn: (body: { url: string; name?: string }) => Servers.installMod(name, body),
-    onSuccess: (mod) => {
-      setBanner({ kind: "ok", text: `Installed ${mod.name}` });
+    mutationFn: (body: InstallBody) => Servers.installMod(name, body),
+    onSuccess: (mod, body) => {
+      setBanner({ kind: "ok", text: body.replaces ? `Updated to ${mod.name}` : `Installed ${mod.name}` });
+      if (body.replaces && updates.data) void updates.refetch();
       return qc.invalidateQueries({ queryKey: ["mods", name] });
     },
     onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
+  });
+
+  // upgradeBody maps one available update to the install request that
+  // applies it: the new file lands first, then the old one is removed.
+  const upgradeBody = (u: ModUpdate): InstallBody => ({
+    url: u.file.downloadUrl,
+    name: u.file.filename,
+    replaces: u.name,
+    meta: {
+      provider: u.provider,
+      projectId: u.projectId,
+      projectName: u.projectName,
+      versionId: u.latestVersionId,
+      versionNumber: u.latestVersionNumber,
+      loader: active?.loader,
+    },
+  });
+
+  const updateAll = useMutation({
+    mutationFn: async () => {
+      // Sequential on purpose: each install is a download on the agent;
+      // parallel requests would just contend on the same volume.
+      for (const u of updates.data?.updates ?? []) {
+        await Servers.installMod(name, upgradeBody(u));
+      }
+      return updates.data?.updates.length ?? 0;
+    },
+    onSuccess: (n) => {
+      setBanner({ kind: "ok", text: `Updated ${n} mod${n === 1 ? "" : "s"}` });
+      void updates.refetch();
+      return qc.invalidateQueries({ queryKey: ["mods", name] });
+    },
+    onError: (err) => {
+      setBanner({ kind: "err", text: errMsg(err) });
+      void updates.refetch();
+      return qc.invalidateQueries({ queryKey: ["mods", name] });
+    },
   });
 
   const remove = useMutation({
@@ -98,15 +162,45 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
         <div className="space-y-0.5">
           <h2 className="text-sm text-muted">
             {mods ? `${mods.length} installed` : isError ? "Couldn’t load mods" : "Loading…"}
+            {updates.data && updateByName.size > 0 && (
+              <span className="text-primary"> · {updateByName.size} update{updateByName.size === 1 ? "" : "s"} available</span>
+            )}
           </h2>
-          {activeLabel && (
-            <p className="text-[11px] text-muted" data-testid="mods-active">{activeLabel}</p>
+          {(activeLabel || updates.data) && (
+            <p className="text-[11px] text-muted" data-testid="mods-active">
+              {[activeLabel, updates.data ? `checked ${formatRelative(updates.data.checkedAt)}` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
             <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
+          {canInstall && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void updates.refetch()}
+              disabled={updates.isFetching || !mods?.some((m) => m.meta && m.meta.provider !== "upload")}
+              title="Check the registry for newer versions of managed mods"
+            >
+              <RotateCw className={cn("h-3 w-3", updates.isFetching && "animate-spin")} />{" "}
+              {updates.isFetching ? "Checking…" : "Check updates"}
+            </Button>
+          )}
+          {canInstall && canManage && updateByName.size > 0 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => updateAll.mutate()}
+              disabled={updateAll.isPending || install.isPending}
+            >
+              <ArrowUpCircle className="h-4 w-4" />{" "}
+              {updateAll.isPending ? "Updating…" : `Update all (${updateByName.size})`}
+            </Button>
+          )}
           {canInstall && (
             <Button
               size="sm"
@@ -161,34 +255,70 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
         </div>
       ) : (
         <ul className="space-y-1">
-          {mods?.map((m) => (
-            <li
-              key={m.name}
-              className="flex items-center justify-between gap-3 rounded border border-border bg-surface/30 px-3 py-2"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <Package className="h-4 w-4 shrink-0 text-muted" />
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-sm">{m.name}</div>
-                  <div className="text-xs text-muted">
-                    {formatBytes(m.size)}
-                    {m.modTime ? ` · ${formatRelative(m.modTime)}` : ""}
+          {mods?.map((m) => {
+            const update = updateByName.get(m.name);
+            return (
+              <li
+                key={m.name}
+                className="flex items-center justify-between gap-3 rounded border border-border bg-surface/30 px-3 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <Package className="h-4 w-4 shrink-0 text-muted" />
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-mono text-sm">{m.name}</span>
+                      {m.meta ? (
+                        <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] capitalize text-muted">
+                          {[m.meta.provider, m.meta.versionNumber].filter(Boolean).join(" · ")}
+                        </span>
+                      ) : (
+                        <span
+                          className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[10px] text-muted"
+                          title="Placed outside the panel — no update checks"
+                        >
+                          unmanaged
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {formatBytes(m.size)}
+                      {m.modTime ? ` · ${formatRelative(m.modTime)}` : ""}
+                    </div>
                   </div>
                 </div>
-              </div>
-              {canManage && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title={`Remove ${m.name}`}
-                  onClick={() => setConfirmRemove(m)}
-                  disabled={remove.isPending}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </li>
-          ))}
+                <div className="flex shrink-0 items-center gap-2">
+                  {update && (
+                    <>
+                      <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        {update.latestVersionNumber || "new version"} available
+                      </span>
+                      {canManage && (
+                        <Button
+                          size="sm"
+                          title={`Update to ${update.latestVersionNumber ?? update.latestVersionId}`}
+                          onClick={() => install.mutate(upgradeBody(update))}
+                          disabled={install.isPending || updateAll.isPending}
+                        >
+                          <ArrowUpCircle className="h-3 w-3" /> Update
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {canManage && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title={`Remove ${m.name}`}
+                      onClick={() => setConfirmRemove(m)}
+                      disabled={remove.isPending}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -234,10 +364,18 @@ function InstallPage({
   banner: Banner | null;
   onDismiss: () => void;
   onBack: () => void;
-  onInstall: (body: { url: string; name?: string }) => void;
+  onInstall: (body: InstallBody) => void;
 }) {
   const [mode, setMode] = useState<InstallMode>(canBrowse ? "search" : "url");
+  // Prefilled by the browse view for registry files the panel can't
+  // one-click install (requiresAuth, e.g. the Factorio portal) — the user
+  // appends their own credentials in the URL form.
+  const [urlPrefill, setUrlPrefill] = useState("");
   const browsing = mode === "search" && canBrowse;
+  const useUrlForm = (url: string) => {
+    setUrlPrefill(url);
+    setMode("url");
+  };
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
@@ -307,10 +445,17 @@ function InstallPage({
 
       {browsing ? (
         <div className="min-h-0 flex-1">
-          <BrowseForm name={name} pending={pending} onInstall={onInstall} />
+          <BrowseForm name={name} pending={pending} onInstall={onInstall} onUseUrl={useUrlForm} />
         </div>
       ) : (
-        <UrlForm allowedHosts={allowedHosts} pending={pending} onCancel={onBack} onInstall={onInstall} />
+        <UrlForm
+          key={urlPrefill}
+          initialUrl={urlPrefill}
+          allowedHosts={allowedHosts}
+          pending={pending}
+          onCancel={onBack}
+          onInstall={onInstall}
+        />
       )}
     </div>
   );
@@ -323,13 +468,15 @@ function UrlForm({
   pending,
   onCancel,
   onInstall,
+  initialUrl = "",
 }: {
   allowedHosts: string[];
   pending: boolean;
   onCancel: () => void;
-  onInstall: (body: { url: string; name?: string }) => void;
+  onInstall: (body: InstallBody) => void;
+  initialUrl?: string;
 }) {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
   const [fileName, setFileName] = useState("");
   const trimmed = url.trim();
   const validURL = /^https?:\/\/.+/i.test(trimmed);
@@ -412,10 +559,12 @@ function BrowseForm({
   name,
   pending,
   onInstall,
+  onUseUrl,
 }: {
   name: string;
   pending: boolean;
-  onInstall: (body: { url: string; name?: string }) => void;
+  onInstall: (body: InstallBody) => void;
+  onUseUrl: (url: string) => void;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-3">
@@ -424,7 +573,14 @@ function BrowseForm({
         type="mod"
         categories={MOD_CATEGORIES}
         renderItem={(p, provider) => (
-          <ModCard name={name} project={p} provider={provider} pending={pending} onInstall={onInstall} />
+          <ModCard
+            name={name}
+            project={p}
+            provider={provider}
+            pending={pending}
+            onInstall={onInstall}
+            onUseUrl={onUseUrl}
+          />
         )}
       />
     </div>
@@ -439,12 +595,14 @@ function ModCard({
   provider,
   pending,
   onInstall,
+  onUseUrl,
 }: {
   name: string;
   project: RegistryProject;
   provider: string;
   pending: boolean;
-  onInstall: (body: { url: string; name?: string }) => void;
+  onInstall: (body: InstallBody) => void;
+  onUseUrl: (url: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selId, setSelId] = useState("");
@@ -504,13 +662,42 @@ function ModCard({
                   );
                 })}
               </select>
-              <Button
-                size="sm"
-                disabled={!file || pending}
-                onClick={() => file && onInstall({ url: file.downloadUrl, name: file.filename })}
-              >
-                <Download className="h-3 w-3" /> {pending ? "Installing…" : "Install"}
-              </Button>
+              {file?.requiresAuth ? (
+                // Portal files (e.g. Factorio) download only with the
+                // player's own credentials — hand off to the URL form so
+                // the user can append them; never one-click install.
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="This registry's downloads need your own account credentials appended to the URL"
+                  onClick={() => onUseUrl(file.downloadUrl)}
+                >
+                  Use URL form
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={!file || pending}
+                  onClick={() =>
+                    file &&
+                    onInstall({
+                      url: file.downloadUrl,
+                      name: file.filename,
+                      meta: {
+                        provider: project.provider,
+                        projectId: project.id,
+                        projectName: project.title,
+                        versionId: chosen?.id,
+                        versionNumber: chosen?.versionNumber,
+                        loader: chosen?.loaders?.[0],
+                        gameVersion: chosen?.gameVersions?.[0],
+                      },
+                    })
+                  }
+                >
+                  <Download className="h-3 w-3" /> {pending ? "Installing…" : "Install"}
+                </Button>
+              )}
             </>
           )}
         </div>

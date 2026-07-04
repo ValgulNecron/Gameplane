@@ -18,6 +18,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   (image/env swap, per-loader mod-PVC switching, unknown-id failure) was
   already fully wired and is now also covered by an end-to-end
   version-switch test against a live cluster.
+- **web:** the Mods tab understands mod provenance — managed mods show a
+  provider + version badge (from the agent's install manifest) while files
+  placed outside the panel read "unmanaged"; a **Check updates** button runs
+  the batch update check and surfaces per-mod "x.y.z available" pills with
+  one-click **Update** (in-place upgrade via `replaces`) and **Update all**;
+  registry installs now record their provenance so new installs are managed
+  from day one; and credential-gated registry files (Factorio portal) hand
+  off to the From-URL form prefilled instead of a one-click install that
+  would fail.
 
 - **agent/mods:** installed mods now carry an **install manifest**. Each mod
   volume keeps a hidden `.gameplane-mods.json` ledger recording where every

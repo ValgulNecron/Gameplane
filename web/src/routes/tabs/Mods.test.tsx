@@ -6,6 +6,7 @@ import type {
   GameServer,
   GameTemplate,
   InstalledMod,
+  ModUpdatesResponse,
   ModsCapability,
   RegistryProject,
   RegistryVersion,
@@ -29,10 +30,11 @@ function jsonRes(body: unknown, status = 200): Response {
 interface Routes {
   role?: "operator" | "viewer";
   mods?: InstalledMod[];
+  updates?: ModUpdatesResponse;
   registry?: RegistryProject[];
   versions?: RegistryVersion[];
   providers?: { provider: string; available: boolean; modpacks: boolean }[];
-  onInstall?: (body: { url: string; name?: string }) => void;
+  onInstall?: (body: { url: string; name?: string; replaces?: string; meta?: unknown }) => void;
   onRemove?: (url: string) => void;
 }
 
@@ -60,6 +62,9 @@ function route(r: Routes) {
     }
     if (url.includes("/mods/registry/projects")) {
       return Promise.resolve(jsonRes(r.versions ?? []));
+    }
+    if (url.includes("/mods/updates")) {
+      return Promise.resolve(jsonRes(r.updates ?? { checkedAt: new Date().toISOString(), updates: [] }));
     }
     if (url.includes("/mods/install")) {
       const body = JSON.parse(opts?.body ?? "{}") as { url: string; name?: string };
@@ -228,11 +233,19 @@ describe("ModsTab", () => {
     const cardInstall = await screen.findByRole("button", { name: "Install" });
     fireEvent.click(cardInstall);
 
+    // Registry installs record provenance in the agent's manifest.
     await waitFor(() =>
       expect(installs).toEqual([
         {
           url: "https://cdn.modrinth.com/sodium/0.6.0/sodium-fabric-0.6.0.jar",
           name: "sodium-fabric-0.6.0.jar",
+          meta: {
+            provider: "modrinth",
+            projectId: "sodium",
+            projectName: "Sodium",
+            versionId: "v1",
+            versionNumber: "0.6.0",
+          },
         },
       ]),
     );
@@ -346,5 +359,139 @@ describe("ModsTab", () => {
     await waitFor(() => expect(install).toBeDisabled());
     // No per-row remove button is rendered for a viewer.
     expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+  });
+
+  const managedSodium: InstalledMod = {
+    name: "sodium-0.6.9.jar",
+    size: 1024,
+    meta: { provider: "modrinth", projectId: "sodium", versionId: "v-old", versionNumber: "0.6.9" },
+  };
+  const sodiumUpdate = {
+    name: "sodium-0.6.9.jar",
+    provider: "modrinth",
+    projectId: "sodium",
+    projectName: "Sodium",
+    installedVersionId: "v-old",
+    installedVersionNumber: "0.6.9",
+    latestVersionId: "v-new",
+    latestVersionNumber: "0.6.13",
+    file: {
+      filename: "sodium-0.6.13.jar",
+      downloadUrl: "https://cdn.modrinth.com/sodium/0.6.13/sodium-0.6.13.jar",
+      primary: true,
+    },
+  };
+
+  it("badges managed mods with their provider and marks unmanaged files", async () => {
+    route({ mods: [managedSodium, { name: "handmade.jar", size: 5, meta: null }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+    expect(await screen.findByText("modrinth · 0.6.9")).toBeInTheDocument();
+    expect(await screen.findByText("unmanaged")).toBeInTheDocument();
+  });
+
+  it("checks for updates and applies one in place", async () => {
+    const installs: unknown[] = [];
+    route({
+      mods: [managedSodium],
+      updates: { checkedAt: new Date().toISOString(), updates: [sodiumUpdate] },
+      onInstall: (b) => installs.push(b),
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const check = await screen.findByRole("button", { name: /check updates/i });
+    await waitFor(() => expect(check).not.toBeDisabled());
+    fireEvent.click(check);
+
+    // The row gains an update pill + Update button.
+    expect(await screen.findByText("0.6.13 available")).toBeInTheDocument();
+    expect(await screen.findByText(/1 update available/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    await waitFor(() =>
+      expect(installs).toEqual([
+        {
+          url: "https://cdn.modrinth.com/sodium/0.6.13/sodium-0.6.13.jar",
+          name: "sodium-0.6.13.jar",
+          replaces: "sodium-0.6.9.jar",
+          meta: {
+            provider: "modrinth",
+            projectId: "sodium",
+            projectName: "Sodium",
+            versionId: "v-new",
+            versionNumber: "0.6.13",
+          },
+        },
+      ]),
+    );
+  });
+
+  it("updates every outdated mod via Update all", async () => {
+    const installs: Array<{ replaces?: string }> = [];
+    const secondUpdate = {
+      ...sodiumUpdate,
+      name: "lithium-0.12.jar",
+      projectId: "lithium",
+      projectName: "Lithium",
+      file: { filename: "lithium-0.13.jar", downloadUrl: "https://cdn.modrinth.com/lithium.jar" },
+    };
+    route({
+      mods: [managedSodium, { ...managedSodium, name: "lithium-0.12.jar" }],
+      updates: { checkedAt: new Date().toISOString(), updates: [sodiumUpdate, secondUpdate] },
+      onInstall: (b) => installs.push(b as { replaces?: string }),
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    // The check button stays disabled until the mod list has loaded —
+    // clicking early is a silent no-op and the test would hang.
+    const check = await screen.findByRole("button", { name: /check updates/i });
+    await waitFor(() => expect(check).not.toBeDisabled());
+    fireEvent.click(check);
+    const all = await screen.findByRole("button", { name: /update all \(2\)/i });
+    fireEvent.click(all);
+
+    await waitFor(() => expect(installs).toHaveLength(2));
+    expect(installs.map((i) => i.replaces)).toEqual(["sodium-0.6.9.jar", "lithium-0.12.jar"]);
+  });
+
+  it("hands requiresAuth registry files off to the URL form", async () => {
+    route({
+      mods: [],
+      registry: [
+        { id: "flib", title: "Factorio Library", provider: "factorio" },
+      ],
+      versions: [
+        {
+          id: "0.16.2",
+          versionNumber: "0.16.2",
+          files: [
+            {
+              filename: "flib_0.16.2.zip",
+              downloadUrl: "https://mods.factorio.com/download/flib/xyz",
+              primary: true,
+              requiresAuth: true,
+            },
+          ],
+        },
+      ],
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+    fireEvent.change(await screen.findByPlaceholderText("Search mods…"), {
+      target: { value: "flib" },
+    });
+    fireEvent.click(await screen.findByText("Factorio Library"));
+
+    // No one-click Install for credential-gated downloads — a hand-off
+    // button switches to the URL form with the portal URL prefilled.
+    const handoff = await screen.findByRole("button", { name: "Use URL form" });
+    expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+    fireEvent.click(handoff);
+
+    const urlInput = await screen.findByLabelText<HTMLInputElement>(/download url/i);
+    expect(urlInput.value).toBe("https://mods.factorio.com/download/flib/xyz");
+    expect(screen.getByRole("button", { name: "From URL" })).toHaveAttribute("aria-pressed", "true");
   });
 });
