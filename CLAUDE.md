@@ -88,7 +88,14 @@ make test-web            # vitest for web
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
 make test-e2e            # kind + helm + real components (≈ 10–20 min)
 make test-e2e-keep       # re-run e2e against an already-up cluster
+make test-e2e-bucket     # one CI bucket (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot)
 ```
+
+**e2e test conventions** (CI runs the suite as parallel per-bucket jobs, one kind cluster each):
+
+- A new e2e test MUST be added to a bucket in `test/e2e/buckets.sh` — the `e2e bucket coverage` CI job fails on any unbucketed test.
+- New tests call `t.Parallel()` and use per-test unique resource names. Guards for shared state: `ociPushMu` (module tests sharing the fixed-name oras-push Job), `ensureResticRepo(t)` (anything running a backup against the shared restic repo).
+- Budget API tests by logins, not CPU: each job's cluster rate-limits logins per IP (burst 10, 5/min) and per user (burst 6, 3/min), and every test in a job shares one IP through the port-forward. Keep an api bucket at ~7 admin logins. Tests observing raw login status codes must stay non-parallel.
 
 Per-component fallbacks when you want to focus:
 
