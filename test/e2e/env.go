@@ -92,7 +92,7 @@ func getenvOr(key, dflt string) string {
 	return dflt
 }
 
-// Eventually polls cond every ~1s until it returns true or timeout
+// Eventually polls cond every ~500ms until it returns true or timeout
 // elapses. The condition's message is included on timeout.
 func (e *Env) Eventually(t *testing.T, timeout time.Duration, cond func() (bool, string)) {
 	t.Helper()
@@ -104,7 +104,7 @@ func (e *Env) Eventually(t *testing.T, timeout time.Duration, cond func() (bool,
 			return
 		}
 		lastMsg = msg
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
 	if ok, _ := cond(); ok {
 		return
@@ -449,15 +449,15 @@ func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 	}
 
 	// Retry on 429 with exponential backoff. The API's LoginLimiter
-	// rate-limits per-IP, and a `go test ./...` run that exercises
-	// many APIClient-using tests in close succession can saturate the
-	// bucket. The window is small (typically <1 minute), so a few
-	// retries comfortably absorb the burst without inflating the
-	// timeout for normal runs.
+	// rate-limits per-IP (all tests share the port-forward's IP), and the
+	// per-username limiter throttles the shared e2e-admin fixture. With
+	// t.Parallel() several logins can queue behind the refill at once, so
+	// allow up to ~90s of capped backoff before giving up.
 	var resp *http.Response
 	var rb []byte
 	delay := 2 * time.Second
-	for attempt := 0; attempt < 5; attempt++ {
+	const maxDelay = 30 * time.Second
+	for attempt := 0; attempt < 7; attempt++ {
 		req, rerr := http.NewRequest(http.MethodPost, base+"/auth/login", bytes.NewReader(body))
 		if rerr != nil {
 			stop()
@@ -476,6 +476,9 @@ func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 		}
 		time.Sleep(delay)
 		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+		}
 	}
 	if resp.StatusCode != http.StatusOK {
 		stop()

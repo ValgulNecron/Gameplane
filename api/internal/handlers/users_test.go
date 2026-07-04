@@ -38,6 +38,7 @@ func newUsersServer(t *testing.T, caller *auth.User) (*httptest.Server, *db.Stor
 
 func seedUser(t *testing.T, store *db.Store, username, role, password string) int64 {
 	t.Helper()
+	auth.SetFastHashParams(t)
 	var hash any
 	if password != "" {
 		h, err := auth.HashPassword(password)

@@ -4,8 +4,11 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -436,4 +439,74 @@ func itoa(i int) string {
 		buf[n] = '-'
 	}
 	return string(buf[n:])
+}
+
+// ociPushMu serializes the module tests that (delete-and-re)create the
+// fixed-name oras-push Job — and, for the signed-bundle test, the cosign
+// keypair Secret + sign Job. They run with t.Parallel() so their multi-
+// minute registry/module waits overlap the rest of the suite, but they
+// must not overlap each other: OCIPush deletes any same-named Job first,
+// which would kill a sibling's push mid-flight.
+var ociPushMu sync.Mutex
+
+// resticWarmupOnce initializes the shared restic repository exactly once
+// per test process, before any parallel backup runs against it. Two
+// first-backups racing `restic init` on an empty repo make the loser's
+// Job pod fail once, and the Backup controller reports Failed as soon as
+// job.Status.Failed > 0 — waitBackupSucceeded treats that as terminal.
+// Seeding the repo up front removes the race (and pre-pulls the restic
+// image into the cluster while it's at it).
+var (
+	resticWarmupOnce sync.Once
+	resticWarmupErr  error
+)
+
+// ensureResticRepo installs the restic-server fixture + credentials
+// Secret and runs a one-shot Job that `restic init`s the repository.
+// Safe to call from parallel tests: the first caller does the work,
+// the rest block until it's done.
+func ensureResticRepo(t *testing.T) {
+	t.Helper()
+	resticWarmupOnce.Do(func() { resticWarmupErr = resticWarmup() })
+	if resticWarmupErr != nil {
+		t.Fatalf("restic warm-up: %v", resticWarmupErr)
+	}
+}
+
+// resticWarmup does the actual work for ensureResticRepo. It must not
+// touch testing.T — it runs inside a sync.Once on behalf of whichever
+// parallel test got there first, and a t.Fatalf on another test's
+// goroutine is undefined behavior.
+func resticWarmup() error {
+	e := envInstance
+	for _, fixture := range []string{"restic-server.yaml", "backup-restic-secret.yaml"} {
+		abs, err := filepath.Abs(filepath.Join("fixtures", fixture))
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", fixture, err)
+		}
+		if out, err := e.Kubectl("apply", "-f", abs); err != nil {
+			return fmt.Errorf("apply %s: %v\n%s", fixture, err, out)
+		}
+	}
+	if out, err := e.Kubectl("rollout", "status", "-n", "gameplane-system",
+		"deploy/gameplane-test-restic", "--timeout=120s"); err != nil {
+		return fmt.Errorf("restic server rollout: %v\n%s", err, out)
+	}
+	// Recreate the Job so reruns against a kept cluster don't trip over a
+	// completed (immutable) shell from a previous run.
+	_, _ = e.Kubectl("delete", "job", "-n", "gameplane-games",
+		"e2e-restic-warmup", "--ignore-not-found")
+	abs, err := filepath.Abs(filepath.Join("fixtures", "restic-warmup-job.yaml"))
+	if err != nil {
+		return fmt.Errorf("resolve restic-warmup-job.yaml: %w", err)
+	}
+	if out, err := e.Kubectl("apply", "-f", abs); err != nil {
+		return fmt.Errorf("apply restic-warmup-job.yaml: %v\n%s", err, out)
+	}
+	if out, err := e.Kubectl("wait", "-n", "gameplane-games",
+		"--for=condition=complete", "job/e2e-restic-warmup", "--timeout=180s"); err != nil {
+		logs, _ := e.Kubectl("logs", "-n", "gameplane-games", "job/e2e-restic-warmup", "--tail=50")
+		return fmt.Errorf("restic warm-up job: %v\n%s\nlogs:\n%s", err, out, logs)
+	}
+	return nil
 }

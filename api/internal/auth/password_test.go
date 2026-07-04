@@ -21,6 +21,7 @@ func TestHashAndVerify(t *testing.T) {
 }
 
 func TestHashPerCallDiffers(t *testing.T) {
+	SetFastHashParams(t)
 	// Salt randomness means two hashes of the same password differ.
 	a, _ := HashPassword("x")
 	b, _ := HashPassword("x")

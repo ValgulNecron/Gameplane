@@ -20,6 +20,8 @@ import (
 //  3. The viewer's next request must come back as 401.
 //  4. The viewer can log in again with the new password.
 func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -136,6 +138,8 @@ func TestAPI_LoginRateLimit(t *testing.T) {
 // We don't assert the body shape — that's tested in handlers — only
 // that the pagination contract holds end-to-end.
 func TestAPI_AuditPaginationAndFilter(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -188,6 +192,8 @@ func TestAPI_AuditPaginationAndFilter(t *testing.T) {
 // caller's session — even with the gameplane_session cookie still
 // attached, /users/me should bounce as 401.
 func TestAPI_LogoutInvalidatesSession(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)

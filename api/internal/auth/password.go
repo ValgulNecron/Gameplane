@@ -16,13 +16,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/argon2"
 )
 
+// argonTime / argonMemory are variables (not consts) solely so tests can
+// dial the hashing cost down via SetFastHashParams — production code
+// never mutates them. VerifyPassword decodes its parameters from the PHC
+// hash string, so verification is unaffected by the values here.
+var (
+	argonTime   uint32 = 3
+	argonMemory uint32 = 64 * 1024
+)
+
 const (
-	argonTime   = 3
-	argonMemory = 64 * 1024
 	// 2 threads matches OWASP 2023 guidance and stays responsive on
 	// single- and dual-core nodes (common in small k3s deployments).
 	argonThreads = 2
@@ -42,7 +50,12 @@ const MinPasswordLen = 12
 // constant. Without it, a "user does not exist" reply returns in µs
 // while a real wrong-password reply takes ~argon2 cost, and attackers
 // enumerate valid usernames by timing.
-var dummyHash = func() string {
+//
+// Computed lazily (first use, not package init) so every binary that
+// merely links this package — most notably test binaries that lower the
+// cost via SetFastHashParams — doesn't pay a full-cost 64 MiB hash at
+// startup.
+var dummyHash = sync.OnceValue(func() string {
 	r := make([]byte, 32)
 	if _, err := rand.Read(r); err != nil {
 		// rand.Read only fails if the OS CSPRNG is broken; in that case
@@ -54,13 +67,13 @@ var dummyHash = func() string {
 		panic("init dummy hash: " + err.Error())
 	}
 	return h
-}()
+})
 
 // VerifyDummy runs an argon2id compare against a hash nobody can match.
 // Use it on login paths where the outcome is already "deny" but you
 // want the time envelope to match a real verify. pw is discarded.
 func VerifyDummy(pw string) {
-	_, _ = VerifyPassword(pw, dummyHash)
+	_, _ = VerifyPassword(pw, dummyHash())
 }
 
 func HashPassword(pw string) (string, error) {

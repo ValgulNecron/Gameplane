@@ -25,6 +25,8 @@ import (
 // hostnames are rejected. Do NOT use 127.0.0.1 / 10.x here; they are allowed
 // by design and the assertion would never hold.
 func TestModuleSource_RejectsSSRFTarget(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	cases := []struct {

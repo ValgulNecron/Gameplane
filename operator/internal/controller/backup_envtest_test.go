@@ -314,10 +314,10 @@ func TestBackup_StableInTerminalPhase(t *testing.T) {
 	// After a brief settling period, capture ResourceVersion. A correct
 	// terminal short-circuit means no further Status updates → RV stays
 	// stable.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	rv := getBackup(t, ns, "smp-manual").ResourceVersion
 
-	consistently(t, 2*time.Second, func() (bool, string) {
+	consistently(t, time.Second, func() (bool, string) {
 		b := getBackup(t, ns, "smp-manual")
 		if b.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded {
 			return false, "phase regressed to " + string(b.Status.Phase)

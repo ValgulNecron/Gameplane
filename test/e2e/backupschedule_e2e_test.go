@@ -21,14 +21,15 @@ import (
 // directly, so the contract is enforced at the cluster-resource level: no
 // new Backups owned by the schedule appear during the suspended window.
 func TestBackupSchedule_SuspendStopsScheduling(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-bksched-suspend-tmpl"
 	gs := "e2e-bksched-suspend-target"
 	schedName := "e2e-bksched-suspend"
 
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
@@ -109,14 +110,15 @@ func TestBackupSchedule_SuspendStopsScheduling(t *testing.T) {
 // Slowest test in the new suite: needs ≥2 cron windows (~2.5 min) plus
 // retention reconcile slack. The 6-min timeout absorbs both with margin.
 func TestBackupSchedule_RetentionTrimsPast(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-bksched-retention-tmpl"
 	gs := "e2e-bksched-retention-target"
 	schedName := "e2e-bksched-retention"
 
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
@@ -188,14 +190,15 @@ func TestBackupSchedule_RetentionTrimsPast(t *testing.T) {
 // after they finish. We assert "at most one is non-terminal at a time",
 // which is the operator's actual contract.
 func TestBackupSchedule_ConcurrencyForbid(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-bksched-concurrency-tmpl"
 	gs := "e2e-bksched-concurrency-target"
 	schedName := "e2e-bksched-concurrency"
 
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)

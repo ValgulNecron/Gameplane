@@ -67,7 +67,9 @@ EOF
     # 256Mi. The bootstrap-admin subcommand and every login endpoint
     # invocation runs argon2id, which uses ~64Mi of working memory per
     # hash; the default limit OOM-kills the container under e2e's
-    # frequent BootstrapAdmin/APIClient calls. 512Mi is comfortable.
+    # frequent BootstrapAdmin/APIClient calls. The suite runs with
+    # t.Parallel(), so several logins (64Mi each) can hash at once —
+    # 1Gi keeps ~4 concurrent hashes plus baseline comfortably clear.
     # Disable the default upstream ModuleSource: it points at a public OCI
     # registry the e2e cluster can't reach, so `--wait` would block on it
     # (kstatus reports the never-indexed source as InProgress) until timeout.
@@ -78,7 +80,7 @@ EOF
         --set "image.tag=${TAG}" \
         --set "ingress.enabled=false" \
         --set "operator.agentImage=gameplane-test/agent:${TAG}" \
-        --set "api.resources.limits.memory=512Mi" \
+        --set "api.resources.limits.memory=1Gi" \
         --set "operator.leaderElect=false" \
         --set "defaultModuleSource.enabled=false" \
         --wait --timeout 5m

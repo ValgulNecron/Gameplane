@@ -16,6 +16,8 @@ import (
 // error.
 
 func TestCRD_Validation_GameServerWithoutTemplate(t *testing.T) {
+	t.Parallel()
+
 	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: GameServer
 metadata:
@@ -29,6 +31,8 @@ spec:
 }
 
 func TestCRD_Validation_BackupScheduleBadCron(t *testing.T) {
+	t.Parallel()
+
 	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: BackupSchedule
 metadata:
@@ -46,6 +50,8 @@ spec:
 }
 
 func TestCRD_Validation_BackupRequiresServerRef(t *testing.T) {
+	t.Parallel()
+
 	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: Backup
 metadata:
@@ -60,6 +66,8 @@ spec:
 }
 
 func TestCRD_Validation_GameTemplateRequiresImage(t *testing.T) {
+	t.Parallel()
+
 	yaml := `apiVersion: gameplane.local/v1alpha1
 kind: GameTemplate
 metadata:

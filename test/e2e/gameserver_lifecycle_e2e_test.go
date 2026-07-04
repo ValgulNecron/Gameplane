@@ -23,6 +23,8 @@ import (
 // pull and the agent sidecar to come up, both of which are tested
 // elsewhere and add minutes to this case.
 func TestGameServer_SuspendScalesToZeroAndBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-lifecycle-busybox"

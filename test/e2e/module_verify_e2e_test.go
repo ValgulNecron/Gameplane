@@ -26,6 +26,12 @@ import (
 // cosign's "no matching signatures" failure, which the operator wraps as
 // "cosign verify ...: %w" into Module.status.lastError.
 func TestModule_VerifyRejectsUnsignedBundle(t *testing.T) {
+	t.Parallel()
+	// Shares the fixed-name oras-push Job with the other module tests —
+	// serialize against them (see ociPushMu).
+	ociPushMu.Lock()
+	defer ociPushMu.Unlock()
+
 	parent := t
 	ctx := context.Background()
 

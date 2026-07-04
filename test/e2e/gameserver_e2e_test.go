@@ -29,6 +29,8 @@ var (
 // shaped the right cluster objects, which is the contract that
 // matters at the operator layer.
 func TestGameServer_OperatorMaterializesChildren(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 
@@ -218,6 +220,8 @@ func contains(ss []string, s string) bool {
 // We delete pod-0 and assert the StatefulSet recreates a pod with a
 // different UID, while the PVC keeps the same UID throughout.
 func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-pvc-survive-tmpl"
@@ -285,6 +289,8 @@ func TestGameServer_PVCSurvivesPodDelete(t *testing.T) {
 // operator must derive phase Running. Before those existed, no chart
 // install could ever leave Starting — this is the regression guard.
 func TestGameServer_HeartbeatReachesRunning(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-hb-tmpl"

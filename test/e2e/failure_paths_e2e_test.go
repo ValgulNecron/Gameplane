@@ -19,6 +19,8 @@ import (
 // reconciler's serverRef resolution short-circuits before the Job spec
 // is built.
 func TestBackup_FailsOnMissingPVC(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	bkName := "e2e-fail-missing-pvc"
@@ -73,14 +75,15 @@ func TestBackup_FailsOnMissingPVC(t *testing.T) {
 // so the Job actually runs (and fails at the restic-init / restic-backup
 // step rather than short-circuiting earlier).
 func TestBackup_FailsOnBadCredentials(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-fail-badcreds-tmpl"
 	gs := "e2e-fail-badcreds-target"
 	bkName := "e2e-fail-badcreds"
 
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 	envInstance.ApplyYAML(t, "backup-restic-secret-bad.yaml")
 
 	applyBusyboxTemplate(t, tmpl)
@@ -171,6 +174,8 @@ func TestBackup_FailsOnBadCredentials(t *testing.T) {
 // the Restore reconciler distinguishes "missing backup" from "backup
 // without a usable snapshot".
 func TestRestore_FailsOnMissingSnapshot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-restore-missing-snap-tmpl"
@@ -249,6 +254,8 @@ func TestRestore_FailsOnMissingSnapshot(t *testing.T) {
 // status.lastSync is non-empty within a reasonable timeout (proving the
 // reconciler runs and records the result rather than wedging).
 func TestModule_FailsOnUnreachableRegistry(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const sourceName = "e2e-fail-unreachable-source"
 

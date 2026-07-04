@@ -32,6 +32,13 @@ import (
 // below) — that way the source survives across the subtest boundary
 // and is cleaned up when the whole TestModuleSourceAndModule returns.
 func TestModuleSourceAndModule(t *testing.T) {
+	t.Parallel()
+	// The module tests share the fixed-name oras-push Job (delete-then-
+	// recreate) — serialize them against each other while still
+	// overlapping with the rest of the parallel suite.
+	ociPushMu.Lock()
+	defer ociPushMu.Unlock()
+
 	parent := t
 	ctx := context.Background()
 

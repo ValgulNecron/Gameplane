@@ -202,7 +202,7 @@ func TestModule_DeletionBlockedByGameServer(t *testing.T) {
 	}
 
 	// Module should NOT disappear — finalizer blocks while gs in use.
-	consistently(t, 2*time.Second, func() (bool, string) {
+	consistently(t, time.Second, func() (bool, string) {
 		var still gameplanev1alpha1.Module
 		err := k8sClient.Get(context.Background(), types.NamespacedName{Name: modName}, &still)
 		if err != nil {

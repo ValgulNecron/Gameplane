@@ -17,6 +17,8 @@ import (
 // it to a user, the in-use delete guard, and finally deleting the role
 // once it's unused.
 func TestAPI_CustomRole_Lifecycle(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer admin.Close()
@@ -90,6 +92,8 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 // TestAPI_BuiltinRole_Immutable proves the seeded roles are protected: the
 // admin role can't be edited and no built-in role can be deleted.
 func TestAPI_BuiltinRole_Immutable(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer admin.Close()
@@ -110,6 +114,8 @@ func TestAPI_BuiltinRole_Immutable(t *testing.T) {
 // role binding authorizes namespaced writes in that namespace, while a
 // namespace binding never confers cluster-scoped authority.
 func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer admin.Close()

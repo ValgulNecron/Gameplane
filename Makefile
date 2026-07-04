@@ -150,7 +150,7 @@ ENVTEST_BIN          := $(shell pwd)/operator/bin/setup-envtest
 
 .PHONY: envtest-bin
 envtest-bin: ## Install setup-envtest binary into operator/bin
-	GOBIN=$(shell pwd)/operator/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	GOBIN=$(shell pwd)/operator/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
 
 .PHONY: test-integration
 test-integration: envtest-bin ## Run envtest-tagged integration tests
@@ -186,6 +186,11 @@ endif
 test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/destroy)
 	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
 		go test -tags=e2e -timeout 35m -v ./...
+
+.PHONY: test-e2e-bucket
+test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot)
+	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
+		go test -tags=e2e -timeout 35m -v -run "$$(./buckets.sh regex $(BUCKET))" ./...
 
 .PHONY: e2e-up
 e2e-up: e2e-images ## Bring up the e2e kind cluster + install chart (no tests)

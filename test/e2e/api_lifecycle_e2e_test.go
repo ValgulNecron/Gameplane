@@ -23,6 +23,8 @@ import (
 // We verify both steps rather than just the API response, otherwise a
 // regression that drops the patch silently would still pass the test.
 func TestAPI_LifecycleStartStop(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-tmpl"
@@ -92,6 +94,16 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 // canonical "this pod is a different object" check — a name match alone
 // is insufficient since the StatefulSet always recreates with the same
 // name.
+// NOT t.Parallel(): restart is implemented as a suspend=true patch, a
+// bounded wait for the StatefulSet to drain, then a suspend=false patch
+// (api/internal/handlers/lifecycle.go). When the operator's reconcile
+// queue is deep — exactly what a parallel bucket produces — both patches
+// can land between two reconciles of this GameServer, the operator
+// coalesces them into "suspend unchanged", and the restart is silently
+// lost: the pod UID never changes. Go runs non-parallel tests before the
+// parallel phase, so this test gets the idle operator its contract
+// currently requires. TODO: make restart an operator-side primitive
+// (rule 10) so a request can't be lost, then re-parallelize.
 func TestAPI_LifecycleRestart(t *testing.T) {
 	ctx := context.Background()
 	ns := "gameplane-games"
@@ -105,6 +117,16 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 	applyBusyboxTemplate(t, tmpl)
 	createGameServerViaAPI(t, cli, ns, gs, tmpl)
 	waitStatefulSetReplicas(t, ns, gs, 1, 90*time.Second)
+
+	// Restart a genuinely RUNNING server (which is what the dashboard's
+	// restart button acts on). Without the agent sidecar up, the
+	// operator's graceful stop can't issue the agent stop sequence and
+	// waits out the 30s stop-grace period — under parallel-suite load
+	// that pushes the drain past the restart handler's 45s window, the
+	// resume patch races the reconcile, and the two suspend patches
+	// coalesce into a no-op: the pod never recycles and its UID never
+	// changes.
+	requireAgentReady(t, ns, gs)
 
 	// Capture the original pod UID. The pod must exist before :restart;
 	// otherwise we can't tell a "fresh first start" from a "restart".
@@ -153,6 +175,8 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 // and ends up with its own PVC (proving the operator went through its
 // usual materialize path on the new CR).
 func TestAPI_LifecycleClone(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-clone-tmpl"
@@ -235,6 +259,8 @@ func TestAPI_LifecycleClone(t *testing.T) {
 // must surface as 404, not 500. Catches regressions where a panic in
 // the patch path turns into a generic error.
 func TestAPI_LifecycleNotFound(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer cli.Close()

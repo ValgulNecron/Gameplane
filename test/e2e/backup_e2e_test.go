@@ -25,6 +25,8 @@ import (
 // assert the contract the API layer cares about: "applying a Backup
 // CR makes a Job appear".
 func TestBackup_OperatorMaterializesJob(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-backup-busybox-tmpl"
@@ -36,8 +38,7 @@ func TestBackup_OperatorMaterializesJob(t *testing.T) {
 	// only delete them on cleanup of the *last* test run, which is
 	// effectively never — the kind cluster gets torn down between CI
 	// runs anyway.
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 
 	// 2. Target GameServer. The operator's StatefulSet creates the
 	// `<gs>-data` PVC, which kind's default storage class binds as soon
@@ -106,13 +107,14 @@ func TestBackup_OperatorMaterializesJob(t *testing.T) {
 // MinLength=9 validator (5-field cron) — `@every 10s` is rejected by
 // the API server before the controller ever sees it.
 func TestBackupSchedule_CreatesBackupCR(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-bksched-busybox-tmpl"
 	gs := "e2e-bksched-target"
 
-	envInstance.ApplyYAML(t, "restic-server.yaml")
-	envInstance.ApplyYAML(t, "backup-restic-secret.yaml")
+	ensureResticRepo(t)
 
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)

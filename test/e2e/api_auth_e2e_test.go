@@ -27,6 +27,8 @@ const (
 // for handoff to the Playwright live-mode suite (PR3). The directory is
 // gitignored.
 func TestAPI_BootstrapAndLogin(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 	envInstance.WriteAdminPasswordFile(t, adminPassword)
 
@@ -53,6 +55,11 @@ func TestAPI_BootstrapAndLogin(t *testing.T) {
 // against a real user, and a login attempt for a nonexistent user,
 // must be indistinguishable. Otherwise the response timing or body
 // becomes a username-enumeration oracle.
+// NOT t.Parallel(): this test observes RAW login status codes (it
+// deliberately bypasses APIClient's 429 retry), so it needs a login
+// rate limiter that parallel neighbors haven't drained. Go runs
+// non-parallel tests to completion before the parallel phase starts,
+// which guarantees a fresh bucket here.
 func TestAPI_LoginPrivacy(t *testing.T) {
 	// Make sure the admin row exists so the "real user, wrong password"
 	// branch actually exercises VerifyPassword (not the dummy).
@@ -106,6 +113,8 @@ func TestAPI_LoginPrivacy(t *testing.T) {
 // (which requires operator+). The audit row for the rejected call
 // should land with status=403 — checked from the same admin session.
 func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
@@ -155,6 +164,8 @@ func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
 // own row blanks out the cookie we're using to read /admin/audit.
 // PATCH /users/{id} with a display-name change avoids that pitfall.
 func TestAPI_AuditEmitsOnMutation(t *testing.T) {
+	t.Parallel()
+
 	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
 
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)

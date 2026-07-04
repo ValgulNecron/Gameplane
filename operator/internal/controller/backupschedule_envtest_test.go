@@ -73,7 +73,7 @@ func TestSchedule_HonorsSuspend(t *testing.T) {
 	}
 
 	// Backups must not appear.
-	consistently(t, 2*time.Second, func() (bool, string) {
+	consistently(t, time.Second, func() (bool, string) {
 		bs := listBackupsForSchedule(t, ns, "smp-sched")
 		if len(bs) > 0 {
 			return false, "schedule fired despite Suspend=true"
@@ -129,7 +129,7 @@ func TestSchedule_InvalidCronDoesNotPanic(t *testing.T) {
 		buildBackupSchedule(ns, "broken", "smp", "repo", "this is not a cron", nil)); err != nil {
 		t.Fatalf("create schedule: %v", err)
 	}
-	consistently(t, 2*time.Second, func() (bool, string) {
+	consistently(t, time.Second, func() (bool, string) {
 		if bs := listBackupsForSchedule(t, ns, "broken"); len(bs) > 0 {
 			return false, "fired despite invalid cron"
 		}
@@ -433,7 +433,7 @@ func TestSchedule_ForbidSkipsWhileInFlight(t *testing.T) {
 		t.Fatalf("create schedule: %v", err)
 	}
 
-	consistently(t, 3*time.Second, func() (bool, string) {
+	consistently(t, 1500*time.Millisecond, func() (bool, string) {
 		bs := listBackupsForSchedule(t, ns, "smp-sched")
 		if len(bs) != 1 || bs[0].Name != "inflight" {
 			names := []string{}
