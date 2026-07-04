@@ -529,6 +529,7 @@ export interface ClusterInfo {
   clusterName?: string;
   version?: string; // Kubernetes server version
   gameplaneVersion?: string; // Gameplane control-plane build
+  clusterOps?: boolean; // node-join / kubeconfig minting enabled on this install
 }
 
 export interface NodeJoinInfo {

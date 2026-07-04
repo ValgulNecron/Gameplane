@@ -61,7 +61,7 @@ func TestCluster_View(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test")
+	MountCluster(r, k, nil, "v9.9.9-test", false)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
@@ -104,7 +104,7 @@ func TestCluster_Stats(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test")
+	MountCluster(r, k, nil, "v9.9.9-test", false)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/stats", nil))
@@ -133,7 +133,7 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test")
+	MountCluster(r, k, nil, "v9.9.9-test", false)
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
@@ -152,5 +152,31 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	}
 	if info.ClusterName != "" {
 		t.Fatalf("clusterName = %q, want empty with nil store", info.ClusterName)
+	}
+	if info.ClusterOps {
+		t.Fatal("clusterOps = true, want false when mounted disabled")
+	}
+}
+
+// The clusterOps flag must surface verbatim on /cluster/info so the
+// dashboard can gate the node-join / kubeconfig buttons up front.
+func TestCluster_Info_ReportsClusterOps(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	k := &kube.Client{Typed: cs}
+
+	r := chi.NewRouter()
+	MountCluster(r, k, nil, "v9.9.9-test", true)
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	var info clusterInfo
+	if err := json.Unmarshal(rr.Body.Bytes(), &info); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !info.ClusterOps {
+		t.Fatal("clusterOps = false, want true when mounted enabled")
 	}
 }

@@ -4,7 +4,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeClusterView } from "@/test/factories";
+import { makeClusterInfo, makeClusterView } from "@/test/factories";
 import { ClusterPage } from "./Cluster";
 
 describe("ClusterPage", () => {
@@ -59,5 +59,36 @@ describe("ClusterPage", () => {
     renderWithQuery(<ClusterPage />);
     await userEvent.click(await screen.findByRole("button", { name: /add node/i }));
     expect(await screen.findByText(/aren't enabled/i)).toBeInTheDocument();
+  });
+
+  it("disables both ops buttons with a hint when /cluster/info reports clusterOps off", async () => {
+    server.use(
+      http.get("/cluster/info", () =>
+        HttpResponse.json(makeClusterInfo({ clusterOps: false })),
+      ),
+    );
+    renderWithQuery(<ClusterPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add node/i })).toBeDisabled();
+    });
+    expect(screen.getByRole("button", { name: /download kubeconfig/i })).toBeDisabled();
+    expect(screen.getByText(/clusterOps\.enabled/)).toBeInTheDocument();
+  });
+
+  it("keeps the ops buttons active when clusterOps is on", async () => {
+    renderWithQuery(<ClusterPage />);
+    // Default handler reports clusterOps: true — no hint, buttons live.
+    await screen.findByText("node-1");
+    expect(screen.getByRole("button", { name: /add node/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /download kubeconfig/i })).toBeEnabled();
+    expect(screen.queryByText(/clusterOps\.enabled/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the ops buttons active when the info fetch fails (older API)", async () => {
+    server.use(http.get("/cluster/info", () => HttpResponse.error()));
+    renderWithQuery(<ClusterPage />);
+    await screen.findByText("node-1");
+    expect(screen.getByRole("button", { name: /add node/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /download kubeconfig/i })).toBeEnabled();
   });
 });

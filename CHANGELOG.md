@@ -9,6 +9,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Fixed
 
+- **api/web:** the Cluster page no longer presents **"Add node" and
+  "Download kubeconfig" as click-to-error dead-ends** on installs where
+  cluster operations are off (the default). `GET /cluster/info` now reports
+  the `clusterOps` flag, and the dashboard disables both buttons with a hint
+  pointing at `clusterOps.enabled` in the Helm values.
 - **web:** the Create Server wizard no longer produces **unschedulable
   servers**. It set only resource *limits*, so Kubernetes defaulted
   requests to match — a 4-core limit then needed a fully-empty node and sat

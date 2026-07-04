@@ -12,6 +12,7 @@ import type {
   User,
   AuditEvent,
   ClusterView,
+  ClusterInfo,
   ClusterStats,
   CatalogEntry,
   Module,
@@ -195,6 +196,10 @@ export function makeClusterView(over: Partial<ClusterView> = {}): ClusterView {
 
 export function makeClusterStats(over: Partial<ClusterStats> = {}): ClusterStats {
   return { nodes: 3, totalStorageBytes: 1_000_000_000_000, usedStorageBytes: 250_000_000_000, ...over };
+}
+
+export function makeClusterInfo(over: Partial<ClusterInfo> = {}): ClusterInfo {
+  return { clusterName: "homelab", version: "v1.31.0", clusterOps: true, ...over };
 }
 
 export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {

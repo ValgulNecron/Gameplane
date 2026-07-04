@@ -21,8 +21,8 @@ import (
 // state via the API's in-cluster client — no caching, no side effects —
 // keeping the operator authoritative. All routes are GETs (viewer+ under
 // the RBAC rules in api/internal/rbac).
-func MountCluster(r chi.Router, k *kube.Client, store *db.Store, gameplaneVersion string) {
-	h := &clusterHandler{k: k, store: store, gameplaneVersion: gameplaneVersion}
+func MountCluster(r chi.Router, k *kube.Client, store *db.Store, gameplaneVersion string, clusterOps bool) {
+	h := &clusterHandler{k: k, store: store, gameplaneVersion: gameplaneVersion, clusterOps: clusterOps}
 	r.Get("/cluster", h.view)
 	r.Get("/cluster/info", h.info)
 	r.Get("/cluster/stats", h.stats)
@@ -32,6 +32,7 @@ type clusterHandler struct {
 	k              *kube.Client
 	store          *db.Store
 	gameplaneVersion string
+	clusterOps       bool
 }
 
 type clusterNode struct {
@@ -65,6 +66,11 @@ type clusterInfo struct {
 	ClusterName    string `json:"clusterName,omitempty"`
 	Version        string `json:"version,omitempty"`        // Kubernetes server version
 	GameplaneVersion string `json:"gameplaneVersion,omitempty"` // Gameplane control-plane build
+	// ClusterOps mirrors the --cluster-ops flag so the dashboard can
+	// grey out node-join / kubeconfig actions instead of letting every
+	// click run into the handlers' 501. Never omitted: the client must
+	// distinguish "off" from "server too old to report it".
+	ClusterOps bool `json:"clusterOps"`
 }
 
 type clusterStats struct {
@@ -100,6 +106,7 @@ func (h *clusterHandler) info(w http.ResponseWriter, req *http.Request) {
 		ClusterName:    h.clusterName(req.Context()),
 		Version:        h.serverVersion(),
 		GameplaneVersion: h.gameplaneVersion,
+		ClusterOps:       h.clusterOps,
 	})
 }
 
