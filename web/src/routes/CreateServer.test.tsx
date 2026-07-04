@@ -50,6 +50,21 @@ function jsonRes(status: number, body: unknown): Response {
   });
 }
 
+// The wizard fires several GETs on mount (templates + cluster node caps),
+// so ordered once-mocks are fragile — an extra GET shifts the queue. This
+// routes by URL/method instead, resolving each call correctly regardless
+// of order: /cluster → node caps, POST → the create response, else the
+// template list.
+function routeFetch(opts: { templates?: GameTemplate[]; create?: Response } = {}) {
+  fetchMock.mockImplementation((url: string, init?: FetchInit) => {
+    if (url.includes("/cluster")) return Promise.resolve(jsonRes(200, { nodes: [] }));
+    if ((init?.method ?? "GET") === "POST") {
+      return Promise.resolve(opts.create ?? jsonRes(201, { metadata: { name: "mc-test" } }));
+    }
+    return Promise.resolve(jsonRes(200, { items: opts.templates ?? [template()] }));
+  });
+}
+
 function template(overrides: Partial<GameTemplate["spec"]> = {}): GameTemplate {
   return {
     metadata: { name: "minecraft-java" },
@@ -111,9 +126,7 @@ describe("CreateServerWizard", () => {
   });
 
   it("renders an inline alert when the API returns 409", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(new Response("name taken", { status: 409 }));
+    routeFetch({ create: new Response("name taken", { status: 409 }) });
 
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
@@ -154,9 +167,7 @@ describe("CreateServerWizard", () => {
   });
 
   it("sends nodeSelector when nodePlacement is 'pin'", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
 
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
@@ -197,9 +208,7 @@ describe("CreateServerWizard", () => {
   });
 
   it("includes the selected version in the create body", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [versionedTemplate()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch({ templates: [versionedTemplate()] });
 
     render(withClient(<CreateServerWizard />));
     fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
@@ -301,9 +310,7 @@ describe("nodeCaps", () => {
 
 describe("CreateServerWizard networking", () => {
   it("sends sourceRanges when LoadBalancer + CIDRs are set", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
@@ -323,9 +330,7 @@ describe("CreateServerWizard networking", () => {
   });
 
   it("sends portOverrides when a named override is added", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
@@ -346,9 +351,7 @@ describe("CreateServerWizard networking", () => {
   });
 
   it("omits portOverrides when the only row is left blank", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
