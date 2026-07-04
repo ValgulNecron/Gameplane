@@ -7,6 +7,21 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **web:** the Create Server wizard no longer produces **unschedulable
+  servers**. It set only resource *limits*, so Kubernetes defaulted
+  requests to match — a 4-core limit then needed a fully-empty node and sat
+  `Pending` forever on any partially-used cluster. The wizard now caps CPU /
+  memory at the largest single node's capacity (shown as a hint, enforced on
+  the field and the step), and sets an explicit modest CPU **request** below
+  the limit (memory is still guaranteed at the limit), so a new server
+  schedules onto a node with room. Defaults lowered to 2 cores / 4 GiB /
+  20 GiB.
+- **web:** raw byte counts in Kubernetes event messages (e.g. "Image size:
+  333546371 bytes") are now shown human-readable ("318 MB") on the server
+  Overview.
+
 ### Added
 
 - **mods:** direct **file upload** — a third "Upload file" mode on the Mods

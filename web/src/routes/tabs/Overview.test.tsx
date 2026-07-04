@@ -2,8 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { OverviewTab } from "./Overview";
+import { OverviewTab, humanizeBytes } from "./Overview";
 import type { GameServer, PlayersResp } from "@/types";
+
+describe("humanizeBytes", () => {
+  it("rewrites raw byte counts in event messages", () => {
+    expect(humanizeBytes('Successfully pulled image in 12s. Image size: 333546371 bytes.')).toBe(
+      "Successfully pulled image in 12s. Image size: 318 MB.",
+    );
+  });
+  it("leaves small numbers and non-byte text alone", () => {
+    expect(humanizeBytes("Started container in 27589 ms")).toBe("Started container in 27589 ms");
+    expect(humanizeBytes("Back-off restarting failed container")).toBe(
+      "Back-off restarting failed container",
+    );
+  });
+});
 
 const fetchMock = vi.fn();
 

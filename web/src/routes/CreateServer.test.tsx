@@ -11,7 +11,13 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => search,
 }));
 
-import { CreateServerWizard, nonEmptyPortOverrides, parseSourceRanges } from "./CreateServer";
+import {
+  CreateServerWizard,
+  cpuRequest,
+  nodeCaps,
+  nonEmptyPortOverrides,
+  parseSourceRanges,
+} from "./CreateServer";
 import { gameCategory } from "@/lib/games";
 
 interface FetchInit {
@@ -41,6 +47,21 @@ function jsonRes(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+// The wizard fires several GETs on mount (templates + cluster node caps),
+// so ordered once-mocks are fragile — an extra GET shifts the queue. This
+// routes by URL/method instead, resolving each call correctly regardless
+// of order: /cluster → node caps, POST → the create response, else the
+// template list.
+function routeFetch(opts: { templates?: GameTemplate[]; create?: Response } = {}) {
+  fetchMock.mockImplementation((url: string, init?: FetchInit) => {
+    if (url.includes("/cluster")) return Promise.resolve(jsonRes(200, { nodes: [] }));
+    if ((init?.method ?? "GET") === "POST") {
+      return Promise.resolve(opts.create ?? jsonRes(201, { metadata: { name: "mc-test" } }));
+    }
+    return Promise.resolve(jsonRes(200, { items: opts.templates ?? [template()] }));
   });
 }
 
@@ -105,9 +126,7 @@ describe("CreateServerWizard", () => {
   });
 
   it("renders an inline alert when the API returns 409", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(new Response("name taken", { status: 409 }));
+    routeFetch({ create: new Response("name taken", { status: 409 }) });
 
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
@@ -148,9 +167,7 @@ describe("CreateServerWizard", () => {
   });
 
   it("sends nodeSelector when nodePlacement is 'pin'", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
 
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
@@ -191,9 +208,7 @@ describe("CreateServerWizard", () => {
   });
 
   it("includes the selected version in the create body", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [versionedTemplate()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch({ templates: [versionedTemplate()] });
 
     render(withClient(<CreateServerWizard />));
     fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
@@ -264,11 +279,38 @@ describe("nonEmptyPortOverrides", () => {
   });
 });
 
+describe("cpuRequest", () => {
+  it("reserves at most one core so a pod schedules on a busy node", () => {
+    // The bug this fixes: a limit-only payload made K8s set request=limit,
+    // so a 4-core limit needed a fully-empty node. Request stays ≤ 1.
+    expect(cpuRequest("4")).toBe("1");
+    expect(cpuRequest("2")).toBe("1");
+    // Sub-core limits reserve exactly what they ask for.
+    expect(cpuRequest("1")).toBe("1");
+    expect(cpuRequest("0.5")).toBe("0.5");
+    // Garbage falls back to a tiny floor rather than NaN.
+    expect(cpuRequest("")).toBe("250m");
+  });
+});
+
+describe("nodeCaps", () => {
+  it("returns the largest single node's CPU cores and memory GiB", () => {
+    const caps = nodeCaps([
+      { cpu: { capacity: 4 }, memory: { capacity: 14656061440 } }, // ~13.6 GiB
+      { cpu: { capacity: 8 }, memory: { capacity: 8 * 1024 ** 3 } },
+    ]);
+    expect(caps.maxCpu).toBe(8);
+    // Largest memory node is the ~13.6 GiB one → floor to 13 GiB.
+    expect(caps.maxMemGi).toBe(13);
+  });
+  it("is {0,0} when node data is unavailable (no cap)", () => {
+    expect(nodeCaps([])).toEqual({ maxCpu: 0, maxMemGi: 0 });
+  });
+});
+
 describe("CreateServerWizard networking", () => {
   it("sends sourceRanges when LoadBalancer + CIDRs are set", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
@@ -288,9 +330,7 @@ describe("CreateServerWizard networking", () => {
   });
 
   it("sends portOverrides when a named override is added", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
@@ -311,9 +351,7 @@ describe("CreateServerWizard networking", () => {
   });
 
   it("omits portOverrides when the only row is left blank", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "mc-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });

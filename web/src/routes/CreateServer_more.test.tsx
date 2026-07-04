@@ -42,6 +42,19 @@ function jsonRes(status: number, body: unknown): Response {
   });
 }
 
+// Order-independent fetch router — the wizard fires templates + cluster
+// (node caps) GETs on mount, so ordered once-mocks desync. See the same
+// helper in CreateServer.test.tsx.
+function routeFetch(opts: { templates?: GameTemplate[]; create?: Response } = {}) {
+  fetchMock.mockImplementation((url: string, init?: FetchInit) => {
+    if (url.includes("/cluster")) return Promise.resolve(jsonRes(200, { nodes: [] }));
+    if ((init?.method ?? "GET") === "POST") {
+      return Promise.resolve(opts.create ?? jsonRes(201, { metadata: { name: "lb-test" } }));
+    }
+    return Promise.resolve(jsonRes(200, { items: opts.templates ?? [template()] }));
+  });
+}
+
 function template(overrides: Partial<GameTemplate["spec"]> = {}): GameTemplate {
   return {
     metadata: { name: "minecraft-java" },
@@ -108,9 +121,7 @@ describe("CreateServerWizard configure step extras", () => {
   });
 
   it("walks Network step LoadBalancer + hostname through to review", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonRes(200, { items: [template()] }))
-      .mockResolvedValueOnce(jsonRes(201, { metadata: { name: "lb-test" } }));
+    routeFetch();
     render(withClient(<CreateServerWizard />));
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {

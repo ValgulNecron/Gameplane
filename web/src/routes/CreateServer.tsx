@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { GameIcon } from "@/components/ui/game-icon";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { APIError } from "@/lib/api";
-import { Servers, Templates, type ServerCreate } from "@/lib/endpoints";
+import { Cluster, Servers, Templates, type ServerCreate } from "@/lib/endpoints";
 import {
   defaultVersionId,
   isValidK8sName,
@@ -56,11 +56,31 @@ interface WizardState {
 const initial: WizardState = {
   name: "", description: "",
   template: null, version: "", config: {},
-  cpuLimit: "4", memoryLimit: "8",
-  storageSize: "50Gi", nodePlacement: "auto",
+  cpuLimit: "2", memoryLimit: "4",
+  storageSize: "20Gi", nodePlacement: "auto",
   expose: "NodePort", hostname: "", sourceRanges: "",
   portOverrides: [],
 };
+
+// cpuRequest reserves a modest CPU floor so a pod schedules on a
+// partially-used node: CPU is compressible, so we reserve at most 1 core
+// (or the whole limit when it's smaller) and let the container burst up to
+// its limit. Memory, by contrast, is guaranteed at the full limit (below),
+// since under-requesting risks OOM eviction under node pressure.
+export function cpuRequest(cpuLimit: string): string {
+  const n = Number(cpuLimit);
+  if (!Number.isFinite(n) || n <= 0) return "250m";
+  return n <= 1 ? cpuLimit : "1";
+}
+
+// Largest single-node capacity from the cluster view — the ceiling a pod
+// can ever be scheduled onto. Returns 0 when node data is unavailable
+// (non-admin / not loaded), which the UI treats as "no cap".
+export function nodeCaps(nodes: { cpu?: { capacity?: number }; memory?: { capacity?: number } }[]) {
+  const maxCpu = nodes.reduce((m, n) => Math.max(m, n.cpu?.capacity ?? 0), 0);
+  const maxMemBytes = nodes.reduce((m, n) => Math.max(m, n.memory?.capacity ?? 0), 0);
+  return { maxCpu, maxMemGi: Math.floor(maxMemBytes / 1024 ** 3) };
+}
 
 // Split the CIDR allow-list textarea (newline- or comma-separated) into a
 // clean list, dropping blanks.
@@ -102,6 +122,12 @@ function buildCreateBody(state: WizardState): ServerCreate {
         : {}),
     },
     resources: {
+      // Requests are what the scheduler places on; keep CPU modest so the
+      // pod fits a partially-used node, and guarantee memory at the limit.
+      // (The operator replaces the template's resources with these, so we
+      // must set both requests and limits here or K8s defaults
+      // requests=limits — a full-core request that needs an empty node.)
+      requests: { cpu: cpuRequest(state.cpuLimit), memory: `${state.memoryLimit}Gi` },
       limits: { cpu: state.cpuLimit, memory: `${state.memoryLimit}Gi` },
     },
     ...(nodeSelector ? { nodeSelector } : {}),
@@ -110,7 +136,13 @@ function buildCreateBody(state: WizardState): ServerCreate {
 
 type StepCheck = { ok: true } | { ok: false; reason: string };
 
-function validateStep(key: StepKey, state: WizardState): StepCheck {
+// caps bounds the resource inputs to the largest single node; {0,0} means
+// node data is unavailable (non-admin / not loaded) and no cap is applied.
+function validateStep(
+  key: StepKey,
+  state: WizardState,
+  caps: { maxCpu: number; maxMemGi: number } = { maxCpu: 0, maxMemGi: 0 },
+): StepCheck {
   if (key === "template") {
     return state.template ? { ok: true } : { ok: false, reason: "Pick a game template to continue" };
   }
@@ -133,6 +165,12 @@ function validateStep(key: StepKey, state: WizardState): StepCheck {
     }
     if (!isValidQuantity(state.cpuLimit) || !isValidQuantity(state.memoryLimit)) {
       return { ok: false, reason: "CPU and memory must be valid quantities" };
+    }
+    if (caps.maxCpu > 0 && Number(state.cpuLimit) > caps.maxCpu) {
+      return { ok: false, reason: `CPU can't exceed ${caps.maxCpu} cores — no single node has more` };
+    }
+    if (caps.maxMemGi > 0 && Number(state.memoryLimit) > caps.maxMemGi) {
+      return { ok: false, reason: `Memory can't exceed ${caps.maxMemGi} GiB — no single node has more` };
     }
     const cfgErrors = validateConfig(state.template?.spec.configSchema ?? [], state.config);
     if (cfgErrors.length > 0) {
@@ -200,10 +238,17 @@ export function CreateServerWizard() {
   const steps = stepsFor(state.template);
   const currentKey: StepKey = steps[stepIndex] ?? "template";
   const isLast = stepIndex === steps.length - 1;
-  const stepCheck = validateStep(currentKey, state);
+  // Resource ceilings from the cluster, for the Configure step's cap.
+  const { data: clusterView } = useQuery({
+    queryKey: ["cluster-view"],
+    queryFn: () => Cluster.view(),
+    staleTime: 30_000,
+  });
+  const caps = nodeCaps(clusterView?.nodes ?? []);
+  const stepCheck = validateStep(currentKey, state, caps);
   const finalCheck = steps
     .filter((k) => k !== "review")
-    .every((k) => validateStep(k, state).ok)
+    .every((k) => validateStep(k, state, caps).ok)
     ? ({ ok: true } as const)
     : ({ ok: false } as const);
 
@@ -459,6 +504,20 @@ function PickVersion({ state, setState }: { state: WizardState; setState: (s: Wi
 
 function Configure({ state, setState }: { state: WizardState; setState: (s: WizardState) => void }) {
   const fields = state.template?.spec.configSchema ?? [];
+  // Cap CPU/memory at the largest single node's capacity — the scheduler
+  // can never place a pod that requests more than one node provides, so
+  // let the user know the ceiling and clamp their input to it.
+  const { data: cluster } = useQuery({
+    queryKey: ["cluster-view"],
+    queryFn: () => Cluster.view(),
+    staleTime: 30_000,
+  });
+  const { maxCpu, maxMemGi } = nodeCaps(cluster?.nodes ?? []);
+  const clamp = (v: string, max: number) => {
+    const n = Number(v);
+    if (max > 0 && Number.isFinite(n) && n > max) return String(max);
+    return v;
+  };
   return (
     <div className="space-y-4">
       <label className="block space-y-1.5">
@@ -490,11 +549,16 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
             <Input
               type="number"
               min="1"
+              max={maxCpu > 0 ? maxCpu : undefined}
               value={state.cpuLimit}
               onChange={(e) => setState({ ...state, cpuLimit: e.target.value })}
+              onBlur={(e) => setState({ ...state, cpuLimit: clamp(e.target.value, maxCpu) })}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted">cores</span>
           </div>
+          {maxCpu > 0 && (
+            <span className="text-[11px] text-muted">Max {maxCpu} (largest node)</span>
+          )}
         </label>
         <label className="block space-y-1.5">
           <span className="text-xs text-muted">Memory limit</span>
@@ -502,11 +566,16 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
             <Input
               type="number"
               min="1"
+              max={maxMemGi > 0 ? maxMemGi : undefined}
               value={state.memoryLimit}
               onChange={(e) => setState({ ...state, memoryLimit: e.target.value })}
+              onBlur={(e) => setState({ ...state, memoryLimit: clamp(e.target.value, maxMemGi) })}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted">GiB</span>
           </div>
+          {maxMemGi > 0 && (
+            <span className="text-[11px] text-muted">Max {maxMemGi} GiB (largest node)</span>
+          )}
         </label>
       </div>
 
