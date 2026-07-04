@@ -43,12 +43,14 @@ func TestValidateAuth(t *testing.T) {
 		ok   bool
 		errs string
 	}{
-		{"empty providers", `{"providers":[]}`, true, ""},
+		{"empty providers", `{"providers":[]}`, false, "at least one identity provider"},
 		{"missing name", `{"providers":[{"kind":"local"}]}`, false, "name is required"},
 		{"duplicate name", `{"providers":[{"name":"a","kind":"local"},{"name":"a","kind":"oidc"}]}`, false, "duplicate"},
 		{"unknown kind", `{"providers":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
 		{"bad configRef", `{"providers":[{"name":"a","kind":"local","configRef":"BAD"}]}`, false, "configRef"},
-		{"happy path", `{"providers":[{"name":"a","kind":"oidc","configRef":"my-secret"}]}`, true, ""},
+		{"happy path", `{"providers":[{"name":"a","kind":"oidc","enabled":true,"configRef":"my-secret"}]}`, true, ""},
+		{"all providers disabled", `{"providers":[{"name":"a","kind":"local","enabled":false},{"name":"b","kind":"oidc","enabled":false}]}`, false, "at least one identity provider"},
+		{"one of many enabled", `{"providers":[{"name":"a","kind":"local","enabled":false},{"name":"b","kind":"oidc","enabled":true}]}`, true, ""},
 		{"bad json", `{`, false, "invalid json"},
 	}
 	for _, tc := range cases {

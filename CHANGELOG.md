@@ -9,6 +9,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Fixed
 
+- **api/web:** the Authentication admin section can no longer save a config
+  with **zero enabled identity providers** — a state that would have locked
+  everyone out at their next logout. The API rejects such saves (422,
+  "at least one identity provider must stay enabled") and the dashboard
+  disables the toggle on the last enabled provider with an explanatory hint.
 - **web:** the Create Server wizard no longer produces **unschedulable
   servers**. It set only resource *limits*, so Kubernetes defaulted
   requests to match — a 4-core limit then needed a fully-empty node and sat

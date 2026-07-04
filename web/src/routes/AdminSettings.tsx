@@ -241,6 +241,7 @@ const defaultAuth: AuthCfg = {
 
 function AuthSection({ initial }: { initial?: AuthCfg }) {
   const f = useSectionForm<AuthCfg>(initial ?? defaultAuth, "auth");
+  const enabledCount = f.draft.providers.filter((p) => p.enabled).length;
   const togglerFor = (idx: number) => () => {
     const next = f.draft.providers.map((p, i) =>
       i === idx ? { ...p, enabled: !p.enabled } : p,
@@ -276,8 +277,14 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
             <button
               type="button"
               onClick={togglerFor(idx)}
+              disabled={p.enabled && enabledCount === 1}
+              title={
+                p.enabled && enabledCount === 1
+                  ? "At least one identity provider must stay enabled."
+                  : undefined
+              }
               className={cn(
-                "rounded px-2 py-0.5 text-[10px] font-mono uppercase",
+                "rounded px-2 py-0.5 text-[10px] font-mono uppercase disabled:cursor-not-allowed disabled:opacity-60",
                 p.enabled ? "bg-success/15 text-success" : "bg-muted/15 text-muted",
               )}
             >
@@ -286,6 +293,12 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
           </li>
         ))}
       </ul>
+      {enabledCount === 1 && (
+        <p className="mt-2 text-xs text-muted">
+          At least one identity provider must stay enabled — the last enabled
+          provider can&apos;t be turned off.
+        </p>
+      )}
     </SectionCard>
   );
 }

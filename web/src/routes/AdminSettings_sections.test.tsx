@@ -42,13 +42,67 @@ describe("AdminSettings sections", () => {
     expect(await screen.findByText(/namespace invalid/i)).toBeInTheDocument();
   });
 
-  it("toggles an authentication provider", async () => {
+  it("refuses to toggle off the last enabled authentication provider", async () => {
     renderWithQuery(<AdminSettingsPage />);
     await gotoSection(/Authentication/i);
-    // The seeded local provider starts enabled; toggling flips the badge.
+    // The seeded local provider is the only enabled one: its toggle is
+    // disabled and the lockout hint is shown.
     const toggle = await screen.findByRole("button", { name: /^Enabled$/i });
-    await userEvent.click(toggle);
+    expect(toggle).toBeDisabled();
+    expect(
+      screen.getByText(/At least one identity provider must stay enabled/i),
+    ).toBeInTheDocument();
+  });
+
+  it("toggles an authentication provider when another stays enabled", async () => {
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json(
+          makeConfig({
+            auth: {
+              providers: [
+                { name: "local", kind: "local", enabled: true },
+                { name: "corp-sso", kind: "oidc", enabled: true },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    const toggles = await screen.findAllByRole("button", { name: /^Enabled$/i });
+    expect(toggles).toHaveLength(2);
+    await userEvent.click(toggles[1]);
     expect(await screen.findByRole("button", { name: /^Disabled$/i })).toBeInTheDocument();
+    // The remaining enabled provider is now locked.
+    expect(screen.getByRole("button", { name: /^Enabled$/i })).toBeDisabled();
+  });
+
+  it("surfaces a backend rejection when saving the auth section", async () => {
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json(
+          makeConfig({
+            auth: {
+              providers: [
+                { name: "local", kind: "local", enabled: true },
+                { name: "corp-sso", kind: "oidc", enabled: true },
+              ],
+            },
+          }),
+        ),
+      ),
+      http.put("/admin/config/auth", () =>
+        HttpResponse.text("auth config rejected by server", { status: 422 }),
+      ),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    const toggles = await screen.findAllByRole("button", { name: /^Enabled$/i });
+    await userEvent.click(toggles[1]);
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    expect(await screen.findByText(/auth config rejected by server/i)).toBeInTheDocument();
   });
 
   it("toggles telemetry and saves", async () => {
