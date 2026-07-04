@@ -24,10 +24,25 @@ export interface AuthCfg {
 
 export type SinkKind = "discord" | "slack" | "smtp" | "webhook";
 
+// The closed event set mirrors api/internal/notify/events.go. A sink with
+// no explicit filter receives the failure events plus server.recovered.
+export type NotifEventType =
+  | "server.unhealthy"
+  | "server.recovered"
+  | "backup.failed"
+  | "backup.succeeded"
+  | "restore.failed"
+  | "restore.succeeded";
+
 export interface NotifSink {
   name: string;
   kind: SinkKind;
   enabled: boolean;
+  // K8s Secret (labelled gameplane.local/notification-sink=true, in the
+  // control-plane namespace) holding the sink credentials. Sinks persisted
+  // before delivery existed lack it; they deliver nothing until set.
+  configRef?: string;
+  events?: NotifEventType[];
 }
 
 export interface NotificationsCfg {

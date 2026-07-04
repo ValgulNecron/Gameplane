@@ -7,6 +7,23 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **notifications:** the sinks configured under Admin Settings →
+  Notifications now actually **deliver**. The API watches GameServer /
+  Backup / Restore status transitions and pushes matching events —
+  `server.unhealthy`, `server.recovered`, `backup.failed`,
+  `backup.succeeded`, `restore.failed`, `restore.succeeded` — to Discord,
+  Slack, SMTP, or generic-webhook sinks (previously the panel persisted
+  sinks that nothing read). Sinks grew per-event filters (failures on by
+  default) and a `configRef` pointing at a labelled Secret
+  (`gameplane.local/notification-sink=true`) holding the webhook URL / SMTP
+  credentials; a new `POST /admin/notifications/sinks/{name}/test` endpoint
+  test-fires a sink synchronously. Outbound dials are SSRF-guarded
+  (`netguard.IsAllowed`), delivery is best-effort with bounded retry, and
+  outcomes are counted at `/metrics` as `gameplane_notify_deliveries_total`.
+  See [`docs/notifications.md`](docs/notifications.md).
+
 ## [0.2.0-beta.5] — 2026-07-03
 
 ### Added

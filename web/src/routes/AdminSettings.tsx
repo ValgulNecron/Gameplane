@@ -7,27 +7,35 @@ import {
   Cog,
   Info,
   Key,
+  Mail,
+  MessagesSquare,
   Plus,
   RefreshCcw,
   ShieldCheck,
+  Slack,
   Activity,
   Trash2,
+  Webhook,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn, formatRelative } from "@/lib/utils";
-import { BackupDestinations, Cluster } from "@/lib/endpoints";
+import { BackupDestinations, Cluster, Notifications } from "@/lib/endpoints";
 import type { ClusterInfo } from "@/types";
 import {
   useConfig,
   useUpdateConfigSection,
   type AuthCfg,
   type GeneralCfg,
+  type NotifEventType,
+  type NotifSink,
   type NotificationsCfg,
+  type SinkKind,
   type TelemetryCfg,
   type UpdateChannel,
   type UpdatesCfg,
@@ -437,12 +445,169 @@ function NewDestinationForm({ onClose }: { onClose: () => void }) {
 
 const defaultNotif: NotificationsCfg = { sinks: [] };
 
+const allNotifEvents: NotifEventType[] = [
+  "server.unhealthy",
+  "server.recovered",
+  "backup.failed",
+  "backup.succeeded",
+  "restore.failed",
+  "restore.succeeded",
+];
+
+// Mirrors notify.DefaultOn server-side: failures plus the paired recovery.
+const defaultOnEvents: NotifEventType[] = [
+  "server.unhealthy",
+  "server.recovered",
+  "backup.failed",
+  "restore.failed",
+];
+
+const sinkIcons: Record<SinkKind, typeof Bell> = {
+  discord: MessagesSquare,
+  slack: Slack,
+  smtp: Mail,
+  webhook: Webhook,
+};
+
+function EventChip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted">
+      {label}
+    </span>
+  );
+}
+
+function EventChips({ events }: { events?: NotifEventType[] }) {
+  if (!events || events.length === 0) return <EventChip label="default events" />;
+  return (
+    <>
+      {events.slice(0, 2).map((e) => (
+        <EventChip key={e} label={e} />
+      ))}
+      {events.length > 2 && <EventChip label={`+${events.length - 2}`} />}
+    </>
+  );
+}
+
+function AddSinkForm({
+  existing,
+  onAdd,
+  onClose,
+}: {
+  existing: string[];
+  onAdd: (s: NotifSink) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<SinkKind>("discord");
+  const [configRef, setConfigRef] = useState("");
+  const [events, setEvents] = useState<NotifEventType[]>(defaultOnEvents);
+  const dns = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
+  const valid =
+    dns.test(name) &&
+    !existing.includes(name) &&
+    (configRef === "" || dns.test(configRef));
+  const toggleEvent = (ev: NotifEventType) =>
+    setEvents((cur) => (cur.includes(ev) ? cur.filter((e) => e !== ev) : [...cur, ev]));
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
+      <div className="text-sm font-medium">Add sink</div>
+      <p className="text-xs text-muted">
+        The Secret must exist in the control-plane namespace and carry the label{" "}
+        <span className="font-mono">gameplane.local/notification-sink=true</span>{" "}
+        before the sink can deliver.
+      </p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <FieldLabel label="Name (DNS label)">
+          <Input
+            placeholder="team-alerts"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </FieldLabel>
+        <FieldLabel label="Kind">
+          <Select
+            aria-label="Sink kind"
+            value={kind}
+            onValueChange={(v) => setKind(v as SinkKind)}
+            options={["discord", "slack", "smtp", "webhook"].map((k) => ({
+              value: k,
+              label: k,
+            }))}
+          />
+        </FieldLabel>
+        <FieldLabel label="Secret name">
+          <Input
+            placeholder="team-alerts"
+            value={configRef}
+            onChange={(e) => setConfigRef(e.target.value)}
+          />
+        </FieldLabel>
+      </div>
+      <div className="space-y-1.5">
+        <div className="text-xs text-muted">Events (failures and recovery are pre-selected)</div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {allNotifEvents.map((ev) => (
+            <label key={ev} className="flex items-center gap-2 text-xs text-fg">
+              <input
+                type="checkbox"
+                className="accent-primary"
+                checked={events.includes(ev)}
+                onChange={() => toggleEvent(ev)}
+              />
+              <span className="font-mono">{ev}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button
+          disabled={!valid}
+          onClick={() => {
+            onAdd({
+              name,
+              kind,
+              enabled: true,
+              ...(configRef ? { configRef } : {}),
+              events,
+            });
+            onClose();
+          }}
+        >
+          Add sink
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
   const f = useSectionForm<NotificationsCfg>(initial ?? defaultNotif, "notifications");
+  const [adding, setAdding] = useState(false);
+  const [testResults, setTestResults] = useState<
+    Record<string, { ok: boolean; message: string }>
+  >({});
+  const test = useMutation({ mutationFn: (name: string) => Notifications.test(name) });
+  // The test endpoint fires against the *persisted* config; with unsaved
+  // edits in the draft it would test something other than what's shown.
+  const dirty = JSON.stringify(f.draft) !== JSON.stringify(initial ?? defaultNotif);
+
+  const runTest = (name: string) =>
+    test.mutate(name, {
+      onSuccess: () =>
+        setTestResults((r) => ({ ...r, [name]: { ok: true, message: "delivered" } })),
+      onError: (e) =>
+        setTestResults((r) => ({
+          ...r,
+          [name]: { ok: false, message: e instanceof Error ? e.message : "delivery failed" },
+        })),
+    });
+
   return (
     <SectionCard
       title="Notifications"
-      subtitle="Outbound webhooks and alert routing. Sink credentials are managed as Secrets outside this screen."
+      subtitle="Deliver server health and backup/restore events to Discord, Slack, email, or webhooks. Sink credentials live in labelled Secrets, referenced by name."
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
@@ -450,32 +615,89 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
         </>
       }
     >
-      {f.draft.sinks.length === 0 && (
+      {f.draft.sinks.length === 0 && !adding && (
         <div className="text-sm text-muted">No notification sinks configured.</div>
       )}
       <ul className="divide-y divide-border">
-        {f.draft.sinks.map((s, idx) => (
-          <li key={s.name} className="flex items-center gap-3 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface">
-              <Bell className="h-4 w-4 text-muted" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm">{s.name}</div>
-              <div className="truncate text-xs text-muted">{s.kind}</div>
-            </div>
-            <Switch
-              aria-label={s.enabled ? "Disable sink" : "Enable sink"}
-              checked={s.enabled}
-              onCheckedChange={(v) => {
-                const next = f.draft.sinks.map((x, i) =>
-                  i === idx ? { ...x, enabled: v } : x,
-                );
-                f.update({ sinks: next });
-              }}
-            />
-          </li>
-        ))}
+        {f.draft.sinks.map((s, idx) => {
+          const Icon = sinkIcons[s.kind] ?? Bell;
+          const result = testResults[s.name];
+          return (
+            <li key={s.name} className="flex items-center gap-3 py-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface">
+                <Icon className="h-4 w-4 text-muted" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">{s.name}</div>
+                <div className="truncate text-xs text-muted">
+                  {s.kind}
+                  {s.configRef ? ` · Secret: ${s.configRef}` : " · no Secret configured"}
+                </div>
+              </div>
+              {s.configRef ? (
+                <div className="hidden items-center gap-1.5 lg:flex">
+                  <EventChips events={s.events} />
+                </div>
+              ) : (
+                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning">
+                  Needs secret
+                </span>
+              )}
+              {result && (
+                <span
+                  className={cn(
+                    "max-w-48 truncate text-[11px]",
+                    result.ok ? "text-success" : "text-danger",
+                  )}
+                >
+                  {result.ok ? "✓ delivered" : result.message}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!s.configRef || dirty || test.isPending}
+                title={dirty ? "Save changes first — tests run against the saved config" : undefined}
+                onClick={() => runTest(s.name)}
+              >
+                Send test
+              </Button>
+              <Switch
+                aria-label={s.enabled ? `Disable sink ${s.name}` : `Enable sink ${s.name}`}
+                checked={s.enabled}
+                onCheckedChange={(v) => {
+                  const next = f.draft.sinks.map((x, i) =>
+                    i === idx ? { ...x, enabled: v } : x,
+                  );
+                  f.update({ sinks: next });
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete sink ${s.name}`}
+                onClick={() =>
+                  f.update({ sinks: f.draft.sinks.filter((_, i) => i !== idx) })
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </li>
+          );
+        })}
       </ul>
+      {adding ? (
+        <AddSinkForm
+          existing={f.draft.sinks.map((s) => s.name)}
+          onAdd={(s) => f.update({ sinks: [...f.draft.sinks, s] })}
+          onClose={() => setAdding(false)}
+        />
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          Add sink
+        </Button>
+      )}
     </SectionCard>
   );
 }

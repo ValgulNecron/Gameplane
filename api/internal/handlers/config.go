@@ -12,6 +12,7 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
+	"github.com/ValgulNecron/gameplane/api/internal/notify"
 )
 
 // dnsLabelRE matches an RFC1123 label: lowercase alphanumeric and dashes,
@@ -182,9 +183,11 @@ func validateAuth(body []byte) (json.RawMessage, error) {
 // The single source of truth is the cluster — no parallel registry.
 
 type notifSink struct {
-	Name    string `json:"name"`
-	Kind    string `json:"kind"` // "discord" | "slack" | "smtp" | "webhook"
-	Enabled bool   `json:"enabled"`
+	Name      string   `json:"name"`
+	Kind      string   `json:"kind"`                // "discord" | "slack" | "smtp" | "webhook"
+	Enabled   bool     `json:"enabled"`
+	ConfigRef string   `json:"configRef,omitempty"` // K8s Secret name holding the sink's credentials
+	Events    []string `json:"events,omitempty"`    // subset of notify.AllEvents; empty = notify.DefaultOn
 }
 
 type notifCfg struct {
@@ -209,6 +212,22 @@ func validateNotifications(body []byte) (json.RawMessage, error) {
 		seen[s.Name] = true
 		if !validSinkKinds[s.Kind] {
 			return nil, fmt.Errorf("sinks[%d].kind must be one of discord|slack|smtp|webhook", i)
+		}
+		// configRef stays optional so sink rows persisted before the
+		// delivery pipeline existed keep loading; the dispatcher skips
+		// enabled sinks without one and the UI flags them.
+		if s.ConfigRef != "" && !dnsLabelRE.MatchString(s.ConfigRef) {
+			return nil, fmt.Errorf("sinks[%d].configRef must match RFC1123 label", i)
+		}
+		seenEv := map[string]bool{}
+		for _, ev := range s.Events {
+			if !notify.ValidEvent(ev) {
+				return nil, fmt.Errorf("sinks[%d].events: unknown event %q", i, ev)
+			}
+			if seenEv[ev] {
+				return nil, fmt.Errorf("sinks[%d].events: duplicate %q", i, ev)
+			}
+			seenEv[ev] = true
 		}
 	}
 	return json.Marshal(c)

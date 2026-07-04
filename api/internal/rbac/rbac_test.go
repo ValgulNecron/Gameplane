@@ -153,6 +153,10 @@ func TestAllow(t *testing.T) {
 		{RoleAdmin, "GET", "/admin/config", true},
 		{RoleOperator, "PUT", "/admin/config/general", false},
 		{RoleAdmin, "PUT", "/admin/config/general", true},
+		// Notification test-sends share the config manage permission.
+		{RoleViewer, "POST", "/admin/notifications/sinks/x/test", false},
+		{RoleOperator, "POST", "/admin/notifications/sinks/x/test", false},
+		{RoleAdmin, "POST", "/admin/notifications/sinks/x/test", true},
 		// Restores: read viewer+, create operator+ (backups:restore).
 		{RoleViewer, "GET", "/restores", true},
 		{RoleViewer, "POST", "/restores", false},

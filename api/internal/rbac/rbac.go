@@ -92,6 +92,9 @@ var rules = []rule{
 	{method: "GET", segment: "admin", prefix: "/admin/audit", perm: "audit:read"},
 	{method: "GET", segment: "admin", prefix: "/admin/config", perm: "config:read"},
 	{segment: "admin", prefix: "/admin/config", perm: "config:manage"},
+	// Notification sink test-sends pair with editing the notifications
+	// config section, so they share its manage permission.
+	{segment: "admin", prefix: "/admin/notifications", perm: "config:manage"},
 	{segment: "admin", perm: "*"},
 
 	// Namespaced game resources. Reads vs writes; the catch-all GET below

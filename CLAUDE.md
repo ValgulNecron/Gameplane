@@ -23,7 +23,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 │   └── config/{crd,rbac}/    # GENERATED CRD/RBAC YAML — do not hand-edit
 ├── api/                      # REST + WebSocket gateway (Go, chi)
 │   ├── cmd/main.go           # `serve` and `bootstrap-admin` subcommands
-│   └── internal/{handlers,auth,db,kube,rbac,ws}/
+│   └── internal/{handlers,auth,db,kube,notify,rbac,ws}/
 ├── agent/                    # in-pod sidecar (Go)
 │   ├── cmd/main.go
 │   └── internal/{auth,console,files,heartbeat,logs,players,rcon,quiesce}/
@@ -266,6 +266,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 - `api/internal/auth/` — local argon2id + OIDC (`coreos/go-oidc/v3`); sessions; rate limiting
 - `api/internal/db/` — driver-selectable (modernc.org/sqlite **or** pgx/v5); migrations in `api/internal/db/migrations/`
 - `api/internal/kube/` — Kubernetes client wrapper
+- `api/internal/notify/` — notification delivery: watches GameServer/Backup/Restore status transitions and pushes events to admin-configured sinks (Discord/Slack/SMTP/webhook); see `docs/notifications.md`
 - `api/internal/rbac/` — middleware enforcing the three roles (admin, operator, viewer)
 - `api/internal/ws/` — WebSocket bridge for console/log streaming
 

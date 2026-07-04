@@ -1,6 +1,9 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 
+# netguard is an in-repo module the API depends on via a local replace
+# (../netguard); copy it first so `go mod download` and the build resolve it.
+COPY netguard/ ./netguard/
 COPY api/go.mod api/go.sum* ./api/
 WORKDIR /src/api
 RUN go mod download
