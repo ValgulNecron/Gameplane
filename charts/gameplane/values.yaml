@@ -199,6 +199,13 @@ networkPolicies:
 clusterOps:
   enabled: false
 
+# Informational release-channel label shown read-only in the dashboard's
+# Admin Settings → Updates section. Nothing consumes it — Gameplane is
+# upgraded via Helm (image tags / chart versions) — so set it to whatever
+# your image.tag tracks (e.g. "edge") to keep the dashboard honest.
+updates:
+  channel: stable
+
 serviceMonitors:
   enabled: false
   labels: {}

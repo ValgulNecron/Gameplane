@@ -60,13 +60,15 @@ describe("AdminSettings sections", () => {
     expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
 
-  it("changes the update channel and saves", async () => {
+  it("shows the read-only update channel from /cluster/info", async () => {
     renderWithQuery(<AdminSettingsPage />);
     await gotoSection(/Updates/i);
-    const select = await screen.findByRole("combobox");
-    await userEvent.selectOptions(select, "beta");
-    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    // The default handler reports updateChannel: "stable"; the section is
+    // informational — no select, no save button.
+    expect(await screen.findByText("stable")).toBeInTheDocument();
+    expect(screen.getByText(/Informational only/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Save changes/i })).not.toBeInTheDocument();
   });
 
   it("toggles a configured notification sink", async () => {

@@ -24,7 +24,7 @@ func clusterInfoName(t *testing.T, generalJSON string) string {
 	}
 	k := &kube.Client{Typed: fake.NewSimpleClientset()}
 	r := chi.NewRouter()
-	MountCluster(r, k, store, "v1", false)
+	MountCluster(r, k, store, "v1", false, "")
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
 	if rr.Code != http.StatusOK {

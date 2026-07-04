@@ -120,25 +120,11 @@ func TestValidateTelemetry(t *testing.T) {
 	}
 }
 
-func TestValidateUpdates(t *testing.T) {
-	canon, err := validateUpdates([]byte(`{"channel":"stable","unknown":"dropped"}`))
-	if err != nil {
-		t.Fatalf("stable: %v", err)
-	}
-	if string(canon) != `{"channel":"stable"}` {
-		t.Fatalf("canonicalized output: got %s", canon)
-	}
-	if _, err := validateUpdates([]byte(`{"channel":"beta"}`)); err != nil {
-		t.Fatalf("beta: %v", err)
-	}
-	if _, err := validateUpdates([]byte(`{"channel":"nightly"}`)); err != nil {
-		t.Fatalf("nightly: %v", err)
-	}
-	if _, err := validateUpdates([]byte(`{"channel":"weird"}`)); err == nil ||
-		!strings.Contains(err.Error(), "channel must") {
-		t.Fatalf("got %v", err)
-	}
-	if _, err := validateUpdates([]byte(`bogus`)); err == nil {
-		t.Fatal("expected json error")
+// The "updates" section is no longer writable — the channel is the
+// chart's informational value on /cluster/info. PUTs must 400 as an
+// unknown section (covered by the round-trip tests in config_test.go).
+func TestUpdatesSectionRemoved(t *testing.T) {
+	if _, ok := sectionValidators["updates"]; ok {
+		t.Fatal(`"updates" must not be a writable config section`)
 	}
 }

@@ -37,8 +37,6 @@ import {
   type NotificationsCfg,
   type SinkKind,
   type TelemetryCfg,
-  type UpdateChannel,
-  type UpdatesCfg,
 } from "@/lib/config";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { FieldLabel } from "@/components/ui/field";
@@ -105,7 +103,7 @@ export function AdminSettingsPage() {
           {section === "modules"                   && <ModuleSourcesPanel />}
           {cfg.data && section === "notifications" && <NotificationsSection initial={cfg.data.notifications} />}
           {cfg.data && section === "telemetry"     && <TelemetrySection     initial={cfg.data.telemetry} />}
-          {cfg.data && section === "updates"       && <UpdatesSection       initial={cfg.data.updates} />}
+          {section === "updates"                   && <UpdatesSection />}
           {section === "about"                     && <AboutSection />}
         </div>
       </div>
@@ -734,35 +732,31 @@ function TelemetrySection({ initial }: { initial?: TelemetryCfg }) {
   );
 }
 
-const defaultUpdates: UpdatesCfg = { channel: "stable" };
-
-function UpdatesSection({ initial }: { initial?: UpdatesCfg }) {
-  const f = useSectionForm<UpdatesCfg>(initial ?? defaultUpdates, "updates");
+function UpdatesSection() {
+  // Read-only: the channel mirrors the chart's informational
+  // updates.channel value (served on /cluster/info). Nothing in-app
+  // consumes it — Gameplane is upgraded via Helm, not a self-updater.
+  const { data } = useQuery({
+    queryKey: ["cluster-info"],
+    queryFn: () => Cluster.info().catch(() => ({} as ClusterInfo)),
+    staleTime: 60_000,
+  });
   return (
     <SectionCard
       title="Updates"
-      subtitle="Gameplane upgrade channel."
-      footer={
-        <>
-          <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
-        </>
-      }
+      subtitle="Gameplane is upgraded via Helm (image tags / chart versions)."
     >
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm">Channel</div>
-          <div className="pt-0.5 text-xs text-muted">Which releases to offer for updates.</div>
+          <div className="pt-0.5 text-xs text-muted">
+            Informational only — reflects <code className="font-mono">updates.channel</code> from
+            your Helm values.
+          </div>
         </div>
-        <select
-          value={f.draft.channel}
-          onChange={(e) => f.update({ channel: e.target.value as UpdateChannel })}
-          className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
-        >
-          <option value="stable">stable</option>
-          <option value="beta">beta</option>
-          <option value="nightly">nightly</option>
-        </select>
+        <span className="rounded bg-surface px-2 py-0.5 font-mono text-xs">
+          {data?.updateChannel || "—"}
+        </span>
       </div>
     </SectionCard>
   );

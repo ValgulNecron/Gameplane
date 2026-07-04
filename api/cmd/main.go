@@ -166,7 +166,7 @@ func main() {
 		handlers.MountAudit(p, auditor)
 		handlers.MountConfig(p, store)
 		handlers.MountNotifications(p, notifier)
-		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps)
+		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps, cfg.updateChannel)
 		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
@@ -240,6 +240,7 @@ type config struct {
 
 	telemetryEndpoint  string
 	clusterOps         bool
+	updateChannel      string
 	curseforgeAPIKey   string
 	auditRetentionDays int
 	auditStdout        bool
@@ -264,6 +265,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("GAMEPLANE_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("GAMEPLANE_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
 	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("GAMEPLANE_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
+	fs.StringVar(&c.updateChannel, "update-channel", envOr("GAMEPLANE_UPDATE_CHANNEL", ""), "informational release-channel label shown in the dashboard (mirrors the chart's updates.channel; Gameplane upgrades happen via Helm)")
 	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("GAMEPLANE_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")
 	fs.IntVar(&c.auditRetentionDays, "audit-retention-days", envOrInt("GAMEPLANE_AUDIT_RETENTION_DAYS", 0), "delete audit events older than this many days (0 = keep forever)")
 	fs.BoolVar(&c.auditStdout, "audit-stdout", envOr("GAMEPLANE_AUDIT_STDOUT", "") == "true", "also emit each audit event as a structured stdout log line (for external log aggregation)")
