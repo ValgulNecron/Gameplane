@@ -13,6 +13,8 @@ import type {
   GameServer,
   GameTemplate,
   InstalledMod,
+  ModMeta,
+  ModUpdatesResponse,
   List,
   LoginProvidersResp,
   Module,
@@ -110,12 +112,20 @@ export const Servers = {
   // the install policy (host allowlist, size cap); the dashboard just
   // lists, installs by URL, and removes by name.
   mods: (name: string) => api<InstalledMod[]>(`/servers/${name}/mods`),
-  installMod: (name: string, body: { url: string; name?: string }) =>
-    api<InstalledMod>(`/servers/${name}/mods/install`, { method: "POST", body }),
+  // meta records the registry identity in the agent's install manifest;
+  // replaces performs an in-place upgrade (install new → remove old).
+  installMod: (
+    name: string,
+    body: { url: string; name?: string; replaces?: string; meta?: ModMeta },
+  ) => api<InstalledMod>(`/servers/${name}/mods/install`, { method: "POST", body }),
   removeMod: (name: string, mod: string) =>
     api<void>(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, {
       method: "DELETE",
     }),
+  // Batch update check over the install manifest: every managed mod is
+  // checked against its registry provider server-side in one call.
+  modUpdates: (name: string) =>
+    api<ModUpdatesResponse>(`/servers/${name}/mods/updates`),
   // Registries the server's game declares, with availability (e.g.
   // CurseForge needs an API key) — drives the provider switch.
   registryProviders: (name: string) =>

@@ -109,11 +109,47 @@ export interface GameCapabilities {
   mods?: ModsCapability;
 }
 
+// Registry identity of an installed mod, recorded in the agent's install
+// manifest at install time and echoed back in listings. provider "upload"
+// marks direct uploads (never update-checked).
+export interface ModMeta {
+  provider: string;
+  projectId?: string;
+  projectName?: string;
+  versionId?: string;
+  versionNumber?: string;
+  gameVersion?: string;
+  loader?: string;
+  sourceUrl?: string;
+  installedAt?: string;
+}
+
 // One installed mod file, as returned by GET /servers/{name}/mods.
+// meta is null/absent for unmanaged files (placed outside the panel).
 export interface InstalledMod {
   name: string;
   size: number;
   modTime?: string;
+  meta?: ModMeta | null;
+}
+
+// One available upgrade from GET /servers/{name}/mods/updates.
+export interface ModUpdate {
+  name: string;
+  provider: string;
+  projectId: string;
+  projectName?: string;
+  installedVersionId: string;
+  installedVersionNumber?: string;
+  latestVersionId: string;
+  latestVersionNumber?: string;
+  file: RegistryFile;
+}
+
+export interface ModUpdatesResponse {
+  checkedAt: string;
+  updates: ModUpdate[];
+  errors?: { name: string; error: string }[];
 }
 
 // One reading from GET /servers/{name}/status (the agent resolves each
