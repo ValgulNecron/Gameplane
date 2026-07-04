@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   HardDrive,
+  Layers,
   Network,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -17,6 +18,7 @@ import { Servers, Templates } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
 
 import { GeneralSection } from "./settings/General";
+import { VersionSection } from "./settings/Version";
 import { ResourcesSection } from "./settings/Resources";
 import { NetworkingSection } from "./settings/Networking";
 import { EnvVarsSection } from "./settings/EnvVars";
@@ -26,6 +28,7 @@ import { DangerSection } from "./settings/Danger";
 
 type SectionKey =
   | "general"
+  | "version"
   | "resources"
   | "networking"
   | "env"
@@ -35,6 +38,7 @@ type SectionKey =
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] = [
   { key: "general",    label: "General",       icon: SettingsIcon },
+  { key: "version",    label: "Version",       icon: Layers },
   { key: "resources",  label: "Resources",     icon: HardDrive },
   { key: "networking", label: "Networking",    icon: Network },
   { key: "env",        label: "Environment",   icon: Variable },
@@ -147,10 +151,15 @@ export function SettingsTab({ gs, name, onDirtyChange }: SettingsTabProps) {
     if (savedAt) setSavedAt(null);
   };
 
+  // The Version section only exists for templates with a version catalog.
+  const sections = SECTIONS.filter(
+    (s) => s.key !== "version" || (template?.spec.versions?.length ?? 0) > 0,
+  );
+
   return (
     <div className="flex h-full">
       <nav className="w-56 shrink-0 border-r border-border bg-surface/30 p-2">
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <button
             key={s.key}
             onClick={() => setSection(s.key)}
@@ -172,6 +181,7 @@ export function SettingsTab({ gs, name, onDirtyChange }: SettingsTabProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 overflow-auto p-6 scrollbar-thin">
           {section === "general"    && <GeneralSection    draft={draft} onChange={onChangeDraft} template={template} />}
+          {section === "version"    && <VersionSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "resources"  && <ResourcesSection  draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "networking" && <NetworkingSection draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}

@@ -9,6 +9,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **web:** servers can now **switch game version after creation** — a new
+  "Version" section in Server Settings (shown when the template declares a
+  version catalog) offers the same version+loader picker as the Create
+  wizard, with a default badge, a callout explaining that each loader keeps
+  its own preserved mod volume, and an image-override warning with one-click
+  clear. Saving restarts the server on the new version; the operator side
+  (image/env swap, per-loader mod-PVC switching, unknown-id failure) was
+  already fully wired and is now also covered by an end-to-end
+  version-switch test against a live cluster.
 - **web:** the Mods tab understands mod provenance — managed mods show a
   provider + version badge (from the agent's install manifest) while files
   placed outside the panel read "unmanaged"; a **Check updates** button runs
