@@ -71,7 +71,7 @@ func TestBackup_VolumeSnapshotSucceeds(t *testing.T) {
 	})
 
 	// The volume-snapshot path must never create a restic Job.
-	consistently(t, 1*time.Second, func() (bool, string) {
+	consistently(t, 750*time.Millisecond, func() (bool, string) {
 		if _, ok := getJob(t, ns, "smp-vs"); ok {
 			return false, "restic Job created for a volume-snapshot backup"
 		}

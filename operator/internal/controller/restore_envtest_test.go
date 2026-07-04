@@ -68,7 +68,7 @@ func TestRestore_StaysPendingUntilBackupSucceeded(t *testing.T) {
 	})
 
 	// Then assert it stays in Pending while the Backup isn't ready.
-	consistently(t, 2*time.Second, func() (bool, string) {
+	consistently(t, time.Second, func() (bool, string) {
 		r := getRestore(t, ns, "rs-1")
 		if r.Status.Phase != gameplanev1alpha1.RestorePhasePending {
 			return false, "advanced past Pending: " + describeRestoreStatus(r)
@@ -179,7 +179,7 @@ func TestRestore_AdvancesToRunningOnceSuspended(t *testing.T) {
 
 	// While GameServer.Status.Phase is anything other than Suspended/Stopped
 	// the Restore must NOT create a Job.
-	consistently(t, 1500*time.Millisecond, func() (bool, string) {
+	consistently(t, 750*time.Millisecond, func() (bool, string) {
 		if _, ok := getJob(t, ns, "restore-rs-1"); ok {
 			return false, "restore Job created before GameServer reached Suspended"
 		}

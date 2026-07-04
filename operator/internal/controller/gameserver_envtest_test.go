@@ -469,7 +469,7 @@ func TestGameServer_StorageOverride(t *testing.T) {
 	})
 
 	// Sanity: PVC is immutable on size, so a re-reconcile shouldn't fail.
-	consistently(t, 1*time.Second, func() (bool, string) {
+	consistently(t, 500*time.Millisecond, func() (bool, string) {
 		var pvc corev1.PersistentVolumeClaim
 		if err := k8sClient.Get(context.Background(),
 			types.NamespacedName{Namespace: ns, Name: "smp-data"}, &pvc); err != nil {

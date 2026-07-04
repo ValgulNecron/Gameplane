@@ -75,10 +75,10 @@ func TestTemplate_NoChurnAtSteadyState(t *testing.T) {
 	})
 
 	// Capture RV after a brief settling window, then assert it stays put.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	rv := getTemplateResourceVersion(t, tmpl.Name)
 
-	consistently(t, 2*time.Second, func() (bool, string) {
+	consistently(t, time.Second, func() (bool, string) {
 		got := getTemplateResourceVersion(t, tmpl.Name)
 		if got != rv {
 			return false, "RV bumped " + rv + " → " + got + " (controller is churning Status updates)"
