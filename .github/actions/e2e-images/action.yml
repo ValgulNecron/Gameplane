@@ -2,34 +2,44 @@ name: build e2e images
 description: >
   Build the operator/api/agent images the kind e2e suites load into the
   cluster, tagged gameplane-test/<component>:e2e exactly like
-  `make e2e-images`, but through buildx with the GitHub Actions layer
-  cache (same pattern as publish-edge.yaml) so warm runs skip the Go
-  module download and most of the compile.
+  `make e2e-images`, but concurrently via buildx bake (docker-bake.hcl)
+  with the GitHub Actions layer cache. The layer cache only ever saves
+  the dependency-download layers — the compile layers are invalidated by
+  every source change — so imports are cheap wins and exports are mostly
+  overhead; hence the single-writer switch below.
+inputs:
+  export-cache:
+    description: >
+      Also write the layer cache back (type=gha, mode=max). Enable on
+      exactly ONE job per workflow run: every e2e job builds the same
+      three images, so concurrent exporters just race to upload the same
+      layers and each pays ~1 min doing it.
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
     - uses: docker/setup-buildx-action@v3
-    - uses: docker/build-push-action@v6
+    - if: inputs.export-cache != 'true'
+      uses: docker/bake-action@v6
       with:
-        context: .
-        file: operator/Dockerfile
-        tags: gameplane-test/operator:e2e
+        files: docker-bake.hcl
+        targets: e2e
         load: true
-        cache-from: type=gha,scope=e2e-operator
-        cache-to: type=gha,mode=max,scope=e2e-operator
-    - uses: docker/build-push-action@v6
+        set: |
+          e2e-operator.cache-from=type=gha,scope=e2e-operator
+          e2e-api.cache-from=type=gha,scope=e2e-api
+          e2e-agent.cache-from=type=gha,scope=e2e-agent
+    - if: inputs.export-cache == 'true'
+      uses: docker/bake-action@v6
       with:
-        context: .
-        file: api/Dockerfile
-        tags: gameplane-test/api:e2e
+        files: docker-bake.hcl
+        targets: e2e
         load: true
-        cache-from: type=gha,scope=e2e-api
-        cache-to: type=gha,mode=max,scope=e2e-api
-    - uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: agent/Dockerfile
-        tags: gameplane-test/agent:e2e
-        load: true
-        cache-from: type=gha,scope=e2e-agent
-        cache-to: type=gha,mode=max,scope=e2e-agent
+        set: |
+          e2e-operator.cache-from=type=gha,scope=e2e-operator
+          e2e-api.cache-from=type=gha,scope=e2e-api
+          e2e-agent.cache-from=type=gha,scope=e2e-agent
+          e2e-operator.cache-to=type=gha,mode=max,scope=e2e-operator
+          e2e-api.cache-to=type=gha,mode=max,scope=e2e-api
+          e2e-agent.cache-to=type=gha,mode=max,scope=e2e-agent
