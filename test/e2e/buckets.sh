@@ -33,6 +33,7 @@ TestCRD_Validation_BackupRequiresServerRef
 TestCRD_Validation_GameTemplateRequiresImage
 TestGameServer_OperatorMaterializesChildren
 TestGameServer_SuspendScalesToZeroAndBack
+TestGameServer_HeartbeatReachesRunning
 TestAPI_BootstrapAndLogin
 TestAPI_LoginPrivacy
 TestAPI_AuditEmitsOnMutation
@@ -48,6 +49,9 @@ TestAPI_LifecycleNotFound
 TestAPI_AgentFilesRoundTrip
 TestAPI_AgentPlayers
 TestAPI_AgentUnreachable
+TestAPI_CustomRole_Lifecycle
+TestAPI_BuiltinRole_Immutable
+TestAPI_PerNamespaceBinding_GrantsScopedAccess
 EOF
 }
 
@@ -61,6 +65,7 @@ TestModule_VerifyRejectsUnsignedBundle
 TestModule_VerifySignedBundleInstalls
 TestModuleSource_RejectsSSRFTarget
 TestModuleSourceAndModule
+TestModuleSourceUpload
 TestBackup_OperatorMaterializesJob
 TestBackup_FailsOnMissingPVC
 TestBackup_FailsOnBadCredentials
@@ -87,19 +92,8 @@ EOF
 
 # Tests that exist in the suite but deliberately run in NO bucket. Every
 # entry needs a reason; `verify` fails on any unlisted stray so additions
-# here are a conscious, reviewed act.
-#
-# These five predate the bucket script: the old inline ci.yaml regexes
-# silently omitted them, so they have never run in CI. Tracked to be
-# bucketed once they have a green run on record.
-unbucketed() { cat <<'EOF'
-TestGameServer_HeartbeatReachesRunning
-TestModuleSourceUpload
-TestAPI_CustomRole_Lifecycle
-TestAPI_BuiltinRole_Immutable
-TestAPI_PerNamespaceBinding_GrantsScopedAccess
-EOF
-}
+# here are a conscious, reviewed act. Currently empty.
+unbucketed() { :; }
 
 bucket_names() {
 	printf '%s\n' core extended bot
