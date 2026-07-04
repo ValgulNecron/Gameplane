@@ -1,5 +1,6 @@
 // Package registry implements read-only browse/search of external game-mod
-// registries (Modrinth, Thunderstore) for the dashboard's mod manager.
+// registries (Modrinth, Thunderstore, CurseForge, Hangar, the Factorio mod
+// portal) for the dashboard's mod manager.
 //
 // The engines here are generic: a GameTemplate's capabilities.mods.registry
 // block picks a provider and supplies its parameters, and the handler in
@@ -35,12 +36,17 @@ type Project struct {
 }
 
 // File is a downloadable artifact of a Version. DownloadURL is what the
-// dashboard hands to the agent's install endpoint.
+// dashboard hands to the agent's install endpoint. RequiresAuth marks files
+// the portal only serves with the user's own credentials appended (e.g. the
+// Factorio mod portal's username+token query params) — the dashboard then
+// offers a from-URL handoff instead of one-click install, and the server
+// never embeds credentials in URLs it returns to browsers.
 type File struct {
-	Filename    string `json:"filename"`
-	DownloadURL string `json:"downloadUrl"`
-	Size        int64  `json:"size,omitempty"`
-	Primary     bool   `json:"primary,omitempty"`
+	Filename     string `json:"filename"`
+	DownloadURL  string `json:"downloadUrl"`
+	Size         int64  `json:"size,omitempty"`
+	Primary      bool   `json:"primary,omitempty"`
+	RequiresAuth bool   `json:"requiresAuth,omitempty"`
 }
 
 // Version is one release of a Project, newest first.
@@ -111,6 +117,7 @@ type Set struct {
 	thunderstore *Thunderstore
 	curseforge   *Curseforge
 	hangar       *Hangar
+	factorio     *Factorio
 }
 
 // NewSet builds the engine set. version tags the outbound User-Agent
@@ -123,6 +130,7 @@ func NewSet(version, curseforgeKey string) *Set {
 		modrinth:     newModrinth(client, ua),
 		thunderstore: newThunderstore(client, ua),
 		hangar:       newHangar(client, ua),
+		factorio:     newFactorio(client, ua),
 	}
 	if curseforgeKey != "" {
 		s.curseforge = newCurseforge(client, ua, curseforgeKey)
@@ -151,6 +159,8 @@ func (s *Set) For(cfg Config) (Provider, bool) {
 		return s.curseforge, true
 	case "hangar":
 		return s.hangar, true
+	case "factorio":
+		return s.factorio, true
 	default:
 		return nil, false
 	}
@@ -161,7 +171,7 @@ func (s *Set) For(cfg Config) (Provider, bool) {
 // provider switch. CurseForge needs a configured API key.
 func (s *Set) Available(provider string) bool {
 	switch provider {
-	case "modrinth", "thunderstore", "hangar":
+	case "modrinth", "thunderstore", "hangar", "factorio":
 		return true
 	case "curseforge":
 		return s.curseforge != nil

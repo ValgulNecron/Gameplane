@@ -25,6 +25,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   curseforge: "CurseForge",
   thunderstore: "Thunderstore",
   hangar: "Hangar",
+  factorio: "Factorio Mod Portal",
 };
 
 function providerLabel(p: string): string {
