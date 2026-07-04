@@ -381,7 +381,9 @@ jobs:
   e2e-game-bot:
     name: e2e game bot (kind, advisory)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Two serial real-game boots (Minecraft, then Terraria — deliberately
+    # not parallel: two game servers booting at once OOM-starve the node).
+    timeout-minutes: 50
     env:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
@@ -424,7 +426,7 @@ jobs:
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_GAME_BOT=1 \
-            go test -tags=e2e -timeout 18m -v -run "$RUN_REGEX" ./...
+            go test -tags=e2e -timeout 30m -v -run "$RUN_REGEX" ./...
       - name: dump cluster state on failure
         if: failure()
         run: |

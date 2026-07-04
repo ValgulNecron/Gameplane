@@ -7,6 +7,18 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **e2e:** a **Terraria protocol bot** joins the Minecraft one — the opt-in
+  bot bucket now also boots a real Terraria server (the same
+  passivelemon/terraria-docker image the shipped module uses), completes
+  the ConnectRequest → ContinueConnecting handshake with a bespoke minimal
+  protocol client (`test/e2e/internal/terrabot`, self-correcting on
+  version-mismatch kicks), and asserts the server answers a world-data
+  request — proving the module template boots a genuinely joinable server.
+  Valheim/Palworld (steamcmd, proprietary UDP) and Factorio (UDP-only, no
+  control channel) remain out of scope for CI bots.
+
 ### Fixed
 
 - **web:** the Create Server wizard no longer produces **unschedulable
