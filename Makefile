@@ -150,7 +150,7 @@ ENVTEST_BIN          := $(shell pwd)/operator/bin/setup-envtest
 
 .PHONY: envtest-bin
 envtest-bin: ## Install setup-envtest binary into operator/bin
-	GOBIN=$(shell pwd)/operator/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	GOBIN=$(shell pwd)/operator/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
 
 .PHONY: test-integration
 test-integration: envtest-bin ## Run envtest-tagged integration tests
