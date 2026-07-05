@@ -33,6 +33,7 @@ import {
   useConfig,
   useUpdateConfigSection,
   type AuthCfg,
+  type AuthDefaultRole,
   type AuthKind,
   type AuthProvider,
   type GeneralCfg,
@@ -246,6 +247,16 @@ const defaultAuth: AuthCfg = {
 const providerSecretPrefix = "gameplane-auth-";
 const maxProviderName = 63 - providerSecretPrefix.length;
 
+// Scopes may be space- or comma-separated; group lists are comma-separated
+// only (group names may contain spaces). Both trim entries and drop empties
+// so blank inputs serialize to absent fields, never [""].
+const parseScopes = (raw: string) => raw.split(/[\s,]+/).filter(Boolean);
+const parseGroups = (raw: string) =>
+  raw
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean);
+
 function AuthSection({ initial, general }: { initial?: AuthCfg; general?: GeneralCfg }) {
   const f = useSectionForm<AuthCfg>(initial ?? defaultAuth, "auth");
   const [adding, setAdding] = useState(false);
@@ -387,8 +398,22 @@ function AddProviderForm({
   const [issuer, setIssuer] = useState("");
   const [clientID, setClientID] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [scopes, setScopes] = useState("");
+  const [groupsClaim, setGroupsClaim] = useState("");
+  const [adminGroups, setAdminGroups] = useState("");
+  const [operatorGroups, setOperatorGroups] = useState("");
+  const [viewerGroups, setViewerGroups] = useState("");
+  const [defaultRole, setDefaultRole] = useState<AuthDefaultRole | "">("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Role-mapping lists, parsed live so the Default role select can unlock
+  // as soon as any mapping exists (the API rejects defaultRole without
+  // roleMappings).
+  const adminList = parseGroups(adminGroups);
+  const operatorList = parseGroups(operatorGroups);
+  const viewerList = parseGroups(viewerGroups);
+  const hasMappings = adminList.length + operatorList.length + viewerList.length > 0;
 
   // Presets prefill what they can: Google is a real OIDC issuer;
   // github.com publishes no OIDC discovery for user login, so that kind
@@ -416,6 +441,8 @@ function AddProviderForm({
     setError(null);
     try {
       const res = await AuthProviders.putSecret(name, { clientSecret });
+      const scopeList = parseScopes(scopes);
+      const claim = groupsClaim.trim();
       onAdd({
         name,
         kind,
@@ -424,6 +451,18 @@ function AddProviderForm({
         issuer,
         clientID,
         configRef: res.name,
+        ...(scopeList.length > 0 ? { scopes: scopeList } : {}),
+        ...(claim ? { groupsClaim: claim } : {}),
+        ...(hasMappings
+          ? {
+              roleMappings: {
+                ...(adminList.length > 0 ? { admin: adminList } : {}),
+                ...(operatorList.length > 0 ? { operator: operatorList } : {}),
+                ...(viewerList.length > 0 ? { viewer: viewerList } : {}),
+              },
+            }
+          : {}),
+        ...(hasMappings && defaultRole ? { defaultRole } : {}),
       });
       onClose();
     } catch (e) {
@@ -492,6 +531,76 @@ function AddProviderForm({
             onChange={(e) => setClientSecret(e.target.value)}
           />
         </FieldLabel>
+        <FieldLabel label="Scopes (optional)">
+          <Input value={scopes} onChange={(e) => setScopes(e.target.value)} />
+          <span className="text-[11px] text-muted">
+            Extra OAuth scopes beyond <span className="font-mono">openid profile email</span> —
+            like <span className="font-mono">groups</span>. Space- or comma-separated.
+          </span>
+        </FieldLabel>
+        <FieldLabel label="Groups claim (optional)">
+          <Input
+            placeholder="groups"
+            value={groupsClaim}
+            onChange={(e) => setGroupsClaim(e.target.value)}
+          />
+          <span className="text-[11px] text-muted">
+            ID-token claim holding the user&apos;s group memberships; defaults to{" "}
+            <span className="font-mono">groups</span>.
+          </span>
+        </FieldLabel>
+      </div>
+      <div className="space-y-3 border-t border-border pt-3">
+        <div>
+          <div className="text-sm font-medium">Role mapping</div>
+          <p className="pt-0.5 text-xs text-muted">
+            Map IdP groups (comma-separated) to dashboard roles. A user&apos;s highest
+            matching role wins (admin &gt; operator &gt; viewer), and roles re-sync on
+            every login while any mapping is set.
+          </p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <FieldLabel label="Admin groups">
+            <Input
+              placeholder="gameplane-admins"
+              value={adminGroups}
+              onChange={(e) => setAdminGroups(e.target.value)}
+            />
+          </FieldLabel>
+          <FieldLabel label="Operator groups">
+            <Input
+              placeholder="gameplane-operators"
+              value={operatorGroups}
+              onChange={(e) => setOperatorGroups(e.target.value)}
+            />
+          </FieldLabel>
+          <FieldLabel label="Viewer groups">
+            <Input
+              placeholder="gameplane-viewers"
+              value={viewerGroups}
+              onChange={(e) => setViewerGroups(e.target.value)}
+            />
+          </FieldLabel>
+          <FieldLabel label="Default role">
+            <Select
+              aria-label="Default role"
+              value={defaultRole}
+              disabled={!hasMappings}
+              onValueChange={(v) => setDefaultRole(v as AuthDefaultRole | "")}
+              options={[
+                { value: "", label: "(no mapping)" },
+                { value: "viewer", label: "Viewer" },
+                { value: "operator", label: "Operator" },
+                { value: "admin", label: "Admin" },
+                { value: "deny", label: "Deny sign-in" },
+              ]}
+            />
+            <span className="text-[11px] text-muted">
+              Applied when no group matches. &ldquo;Deny sign-in&rdquo; refuses logins
+              without a mapped group.
+            </span>
+          </FieldLabel>
+        </div>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">

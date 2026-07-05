@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeConfig } from "@/test/factories";
+import type { AuthProvider } from "@/lib/config";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
@@ -122,6 +123,107 @@ describe("AdminSettings sections", () => {
       clientID: "gameplane",
       configRef: "gameplane-auth-corp",
     });
+  });
+
+  it("renders the role-mapping fields and locks Default role until a mapping exists", async () => {
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    expect(screen.getByLabelText(/Scopes/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Groups claim/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Admin groups/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Operator groups/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Viewer groups/i)).toBeInTheDocument();
+    // The API rejects defaultRole without roleMappings, so the select stays
+    // locked until at least one group is entered.
+    const defaultRole = screen.getByRole("combobox", { name: /Default role/i });
+    expect(defaultRole).toBeDisabled();
+    await userEvent.type(screen.getByLabelText(/Admin groups/i), "gp-admins");
+    expect(defaultRole).toBeEnabled();
+  });
+
+  it("serializes scopes, groups claim, role mappings, and deny into the saved provider", async () => {
+    let saved: { providers: Array<Record<string, unknown>> } | undefined;
+    server.use(
+      http.put("/admin/auth/providers/:name/secret", ({ params }) =>
+        HttpResponse.json({ name: `gameplane-auth-${String(params.name)}`, keys: ["clientSecret"] }),
+      ),
+      http.put("/admin/config/auth", async ({ request }) => {
+        saved = (await request.json()) as { providers: Array<Record<string, unknown>> };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await userEvent.type(screen.getByPlaceholderText("corp-sso"), "corp");
+    await userEvent.type(screen.getByPlaceholderText(/idp\.example/i), "https://idp.corp.example");
+    await userEvent.type(screen.getByLabelText(/Client ID/i), "gameplane");
+    await userEvent.type(screen.getByLabelText(/Client secret/i), "s3cret");
+    // Scopes accept space or comma separators; group lists are
+    // comma-separated with whitespace trimmed around each name.
+    await userEvent.type(screen.getByLabelText(/Scopes/i), "groups, offline_access");
+    await userEvent.type(screen.getByLabelText(/Groups claim/i), "memberOf");
+    await userEvent.type(screen.getByLabelText(/Admin groups/i), "GP Admins , platform-admins");
+    await userEvent.type(screen.getByLabelText(/Viewer groups/i), "gp-view");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Default role/i }), "deny");
+    await userEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
+    await screen.findByText(/oidc · https:\/\/idp\.corp\.example/i);
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    await waitFor(() => expect(saved).toBeDefined());
+    // Exact object: empty inputs (display name, operator groups) stay
+    // absent — never "" or [""].
+    expect(saved?.providers).toContainEqual({
+      name: "corp",
+      kind: "oidc",
+      enabled: true,
+      issuer: "https://idp.corp.example",
+      clientID: "gameplane",
+      configRef: "gameplane-auth-corp",
+      scopes: ["groups", "offline_access"],
+      groupsClaim: "memberOf",
+      roleMappings: { admin: ["GP Admins", "platform-admins"], viewer: ["gp-view"] },
+      defaultRole: "deny",
+    });
+  });
+
+  it("round-trips a stored provider's mapping fields through an unrelated save", async () => {
+    const corp: AuthProvider = {
+      name: "corp-sso",
+      kind: "oidc",
+      enabled: true,
+      issuer: "https://idp.corp.example",
+      clientID: "gameplane",
+      configRef: "gameplane-auth-corp-sso",
+      scopes: ["groups"],
+      groupsClaim: "memberOf",
+      roleMappings: { admin: ["gp-admins"] },
+      defaultRole: "deny",
+    };
+    let saved: { providers: Array<Record<string, unknown>> } | undefined;
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json(
+          makeConfig({
+            auth: {
+              providers: [{ name: "local", kind: "local", enabled: true }, corp],
+            },
+          }),
+        ),
+      ),
+      http.put("/admin/config/auth", async ({ request }) => {
+        saved = (await request.json()) as { providers: Array<Record<string, unknown>> };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    const toggles = await screen.findAllByRole("button", { name: /^Enabled$/i });
+    await userEvent.click(toggles[1]);
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    await waitFor(() => expect(saved).toBeDefined());
+    // The toggle flipped enabled; every mapping field survived untouched.
+    expect(saved?.providers).toContainEqual({ ...corp, enabled: false });
   });
 
   it("prefills the issuer for the Google preset", async () => {
