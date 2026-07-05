@@ -179,7 +179,7 @@ func main() {
 		handlers.MountConfig(p, store, oidcAuth != nil)
 		handlers.MountNotifications(p, notifier, k8s, cfg.namespace)
 		handlers.MountAuthProviderSecrets(p, k8s, cfg.namespace)
-		handlers.MountCluster(p, k8s, store, Version)
+		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps)
 		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)

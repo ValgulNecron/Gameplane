@@ -7,7 +7,7 @@ import { Meter } from "@/components/ui/meter";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatBytes, formatUptime } from "@/lib/utils";
 import { APIError } from "@/lib/api";
-import type { ClusterNode, ClusterView, NodeJoinInfo } from "@/types";
+import type { ClusterInfo, ClusterNode, ClusterView, NodeJoinInfo } from "@/types";
 import { Cluster } from "@/lib/endpoints";
 
 // opMessage turns a cluster-op error into user copy — 501 means the
@@ -26,6 +26,14 @@ export function ClusterPage() {
     queryFn: () => Cluster.view().catch(() => ({} as ClusterView)),
     refetchInterval: 15_000,
   });
+  const { data: info } = useQuery({
+    queryKey: ["cluster-info"],
+    queryFn: () => Cluster.info().catch(() => ({} as ClusterInfo)),
+  });
+  // Only an explicit false disables the buttons — an older API (or a
+  // failed info fetch) leaves them active, and the 501 opMessage still
+  // catches the disabled case as a backstop.
+  const opsDisabled = info?.clusterOps === false;
 
   const nodes = data?.nodes ?? [];
   const [joinInfo, setJoinInfo] = useState<NodeJoinInfo | null>(null);
@@ -67,13 +75,30 @@ export function ClusterPage() {
             : "Node inventory and health across the control plane."
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => void downloadKubeconfig()}>
-              <Download className="h-4 w-4" /> Download kubeconfig
-            </Button>
-            <Button onClick={() => addNode.mutate()} disabled={addNode.isPending}>
-              <Plus className="h-4 w-4" /> Add node
-            </Button>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void downloadKubeconfig()}
+                disabled={opsDisabled}
+                title={opsDisabled ? "Cluster operations are disabled on this install." : undefined}
+              >
+                <Download className="h-4 w-4" /> Download kubeconfig
+              </Button>
+              <Button
+                onClick={() => addNode.mutate()}
+                disabled={addNode.isPending || opsDisabled}
+                title={opsDisabled ? "Cluster operations are disabled on this install." : undefined}
+              >
+                <Plus className="h-4 w-4" /> Add node
+              </Button>
+            </div>
+            {opsDisabled && (
+              <p className="text-xs text-muted">
+                Enable <code className="font-mono">clusterOps.enabled</code> in the Helm values
+                to mint node-join tokens and kubeconfigs.
+              </p>
+            )}
           </div>
         }
       />
