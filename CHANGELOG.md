@@ -31,6 +31,9 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   refuse unmatched logins), and role re-sync on every login when mappings
   are configured (the IdP becomes the source of truth; providers without
   mappings keep today's viewer-then-promote behavior).
+- **api:** new admin-only `GET /admin/system-logs/{component}` streams the operator or
+  API pod's logs (tail + optional 50s follow window; fixed namespace and label selector
+  only) — the backend for the upcoming dashboard System Logs page.
 - **operator/modules:** game memory settings can now **size themselves to
   the container memory limit** — a configSchema field may declare
   `autoFromMemoryLimit: {percent}`, and when the user leaves it empty the

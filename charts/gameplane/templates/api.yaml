@@ -125,6 +125,14 @@ rules:
   - apiGroups: [""]
     resources: [secrets]
     verbs: [get, list, create, update, patch, delete]
+  # System logs admin endpoint (api/internal/handlers/systemlogs.go)
+  # streams operator and API pod logs from the control-plane namespace.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

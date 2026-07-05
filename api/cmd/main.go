@@ -188,6 +188,7 @@ func main() {
 		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
 		handlers.MountEvents(p, k8s)
 		handlers.MountDestinations(p, k8s)
+		handlers.MountSystemLogs(p, k8s, cfg.namespace)
 		handlers.MountModules(p, k8s, cfg.namespace)
 		regSet := registry.NewSet(Version, cfg.curseforgeAPIKey)
 		handlers.MountRegistry(p, k8s, regSet)
