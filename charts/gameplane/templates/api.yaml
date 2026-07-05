@@ -211,6 +211,9 @@ spec:
             {{- if $telemetryURL }}
             - --telemetry-endpoint={{ $telemetryURL }}
             {{- end }}
+            {{- if .Values.updates.channel }}
+            - --update-channel={{ .Values.updates.channel }}
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:

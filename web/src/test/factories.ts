@@ -12,6 +12,7 @@ import type {
   User,
   AuditEvent,
   ClusterView,
+  ClusterInfo,
   ClusterStats,
   CatalogEntry,
   Module,
@@ -197,6 +198,10 @@ export function makeClusterStats(over: Partial<ClusterStats> = {}): ClusterStats
   return { nodes: 3, totalStorageBytes: 1_000_000_000_000, usedStorageBytes: 250_000_000_000, ...over };
 }
 
+export function makeClusterInfo(over: Partial<ClusterInfo> = {}): ClusterInfo {
+  return { clusterName: "homelab", version: "v1.31.0", clusterOps: true, updateChannel: "stable", ...over };
+}
+
 export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {
   return {
     name: "minecraft-vanilla",
@@ -285,7 +290,6 @@ export function makeConfig(over: Partial<AllConfig> = {}): AllConfig {
     auth: { providers: [{ name: "local", kind: "local", enabled: true }] },
     notifications: { sinks: [] },
     telemetry: { sendMetrics: false },
-    updates: { channel: "stable" },
     ...over,
   };
 }

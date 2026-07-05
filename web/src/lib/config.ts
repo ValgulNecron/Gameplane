@@ -59,24 +59,19 @@ export interface TelemetryCfg {
   sendMetrics: boolean;
 }
 
-export type UpdateChannel = "stable" | "beta" | "nightly";
-
-export interface UpdatesCfg {
-  channel: UpdateChannel;
-}
-
 // AllConfig is the shape of GET /admin/config — every section is optional
 // because the row only exists once it's been written. Defaults are
 // supplied by the section components, not by the API.
 //
 // Backup destinations are NOT in this config — they live as labelled
-// Kubernetes Secrets, served via /backup-destinations.
+// Kubernetes Secrets, served via /backup-destinations. The former
+// "updates" section is gone too: the release channel is the chart's
+// informational updates.channel value, read-only on /cluster/info.
 export interface AllConfig {
   general?: GeneralCfg;
   auth?: AuthCfg;
   notifications?: NotificationsCfg;
   telemetry?: TelemetryCfg;
-  updates?: UpdatesCfg;
 }
 
 const KEY = ["config"] as const;

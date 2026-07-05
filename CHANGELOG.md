@@ -7,6 +7,16 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **api/web/chart:** the Admin Settings → Updates **channel selector is now a
+  read-only label**. The old select persisted a channel that nothing consumed
+  (Gameplane is upgraded via Helm, not an in-app updater); the channel is now
+  the chart's informational `updates.channel` value, passed to the API as
+  `--update-channel` and served on `GET /cluster/info` as `updateChannel`.
+  `PUT /admin/config/updates` is gone (400 unknown section) and any legacy
+  `updates` DB row is ignored.
+
 ### Added
 
 - **telemetry:** a home for the anonymous-usage reports — the new standalone
@@ -53,6 +63,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Fixed
 
+- **api/web:** the Cluster page no longer presents **"Add node" and
+  "Download kubeconfig" as click-to-error dead-ends** on installs where
+  cluster operations are off (the default). `GET /cluster/info` now reports
+  the `clusterOps` flag, and the dashboard disables both buttons with a hint
+  pointing at `clusterOps.enabled` in the Helm values.
 - **api/web:** the Authentication admin section can no longer save a config
   with **zero enabled identity providers** — a state that would have locked
   everyone out at their next logout. The API rejects such saves (422,

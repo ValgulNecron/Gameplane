@@ -138,6 +138,12 @@ func TestConfig_PutUnknownSection(t *testing.T) {
 	if status != 400 {
 		t.Fatalf("status = %d, want 400", status)
 	}
+	// "updates" was removed as a writable section — the channel is the
+	// chart's informational value on /cluster/info now.
+	status, _ = doReq(t, "PUT", srv.URL+"/admin/config/updates", map[string]any{"channel": "stable"})
+	if status != 400 {
+		t.Fatalf("updates PUT status = %d, want 400 (section removed)", status)
+	}
 }
 
 func TestConfig_PutBadJSON(t *testing.T) {
@@ -164,7 +170,6 @@ func TestConfig_PutValidationFailure(t *testing.T) {
 		{"general missing instanceName", "general", generalCfg{DefaultNamespace: "gameplane-games"}},
 		{"general bad URL", "general", generalCfg{InstanceName: "x", DefaultNamespace: "gameplane-games", ExternalURL: "not a url"}},
 		{"general bad namespace", "general", generalCfg{InstanceName: "x", DefaultNamespace: "Bad_Name"}},
-		{"updates bad channel", "updates", updatesCfg{Channel: "wat"}},
 		{"auth bad kind", "auth", authCfg{Providers: []authProvider{{Name: "x", Kind: "wat"}}}},
 		{"auth duplicate names", "auth", authCfg{Providers: []authProvider{{Name: "x", Kind: "local"}, {Name: "x", Kind: "oidc"}}}},
 		{"notif bad kind", "notifications", notifCfg{Sinks: []notifSink{{Name: "x", Kind: "telegram"}}}},
