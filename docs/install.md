@@ -102,7 +102,8 @@ Top-level knobs (see `values.yaml` for the full list):
 - `api.oidc.enabled` + `issuer` / `clientID` / `clientSecretRef` — wire OIDC login
   from Helm (shows up as the read-only `helm` provider). Providers can also be
   added at runtime under **Admin Settings → Authentication** — no Helm values
-  or restart needed; see [security](security.md#dashboard-managed-providers)
+  or restart needed; see [security](security.md#dashboard-managed-providers).
+  Per-IdP walkthroughs (Keycloak, Authentik, Google) live in [oidc.md](oidc.md)
 - `ingress.host` — dashboard hostname
 - `networkPolicies.enabled` — default-deny in games namespace (recommended on)
 - `podSecurity.enforceRestricted` — label games namespace for Pod Security Standards
