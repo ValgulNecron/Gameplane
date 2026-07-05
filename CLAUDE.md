@@ -259,6 +259,14 @@ Every piece of work goes on its own branch (rule 8). The moment that branch is m
 - **Mechanics:** finish the branch → get it merged into `main` (PR-merge, or — since `main` is unprotected — a `--no-ff` merge pushed to main; CI also runs on `push: [main]`) → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
 - Never delete a branch whose work is **not** yet in `main`, and never `--delete-branch` a stacked child whose descendants still depend on it (merge bottom-up first).
 
+### 13. Delegate to subagents, smallest model first
+
+Prefer handing work to subagents over doing it in the main loop — exploration, design.pen/Pencil edits, doc passes, mechanical refactors, test writing, conflict grunt-work. The main loop's job is orchestration, judgment, and verification, not the legwork.
+
+- **Size the model bottom-up.** Start every delegated task at the smallest model (`haiku`), and escalate step by step (`haiku` → `sonnet` → `opus`/`fable`) *only* when the smaller model's output is actually inadequate. There's no need for a top-tier model on design/scan/mechanical work that a smaller one handles fine.
+- **Mechanics:** pass `model: "haiku"` on the first `Agent` attempt for a well-scoped task, verify the result (screenshot / diff / compile), and re-run one tier up only if needed. Reserve the top model for the main loop's decisions.
+- *Why:* cost and latency — the biggest model adds nothing on well-scoped tasks, and concurrent cheap subagents finish the breadth faster.
+
 ---
 
 ## Architecture quick reference
