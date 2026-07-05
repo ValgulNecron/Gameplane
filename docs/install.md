@@ -201,6 +201,36 @@ a slow or down sink never blocks or fails a request.
     --set api.audit.webhook.syslogBridge.syslog.addr=syslog.example:514
   ```
 
+### Telemetry
+
+Gameplane can report anonymous usage once a day: `{version, servers,
+templates}` — no names, namespaces, hostnames, or identifiers. Two
+independent gates must both open before anything is sent: the admin
+toggle (**Admin Settings → Telemetry → Send anonymous usage metrics**,
+off by default) decides *whether*, and the chart decides *where*. With no
+destination configured (the default), the reporter never runs.
+
+- `api.telemetry.receiver.enabled` — deploy the bundled
+  [telemetry-receiver](../telemetry-receiver/README.md) next to the API
+  and point the API at it automatically. It logs each report and exposes
+  aggregate Prometheus metrics (`gameplane_telemetry_reports_total` by
+  version, fleet-size histograms) on its `/metrics`.
+- `api.telemetry.endpoint` — send reports to an external receiver URL
+  instead (e.g. `https://telemetry.example.com/ingest`); setting it
+  overrides the receiver auto-wiring.
+- `api.telemetry.authSecretRef` — optional shared ingest token, sourced
+  from a Secret. The API sends it verbatim as the `Authorization` header
+  and the bundled receiver requires it — recommended when the receiver is
+  enabled, since its Service is reachable by other in-cluster pods.
+
+  ```sh
+  kubectl -n gameplane-system create secret generic telemetry-ingest \
+    --from-literal=token='Bearer some-long-random-string'
+  helm upgrade ... \
+    --set api.telemetry.receiver.enabled=true \
+    --set api.telemetry.authSecretRef.name=telemetry-ingest
+  ```
+
 ## Installing a module
 
 The chart ships two `ModuleSource`s: `default` (the official OCI

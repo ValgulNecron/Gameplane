@@ -5,7 +5,7 @@ name: publish-edge
 # releases (release.yaml, triggered by v* tags) remain the recommended,
 # version-pinned install path; this is the rolling "edge" channel.
 #
-# Images: ghcr.io/<owner>/gameplane/{operator,api,agent,audit-syslog-bridge}:edge
+# Images: ghcr.io/<owner>/gameplane/{operator,api,agent,audit-syslog-bridge,telemetry-receiver}:edge
 #         ...and an immutable :sha-<short> tag for pinning a specific commit.
 # Consume with: helm install ... --set image.tag=edge
 
@@ -20,6 +20,7 @@ on:
       - "agent/**"
       - "netguard/**"
       - "audit-syslog-bridge/**"
+      - "telemetry-receiver/**"
       - "go.work"
       - "go.work.sum"
       - "**/Dockerfile"
@@ -42,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [operator, api, agent, audit-syslog-bridge]
+        component: [operator, api, agent, audit-syslog-bridge, telemetry-receiver]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

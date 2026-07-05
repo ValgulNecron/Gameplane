@@ -204,6 +204,13 @@ spec:
             {{- if $webhookURL }}
             - --audit-webhook-url={{ $webhookURL }}
             {{- end }}
+            {{- $telemetryURL := .Values.api.telemetry.endpoint }}
+            {{- if and (not $telemetryURL) .Values.api.telemetry.receiver.enabled }}
+            {{- $telemetryURL = printf "http://gameplane-telemetry-receiver.%s.svc:8080/ingest" .Release.Namespace }}
+            {{- end }}
+            {{- if $telemetryURL }}
+            - --telemetry-endpoint={{ $telemetryURL }}
+            {{- end }}
             {{- if .Values.updates.channel }}
             - --update-channel={{ .Values.updates.channel }}
             {{- end }}
@@ -228,6 +235,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.api.audit.webhook.authSecretRef.name }}
                   key:  {{ .Values.api.audit.webhook.authSecretRef.key }}
+            {{- end }}
+            {{- if .Values.api.telemetry.authSecretRef.name }}
+            - name: GAMEPLANE_TELEMETRY_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.telemetry.authSecretRef.name }}
+                  key:  {{ .Values.api.telemetry.authSecretRef.key }}
             {{- end }}
           ports:
             - { name: http,    containerPort: 8000 }

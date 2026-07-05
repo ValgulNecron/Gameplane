@@ -27,7 +27,7 @@ func bareStore(t *testing.T) *db.Store {
 }
 
 func TestNew_DefaultsInterval(t *testing.T) {
-	r := New(bareStore(t), telKube(), "http://x", "v1", 0)
+	r := New(bareStore(t), telKube(), "http://x", "", "v1", 0)
 	if r.interval != 24*time.Hour {
 		t.Fatalf("interval = %v, want the 24h default for a non-positive interval", r.interval)
 	}
@@ -37,7 +37,7 @@ func TestEnabled_Branches(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("absent config is disabled", func(t *testing.T) {
-		r := New(bareStore(t), telKube(), "http://x", "v1", time.Hour)
+		r := New(bareStore(t), telKube(), "http://x", "", "v1", time.Hour)
 		if r.enabled(ctx) {
 			t.Fatal("want disabled when there is no telemetry config row")
 		}
@@ -50,7 +50,7 @@ func TestEnabled_Branches(t *testing.T) {
 			"2026-01-01T00:00:00Z"); err != nil {
 			t.Fatalf("seed: %v", err)
 		}
-		r := New(store, telKube(), "http://x", "v1", time.Hour)
+		r := New(store, telKube(), "http://x", "", "v1", time.Hour)
 		if r.enabled(ctx) {
 			t.Fatal("want disabled for a malformed telemetry config")
 		}
@@ -58,7 +58,7 @@ func TestEnabled_Branches(t *testing.T) {
 }
 
 func TestCount_UnknownKind(t *testing.T) {
-	r := New(bareStore(t), telKube(), "http://x", "v1", time.Hour)
+	r := New(bareStore(t), telKube(), "http://x", "", "v1", time.Hour)
 	n, err := r.count(context.Background(), "bogus")
 	if err != nil || n != 0 {
 		t.Fatalf("count(bogus) = %d, %v; want 0, nil", n, err)
@@ -70,7 +70,7 @@ func TestReportOnce_EndpointErrorPropagates(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
-	r := New(telStore(t, true), telKube(), srv.URL, "v1", time.Hour)
+	r := New(telStore(t, true), telKube(), srv.URL, "", "v1", time.Hour)
 	if err := r.reportOnce(context.Background()); err == nil {
 		t.Fatal("want an error when the telemetry endpoint returns 500")
 	}

@@ -199,7 +199,7 @@ func main() {
 
 	// Opt-in, off-by-default anonymous usage telemetry. No-op unless an
 	// endpoint is configured AND the admin enabled the sendMetrics toggle.
-	go telemetry.New(store, k8s, cfg.telemetryEndpoint, Version, 24*time.Hour).Run(ctx)
+	go telemetry.New(store, k8s, cfg.telemetryEndpoint, cfg.telemetryAuth, Version, 24*time.Hour).Run(ctx)
 
 	// Opt-in audit-event retention. Off by default (0 days = keep forever);
 	// when set, a daily sweep prunes events past the window so the table
@@ -252,6 +252,7 @@ type config struct {
 	oidcDisplayName  string
 
 	telemetryEndpoint  string
+	telemetryAuth      string
 	clusterOps         bool
 	updateChannel      string
 	curseforgeAPIKey   string
@@ -277,6 +278,10 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("GAMEPLANE_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("GAMEPLANE_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("GAMEPLANE_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
+	// Like the audit webhook auth, the telemetry ingest token is a
+	// credential and only comes from the environment (a mounted Secret),
+	// never a flag.
+	c.telemetryAuth = envOr("GAMEPLANE_TELEMETRY_AUTH", "")
 	fs.BoolVar(&c.clusterOps, "cluster-ops", envOr("GAMEPLANE_CLUSTER_OPS", "") == "true", "enable credential-minting cluster ops (Add node, Download kubeconfig)")
 	fs.StringVar(&c.updateChannel, "update-channel", envOr("GAMEPLANE_UPDATE_CHANNEL", ""), "informational release-channel label shown in the dashboard (mirrors the chart's updates.channel; Gameplane upgrades happen via Helm)")
 	fs.StringVar(&c.curseforgeAPIKey, "curseforge-api-key", envOr("GAMEPLANE_CURSEFORGE_API_KEY", ""), "CurseForge API key (enables the CurseForge mod-registry provider; empty = hidden)")

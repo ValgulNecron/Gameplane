@@ -1,0 +1,72 @@
+{{- /* Only deploy the receiver when it's actually the telemetry target:
+       enabled AND no explicit api.telemetry.endpoint (an explicit endpoint
+       points the API elsewhere, so the receiver would sit idle — the API
+       auto-wires to it only when endpoint is empty, mirroring this
+       condition in api.yaml). */ -}}
+{{- if and .Values.api.telemetry.receiver.enabled (not .Values.api.telemetry.endpoint) }}
+{{- $r := .Values.api.telemetry.receiver }}
+# Anonymous-usage-telemetry collector. The API POSTs its daily
+# {version, servers, templates} report here; this validates it and
+# exposes aggregate Prometheus metrics. It touches no Kubernetes API, so
+# it runs with the default ServiceAccount and no RBAC.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gameplane-telemetry-receiver
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  replicas: {{ $r.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/name: gameplane-telemetry-receiver }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gameplane-telemetry-receiver
+        {{- include "gameplane.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: receiver
+          image: {{ include "gameplane.telemetryReceiverImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - { name: LISTEN_ADDR, value: ":8080" }
+            {{- if .Values.api.telemetry.authSecretRef.name }}
+            # Require the same shared token the API sends as its
+            # Authorization header, so the receiver rejects POSTs from
+            # other in-cluster workloads. Sourced from the Secret, never
+            # a flag/plain value.
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.telemetry.authSecretRef.name }}
+                  key:  {{ .Values.api.telemetry.authSecretRef.key }}
+            {{- end }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          livenessProbe:  { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 5 }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 2 }
+          resources: {{ toYaml $r.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gameplane-telemetry-receiver
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: gameplane-telemetry-receiver }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+{{- end }}

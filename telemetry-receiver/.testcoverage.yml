@@ -1,0 +1,15 @@
+# Coverage threshold gate for the telemetry-receiver module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# The receiver is a small ingest endpoint: the tests cover the handler
+# (validation, auth, label sanitization, metrics side effects), config
+# loading, and graceful shutdown. The uncovered remainder is main()
+# process wiring, which isn't unit-testable. Gate below measured;
+# ratchet up as coverage grows.
+profile: coverage/unit.out
+github-action-output: false
+
+threshold:
+  file: 0
+  package: 0
+  total: 70

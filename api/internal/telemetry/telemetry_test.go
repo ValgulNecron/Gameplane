@@ -71,12 +71,29 @@ func TestReportOnce_EnabledPostsAnonymousCounts(t *testing.T) {
 		unstr("GameServer", "b", "gameplane-games"),
 		unstr("GameTemplate", "minecraft", ""),
 	)
-	r := New(telStore(t, true), k, srv.URL, "v1.2.3", time.Hour)
+	r := New(telStore(t, true), k, srv.URL, "", "v1.2.3", time.Hour)
 	if err := r.reportOnce(context.Background()); err != nil {
 		t.Fatalf("reportOnce: %v", err)
 	}
 	if got.Version != "v1.2.3" || got.Servers != 2 || got.Templates != 1 {
 		t.Fatalf("payload = %+v, want {v1.2.3 2 1}", got)
+	}
+}
+
+func TestReportOnce_SendsAuthHeader(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	r := New(telStore(t, true), telKube(), srv.URL, "Bearer ingest-tok", "v1", time.Hour)
+	if err := r.reportOnce(context.Background()); err != nil {
+		t.Fatalf("reportOnce: %v", err)
+	}
+	if gotAuth != "Bearer ingest-tok" {
+		t.Fatalf("Authorization = %q, want the configured token", gotAuth)
 	}
 }
 
@@ -88,7 +105,7 @@ func TestReportOnce_DisabledSkipsPost(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	r := New(telStore(t, false), telKube(), srv.URL, "v1", time.Hour)
+	r := New(telStore(t, false), telKube(), srv.URL, "", "v1", time.Hour)
 	if err := r.reportOnce(context.Background()); err != nil {
 		t.Fatalf("reportOnce: %v", err)
 	}
