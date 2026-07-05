@@ -1046,6 +1046,59 @@ func TestGameServer_ConfigMaterializesAsEnv(t *testing.T) {
 	})
 }
 
+// TestGameServer_AutoMemoryConfigFromLimit — a configSchema field with
+// autoFromMemoryLimit resolves to percent% of the server's memory limit
+// when the user leaves it empty, and an explicit config value still wins.
+func TestGameServer_AutoMemoryConfigFromLimit(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
+		{Name: "MAX_MEMORY", Type: "string",
+			AutoFromMemoryLimit: &gameplanev1alpha1.AutoFromMemoryLimit{Percent: 75}},
+		{Name: "INIT_MEMORY", Type: "string",
+			AutoFromMemoryLimit: &gameplanev1alpha1.AutoFromMemoryLimit{Percent: 50}},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "automem", tmpl.Name)
+	gs.Spec.Resources = &corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("8Gi")},
+	}
+	gs.Spec.Config = map[string]string{"INIT_MEMORY": "1G"} // explicit value beats auto
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "automem"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		got := map[string]string{}
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			if c.Name != "game" {
+				continue
+			}
+			for _, e := range c.Env {
+				got[e.Name] = e.Value
+			}
+		}
+		if got["MAX_MEMORY"] != "6144M" {
+			return false, "MAX_MEMORY = " + got["MAX_MEMORY"] + ", want 6144M (75% of 8Gi)"
+		}
+		if got["INIT_MEMORY"] != "1G" {
+			return false, "INIT_MEMORY = " + got["INIT_MEMORY"] + ", want the explicit 1G"
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_InvalidConfigFailsThenRecovers — a config violating the
 // schema flips phase to Failed with a pointed message and creates no
 // StatefulSet; fixing spec.config materializes the server.

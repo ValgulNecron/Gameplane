@@ -794,6 +794,29 @@ type ConfigField struct {
 	// +kubebuilder:default=env
 	// +optional
 	Target string `json:"target,omitempty"`
+
+	// AutoFromMemoryLimit, when set, computes this field's value from the
+	// game container's effective memory limit whenever neither
+	// GameServer.spec.config nor Default provides one: floor(limit ×
+	// percent / 100), rendered as whole mebibytes with an "M" suffix
+	// (e.g. "6144M"). Lets templates size game memory settings (like a
+	// JVM heap) to whatever resources the server was given instead of a
+	// static default — an explicit user value always wins, and a template
+	// without a memory limit leaves the field unset.
+	// +optional
+	AutoFromMemoryLimit *AutoFromMemoryLimit `json:"autoFromMemoryLimit,omitempty"`
+}
+
+// AutoFromMemoryLimit derives a ConfigField value from the game
+// container's memory limit.
+type AutoFromMemoryLimit struct {
+	// Percent of the memory limit the computed value takes. Values well
+	// below 100 leave headroom for non-heap memory — e.g. a JVM heap at
+	// 75% of the container limit avoids the OOM kill that a heap at or
+	// above the limit invites.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	Percent int32 `json:"percent"`
 }
 
 // ConfigFile is a single operator-rendered file on the game's data

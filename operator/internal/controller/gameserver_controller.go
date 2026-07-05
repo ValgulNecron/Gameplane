@@ -663,6 +663,17 @@ func buildConfigInitContainer(tmpl *gameplanev1alpha1.GameTemplate) corev1.Conta
 	}
 }
 
+// effectiveResources resolves the game container's compute resources:
+// the template's defaults, replaced wholesale by spec.resources when set.
+func effectiveResources(
+	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+) corev1.ResourceRequirements {
+	if gs.Spec.Resources != nil {
+		return *gs.Spec.Resources
+	}
+	return tmpl.Spec.Resources
+}
+
 func buildGameContainer(
 	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, image string,
 	ver *gameplanev1alpha1.GameVersion, mc *materializedConfig,
@@ -696,10 +707,7 @@ func buildGameContainer(
 		env = append(env, *e)
 	}
 
-	res := tmpl.Spec.Resources
-	if gs.Spec.Resources != nil {
-		res = *gs.Spec.Resources
-	}
+	res := effectiveResources(gs, tmpl)
 
 	mounts := []corev1.VolumeMount{{Name: "data", MountPath: mountPath}}
 	if m := modVolumeMount(tmpl, ver); m != nil {
@@ -788,10 +796,7 @@ func buildAgentContainer(
 	// In proc mode the agent can't read the game container's cgroup limit, so
 	// pass the resolved limits through as the denominator for the dashboard's
 	// usage bars. Mirrors buildGameContainer's resource resolution.
-	gameRes := tmpl.Spec.Resources
-	if gs.Spec.Resources != nil {
-		gameRes = *gs.Spec.Resources
-	}
+	gameRes := effectiveResources(gs, tmpl)
 	if cpu := gameRes.Limits.Cpu(); cpu != nil && !cpu.IsZero() {
 		env = append(env, corev1.EnvVar{
 			Name: "GAMEPLANE_CPU_LIMIT_MILLICORES", Value: strconv.FormatInt(cpu.MilliValue(), 10),
