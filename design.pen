@@ -77142,7 +77142,15 @@
                       "id": "yEohG",
                       "type": "ref",
                       "ref": "c:XhJWF",
-                      "width": 160
+                      "width": 160,
+                      "descendants": {
+                        "c:uEVNH": {
+                          "content": "Tail"
+                        },
+                        "c:q2CuU": {
+                          "content": "500 lines"
+                        }
+                      }
                     },
                     {
                       "type": "frame",
@@ -77153,19 +77161,34 @@
                         {
                           "id": "hDBfe",
                           "type": "ref",
-                          "ref": "c:zdFKu"
+                          "ref": "c:zdFKu",
+                          "descendants": {
+                            "c:wDpHC": {
+                              "content": "Follow"
+                            }
+                          }
                         }
                       ]
                     },
                     {
                       "id": "v5IJn",
                       "type": "ref",
-                      "ref": "c:4x7RU"
+                      "ref": "c:4x7RU",
+                      "descendants": {
+                        "c:7ZVG7": {
+                          "content": "Download"
+                        }
+                      }
                     },
                     {
                       "id": "vTsue",
                       "type": "ref",
-                      "ref": "XORoH"
+                      "ref": "XORoH",
+                      "descendants": {
+                        "Fpkr7": {
+                          "content": "gameplane-api-0"
+                        }
+                      }
                     }
                   ]
                 },
