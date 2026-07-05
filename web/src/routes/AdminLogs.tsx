@@ -119,17 +119,24 @@ export function AdminLogsPage() {
         // A non-follow fetch is one-shot. The server caps follow streams at
         // ~50s, so a clean end while following just means "reconnect".
         if (!follow || ctrl.signal.aborted) return;
+        // Abortable sleep: abort must also resolve the promise, or this
+        // async frame stays suspended forever after an unmount/param change.
         await new Promise<void>((resolve) => {
           timer = setTimeout(resolve, RECONNECT_DELAY_MS);
+          ctrl.signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              resolve();
+            },
+            { once: true },
+          );
         });
         if (ctrl.signal.aborted) return;
       }
     };
     void run();
-    return () => {
-      ctrl.abort();
-      if (timer !== undefined) clearTimeout(timer);
-    };
+    return () => ctrl.abort();
   }, [component, tail, follow]);
 
   // Auto-scroll to the newest output unless the user scrolled up to read.

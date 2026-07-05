@@ -23,6 +23,34 @@ function logRes(body: string, pod: string): Response {
   });
 }
 
+// pushableRes returns a Response whose body stays open so a test can feed
+// chunks over time — needed to observe behavior between chunks (the
+// single-string logRes stream ends before the first assertion runs).
+function pushableRes(pod: string): {
+  res: Response;
+  push: (s: string) => void;
+  close: () => void;
+} {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  });
+  const enc = new TextEncoder();
+  return {
+    res: new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Gameplane-Pod": pod,
+      },
+    }),
+    push: (s: string) => controller.enqueue(enc.encode(s)),
+    close: () => controller.close(),
+  };
+}
+
 function calledURLs(): string[] {
   return fetchMock.mock.calls.map((c) => String(c[0]));
 }
@@ -136,6 +164,55 @@ describe("AdminLogsPage", () => {
     expect(url).toContain("follow=false");
     expect(url).toContain("pod=gameplane-api-0");
     clickSpy.mockRestore();
+  });
+
+  it("shows an error when the download fetch fails", async () => {
+    fetchMock
+      .mockImplementationOnce(() =>
+        Promise.resolve(logRes("ok line\n", "gameplane-api-0")),
+      )
+      .mockImplementationOnce(() => Promise.reject(new Error("network down")));
+    render(<AdminLogsPage />);
+    await screen.findByText(/ok line/);
+
+    fireEvent.click(screen.getByRole("button", { name: /download/i }));
+
+    expect(await screen.findByText("network down")).toBeInTheDocument();
+  });
+
+  it("stops auto-scrolling when the user scrolls up and resumes at the bottom", async () => {
+    const stream = pushableRes("gameplane-api-0");
+    fetchMock.mockImplementation(() => Promise.resolve(stream.res));
+    render(<AdminLogsPage />);
+
+    stream.push("first chunk\n");
+    const pre = await screen.findByText(/first chunk/);
+    const scroller = pre.parentElement as HTMLDivElement;
+
+    // Give the panel scrollable geometry (jsdom does no layout) and a
+    // plain-value scrollTop so the component's writes are observable.
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 });
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true, writable: true, value: 0,
+    });
+
+    // Scroll far above the bottom: auto-scroll disengages, so new output
+    // must not move the viewport.
+    scroller.scrollTop = 100;
+    fireEvent.scroll(scroller);
+    stream.push("second chunk\n");
+    await screen.findByText(/second chunk/);
+    expect(scroller.scrollTop).toBe(100);
+
+    // Return to the bottom: auto-scroll re-engages and pins to the end.
+    scroller.scrollTop = 900;
+    fireEvent.scroll(scroller);
+    stream.push("third chunk\n");
+    await screen.findByText(/third chunk/);
+    expect(scroller.scrollTop).toBe(1000);
+
+    stream.close();
   });
 });
 
