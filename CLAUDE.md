@@ -266,6 +266,8 @@ Prefer handing work to subagents over doing it in the main loop — exploration,
 - **Size the model bottom-up.** Start every delegated task at the smallest model (`haiku`), and escalate step by step (`haiku` → `sonnet` → `opus`/`fable`) *only* when the smaller model's output is actually inadequate. There's no need for a top-tier model on design/scan/mechanical work that a smaller one handles fine.
 - **Mechanics:** pass `model: "haiku"` on the first `Agent` attempt for a well-scoped task, verify the result (screenshot / diff / compile), and re-run one tier up only if needed. Reserve the top model for the main loop's decisions.
 - *Why:* cost and latency — the biggest model adds nothing on well-scoped tasks, and concurrent cheap subagents finish the breadth faster.
+- **Review loop (mandatory):** once **all** subagents in the current wave have finished, launch an **opus/fable-level review subagent** over their combined edits (branch diffs + original specs) to find defects and propose a fix/upgrade path, then relaunch the original small agents to apply those fixes — the big model reviews, the small models implement. In parallel with the review, launch a **sonnet** agent driving the dashboard on the updated test cluster through the Chrome MCP to confirm everything still works (skip only when the wave has no runtime surface).
+- **Label agents with their model** in the visible description — e.g. "OIDC docs PR (haiku)" — so the human can see at a glance which tier each agent runs on.
 
 ---
 
