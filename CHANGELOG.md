@@ -35,6 +35,15 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   never attached before, so every Helm-flag OIDC login 500'd). Break-
   glass for a lockout: `bootstrap-admin --enable-local-login`.
 
+- **e2e:** a **Terraria protocol bot** joins the Minecraft one — the opt-in
+  bot bucket now also boots a real Terraria server (the same
+  passivelemon/terraria-docker image the shipped module uses), completes
+  the ConnectRequest → ContinueConnecting handshake with a bespoke minimal
+  protocol client (`test/e2e/internal/terrabot`, self-correcting on
+  version-mismatch kicks), and asserts the server answers a world-data
+  request — proving the module template boots a genuinely joinable server.
+  Valheim/Palworld (steamcmd, proprietary UDP) and Factorio (UDP-only, no
+  control channel) remain out of scope for CI bots.
 - **notifications:** a new **ntfy** sink kind — POSTs each event to an ntfy
   topic URL (ntfy.sh or self-hosted) with the headline in the `Title`
   header, `Priority: high` on failures, and an optional access token.

@@ -29,12 +29,12 @@ import (
 // minecraft-java template on a real cluster; here we use a trimmed vanilla
 // template so it boots fast and fits a single kind node.
 //
-// Headless clients for the other shipped games are not viable, so there is no
-// equivalent bot test for them:
-//   - Valheim uses a proprietary, password-gated UDP protocol — no open client.
-//   - Terraria is open TCP (7777) but has no off-the-shelf headless client;
-//     only a bespoke protocol implementation could connect, which isn't worth
-//     carrying. (A plain TCP dial would prove reachability, not playability.)
+// Terraria has its own bespoke protocol bot (terraria_bot_e2e_test.go).
+// Headless clients for the remaining shipped games are not viable:
+//   - Valheim uses a proprietary, password-gated UDP protocol — no open
+//     client — and boots via a multi-GB steamcmd download; same for Palworld.
+//   - Factorio's game traffic is UDP-only and our module runs RCON off, so
+//     there is no assertable control channel.
 func TestGameServer_MinecraftBotConnects(t *testing.T) {
 	if os.Getenv("GAMEPLANE_E2E_GAME_BOT") == "" {
 		t.Skip("heavy: set GAMEPLANE_E2E_GAME_BOT=1 to run the real-Minecraft bot test")

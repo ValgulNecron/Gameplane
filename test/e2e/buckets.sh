@@ -123,6 +123,7 @@ EOF
 
 bucket_bot() { cat <<'EOF'
 TestGameServer_MinecraftBotConnects
+TestGameServer_TerrariaBotConnects
 EOF
 }
 
