@@ -19,6 +19,17 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **operator/modules:** game memory settings can now **size themselves to
+  the container memory limit** — a configSchema field may declare
+  `autoFromMemoryLimit: {percent}`, and when the user leaves it empty the
+  operator computes percent% of the server's effective memory limit
+  (e.g. 8Gi × 75% → `6144M`), re-tracking the limit whenever the server
+  is resized. The minecraft-java module (2.7.0) adopts it for
+  `MAX_MEMORY`/`INIT_MEMORY`: JVM heaps now follow the wizard's memory
+  slider instead of a static `2G` default, ending both the OOM kills
+  from heaps set at/above the limit and the RAM wasted below it.
+  Explicit values still win, and the bundle's `gameplaneMinVersion`
+  keeps older operators from silently ignoring the field.
 - **telemetry:** a home for the anonymous-usage reports — the new standalone
   **`telemetry-receiver`** component (own Go module + image, like the
   audit-syslog bridge) accepts the API's daily `{version, servers,

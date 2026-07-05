@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -406,5 +407,101 @@ func TestMaterializeConfig_FileContentChangesHash(t *testing.T) {
 	}
 	if base.hash == revalued.hash {
 		t.Errorf("file-target value change must change the config hash")
+	}
+}
+
+func autoMemSchema(percent int32, def string) []gameplanev1alpha1.ConfigField {
+	return []gameplanev1alpha1.ConfigField{{
+		Name: "MAX_MEMORY", Type: "string", Default: def,
+		AutoFromMemoryLimit: &gameplanev1alpha1.AutoFromMemoryLimit{Percent: percent},
+	}}
+}
+
+func limitsMem(q string) *corev1.ResourceRequirements {
+	return &corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse(q)},
+	}
+}
+
+func TestMaterializeConfig_AutoFromMemoryLimit(t *testing.T) {
+	gs, tmpl := configFixtures(autoMemSchema(75, ""), nil)
+	gs.Spec.Resources = limitsMem("8Gi")
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if got := envMap(mc.env)["MAX_MEMORY"]; got != "6144M" {
+		t.Errorf("MAX_MEMORY = %q, want 6144M (75%% of 8Gi)", got)
+	}
+}
+
+func TestMaterializeConfig_AutoFromMemoryLimit_ExplicitValueWins(t *testing.T) {
+	gs, tmpl := configFixtures(autoMemSchema(75, ""), map[string]string{"MAX_MEMORY": "2G"})
+	gs.Spec.Resources = limitsMem("8Gi")
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if got := envMap(mc.env)["MAX_MEMORY"]; got != "2G" {
+		t.Errorf("MAX_MEMORY = %q, want the explicit 2G over the computed value", got)
+	}
+}
+
+func TestMaterializeConfig_AutoFromMemoryLimit_DefaultWins(t *testing.T) {
+	gs, tmpl := configFixtures(autoMemSchema(75, "3G"), nil)
+	gs.Spec.Resources = limitsMem("8Gi")
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if got := envMap(mc.env)["MAX_MEMORY"]; got != "3G" {
+		t.Errorf("MAX_MEMORY = %q, want the schema default 3G over the computed value", got)
+	}
+}
+
+func TestMaterializeConfig_AutoFromMemoryLimit_TemplateResourcesFallback(t *testing.T) {
+	gs, tmpl := configFixtures(autoMemSchema(50, ""), nil)
+	tmpl.Spec.Resources = *limitsMem("1536Mi")
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if got := envMap(mc.env)["MAX_MEMORY"]; got != "768M" {
+		t.Errorf("MAX_MEMORY = %q, want 768M (50%% of the template's 1536Mi)", got)
+	}
+}
+
+func TestMaterializeConfig_AutoFromMemoryLimit_NoLimitStaysUnset(t *testing.T) {
+	gs, tmpl := configFixtures(autoMemSchema(75, ""), nil)
+
+	mc, err := materializeConfig(gs, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if v, ok := envMap(mc.env)["MAX_MEMORY"]; ok {
+		t.Errorf("MAX_MEMORY = %q, want no env var when no memory limit is set", v)
+	}
+}
+
+func TestMaterializeConfig_AutoFromMemoryLimit_HashTracksLimit(t *testing.T) {
+	gsA, tmpl := configFixtures(autoMemSchema(75, ""), nil)
+	gsA.Spec.Resources = limitsMem("4Gi")
+	gsB, _ := configFixtures(autoMemSchema(75, ""), nil)
+	gsB.Spec.Resources = limitsMem("8Gi")
+
+	mcA, err := materializeConfig(gsA, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	mcB, err := materializeConfig(gsB, tmpl)
+	if err != nil {
+		t.Fatalf("materializeConfig: %v", err)
+	}
+	if mcA.hash == mcB.hash {
+		t.Errorf("a memory-limit change must change the config hash so the pod rolls")
 	}
 }

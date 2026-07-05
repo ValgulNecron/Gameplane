@@ -640,6 +640,9 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
                 <Input
                   type={f.type === "password" ? "password" : "text"}
                   value={state.config[f.name] ?? f.default ?? ""}
+                  placeholder={f.autoFromMemoryLimit
+                    ? `Auto: ${f.autoFromMemoryLimit.percent}% of the memory limit`
+                    : undefined}
                   onChange={(e) => setState({ ...state, config: { ...state.config, [f.name]: e.target.value } })}
                 />
               )}

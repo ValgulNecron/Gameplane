@@ -118,6 +118,9 @@ func materializeConfig(
 		if !set {
 			val = f.Default
 		}
+		if val == "" && f.AutoFromMemoryLimit != nil {
+			val = autoMemoryValue(gs, tmpl, f.AutoFromMemoryLimit.Percent)
+		}
 		if val == "" {
 			if f.Required {
 				return nil, fmt.Errorf("required config field %q has no value and no default", f.Name)
@@ -187,6 +190,25 @@ func materializeConfig(
 		mc.hash = hex.EncodeToString(sum[:])
 	}
 	return mc, nil
+}
+
+// autoMemoryValue renders percent% of the game container's effective
+// memory limit as whole mebibytes ("6144M"), or "" when the resolved
+// resources declare no memory limit — the field then stays unset and the
+// game keeps its own default, matching an unset optional field.
+func autoMemoryValue(
+	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, percent int32,
+) string {
+	res := effectiveResources(gs, tmpl)
+	mem := res.Limits.Memory()
+	if mem == nil || mem.IsZero() {
+		return ""
+	}
+	mib := mem.Value() * int64(percent) / 100 / (1 << 20)
+	if mib <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(mib, 10) + "M"
 }
 
 // renderConfigFiles executes every spec.configFiles template against
