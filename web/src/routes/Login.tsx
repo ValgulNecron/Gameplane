@@ -22,9 +22,10 @@ export function LoginPage() {
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Enabled login methods, fetched pre-auth. Defaults to local-only so a
-  // failed/slow fetch never blocks password sign-in.
-  const [oidc, setOidc] = useState<LoginProvider | null>(null);
+  // Enabled login methods, fetched pre-auth. null = not loaded (failed or
+  // pending) — the password form stays visible then, so a failed/slow
+  // fetch never blocks sign-in.
+  const [providers, setProviders] = useState<LoginProvider[] | null>(null);
   // Self-service reset isn't wired up (admins reset via the CLI), so "Forgot?"
   // just reveals an inline hint rather than linking to a non-existent flow.
   const [forgot, setForgot] = useState(false);
@@ -33,15 +34,20 @@ export function LoginPage() {
     let active = true;
     void Auth.providers()
       .then((r) => {
-        if (active) setOidc(r.providers.find((x) => x.kind === "oidc") ?? null);
+        if (active) setProviders(r.providers);
       })
       .catch(() => {
-        /* local-only fallback — leave oidc null */
+        /* local-only fallback — leave providers null */
       });
     return () => {
       active = false;
     };
   }, []);
+
+  // One button per enabled SSO provider; the password form renders unless
+  // the server explicitly reports local login disabled.
+  const sso = providers?.filter((x) => x.kind !== "local") ?? [];
+  const localEnabled = providers === null || providers.some((x) => x.kind === "local");
 
   return (
     <div className="grid h-full grid-cols-1 md:grid-cols-2">
@@ -62,89 +68,84 @@ export function LoginPage() {
             <p className="pt-1 text-sm text-muted">Welcome to Gameplane.</p>
           </div>
 
-          <form
-            className="space-y-4"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setErr(null);
-              setBusy(true);
-              try {
-                await Auth.login({ username: u, password: p });
-                location.assign("/");
-              } catch (e) {
-                setErr(e instanceof APIError ? "Invalid credentials" : "Network error");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <div className="space-y-1.5">
-              <label htmlFor="username" className="block text-xs text-muted">
-                Email or username
-              </label>
-              <Input
-                id="username"
-                name="username"
-                autoComplete="username"
-                autoFocus
-                value={u}
-                onChange={(e) => setU(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              {/* The "Forgot?" control must sit OUTSIDE the <label>: a <label>
-                  that wraps a second interactive element steals that element's
-                  accessible name and mis-associates the field, so screen
-                  readers (and tests) resolve the label to the button, not the
-                  password input. */}
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-xs text-muted">
-                  Password
+          {localEnabled ? (
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setErr(null);
+                setBusy(true);
+                try {
+                  await Auth.login({ username: u, password: p });
+                  location.assign("/");
+                } catch (e) {
+                  setErr(e instanceof APIError ? "Invalid credentials" : "Network error");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <div className="space-y-1.5">
+                <label htmlFor="username" className="block text-xs text-muted">
+                  Email or username
                 </label>
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => setForgot((v) => !v)}
-                >
-                  Forgot?
-                </button>
+                <Input
+                  id="username"
+                  name="username"
+                  autoComplete="username"
+                  autoFocus
+                  value={u}
+                  onChange={(e) => setU(e.target.value)}
+                />
               </div>
-              <PasswordInput
-                id="password"
-                name="password"
-                autoComplete="current-password"
-                value={p}
-                onChange={(e) => setP(e.target.value)}
-              />
-              {forgot && (
-                <p className="text-xs text-muted">
-                  Contact your administrator to reset your password.
-                </p>
-              )}
-            </div>
-            {err && <p className="text-sm text-danger">{err}</p>}
-            <Button type="submit" className="w-full rounded-full" size="lg" disabled={busy}>
-              Sign in →
-            </Button>
-            {oidc && (
-              <>
+              <div className="space-y-1.5">
+                {/* The "Forgot?" control must sit OUTSIDE the <label>: a <label>
+                    that wraps a second interactive element steals that element's
+                    accessible name and mis-associates the field, so screen
+                    readers (and tests) resolve the label to the button, not the
+                    password input. */}
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="block text-xs text-muted">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => setForgot((v) => !v)}
+                  >
+                    Forgot?
+                  </button>
+                </div>
+                <PasswordInput
+                  id="password"
+                  name="password"
+                  autoComplete="current-password"
+                  value={p}
+                  onChange={(e) => setP(e.target.value)}
+                />
+                {forgot && (
+                  <p className="text-xs text-muted">
+                    Contact your administrator to reset your password.
+                  </p>
+                )}
+              </div>
+              {err && <p className="text-sm text-danger">{err}</p>}
+              <Button type="submit" className="w-full rounded-full" size="lg" disabled={busy}>
+                Sign in →
+              </Button>
+              {sso.length > 0 && (
                 <div className="relative py-2 text-center text-[11px] uppercase tracking-widest text-muted">
                   <span className="relative z-10 bg-background px-2">or</span>
                   <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full rounded-full"
-                  size="lg"
-                  onClick={() => location.assign(Auth.oidcStartURL())}
-                >
-                  <KeyRound className="h-4 w-4" />
-                  Continue with {oidc.label}
-                </Button>
-              </>
-            )}
-          </form>
+              )}
+              <SSOButtons providers={sso} />
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <SSOButtons providers={sso} />
+            </div>
+          )}
 
           <p className="mt-10 text-center text-[11px] text-muted">
             AGPL-3.0 licensed
@@ -189,6 +190,29 @@ export function LoginPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+// One "Continue with …" button per enabled SSO provider. Labels come
+// from the pre-auth providers endpoint (admin display names — never
+// issuer URLs, per the login-privacy rule).
+function SSOButtons({ providers }: { providers: LoginProvider[] }) {
+  return (
+    <>
+      {providers.map((p) => (
+        <Button
+          key={p.name ?? p.label}
+          type="button"
+          variant="outline"
+          className="w-full rounded-full"
+          size="lg"
+          onClick={() => location.assign(Auth.oidcStartURL(p.name))}
+        >
+          <KeyRound className="h-4 w-4" />
+          Continue with {p.label}
+        </Button>
+      ))}
+    </>
   );
 }
 
