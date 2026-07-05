@@ -296,10 +296,13 @@ func (o *OIDC) resolveOrLinkUser(
 	).Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.Role)
 	if err == nil {
 		if syncRole && u.Role != role {
-			if err := o.syncUserRole(ctx, u.ID, role); err != nil {
+			applied, err := o.syncUserRole(ctx, u.ID, role)
+			if err != nil {
 				return nil, fmt.Errorf("sync role for user %d: %w", u.ID, err)
 			}
-			u.Role = role
+			if applied {
+				u.Role = role
+			}
 		}
 		return &u, nil
 	}
@@ -356,23 +359,50 @@ func (o *OIDC) resolveOrLinkUser(
 // cluster-wide ("*") role binding at role, in one transaction. Namespace-
 // scoped bindings are deliberately left alone — the IdP owns the primary
 // role, not the per-namespace grants an admin may have added.
-func (o *OIDC) syncUserRole(ctx context.Context, userID int64, role string) error {
+//
+// One exception, mirroring the manual users handler's lockout guard: a
+// demotion that would strip the install's LAST user who can manage users
+// is skipped (applied=false, no error) — the login still succeeds and the
+// stored role stays. Otherwise a group-mapping mistake at the IdP could
+// have the sole admin demote themselves by logging in, locking everyone
+// out of user administration.
+func (o *OIDC) syncUserRole(ctx context.Context, userID int64, role string) (applied bool, err error) {
+	newGrantsManage, err := o.db.RoleGrantsUserManagement(ctx, role)
+	if err != nil {
+		return false, fmt.Errorf("check target role: %w", err)
+	}
+	if !newGrantsManage {
+		managesNow, err := o.db.UserManagesUsers(ctx, userID)
+		if err != nil {
+			return false, fmt.Errorf("check current role: %w", err)
+		}
+		if managesNow {
+			count, err := o.db.UserManagerCount(ctx)
+			if err != nil {
+				return false, fmt.Errorf("count user managers: %w", err)
+			}
+			if count <= 1 {
+				slog.Warn("oidc role resync skipped: would remove last user-manager", "user", userID)
+				return false, nil
+			}
+		}
+	}
 	tx, err := o.db.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin: %w", err)
+		return false, fmt.Errorf("begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE users SET role = ? WHERE id = ?`, role, userID); err != nil {
-		return fmt.Errorf("update role: %w", err)
+		return false, fmt.Errorf("update role: %w", err)
 	}
 	if err := o.db.SetClusterRoleBinding(ctx, tx, userID, role); err != nil {
-		return err
+		return false, err
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
+		return false, fmt.Errorf("commit: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // pickUniqueUsername returns base if no existing user has that username,

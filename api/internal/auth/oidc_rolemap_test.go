@@ -266,6 +266,110 @@ func TestHandleCallback_NoMappingKeepsManualPromotion(t *testing.T) {
 	}
 }
 
+// TestHandleCallback_ResyncKeepsLastUserManager — the sole admin's IdP
+// groups now map only to viewer; the resync must SKIP the demotion (the
+// install would otherwise lose its last user-manager) while the login
+// itself still succeeds.
+func TestHandleCallback_ResyncKeepsLastUserManager(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.groups = []string{"gp-admins"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin:  []string{"gp-admins"},
+				Viewer: []string{"gp-view"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	// First login makes the user the install's only admin.
+	idp.nonce = "nonce-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
+		t.Fatalf("first login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// Admin group revoked at the IdP; only a viewer-mapped group remains.
+	idp.groups = []string{"gp-view"}
+	idp.nonce = "nonce-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-2"); rr.Code != http.StatusFound {
+		t.Fatalf("second login must still succeed: code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	var role, bindingRole string
+	if err := store.DB.QueryRow(`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if err := store.DB.QueryRow(`
+		SELECT b.role_name FROM user_role_bindings b
+		JOIN users u ON u.id = b.user_id
+		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
+		t.Fatalf("binding: %v", err)
+	}
+	if role != "admin" || bindingRole != "admin" {
+		t.Fatalf("role=%q binding=%q, last user-manager must keep admin", role, bindingRole)
+	}
+}
+
+// TestHandleCallback_ResyncDemotesWhenAnotherManagerExists — the inverse
+// of the lockout guard: with a second admin present, the same demotion
+// login applies as normal.
+func TestHandleCallback_ResyncDemotesWhenAnotherManagerExists(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.groups = []string{"gp-admins"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin:  []string{"gp-admins"},
+				Viewer: []string{"gp-view"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	idp.nonce = "nonce-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
+		t.Fatalf("first login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// A second user-manager exists, so the guard must not fire.
+	if _, err := store.DB.Exec(
+		`INSERT INTO users(username, display_name, email, role) VALUES ('root2', 'Root Two', 'root2@x', 'admin')`,
+	); err != nil {
+		t.Fatalf("seed second admin: %v", err)
+	}
+
+	idp.groups = []string{"gp-view"}
+	idp.nonce = "nonce-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-2"); rr.Code != http.StatusFound {
+		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	var role, bindingRole string
+	if err := store.DB.QueryRow(`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	if err := store.DB.QueryRow(`
+		SELECT b.role_name FROM user_role_bindings b
+		JOIN users u ON u.id = b.user_id
+		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
+		t.Fatalf("binding: %v", err)
+	}
+	if role != "viewer" || bindingRole != "viewer" {
+		t.Fatalf("role=%q binding=%q, want viewer/viewer (another manager exists)", role, bindingRole)
+	}
+}
+
 // TestHandleCallback_DefaultRoleDeny — defaultRole=deny plus no matching
 // group refuses the login with 403 and creates no user row.
 func TestHandleCallback_DefaultRoleDeny(t *testing.T) {
