@@ -13,6 +13,7 @@ import {
   Server,
   Settings,
   ShieldCheck,
+  Terminal,
   Users,
 } from "lucide-react";
 import { APIError } from "@/lib/api";
@@ -77,6 +78,11 @@ function Sidebar({ me, clusterName }: { me?: User; clusterName?: string }) {
   }
   if (can(me, "audit:read")) {
     admin.push({ to: "/admin/audit", label: "Audit log", icon: ScrollText });
+  }
+  // System logs match the API's /admin/system-logs guard: the admin
+  // wildcard permission, not a narrower named one.
+  if (can(me, "*")) {
+    admin.push({ to: "/admin/logs", label: "System logs", icon: Terminal });
   }
   if (can(me, "config:manage")) {
     admin.push({ to: "/admin", label: "Settings", icon: Settings });
@@ -367,6 +373,7 @@ function buildCrumbs(pathname: string, _matches: unknown[]): Crumb[] {
     users:   "Users & RBAC",
     admin:   "Settings",
     audit:   "Audit log",
+    logs:    "System logs",
     backups: "Backups",
     new:     "New",
   };
