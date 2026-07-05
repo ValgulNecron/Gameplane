@@ -14,7 +14,13 @@ export type AuthKind = "local" | "oidc" | "google" | "github";
 export interface AuthProvider {
   name: string;
   kind: AuthKind;
+  displayName?: string; // login button label; defaults to the name
   enabled: boolean;
+  // Non-local kinds: issuer + client id are public identifiers and live
+  // in the config row; only the clientSecret hides in the configRef
+  // Secret (default gameplane-auth-<name>, written via AuthProviders.putSecret).
+  issuer?: string;
+  clientID?: string;
   configRef?: string;
 }
 
@@ -22,7 +28,7 @@ export interface AuthCfg {
   providers: AuthProvider[];
 }
 
-export type SinkKind = "discord" | "slack" | "smtp" | "webhook";
+export type SinkKind = "discord" | "slack" | "smtp" | "webhook" | "ntfy";
 
 // The closed event set mirrors api/internal/notify/events.go. A sink with
 // no explicit filter receives the failure events plus server.recovered.

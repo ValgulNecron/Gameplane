@@ -17,6 +17,38 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `PUT /admin/config/updates` is gone (400 unknown section) and any legacy
   `updates` DB row is ignored.
 
+### Added
+
+- **auth:** identity providers are now **managed from the dashboard and
+  applied live** — Admin Settings → Authentication gained an "Add
+  provider" form (generic OIDC, Google preset, GitHub-via-bridge preset):
+  issuer + client id go in the auth config, the client secret lands in an
+  API-managed Secret (`gameplane-auth-<name>`), and the new
+  `/auth/oidc/{provider}/start|callback` routes resolve providers through
+  a registry that re-reads the config per request — a saved provider
+  works without an API restart, and several OIDC providers can coexist.
+  The login page renders one button per enabled provider and hides the
+  password form when local login is disabled; disabling local now
+  actually gates `/auth/login` (neutral 403). Helm-flag OIDC keeps
+  working untouched as the read-only `helm` provider on its legacy
+  routes (and its callback now links accounts correctly — the store was
+  never attached before, so every Helm-flag OIDC login 500'd). Break-
+  glass for a lockout: `bootstrap-admin --enable-local-login`.
+
+- **notifications:** a new **ntfy** sink kind — POSTs each event to an ntfy
+  topic URL (ntfy.sh or self-hosted) with the headline in the `Title`
+  header, `Priority: high` on failures, and an optional access token.
+- **notifications:** the **Add sink form now takes the credential value
+  directly** (webhook URL, ntfy topic + token, SMTP settings) instead of
+  requiring a pre-created labelled Secret referenced by name. The API
+  stores the value as a Secret named `gameplane-notify-<sink>` (labelled
+  `gameplane.local/notification-sink=true` +
+  `gameplane.local/managed-by=gameplane-api`) and wires the sink's
+  `configRef` automatically; deleting the sink cleans the Secret up.
+  Secrets created with kubectl/GitOps keep working and are never deleted
+  through the dashboard. The cryptic "Name (DNS label)" help text is gone
+  too.
+
 ### Fixed
 
 - **api/web:** the Cluster page no longer presents **"Add node" and
@@ -24,6 +56,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   cluster operations are off (the default). `GET /cluster/info` now reports
   the `clusterOps` flag, and the dashboard disables both buttons with a hint
   pointing at `clusterOps.enabled` in the Helm values.
+- **api/web:** the Authentication admin section can no longer save a config
+  with **zero enabled identity providers** — a state that would have locked
+  everyone out at their next logout. The API rejects such saves (422,
+  "at least one identity provider must stay enabled") and the dashboard
+  disables the toggle on the last enabled provider with an explanatory hint.
 - **web:** the Create Server wizard no longer produces **unschedulable
   servers**. It set only resource *limits*, so Kubernetes defaulted
   requests to match — a 4-core limit then needed a fully-empty node and sat

@@ -542,6 +542,7 @@ export interface NodeJoinInfo {
 }
 
 export interface LoginProvider {
+  name?: string; // route slug for /auth/oidc/{name}/start ("helm" = the Helm-flag provider)
   kind: "local" | "oidc" | string;
   label: string;
 }

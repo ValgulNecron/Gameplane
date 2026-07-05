@@ -66,6 +66,14 @@ func (n *Notifier) deliver(ctx context.Context, s Sink, secret map[string][]byte
 		body, err = formatSlack(e)
 	case "webhook":
 		body, err = formatWebhook(e)
+	case "ntfy":
+		// ntfy takes a plain-text body with the metadata in headers, not a
+		// JSON envelope — it bypasses the shared JSON POST below.
+		body, headers := formatNtfy(e)
+		if auth := string(secret["authorization"]); auth != "" {
+			headers["Authorization"] = auth
+		}
+		return n.sendHTTPHeaders(ctx, string(secret["url"]), headers, body)
 	case "smtp":
 		return sendSMTP(ctx, secret, e)
 	default:
@@ -77,10 +85,20 @@ func (n *Notifier) deliver(ctx context.Context, s Sink, secret map[string][]byte
 	return n.sendHTTP(ctx, string(secret["url"]), string(secret["authorization"]), body)
 }
 
-// sendHTTP POSTs body to url. 4xx means the endpoint understood us and said
-// no (bad token, revoked webhook) — permanent; 5xx and network errors are
-// transient and retryable.
+// sendHTTP POSTs body as JSON to url. 4xx means the endpoint understood
+// us and said no (bad token, revoked webhook) — permanent; 5xx and
+// network errors are transient and retryable.
 func (n *Notifier) sendHTTP(ctx context.Context, rawURL, authHeader string, body []byte) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	if authHeader != "" {
+		headers["Authorization"] = authHeader
+	}
+	return n.sendHTTPHeaders(ctx, rawURL, headers, body)
+}
+
+// sendHTTPHeaders is sendHTTP with an explicit header set, for sinks
+// whose protocol rides on headers rather than a JSON body (ntfy).
+func (n *Notifier) sendHTTPHeaders(ctx context.Context, rawURL string, headers map[string]string, body []byte) error {
 	if rawURL == "" {
 		return fmt.Errorf(`secret has no "url" key: %w`, errPermanent)
 	}
@@ -88,9 +106,8 @@ func (n *Notifier) sendHTTP(ctx context.Context, rawURL, authHeader string, body
 	if err != nil {
 		return fmt.Errorf("build request: %w: %w", sanitizeErr(err), errPermanent)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	if authHeader != "" {
-		req.Header.Set("Authorization", authHeader)
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	resp, err := n.client.Do(req)
 	if err != nil {

@@ -1,9 +1,9 @@
 # Notifications
 
 Gameplane can push cluster events — a server going unhealthy, a backup or
-restore finishing — to external sinks: **Discord**, **Slack**, **SMTP**
-(email), or a **generic webhook**. Sinks are configured in the dashboard
-under **Admin Settings → Notifications** (persisted via
+restore finishing — to external sinks: **Discord**, **Slack**, **ntfy**,
+**SMTP** (email), or a **generic webhook**. Sinks are configured in the
+dashboard under **Admin Settings → Notifications** (persisted via
 `PUT /admin/config/notifications`); their credentials live in Kubernetes
 Secrets, never in the database.
 
@@ -34,11 +34,25 @@ cross-restart watermark.
 
 ## Sink credentials (Secrets)
 
-Each sink references a Secret by name (`configRef`). The Secret must live in
-the **control-plane namespace** (where the API runs) and must carry the label
-`gameplane.local/notification-sink: "true"` — the API refuses to read
-Secrets without it, so granting someone `config:manage` does not let them
-exfiltrate arbitrary control-plane Secrets by pointing a sink at one.
+The **Add sink** form takes the credential material directly — the webhook
+URL, ntfy topic + token, or SMTP settings — and the API stores it as a
+Secret named `gameplane-notify-<sink>` in the **control-plane namespace**
+(`PUT /admin/notifications/sinks/{name}/secret`, permission
+`config:manage`). The sink's `configRef` is set to that Secret
+automatically, and deleting the sink in the dashboard also deletes the
+Secret (only API-created ones — see below).
+
+Each sink references its Secret by name (`configRef`). Two labels bound
+what the API may touch:
+
+- `gameplane.local/notification-sink: "true"` — the API refuses to *read
+  or overwrite* Secrets without it, so granting someone `config:manage`
+  does not let them exfiltrate arbitrary control-plane Secrets by pointing
+  a sink at one.
+- `gameplane.local/managed-by: gameplane-api` — set on Secrets the API
+  created from the form. Deletes over HTTP require it, so Secrets created
+  with `kubectl` or a GitOps pipeline are never deleted through the
+  dashboard.
 
 Expected keys per kind:
 
@@ -46,24 +60,19 @@ Expected keys per kind:
 |---|---|
 | `discord` | `url` — the Discord webhook URL |
 | `slack` | `url` — the Slack incoming-webhook URL |
+| `ntfy` | `url` — the topic URL, e.g. `https://ntfy.sh/my-topic` (self-hosted servers work the same); optional `authorization` (the form's *access token* is stored as `Bearer <token>`) |
 | `webhook` | `url`; optional `authorization` (sent verbatim as the `Authorization` header) |
 | `smtp` | `host`; `from`; `to` (comma-separated); optional `port` (default `587`), `username` + `password` (AUTH PLAIN), `tls` = `starttls` (default) \| `implicit` \| `none` |
 
+Pre-creating a labelled Secret with `kubectl` still works — the notifier
+only cares about the label, not who created it. Write the sink row with a
+matching `configRef` via `PUT /admin/config/notifications`:
+
 ```sh
-# A Discord sink named "team-alerts":
+# A Discord sink Secret named "team-alerts", managed outside the dashboard:
 kubectl -n gameplane-system create secret generic team-alerts \
   --from-literal=url='https://discord.com/api/webhooks/…'
 kubectl -n gameplane-system label secret team-alerts \
-  gameplane.local/notification-sink=true
-
-# An SMTP sink:
-kubectl -n gameplane-system create secret generic ops-mail \
-  --from-literal=host=smtp.example.com \
-  --from-literal=from=gameplane@example.com \
-  --from-literal=to=ops@example.com \
-  --from-literal=username=gameplane \
-  --from-literal=password='…'
-kubectl -n gameplane-system label secret ops-mail \
   gameplane.local/notification-sink=true
 ```
 
@@ -76,6 +85,9 @@ connection, so `tls: none` only works for unauthenticated relays.
   successes, timestamped.
 - **slack** — a plain `{"text": …}` message (works with every
   incoming-webhook variant and most compatibles, e.g. Mattermost).
+- **ntfy** — a plain-text POST to the topic URL with the metadata in ntfy
+  headers: `Title` is the event headline, `Priority` is `high` for
+  failures and `default` otherwise, `Tags` picks the emoji.
 - **webhook** — the full structured event:
 
   ```json
@@ -111,7 +123,7 @@ errors and 5xx; a 4xx response (revoked webhook, bad token) is not retried.
 Outcomes are counted at `/metrics`:
 
 ```
-gameplane_notify_deliveries_total{kind="discord|slack|smtp|webhook|queue",
+gameplane_notify_deliveries_total{kind="discord|slack|smtp|webhook|ntfy|queue",
                                   result="sent|failed|dropped|skipped_no_secret"}
 ```
 

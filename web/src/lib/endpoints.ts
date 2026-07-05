@@ -409,9 +409,30 @@ export const Auth = {
   login: (body: { username: string; password: string }) =>
     api<User>("/auth/login", { method: "POST", body }),
   logout: () => api<void>("/auth/logout", { method: "POST" }),
-  oidcStartURL: () => "/auth/oidc/start",
+  // Per-provider start route. The Helm-flag provider ("helm", or an old
+  // response without names) uses the legacy path — its state cookies and
+  // IdP-registered callback live there.
+  oidcStartURL: (name?: string) =>
+    name && name !== "helm"
+      ? `/auth/oidc/${encodeURIComponent(name)}/start`
+      : "/auth/oidc/start",
   // Public, pre-auth: which login methods are enabled + their labels.
   providers: () => api<LoginProvidersResp>("/auth/providers"),
+};
+
+// Managed clientSecret Secrets behind dashboard-added identity providers
+// (Admin Settings → Authentication). Mirrors the notification-sink
+// secret flow: PUT the value, reference the returned name as configRef.
+export const AuthProviders = {
+  putSecret: (name: string, body: { clientSecret: string }) =>
+    api<{ name: string; keys: string[] }>(
+      `/admin/auth/providers/${encodeURIComponent(name)}/secret`,
+      { method: "PUT", body },
+    ),
+  deleteSecret: (name: string) =>
+    api<void>(`/admin/auth/providers/${encodeURIComponent(name)}/secret`, {
+      method: "DELETE",
+    }),
 };
 
 export const Audit = {
@@ -422,6 +443,24 @@ export const Audit = {
   },
 };
 
+// SinkSecretBody carries a sink's credential material, keyed by kind:
+// discord/slack/webhook take {url, authorization?}, ntfy {url, token?},
+// smtp {host, port?, username?, password?, from, to, tls?}. The API
+// stores it as the labelled Secret the sink's configRef points at.
+export interface SinkSecretBody {
+  kind: string;
+  url?: string;
+  authorization?: string;
+  token?: string;
+  host?: string;
+  port?: string;
+  username?: string;
+  password?: string;
+  from?: string;
+  to?: string;
+  tls?: string;
+}
+
 export const Notifications = {
   // Test-fires the *persisted* sink synchronously; the response carries the
   // real delivery outcome (502 body = the delivery error, URL-sanitized).
@@ -430,6 +469,20 @@ export const Notifications = {
       `/admin/notifications/sinks/${encodeURIComponent(name)}/test`,
       { method: "POST" },
     ),
+  // Writes the sink's credential Secret (API-managed, labelled); returns
+  // the Secret name to use as the sink's configRef. Values are never
+  // echoed back.
+  putSecret: (name: string, body: SinkSecretBody) =>
+    api<{ name: string; keys: string[] }>(
+      `/admin/notifications/sinks/${encodeURIComponent(name)}/secret`,
+      { method: "PUT", body },
+    ),
+  // Best-effort removal of the API-managed Secret; user-created Secrets
+  // are refused server-side.
+  deleteSecret: (name: string) =>
+    api<void>(`/admin/notifications/sinks/${encodeURIComponent(name)}/secret`, {
+      method: "DELETE",
+    }),
 };
 
 // FileEntry mirrors the agent's response shape (agent/openapi.yaml). The

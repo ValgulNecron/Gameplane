@@ -45,7 +45,7 @@ func notifSinkSecret(name, url string) *corev1.Secret {
 func notifTestRouter(store *db.Store, secrets ...runtime.Object) chi.Router {
 	r := chi.NewRouter()
 	k := &kube.Client{Typed: kubefake.NewClientset(secrets...)}
-	MountNotifications(r, notify.New(store, k, notifNS))
+	MountNotifications(r, notify.New(store, k, notifNS), k, notifNS)
 	return r
 }
 

@@ -37,23 +37,35 @@ func TestValidateGeneral(t *testing.T) {
 }
 
 func TestValidateAuth(t *testing.T) {
+	// A complete, valid OIDC provider entry the cases below vary from.
+	const corp = `{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"gameplane"}`
 	cases := []struct {
 		name string
+		helm bool
 		in   string
 		ok   bool
 		errs string
 	}{
-		{"empty providers", `{"providers":[]}`, true, ""},
-		{"missing name", `{"providers":[{"kind":"local"}]}`, false, "name is required"},
-		{"duplicate name", `{"providers":[{"name":"a","kind":"local"},{"name":"a","kind":"oidc"}]}`, false, "duplicate"},
-		{"unknown kind", `{"providers":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
-		{"bad configRef", `{"providers":[{"name":"a","kind":"local","configRef":"BAD"}]}`, false, "configRef"},
-		{"happy path", `{"providers":[{"name":"a","kind":"oidc","configRef":"my-secret"}]}`, true, ""},
-		{"bad json", `{`, false, "invalid json"},
+		{"empty providers", false, `{"providers":[]}`, false, "at least one identity provider"},
+		{"missing name", false, `{"providers":[{"kind":"local"}]}`, false, "name is required"},
+		{"duplicate name", false, `{"providers":[{"name":"a","kind":"local"},{"name":"a","kind":"oidc"}]}`, false, "duplicate"},
+		{"unknown kind", false, `{"providers":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
+		{"bad configRef", false, `{"providers":[{"name":"a","kind":"local","configRef":"BAD"}]}`, false, "configRef"},
+		{"happy path", false, `{"providers":[{"name":"local","kind":"local","enabled":true},` + corp + `]}`, true, ""},
+		{"all providers disabled", false, `{"providers":[{"name":"local","kind":"local","enabled":false}]}`, false, "at least one identity provider"},
+		{"helm provider satisfies the guard", true, `{"providers":[{"name":"local","kind":"local","enabled":false}]}`, true, ""},
+		{"oidc missing issuer", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"clientID":"g"}]}`, false, "issuer"},
+		{"oidc bad issuer", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"ftp://x","clientID":"g"}]}`, false, "issuer"},
+		{"oidc missing clientID", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example"}]}`, false, "clientID"},
+		{"oidc name not a label", false, `{"providers":[{"name":"Corp SSO","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}]}`, false, "DNS label"},
+		{"helm name reserved", false, `{"providers":[{"name":"helm","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}]}`, false, "reserved"},
+		{"two locals", false, `{"providers":[{"name":"local","kind":"local","enabled":true},{"name":"Local accounts","kind":"local","enabled":true}]}`, false, "one local"},
+		{"legacy local name accepted", false, `{"providers":[{"name":"Local accounts","kind":"local","enabled":true}]}`, true, ""},
+		{"bad json", false, `{`, false, "invalid json"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := validateAuth([]byte(tc.in))
+			_, err := validateAuth(tc.helm)([]byte(tc.in))
 			if tc.ok && err != nil {
 				t.Fatalf("unexpected: %v", err)
 			}
@@ -76,6 +88,7 @@ func TestValidateNotifications(t *testing.T) {
 		{"duplicate", `{"sinks":[{"name":"a","kind":"discord"},{"name":"a","kind":"slack"}]}`, false, "duplicate"},
 		{"bad kind", `{"sinks":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
 		{"happy", `{"sinks":[{"name":"x","kind":"smtp"}]}`, true, ""},
+		{"happy ntfy", `{"sinks":[{"name":"x","kind":"ntfy","enabled":true,"configRef":"gameplane-notify-x"}]}`, true, ""},
 		{"bad configRef", `{"sinks":[{"name":"a","kind":"discord","configRef":"Not_A_Label"}]}`, false, "configRef"},
 		{"happy configRef+events", `{"sinks":[{"name":"a","kind":"discord","enabled":true,"configRef":"team-hook","events":["backup.failed","server.unhealthy"]}]}`, true, ""},
 		{"unknown event", `{"sinks":[{"name":"a","kind":"discord","events":["server.rebooted"]}]}`, false, "unknown event"},
@@ -124,7 +137,9 @@ func TestValidateTelemetry(t *testing.T) {
 // chart's informational value on /cluster/info. PUTs must 400 as an
 // unknown section (covered by the round-trip tests in config_test.go).
 func TestUpdatesSectionRemoved(t *testing.T) {
-	if _, ok := sectionValidators["updates"]; ok {
-		t.Fatal(`"updates" must not be a writable config section`)
+	for _, helm := range []bool{false, true} {
+		if _, ok := newValidators(helm)["updates"]; ok {
+			t.Fatal(`"updates" must not be a writable config section`)
+		}
 	}
 }
