@@ -160,6 +160,7 @@ func validateAuth(body []byte) (json.RawMessage, error) {
 		return nil, fmt.Errorf("invalid json: %w", err)
 	}
 	seen := map[string]bool{}
+	anyEnabled := false
 	for i, p := range c.Providers {
 		if p.Name == "" {
 			return nil, fmt.Errorf("providers[%d].name is required", i)
@@ -174,6 +175,15 @@ func validateAuth(body []byte) (json.RawMessage, error) {
 		if p.ConfigRef != "" && !dnsLabelRE.MatchString(p.ConfigRef) {
 			return nil, fmt.Errorf("providers[%d].configRef must match RFC1123 label", i)
 		}
+		if p.Enabled {
+			anyEnabled = true
+		}
+	}
+	// Saving a config where nothing can authenticate would lock every
+	// admin out at their next logout — refuse it here rather than trust
+	// each client to guard the toggle.
+	if !anyEnabled {
+		return nil, fmt.Errorf("at least one identity provider must stay enabled")
 	}
 	return json.Marshal(c)
 }
@@ -184,7 +194,7 @@ func validateAuth(body []byte) (json.RawMessage, error) {
 
 type notifSink struct {
 	Name      string   `json:"name"`
-	Kind      string   `json:"kind"`                // "discord" | "slack" | "smtp" | "webhook"
+	Kind      string   `json:"kind"`                // "discord" | "slack" | "smtp" | "webhook" | "ntfy"
 	Enabled   bool     `json:"enabled"`
 	ConfigRef string   `json:"configRef,omitempty"` // K8s Secret name holding the sink's credentials
 	Events    []string `json:"events,omitempty"`    // subset of notify.AllEvents; empty = notify.DefaultOn
@@ -194,7 +204,7 @@ type notifCfg struct {
 	Sinks []notifSink `json:"sinks"`
 }
 
-var validSinkKinds = map[string]bool{"discord": true, "slack": true, "smtp": true, "webhook": true}
+var validSinkKinds = map[string]bool{"discord": true, "slack": true, "smtp": true, "webhook": true, "ntfy": true}
 
 func validateNotifications(body []byte) (json.RawMessage, error) {
 	var c notifCfg
@@ -211,7 +221,7 @@ func validateNotifications(body []byte) (json.RawMessage, error) {
 		}
 		seen[s.Name] = true
 		if !validSinkKinds[s.Kind] {
-			return nil, fmt.Errorf("sinks[%d].kind must be one of discord|slack|smtp|webhook", i)
+			return nil, fmt.Errorf("sinks[%d].kind must be one of discord|slack|smtp|webhook|ntfy", i)
 		}
 		// configRef stays optional so sink rows persisted before the
 		// delivery pipeline existed keep loading; the dispatcher skips

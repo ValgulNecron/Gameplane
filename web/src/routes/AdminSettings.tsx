@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   Bell,
+  BellRing,
   Boxes,
   Cog,
   Info,
@@ -241,6 +242,7 @@ const defaultAuth: AuthCfg = {
 
 function AuthSection({ initial }: { initial?: AuthCfg }) {
   const f = useSectionForm<AuthCfg>(initial ?? defaultAuth, "auth");
+  const enabledCount = f.draft.providers.filter((p) => p.enabled).length;
   const togglerFor = (idx: number) => () => {
     const next = f.draft.providers.map((p, i) =>
       i === idx ? { ...p, enabled: !p.enabled } : p,
@@ -276,8 +278,14 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
             <button
               type="button"
               onClick={togglerFor(idx)}
+              disabled={p.enabled && enabledCount === 1}
+              title={
+                p.enabled && enabledCount === 1
+                  ? "At least one identity provider must stay enabled."
+                  : undefined
+              }
               className={cn(
-                "rounded px-2 py-0.5 text-[10px] font-mono uppercase",
+                "rounded px-2 py-0.5 text-[10px] font-mono uppercase disabled:cursor-not-allowed disabled:opacity-60",
                 p.enabled ? "bg-success/15 text-success" : "bg-muted/15 text-muted",
               )}
             >
@@ -286,6 +294,12 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
           </li>
         ))}
       </ul>
+      {enabledCount === 1 && (
+        <p className="mt-2 text-xs text-muted">
+          At least one identity provider must stay enabled — the last enabled
+          provider can&apos;t be turned off.
+        </p>
+      )}
     </SectionCard>
   );
 }
@@ -467,6 +481,7 @@ const sinkIcons: Record<SinkKind, typeof Bell> = {
   slack: Slack,
   smtp: Mail,
   webhook: Webhook,
+  ntfy: BellRing,
 };
 
 function EventChip({ label }: { label: string }) {
@@ -489,6 +504,12 @@ function EventChips({ events }: { events?: NotifEventType[] }) {
   );
 }
 
+// The managed-Secret name the API derives for a sink (mirrors
+// sinkSecretPrefix in api/internal/handlers/notifications.go). The
+// configRef must stay a DNS label (≤63), which caps the sink name.
+const sinkSecretPrefix = "gameplane-notify-";
+const maxSinkName = 63 - sinkSecretPrefix.length;
+
 function AddSinkForm({
   existing,
   onAdd,
@@ -500,49 +521,140 @@ function AddSinkForm({
 }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<SinkKind>("discord");
-  const [configRef, setConfigRef] = useState("");
   const [events, setEvents] = useState<NotifEventType[]>(defaultOnEvents);
+  const [creds, setCreds] = useState<Record<string, string>>({ tls: "starttls" });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const cred = (key: string) => creds[key] ?? "";
+  const setCred = (key: string) => (e: ChangeEvent<HTMLInputElement>) => {
+    setError(null);
+    setCreds((c) => ({ ...c, [key]: e.target.value }));
+  };
+
   const dns = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
-  const valid =
-    dns.test(name) &&
-    !existing.includes(name) &&
-    (configRef === "" || dns.test(configRef));
+  const nameOk = dns.test(name) && !existing.includes(name) && name.length <= maxSinkName;
+  const credsOk =
+    kind === "smtp"
+      ? cred("host") !== "" && cred("from") !== "" && cred("to") !== ""
+      : /^https?:\/\/.+/.test(cred("url"));
   const toggleEvent = (ev: NotifEventType) =>
     setEvents((cur) => (cur.includes(ev) ? cur.filter((e) => e !== ev) : [...cur, ev]));
+
+  // Store the credential Secret first; the sink row references it via the
+  // returned configRef and lands in the config on the section's Save.
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const body =
+        kind === "smtp"
+          ? {
+              kind,
+              host: cred("host"),
+              port: cred("port"),
+              username: cred("username"),
+              password: cred("password"),
+              from: cred("from"),
+              to: cred("to"),
+              tls: cred("tls"),
+            }
+          : kind === "ntfy"
+            ? { kind, url: cred("url"), token: cred("token") }
+            : { kind, url: cred("url"), authorization: cred("authorization") };
+      const res = await Notifications.putSecret(name, body);
+      onAdd({ name, kind, enabled: true, configRef: res.name, events });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to store the sink credentials");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
       <div className="text-sm font-medium">Add sink</div>
-      <p className="text-xs text-muted">
-        The Secret must exist in the control-plane namespace and carry the label{" "}
-        <span className="font-mono">gameplane.local/notification-sink=true</span>{" "}
-        before the sink can deliver.
-      </p>
       <div className="grid gap-3 md:grid-cols-2">
-        <FieldLabel label="Name (DNS label)">
+        <FieldLabel label="Name">
           <Input
             placeholder="team-alerts"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          <span className="text-[11px] text-muted">
+            A short lowercase identifier (letters, digits, and dashes) used to
+            name the sink and its Secret — like <span className="font-mono">team-alerts</span>.
+          </span>
         </FieldLabel>
         <FieldLabel label="Kind">
           <Select
             aria-label="Sink kind"
             value={kind}
             onValueChange={(v) => setKind(v as SinkKind)}
-            options={["discord", "slack", "smtp", "webhook"].map((k) => ({
+            options={["discord", "slack", "smtp", "webhook", "ntfy"].map((k) => ({
               value: k,
               label: k,
             }))}
           />
         </FieldLabel>
-        <FieldLabel label="Secret name">
-          <Input
-            placeholder="team-alerts"
-            value={configRef}
-            onChange={(e) => setConfigRef(e.target.value)}
-          />
-        </FieldLabel>
+        {kind === "smtp" ? (
+          <>
+            <FieldLabel label="SMTP host">
+              <Input placeholder="mail.example.com" value={cred("host")} onChange={setCred("host")} />
+            </FieldLabel>
+            <FieldLabel label="Port (default 587)">
+              <Input placeholder="587" value={cred("port")} onChange={setCred("port")} />
+            </FieldLabel>
+            <FieldLabel label="Username (optional)">
+              <Input value={cred("username")} onChange={setCred("username")} />
+            </FieldLabel>
+            <FieldLabel label="Password (optional)">
+              <Input type="password" value={cred("password")} onChange={setCred("password")} />
+            </FieldLabel>
+            <FieldLabel label="From address">
+              <Input placeholder="gameplane@example.com" value={cred("from")} onChange={setCred("from")} />
+            </FieldLabel>
+            <FieldLabel label="To (comma-separated)">
+              <Input placeholder="ops@example.com" value={cred("to")} onChange={setCred("to")} />
+            </FieldLabel>
+            <FieldLabel label="TLS">
+              <Select
+                aria-label="SMTP TLS mode"
+                value={cred("tls")}
+                onValueChange={(v) => setCreds((c) => ({ ...c, tls: v }))}
+                options={["starttls", "implicit", "none"].map((m) => ({ value: m, label: m }))}
+              />
+            </FieldLabel>
+          </>
+        ) : (
+          <>
+            <FieldLabel label={kind === "ntfy" ? "Topic URL" : "Webhook URL"}>
+              <Input
+                placeholder={
+                  kind === "ntfy"
+                    ? "https://ntfy.sh/my-topic"
+                    : kind === "discord"
+                      ? "https://discord.com/api/webhooks/…"
+                      : kind === "slack"
+                        ? "https://hooks.slack.com/services/…"
+                        : "https://example.com/hook"
+                }
+                value={cred("url")}
+                onChange={setCred("url")}
+              />
+            </FieldLabel>
+            {kind === "ntfy" && (
+              <FieldLabel label="Access token (optional)">
+                <Input type="password" placeholder="tk_…" value={cred("token")} onChange={setCred("token")} />
+              </FieldLabel>
+            )}
+            {kind === "webhook" && (
+              <FieldLabel label="Authorization header (optional)">
+                <Input type="password" placeholder="Bearer …" value={cred("authorization")} onChange={setCred("authorization")} />
+              </FieldLabel>
+            )}
+          </>
+        )}
       </div>
       <div className="space-y-1.5">
         <div className="text-xs text-muted">Events (failures and recovery are pre-selected)</div>
@@ -560,22 +672,11 @@ function AddSinkForm({
           ))}
         </div>
       </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button
-          disabled={!valid}
-          onClick={() => {
-            onAdd({
-              name,
-              kind,
-              enabled: true,
-              ...(configRef ? { configRef } : {}),
-              events,
-            });
-            onClose();
-          }}
-        >
-          Add sink
+        <Button disabled={!nameOk || !credsOk || busy} onClick={() => void submit()}>
+          {busy ? "Storing…" : "Add sink"}
         </Button>
       </div>
     </div>
@@ -607,7 +708,7 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
   return (
     <SectionCard
       title="Notifications"
-      subtitle="Deliver server health and backup/restore events to Discord, Slack, email, or webhooks. Sink credentials live in labelled Secrets, referenced by name."
+      subtitle="Deliver server health and backup/restore events to Discord, Slack, ntfy, email, or webhooks. Credentials are entered when adding a sink and stored as a labelled Secret in the control-plane namespace."
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
@@ -676,9 +777,15 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
                 variant="ghost"
                 size="icon"
                 aria-label={`Delete sink ${s.name}`}
-                onClick={() =>
-                  f.update({ sinks: f.draft.sinks.filter((_, i) => i !== idx) })
-                }
+                onClick={() => {
+                  // Best-effort cleanup of the API-managed Secret; the
+                  // server refuses user-created Secrets, and a failure
+                  // only leaves an orphaned Secret behind.
+                  if (s.configRef === sinkSecretPrefix + s.name) {
+                    void Notifications.deleteSecret(s.name).catch(() => undefined);
+                  }
+                  f.update({ sinks: f.draft.sinks.filter((_, i) => i !== idx) });
+                }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
