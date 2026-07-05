@@ -62,6 +62,19 @@ func TestValidateAuth(t *testing.T) {
 		{"two locals", false, `{"providers":[{"name":"local","kind":"local","enabled":true},{"name":"Local accounts","kind":"local","enabled":true}]}`, false, "one local"},
 		{"legacy local name accepted", false, `{"providers":[{"name":"Local accounts","kind":"local","enabled":true}]}`, true, ""},
 		{"bad json", false, `{`, false, "invalid json"},
+		// Group→role mapping fields.
+		{"mapping happy path", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","scopes":["groups"],"groupsClaim":"memberOf","roleMappings":{"admin":["gp-admins"],"operator":["gp-ops"],"viewer":["gp-view"]},"defaultRole":"deny"}]}`, true, ""},
+		{"mapping without defaultRole ok", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","roleMappings":{"admin":["gp-admins"]}}]}`, true, ""},
+		{"scopes on local", false, `{"providers":[{"name":"local","kind":"local","enabled":true,"scopes":["groups"]}]}`, false, "not valid for the local provider"},
+		{"groupsClaim on local", false, `{"providers":[{"name":"local","kind":"local","enabled":true,"groupsClaim":"memberOf"}]}`, false, "not valid for the local provider"},
+		{"roleMappings on local", false, `{"providers":[{"name":"local","kind":"local","enabled":true,"roleMappings":{"admin":["x"]}}]}`, false, "not valid for the local provider"},
+		{"defaultRole on local", false, `{"providers":[{"name":"local","kind":"local","enabled":true,"defaultRole":"viewer"}]}`, false, "not valid for the local provider"},
+		{"empty scope token", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","scopes":["groups","  "]}]}`, false, "scopes[1]"},
+		{"scope with inner whitespace", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","scopes":["two scopes"]}]}`, false, "without whitespace"},
+		{"blank groupsClaim", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","groupsClaim":"   "}]}`, false, "groupsClaim"},
+		{"bad defaultRole", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","roleMappings":{"admin":["x"]},"defaultRole":"root"}]}`, false, "defaultRole must be one of"},
+		{"defaultRole without mappings", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","defaultRole":"deny"}]}`, false, "requires roleMappings"},
+		{"empty mapping group", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g","roleMappings":{"operator":[""]}}]}`, false, "roleMappings.operator[0]"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,6 +86,22 @@ func TestValidateAuth(t *testing.T) {
 				t.Fatalf("got %v want %q", err, tc.errs)
 			}
 		})
+	}
+}
+
+// Scope tokens and the groups claim are trimmed in place so the persisted
+// canonical blob stores clean values.
+func TestValidateAuthTrimsMappingFields(t *testing.T) {
+	canon, err := validateAuth(false)([]byte(`{"providers":[{"name":"corp","kind":"oidc","enabled":true,` +
+		`"issuer":"https://idp.example","clientID":"g","scopes":[" groups "],"groupsClaim":" memberOf "}]}`))
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if !strings.Contains(string(canon), `"scopes":["groups"]`) {
+		t.Fatalf("scope not trimmed: %s", canon)
+	}
+	if !strings.Contains(string(canon), `"groupsClaim":"memberOf"`) {
+		t.Fatalf("groupsClaim not trimmed: %s", canon)
 	}
 }
 

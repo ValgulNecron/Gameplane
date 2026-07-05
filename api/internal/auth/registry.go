@@ -47,6 +47,15 @@ const (
 	errorBackoffTTL = 30 * time.Second
 )
 
+// RoleMappings lists, per dashboard role, the IdP group values that grant
+// it. A user matching several gets the most privileged (admin > operator >
+// viewer).
+type RoleMappings struct {
+	Admin    []string `json:"admin,omitempty"`
+	Operator []string `json:"operator,omitempty"`
+	Viewer   []string `json:"viewer,omitempty"`
+}
+
 // Provider is one entry of the admin-managed auth config, as consumers
 // (login page, routes) see it.
 type Provider struct {
@@ -57,6 +66,19 @@ type Provider struct {
 	Issuer      string `json:"issuer,omitempty"`
 	ClientID    string `json:"clientID,omitempty"`
 	ConfigRef   string `json:"configRef,omitempty"`
+	// Scopes are extra OAuth scopes requested beyond the base
+	// openid/profile/email (e.g. "groups").
+	Scopes []string `json:"scopes,omitempty"`
+	// GroupsClaim names the ID-token claim holding group memberships;
+	// empty means "groups".
+	GroupsClaim string `json:"groupsClaim,omitempty"`
+	// RoleMappings maps IdP groups to dashboard roles. nil disables
+	// mapping entirely: new users get viewer and roles are never touched
+	// again.
+	RoleMappings *RoleMappings `json:"roleMappings,omitempty"`
+	// DefaultRole applies when RoleMappings is set but no group matches:
+	// ""|viewer|operator|admin|deny ("" = viewer; deny refuses the login).
+	DefaultRole string `json:"defaultRole,omitempty"`
 }
 
 // Label returns the login-button text: the admin's display name, or a
@@ -257,7 +279,12 @@ func (r *Registry) build(ctx context.Context, p Provider) (*OIDC, error) {
 	if err != nil {
 		return nil, fmt.Errorf("provider %q: %w", p.Name, err)
 	}
-	o, err := NewOIDC(ctx, p.Issuer, p.ClientID, clientSecret, redirect)
+	o, err := NewOIDCWithPolicy(ctx, p.Issuer, p.ClientID, clientSecret, redirect, &ProviderPolicy{
+		Scopes:       p.Scopes,
+		GroupsClaim:  p.GroupsClaim,
+		RoleMappings: p.RoleMappings,
+		DefaultRole:  p.DefaultRole,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("provider %q: discover issuer: %w", p.Name, err)
 	}

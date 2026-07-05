@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
+	"unicode"
 
 	"github.com/go-chi/chi/v5"
 
@@ -147,6 +149,14 @@ func validateGeneral(body []byte) (json.RawMessage, error) {
 	return json.Marshal(c)
 }
 
+// authRoleMappings mirrors auth.RoleMappings: per dashboard role, the IdP
+// group values that grant it.
+type authRoleMappings struct {
+	Admin    []string `json:"admin,omitempty"`
+	Operator []string `json:"operator,omitempty"`
+	Viewer   []string `json:"viewer,omitempty"`
+}
+
 type authProvider struct {
 	Name        string `json:"name"`
 	Kind        string `json:"kind"` // "local" | "oidc" | "google" | "github"
@@ -158,6 +168,11 @@ type authProvider struct {
 	Issuer    string `json:"issuer,omitempty"`
 	ClientID  string `json:"clientID,omitempty"`
 	ConfigRef string `json:"configRef,omitempty"` // K8s Secret name
+	// Group→role mapping (non-local kinds only; mirrors auth.Provider).
+	Scopes       []string          `json:"scopes,omitempty"`
+	GroupsClaim  string            `json:"groupsClaim,omitempty"`
+	RoleMappings *authRoleMappings `json:"roleMappings,omitempty"`
+	DefaultRole  string            `json:"defaultRole,omitempty"`
 }
 
 type authCfg struct {
@@ -165,6 +180,58 @@ type authCfg struct {
 }
 
 var validAuthKinds = map[string]bool{"local": true, "oidc": true, "google": true, "github": true}
+
+var validDefaultRoles = map[string]bool{"": true, "viewer": true, "operator": true, "admin": true, "deny": true}
+
+// validateProviderMapping checks the group→role mapping fields of one
+// provider entry, trimming scope tokens and the groups claim in place so
+// the canonical blob stores clean values. Local providers carry none of
+// these fields.
+func validateProviderMapping(i int, p *authProvider) error {
+	if p.Kind == "local" {
+		if len(p.Scopes) > 0 || p.GroupsClaim != "" || p.RoleMappings != nil || p.DefaultRole != "" {
+			return fmt.Errorf("providers[%d]: scopes, groupsClaim, roleMappings, and defaultRole are not valid for the local provider", i)
+		}
+		return nil
+	}
+	for j, s := range p.Scopes {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return fmt.Errorf("providers[%d].scopes[%d] must not be empty", i, j)
+		}
+		if strings.IndexFunc(s, unicode.IsSpace) >= 0 {
+			return fmt.Errorf("providers[%d].scopes[%d] must be a single scope token without whitespace", i, j)
+		}
+		p.Scopes[j] = s
+	}
+	if p.GroupsClaim != "" {
+		claim := strings.TrimSpace(p.GroupsClaim)
+		if claim == "" {
+			return fmt.Errorf("providers[%d].groupsClaim must not be blank", i)
+		}
+		p.GroupsClaim = claim
+	}
+	if !validDefaultRoles[p.DefaultRole] {
+		return fmt.Errorf("providers[%d].defaultRole must be one of viewer|operator|admin|deny", i)
+	}
+	if p.DefaultRole != "" && p.RoleMappings == nil {
+		return fmt.Errorf("providers[%d].defaultRole requires roleMappings", i)
+	}
+	if p.RoleMappings != nil {
+		for role, groups := range map[string][]string{
+			"admin":    p.RoleMappings.Admin,
+			"operator": p.RoleMappings.Operator,
+			"viewer":   p.RoleMappings.Viewer,
+		} {
+			for j, g := range groups {
+				if strings.TrimSpace(g) == "" {
+					return fmt.Errorf("providers[%d].roleMappings.%s[%d] must not be empty", i, role, j)
+				}
+			}
+		}
+	}
+	return nil
+}
 
 // validateAuth returns the auth-section validator. helmOIDCPresent makes
 // the Helm-flag provider count as always-enabled for the lockout guard —
@@ -212,6 +279,11 @@ func validateAuth(helmOIDCPresent bool) func([]byte) (json.RawMessage, error) {
 				if p.ClientID == "" {
 					return nil, fmt.Errorf("providers[%d].clientID is required", i)
 				}
+			}
+			// Index into the slice (not the loop copy) so the trims
+			// applied by the helper survive into the canonical blob.
+			if err := validateProviderMapping(i, &c.Providers[i]); err != nil {
+				return nil, err
 			}
 			if p.Enabled {
 				anyEnabled = true

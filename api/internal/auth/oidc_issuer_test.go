@@ -30,6 +30,10 @@ type fakeIDP struct {
 	name     string
 	nonce    string
 	code     string
+	// groups is minted into the ID token's "groups" claim when non-nil.
+	// Typed any so tests can exercise string arrays, bare strings, and
+	// arrays containing non-string junk.
+	groups any
 	// discoveryHits counts /.well-known fetches — one per NewOIDC — so
 	// registry tests can prove caching vs rebuilding.
 	discoveryHits atomic.Int32
@@ -127,9 +131,10 @@ func (i *fakeIDP) handleToken(w http.ResponseWriter, req *http.Request) {
 	now := time.Now()
 	cl := struct {
 		jwt.Claims
-		Nonce string `json:"nonce,omitempty"`
-		Email string `json:"email,omitempty"`
-		Name  string `json:"name,omitempty"`
+		Nonce  string `json:"nonce,omitempty"`
+		Email  string `json:"email,omitempty"`
+		Name   string `json:"name,omitempty"`
+		Groups any    `json:"groups,omitempty"`
 	}{
 		Claims: jwt.Claims{
 			Issuer:   i.srv.URL,
@@ -138,9 +143,10 @@ func (i *fakeIDP) handleToken(w http.ResponseWriter, req *http.Request) {
 			Expiry:   jwt.NewNumericDate(now.Add(time.Hour)),
 			IssuedAt: jwt.NewNumericDate(now),
 		},
-		Nonce: i.nonce,
-		Email: i.email,
-		Name:  i.name,
+		Nonce:  i.nonce,
+		Email:  i.email,
+		Name:   i.name,
+		Groups: i.groups,
 	}
 	idToken, err := jwt.Signed(i.signer).Claims(cl).Serialize()
 	if err != nil {

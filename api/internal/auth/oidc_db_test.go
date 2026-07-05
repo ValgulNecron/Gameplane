@@ -13,7 +13,7 @@ func TestResolveOrLinkUser_FirstLoginCreatesUser(t *testing.T) {
 	o := &OIDC{}
 	o.AttachStore(store)
 
-	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice")
+	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice", "viewer", false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestResolveOrLinkUser_FirstLoginCreatesUser(t *testing.T) {
 	}
 
 	// Calling again must hit the existing-link path and return the same row.
-	u2, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice")
+	u2, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice", "viewer", false)
 	if err != nil {
 		t.Fatalf("second: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestResolveOrLinkUser_FallsBackToSubWhenEmailEmpty(t *testing.T) {
 	store := newAuthDB(t)
 	o := &OIDC{}
 	o.AttachStore(store)
-	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "subsub", "", "Anon")
+	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "subsub", "", "Anon", "viewer", false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestPickUniqueUsername_Disambiguates(t *testing.T) {
 	o := &OIDC{}
 	o.AttachStore(store)
 	u, err := o.resolveOrLinkUser(
-		context.Background(), "https://idp", "subject-12345678ab", "alice@x", "Alice IdP",
+		context.Background(), "https://idp", "subject-12345678ab", "alice@x", "Alice IdP", "viewer", false,
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -87,7 +87,7 @@ func TestPickUniqueUsername_ShortSubKeepsAll(t *testing.T) {
 	}
 	o := &OIDC{}
 	o.AttachStore(store)
-	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "abc", "x", "X")
+	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "abc", "x", "X", "viewer", false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
