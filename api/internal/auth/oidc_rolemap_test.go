@@ -172,7 +172,9 @@ func TestHandleCallback_RoleMappingFirstLogin(t *testing.T) {
 
 // TestHandleCallback_RoleMappingResync — the user's IdP groups change
 // between logins; the second login demotes both users.role and the '*'
-// binding. The IdP is authoritative when mappings are configured.
+// binding. The IdP is authoritative when mappings are configured. A
+// second user-manager is seeded so the last-admin lockout guard (covered
+// by its own tests below) doesn't block the demotion under test.
 func TestHandleCallback_RoleMappingResync(t *testing.T) {
 	idp := newFakeIDP(t, "client-1")
 	idp.groups = []string{"gp-admins"}
@@ -190,6 +192,14 @@ func TestHandleCallback_RoleMappingResync(t *testing.T) {
 	store := newAuthDB(t)
 	o.AttachStore(store)
 	sessions := NewSessionStore(store)
+
+	// With a second user-manager present, demoting the OIDC user can't
+	// strip the install's last admin, so the resync applies.
+	if _, err := store.DB.Exec(
+		`INSERT INTO users(username, display_name, email, role) VALUES ('root2', 'Root Two', 'root2@x', 'admin')`,
+	); err != nil {
+		t.Fatalf("seed second admin: %v", err)
+	}
 
 	idp.nonce = "nonce-1"
 	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
