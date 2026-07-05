@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,17 +66,17 @@ func TestMountSystemLogs(t *testing.T) {
 		},
 	}
 
-	_, err := fakeClientset.CoreV1().Pods(namespace).Create(nil, runningAPI, metav1.CreateOptions{})
+	_, err := fakeClientset.CoreV1().Pods(namespace).Create(context.Background(), runningAPI, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create running api pod: %v", err)
 	}
 
-	_, err = fakeClientset.CoreV1().Pods(namespace).Create(nil, runningOperator, metav1.CreateOptions{})
+	_, err = fakeClientset.CoreV1().Pods(namespace).Create(context.Background(), runningOperator, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create running operator pod: %v", err)
 	}
 
-	_, err = fakeClientset.CoreV1().Pods(namespace).Create(nil, pendingAPI, metav1.CreateOptions{})
+	_, err = fakeClientset.CoreV1().Pods(namespace).Create(context.Background(), pendingAPI, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create pending api pod: %v", err)
 	}
@@ -137,6 +138,14 @@ func TestMountSystemLogs(t *testing.T) {
 			name:           "tailLines clamped low",
 			component:      "api",
 			tailLines:      "-5",
+			expectedStatus: http.StatusOK,
+			expectedHeader: "gameplane-api-0",
+			shouldFail:     false,
+		},
+		{
+			name:           "follow mode",
+			component:      "api",
+			follow:         "true",
 			expectedStatus: http.StatusOK,
 			expectedHeader: "gameplane-api-0",
 			shouldFail:     false,
@@ -248,12 +257,12 @@ func TestMountSystemLogsPreferRunning(t *testing.T) {
 		},
 	}
 
-	_, err := fakeClientset.CoreV1().Pods(namespace).Create(nil, pending, metav1.CreateOptions{})
+	_, err := fakeClientset.CoreV1().Pods(namespace).Create(context.Background(), pending, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create pending pod: %v", err)
 	}
 
-	_, err = fakeClientset.CoreV1().Pods(namespace).Create(nil, running, metav1.CreateOptions{})
+	_, err = fakeClientset.CoreV1().Pods(namespace).Create(context.Background(), running, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("create running pod: %v", err)
 	}
@@ -275,3 +284,48 @@ func TestMountSystemLogsPreferRunning(t *testing.T) {
 	}
 }
 
+func TestMountSystemLogsFallbackNoRunning(t *testing.T) {
+	fakeClientset := fake.NewSimpleClientset()
+	k8sClient := &kube.Client{
+		Typed: fakeClientset,
+	}
+
+	namespace := "gameplane-system"
+
+	// The only pod is Pending — the handler should fall back to the
+	// newest pod overall when no Running pod exists.
+	pending := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gameplane-api-pending",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name": "gameplane-api",
+			},
+			CreationTimestamp: metav1.NewTime(time.Now()),
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+		},
+	}
+
+	_, err := fakeClientset.CoreV1().Pods(namespace).Create(context.Background(), pending, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("create pending pod: %v", err)
+	}
+
+	r := chi.NewRouter()
+	MountSystemLogs(r, k8sClient, namespace)
+
+	req := httptest.NewRequest("GET", "/admin/system-logs/api", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	if header := w.Header().Get("X-Gameplane-Pod"); header != "gameplane-api-pending" {
+		t.Errorf("expected fallback to pending pod gameplane-api-pending, got %s", header)
+	}
+}
