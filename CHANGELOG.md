@@ -19,6 +19,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **observability:** log levels are now configurable everywhere — the API and
+  agent accept `--log-level`/`GAMEPLANE_LOG_LEVEL` (debug|info|warn|error;
+  unknown values degrade to info), the chart wires `api.logLevel` and the
+  previously-dead `operator.logLevel` (zap: debug|info|error), and a new
+  `operator.agentLogLevel` injects the level into agent sidecars (left empty
+  it injects nothing, so upgrades don't roll every game pod).
 - **operator/modules:** game memory settings can now **size themselves to
   the container memory limit** — a configSchema field may declare
   `autoFromMemoryLimit: {percent}`, and when the user leaves it empty the

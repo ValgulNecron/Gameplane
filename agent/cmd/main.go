@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,6 +53,7 @@ func main() {
 		templateName string
 		gameName     string
 		capsJSON     string
+		logLevel     string
 	)
 	flag.StringVar(&addr, "addr", ":8090", "HTTP listen address")
 	flag.StringVar(&dataRoot, "data-root", "/data", "path under which file ops are rooted")
@@ -70,9 +72,11 @@ func main() {
 	flag.StringVar(&gameName, "game", envOr("GAMEPLANE_GAME", ""), "game identifier")
 	flag.StringVar(&capsJSON, "capabilities", envOr("GAMEPLANE_CAPABILITIES", ""),
 		"declared game capabilities (JSON, from GameTemplate spec.capabilities)")
+	flag.StringVar(&logLevel, "log-level", envOr("GAMEPLANE_LOG_LEVEL", "info"),
+		"log verbosity: debug, info, warn, or error")
 	flag.Parse()
 
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: parseLogLevel(logLevel)}))
 	slog.SetDefault(logger)
 
 	authCheck, err := auth.New(auth.Config{
@@ -200,6 +204,21 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseLogLevel maps a --log-level value to a slog.Level. Unknown values
+// degrade to info — a typo in a manifest shouldn't crash the sidecar.
+func parseLogLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
 
 // envInt parses an integer env var, returning 0 when unset or unparseable.

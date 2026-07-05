@@ -23,7 +23,8 @@ image:
 
 operator:
   replicas: 1
-  logLevel: info
+  logLevel: info     # zap log level: debug|info|error (warn not supported by zap's --zap-log-level)
+  agentLogLevel: ""  # injected into every agent sidecar as GAMEPLANE_LOG_LEVEL (debug|info|warn|error); empty injects nothing, avoiding StatefulSet rollouts on upgrade
   # Leader election guards against two operators reconciling at once. With a
   # single replica it's unnecessary, and on a resource-starved node a missed
   # lease renewal makes controller-runtime exit (the operator then crash-loops
@@ -46,6 +47,7 @@ operator:
 
 api:
   replicas: 1
+  logLevel: info     # API log verbosity (debug|info|warn|error), passed as GAMEPLANE_LOG_LEVEL
   resources:
     requests: { cpu: 100m, memory: 64Mi }
     limits:   { cpu: 500m, memory: 256Mi }

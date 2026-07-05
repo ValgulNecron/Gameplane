@@ -243,6 +243,8 @@ spec:
                   name: {{ .Values.api.telemetry.authSecretRef.name }}
                   key:  {{ .Values.api.telemetry.authSecretRef.key }}
             {{- end }}
+            - name: GAMEPLANE_LOG_LEVEL
+              value: {{ .Values.api.logLevel | quote }}
           ports:
             - { name: http,    containerPort: 8000 }
           livenessProbe:  { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 15 }
