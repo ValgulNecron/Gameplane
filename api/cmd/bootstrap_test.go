@@ -233,3 +233,51 @@ func TestBootstrap_ForcePromotesToAdmin(t *testing.T) {
 		t.Fatalf("role=%q want admin after --force", role)
 	}
 }
+
+// --enable-local-login alone (no username) is the break-glass for "local
+// disabled in Admin Settings, OIDC broken": it flips the local provider
+// back on in the auth config row and touches nothing else.
+func TestBootstrap_EnableLocalLoginAlone(t *testing.T) {
+	dsn := dsnIn(t)
+	s := mustOpen(t, dsn)
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	seed := `{"providers":[{"name":"local","kind":"local","enabled":false},{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}]}`
+	if _, err := s.DB.Exec(`INSERT INTO config(key, value) VALUES ('auth', ?)`, seed); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	out, err := runBootstrap(t, dsn, "", "--enable-local-login")
+	if err != nil {
+		t.Fatalf("bootstrap: %v (stderr=%q)", err, out)
+	}
+	if !strings.Contains(out, "local login re-enabled") {
+		t.Fatalf("stderr = %q", out)
+	}
+
+	var raw string
+	if err := s.DB.QueryRow(`SELECT value FROM config WHERE key='auth'`).Scan(&raw); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !strings.Contains(raw, `"enabled":true`) || !strings.Contains(raw, `"kind":"local"`) {
+		t.Fatalf("auth row = %s", raw)
+	}
+	// The OIDC provider must be preserved untouched.
+	if !strings.Contains(raw, `"corp"`) || !strings.Contains(raw, "idp.example") {
+		t.Fatalf("other providers were dropped: %s", raw)
+	}
+}
+
+// Without a row there is nothing to flip — local is already enabled by
+// default and the command says so instead of inventing a row.
+func TestBootstrap_EnableLocalLoginNoRow(t *testing.T) {
+	dsn := dsnIn(t)
+	out, err := runBootstrap(t, dsn, "", "--enable-local-login")
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	if !strings.Contains(out, "already enabled by default") {
+		t.Fatalf("stderr = %q", out)
+	}
+}

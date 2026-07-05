@@ -21,6 +21,22 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `/ingest` and rides the API's new `GAMEPLANE_TELEMETRY_AUTH` env.
   Previously the Admin Settings toggle worked but there was nowhere for
   the data to go.
+- **auth:** identity providers are now **managed from the dashboard and
+  applied live** — Admin Settings → Authentication gained an "Add
+  provider" form (generic OIDC, Google preset, GitHub-via-bridge preset):
+  issuer + client id go in the auth config, the client secret lands in an
+  API-managed Secret (`gameplane-auth-<name>`), and the new
+  `/auth/oidc/{provider}/start|callback` routes resolve providers through
+  a registry that re-reads the config per request — a saved provider
+  works without an API restart, and several OIDC providers can coexist.
+  The login page renders one button per enabled provider and hides the
+  password form when local login is disabled; disabling local now
+  actually gates `/auth/login` (neutral 403). Helm-flag OIDC keeps
+  working untouched as the read-only `helm` provider on its legacy
+  routes (and its callback now links accounts correctly — the store was
+  never attached before, so every Helm-flag OIDC login 500'd). Break-
+  glass for a lockout: `bootstrap-admin --enable-local-login`.
+
 - **notifications:** a new **ntfy** sink kind — POSTs each event to an ntfy
   topic URL (ntfy.sh or self-hosted) with the headline in the `Title`
   header, `Priority: high` on failures, and an optional access token.

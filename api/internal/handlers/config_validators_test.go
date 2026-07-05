@@ -37,25 +37,35 @@ func TestValidateGeneral(t *testing.T) {
 }
 
 func TestValidateAuth(t *testing.T) {
+	// A complete, valid OIDC provider entry the cases below vary from.
+	const corp = `{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"gameplane"}`
 	cases := []struct {
 		name string
+		helm bool
 		in   string
 		ok   bool
 		errs string
 	}{
-		{"empty providers", `{"providers":[]}`, false, "at least one identity provider"},
-		{"missing name", `{"providers":[{"kind":"local"}]}`, false, "name is required"},
-		{"duplicate name", `{"providers":[{"name":"a","kind":"local"},{"name":"a","kind":"oidc"}]}`, false, "duplicate"},
-		{"unknown kind", `{"providers":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
-		{"bad configRef", `{"providers":[{"name":"a","kind":"local","configRef":"BAD"}]}`, false, "configRef"},
-		{"happy path", `{"providers":[{"name":"a","kind":"oidc","enabled":true,"configRef":"my-secret"}]}`, true, ""},
-		{"all providers disabled", `{"providers":[{"name":"a","kind":"local","enabled":false},{"name":"b","kind":"oidc","enabled":false}]}`, false, "at least one identity provider"},
-		{"one of many enabled", `{"providers":[{"name":"a","kind":"local","enabled":false},{"name":"b","kind":"oidc","enabled":true}]}`, true, ""},
-		{"bad json", `{`, false, "invalid json"},
+		{"empty providers", false, `{"providers":[]}`, false, "at least one identity provider"},
+		{"missing name", false, `{"providers":[{"kind":"local"}]}`, false, "name is required"},
+		{"duplicate name", false, `{"providers":[{"name":"a","kind":"local"},{"name":"a","kind":"oidc"}]}`, false, "duplicate"},
+		{"unknown kind", false, `{"providers":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
+		{"bad configRef", false, `{"providers":[{"name":"a","kind":"local","configRef":"BAD"}]}`, false, "configRef"},
+		{"happy path", false, `{"providers":[{"name":"local","kind":"local","enabled":true},` + corp + `]}`, true, ""},
+		{"all providers disabled", false, `{"providers":[{"name":"local","kind":"local","enabled":false}]}`, false, "at least one identity provider"},
+		{"helm provider satisfies the guard", true, `{"providers":[{"name":"local","kind":"local","enabled":false}]}`, true, ""},
+		{"oidc missing issuer", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"clientID":"g"}]}`, false, "issuer"},
+		{"oidc bad issuer", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"ftp://x","clientID":"g"}]}`, false, "issuer"},
+		{"oidc missing clientID", false, `{"providers":[{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example"}]}`, false, "clientID"},
+		{"oidc name not a label", false, `{"providers":[{"name":"Corp SSO","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}]}`, false, "DNS label"},
+		{"helm name reserved", false, `{"providers":[{"name":"helm","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}]}`, false, "reserved"},
+		{"two locals", false, `{"providers":[{"name":"local","kind":"local","enabled":true},{"name":"Local accounts","kind":"local","enabled":true}]}`, false, "one local"},
+		{"legacy local name accepted", false, `{"providers":[{"name":"Local accounts","kind":"local","enabled":true}]}`, true, ""},
+		{"bad json", false, `{`, false, "invalid json"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := validateAuth([]byte(tc.in))
+			_, err := validateAuth(tc.helm)([]byte(tc.in))
 			if tc.ok && err != nil {
 				t.Fatalf("unexpected: %v", err)
 			}

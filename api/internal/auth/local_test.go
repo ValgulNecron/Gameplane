@@ -47,7 +47,7 @@ func TestLogin_RejectsNonJSONContentType(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", strings.NewReader("user=alice"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	l.HandleLogin(ss).ServeHTTP(rr, req)
+	l.HandleLogin(ss, nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("code=%d", rr.Code)
 	}
@@ -58,7 +58,7 @@ func TestLogin_BadJSON(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
-	NewLocal(s).HandleLogin(NewSessionStore(s)).ServeHTTP(rr, req)
+	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d", rr.Code)
 	}
@@ -70,7 +70,7 @@ func TestLogin_UnknownUser_TimingPath(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
-	NewLocal(s).HandleLogin(NewSessionStore(s)).ServeHTTP(rr, req)
+	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("code=%d", rr.Code)
 	}
@@ -83,7 +83,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
-	NewLocal(s).HandleLogin(NewSessionStore(s)).ServeHTTP(rr, req)
+	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("code=%d", rr.Code)
 	}
@@ -96,7 +96,7 @@ func TestLogin_Success_SetsCookies(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
-	NewLocal(s).HandleLogin(NewSessionStore(s)).ServeHTTP(rr, req)
+	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", rr.Code, rr.Body)
 	}
@@ -133,7 +133,7 @@ func TestLogin_PerUserRateLimit(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
-	NewLocal(s).HandleLogin(NewSessionStore(s)).ServeHTTP(rr, req)
+	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusTooManyRequests {
 		t.Fatalf("code=%d", rr.Code)
 	}

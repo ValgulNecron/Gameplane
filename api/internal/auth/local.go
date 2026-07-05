@@ -27,8 +27,16 @@ type loginResp struct {
 	CSRF string `json:"csrf"`
 }
 
-func (l *Local) HandleLogin(sessions *SessionStore) http.HandlerFunc {
+// HandleLogin serves POST /auth/login. reg gates the whole method: when
+// the admin has disabled the local provider, every request gets the same
+// neutral 403 before any credential is read — the branch is
+// provider-level, not per-user, so it can't become an enumeration oracle.
+func (l *Local) HandleLogin(sessions *SessionStore, reg *Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		if reg != nil && !reg.LocalEnabled(req.Context()) {
+			http.Error(w, "login method disabled", http.StatusForbidden)
+			return
+		}
 		// Enforce JSON content-type — a cross-site form POST can carry
 		// Cookie but not application/json (without CORS preflight), so
 		// rejecting non-JSON here is cheap defense-in-depth on top of
