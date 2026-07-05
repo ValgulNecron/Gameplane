@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +30,9 @@ type fakeIDP struct {
 	name     string
 	nonce    string
 	code     string
+	// discoveryHits counts /.well-known fetches — one per NewOIDC — so
+	// registry tests can prove caching vs rebuilding.
+	discoveryHits atomic.Int32
 }
 
 func newFakeIDP(t *testing.T, clientID string) *fakeIDP {
@@ -77,6 +81,7 @@ type discovery struct {
 }
 
 func (i *fakeIDP) handleDiscovery(w http.ResponseWriter, _ *http.Request) {
+	i.discoveryHits.Add(1)
 	d := discovery{
 		Issuer:        i.srv.URL,
 		AuthURL:       i.srv.URL + "/authorize",

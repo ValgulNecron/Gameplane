@@ -52,12 +52,20 @@ func NewOIDC(ctx context.Context, issuer, clientID, clientSecret, redirectURL st
 func (o *OIDC) AttachStore(s *db.Store) { o.db = s }
 
 func (o *OIDC) HandleStart() http.HandlerFunc {
+	return o.HandleStartAt("/")
+}
+
+// HandleStartAt is HandleStart with an explicit cookie path. Dynamic
+// providers scope their state/nonce cookies to /auth/oidc/{name} so two
+// concurrent flows against different providers can't clobber each
+// other's cookies; the legacy routes keep Path=/.
+func (o *OIDC) HandleStartAt(cookiePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		state := randomToken()
 		nonce := randomToken()
 		ttl := 5 * time.Minute
 		http.SetCookie(w, &http.Cookie{
-			Name: oidcStateCookie, Value: state, Path: "/", HttpOnly: true, Secure: true,
+			Name: oidcStateCookie, Value: state, Path: cookiePath, HttpOnly: true, Secure: true,
 			SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(ttl),
 		})
 		// Nonce is bound to the ID token via OpenID Connect spec — the
@@ -65,7 +73,7 @@ func (o *OIDC) HandleStart() http.HandlerFunc {
 		// matches the cookie prevents ID-token replay, complementing
 		// the CSRF-style state check.
 		http.SetCookie(w, &http.Cookie{
-			Name: oidcNonceCookie, Value: nonce, Path: "/", HttpOnly: true, Secure: true,
+			Name: oidcNonceCookie, Value: nonce, Path: cookiePath, HttpOnly: true, Secure: true,
 			SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(ttl),
 		})
 		http.Redirect(w, req, o.oauth.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
@@ -73,13 +81,20 @@ func (o *OIDC) HandleStart() http.HandlerFunc {
 }
 
 func (o *OIDC) HandleCallback(sessions *SessionStore) http.HandlerFunc {
+	return o.HandleCallbackAt(sessions, "/")
+}
+
+// HandleCallbackAt is HandleCallback with an explicit cookie path
+// matching HandleStartAt's — clearing a cookie only works on the path it
+// was set with.
+func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		state, err := req.Cookie(oidcStateCookie)
 		if err != nil || state.Value == "" || state.Value != req.URL.Query().Get("state") {
 			http.Error(w, "state mismatch", http.StatusBadRequest)
 			return
 		}
-		clearCookie(w, oidcStateCookie, true)
+		clearCookieAt(w, oidcStateCookie, true, cookiePath)
 
 		tok, err := o.oauth.Exchange(req.Context(), req.URL.Query().Get("code"))
 		if err != nil {
@@ -98,16 +113,16 @@ func (o *OIDC) HandleCallback(sessions *SessionStore) http.HandlerFunc {
 			return
 		}
 		// Nonce check — the IdP is expected to echo the nonce we issued
-		// at /auth/oidc/start into the ID token. Missing cookie or
+		// at the start route into the ID token. Missing cookie or
 		// mismatch means replay or a broken IdP; either way, don't
 		// accept the login.
 		nonceCookie, err := req.Cookie(oidcNonceCookie)
 		if err != nil || nonceCookie.Value == "" || idt.Nonce != nonceCookie.Value {
-			clearCookie(w, oidcNonceCookie, true)
+			clearCookieAt(w, oidcNonceCookie, true, cookiePath)
 			http.Error(w, "nonce mismatch", http.StatusBadRequest)
 			return
 		}
-		clearCookie(w, oidcNonceCookie, true)
+		clearCookieAt(w, oidcNonceCookie, true, cookiePath)
 		var claims struct {
 			Sub   string `json:"sub"`
 			Email string `json:"email"`

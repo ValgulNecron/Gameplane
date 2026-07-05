@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +32,22 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 		return err
 	}
 
+	// Break-glass without a user reset: --enable-local-login alone just
+	// force-enables the local provider in the auth config row — for the
+	// "local disabled in Admin Settings, OIDC broken" lockout, where the
+	// admin's password still works once the method is re-enabled.
+	if bf.enableLocalLogin && bf.username == "" {
+		store, err := db.Open(ctx, bf.dbDriver, bf.dbDSN)
+		if err != nil {
+			return fmt.Errorf("open db: %w", err)
+		}
+		defer store.Close()
+		if err := store.Migrate(ctx); err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
+		return enableLocalLogin(ctx, store, stderr)
+	}
+
 	if bf.username == "" {
 		return errors.New("--username is required")
 	}
@@ -49,6 +66,11 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 	defer store.Close()
 	if err := store.Migrate(ctx); err != nil {
 		return fmt.Errorf("migrate: %w", err)
+	}
+	if bf.enableLocalLogin {
+		if err := enableLocalLogin(ctx, store, stderr); err != nil {
+			return err
+		}
 	}
 
 	hash, err := auth.HashPassword(pw)
@@ -103,25 +125,75 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 }
 
 type bootstrapFlags struct {
-	username      string
-	password      string
-	passwordStdin bool
-	email         string
-	displayName   string
-	force         bool
-	dbDriver      string
-	dbDSN         string
+	username         string
+	password         string
+	passwordStdin    bool
+	email            string
+	displayName      string
+	force            bool
+	enableLocalLogin bool
+	dbDriver         string
+	dbDSN            string
 }
 
 func (b *bootstrapFlags) bind(fs *flag.FlagSet) {
-	fs.StringVar(&b.username, "username", "", "admin username (required)")
+	fs.StringVar(&b.username, "username", "", "admin username (required unless only --enable-local-login is used)")
 	fs.StringVar(&b.password, "password", "", "admin password; or set GAMEPLANE_ADMIN_PASSWORD, or use --password-stdin")
 	fs.BoolVar(&b.passwordStdin, "password-stdin", false, "read password from stdin (single line)")
 	fs.StringVar(&b.email, "email", "", "optional email")
 	fs.StringVar(&b.displayName, "display-name", "", "optional display name (defaults to username)")
 	fs.BoolVar(&b.force, "force", false, "if user exists, overwrite password and promote to admin")
+	fs.BoolVar(&b.enableLocalLogin, "enable-local-login", false, "break-glass: force-enable the local provider in the auth config (usable alone, without --username)")
 	fs.StringVar(&b.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")
 	fs.StringVar(&b.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/gameplane.db?_pragma=journal_mode(WAL)"), "DSN")
+}
+
+// enableLocalLogin flips (or injects) the local provider's enabled flag
+// in the persisted auth config, preserving every other provider. A
+// missing row already means "local enabled", so it's left absent.
+func enableLocalLogin(ctx context.Context, store *db.Store, stderr io.Writer) error {
+	raw, ok, err := store.ConfigValue(ctx, "auth")
+	if err != nil {
+		return fmt.Errorf("read auth config: %w", err)
+	}
+	if !ok {
+		fmt.Fprintln(stderr, "bootstrap-admin: no auth config row — local login is already enabled by default")
+		return nil
+	}
+	var cfg struct {
+		Providers []map[string]any `json:"providers"`
+	}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return fmt.Errorf("parse auth config: %w", err)
+	}
+	found := false
+	for _, p := range cfg.Providers {
+		if kind, _ := p["kind"].(string); kind == "local" {
+			p["enabled"] = true
+			found = true
+		}
+	}
+	if !found {
+		cfg.Providers = append(cfg.Providers, map[string]any{
+			"name": "local", "kind": "local", "enabled": true,
+		})
+	}
+	canon, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	if _, err := store.DB.ExecContext(ctx,
+		`INSERT INTO config(key, value, updated_at)
+		 VALUES ('auth', ?, datetime('now'))
+		 ON CONFLICT(key) DO UPDATE SET
+		     value      = excluded.value,
+		     updated_at = excluded.updated_at`,
+		string(canon),
+	); err != nil {
+		return fmt.Errorf("write auth config: %w", err)
+	}
+	fmt.Fprintln(stderr, "bootstrap-admin: local login re-enabled in the auth config")
+	return nil
 }
 
 // resolvePassword picks the password from exactly one source. Order of

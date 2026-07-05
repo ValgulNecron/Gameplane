@@ -33,7 +33,7 @@ func newConfigServer(t *testing.T) (*httptest.Server, *db.Store) {
 	t.Helper()
 	store := newTestStore(t)
 	r := chi.NewRouter()
-	MountConfig(r, store)
+	MountConfig(r, store, false)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 	return srv, store

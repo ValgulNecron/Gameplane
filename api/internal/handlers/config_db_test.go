@@ -16,7 +16,7 @@ func TestConfig_GetAll_DBError(t *testing.T) {
 		t.Fatalf("drop: %v", err)
 	}
 	r := chi.NewRouter()
-	MountConfig(r, store)
+	MountConfig(r, store, false)
 	rr := newRR()
 	r.ServeHTTP(rr, httpReq("GET", "/admin/config/", ""))
 	if rr.Code != http.StatusInternalServerError {
@@ -34,7 +34,7 @@ func TestConfig_GetAll_SkipsUnknownKeys(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 	r := chi.NewRouter()
-	MountConfig(r, store)
+	MountConfig(r, store, false)
 	rr := newRR()
 	r.ServeHTTP(rr, httpReq("GET", "/admin/config/", ""))
 	if rr.Code != http.StatusOK {
@@ -50,7 +50,7 @@ func TestConfig_Put_DBError(t *testing.T) {
 		t.Fatalf("drop: %v", err)
 	}
 	r := chi.NewRouter()
-	MountConfig(r, store)
+	MountConfig(r, store, false)
 	rr := newRR()
 	r.ServeHTTP(rr, httpReq("PUT", "/admin/config/general", `{"instanceName":"k","defaultNamespace":"n"}`))
 	if rr.Code != http.StatusInternalServerError {

@@ -90,10 +90,15 @@ func main() {
 	sessions := auth.NewSessionStore(store)
 	sessions.StartGC(ctx, time.Hour)
 	localAuth := auth.NewLocal(store)
+	// The Helm-flag OIDC provider (if any) is built once at startup; the
+	// registry lists it as the read-only "helm" provider next to the
+	// dashboard-managed providers it resolves live from the auth config.
 	oidcAuth, err := auth.NewOIDC(ctx, cfg.oidcIssuer, cfg.oidcClientID, cfg.oidcClientSecret, cfg.oidcRedirectURL)
 	if err != nil && cfg.oidcIssuer != "" {
 		logger.Warn("oidc disabled", "err", err)
 	}
+	authRegistry := auth.NewRegistry(store,
+		auth.NewK8sSecretReader(k8s, cfg.namespace), oidcAuth, cfg.oidcDisplayName)
 
 	var auditOpts []audit.Option
 	var webhookDone <-chan struct{}
@@ -131,21 +136,28 @@ func main() {
 
 	// Public auth routes
 	r.Route("/auth", func(r chi.Router) {
-		// Pre-auth: which login methods are enabled (local always; OIDC
-		// only when configured). No version/host/count — login-privacy.
-		r.Get("/providers", handlers.AuthProvidersHandler(oidcAuth != nil, cfg.oidcDisplayName))
+		// Pre-auth: which login methods are enabled, resolved through the
+		// registry per request so config saves apply without a restart.
+		// No version/host/count — login-privacy.
+		r.Get("/providers", handlers.AuthProvidersHandler(authRegistry))
 		// Rate-limit /login specifically — argon2id is ~200 ms of
 		// single-core CPU per attempt, so an unlimited path invites a
 		// trivial DoS.
-		r.With(auth.LoginLimiter.Middleware).Post("/login", localAuth.HandleLogin(sessions))
+		r.With(auth.LoginLimiter.Middleware).Post("/login", localAuth.HandleLogin(sessions, authRegistry))
 		r.Post("/logout", sessions.HandleLogout())
-		if oidcAuth != nil {
-			r.Get("/oidc/start", oidcAuth.HandleStart())
-			// Callback triggers an IdP token exchange + DB write per hit;
-			// cap it so a misbehaving client (or a redirect loop) can't
-			// flood either.
-			r.With(auth.OIDCCallbackLimiter.Middleware).Get("/oidc/callback", oidcAuth.HandleCallback(sessions))
-		}
+		// Dashboard-managed providers, resolved live per request. The
+		// callback triggers an IdP token exchange + DB write per hit; cap
+		// it so a misbehaving client (or a redirect loop) can't flood
+		// either. Unknown/disabled providers 404 neutrally.
+		r.Get("/oidc/{provider}/start", handlers.OIDCStart(authRegistry))
+		r.With(auth.OIDCCallbackLimiter.Middleware).
+			Get("/oidc/{provider}/callback", handlers.OIDCCallback(authRegistry, sessions))
+		// Legacy single-provider paths alias the Helm-flag provider — its
+		// redirect URL is registered verbatim at existing IdPs. Registered
+		// unconditionally; they 404 neutrally when no helm provider exists.
+		r.Get("/oidc/start", handlers.OIDCStartLegacy(authRegistry))
+		r.With(auth.OIDCCallbackLimiter.Middleware).
+			Get("/oidc/callback", handlers.OIDCCallbackLegacy(authRegistry, sessions))
 	})
 
 	// Protected API
@@ -164,8 +176,9 @@ func main() {
 		handlers.MountUsers(p, store, sessions)
 		handlers.MountRoles(p, store)
 		handlers.MountAudit(p, auditor)
-		handlers.MountConfig(p, store)
+		handlers.MountConfig(p, store, oidcAuth != nil)
 		handlers.MountNotifications(p, notifier, k8s, cfg.namespace)
+		handlers.MountAuthProviderSecrets(p, k8s, cfg.namespace)
 		handlers.MountCluster(p, k8s, store, Version)
 		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
 		handlers.MountEvents(p, k8s)

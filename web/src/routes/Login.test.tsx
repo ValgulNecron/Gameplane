@@ -7,7 +7,7 @@ const assignMock = vi.fn();
 
 // The login page fetches /auth/providers on mount; route fetches by URL
 // so a single mock serves both the providers probe and the login POST.
-let providers: Array<{ kind: string; label: string }>;
+let providers: Array<{ name?: string; kind: string; label: string }>;
 let loginResponse: () => Response;
 
 function router(url: RequestInfo | URL): Promise<Response> {
@@ -90,6 +90,41 @@ describe("LoginPage", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /Continue with/i })).not.toBeInTheDocument(),
     );
+  });
+
+  it("renders one button per SSO provider, routed by name", async () => {
+    providers = [
+      { name: "local", kind: "local", label: "Local account" },
+      { name: "corp", kind: "oidc", label: "Acme SSO" },
+      { name: "helm", kind: "oidc", label: "Helm SSO" },
+    ];
+    render(<LoginPage />);
+    const corp = await screen.findByRole("button", { name: /Continue with Acme SSO/i });
+    fireEvent.click(corp);
+    expect(assignMock).toHaveBeenCalledWith("/auth/oidc/corp/start");
+    // The Helm-flag provider keeps the legacy start path — its cookies
+    // and IdP-registered callback live there.
+    fireEvent.click(screen.getByRole("button", { name: /Continue with Helm SSO/i }));
+    expect(assignMock).toHaveBeenCalledWith("/auth/oidc/start");
+  });
+
+  it("hides the password form when local login is disabled", async () => {
+    providers = [{ name: "corp", kind: "oidc", label: "Acme SSO" }];
+    render(<LoginPage />);
+    await screen.findByRole("button", { name: /Continue with Acme SSO/i });
+    expect(screen.queryByLabelText(/username/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the password form when the providers fetch fails", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      if (String(url).includes("/auth/providers")) {
+        return Promise.reject(new Error("network down"));
+      }
+      return router(url);
+    });
+    render(<LoginPage />);
+    expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
   it("reveals the typed password when the eye toggle is clicked", async () => {
