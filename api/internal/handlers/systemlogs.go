@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,7 +32,7 @@ func MountSystemLogs(r chi.Router, k *kube.Client, namespace string) {
 			labelValue = "gameplane-operator"
 		default:
 			httperr.WriteCode(w, req, http.StatusBadRequest,
-				fmt.Errorf("component must be 'api' or 'operator'"))
+				errors.New("component must be 'api' or 'operator'"))
 			return
 		}
 
@@ -155,10 +156,9 @@ func MountSystemLogs(r chi.Router, k *kube.Client, namespace string) {
 			}
 			if err != nil {
 				// Treat context deadline/cancellation as normal termination
-				if err == io.EOF {
-					return
-				}
-				if err == context.DeadlineExceeded || err == context.Canceled {
+				// (the follow window ending, or the client going away).
+				if errors.Is(err, io.EOF) ||
+					errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					return
 				}
 				slog.Warn("system logs stream error",
