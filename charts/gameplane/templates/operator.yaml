@@ -205,8 +205,12 @@ spec:
             - --agent-ca-secret-name={{ .Values.api.agentMTLS.caSecretRef.name }}
             - --agent-ca-secret-namespace={{ .Release.Namespace }}
             - --module-namespace={{ .Release.Namespace }}
+            - --zap-log-level={{ .Values.operator.logLevel }}
             {{- if .Values.operator.localModules.enabled }}
             - --module-local-root={{ .Values.operator.localModules.mountPath }}
+            {{- end }}
+            {{- if .Values.operator.agentLogLevel }}
+            - --agent-log-level={{ .Values.operator.agentLogLevel }}
             {{- end }}
           ports:
             - { name: metrics, containerPort: 8080 }

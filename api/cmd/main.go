@@ -33,7 +33,10 @@ import (
 var Version = "dev"
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// Level from the environment first so the subcommand dispatch and
+	// bootstrap-admin honor it; the serve path rebuilds the logger from
+	// the --log-level flag once it has parsed its flags.
+	logger := newLogger(envOr("GAMEPLANE_LOG_LEVEL", "info"))
 	slog.SetDefault(logger)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -64,6 +67,8 @@ func main() {
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
+	logger = newLogger(cfg.logLevel)
+	slog.SetDefault(logger)
 
 	store, err := db.Open(ctx, cfg.dbDriver, cfg.dbDSN)
 	if err != nil {
@@ -244,6 +249,7 @@ type config struct {
 	addr     string
 	dbDriver string
 	dbDSN    string
+	logLevel string
 
 	oidcIssuer       string
 	oidcClientID     string
@@ -270,6 +276,8 @@ type config struct {
 
 func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.addr, "addr", ":8000", "HTTP listen address")
+	fs.StringVar(&c.logLevel, "log-level", envOr("GAMEPLANE_LOG_LEVEL", "info"),
+		"log verbosity: debug, info, warn, or error")
 	fs.StringVar(&c.dbDriver, "db-driver", envOr("GAMEPLANE_DB_DRIVER", "sqlite"), "sqlite or postgres")
 	fs.StringVar(&c.dbDSN, "db-dsn", envOr("GAMEPLANE_DB_DSN", "file:/data/gameplane.db?_pragma=journal_mode(WAL)"), "DSN")
 	fs.StringVar(&c.oidcIssuer, "oidc-issuer", envOr("GAMEPLANE_OIDC_ISSUER", ""), "OIDC issuer URL")
@@ -304,6 +312,27 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// newLogger builds the process logger at the given level. Unknown values
+// degrade to info — a typo in a manifest shouldn't take the API down.
+func newLogger(level string) *slog.Logger {
+	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: parseLogLevel(level)}))
+}
+
+// parseLogLevel maps a --log-level value to a slog.Level, defaulting to
+// info for unknown values.
+func parseLogLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
 
 // envOrInt reads an integer env var, falling back to def when unset or

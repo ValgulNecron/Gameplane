@@ -47,6 +47,7 @@ func main() {
 		probeAddr              string
 		enableLeaderElection   bool
 		agentImage             string
+		agentLogLevel          string
 		agentCABundle          string
 		agentClientCert        string
 		agentClientKey         string
@@ -60,6 +61,9 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election.")
 	flag.StringVar(&agentImage, "agent-image", "ghcr.io/valgulnecron/gameplane/agent:dev",
 		"Image to use for the Gameplane agent sidecar injected into game pods.")
+	flag.StringVar(&agentLogLevel, "agent-log-level", "",
+		"Log level (debug, info, warn, or error) injected into agent sidecars as GAMEPLANE_LOG_LEVEL. "+
+			"Empty injects nothing (the agent defaults to info) and avoids rolling existing pods.")
 	flag.StringVar(&moduleNamespace, "module-namespace", "gameplane-system",
 		"Namespace where ModuleSource credential Secrets live.")
 	flag.StringVar(&moduleLocalRoot, "module-local-root", "",
@@ -116,6 +120,7 @@ func main() {
 		Client:                 mgr.GetClient(),
 		Scheme:                 mgr.GetScheme(),
 		AgentImage:             agentImage,
+		AgentLogLevel:          agentLogLevel,
 		AgentCASecretName:      agentCASecretName,
 		AgentCASecretNamespace: agentCASecretNamespace,
 		AgentClient:            agentClient,

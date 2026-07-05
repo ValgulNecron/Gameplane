@@ -39,6 +39,11 @@ type GameServerReconciler struct {
 	// deployer can pin the agent version independently of the game.
 	AgentImage string
 
+	// AgentLogLevel, when non-empty, is injected into every agent sidecar
+	// as GAMEPLANE_LOG_LEVEL. Empty injects nothing — the agent defaults
+	// to info and existing StatefulSets don't roll on operator upgrade.
+	AgentLogLevel string
+
 	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
 	// wide Secret holding `ca.crt` + `ca.key` used to sign the
 	// per-GameServer agent server cert. Provisioned by the chart
@@ -536,7 +541,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		ss.Spec.Template.ObjectMeta.Annotations = ann
 		ss.Spec.Template.Spec.Containers = []corev1.Container{
 			buildGameContainer(gs, tmpl, image, ver, mc),
-			buildAgentContainer(gs, tmpl, ver, r.AgentImage),
+			buildAgentContainer(gs, tmpl, ver, r.AgentImage, r.AgentLogLevel),
 		}
 		volumes := []corev1.Volume{
 			{
@@ -754,7 +759,7 @@ func buildGameContainer(
 
 func buildAgentContainer(
 	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
-	ver *gameplanev1alpha1.GameVersion, fallbackImage string,
+	ver *gameplanev1alpha1.GameVersion, fallbackImage, logLevel string,
 ) corev1.Container {
 	image := fallbackImage
 	res := corev1.ResourceRequirements{}
@@ -792,6 +797,11 @@ func buildAgentContainer(
 		// agent reports the GAME process's CPU/memory from /proc rather than
 		// its own per-container cgroup (which shows only the idle sidecar).
 		{Name: "GAMEPLANE_USAGE_PROC", Value: "1"},
+	}
+	// Only when explicitly configured — the env change rolls every game
+	// StatefulSet, so an unset flag must not differ from the old pod spec.
+	if logLevel != "" {
+		env = append(env, corev1.EnvVar{Name: "GAMEPLANE_LOG_LEVEL", Value: logLevel})
 	}
 	// In proc mode the agent can't read the game container's cgroup limit, so
 	// pass the resolved limits through as the denominator for the dashboard's
