@@ -23,11 +23,15 @@ var dnsLabelRE = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 // MountConfig exposes the admin config store at /admin/config.
 //
 // Each AdminSettings section is persisted as a single JSON blob keyed by
-// section name. The set of valid sections is closed (see sectionValidators)
+// section name. The set of valid sections is closed (see newValidators)
 // so the API never round-trips arbitrary keys, which keeps the surface
 // small enough to audit and bounds the value column's worst case.
-func MountConfig(r chi.Router, store *db.Store) {
-	h := &configHandler{db: store}
+//
+// helmOIDCPresent reports whether the Helm-flag OIDC provider is
+// configured — it counts as an always-enabled provider for validateAuth's
+// lockout guard.
+func MountConfig(r chi.Router, store *db.Store, helmOIDCPresent bool) {
+	h := &configHandler{db: store, validators: newValidators(helmOIDCPresent)}
 	r.Route("/admin/config", func(r chi.Router) {
 		r.Get("/", h.getAll)
 		r.Put("/{section}", h.put)
@@ -35,7 +39,8 @@ func MountConfig(r chi.Router, store *db.Store) {
 }
 
 type configHandler struct {
-	db *db.Store
+	db         *db.Store
+	validators map[string]func([]byte) (json.RawMessage, error)
 }
 
 func (h *configHandler) getAll(w http.ResponseWriter, req *http.Request) {
@@ -57,7 +62,7 @@ func (h *configHandler) getAll(w http.ResponseWriter, req *http.Request) {
 		// Skip rows for sections we no longer recognize; the table
 		// allows arbitrary keys at the schema level but the API
 		// surface only ever exposes the validated set.
-		if _, ok := sectionValidators[key]; !ok {
+		if _, ok := h.validators[key]; !ok {
 			continue
 		}
 		out[key] = json.RawMessage(value)
@@ -67,7 +72,7 @@ func (h *configHandler) getAll(w http.ResponseWriter, req *http.Request) {
 
 func (h *configHandler) put(w http.ResponseWriter, req *http.Request) {
 	section := chi.URLParam(req, "section")
-	validate, ok := sectionValidators[section]
+	validate, ok := h.validators[section]
 	if !ok {
 		http.Error(w, "unknown section", http.StatusBadRequest)
 		return
@@ -100,16 +105,18 @@ func (h *configHandler) put(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, map[string]any{"section": section, "value": canon})
 }
 
-// sectionValidators owns both the closed allowlist of section names and
-// the per-section schema. The validator returns the canonicalized JSON
-// that gets persisted — it isn't a passthrough of the request body, so
+// newValidators owns both the closed allowlist of section names and the
+// per-section schema. Each validator returns the canonicalized JSON that
+// gets persisted — it isn't a passthrough of the request body, so
 // unknown fields silently drop instead of accumulating in the database.
-var sectionValidators = map[string]func([]byte) (json.RawMessage, error){
-	"general":       validateGeneral,
-	"auth":          validateAuth,
-	"notifications": validateNotifications,
-	"telemetry":     validateTelemetry,
-	"updates":       validateUpdates,
+func newValidators(helmOIDCPresent bool) map[string]func([]byte) (json.RawMessage, error) {
+	return map[string]func([]byte) (json.RawMessage, error){
+		"general":       validateGeneral,
+		"auth":          validateAuth(helmOIDCPresent),
+		"notifications": validateNotifications,
+		"telemetry":     validateTelemetry,
+		"updates":       validateUpdates,
+	}
 }
 
 type generalCfg struct {
@@ -142,9 +149,15 @@ func validateGeneral(body []byte) (json.RawMessage, error) {
 }
 
 type authProvider struct {
-	Name      string `json:"name"`
-	Kind      string `json:"kind"` // "local" | "oidc" | "google" | "github"
-	Enabled   bool   `json:"enabled"`
+	Name        string `json:"name"`
+	Kind        string `json:"kind"` // "local" | "oidc" | "google" | "github"
+	DisplayName string `json:"displayName,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	// Non-local kinds: the issuer + client id are public identifiers and
+	// live here for UI visibility; only the clientSecret hides in the
+	// ConfigRef Secret (default gameplane-auth-<name>).
+	Issuer    string `json:"issuer,omitempty"`
+	ClientID  string `json:"clientID,omitempty"`
 	ConfigRef string `json:"configRef,omitempty"` // K8s Secret name
 }
 
@@ -154,38 +167,68 @@ type authCfg struct {
 
 var validAuthKinds = map[string]bool{"local": true, "oidc": true, "google": true, "github": true}
 
-func validateAuth(body []byte) (json.RawMessage, error) {
-	var c authCfg
-	if err := json.Unmarshal(body, &c); err != nil {
-		return nil, fmt.Errorf("invalid json: %w", err)
+// validateAuth returns the auth-section validator. helmOIDCPresent makes
+// the Helm-flag provider count as always-enabled for the lockout guard —
+// it can't be disabled from the dashboard.
+func validateAuth(helmOIDCPresent bool) func([]byte) (json.RawMessage, error) {
+	return func(body []byte) (json.RawMessage, error) {
+		var c authCfg
+		if err := json.Unmarshal(body, &c); err != nil {
+			return nil, fmt.Errorf("invalid json: %w", err)
+		}
+		seen := map[string]bool{}
+		anyEnabled := helmOIDCPresent
+		locals := 0
+		for i, p := range c.Providers {
+			if p.Name == "" {
+				return nil, fmt.Errorf("providers[%d].name is required", i)
+			}
+			if seen[p.Name] {
+				return nil, fmt.Errorf("providers[%d].name duplicate: %s", i, p.Name)
+			}
+			seen[p.Name] = true
+			if !validAuthKinds[p.Kind] {
+				return nil, fmt.Errorf("providers[%d].kind must be one of local|oidc|google|github", i)
+			}
+			if p.ConfigRef != "" && !dnsLabelRE.MatchString(p.ConfigRef) {
+				return nil, fmt.Errorf("providers[%d].configRef must match RFC1123 label", i)
+			}
+			if p.Kind == "local" {
+				locals++
+			} else {
+				// Non-local names become URL path segments
+				// (/auth/oidc/{name}/…) and default Secret names — bound
+				// them to DNS labels. "helm" is the synthetic Helm-flag
+				// provider's reserved slug.
+				if !dnsLabelRE.MatchString(p.Name) {
+					return nil, fmt.Errorf("providers[%d].name must be a lowercase DNS label", i)
+				}
+				if p.Name == "helm" {
+					return nil, fmt.Errorf(`providers[%d].name "helm" is reserved for the Helm-configured provider`, i)
+				}
+				u, err := url.Parse(p.Issuer)
+				if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+					return nil, fmt.Errorf("providers[%d].issuer must be an http(s) URL", i)
+				}
+				if p.ClientID == "" {
+					return nil, fmt.Errorf("providers[%d].clientID is required", i)
+				}
+			}
+			if p.Enabled {
+				anyEnabled = true
+			}
+		}
+		if locals > 1 {
+			return nil, fmt.Errorf("at most one local provider is allowed")
+		}
+		// Saving a config where nothing can authenticate would lock every
+		// admin out at their next logout — refuse it here rather than
+		// trust each client to guard the toggle.
+		if !anyEnabled {
+			return nil, fmt.Errorf("at least one identity provider must stay enabled")
+		}
+		return json.Marshal(c)
 	}
-	seen := map[string]bool{}
-	anyEnabled := false
-	for i, p := range c.Providers {
-		if p.Name == "" {
-			return nil, fmt.Errorf("providers[%d].name is required", i)
-		}
-		if seen[p.Name] {
-			return nil, fmt.Errorf("providers[%d].name duplicate: %s", i, p.Name)
-		}
-		seen[p.Name] = true
-		if !validAuthKinds[p.Kind] {
-			return nil, fmt.Errorf("providers[%d].kind must be one of local|oidc|google|github", i)
-		}
-		if p.ConfigRef != "" && !dnsLabelRE.MatchString(p.ConfigRef) {
-			return nil, fmt.Errorf("providers[%d].configRef must match RFC1123 label", i)
-		}
-		if p.Enabled {
-			anyEnabled = true
-		}
-	}
-	// Saving a config where nothing can authenticate would lock every
-	// admin out at their next logout — refuse it here rather than trust
-	// each client to guard the toggle.
-	if !anyEnabled {
-		return nil, fmt.Errorf("at least one identity provider must stay enabled")
-	}
-	return json.Marshal(c)
 }
 
 // Backup destinations used to live in this admin-config blob; they're
@@ -194,7 +237,7 @@ func validateAuth(body []byte) (json.RawMessage, error) {
 
 type notifSink struct {
 	Name      string   `json:"name"`
-	Kind      string   `json:"kind"`                // "discord" | "slack" | "smtp" | "webhook" | "ntfy"
+	Kind      string   `json:"kind"` // "discord" | "slack" | "smtp" | "webhook" | "ntfy"
 	Enabled   bool     `json:"enabled"`
 	ConfigRef string   `json:"configRef,omitempty"` // K8s Secret name holding the sink's credentials
 	Events    []string `json:"events,omitempty"`    // subset of notify.AllEvents; empty = notify.DefaultOn

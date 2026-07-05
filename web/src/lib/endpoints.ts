@@ -409,9 +409,30 @@ export const Auth = {
   login: (body: { username: string; password: string }) =>
     api<User>("/auth/login", { method: "POST", body }),
   logout: () => api<void>("/auth/logout", { method: "POST" }),
-  oidcStartURL: () => "/auth/oidc/start",
+  // Per-provider start route. The Helm-flag provider ("helm", or an old
+  // response without names) uses the legacy path — its state cookies and
+  // IdP-registered callback live there.
+  oidcStartURL: (name?: string) =>
+    name && name !== "helm"
+      ? `/auth/oidc/${encodeURIComponent(name)}/start`
+      : "/auth/oidc/start",
   // Public, pre-auth: which login methods are enabled + their labels.
   providers: () => api<LoginProvidersResp>("/auth/providers"),
+};
+
+// Managed clientSecret Secrets behind dashboard-added identity providers
+// (Admin Settings → Authentication). Mirrors the notification-sink
+// secret flow: PUT the value, reference the returned name as configRef.
+export const AuthProviders = {
+  putSecret: (name: string, body: { clientSecret: string }) =>
+    api<{ name: string; keys: string[] }>(
+      `/admin/auth/providers/${encodeURIComponent(name)}/secret`,
+      { method: "PUT", body },
+    ),
+  deleteSecret: (name: string) =>
+    api<void>(`/admin/auth/providers/${encodeURIComponent(name)}/secret`, {
+      method: "DELETE",
+    }),
 };
 
 export const Audit = {

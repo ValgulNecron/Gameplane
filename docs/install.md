@@ -100,6 +100,9 @@ Top-level knobs (see `values.yaml` for the full list):
 - `api.db.driver` — `sqlite` (default) or `postgres`
 - `api.db.dsn` — connection string; SQLite default persists to a PVC
 - `api.oidc.enabled` + `issuer` / `clientID` / `clientSecretRef` — wire OIDC login
+  from Helm (shows up as the read-only `helm` provider). Providers can also be
+  added at runtime under **Admin Settings → Authentication** — no Helm values
+  or restart needed; see [security](security.md#dashboard-managed-providers)
 - `ingress.host` — dashboard hostname
 - `networkPolicies.enabled` — default-deny in games namespace (recommended on)
 - `podSecurity.enforceRestricted` — label games namespace for Pod Security Standards

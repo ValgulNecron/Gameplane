@@ -24,6 +24,40 @@ Two modes, configurable independently:
 On first OIDC login for a subject, Gameplane creates a user row with
 role `viewer`. Admins must promote new OIDC users manually.
 
+### Dashboard-managed providers
+
+OIDC providers can be added at runtime under **Admin Settings →
+Authentication**: issuer + client id live in the auth config row (they
+are public OAuth identifiers), and the client secret is stored as an
+API-managed Secret `gameplane-auth-<name>` in the control-plane
+namespace. Two labels bound the API's reach: it only *reads* Secrets
+labelled `gameplane.local/auth-provider=true`, and only *deletes* ones
+additionally labelled `gameplane.local/managed-by=gameplane-api` — so a
+`config:manage` user can neither exfiltrate arbitrary control-plane
+Secrets through a provider's `configRef` nor delete kubectl-/GitOps-
+created ones over HTTP. Provider changes apply on save, no restart: the
+registry re-reads the config row per auth request and rebuilds OIDC
+clients lazily (issuer discovery cached, failures back off).
+
+A provider configured through Helm flags (`api.oidc.*`) appears as the
+read-only `helm` provider; it is owned by values.yaml and cannot be
+edited, disabled, or deleted from the dashboard.
+
+### Lockout guard and break-glass
+
+Saving an auth config with zero enabled providers is rejected (the Helm
+provider counts as always-enabled). If you still lock yourself out —
+local login disabled while the only OIDC provider is broken — run the
+break-glass inside the API pod:
+
+```sh
+kubectl -n gameplane-system exec deploy/gameplane-api -- \
+  /api bootstrap-admin --enable-local-login
+```
+
+It force-enables the local provider in the auth config row (preserving
+everything else) and takes effect on the next login attempt.
+
 ## Authorization
 
 RBAC is **permission-based**. A *permission* is a fixed `resource:action`

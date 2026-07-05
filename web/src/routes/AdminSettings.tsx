@@ -8,6 +8,7 @@ import {
   Cog,
   Info,
   Key,
+  Lock,
   Mail,
   MessagesSquare,
   Plus,
@@ -26,12 +27,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn, formatRelative } from "@/lib/utils";
-import { BackupDestinations, Cluster, Notifications } from "@/lib/endpoints";
+import { Auth, AuthProviders, BackupDestinations, Cluster, Notifications } from "@/lib/endpoints";
 import type { ClusterInfo } from "@/types";
 import {
   useConfig,
   useUpdateConfigSection,
   type AuthCfg,
+  type AuthKind,
+  type AuthProvider,
   type GeneralCfg,
   type NotifEventType,
   type NotifSink,
@@ -101,7 +104,7 @@ export function AdminSettingsPage() {
             </Card>
           )}
           {cfg.data && section === "general"       && <GeneralSection       initial={cfg.data.general} />}
-          {cfg.data && section === "auth"          && <AuthSection          initial={cfg.data.auth} />}
+          {cfg.data && section === "auth"          && <AuthSection          initial={cfg.data.auth} general={cfg.data.general} />}
           {section === "backups"                   && <BackupDestSection />}
           {section === "modules"                   && <ModuleSourcesPanel />}
           {cfg.data && section === "notifications" && <NotificationsSection initial={cfg.data.notifications} />}
@@ -240,19 +243,44 @@ const defaultAuth: AuthCfg = {
   providers: [{ name: "Local accounts", kind: "local", enabled: true }],
 };
 
-function AuthSection({ initial }: { initial?: AuthCfg }) {
+// The managed-Secret name the API derives for a provider's clientSecret
+// (mirrors providerSecretPrefix in api/internal/handlers).
+const providerSecretPrefix = "gameplane-auth-";
+const maxProviderName = 63 - providerSecretPrefix.length;
+
+function AuthSection({ initial, general }: { initial?: AuthCfg; general?: GeneralCfg }) {
   const f = useSectionForm<AuthCfg>(initial ?? defaultAuth, "auth");
+  const [adding, setAdding] = useState(false);
+  // Runtime providers reveal whether a Helm-flag ("helm") provider exists;
+  // it always counts as enabled and is managed in values.yaml, not here.
+  const { data: runtime } = useQuery({
+    queryKey: ["login-providers"],
+    queryFn: () => Auth.providers().catch(() => null),
+  });
+  const helm = runtime?.providers.find((p) => p.name === "helm") ?? null;
   const enabledCount = f.draft.providers.filter((p) => p.enabled).length;
+  // With a Helm provider present, login always stays possible, so the
+  // last dashboard-managed toggle may be turned off.
+  const lastToggleLocked = enabledCount === 1 && !helm;
   const togglerFor = (idx: number) => () => {
     const next = f.draft.providers.map((p, i) =>
       i === idx ? { ...p, enabled: !p.enabled } : p,
     );
     f.replace({ ...f.draft, providers: next });
   };
+  const removeProvider = (idx: number) => {
+    const p = f.draft.providers[idx];
+    // Best-effort cleanup of the API-managed clientSecret Secret; the
+    // server refuses Secrets it didn't create.
+    if (!p.configRef || p.configRef === providerSecretPrefix + p.name) {
+      void AuthProviders.deleteSecret(p.name).catch(() => undefined);
+    }
+    f.replace({ ...f.draft, providers: f.draft.providers.filter((_, i) => i !== idx) });
+  };
   return (
     <SectionCard
       title="Authentication"
-      subtitle="Built-in local accounts plus any federated identity providers. Configuration of the credentials themselves lives outside this screen."
+      subtitle="Built-in local accounts plus federated identity providers. Changes take effect on save — no restart needed."
       footer={
         <>
           <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
@@ -260,7 +288,7 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
         </>
       }
     >
-      {f.draft.providers.length === 0 && (
+      {f.draft.providers.length === 0 && !helm && (
         <div className="text-sm text-muted">No identity providers configured yet.</div>
       )}
       <ul className="divide-y divide-border">
@@ -270,17 +298,18 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
               <Key className="h-4 w-4 text-muted" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-sm">{p.name}</div>
+              <div className="text-sm">{p.displayName || p.name}</div>
               <div className="truncate text-xs text-muted">
-                {p.kind}{p.configRef ? ` · ${p.configRef}` : ""}
+                {p.kind}
+                {p.issuer ? ` · ${p.issuer}` : p.configRef ? ` · ${p.configRef}` : ""}
               </div>
             </div>
             <button
               type="button"
               onClick={togglerFor(idx)}
-              disabled={p.enabled && enabledCount === 1}
+              disabled={p.enabled && lastToggleLocked}
               title={
-                p.enabled && enabledCount === 1
+                p.enabled && lastToggleLocked
                   ? "At least one identity provider must stay enabled."
                   : undefined
               }
@@ -291,16 +320,189 @@ function AuthSection({ initial }: { initial?: AuthCfg }) {
             >
               {p.enabled ? "Enabled" : "Disabled"}
             </button>
+            {p.kind !== "local" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete provider ${p.name}`}
+                onClick={() => removeProvider(idx)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </li>
         ))}
+        {helm && (
+          <li className="flex items-center gap-3 py-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface">
+              <Lock className="h-4 w-4 text-muted" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm">{helm.label}</div>
+              <div className="truncate text-xs text-muted">
+                oidc · configured via Helm — manage in values.yaml
+              </div>
+            </div>
+            <span className="rounded bg-success/15 px-2 py-0.5 text-[10px] font-mono uppercase text-success">
+              Enabled
+            </span>
+          </li>
+        )}
       </ul>
-      {enabledCount === 1 && (
+      {lastToggleLocked && (
         <p className="mt-2 text-xs text-muted">
           At least one identity provider must stay enabled — the last enabled
           provider can&apos;t be turned off.
         </p>
       )}
+      {adding ? (
+        <AddProviderForm
+          existing={f.draft.providers.map((p) => p.name)}
+          externalURLSet={Boolean(general?.externalURL)}
+          onAdd={(p) => f.replace({ ...f.draft, providers: [...f.draft.providers, p] })}
+          onClose={() => setAdding(false)}
+        />
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          Add provider
+        </Button>
+      )}
     </SectionCard>
+  );
+}
+
+function AddProviderForm({
+  existing,
+  externalURLSet,
+  onAdd,
+  onClose,
+}: {
+  existing: string[];
+  externalURLSet: boolean;
+  onAdd: (p: AuthProvider) => void;
+  onClose: () => void;
+}) {
+  const [kind, setKind] = useState<AuthKind>("oidc");
+  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [issuer, setIssuer] = useState("");
+  const [clientID, setClientID] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Presets prefill what they can: Google is a real OIDC issuer;
+  // github.com publishes no OIDC discovery for user login, so that kind
+  // needs a bridge (Dex or similar) whose issuer goes here.
+  const applyPreset = (k: AuthKind) => {
+    setKind(k);
+    setError(null);
+    if (k === "google") {
+      setIssuer("https://accounts.google.com");
+      if (!displayName) setDisplayName("Google");
+    } else if (k === "github" && !displayName) {
+      setDisplayName("GitHub");
+    }
+  };
+
+  const dns = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
+  const nameOk =
+    dns.test(name) && name !== "helm" && name.length <= maxProviderName && !existing.includes(name);
+  const valid = nameOk && /^https?:\/\/.+/.test(issuer) && clientID !== "" && clientSecret !== "";
+
+  // Store the clientSecret first; the provider row references the
+  // returned Secret and lands in the config on the section's Save.
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await AuthProviders.putSecret(name, { clientSecret });
+      onAdd({
+        name,
+        kind,
+        ...(displayName ? { displayName } : {}),
+        enabled: true,
+        issuer,
+        clientID,
+        configRef: res.name,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to store the client secret");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
+      <div className="text-sm font-medium">Add identity provider</div>
+      {!externalURLSet && (
+        <p className="text-xs text-warning">
+          Set <span className="font-mono">General → External URL</span> first — it forms the
+          provider&apos;s OIDC redirect URL.
+        </p>
+      )}
+      <div className="grid gap-3 md:grid-cols-2">
+        <FieldLabel label="Kind">
+          <Select
+            aria-label="Provider kind"
+            value={kind}
+            onValueChange={(v) => applyPreset(v as AuthKind)}
+            options={[
+              { value: "oidc", label: "Generic OIDC" },
+              { value: "google", label: "Google" },
+              { value: "github", label: "GitHub (via OIDC bridge)" },
+            ]}
+          />
+          {kind === "github" && (
+            <span className="text-[11px] text-muted">
+              GitHub.com has no OIDC discovery for user login — run an OIDC bridge such as
+              Dex and enter its issuer URL below.
+            </span>
+          )}
+        </FieldLabel>
+        <FieldLabel label="Name">
+          <Input placeholder="corp-sso" value={name} onChange={(e) => setName(e.target.value)} />
+          <span className="text-[11px] text-muted">
+            A short lowercase identifier (letters, digits, and dashes) used in the login
+            route and the Secret name.
+          </span>
+        </FieldLabel>
+        <FieldLabel label="Display name (login button)">
+          <Input
+            placeholder="Acme SSO"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </FieldLabel>
+        <FieldLabel label="Issuer URL">
+          <Input
+            placeholder="https://idp.example.com"
+            value={issuer}
+            onChange={(e) => setIssuer(e.target.value)}
+          />
+        </FieldLabel>
+        <FieldLabel label="Client ID">
+          <Input value={clientID} onChange={(e) => setClientID(e.target.value)} />
+        </FieldLabel>
+        <FieldLabel label="Client secret">
+          <Input
+            type="password"
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+          />
+        </FieldLabel>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button disabled={!valid || busy} onClick={() => void submit()}>
+          {busy ? "Storing…" : "Add provider"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
