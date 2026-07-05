@@ -14,6 +14,7 @@ import { AdminSettingsPage } from "@/routes/AdminSettings";
 import { CreateServerWizard } from "@/routes/CreateServer";
 import { BackupsPage } from "@/routes/Backups";
 import { AuditLogPage } from "@/routes/AuditLog";
+import { AdminLogsPage } from "@/routes/AdminLogs";
 
 const rootRoute = new RootRoute({ component: Outlet });
 
@@ -104,6 +105,18 @@ const auditLogRoute = new Route({
   ),
 });
 
+// The API guards /admin/system-logs with the admin wildcard permission
+// ("*"), so the page gates on the same — not a narrower named permission.
+const adminLogsRoute = new Route({
+  getParentRoute: () => appLayoutRoute,
+  path: "/admin/logs",
+  component: () => (
+    <RequirePermission perm="*">
+      <AdminLogsPage />
+    </RequirePermission>
+  ),
+});
+
 const backupsRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/backups",
@@ -122,6 +135,7 @@ export const routeTree = rootRoute.addChildren([
     usersRoute,
     adminRoute,
     auditLogRoute,
+    adminLogsRoute,
     backupsRoute,
   ]),
 ]);
