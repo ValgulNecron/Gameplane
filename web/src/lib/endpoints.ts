@@ -422,6 +422,24 @@ export const Audit = {
   },
 };
 
+// SinkSecretBody carries a sink's credential material, keyed by kind:
+// discord/slack/webhook take {url, authorization?}, ntfy {url, token?},
+// smtp {host, port?, username?, password?, from, to, tls?}. The API
+// stores it as the labelled Secret the sink's configRef points at.
+export interface SinkSecretBody {
+  kind: string;
+  url?: string;
+  authorization?: string;
+  token?: string;
+  host?: string;
+  port?: string;
+  username?: string;
+  password?: string;
+  from?: string;
+  to?: string;
+  tls?: string;
+}
+
 export const Notifications = {
   // Test-fires the *persisted* sink synchronously; the response carries the
   // real delivery outcome (502 body = the delivery error, URL-sanitized).
@@ -430,6 +448,20 @@ export const Notifications = {
       `/admin/notifications/sinks/${encodeURIComponent(name)}/test`,
       { method: "POST" },
     ),
+  // Writes the sink's credential Secret (API-managed, labelled); returns
+  // the Secret name to use as the sink's configRef. Values are never
+  // echoed back.
+  putSecret: (name: string, body: SinkSecretBody) =>
+    api<{ name: string; keys: string[] }>(
+      `/admin/notifications/sinks/${encodeURIComponent(name)}/secret`,
+      { method: "PUT", body },
+    ),
+  // Best-effort removal of the API-managed Secret; user-created Secrets
+  // are refused server-side.
+  deleteSecret: (name: string) =>
+    api<void>(`/admin/notifications/sinks/${encodeURIComponent(name)}/secret`, {
+      method: "DELETE",
+    }),
 };
 
 // FileEntry mirrors the agent's response shape (agent/openapi.yaml). The

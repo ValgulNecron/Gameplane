@@ -113,13 +113,18 @@ rules:
   - apiGroups: [""]
     resources: [configmaps]
     verbs: [get, list, create, update, delete]
-  # Notification sink credentials are read (never written) from Secrets
-  # here in the control-plane namespace; the API additionally refuses any
-  # Secret not labelled gameplane.local/notification-sink=true
-  # (api/internal/notify/sinks.go).
+  # Notification sink credentials live as Secrets here in the
+  # control-plane namespace. The API reads them at delivery time and —
+  # since the Add-sink form accepts the secret value directly — also
+  # creates/updates/deletes them. RBAC can't filter by label, so the
+  # real boundary is in code: reads and updates refuse Secrets not
+  # labelled gameplane.local/notification-sink=true, and deletes
+  # additionally require gameplane.local/managed-by=gameplane-api so
+  # kubectl-/GitOps-created Secrets are never deleted over HTTP
+  # (api/internal/notify/sinks.go, api/internal/handlers/secrets_managed.go).
   - apiGroups: [""]
     resources: [secrets]
-    verbs: [get]
+    verbs: [get, list, create, update, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -21,9 +21,27 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `/ingest` and rides the API's new `GAMEPLANE_TELEMETRY_AUTH` env.
   Previously the Admin Settings toggle worked but there was nowhere for
   the data to go.
+- **notifications:** a new **ntfy** sink kind — POSTs each event to an ntfy
+  topic URL (ntfy.sh or self-hosted) with the headline in the `Title`
+  header, `Priority: high` on failures, and an optional access token.
+- **notifications:** the **Add sink form now takes the credential value
+  directly** (webhook URL, ntfy topic + token, SMTP settings) instead of
+  requiring a pre-created labelled Secret referenced by name. The API
+  stores the value as a Secret named `gameplane-notify-<sink>` (labelled
+  `gameplane.local/notification-sink=true` +
+  `gameplane.local/managed-by=gameplane-api`) and wires the sink's
+  `configRef` automatically; deleting the sink cleans the Secret up.
+  Secrets created with kubectl/GitOps keep working and are never deleted
+  through the dashboard. The cryptic "Name (DNS label)" help text is gone
+  too.
 
 ### Fixed
 
+- **api/web:** the Authentication admin section can no longer save a config
+  with **zero enabled identity providers** — a state that would have locked
+  everyone out at their next logout. The API rejects such saves (422,
+  "at least one identity provider must stay enabled") and the dashboard
+  disables the toggle on the last enabled provider with an explanatory hint.
 - **web:** the Create Server wizard no longer produces **unschedulable
   servers**. It set only resource *limits*, so Kubernetes defaulted
   requests to match — a 4-core limit then needed a fully-empty node and sat
