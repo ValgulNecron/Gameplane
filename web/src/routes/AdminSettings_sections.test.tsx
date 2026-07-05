@@ -79,6 +79,95 @@ describe("AdminSettings sections", () => {
     expect(screen.getByRole("button", { name: /^Enabled$/i })).toBeDisabled();
   });
 
+  it("adds an identity provider: secret stored first, then the row references it", async () => {
+    const calls: string[] = [];
+    let secretBody: Record<string, string> | undefined;
+    let saved: { providers: Array<Record<string, unknown>> } | undefined;
+    server.use(
+      http.put("/admin/auth/providers/:name/secret", async ({ params, request }) => {
+        calls.push("secret");
+        secretBody = (await request.json()) as Record<string, string>;
+        return HttpResponse.json({ name: `gameplane-auth-${String(params.name)}`, keys: ["clientSecret"] });
+      }),
+      http.put("/admin/config/auth", async ({ request }) => {
+        calls.push("config");
+        saved = (await request.json()) as { providers: Array<Record<string, unknown>> };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await userEvent.type(screen.getByPlaceholderText("corp-sso"), "corp");
+    await userEvent.type(screen.getByPlaceholderText("Acme SSO"), "Acme SSO");
+    await userEvent.type(screen.getByPlaceholderText(/idp\.example/i), "https://idp.corp.example");
+    const [clientID, clientSecret] = [
+      screen.getByLabelText(/Client ID/i),
+      screen.getByLabelText(/Client secret/i),
+    ];
+    await userEvent.type(clientID, "gameplane");
+    await userEvent.type(clientSecret, "s3cret");
+    await userEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
+    expect(await screen.findByText(/oidc · https:\/\/idp\.corp\.example/i)).toBeInTheDocument();
+    expect(secretBody).toEqual({ clientSecret: "s3cret" });
+    await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    await waitFor(() => expect(saved).toBeDefined());
+    expect(calls).toEqual(["secret", "config"]);
+    expect(saved?.providers).toContainEqual({
+      name: "corp",
+      kind: "oidc",
+      displayName: "Acme SSO",
+      enabled: true,
+      issuer: "https://idp.corp.example",
+      clientID: "gameplane",
+      configRef: "gameplane-auth-corp",
+    });
+  });
+
+  it("prefills the issuer for the Google preset", async () => {
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Provider kind/i }), "google");
+    expect(screen.getByPlaceholderText(/idp\.example/i)).toHaveValue("https://accounts.google.com");
+  });
+
+  it("shows the Helm-flag provider as a locked row and relaxes the last-toggle guard", async () => {
+    server.use(
+      http.get("/auth/providers", () =>
+        HttpResponse.json({
+          providers: [
+            { name: "local", kind: "local", label: "Local account" },
+            { name: "helm", kind: "oidc", label: "Corp SSO" },
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    expect(await screen.findByText(/configured via Helm/i)).toBeInTheDocument();
+    // With the always-on Helm provider present, even the last dashboard
+    // toggle may be turned off — login stays possible.
+    const toggle = await screen.findByRole("button", { name: /^Enabled$/i });
+    expect(toggle).toBeEnabled();
+  });
+
+  it("warns when adding a provider without an External URL", async () => {
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json(
+          makeConfig({
+            general: { instanceName: "x", externalURL: "", defaultNamespace: "g" },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await gotoSection(/Authentication/i);
+    await userEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    expect(screen.getByText(/External URL/)).toBeInTheDocument();
+  });
+
   it("surfaces a backend rejection when saving the auth section", async () => {
     server.use(
       http.get("/admin/config", () =>

@@ -238,8 +238,14 @@ func setCSRFCookie(w http.ResponseWriter, token string, ttl time.Duration) {
 }
 
 func clearCookie(w http.ResponseWriter, name string, httpOnly bool) {
+	clearCookieAt(w, name, httpOnly, "/")
+}
+
+// clearCookieAt clears a cookie set on a specific path — browsers only
+// drop a cookie when the clearing Set-Cookie carries the same Path.
+func clearCookieAt(w http.ResponseWriter, name string, httpOnly bool, path string) {
 	http.SetCookie(w, &http.Cookie{
-		Name: name, Value: "", Path: "/", MaxAge: -1,
+		Name: name, Value: "", Path: path, MaxAge: -1,
 		HttpOnly: httpOnly, Secure: true, SameSite: http.SameSiteLaxMode,
 	})
 }

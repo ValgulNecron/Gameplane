@@ -95,6 +95,8 @@ var rules = []rule{
 	// Notification sink test-sends pair with editing the notifications
 	// config section, so they share its manage permission.
 	{segment: "admin", prefix: "/admin/notifications", perm: "config:manage"},
+	// Identity-provider secrets pair with editing the auth config section.
+	{segment: "admin", prefix: "/admin/auth", perm: "config:manage"},
 	{segment: "admin", perm: "*"},
 
 	// Namespaced game resources. Reads vs writes; the catch-all GET below
