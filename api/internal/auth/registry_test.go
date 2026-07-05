@@ -279,10 +279,14 @@ func TestLogin_DisabledByRegistry(t *testing.T) {
 	s := newAuthDB(t)
 	seedConfigRow(t, s, "auth", `{"providers":[{"name":"local","kind":"local","enabled":false}]}`)
 	reg := NewRegistry(s, staticSecrets(nil), nil, "")
-	seedUser(t, s, "alice", "correct-horse-battery", "admin")
+	// A username no other test in this package logs in with:
+	// LoginUserLimiter is a package singleton keyed by username, and the
+	// local_test logins would otherwise have drained "alice"'s bucket by
+	// the time this file's tests run.
+	seedUser(t, s, "registry-alice", "correct-horse-battery", "admin")
 
 	rr := httptest.NewRecorder()
-	body, _ := json.Marshal(map[string]string{"username": "alice", "password": "correct-horse-battery"})
+	body, _ := json.Marshal(map[string]string{"username": "registry-alice", "password": "correct-horse-battery"})
 	req := httptest.NewRequest("POST", "/login", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), reg).ServeHTTP(rr, req)

@@ -202,7 +202,9 @@ func (r *Registry) LocalEnabled(ctx context.Context) bool {
 func (r *Registry) OIDCFor(ctx context.Context, name string) (*OIDC, error) {
 	if name == HelmProviderName {
 		if r.legacy == nil {
-			return nil, errors.New("no helm-configured OIDC provider")
+			// No Helm flags set: indistinguishable from any other unknown
+			// provider so the legacy routes 404 neutrally.
+			return nil, fmt.Errorf("%q: %w", name, ErrUnknownProvider)
 		}
 		return r.legacy, nil
 	}
