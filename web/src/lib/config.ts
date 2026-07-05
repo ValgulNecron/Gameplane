@@ -22,7 +22,7 @@ export interface AuthCfg {
   providers: AuthProvider[];
 }
 
-export type SinkKind = "discord" | "slack" | "smtp" | "webhook";
+export type SinkKind = "discord" | "slack" | "smtp" | "webhook" | "ntfy";
 
 // The closed event set mirrors api/internal/notify/events.go. A sink with
 // no explicit filter receives the failure events plus server.recovered.

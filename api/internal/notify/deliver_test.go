@@ -139,6 +139,54 @@ func TestDeliverUnknownKind(t *testing.T) {
 	}
 }
 
+// ntfy rides its metadata in headers over a plain-text body, with the
+// optional token as a standard Authorization header.
+func TestDeliverNtfy(t *testing.T) {
+	type got struct {
+		title, prio, tags, auth, ct, body string
+	}
+	var rec atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 1024)
+		n, _ := r.Body.Read(buf)
+		rec.Store(got{
+			title: r.Header.Get("Title"),
+			prio:  r.Header.Get("Priority"),
+			tags:  r.Header.Get("Tags"),
+			auth:  r.Header.Get("Authorization"),
+			ct:    r.Header.Get("Content-Type"),
+			body:  string(buf[:n]),
+		})
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	e := Event{
+		Type: EventBackupFailed, Kind: "Backup", Namespace: "games", Name: "nightly",
+		Reason: "ResticError", Message: "repository locked", Instance: "prod",
+	}
+	secret := map[string][]byte{"url": []byte(srv.URL), "authorization": []byte("Bearer tk_x")}
+	if err := testNotifier().deliver(context.Background(), Sink{Name: "n", Kind: "ntfy"}, secret, e); err != nil {
+		t.Fatalf("deliver: %v", err)
+	}
+	g, _ := rec.Load().(got)
+	if g.title != "[prod] backup failed: games/nightly" {
+		t.Errorf("Title = %q", g.title)
+	}
+	if g.prio != "high" || g.tags != "rotating_light" {
+		t.Errorf("Priority/Tags = %q/%q, want high/rotating_light for a failure", g.prio, g.tags)
+	}
+	if g.auth != "Bearer tk_x" {
+		t.Errorf("Authorization = %q", g.auth)
+	}
+	if !strings.HasPrefix(g.ct, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain", g.ct)
+	}
+	if !strings.Contains(g.body, "repository locked") {
+		t.Errorf("body = %q, want the event detail", g.body)
+	}
+}
+
 // fakeSMTP runs a minimal single-connection SMTP server good enough for a
 // tls=none, unauthenticated exchange. It sends the received DATA payload on
 // the returned channel once the client QUITs.

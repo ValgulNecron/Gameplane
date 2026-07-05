@@ -78,6 +78,7 @@ func TestValidateNotifications(t *testing.T) {
 		{"duplicate", `{"sinks":[{"name":"a","kind":"discord"},{"name":"a","kind":"slack"}]}`, false, "duplicate"},
 		{"bad kind", `{"sinks":[{"name":"a","kind":"weird"}]}`, false, "kind must"},
 		{"happy", `{"sinks":[{"name":"x","kind":"smtp"}]}`, true, ""},
+		{"happy ntfy", `{"sinks":[{"name":"x","kind":"ntfy","enabled":true,"configRef":"gameplane-notify-x"}]}`, true, ""},
 		{"bad configRef", `{"sinks":[{"name":"a","kind":"discord","configRef":"Not_A_Label"}]}`, false, "configRef"},
 		{"happy configRef+events", `{"sinks":[{"name":"a","kind":"discord","enabled":true,"configRef":"team-hook","events":["backup.failed","server.unhealthy"]}]}`, true, ""},
 		{"unknown event", `{"sinks":[{"name":"a","kind":"discord","events":["server.rebooted"]}]}`, false, "unknown event"},

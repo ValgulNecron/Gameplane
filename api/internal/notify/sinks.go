@@ -19,7 +19,7 @@ const SinkSecretLabel = "gameplane.local/notification-sink"
 // these fields, so this side just decodes.
 type Sink struct {
 	Name      string   `json:"name"`
-	Kind      string   `json:"kind"` // "discord" | "slack" | "smtp" | "webhook"
+	Kind      string   `json:"kind"` // "discord" | "slack" | "smtp" | "webhook" | "ntfy"
 	Enabled   bool     `json:"enabled"`
 	ConfigRef string   `json:"configRef"`
 	Events    []string `json:"events"`
