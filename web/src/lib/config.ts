@@ -11,6 +11,18 @@ export interface GeneralCfg {
 
 export type AuthKind = "local" | "oidc" | "google" | "github";
 
+// Per-role IdP group lists (mirrors auth.RoleMappings server-side). A user
+// matching several gets the most privileged (admin > operator > viewer).
+export interface AuthRoleMappings {
+  admin?: string[];
+  operator?: string[];
+  viewer?: string[];
+}
+
+// Fallback when roleMappings is set but no group matches; "deny" refuses
+// the login. Absent means viewer.
+export type AuthDefaultRole = "viewer" | "operator" | "admin" | "deny";
+
 export interface AuthProvider {
   name: string;
   kind: AuthKind;
@@ -22,6 +34,13 @@ export interface AuthProvider {
   issuer?: string;
   clientID?: string;
   configRef?: string;
+  // Group→role mapping (non-local kinds only). scopes are extra OAuth
+  // scopes beyond openid/profile/email; groupsClaim defaults to "groups"
+  // server-side; roleMappings absent = roles never touched after creation.
+  scopes?: string[];
+  groupsClaim?: string;
+  roleMappings?: AuthRoleMappings;
+  defaultRole?: AuthDefaultRole;
 }
 
 export interface AuthCfg {

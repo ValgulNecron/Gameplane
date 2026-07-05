@@ -18,6 +18,8 @@ Fill in:
 
 The callback URL is automatically set to `{External URL}/auth/oidc/{provider-name}/callback`.
 
+**Note**: group→role mapping is only available on dashboard-registered providers — the legacy Helm-flag single OIDC provider (`--oidc-*` values) does not support it.
+
 ## Provider guides
 
 ### Keycloak

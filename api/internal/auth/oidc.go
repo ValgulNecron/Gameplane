@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -19,22 +20,51 @@ const (
 	oidcNonceCookie = "gameplane_oidc_nonce"
 )
 
+// ProviderPolicy carries a provider's group→role mapping configuration
+// into the OIDC client: extra OAuth scopes, the groups claim name, the
+// mappings themselves, and the fallback role. A nil policy — or a policy
+// whose RoleMappings is nil — disables mapping entirely: new users get
+// viewer and their role is never touched again.
+type ProviderPolicy struct {
+	Scopes       []string
+	GroupsClaim  string
+	RoleMappings *RoleMappings
+	DefaultRole  string
+}
+
 type OIDC struct {
 	provider *oidc.Provider
 	verifier *oidc.IDTokenVerifier
 	oauth    *oauth2.Config
+	policy   *ProviderPolicy
 	db       *db.Store
 }
 
-// NewOIDC returns (nil, nil) when no issuer is configured — the caller
-// treats that as "OIDC disabled" rather than an error.
-func NewOIDC(ctx context.Context, issuer, clientID, clientSecret, redirectURL string) (*OIDC, error) {
+// NewOIDCWithPolicy is NewOIDC carrying a group→role mapping policy. The
+// requested scopes are the base openid/profile/email set plus the
+// policy's extras, deduplicated and order-preserving.
+func NewOIDCWithPolicy(
+	ctx context.Context, issuer, clientID, clientSecret, redirectURL string, pol *ProviderPolicy,
+) (*OIDC, error) {
 	if issuer == "" {
 		return nil, nil
 	}
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, err
+	}
+	scopes := []string{oidc.ScopeOpenID, "profile", "email"}
+	if pol != nil {
+		seen := map[string]bool{}
+		for _, s := range scopes {
+			seen[s] = true
+		}
+		for _, s := range pol.Scopes {
+			if !seen[s] {
+				scopes = append(scopes, s)
+				seen[s] = true
+			}
+		}
 	}
 	return &OIDC{
 		provider: provider,
@@ -44,9 +74,80 @@ func NewOIDC(ctx context.Context, issuer, clientID, clientSecret, redirectURL st
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
 			Endpoint:     provider.Endpoint(),
-			Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
+			Scopes:       scopes,
 		},
+		policy: pol,
 	}, nil
+}
+
+// NewOIDC returns (nil, nil) when no issuer is configured — the caller
+// treats that as "OIDC disabled" rather than an error.
+func NewOIDC(ctx context.Context, issuer, clientID, clientSecret, redirectURL string) (*OIDC, error) {
+	return NewOIDCWithPolicy(ctx, issuer, clientID, clientSecret, redirectURL, nil)
+}
+
+// extractGroups pulls group memberships out of raw ID-token claims.
+// claimName defaults to "groups" when empty. IdPs disagree on the claim's
+// shape, so both a JSON array of strings (non-strings skipped) and a bare
+// string are accepted; a missing claim yields nil.
+func extractGroups(claims map[string]any, claimName string) []string {
+	if claimName == "" {
+		claimName = "groups"
+	}
+	switch v := claims[claimName].(type) {
+	case []any:
+		var groups []string
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				groups = append(groups, s)
+			}
+		}
+		return groups
+	case string:
+		return []string{v}
+	default:
+		return nil
+	}
+}
+
+// computeRole resolves a user's dashboard role from their IdP groups. A
+// nil policy or nil RoleMappings means mapping is off: viewer, never
+// denied. With mappings, the most privileged matching role wins (admin >
+// operator > viewer); an unmatched user gets the policy's DefaultRole,
+// where "" means viewer and "deny" refuses the login (deny=true, empty
+// role).
+func computeRole(groups []string, pol *ProviderPolicy) (role string, deny bool) {
+	if pol == nil || pol.RoleMappings == nil {
+		return "viewer", false
+	}
+	member := map[string]bool{}
+	for _, g := range groups {
+		member[g] = true
+	}
+	matches := func(mapped []string) bool {
+		for _, g := range mapped {
+			if member[g] {
+				return true
+			}
+		}
+		return false
+	}
+	switch {
+	case matches(pol.RoleMappings.Admin):
+		return "admin", false
+	case matches(pol.RoleMappings.Operator):
+		return "operator", false
+	case matches(pol.RoleMappings.Viewer):
+		return "viewer", false
+	}
+	switch pol.DefaultRole {
+	case "deny":
+		return "", true
+	case "admin", "operator":
+		return pol.DefaultRole, false
+	default: // "" and "viewer" (validateAuth admits nothing else)
+		return "viewer", false
+	}
 }
 
 func (o *OIDC) AttachStore(s *db.Store) { o.db = s }
@@ -133,8 +234,29 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 			http.Error(w, "invalid id_token claims", http.StatusBadRequest)
 			return
 		}
+		// The typed struct above can't see arbitrary claim names, so the
+		// groups claim (admin-configurable) is read from a raw re-parse.
+		var rawClaims map[string]any
+		if err := idt.Claims(&rawClaims); err != nil {
+			slog.Warn("oidc raw claim parse", "err", err)
+			http.Error(w, "invalid id_token claims", http.StatusBadRequest)
+			return
+		}
+		claimName := ""
+		if o.policy != nil {
+			claimName = o.policy.GroupsClaim
+		}
+		role, deny := computeRole(extractGroups(rawClaims, claimName), o.policy)
+		if deny {
+			// Log the identity, never the tokens.
+			slog.Warn("oidc login denied: no group grants a role and defaultRole is deny",
+				"issuer", idt.Issuer, "subject", claims.Sub)
+			http.Error(w, "login not permitted", http.StatusForbidden)
+			return
+		}
+		syncRole := o.policy != nil && o.policy.RoleMappings != nil
 
-		user, err := o.resolveOrLinkUser(req.Context(), idt.Issuer, claims.Sub, claims.Email, claims.Name)
+		user, err := o.resolveOrLinkUser(req.Context(), idt.Issuer, claims.Sub, claims.Email, claims.Name, role, syncRole)
 		if err != nil {
 			slog.Error("oidc resolveOrLinkUser", "err", err)
 			http.Error(w, "login failed", http.StatusInternalServerError)
@@ -155,8 +277,13 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 	}
 }
 
+// resolveOrLinkUser returns the user linked to (issuer, subject),
+// creating one with the given role on first login. syncRole (true iff the
+// provider has role mappings) makes the IdP authoritative: an existing
+// user whose stored role differs is re-pointed at role. Without it a
+// manually-promoted user keeps their role.
 func (o *OIDC) resolveOrLinkUser(
-	ctx context.Context, issuer, sub, email, name string,
+	ctx context.Context, issuer, sub, email, name, role string, syncRole bool,
 ) (*User, error) {
 	if o.db == nil {
 		return nil, errors.New("oidc: no store attached")
@@ -168,6 +295,15 @@ func (o *OIDC) resolveOrLinkUser(
 		WHERE l.issuer = ? AND l.subject = ?`, issuer, sub,
 	).Scan(&u.ID, &u.Username, &u.DisplayName, &u.Email, &u.Role)
 	if err == nil {
+		if syncRole && u.Role != role {
+			applied, err := o.syncUserRole(ctx, u.ID, role)
+			if err != nil {
+				return nil, fmt.Errorf("sync role for user %d: %w", u.ID, err)
+			}
+			if applied {
+				u.Role = role
+			}
+		}
 		return &u, nil
 	}
 	// First login — create user + link in a single tx.
@@ -190,8 +326,8 @@ func (o *OIDC) resolveOrLinkUser(
 	}
 
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO users(username, email, display_name, role) VALUES (?, ?, ?, 'viewer')`,
-		username, email, name,
+		`INSERT INTO users(username, email, display_name, role) VALUES (?, ?, ?, ?)`,
+		username, email, name, role,
 	)
 	if err != nil {
 		return nil, err
@@ -203,11 +339,11 @@ func (o *OIDC) resolveOrLinkUser(
 	); err != nil {
 		return nil, err
 	}
-	// Mirror the default role into a cluster-wide role binding so RBAC
-	// resolves the new SSO user's permissions.
+	// Mirror the role into a cluster-wide role binding so RBAC resolves
+	// the new SSO user's permissions.
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, 'viewer', '*')`,
-		uid,
+		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, ?, '*')`,
+		uid, role,
 	); err != nil {
 		return nil, err
 	}
@@ -215,8 +351,58 @@ func (o *OIDC) resolveOrLinkUser(
 		return nil, err
 	}
 	return &User{
-		ID: uid, Username: username, DisplayName: name, Email: email, Role: "viewer",
+		ID: uid, Username: username, DisplayName: name, Email: email, Role: role,
 	}, nil
+}
+
+// syncUserRole re-points an existing user's primary role and their
+// cluster-wide ("*") role binding at role, in one transaction. Namespace-
+// scoped bindings are deliberately left alone — the IdP owns the primary
+// role, not the per-namespace grants an admin may have added.
+//
+// One exception, mirroring the manual users handler's lockout guard: a
+// demotion that would strip the install's LAST user who can manage users
+// is skipped (applied=false, no error) — the login still succeeds and the
+// stored role stays. Otherwise a group-mapping mistake at the IdP could
+// have the sole admin demote themselves by logging in, locking everyone
+// out of user administration.
+func (o *OIDC) syncUserRole(ctx context.Context, userID int64, role string) (applied bool, err error) {
+	newGrantsManage, err := o.db.RoleGrantsUserManagement(ctx, role)
+	if err != nil {
+		return false, fmt.Errorf("check target role: %w", err)
+	}
+	if !newGrantsManage {
+		managesNow, err := o.db.UserManagesUsers(ctx, userID)
+		if err != nil {
+			return false, fmt.Errorf("check current role: %w", err)
+		}
+		if managesNow {
+			count, err := o.db.UserManagerCount(ctx)
+			if err != nil {
+				return false, fmt.Errorf("count user managers: %w", err)
+			}
+			if count <= 1 {
+				slog.Warn("oidc role resync skipped: would remove last user-manager", "user", userID)
+				return false, nil
+			}
+		}
+	}
+	tx, err := o.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE users SET role = ? WHERE id = ?`, role, userID); err != nil {
+		return false, fmt.Errorf("update role: %w", err)
+	}
+	if err := o.db.SetClusterRoleBinding(ctx, tx, userID, role); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit: %w", err)
+	}
+	return true, nil
 }
 
 // pickUniqueUsername returns base if no existing user has that username,

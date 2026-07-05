@@ -25,6 +25,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   previously-dead `operator.logLevel` (zap: debug|info|error), and a new
   `operator.agentLogLevel` injects the level into agent sidecars (left empty
   it injects nothing, so upgrades don't roll every game pod).
+- **auth:** OIDC providers can now map IdP groups to dashboard roles —
+  per-provider extra scopes, a configurable groups claim, group→role
+  mappings with most-privileged-wins, a default role (including `deny` to
+  refuse unmatched logins), and role re-sync on every login when mappings
+  are configured (the IdP becomes the source of truth; providers without
+  mappings keep today's viewer-then-promote behavior).
 - **operator/modules:** game memory settings can now **size themselves to
   the container memory limit** — a configSchema field may declare
   `autoFromMemoryLimit: {percent}`, and when the user leaves it empty the
