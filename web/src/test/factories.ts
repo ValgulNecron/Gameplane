@@ -199,7 +199,7 @@ export function makeClusterStats(over: Partial<ClusterStats> = {}): ClusterStats
 }
 
 export function makeClusterInfo(over: Partial<ClusterInfo> = {}): ClusterInfo {
-  return { clusterName: "homelab", version: "v1.31.0", clusterOps: true, ...over };
+  return { clusterName: "homelab", version: "v1.31.0", clusterOps: true, updateChannel: "stable", ...over };
 }
 
 export function makeCatalog(over: Partial<CatalogEntry> = {}): CatalogEntry {
@@ -290,7 +290,6 @@ export function makeConfig(over: Partial<AllConfig> = {}): AllConfig {
     auth: { providers: [{ name: "local", kind: "local", enabled: true }] },
     notifications: { sinks: [] },
     telemetry: { sendMetrics: false },
-    updates: { channel: "stable" },
     ...over,
   };
 }

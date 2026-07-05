@@ -115,7 +115,6 @@ func newValidators(helmOIDCPresent bool) map[string]func([]byte) (json.RawMessag
 		"auth":          validateAuth(helmOIDCPresent),
 		"notifications": validateNotifications,
 		"telemetry":     validateTelemetry,
-		"updates":       validateUpdates,
 	}
 }
 
@@ -298,19 +297,8 @@ func validateTelemetry(body []byte) (json.RawMessage, error) {
 	return json.Marshal(c)
 }
 
-type updatesCfg struct {
-	Channel string `json:"channel"`
-}
-
-var validChannels = map[string]bool{"stable": true, "beta": true, "nightly": true}
-
-func validateUpdates(body []byte) (json.RawMessage, error) {
-	var c updatesCfg
-	if err := json.Unmarshal(body, &c); err != nil {
-		return nil, fmt.Errorf("invalid json: %w", err)
-	}
-	if !validChannels[c.Channel] {
-		return nil, fmt.Errorf("channel must be one of stable|beta|nightly")
-	}
-	return json.Marshal(c)
-}
+// The "updates" section used to persist a mutable release channel here,
+// but nothing ever consumed it — Gameplane upgrades happen via Helm. The
+// channel is now the chart's informational updates.channel value, served
+// read-only on /cluster/info. getAll skips the legacy DB row because the
+// key is no longer in sectionValidators.

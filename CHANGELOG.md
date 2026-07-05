@@ -7,6 +7,16 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **api/web/chart:** the Admin Settings → Updates **channel selector is now a
+  read-only label**. The old select persisted a channel that nothing consumed
+  (Gameplane is upgraded via Helm, not an in-app updater); the channel is now
+  the chart's informational `updates.channel` value, passed to the API as
+  `--update-channel` and served on `GET /cluster/info` as `updateChannel`.
+  `PUT /admin/config/updates` is gone (400 unknown section) and any legacy
+  `updates` DB row is ignored.
+
 ### Added
 
 - **auth:** identity providers are now **managed from the dashboard and

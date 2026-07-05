@@ -61,7 +61,7 @@ func TestCluster_View(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false)
+	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
@@ -104,7 +104,7 @@ func TestCluster_Stats(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false)
+	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/stats", nil))
@@ -133,7 +133,7 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", false)
+	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
@@ -158,14 +158,15 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	}
 }
 
-// The clusterOps flag must surface verbatim on /cluster/info so the
-// dashboard can gate the node-join / kubeconfig buttons up front.
-func TestCluster_Info_ReportsClusterOps(t *testing.T) {
+// The clusterOps flag and the updates.channel label must surface
+// verbatim on /cluster/info so the dashboard can gate the node-join /
+// kubeconfig buttons and show which channel the install tracks.
+func TestCluster_Info_ReportsClusterOpsAndChannel(t *testing.T) {
 	cs := fake.NewSimpleClientset()
 	k := &kube.Client{Typed: cs}
 
 	r := chi.NewRouter()
-	MountCluster(r, k, nil, "v9.9.9-test", true)
+	MountCluster(r, k, nil, "v9.9.9-test", true, "edge")
 
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
@@ -178,5 +179,8 @@ func TestCluster_Info_ReportsClusterOps(t *testing.T) {
 	}
 	if !info.ClusterOps {
 		t.Fatal("clusterOps = false, want true when mounted enabled")
+	}
+	if info.UpdateChannel != "edge" {
+		t.Fatalf("updateChannel = %q, want edge", info.UpdateChannel)
 	}
 }

@@ -204,6 +204,9 @@ spec:
             {{- if $webhookURL }}
             - --audit-webhook-url={{ $webhookURL }}
             {{- end }}
+            {{- if .Values.updates.channel }}
+            - --update-channel={{ .Values.updates.channel }}
+            {{- end }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:
