@@ -259,6 +259,7 @@ export interface GameTemplate {
       enum?: string[];
       required?: boolean;
       target?: "env" | "file";
+      autoFromMemoryLimit?: { percent: number };
     }>;
   };
   status?: { inUseCount?: number };
