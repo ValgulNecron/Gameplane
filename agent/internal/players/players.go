@@ -395,6 +395,7 @@ func (h *handler) parseListWithRegex(raw string) Snapshot {
 		var name string
 		if len(m) > 1 {
 			// Use first capture group if present.
+			// A participating-but-empty capture group (empty string) is dropped.
 			name = strings.TrimSpace(m[1])
 		} else if len(m) > 0 {
 			// Use whole match if no capture group.
@@ -405,4 +406,31 @@ func (h *handler) parseListWithRegex(raw string) Snapshot {
 		}
 	}
 	return Snapshot{Online: len(names), Max: -1, Players: names}
+}
+
+// CountWithRegex counts the number of matches in raw using the provided
+// regex. It extracts the first capture group if present (when non-empty),
+// otherwise counts the whole match. Used by heartbeat to derive player counts
+// from custom list commands.
+func CountWithRegex(raw string, re *regexp.Regexp) int {
+	matches := re.FindAllStringSubmatch(raw, -1)
+	if len(matches) == 0 {
+		return 0
+	}
+	count := 0
+	for _, m := range matches {
+		var name string
+		if len(m) > 1 {
+			// Use first capture group if present.
+			// A participating-but-empty capture group is dropped.
+			name = strings.TrimSpace(m[1])
+		} else if len(m) > 0 {
+			// Use whole match if no capture group.
+			name = strings.TrimSpace(m[0])
+		}
+		if name != "" {
+			count++
+		}
+	}
+	return count
 }

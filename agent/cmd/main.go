@@ -171,6 +171,12 @@ func main() {
 		Version:    Version,
 		RCON:       rconClient,
 		Interval:   20 * time.Second,
+		PlayerList: func() *caps.PlayerList {
+			if playerActions != nil {
+				return playerActions.List
+			}
+			return nil
+		}(),
 		Usage: usage.New(usage.Config{
 			DataDir:            dataRoot,
 			ProcMode:           envOr("GAMEPLANE_USAGE_PROC", "") == "1",
