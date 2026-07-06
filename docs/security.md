@@ -87,8 +87,16 @@ named set of permissions, and a user is bound to roles **per namespace**.
 - **Lockout guards.** The API refuses to demote or delete the last user who
   can manage users, and refuses self-demotion below `users:manage`.
 
-Per-GameServer (owner-based) authorization remains future work; server
-ownership today is informational only.
+### Per-GameServer access (owner + collaborators)
+
+In addition to namespace-based RBAC, GameServers support ownership and
+collaboration: the **owner** (who created the server) and any **collaborators**
+(managed via `PUT /servers/{name}:collaborators`) gain full read/write/console
+access to that specific server, regardless of their namespace role. This is
+purely additive — it does not override namespace bindings. Collaborators
+**cannot** transfer ownership or edit the collaborator list; only the owner
+and users holding the namespace `servers:write` permission can. Backups,
+restore jobs, schedules, and events remain namespace-gated in this release.
 
 ## API → Agent
 
