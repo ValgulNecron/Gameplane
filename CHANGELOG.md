@@ -19,6 +19,21 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **api/web/rbac:** per-GameServer access control — server owners and
+  collaborators get enforced per-server access on top of namespace role
+  bindings. Collaborators are managed from the new Access section (server
+  settings) and shared servers appear under "Shared with you"; destructive
+  actions (delete, wipe, transfer, collaborator management) stay owner-only.
+  (#77)
+- **operator/modules:** configurable players-list command — GameTemplate
+  capabilities can set the RCON command and an optional per-line entry regex
+  for reading the online player list; both the Players tab and the heartbeat
+  player counts honor it. (#76)
+- **agent/mods:** Factorio mod-portal credentials — mod registry providers
+  accept a `credentialsSecretRef` (Secret with `username`/`token` in the
+  GameServer's namespace); the agent injects credentials for
+  mods.factorio.com downloads, with URL redaction keeping the token out of
+  logs. (#78)
 - **observability:** log levels are now configurable everywhere — the API and
   agent accept `--log-level`/`GAMEPLANE_LOG_LEVEL` (debug|info|warn|error;
   unknown values degrade to info), the chart wires `api.logLevel` and the
