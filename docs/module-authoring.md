@@ -764,6 +764,37 @@ registry:
   the from-URL form to append `?username=…&token=…` themselves. Keep
   `mods.factorio.com` / `.factorio.com` in `allowedHosts`.
 
+##### Mod-portal credentials (Factorio)
+
+Registry providers can declare a `credentialsSecretRef` to inject
+authentication into downloads. Currently used by Factorio:
+
+```yaml
+registry:
+  providers:
+    - provider: factorio
+      credentialsSecretRef: { name: factorio-creds }
+```
+
+The Secret must live in the GameServer's namespace and contain `username`
+and `token` keys:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata: { name: factorio-creds, namespace: gameplane-games }
+type: Opaque
+data:
+  username: <base64-encoded-username>
+  token: <base64-encoded-api-token>
+```
+
+The agent mounts the Secret read-only at `/etc/gameplane/mod-creds/factorio/`
+and transparently appends `username` and `token` query parameters to download
+URLs during install. Missing or unreadable credential files are handled
+gracefully (installs proceed without credentials). The credentials are never
+logged or included in error messages.
+
 ##### Modpacks (`providers[].modpacks`)
 
 Declaring `modpacks` on a provider adds a Modpacks tab. Two install
