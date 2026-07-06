@@ -1,7 +1,12 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -171,4 +176,93 @@ func TestStampOwner_StripsCollaborators(t *testing.T) {
 	if stamped[ownerIDAnnotation] != "7" {
 		t.Errorf("owner-id should be set to 7, got %q", stamped[ownerIDAnnotation])
 	}
+}
+
+func TestOwnership_GetOwnedServers(t *testing.T) {
+	store := newTestStore(t)
+	alice := seedUser(t, store, "alice", "viewer", "")
+	bob := seedUser(t, store, "bob", "viewer", "")
+	charlie := seedUser(t, store, "charlie", "viewer", "")
+
+	// Create servers with different ownership
+	ownedByAlice := newServerObj("gameplane-games", "owned-by-alice")
+	ownedByAlice.SetAnnotations(map[string]string{
+		ownerIDAnnotation: strconv.FormatInt(alice, 10),
+	})
+
+	collaboratorOfBob := newServerObj("gameplane-games", "collab-of-bob")
+	collaboratorOfBob.SetAnnotations(map[string]string{
+		ownerIDAnnotation:       strconv.FormatInt(bob, 10),
+		collaboratorsAnnotation: strconv.FormatInt(alice, 10),
+	})
+
+	notOwned := newServerObj("gameplane-games", "not-owned")
+	notOwned.SetAnnotations(map[string]string{
+		ownerIDAnnotation: strconv.FormatInt(charlie, 10),
+	})
+
+	k := fakeKubeClient(ownedByAlice, collaboratorOfBob, notOwned)
+	r := chi.NewRouter()
+	MountOwnership(r, k, store)
+
+	t.Run("returns owned servers", func(t *testing.T) {
+		rr := doAs(t, r, alice, "GET", "/users/me/servers", nil)
+		if rr.Code != 200 {
+			t.Fatalf("want 200 got %d: %s", rr.Code, rr.Body)
+		}
+
+		var list map[string]interface{}
+		if err := json.Unmarshal(rr.Body.Bytes(), &list); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		items, ok := list["items"].([]interface{})
+		if !ok {
+			t.Fatalf("items not a list")
+		}
+
+		// Should have 2 items: the owned server and the collab server
+		if len(items) != 2 {
+			t.Errorf("want 2 items, got %d", len(items))
+		}
+	})
+
+	t.Run("filters unrelated servers", func(t *testing.T) {
+		rr := doAs(t, r, charlie, "GET", "/users/me/servers", nil)
+		if rr.Code != 200 {
+			t.Fatalf("want 200 got %d: %s", rr.Code, rr.Body)
+		}
+
+		var list map[string]interface{}
+		if err := json.Unmarshal(rr.Body.Bytes(), &list); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		items, ok := list["items"].([]interface{})
+		if !ok {
+			t.Fatalf("items not a list")
+		}
+
+		// Charlie should only see the server they own (not-owned)
+		if len(items) != 1 {
+			t.Errorf("want 1 item, got %d", len(items))
+		}
+	})
+}
+
+// doAs is like do but with a specific user context
+func doAs(t *testing.T, r http.Handler, userID int64, method, path string, body interface{}) *httptest.ResponseRecorder {
+	var rb io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		rb = bytes.NewReader(data)
+	}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, rb)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: userID}))
+	r.ServeHTTP(rr, req)
+	return rr
 }

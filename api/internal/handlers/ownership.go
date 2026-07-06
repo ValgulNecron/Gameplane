@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -138,8 +139,7 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	// Build a map of provided user IDs to resolve all usernames.
-	idMap := make(map[int64]string)
+	// Build a set of provided user IDs to resolve all usernames.
 	seenIDs := make(map[int64]struct{})
 	for _, id := range body.UserIDs {
 		seenIDs[id] = struct{}{}
@@ -161,12 +161,11 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 			return
 		}
 		seenIDs[id] = struct{}{}
-		idMap[id] = name
 	}
 
-	// Validate all IDs exist and resolve any missing usernames.
+	// Validate all IDs exist, resolve usernames, and build a map.
+	idToName := make(map[int64]string)
 	finalIDs := make([]int64, 0, len(seenIDs))
-	finalNames := make([]string, 0, len(seenIDs))
 	for id := range seenIDs {
 		var username string
 		err := h.db.DB.QueryRowContext(req.Context(),
@@ -185,19 +184,23 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 			continue
 		}
 		finalIDs = append(finalIDs, id)
-		finalNames = append(finalNames, username)
+		idToName[id] = username
 	}
 
-	// Build annotations.
+	// Sort IDs numerically ascending and build annotations with aligned names.
+	sort.Slice(finalIDs, func(i, j int) bool { return finalIDs[i] < finalIDs[j] })
+
 	collabIDsStr := ""
 	collabNamesStr := ""
 	if len(finalIDs) > 0 {
 		idStrs := make([]string, len(finalIDs))
+		nameStrs := make([]string, len(finalIDs))
 		for i, id := range finalIDs {
 			idStrs[i] = strconv.FormatInt(id, 10)
+			nameStrs[i] = idToName[id]
 		}
 		collabIDsStr = strings.Join(idStrs, ",")
-		collabNamesStr = strings.Join(finalNames, ",")
+		collabNamesStr = strings.Join(nameStrs, ",")
 	}
 
 	// Patch the server.
@@ -248,6 +251,7 @@ func (h *ownershipHandler) getOwnedServers(w http.ResponseWriter, req *http.Requ
 		// Check if caller is owner.
 		if ownerIDStr := ann["gameplane.local/owner-id"]; ownerIDStr != "" {
 			if ownerIDStr == strconv.FormatInt(u.ID, 10) {
+				gateStaleAgent(&list.Items[i])
 				filtered.Items = append(filtered.Items, list.Items[i])
 				continue
 			}
@@ -258,6 +262,7 @@ func (h *ownershipHandler) getOwnedServers(w http.ResponseWriter, req *http.Requ
 			for _, id := range strings.Split(collabsStr, ",") {
 				id = strings.TrimSpace(id)
 				if id == userIDStr {
+					gateStaleAgent(&list.Items[i])
 					filtered.Items = append(filtered.Items, list.Items[i])
 					break
 				}
