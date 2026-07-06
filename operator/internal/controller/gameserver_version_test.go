@@ -33,7 +33,13 @@ func mcModsTemplate() *gameplanev1alpha1.GameTemplate {
 			Storage:  gameplanev1alpha1.GameStorageSpec{MountPath: "/data"},
 			Versions: mcVersions(),
 			Capabilities: &gameplanev1alpha1.CapabilitiesSpec{
-				Players: &gameplanev1alpha1.PlayerActionsSpec{Kick: "kick {{.Player}}"},
+				Players: &gameplanev1alpha1.PlayerActionsSpec{
+					Kick: "kick {{.Player}}",
+					List: &gameplanev1alpha1.PlayerListSpec{
+						Command:    "list",
+						EntryRegex: `(?P<name>\w+)`,
+					},
+				},
 				Mods: &gameplanev1alpha1.ModsSpec{
 					Loaders: map[string]gameplanev1alpha1.ModLoaderSpec{
 						"paper":   {Path: "plugins", Extensions: []string{".jar"}},
@@ -143,6 +149,10 @@ func TestResolveCapabilities(t *testing.T) {
 		// Non-mods capabilities are preserved.
 		if caps.Players == nil || caps.Players.Kick != "kick {{.Player}}" {
 			t.Fatalf("players lost: %v", caps.Players)
+		}
+		// Player list config is preserved through deep copy.
+		if caps.Players.List == nil || caps.Players.List.Command != "list" || caps.Players.List.EntryRegex != `(?P<name>\w+)` {
+			t.Fatalf("player list lost or corrupted: %v", caps.Players.List)
 		}
 		// The source template must be untouched (deep copy).
 		if tmpl.Spec.Capabilities.Mods.Loaders == nil {

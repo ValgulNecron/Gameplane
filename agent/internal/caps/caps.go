@@ -96,6 +96,7 @@ type PlayerActions struct {
 	Unban     string     `json:"unban,omitempty"`
 	BanList   *BanList   `json:"banList,omitempty"`
 	Whitelist *Whitelist `json:"whitelist,omitempty"`
+	List      *PlayerList `json:"list,omitempty"`
 }
 
 // BanList reads and parses the game's ban list.
@@ -103,6 +104,17 @@ type BanList struct {
 	Command string `json:"command"`
 	// EntryRegex matches one banned player per line via the named
 	// groups "name" (required), "source" and "reason" (optional).
+	EntryRegex string `json:"entryRegex"`
+}
+
+// PlayerList configures the command that prints the online player
+// list and how to parse its output.
+type PlayerList struct {
+	// Command is the console/RCON command that prints the online players (e.g. "list").
+	Command string `json:"command"`
+	// EntryRegex optionally extracts one player name per match from the
+	// command output (first capture group, or whole match if no group).
+	// When empty the built-in parser is used.
 	EntryRegex string `json:"entryRegex"`
 }
 
