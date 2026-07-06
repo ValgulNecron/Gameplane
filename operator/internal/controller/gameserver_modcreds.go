@@ -9,7 +9,8 @@ import (
 )
 
 // modCredsBasePath is where resolved mod-portal credentials are mounted
-// into the agent sidecar as subdirectories per provider.
+// into the agent sidecar as subdirectories per provider. Must stay in
+// lockstep with the agent's copy in agent/internal/mods/mods.go.
 const modCredsBasePath = "/etc/gameplane/mod-creds"
 
 // resolvedModCreds describes the mod-portal credentials for a GameServer.
@@ -57,11 +58,13 @@ func modCredsVolumes(creds resolvedModCreds) []corev1.Volume {
 	}
 	volumes := make([]corev1.Volume, 0, len(creds.providers))
 	for provider, secretName := range creds.providers {
+		optional := true
 		volumes = append(volumes, corev1.Volume{
 			Name: modCredsVolumeName(provider),
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: secretName,
+					Optional:   &optional,
 					Items: []corev1.KeyToPath{
 						{Key: "username", Path: "username"},
 						{Key: "token", Path: "token"},

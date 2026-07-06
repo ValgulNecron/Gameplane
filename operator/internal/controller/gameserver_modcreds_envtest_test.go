@@ -4,6 +4,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -143,7 +144,7 @@ func TestGameServer_NoModCredentialsWhenNotSet(t *testing.T) {
 		}
 
 		for _, v := range ss.Spec.Template.Spec.Volumes {
-			if len(v.Name) > 11 && v.Name[:11] == "mod-creds-" {
+			if strings.HasPrefix(v.Name, "mod-creds-") {
 				return false, "unexpected mod-creds volume: " + v.Name
 			}
 		}
@@ -151,7 +152,7 @@ func TestGameServer_NoModCredentialsWhenNotSet(t *testing.T) {
 		agent := containerByName(ss.Spec.Template.Spec.Containers, "agent")
 		if agent != nil {
 			for _, m := range agent.VolumeMounts {
-				if len(m.Name) > 11 && m.Name[:11] == "mod-creds-" {
+				if strings.HasPrefix(m.Name, "mod-creds-") {
 					return false, "unexpected mod-creds mount: " + m.Name
 				}
 			}
