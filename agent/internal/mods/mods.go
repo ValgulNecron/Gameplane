@@ -617,8 +617,9 @@ func safeName(name string) (string, error) {
 // subdomain. Comparison is case-insensitive.
 // modCredsBasePath is where mod-portal credentials are mounted, organized
 // by provider. The agent tries to read username and token files for the
-// requested provider; missing files are treated gracefully.
-const modCredsBasePath = "/etc/gameplane/mod-creds"
+// requested provider; missing files are treated gracefully. Package var
+// so tests can override it.
+var modCredsBasePath = "/etc/gameplane/mod-creds"
 
 // injectModCreds appends username and token query parameters to the URL
 // for providers that have credentials mounted. Missing or unreadable

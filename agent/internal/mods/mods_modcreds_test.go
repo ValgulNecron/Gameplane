@@ -1,8 +1,6 @@
 package mods
 
 import (
-	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -245,7 +243,7 @@ func TestInjectModCreds_TokenNotInError(t *testing.T) {
 // is used by the install handler to decide whether to inject credentials.
 func TestModMetaProvider(t *testing.T) {
 	meta := &ModMeta{
-		Provider: "factorio",
+		Provider:  "factorio",
 		ProjectID: "test-mod",
 	}
 	if meta.Provider != "factorio" {
