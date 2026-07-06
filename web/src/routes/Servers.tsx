@@ -12,6 +12,7 @@ import {
   RotateCw,
   Search,
   Server as ServerIcon,
+  Share2,
   Square,
   Users as UsersIcon,
 } from "lucide-react";
@@ -49,6 +50,12 @@ export function ServersPage() {
     staleTime: 30_000,
   });
 
+  const { data: myServers } = useQuery({
+    queryKey: ["my-servers"],
+    queryFn: () => Servers.getMyServers(),
+    refetchInterval: 5_000,
+  });
+
   const act = useMutation({
     mutationFn: (args: { name: string; verb: LifecycleVerb }) =>
       Servers.lifecycle(args.name, args.verb),
@@ -59,16 +66,29 @@ export function ServersPage() {
   const [query, setQuery] = useState("");
 
   const servers = useMemo(() => data?.items ?? [], [data?.items]);
+
+  // Compute shared servers (in my-servers but not in the main list)
+  const sharedServers = useMemo(() => {
+    if (!myServers?.items) return [];
+    const serverKeys = new Set(servers.map((s) => `${s.metadata.namespace}/${s.metadata.name}`));
+    return myServers.items.filter((s) => {
+      const key = `${s.metadata.namespace ?? "gameplane-games"}/${s.metadata.name}`;
+      return !serverKeys.has(key);
+    });
+  }, [servers, myServers?.items]);
   const counts = useMemo(() => countByState(servers), [servers]);
   const vcpus = (clusterView?.nodes ?? []).reduce((s, n) => s + (n.cpu?.capacity ?? 0), 0);
 
-  const visible = servers.filter((gs) => {
+  const filterServer = (gs: GameServer) => {
     if (query && !gs.metadata.name.toLowerCase().includes(query.toLowerCase())) return false;
     const phase = gs.status?.phase;
     if (filter === "running") return phase === "Running";
     if (filter === "stopped") return phase === "Stopped" || phase === "Suspended" || phase === "Failed";
     return true;
-  });
+  };
+
+  const visible = servers.filter(filterServer);
+  const visibleShared = sharedServers.filter(filterServer);
 
   return (
     <div className="space-y-6 p-6">
@@ -168,12 +188,26 @@ export function ServersPage() {
             {isLoading && (
               <tr><td className="px-4 py-10 text-center text-muted" colSpan={8}>Loading…</td></tr>
             )}
-            {!isLoading && visible.length === 0 && (
+            {!isLoading && visible.length === 0 && visibleShared.length === 0 && (
               <tr><td className="px-4 py-12 text-center text-muted" colSpan={8}>
                 No servers match.
               </td></tr>
             )}
             {visible.map((gs) => <ServerRow key={gs.metadata.name} gs={gs} onAct={act.mutate} />)}
+
+            {visibleShared.length > 0 && (
+              <>
+                <tr className="bg-surface/20">
+                  <td colSpan={8} className="px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                      <Share2 className="h-4 w-4" />
+                      Shared with you
+                    </div>
+                  </td>
+                </tr>
+                {visibleShared.map((gs) => <ServerRow key={`shared-${gs.metadata.name}`} gs={gs} onAct={act.mutate} />)}
+              </>
+            )}
           </tbody>
         </table>
       </div>
