@@ -563,6 +563,10 @@ type PlayerActionsSpec struct {
 	// Players tab (list / add / remove).
 	// +optional
 	Whitelist *WhitelistSpec `json:"whitelist,omitempty"`
+
+	// List configures how the online player list is read.
+	// +optional
+	List *PlayerListSpec `json:"list,omitempty"`
 }
 
 // WhitelistSpec declares how to manage the game's whitelist (allow list).
@@ -599,6 +603,22 @@ type BanListSpec struct {
 	// named groups "name" (required), "source" and "reason" (optional).
 	// +kubebuilder:validation:MinLength=1
 	EntryRegex string `json:"entryRegex"`
+}
+
+// PlayerListSpec configures the command that prints the online player
+// list and how to parse its output.
+type PlayerListSpec struct {
+	// Command is the console/RCON command that prints the online players (e.g. "list").
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	Command string `json:"command"`
+
+	// EntryRegex optionally extracts one player name per match from the
+	// command output (first capture group, or whole match if no group).
+	// When empty the built-in parser is used.
+	// +optional
+	// +kubebuilder:validation:MaxLength=512
+	EntryRegex string `json:"entryRegex,omitempty"`
 }
 
 // QuiesceSpec declares the command sequences that pause and resume
