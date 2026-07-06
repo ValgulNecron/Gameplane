@@ -25,8 +25,8 @@ describe("ServersPage", () => {
       http.get("/servers", () =>
         HttpResponse.json({
           items: [
-            makeServer({ metadata: { name: "alpha" }, status: { phase: "Running" } }),
-            makeServer({ metadata: { name: "beta" }, status: { phase: "Stopped" } }),
+            makeServer({ metadata: { name: "alpha", namespace: "gameplane-games" }, status: { phase: "Running" } }),
+            makeServer({ metadata: { name: "beta", namespace: "gameplane-games" }, status: { phase: "Stopped" } }),
           ],
         }),
       ),
@@ -42,8 +42,8 @@ describe("ServersPage", () => {
       http.get("/servers", () =>
         HttpResponse.json({
           items: [
-            makeServer({ metadata: { name: "alpha" } }),
-            makeServer({ metadata: { name: "beta" } }),
+            makeServer({ metadata: { name: "alpha", namespace: "gameplane-games" } }),
+            makeServer({ metadata: { name: "beta", namespace: "gameplane-games" } }),
           ],
         }),
       ),
@@ -63,8 +63,8 @@ describe("ServersPage", () => {
           items: [
             // legacy -1 sentinel and the new null "unknown" — neither may
             // drag the aggregate below zero.
-            makeServer({ metadata: { name: "a" }, status: { phase: "Running", agent: { playersOnline: -1 } } }),
-            makeServer({ metadata: { name: "b" }, status: { phase: "Running", agent: { playersOnline: null } } }),
+            makeServer({ metadata: { name: "a", namespace: "gameplane-games" }, status: { phase: "Running", agent: { playersOnline: -1 } } }),
+            makeServer({ metadata: { name: "b", namespace: "gameplane-games" }, status: { phase: "Running", agent: { playersOnline: null } } }),
           ],
         }),
       ),
@@ -83,7 +83,7 @@ describe("ServersPage", () => {
             // Telemetry lives under status.agent (cgroup + statfs); the table
             // shows it as a percent of the limit when a limit is reported.
             makeServer({
-              metadata: { name: "metrics-on" },
+              metadata: { name: "metrics-on", namespace: "gameplane-games" },
               status: {
                 phase: "Running",
                 agent: {
@@ -110,7 +110,7 @@ describe("ServersPage", () => {
         HttpResponse.json({
           items: [
             makeServer({
-              metadata: { name: "no-limit" },
+              metadata: { name: "no-limit", namespace: "gameplane-games" },
               status: { phase: "Running", agent: { cpuMillicores: 1500 } },
             }),
           ],
@@ -128,7 +128,7 @@ describe("ServersPage", () => {
         HttpResponse.json({
           items: [
             makeServer({
-              metadata: { name: "metrics-off" },
+              metadata: { name: "metrics-off", namespace: "gameplane-games" },
               status: { phase: "Running", agent: { playersOnline: 0 } },
             }),
           ],
