@@ -203,15 +203,23 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// Inject registry credentials if available (e.g., Factorio mod-portal).
+	// The provider is determined from the install request's metadata.
+	provider := ""
+	if body.Meta != nil {
+		provider = body.Meta.Provider
+	}
+	downloadURL := injectModCreds(u.String(), provider)
+
 	// Extract loaders (e.g. BepInEx): the download is an archive unpacked
 	// into its own folder so the loader's recursive scan finds the files.
 	installName := name
 	var size int64
 	if h.extract {
 		installName = archiveFolderName(name)
-		size, err = h.installArchive(req.Context(), u.String(), installName)
+		size, err = h.installArchive(req.Context(), downloadURL, installName)
 	} else {
-		size, err = h.download(req.Context(), u.String(), name)
+		size, err = h.download(req.Context(), downloadURL, name)
 	}
 	switch {
 	case errors.Is(err, errTooLarge):
@@ -607,6 +615,53 @@ func safeName(name string) (string, error) {
 // hostAllowed matches host against the allowlist: an exact hostname, or a
 // leading-dot suffix (".example.com") matching that domain and any
 // subdomain. Comparison is case-insensitive.
+// modCredsBasePath is where mod-portal credentials are mounted, organized
+// by provider. The agent tries to read username and token files for the
+// requested provider; missing files are treated gracefully.
+const modCredsBasePath = "/etc/gameplane/mod-creds"
+
+// injectModCreds appends username and token query parameters to the URL
+// for providers that have credentials mounted. Missing or unreadable
+// credential files are ignored, and the URL is returned unchanged.
+func injectModCreds(urlStr, provider string) string {
+	if provider == "" || provider != "factorio" {
+		// Only factorio currently needs credentials.
+		return urlStr
+	}
+
+	credsPath := fmt.Sprintf("%s/%s", modCredsBasePath, provider)
+	username, err := os.ReadFile(fmt.Sprintf("%s/username", credsPath))
+	if err != nil {
+		// Credentials not available; download without auth.
+		return urlStr
+	}
+	token, err := os.ReadFile(fmt.Sprintf("%s/token", credsPath))
+	if err != nil {
+		// Token missing; skip auth even if username exists.
+		return urlStr
+	}
+
+	usernameStr := strings.TrimSpace(string(username))
+	tokenStr := strings.TrimSpace(string(token))
+	if usernameStr == "" || tokenStr == "" {
+		// Empty credentials; skip auth.
+		return urlStr
+	}
+
+	// Append credentials as query parameters. Re-parse the URL so we can
+	// safely modify the query string without corrupting existing params.
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		// Should not happen (URL was already validated), but be safe.
+		return urlStr
+	}
+	q := u.Query()
+	q.Set("username", usernameStr)
+	q.Set("token", tokenStr)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
 func hostAllowed(host string, allowed []string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	for _, a := range allowed {

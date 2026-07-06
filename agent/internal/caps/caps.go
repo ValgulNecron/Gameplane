@@ -68,20 +68,6 @@ type Mods struct {
 	// Extract unpacks archive mods (e.g. Thunderstore .zip) into a per-mod
 	// folder under Path, so loaders like BepInEx find the contained files.
 	Extract bool `json:"extract,omitempty"`
-	// Registry holds the ordered list of registry providers the dashboard
-	// can browse for mods; the agent uses this to locate credentials.
-	Registry *ModRegistry `json:"registry,omitempty"`
-}
-
-// ModRegistry describes the available mod registries for a game.
-type ModRegistry struct {
-	Providers []ModProvider `json:"providers,omitempty"`
-}
-
-// ModProvider configures one registry engine for the agent.
-type ModProvider struct {
-	Provider              string `json:"provider"`
-	CredentialsSecretPath string `json:"credentialsSecretPath,omitempty"`
 }
 
 // ModInstall configures URL-based mod installs with an SSRF host

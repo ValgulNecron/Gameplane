@@ -90,10 +90,10 @@ func (r *GameServerReconciler) reconcileRCONSecret(
 }
 
 // agentVolumeMounts returns the agent sidecar's volume mounts, adding the
-// RCON password mount when the game exposes RCON and the per-(version+
-// loader) mod volume when the active version selects one — the agent must
-// see the same mounted mod dir the game reads so the Mods tab operates on
-// it.
+// RCON password mount when the game exposes RCON, the per-(version+
+// loader) mod volume when the active version selects one, and per-provider
+// mod-portal credential mounts. The agent must see the same mounted mod dir
+// the game reads so the Mods tab operates on it.
 func agentVolumeMounts(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion, dataMount string) []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
 		{Name: "data", MountPath: dataMount},
@@ -107,6 +107,7 @@ func agentVolumeMounts(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1
 	if m := modVolumeMount(tmpl, ver); m != nil {
 		mounts = append(mounts, *m)
 	}
+	mounts = append(mounts, modCredVolumeMounts(resolveModCreds(tmpl))...)
 	return mounts
 }
 
