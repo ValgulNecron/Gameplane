@@ -52,9 +52,11 @@ const (
 // permissions, and checks the caller's permission set. When that check
 // fails on a namespaced permission and a concrete GameServer is
 // extractable from the path, it fetches the server and allows the
-// request if the caller is owner or collaborator (subject to endpoint
-// restrictions: :transfer and :collaborators are owner-only). No
-// matching rule means deny (fail-closed).
+// request if the caller is owner or collaborator. Owner-only operations
+// (verb :transfer, :collaborators, :wipe-data, or DELETE on bare /servers/{name})
+// are denied to collaborators. Invalid paths (trailing segments after a verb,
+// e.g. /servers/a:transfer/extra) fail closed — the fallback does not apply.
+// No matching rule means deny (fail-closed).
 func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -85,15 +87,21 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 				// Try owner/collaborator fallback for namespaced server permissions.
 				if Namespaced(r.perm) && fetch != nil &&
 					(r.perm == "servers:read" || r.perm == "servers:write" || r.perm == "servers:console") {
-					name, ok := serverNameFromPath(req.URL.Path)
+					name, verb, ok := parseServerPath(req.URL.Path)
 					if ok {
 						obj, err := fetch.GetServer(req.Context(), ns, name)
-						if err == nil && obj != nil && ownershipRole(obj, u.ID) != roleNone {
-							// Collaborators are owner-only on :transfer and :collaborators endpoints.
-							if role := ownershipRole(obj, u.ID); role == roleOwner ||
-								(!strings.HasSuffix(req.URL.Path, ":transfer") && !strings.HasSuffix(req.URL.Path, ":collaborators")) {
-								next.ServeHTTP(w, req)
-								return
+						if err == nil && obj != nil {
+							role := ownershipRole(obj, u.ID)
+							if role != roleNone {
+								// Owner-only operations: :transfer, :collaborators, :wipe-data, or DELETE with no verb.
+								isOwnerOnly := verb == "transfer" || verb == "collaborators" || verb == "wipe-data" ||
+									(req.Method == "DELETE" && verb == "")
+
+								// Grant to owner, or to collaborator if not owner-only.
+								if role == roleOwner || !isOwnerOnly {
+									next.ServeHTTP(w, req)
+									return
+								}
 							}
 						}
 					}
@@ -219,6 +227,17 @@ func match(method, path string) (rule, bool) {
 // /servers/{name}, /servers/{name}:verb, /servers/{name}/..., or
 // /ws/servers/{name}/... Empty name ⇒ false (list endpoints have no name).
 func serverNameFromPath(path string) (string, bool) {
+	name, _, ok := parseServerPath(path)
+	return name, ok
+}
+
+// parseServerPath extracts the server name and verb from a path like
+// /servers/{name}, /servers/{name}:verb, /servers/{name}/..., or
+// /ws/servers/{name}/...
+// Returns (name, verb, ok) where verb is "" if no verb is present.
+// Returns ok=false if the path has unexpected trailing segments after a verb
+// (e.g., /servers/a:transfer/extra is invalid).
+func parseServerPath(path string) (string, string, bool) {
 	// Normalize to remove leading /
 	trimmed := strings.TrimPrefix(path, "/")
 	// Handle /ws/servers/... → servers/...
@@ -227,23 +246,44 @@ func serverNameFromPath(path string) (string, bool) {
 	}
 	// Must start with servers/
 	if !strings.HasPrefix(trimmed, "servers/") {
-		return "", false
+		return "", "", false
 	}
 	rest := strings.TrimPrefix(trimmed, "servers/")
 	// Empty rest means /servers (list endpoint)
 	if rest == "" {
-		return "", false
+		return "", "", false
 	}
-	// Extract name before the next / or :
-	name := rest
-	if i := strings.IndexAny(rest, "/:"); i >= 0 {
-		name = rest[:i]
+
+	// Find the end of the server name (before / or :)
+	nameEndIdx := strings.IndexAny(rest, "/:")
+	if nameEndIdx < 0 {
+		// No / or :, the rest is the name
+		return rest, "", true
 	}
-	// Empty name is invalid
+
+	name := rest[:nameEndIdx]
 	if name == "" {
-		return "", false
+		return "", "", false
 	}
-	return name, true
+
+	// Check what follows the name
+	if rest[nameEndIdx] == ':' {
+		// Extract the verb (everything between : and the next /)
+		verbStart := nameEndIdx + 1
+		verbEndIdx := strings.IndexByte(rest[verbStart:], '/')
+		if verbEndIdx < 0 {
+			// No trailing /, the rest is the verb
+			verb := rest[verbStart:]
+			if verb == "" {
+				return "", "", false
+			}
+			return name, verb, true
+		}
+		// Trailing / after verb means trailing segments after verb (invalid, fail closed)
+		return "", "", false
+	}
+	// rest[nameEndIdx] == '/', trailing segments without verb (OK, like /servers/a/files)
+	return name, "", true
 }
 
 // ownershipRole returns the ownership role of a user in the server:
