@@ -15,6 +15,8 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
@@ -260,6 +262,49 @@ func TestSendOnce_PatchErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestSendOnce_CustomListCommandWithRegex(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+
+	re, err := players.CompileEntryRegex(`^\[(\S+)\]`)
+	if err != nil {
+		t.Fatalf("compile regex: %v", err)
+	}
+
+	cfg := Config{
+		ServerName: "srv",
+		Namespace:  "ns",
+		RCON:       fakeRcon{out: "[alice]\n[bob]\n[charlie]\n"},
+		PlayerList: &caps.PlayerList{
+			Command:    "players",
+			EntryRegex: `^\[(\S+)\]`,
+		},
+		PlayerListRE: re,
+	}
+	if err := sendOnce(context.Background(), dyn, cfg); err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(captured, &got); err != nil {
+		t.Fatalf("unmarshal patch: %v", err)
+	}
+	agent := got["status"].(map[string]any)["agent"].(map[string]any)
+	if agent["playersOnline"].(float64) != 3 {
+		t.Fatalf("playersOnline got %v, want 3", agent["playersOnline"])
+	}
+	if agent["playersMax"] != nil {
+		t.Fatalf("playersMax got %v, want null", agent["playersMax"])
+	}
+}
+
 func TestQueryPlayerCounts(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -279,7 +324,8 @@ func TestQueryPlayerCounts(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			n, maxN, err := queryPlayerCounts(fakeRcon{out: tc.out, err: tc.err})
+			cfg := Config{RCON: fakeRcon{out: tc.out, err: tc.err}}
+			n, maxN, err := queryPlayerCounts(cfg)
 			if (err == nil) != tc.ok {
 				t.Fatalf("err=%v ok=%v", err, tc.ok)
 			}
@@ -290,6 +336,50 @@ func TestQueryPlayerCounts(t *testing.T) {
 				t.Fatalf("max got %d, want %d", maxN, tc.wantMax)
 			}
 		})
+	}
+}
+
+func TestQueryPlayerCounts_CustomCommand(t *testing.T) {
+	cfg := Config{
+		RCON: fakeRcon{out: "There are 5 of a max of 20 players online:"},
+		PlayerList: &caps.PlayerList{
+			Command: "mylist",
+		},
+	}
+	n, maxN, err := queryPlayerCounts(cfg)
+	if err != nil {
+		t.Fatalf("queryPlayerCounts: %v", err)
+	}
+	if n != 5 {
+		t.Fatalf("online got %d, want 5", n)
+	}
+	if maxN != 20 {
+		t.Fatalf("max got %d, want 20", maxN)
+	}
+}
+
+func TestQueryPlayerCounts_WithRegex(t *testing.T) {
+	re, err := players.CompileEntryRegex(`^\S+$`)
+	if err != nil {
+		t.Fatalf("compile regex: %v", err)
+	}
+	cfg := Config{
+		RCON: fakeRcon{out: "alice\nbob\ncharlie\n"},
+		PlayerList: &caps.PlayerList{
+			Command:    "mylist",
+			EntryRegex: `^\S+$`,
+		},
+		PlayerListRE: re,
+	}
+	n, maxN, err := queryPlayerCounts(cfg)
+	if err != nil {
+		t.Fatalf("queryPlayerCounts: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("online got %d, want 3", n)
+	}
+	if maxN != -1 {
+		t.Fatalf("max got %d, want -1", maxN)
 	}
 }
 

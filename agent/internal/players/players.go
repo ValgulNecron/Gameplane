@@ -35,6 +35,9 @@ type handler struct {
 	cmdr commander
 	game string
 
+	listCmd string         // RCON command to fetch online players
+	listRE  *regexp.Regexp // optional regex to parse entry output
+
 	mu         sync.Mutex
 	lastFetch  time.Time
 	lastResult Snapshot
@@ -68,6 +71,24 @@ type BannedPlayer struct {
 // for log/error context.
 func Mount(r chi.Router, rc Rcon, game string, actions *caps.PlayerActions) {
 	h := &handler{rcon: rc, cmdr: pickCommander(actions), game: game}
+
+	// Configure the list command and optional regex.
+	h.listCmd = "list"
+	if actions != nil && actions.List != nil {
+		if actions.List.Command != "" {
+			h.listCmd = actions.List.Command
+		}
+		if actions.List.EntryRegex != "" {
+			re, err := CompileEntryRegex(actions.List.EntryRegex)
+			switch {
+			case err != nil:
+				slog.Warn("invalid player list entryRegex; using built-in parser", "err", err)
+			default:
+				h.listRE = re
+			}
+		}
+	}
+
 	r.Get("/players", h.serve)
 	r.Get("/players/banned", h.banned)
 	r.Post("/players/kick", h.kick)
@@ -113,7 +134,7 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *handler) fetch() (Snapshot, error) {
-	raw, err := h.rcon.Exec("list")
+	raw, err := h.rcon.Exec(h.listCmd)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.lastFetch = time.Now()
@@ -121,7 +142,12 @@ func (h *handler) fetch() (Snapshot, error) {
 		h.lastErr = err
 		return Snapshot{}, err
 	}
-	snap := parseList(raw)
+	var snap Snapshot
+	if h.listRE != nil {
+		snap = h.parseListWithRegex(raw)
+	} else {
+		snap = parseList(raw)
+	}
 	snap.AsOf = h.lastFetch.UTC().Format(time.RFC3339)
 	h.lastResult = snap
 	h.lastErr = nil
@@ -351,4 +377,69 @@ func parseList(raw string) Snapshot {
 		}
 	}
 	return Snapshot{Online: online, Max: maxN, Players: names}
+}
+
+// parseListWithRegex uses a custom regex to extract player names from the
+// output. It extracts the first capture group if present, otherwise the
+// whole match. Each match is one player.
+func (h *handler) parseListWithRegex(raw string) Snapshot {
+	if h.listRE == nil {
+		return Snapshot{Players: []string{}}
+	}
+	matches := h.listRE.FindAllStringSubmatch(raw, -1)
+	if len(matches) == 0 {
+		return Snapshot{Players: []string{}}
+	}
+	names := []string{}
+	for _, m := range matches {
+		var name string
+		if len(m) > 1 {
+			// Use first capture group if present.
+			// A participating-but-empty capture group (empty string) is dropped.
+			name = strings.TrimSpace(m[1])
+		} else if len(m) > 0 {
+			// Use whole match if no capture group.
+			name = strings.TrimSpace(m[0])
+		}
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return Snapshot{Online: len(names), Max: -1, Players: names}
+}
+
+// CompileEntryRegex compiles a module-declared entryRegex pattern. The
+// pattern is compiled in multiline mode — ^ and $ anchor per line — because
+// list-command output is line-oriented and template authors write
+// line-anchored patterns. A leading (?m) is prepended; it is harmless when
+// the pattern already supplies one.
+func CompileEntryRegex(pattern string) (*regexp.Regexp, error) {
+	return regexp.Compile("(?m)" + pattern)
+}
+
+// CountWithRegex counts the number of matches in raw using the provided
+// regex. It extracts the first capture group if present (when non-empty),
+// otherwise counts the whole match. Used by heartbeat to derive player counts
+// from custom list commands.
+func CountWithRegex(raw string, re *regexp.Regexp) int {
+	matches := re.FindAllStringSubmatch(raw, -1)
+	if len(matches) == 0 {
+		return 0
+	}
+	count := 0
+	for _, m := range matches {
+		var name string
+		if len(m) > 1 {
+			// Use first capture group if present.
+			// A participating-but-empty capture group is dropped.
+			name = strings.TrimSpace(m[1])
+		} else if len(m) > 0 {
+			// Use whole match if no capture group.
+			name = strings.TrimSpace(m[0])
+		}
+		if name != "" {
+			count++
+		}
+	}
+	return count
 }

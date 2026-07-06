@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
 	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
@@ -40,14 +42,16 @@ type UsageReader interface {
 }
 
 type Config struct {
-	ServerName string
-	Namespace  string
-	Template   string
-	Game       string
-	Version    string
-	Interval   time.Duration
-	RCON       Rcon
-	Usage      UsageReader
+	ServerName   string
+	Namespace    string
+	Template     string
+	Game         string
+	Version      string
+	Interval     time.Duration
+	RCON         Rcon
+	Usage        UsageReader
+	PlayerList   *caps.PlayerList
+	PlayerListRE *regexp.Regexp
 }
 
 var gvr = schema.GroupVersionResource{
@@ -87,6 +91,19 @@ func Run(ctx context.Context, cfg Config) {
 		return
 	}
 
+	// Compile the player list regex if configured. CompileEntryRegex puts
+	// the pattern in multiline mode so ^/$ anchor per line, matching the
+	// players endpoint's parsing of the same declared regex.
+	if cfg.PlayerList != nil && cfg.PlayerList.EntryRegex != "" {
+		re, err := players.CompileEntryRegex(cfg.PlayerList.EntryRegex)
+		switch {
+		case err != nil:
+			slog.Warn("invalid player list entryRegex in heartbeat; using default parser", "err", err)
+		default:
+			cfg.PlayerListRE = re
+		}
+	}
+
 	t := time.NewTicker(cfg.Interval)
 	defer t.Stop()
 	for {
@@ -115,7 +132,7 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 	// with null clears any prior value. playersMax stays null when the game
 	// reports an online count but no maximum, so the dashboard shows "—"
 	// rather than a bogus cap of 0.
-	if online, maxN, err := queryPlayerCounts(cfg.RCON); err == nil {
+	if online, maxN, err := queryPlayerCounts(cfg); err == nil {
 		agent["playersOnline"] = online
 		agent["playersMax"] = nullable(int64(maxN), maxN > 0)
 	} else {
@@ -157,18 +174,30 @@ func nullable(v int64, known bool) any {
 	return v
 }
 
-// queryPlayerCounts issues a single RCON "list" and derives the online count
+// queryPlayerCounts issues an RCON command and derives the online count
 // and, when the response is in a recognized Minecraft format, the configured
-// maximum (max is 0 when no maximum is reported). The online count uses a
-// deliberately loose first-number parse so server variants whose phrasing
-// differs from the strict formats players.ParseCounts recognizes still report
-// a live count; max reuses the strict players parser. err is non-nil only when
-// RCON fails or no online count can be parsed at all.
-func queryPlayerCounts(rc Rcon) (online, max int, err error) {
-	raw, err := rc.Exec("list")
+// maximum (max is 0 when no maximum is reported). The command and optional
+// regex come from cfg.PlayerList; defaults to "list" with a loose parse.
+// When EntryRegex is configured, the online count is the number of regex
+// matches. err is non-nil only when RCON fails or no online count can be
+// parsed at all.
+func queryPlayerCounts(cfg Config) (online, max int, err error) {
+	cmd := "list"
+	if cfg.PlayerList != nil && cfg.PlayerList.Command != "" {
+		cmd = cfg.PlayerList.Command
+	}
+	raw, err := cfg.RCON.Exec(cmd)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	// If a custom regex is configured, count matches for online and set max to -1.
+	if cfg.PlayerListRE != nil {
+		online = players.CountWithRegex(raw, cfg.PlayerListRE)
+		return online, -1, nil
+	}
+
+	// Default behavior: use ParseCounts for Minecraft, loose first-number parse for online.
 	if _, m, ok := players.ParseCounts(raw); ok {
 		max = m
 	}

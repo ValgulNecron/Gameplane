@@ -670,6 +670,27 @@ spec:
                           Kick disconnects a player, e.g.
                           "kick {{.Player}}{{if .Reason}} {{.Reason}}{{end}}".
                         type: string
+                      list:
+                        description: List configures how the online player list is
+                          read.
+                        properties:
+                          command:
+                            description: Command is the console/RCON command that
+                              prints the online players (e.g. "list").
+                            maxLength: 256
+                            minLength: 1
+                            type: string
+                          entryRegex:
+                            description: |-
+                              EntryRegex optionally extracts one player name per match from the
+                              command output (first capture group, or whole match if no group).
+                              ^ and $ match per line (multiline mode).
+                              When empty the built-in parser is used.
+                            maxLength: 512
+                            type: string
+                        required:
+                        - command
+                        type: object
                       unban:
                         description: Unban lifts a ban, e.g. "pardon {{.Player}}".
                         type: string

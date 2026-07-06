@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/ValgulNecron/gameplane/agent/internal/caps"
 )
 
 func TestParseList(t *testing.T) {
@@ -369,5 +371,165 @@ func TestServeIncludesCapabilities(t *testing.T) {
 	}
 	if !got.Capabilities.Kick || !got.Capabilities.Ban || !got.Capabilities.Unban {
 		t.Errorf("capabilities = %+v, want all true", got.Capabilities)
+	}
+}
+
+// --- Player list tests ---
+
+func TestPlayerListDefaultCommand(t *testing.T) {
+	// When no List is configured, the handler should use "list" command
+	// and the built-in Minecraft parser.
+	rc := &fakeRcon{respond: func(string) (string, error) {
+		return "There are 2 of a max of 20 players online: alice, bob", nil
+	}}
+	r := chi.NewRouter()
+	Mount(r, rc, "minecraft-java", minecraftActions()) // no List configured
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	status, body := doJSON(t, srv, "GET", "/players", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var got Snapshot
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if rc.last != "list" {
+		t.Errorf("rcon called with %q, want 'list'", rc.last)
+	}
+	if got.Online != 2 || got.Max != 20 {
+		t.Errorf("counts = (%d, %d), want (2, 20)", got.Online, got.Max)
+	}
+	want := []string{"alice", "bob"}
+	if !reflect.DeepEqual(got.Players, want) {
+		t.Errorf("players = %v, want %v", got.Players, want)
+	}
+}
+
+func TestPlayerListCustomCommand(t *testing.T) {
+	// When a custom command is configured, it should be used instead of "list".
+	actions := &caps.PlayerActions{
+		Kick: "kick {{.Player}}",
+		List: &caps.PlayerList{
+			Command: "online",
+		},
+	}
+	rc := &fakeRcon{respond: func(string) (string, error) {
+		return "There are 1 of a max of 10 players online: charlie", nil
+	}}
+	r := chi.NewRouter()
+	Mount(r, rc, "some-game", actions)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	status, body := doJSON(t, srv, "GET", "/players", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var got Snapshot
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if rc.last != "online" {
+		t.Errorf("rcon called with %q, want 'online'", rc.last)
+	}
+	if got.Online != 1 || got.Max != 10 {
+		t.Errorf("counts = (%d, %d), want (1, 10)", got.Online, got.Max)
+	}
+}
+
+func TestPlayerListWithRegex(t *testing.T) {
+	// When EntryRegex is configured, custom parsing is used.
+	actions := &caps.PlayerActions{
+		Kick: "kick {{.Player}}",
+		List: &caps.PlayerList{
+			Command:    "players",
+			EntryRegex: `(?P<name>\w+)`,
+		},
+	}
+	rc := &fakeRcon{respond: func(string) (string, error) {
+		return "Online: alice, bob, charlie", nil
+	}}
+	r := chi.NewRouter()
+	Mount(r, rc, "some-game", actions)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	status, body := doJSON(t, srv, "GET", "/players", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var got Snapshot
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	want := []string{"Online", "alice", "bob", "charlie"}
+	if !reflect.DeepEqual(got.Players, want) {
+		t.Errorf("players = %v, want %v", got.Players, want)
+	}
+}
+
+func TestPlayerListRegexWithCaptureGroup(t *testing.T) {
+	// When EntryRegex has a capture group, only that group is extracted.
+	actions := &caps.PlayerActions{
+		Kick: "kick {{.Player}}",
+		List: &caps.PlayerList{
+			Command:    "players",
+			EntryRegex: `\s*(\w+)\s*,?`,
+		},
+	}
+	rc := &fakeRcon{respond: func(string) (string, error) {
+		return "alice, bob, charlie", nil
+	}}
+	r := chi.NewRouter()
+	Mount(r, rc, "some-game", actions)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	status, body := doJSON(t, srv, "GET", "/players", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var got Snapshot
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	want := []string{"alice", "bob", "charlie"}
+	if !reflect.DeepEqual(got.Players, want) {
+		t.Errorf("players = %v, want %v", got.Players, want)
+	}
+}
+
+func TestPlayerListInvalidRegexFallback(t *testing.T) {
+	// When EntryRegex is invalid, the handler should log and fall back
+	// to the built-in parser.
+	actions := &caps.PlayerActions{
+		Kick: "kick {{.Player}}",
+		List: &caps.PlayerList{
+			Command:    "list",
+			EntryRegex: `(?P<invalid_group)[invalid regex`,
+		},
+	}
+	rc := &fakeRcon{respond: func(string) (string, error) {
+		return "There are 1 of a max of 20 players online: alice", nil
+	}}
+	r := chi.NewRouter()
+	Mount(r, rc, "minecraft-java", actions)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	status, body := doJSON(t, srv, "GET", "/players", nil)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var got Snapshot
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Should fall back to built-in parser and parse the Minecraft format.
+	want := []string{"alice"}
+	if !reflect.DeepEqual(got.Players, want) {
+		t.Errorf("players = %v, want %v (should have fallen back to built-in)", got.Players, want)
 	}
 }
