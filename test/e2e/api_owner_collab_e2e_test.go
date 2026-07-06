@@ -19,12 +19,15 @@ import (
 // GameServer based on owner and collaborator annotations, additively on top
 // of namespace role bindings.
 //
-// Test structure:
-// - Admin creates a GameServer and transfers it to owner-user.
-// - Owner can GET the server despite zero namespace role bindings.
-// - Owner can add collaborators via PUT /servers/{name}:collaborators.
-// - Collaborator can GET/console/lifecycle the server but not :transfer/:wipe-data/:collaborators/DELETE.
-// - A non-related user cannot GET the server.
+// Tested flows:
+//   - Admin creates a GameServer and transfers it to owner-user.
+//   - Owner can GET the server despite zero namespace role bindings.
+//   - Owner can add collaborators via PUT /servers/{name}:collaborators with
+//     the new username (server unions/dedupes).
+//   - Collaborator can GET the server and run lifecycle operations (:start) with
+//     no namespace role bindings.
+//   - Collaborator cannot :transfer, :collaborators, or DELETE (owner-only).
+//   - A non-related user cannot GET the server.
 //
 // Login budget: 3 non-admin logins (owner-user, collab-user, plus the admin
 // setup login — well within the per-bucket limit).
@@ -147,6 +150,20 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 		}
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("collab GET server after add: status=%d want=200 body=%s", resp.StatusCode, string(body))
+		}
+	})
+
+	// Test: collaborator can run lifecycle operations without namespace role bindings.
+	t.Run("collab can start server via lifecycle", func(t *testing.T) {
+		resp, body, err := collab.Post("/servers/"+gsName+":start?namespace="+ns, nil)
+		if err != nil {
+			t.Errorf("collab POST :start: %v", err)
+			return
+		}
+		// The server may legitimately fail to start, but the access check (status != 403)
+		// proves the grant is working.
+		if resp.StatusCode == http.StatusForbidden {
+			t.Errorf("collab POST :start: status=403 (access denied despite collaborator grant) body=%s", string(body))
 		}
 	})
 
