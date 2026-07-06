@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -17,6 +16,7 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
@@ -273,7 +273,7 @@ func TestSendOnce_CustomListCommandWithRegex(t *testing.T) {
 		return true, fakeGameServer(), nil
 	})
 
-	re, err := regexp.Compile(`^\[(\S+)\]`)
+	re, err := players.CompileEntryRegex(`^\[(\S+)\]`)
 	if err != nil {
 		t.Fatalf("compile regex: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestQueryPlayerCounts_CustomCommand(t *testing.T) {
 }
 
 func TestQueryPlayerCounts_WithRegex(t *testing.T) {
-	re, err := regexp.Compile(`^\S+$`)
+	re, err := players.CompileEntryRegex(`^\S+$`)
 	if err != nil {
 		t.Fatalf("compile regex: %v", err)
 	}

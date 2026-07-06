@@ -91,9 +91,11 @@ func Run(ctx context.Context, cfg Config) {
 		return
 	}
 
-	// Compile the player list regex if configured.
+	// Compile the player list regex if configured. CompileEntryRegex puts
+	// the pattern in multiline mode so ^/$ anchor per line, matching the
+	// players endpoint's parsing of the same declared regex.
 	if cfg.PlayerList != nil && cfg.PlayerList.EntryRegex != "" {
-		re, err := regexp.Compile(cfg.PlayerList.EntryRegex)
+		re, err := players.CompileEntryRegex(cfg.PlayerList.EntryRegex)
 		switch {
 		case err != nil:
 			slog.Warn("invalid player list entryRegex in heartbeat; using default parser", "err", err)

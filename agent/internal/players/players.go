@@ -79,7 +79,7 @@ func Mount(r chi.Router, rc Rcon, game string, actions *caps.PlayerActions) {
 			h.listCmd = actions.List.Command
 		}
 		if actions.List.EntryRegex != "" {
-			re, err := regexp.Compile(actions.List.EntryRegex)
+			re, err := CompileEntryRegex(actions.List.EntryRegex)
 			switch {
 			case err != nil:
 				slog.Warn("invalid player list entryRegex; using built-in parser", "err", err)
@@ -406,6 +406,15 @@ func (h *handler) parseListWithRegex(raw string) Snapshot {
 		}
 	}
 	return Snapshot{Online: len(names), Max: -1, Players: names}
+}
+
+// CompileEntryRegex compiles a module-declared entryRegex pattern. The
+// pattern is compiled in multiline mode — ^ and $ anchor per line — because
+// list-command output is line-oriented and template authors write
+// line-anchored patterns. A leading (?m) is prepended; it is harmless when
+// the pattern already supplies one.
+func CompileEntryRegex(pattern string) (*regexp.Regexp, error) {
+	return regexp.Compile("(?m)" + pattern)
 }
 
 // CountWithRegex counts the number of matches in raw using the provided

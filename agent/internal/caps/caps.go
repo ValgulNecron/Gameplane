@@ -114,6 +114,7 @@ type PlayerList struct {
 	Command string `json:"command"`
 	// EntryRegex optionally extracts one player name per match from the
 	// command output (first capture group, or whole match if no group).
+	// ^ and $ match per line (multiline mode).
 	// When empty the built-in parser is used.
 	EntryRegex string `json:"entryRegex"`
 }
