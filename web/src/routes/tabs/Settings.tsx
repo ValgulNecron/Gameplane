@@ -186,11 +186,11 @@ export function SettingsTab({ gs, name, onDirtyChange }: SettingsTabProps) {
           {section === "networking" && <NetworkingSection draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "lifecycle"  && <LifecycleSection  draft={draft} onChange={onChangeDraft} template={template} />}
-          {section === "access"     && <AccessSection     draft={draft} onChange={onChangeDraft} template={template} />}
+          {section === "access"     && <AccessSection     gs={gs} />}
           {section === "danger"     && <DangerSection     name={name} />}
         </div>
 
-        {section !== "danger" && (
+        {section !== "danger" && section !== "access" && (
           <footer className="flex items-center justify-between gap-4 border-t border-border bg-surface/30 px-6 py-3">
             <div className="min-w-0 text-xs">
               {conflict && (

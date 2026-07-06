@@ -85,6 +85,7 @@ bucket_api_roles() { cat <<'EOF'
 TestAPI_CustomRole_Lifecycle
 TestAPI_BuiltinRole_Immutable
 TestAPI_PerNamespaceBinding_GrantsScopedAccess
+TestAPI_OwnerCollaboratorAccess
 EOF
 }
 

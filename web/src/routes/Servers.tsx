@@ -12,6 +12,7 @@ import {
   RotateCw,
   Search,
   Server as ServerIcon,
+  Share2,
   Square,
   Users as UsersIcon,
 } from "lucide-react";
@@ -49,6 +50,12 @@ export function ServersPage() {
     staleTime: 30_000,
   });
 
+  const { data: myServers } = useQuery({
+    queryKey: ["my-servers"],
+    queryFn: () => Servers.getMyServers(),
+    refetchInterval: 5_000,
+  });
+
   const act = useMutation({
     mutationFn: (args: { name: string; verb: LifecycleVerb }) =>
       Servers.lifecycle(args.name, args.verb),
@@ -59,16 +66,29 @@ export function ServersPage() {
   const [query, setQuery] = useState("");
 
   const servers = useMemo(() => data?.items ?? [], [data?.items]);
+
+  // Compute shared servers (in my-servers but not in the main list)
+  const sharedServers = useMemo(() => {
+    if (!myServers?.items) return [];
+    const serverKeys = new Set(servers.map((s) => `${s.metadata.namespace ?? "gameplane-games"}/${s.metadata.name}`));
+    return myServers.items.filter((s) => {
+      const key = `${s.metadata.namespace ?? "gameplane-games"}/${s.metadata.name}`;
+      return !serverKeys.has(key);
+    });
+  }, [servers, myServers?.items]);
   const counts = useMemo(() => countByState(servers), [servers]);
   const vcpus = (clusterView?.nodes ?? []).reduce((s, n) => s + (n.cpu?.capacity ?? 0), 0);
 
-  const visible = servers.filter((gs) => {
+  const filterServer = (gs: GameServer) => {
     if (query && !gs.metadata.name.toLowerCase().includes(query.toLowerCase())) return false;
     const phase = gs.status?.phase;
     if (filter === "running") return phase === "Running";
     if (filter === "stopped") return phase === "Stopped" || phase === "Suspended" || phase === "Failed";
     return true;
-  });
+  };
+
+  const visible = servers.filter(filterServer);
+  const visibleShared = sharedServers.filter(filterServer);
 
   return (
     <div className="space-y-6 p-6">
@@ -168,12 +188,26 @@ export function ServersPage() {
             {isLoading && (
               <tr><td className="px-4 py-10 text-center text-muted" colSpan={8}>Loading…</td></tr>
             )}
-            {!isLoading && visible.length === 0 && (
+            {!isLoading && visible.length === 0 && visibleShared.length === 0 && (
               <tr><td className="px-4 py-12 text-center text-muted" colSpan={8}>
                 No servers match.
               </td></tr>
             )}
             {visible.map((gs) => <ServerRow key={gs.metadata.name} gs={gs} onAct={act.mutate} />)}
+
+            {visibleShared.length > 0 && (
+              <>
+                <tr className="bg-surface/20">
+                  <td colSpan={8} className="px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                      <Share2 className="h-4 w-4" />
+                      Shared with you
+                    </div>
+                  </td>
+                </tr>
+                {visibleShared.map((gs) => <ServerRow key={`shared-${gs.metadata.namespace ?? ""}-${gs.metadata.name}`} gs={gs} onAct={act.mutate} />)}
+              </>
+            )}
           </tbody>
         </table>
       </div>
@@ -193,6 +227,10 @@ function ServerRow({
   const players = agent?.playersOnline;
   const maxPlayers = agent?.playersMax;
   const node = gs.metadata.annotations?.["gameplane.local/node"];
+  // Shared rows with non-default namespace are read-only (detail route and
+  // lifecycle calls are namespace-blind).
+  const isSharedNonDefault =
+    gs.metadata.namespace && gs.metadata.namespace !== "gameplane-games";
 
   // Resource usage comes from the agent's heartbeat (cgroup + statfs).
   // null/undefined means "unknown" (unreadable source, or a stale heartbeat
@@ -223,13 +261,19 @@ function ServerRow({
         <div className="flex items-center gap-3">
           <GameIcon game={gs.spec.templateRef.name} size="sm" />
           <div className="min-w-0">
-            <Link
-              to="/servers/$name"
-              params={{ name: gs.metadata.name }}
-              className="truncate font-mono text-sm text-fg hover:text-primary"
-            >
-              {gs.metadata.name}
-            </Link>
+            {isSharedNonDefault ? (
+              <div className="truncate font-mono text-sm text-fg">
+                {gs.metadata.name}
+              </div>
+            ) : (
+              <Link
+                to="/servers/$name"
+                params={{ name: gs.metadata.name }}
+                className="truncate font-mono text-sm text-fg hover:text-primary"
+              >
+                {gs.metadata.name}
+              </Link>
+            )}
             <div className="text-[11px] text-muted">
               {gs.metadata.namespace ?? "gameplane-games"}
             </div>
@@ -245,31 +289,33 @@ function ServerRow({
       </td>
       <td className="px-4 py-3 font-mono text-muted">{node ?? "—"}</td>
       <td className="px-4 py-3 text-right">
-        <div className="inline-flex items-center">
-          <ActionButton
-            title="Start"
-            disabled={phase === "Running" || phase === "Starting"}
-            onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
-          >
-            <Play className="h-4 w-4" />
-          </ActionButton>
-          <ActionButton
-            title="Stop"
-            disabled={phase === "Stopped" || phase === "Suspended"}
-            onClick={() => onAct({ name: gs.metadata.name, verb: "stop" })}
-          >
-            <Square className="h-4 w-4" />
-          </ActionButton>
-          <ActionButton
-            title="Restart"
-            onClick={() => onAct({ name: gs.metadata.name, verb: "restart" })}
-          >
-            <RotateCw className="h-4 w-4" />
-          </ActionButton>
-          <ActionButton title="More">
-            <MoreHorizontal className="h-4 w-4" />
-          </ActionButton>
-        </div>
+        {!isSharedNonDefault && (
+          <div className="inline-flex items-center">
+            <ActionButton
+              title="Start"
+              disabled={phase === "Running" || phase === "Starting"}
+              onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
+            >
+              <Play className="h-4 w-4" />
+            </ActionButton>
+            <ActionButton
+              title="Stop"
+              disabled={phase === "Stopped" || phase === "Suspended"}
+              onClick={() => onAct({ name: gs.metadata.name, verb: "stop" })}
+            >
+              <Square className="h-4 w-4" />
+            </ActionButton>
+            <ActionButton
+              title="Restart"
+              onClick={() => onAct({ name: gs.metadata.name, verb: "restart" })}
+            >
+              <RotateCw className="h-4 w-4" />
+            </ActionButton>
+            <ActionButton title="More">
+              <MoreHorizontal className="h-4 w-4" />
+            </ActionButton>
+          </div>
+        )}
       </td>
     </tr>
   );

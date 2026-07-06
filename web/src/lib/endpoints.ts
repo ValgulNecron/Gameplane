@@ -94,6 +94,13 @@ export const Servers = {
   // Reassigns the server's (informational) owner to another user.
   transfer: (name: string, userId: number) =>
     api<void>(`/servers/${name}:transfer`, { method: "POST", body: { userId } }),
+  // Updates the collaborators list for a server. userIds and usernames are
+  // merged; either or both can be provided. Empty list clears collaborators.
+  // The namespace query parameter is required.
+  setCollaborators: (name: string, ns: string, body: { userIds?: number[]; usernames?: string[] }) =>
+    api<void>(`/servers/${name}:collaborators?namespace=${encodeURIComponent(ns)}`, { method: "PUT", body }),
+  // Lists all servers where the caller is owner or collaborator (cluster-wide).
+  getMyServers: () => api<List<GameServer>>("/users/me/servers"),
   // Live module-declared metrics for the Overview tab. The agent returns
   // [] when the game has no RCON, so the UI hides the panel.
   status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),

@@ -1,15 +1,25 @@
 package rbac
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 )
 
+const (
+	ownerIDAnnotation       = "gameplane.local/owner-id"
+	collaboratorsAnnotation = "gameplane.local/collaborators"
+)
+
 func TestMiddleware_Unauthenticated(t *testing.T) {
-	h := Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Middleware(nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(204)
 	}))
 	rr := httptest.NewRecorder()
@@ -26,12 +36,12 @@ func clusterWide(role string, perms ...string) *auth.User {
 	for _, p := range perms {
 		set[p] = struct{}{}
 	}
-	return &auth.User{Role: role, Perms: map[string]map[string]struct{}{"*": set}}
+	return &auth.User{ID: 1, Role: role, Perms: map[string]map[string]struct{}{"*": set}}
 }
 
 func TestMiddleware_AllowsViewerRead(t *testing.T) {
 	called := false
-	h := Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Middleware(nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
 		w.WriteHeader(204)
 	}))
@@ -45,7 +55,7 @@ func TestMiddleware_AllowsViewerRead(t *testing.T) {
 }
 
 func TestMiddleware_DeniesViewerWrite(t *testing.T) {
-	h := Middleware()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	h := Middleware(nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("inner handler should not run")
 	}))
 	rr := httptest.NewRecorder()
@@ -56,6 +66,350 @@ func TestMiddleware_DeniesViewerWrite(t *testing.T) {
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("code=%d", rr.Code)
 	}
+}
+
+func TestServerNameFromPath(t *testing.T) {
+	cases := map[string]struct {
+		path string
+		name string
+		ok   bool
+	}{
+		"simple":        {"/servers/alpha", "alpha", true},
+		"with verb":     {"/servers/alpha:transfer", "alpha", true},
+		"with subpath":  {"/servers/alpha/files", "alpha", true},
+		"ws console":    {"/ws/servers/alpha/console", "alpha", true},
+		"ws with verb":  {"/ws/servers/alpha:collaborators", "alpha", true},
+		"list":          {"/servers", "", false},
+		"empty name":    {"/servers/", "", false},
+		"wrong segment": {"/backups/alpha", "", false},
+	}
+	for label, tc := range cases {
+		name, ok := serverNameFromPath(tc.path)
+		if ok != tc.ok || name != tc.name {
+			t.Errorf("%s: got (%q, %v) want (%q, %v)", label, name, ok, tc.name, tc.ok)
+		}
+	}
+}
+
+func TestParseServerPath(t *testing.T) {
+	cases := map[string]struct {
+		path string
+		name string
+		verb string
+		ok   bool
+	}{
+		"simple":                            {"/servers/alpha", "alpha", "", true},
+		"with transfer verb":                {"/servers/alpha:transfer", "alpha", "transfer", true},
+		"with collaborators verb":           {"/servers/alpha:collaborators", "alpha", "collaborators", true},
+		"with wipe-data verb":               {"/servers/alpha:wipe-data", "alpha", "wipe-data", true},
+		"with clone verb":                   {"/servers/alpha:clone", "alpha", "clone", true},
+		"with subpath":                      {"/servers/alpha/files", "alpha", "", true},
+		"with subpath and name":             {"/servers/alpha/players", "alpha", "", true},
+		"ws simple":                         {"/ws/servers/alpha", "alpha", "", true},
+		"ws with verb":                      {"/ws/servers/alpha:transfer", "alpha", "transfer", true},
+		"ws with subpath":                   {"/ws/servers/alpha/console", "alpha", "", true},
+		"invalid: verb with trailing slash": {"/servers/alpha:transfer/extra", "", "", false},
+		"invalid: verb with subpath":        {"/servers/alpha:clone/files", "", "", false},
+		"list":                              {"/servers", "", "", false},
+		"empty name":                        {"/servers/", "", "", false},
+		"wrong segment":                     {"/backups/alpha", "", "", false},
+	}
+	for label, tc := range cases {
+		name, verb, ok := parseServerPath(tc.path)
+		if ok != tc.ok || name != tc.name || verb != tc.verb {
+			t.Errorf("%s: got (%q, %q, %v) want (%q, %q, %v)", label, name, verb, ok, tc.name, tc.verb, tc.ok)
+		}
+	}
+}
+
+type fakeFetcher struct {
+	obj *unstructured.Unstructured
+	err error
+}
+
+func (f *fakeFetcher) GetServer(ctx context.Context, ns, name string) (*unstructured.Unstructured, error) {
+	return f.obj, f.err
+}
+
+// newServerWithAnnotations creates a GameServer object with the given annotations.
+func newServerWithAnnotations(ownerID int64, collaborators []int64) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetAPIVersion("gameplane.local/v1alpha1")
+	obj.SetKind("GameServer")
+	obj.SetName("alpha")
+	obj.SetNamespace("gameplane-games")
+
+	ann := make(map[string]string)
+	if ownerID > 0 {
+		ann[ownerIDAnnotation] = strconv.FormatInt(ownerID, 10)
+	}
+	if len(collaborators) > 0 {
+		collabStrs := make([]string, len(collaborators))
+		for i, id := range collaborators {
+			collabStrs[i] = strconv.FormatInt(id, 10)
+		}
+		ann[collaboratorsAnnotation] = strings.Join(collabStrs, ",")
+	}
+	if len(ann) > 0 {
+		obj.SetAnnotations(ann)
+	}
+	return obj
+}
+
+func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
+	t.Run("owner allowed on :clone verb", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		// User 1 is the owner, requesting :clone
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:clone", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("owner should be allowed on :clone, got %d called=%v", rr.Code, called)
+		}
+	})
+
+	t.Run("owner allowed on DELETE", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("DELETE", "/servers/alpha", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("owner should be allowed on DELETE, got %d called=%v", rr.Code, called)
+		}
+	})
+
+	t.Run("owner allowed on :transfer", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("owner should be allowed on :transfer, got %d called=%v", rr.Code, called)
+		}
+	})
+
+	t.Run("owner allowed on :wipe-data", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:wipe-data", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("owner should be allowed on :wipe-data, got %d called=%v", rr.Code, called)
+		}
+	})
+}
+
+func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
+	t.Run("collaborator denied on DELETE", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("DELETE", "/servers/alpha", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("collaborator should be denied on DELETE, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator denied on :transfer", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("collaborator should be denied on :transfer, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator denied on :collaborators", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("PUT", "/servers/alpha:collaborators", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("collaborator should be denied on :collaborators, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator denied on :wipe-data", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:wipe-data", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("collaborator should be denied on :wipe-data, got %d", rr.Code)
+		}
+	})
+
+	t.Run("collaborator allowed on :clone", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:clone", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("collaborator should be allowed on :clone, got %d called=%v", rr.Code, called)
+		}
+	})
+
+	t.Run("collaborator allowed on :start", func(t *testing.T) {
+		called := false
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{2}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(204)
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:start", nil)
+		user := &auth.User{ID: 2, Username: "bob"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != 204 || !called {
+			t.Errorf("collaborator should be allowed on :start, got %d called=%v", rr.Code, called)
+		}
+	})
+}
+
+func TestMiddleware_OwnershipFallback_InvalidPath(t *testing.T) {
+	t.Run("invalid path with trailing segments after verb fails closed", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: newServerWithAnnotations(1, []int64{}),
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/servers/alpha:transfer/extra", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("invalid path should be forbidden, got %d", rr.Code)
+		}
+	})
+}
+
+func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
+	t.Run("fetch error fails closed", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			err: context.DeadlineExceeded,
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/servers/alpha", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("fetch error should be forbidden, got %d", rr.Code)
+		}
+	})
+
+	t.Run("server not found fails closed", func(t *testing.T) {
+		h := Middleware(&fakeFetcher{
+			obj: nil,
+			err: nil,
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("handler should not be called")
+		}))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/servers/alpha", nil)
+		user := &auth.User{ID: 1, Username: "alice"}
+		req = req.WithContext(auth.WithUser(req.Context(), user))
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("server not found should be forbidden, got %d", rr.Code)
+		}
+	})
 }
 
 func TestFirstSegment(t *testing.T) {
@@ -70,4 +424,166 @@ func TestFirstSegment(t *testing.T) {
 			t.Errorf("firstSegment(%q)=%q want %q", in, got, want)
 		}
 	}
+}
+
+// fakeServerFetcher mocks the ServerFetcher for tests.
+type fakeServerFetcher map[string]*unstructured.Unstructured
+
+func (f fakeServerFetcher) GetServer(ctx context.Context, ns, name string) (*unstructured.Unstructured, error) {
+	if obj, ok := f[ns+"/"+name]; ok {
+		return obj, nil
+	}
+	return nil, nil // not found (same as API not-found behavior)
+}
+
+func TestMiddleware_OwnerAllowedOnOwnedServer(t *testing.T) {
+	// Owner should be allowed to read/write their own server even without namespace role.
+	called := false
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", ""),
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(204)
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	// User has no namespace permissions but is the owner.
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42, Role: "viewer"}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != 204 || !called {
+		t.Fatalf("owner GET: code=%d called=%v", rr.Code, called)
+	}
+}
+
+func TestMiddleware_CollaboratorAllowedOnServer(t *testing.T) {
+	// Collaborator should be allowed on GET/POST/console but not on :transfer/:collaborators.
+	called := false
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", "100,200"),
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(204)
+	}))
+
+	// User 100 is a collaborator.
+	user := &auth.User{ID: 100, Role: "viewer"}
+
+	// Test read allowed
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), user))
+	h.ServeHTTP(rr, req)
+	if rr.Code != 204 || !called {
+		t.Fatalf("collaborator GET: code=%d called=%v", rr.Code, called)
+	}
+}
+
+func TestMiddleware_CollaboratorDeniedOnTransfer(t *testing.T) {
+	// Collaborator should NOT be allowed on :transfer (owner-only).
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", "100,200"),
+	})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler should not run")
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 100}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("collaborator :transfer want 403 got %d", rr.Code)
+	}
+}
+
+func TestMiddleware_OwnerAllowedOnTransfer(t *testing.T) {
+	// Owner should be allowed on :transfer.
+	called := false
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", "100"),
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(204)
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != 204 || !called {
+		t.Fatalf("owner :transfer: code=%d called=%v", rr.Code, called)
+	}
+}
+
+func TestMiddleware_StrangerDenied(t *testing.T) {
+	// A user who is neither owner nor collaborator should be denied.
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", "100"),
+	})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler should not run")
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 999}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("stranger want 403 got %d", rr.Code)
+	}
+}
+
+func TestMiddleware_NilFetcher(t *testing.T) {
+	// With nil fetcher, fallback is disabled; permission denial is final.
+	h := Middleware(nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler should not run")
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("nil fetcher want 403 got %d", rr.Code)
+	}
+}
+
+func TestMiddleware_ListEndpointNoFallback(t *testing.T) {
+	// List endpoints (no name) should not trigger the fallback.
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", ""),
+	})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler should not run")
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("list endpoint want 403 got %d", rr.Code)
+	}
+}
+
+// newOwnershipObj creates a test GameServer object with owner and collaborators.
+// Annotations go through SetAnnotations: unstructured requires JSON-shaped
+// values (map[string]interface{}), and embedding a map[string]string directly
+// makes GetAnnotations silently return nil.
+func newOwnershipObj(name string, ownerID int64, ownerName, collaborators string) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata": map[string]any{
+			"name":      name,
+			"namespace": "gameplane-games",
+		},
+	}}
+	ann := map[string]string{
+		"gameplane.local/owner-id": strconv.FormatInt(ownerID, 10),
+		"gameplane.local/owner":    ownerName,
+	}
+	if collaborators != "" {
+		ann["gameplane.local/collaborators"] = collaborators
+	}
+	obj.SetAnnotations(ann)
+	return obj
 }

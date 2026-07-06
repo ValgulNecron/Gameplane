@@ -25,8 +25,8 @@ describe("ServersPage", () => {
       http.get("/servers", () =>
         HttpResponse.json({
           items: [
-            makeServer({ metadata: { name: "alpha" }, status: { phase: "Running" } }),
-            makeServer({ metadata: { name: "beta" }, status: { phase: "Stopped" } }),
+            makeServer({ metadata: { name: "alpha", namespace: "gameplane-games" }, status: { phase: "Running" } }),
+            makeServer({ metadata: { name: "beta", namespace: "gameplane-games" }, status: { phase: "Stopped" } }),
           ],
         }),
       ),
@@ -42,8 +42,8 @@ describe("ServersPage", () => {
       http.get("/servers", () =>
         HttpResponse.json({
           items: [
-            makeServer({ metadata: { name: "alpha" } }),
-            makeServer({ metadata: { name: "beta" } }),
+            makeServer({ metadata: { name: "alpha", namespace: "gameplane-games" } }),
+            makeServer({ metadata: { name: "beta", namespace: "gameplane-games" } }),
           ],
         }),
       ),
@@ -63,8 +63,8 @@ describe("ServersPage", () => {
           items: [
             // legacy -1 sentinel and the new null "unknown" — neither may
             // drag the aggregate below zero.
-            makeServer({ metadata: { name: "a" }, status: { phase: "Running", agent: { playersOnline: -1 } } }),
-            makeServer({ metadata: { name: "b" }, status: { phase: "Running", agent: { playersOnline: null } } }),
+            makeServer({ metadata: { name: "a", namespace: "gameplane-games" }, status: { phase: "Running", agent: { playersOnline: -1 } } }),
+            makeServer({ metadata: { name: "b", namespace: "gameplane-games" }, status: { phase: "Running", agent: { playersOnline: null } } }),
           ],
         }),
       ),
@@ -83,7 +83,7 @@ describe("ServersPage", () => {
             // Telemetry lives under status.agent (cgroup + statfs); the table
             // shows it as a percent of the limit when a limit is reported.
             makeServer({
-              metadata: { name: "metrics-on" },
+              metadata: { name: "metrics-on", namespace: "gameplane-games" },
               status: {
                 phase: "Running",
                 agent: {
@@ -110,7 +110,7 @@ describe("ServersPage", () => {
         HttpResponse.json({
           items: [
             makeServer({
-              metadata: { name: "no-limit" },
+              metadata: { name: "no-limit", namespace: "gameplane-games" },
               status: { phase: "Running", agent: { cpuMillicores: 1500 } },
             }),
           ],
@@ -128,7 +128,7 @@ describe("ServersPage", () => {
         HttpResponse.json({
           items: [
             makeServer({
-              metadata: { name: "metrics-off" },
+              metadata: { name: "metrics-off", namespace: "gameplane-games" },
               status: { phase: "Running", agent: { playersOnline: 0 } },
             }),
           ],
@@ -148,5 +148,111 @@ describe("ServersPage", () => {
     );
     renderWithQuery(<ServersPage />);
     await screen.findByText(/Servers/i);
+  });
+
+  it("renders shared servers under a 'Shared with you' header", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "owned" }, status: { phase: "Running" } }),
+          ],
+        }),
+      ),
+      http.get("/users/me/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "owned" }, status: { phase: "Running" } }),
+            makeServer({ metadata: { name: "shared" }, status: { phase: "Stopped" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("owned");
+    expect(screen.getByText(/Shared with you/i)).toBeInTheDocument();
+    expect(screen.getByText("shared")).toBeInTheDocument();
+  });
+
+  it("does not show 'Shared with you' header when no shared servers", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "owned" }, status: { phase: "Running" } }),
+          ],
+        }),
+      ),
+      http.get("/users/me/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "owned" }, status: { phase: "Running" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("owned");
+    expect(screen.queryByText(/Shared with you/i)).not.toBeInTheDocument();
+  });
+
+  it("filters shared servers by search and phase", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [],
+        }),
+      ),
+      http.get("/users/me/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "shared-alpha" }, status: { phase: "Running" } }),
+            makeServer({ metadata: { name: "shared-beta" }, status: { phase: "Stopped" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText(/Shared with you/i);
+    const search = screen.getByPlaceholderText(/Search/i);
+    await userEvent.type(search, "alpha");
+    await waitFor(() => expect(screen.queryByText("shared-beta")).not.toBeInTheDocument());
+    expect(screen.getByText("shared-alpha")).toBeInTheDocument();
+  });
+
+  it("deduplicates servers by namespace and name", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "dup", namespace: "gameplane-games" },
+              status: { phase: "Running" },
+            }),
+          ],
+        }),
+      ),
+      http.get("/users/me/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "dup", namespace: "gameplane-games" },
+              status: { phase: "Running" },
+            }),
+            makeServer({
+              metadata: { name: "shared", namespace: "gameplane-games" },
+              status: { phase: "Running" },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("dup");
+    // "dup" should appear only once in the document (in the main list, not shared)
+    const dupElements = screen.getAllByText("dup");
+    expect(dupElements).toHaveLength(1);
+    // "shared" should appear once in the shared section
+    expect(screen.getByText("shared")).toBeInTheDocument();
   });
 });
