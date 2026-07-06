@@ -35,8 +35,8 @@ type handler struct {
 	cmdr commander
 	game string
 
-	listCmd string           // RCON command to fetch online players
-	listRE  *regexp.Regexp   // optional regex to parse entry output
+	listCmd string         // RCON command to fetch online players
+	listRE  *regexp.Regexp // optional regex to parse entry output
 
 	mu         sync.Mutex
 	lastFetch  time.Time

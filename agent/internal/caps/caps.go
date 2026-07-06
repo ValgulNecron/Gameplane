@@ -91,11 +91,11 @@ type StatusMetric struct {
 // (Go text/template, rendered with .Player and .Reason). Empty actions
 // are unsupported.
 type PlayerActions struct {
-	Kick      string     `json:"kick,omitempty"`
-	Ban       string     `json:"ban,omitempty"`
-	Unban     string     `json:"unban,omitempty"`
-	BanList   *BanList   `json:"banList,omitempty"`
-	Whitelist *Whitelist `json:"whitelist,omitempty"`
+	Kick      string      `json:"kick,omitempty"`
+	Ban       string      `json:"ban,omitempty"`
+	Unban     string      `json:"unban,omitempty"`
+	BanList   *BanList    `json:"banList,omitempty"`
+	Whitelist *Whitelist  `json:"whitelist,omitempty"`
 	List      *PlayerList `json:"list,omitempty"`
 }
 
