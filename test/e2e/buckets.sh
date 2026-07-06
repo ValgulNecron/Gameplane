@@ -96,6 +96,7 @@ TestAPI_RBAC_AdminCanReachAll
 TestAPI_OperatorCannotInviteUsers
 TestAPI_LifecycleClone
 TestAPI_LifecycleNotFound
+TestAPI_OwnerCollaboratorAccess
 EOF
 }
 
