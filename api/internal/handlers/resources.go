@@ -159,6 +159,41 @@ func updateHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 				return
 			}
 		}
+		// For GameServers, preserve ownership annotations from the live object
+		// so clients can't mutate them via PUT.
+		if gvr.Resource == "gameservers" {
+			ns, ok := resolveNS(w, req)
+			if !ok {
+				return
+			}
+			live, err := k.Dynamic.Resource(gvr).Namespace(ns).
+				Get(req.Context(), name, metav1.GetOptions{})
+			if err != nil && !apierrors.IsNotFound(err) {
+				httperr.Write(w, req, err)
+				return
+			}
+			if live != nil {
+				// Copy ownership annotations from the live object.
+				liveAnn := live.GetAnnotations()
+				objAnn := obj.GetAnnotations()
+				if objAnn == nil {
+					objAnn = map[string]string{}
+				}
+				for _, key := range []string{
+					"gameplane.local/owner-id",
+					"gameplane.local/owner",
+					"gameplane.local/collaborators",
+					"gameplane.local/collaborator-names",
+				} {
+					if v, ok := liveAnn[key]; ok {
+						objAnn[key] = v
+					} else {
+						delete(objAnn, key)
+					}
+				}
+				obj.SetAnnotations(objAnn)
+			}
+		}
 		var updated *unstructured.Unstructured
 		if cluster(gvr) {
 			updated, err = k.Dynamic.Resource(gvr).Update(req.Context(), obj, metav1.UpdateOptions{})
