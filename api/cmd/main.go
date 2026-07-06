@@ -172,7 +172,7 @@ func main() {
 		// pegging the DB or k8s API. Reads go through unlimited (the main
 		// bottleneck there is the dashboard's own polling).
 		p.Use(mutationRateLimit)
-		p.Use(rbac.Middleware())
+		p.Use(rbac.Middleware(k8s))
 
 		handlers.MountResources(p, k8s)
 		handlers.MountPodEvents(p, k8s)

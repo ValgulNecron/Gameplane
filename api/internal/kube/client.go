@@ -3,6 +3,10 @@
 package kube
 
 import (
+	"context"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -13,6 +17,14 @@ type Client struct {
 	Dynamic dynamic.Interface
 	Typed   kubernetes.Interface
 	Config  *rest.Config
+}
+
+// GetServer fetches a GameServer by namespace and name. Returns nil if
+// not found (does not distinguish from error for the RBAC fallback use case).
+func (c *Client) GetServer(ctx context.Context, ns, name string) (*unstructured.Unstructured, error) {
+	return c.Dynamic.Resource(GVRs["servers"]).
+		Namespace(ns).
+		Get(ctx, name, metav1.GetOptions{})
 }
 
 // GVRs exposed to the REST layer. Keyed by resource-path segment so
