@@ -41,6 +41,11 @@ export function AccessSection({ gs }: Props) {
   const namespace = gs.metadata.namespace ?? "gameplane-games";
   const canManage = ownerID === String(me?.id) || can(me, "servers:write", namespace);
 
+  // Misalignment guard: if the parsed collaborators and collaborator-names
+  // have different lengths, the annotations were modified outside the dashboard.
+  const isAligned = collaboratorIDs.length === collaboratorNames.length;
+  const canEditCollaborators = canManage && isAligned;
+
   const setCollab = useMutation({
     mutationFn: async (body: { userIds?: number[]; usernames?: string[] }) => {
       if (!gs) return;
@@ -49,34 +54,34 @@ export function AccessSection({ gs }: Props) {
     onSuccess: () => {
       setAddInput("");
       setError(null);
-      void qc.invalidateQueries({ queryKey: ["server", gs.metadata.name] });
+      return qc.invalidateQueries({ queryKey: ["server", gs.metadata.name] });
     },
     onError: (err) => {
       setError(errMsg(err));
     },
   });
 
-  const handleAddCollaborator = async () => {
+  const handleAddCollaborator = () => {
     const name = addInput.trim();
     if (!name) return;
 
-    // Build the new collaborators list: keep existing IDs + add the new username
-    const newUsernames = [...collaboratorNames, name];
+    // Keep existing IDs; send only the new username.
+    // The server unions and dedupes.
     const newUserIds = collaboratorIDs.map((id) => Number(id));
 
-    await setCollab.mutateAsync({
+    setCollab.mutate({
       userIds: newUserIds,
-      usernames: newUsernames,
+      usernames: [name],
     });
   };
 
-  const handleRemoveCollaborator = async (index: number) => {
+  const handleRemoveCollaborator = (index: number) => {
     // Remove the collaborator at the given index
     const newUserIds = collaboratorIDs
       .filter((_, i) => i !== index)
       .map((id) => Number(id));
 
-    await setCollab.mutateAsync({
+    setCollab.mutate({
       userIds: newUserIds,
     });
   };
@@ -103,6 +108,11 @@ export function AccessSection({ gs }: Props) {
           </div>
 
           <div className="space-y-2">
+            {!isAligned && (
+              <div className="rounded border border-amber-400/40 bg-amber-50/10 px-2 py-1 text-xs text-amber-600 dark:text-amber-500">
+                Collaborators were modified outside the dashboard.
+              </div>
+            )}
             {collaboratorNames.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {collaboratorNames.map((name, idx) => (
@@ -111,9 +121,9 @@ export function AccessSection({ gs }: Props) {
                     className="flex items-center gap-1 rounded-full border border-border bg-surface/60 px-2 py-1 text-xs"
                   >
                     <span>{name}</span>
-                    {canManage && (
+                    {canEditCollaborators && (
                       <button
-                        onClick={() => void handleRemoveCollaborator(idx)}
+                        onClick={() => handleRemoveCollaborator(idx)}
                         disabled={setCollab.isPending}
                         className="ml-0.5 hover:text-danger disabled:opacity-40"
                         title="Remove"
@@ -129,14 +139,14 @@ export function AccessSection({ gs }: Props) {
             )}
           </div>
 
-          {canManage && (
+          {canEditCollaborators && (
             <div className="flex items-center gap-2 pt-1">
               <Input
                 value={addInput}
                 onChange={(e) => setAddInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    void handleAddCollaborator();
+                    handleAddCollaborator();
                   }
                 }}
                 placeholder="Add collaborator by username…"
@@ -145,7 +155,7 @@ export function AccessSection({ gs }: Props) {
               />
               <Button
                 size="sm"
-                onClick={() => void handleAddCollaborator()}
+                onClick={() => handleAddCollaborator()}
                 disabled={!addInput.trim() || setCollab.isPending}
               >
                 Add
