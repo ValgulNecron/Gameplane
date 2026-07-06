@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -101,8 +100,11 @@ func TestOwnership_SetCollaborators(t *testing.T) {
 			t.Fatalf("get: %v", err)
 		}
 		ann := obj.GetAnnotations()
-		if !strings.Contains(ann[collaboratorsAnnotation], "bob") {
-			t.Errorf("collaborators = %q, want bob", ann[collaboratorsAnnotation])
+		if ann[collaboratorsAnnotation] != strconv.FormatInt(bob, 10) {
+			t.Errorf("collaborators = %q, want %d", ann[collaboratorsAnnotation], bob)
+		}
+		if ann[collaboratorNamesAnnotation] != "bob" {
+			t.Errorf("collaborator-names = %q, want bob", ann[collaboratorNamesAnnotation])
 		}
 	})
 
@@ -123,11 +125,12 @@ func TestOwnership_SetCollaborators(t *testing.T) {
 			t.Fatalf("get: %v", err)
 		}
 		ann := obj.GetAnnotations()
-		if strings.Contains(ann[collaboratorsAnnotation], "alice") {
-			t.Errorf("alice should be removed")
+		if ann[collaboratorsAnnotation] != strconv.FormatInt(charlie, 10) {
+			t.Errorf("collaborators = %q, want only %d (alice replaced by charlie)",
+				ann[collaboratorsAnnotation], charlie)
 		}
-		if !strings.Contains(ann[collaboratorsAnnotation], "charlie") {
-			t.Errorf("charlie should be present")
+		if ann[collaboratorNamesAnnotation] != "charlie" {
+			t.Errorf("collaborator-names = %q, want charlie", ann[collaboratorNamesAnnotation])
 		}
 	})
 

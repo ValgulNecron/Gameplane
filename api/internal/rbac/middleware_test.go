@@ -565,7 +565,18 @@ func TestMiddleware_ListEndpointNoFallback(t *testing.T) {
 }
 
 // newOwnershipObj creates a test GameServer object with owner and collaborators.
+// Annotations go through SetAnnotations: unstructured requires JSON-shaped
+// values (map[string]interface{}), and embedding a map[string]string directly
+// makes GetAnnotations silently return nil.
 func newOwnershipObj(name string, ownerID int64, ownerName, collaborators string) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata": map[string]any{
+			"name":      name,
+			"namespace": "gameplane-games",
+		},
+	}}
 	ann := map[string]string{
 		"gameplane.local/owner-id": strconv.FormatInt(ownerID, 10),
 		"gameplane.local/owner":    ownerName,
@@ -573,14 +584,6 @@ func newOwnershipObj(name string, ownerID int64, ownerName, collaborators string
 	if collaborators != "" {
 		ann["gameplane.local/collaborators"] = collaborators
 	}
-	obj := &unstructured.Unstructured{Object: map[string]any{
-		"apiVersion": "gameplane.local/v1alpha1",
-		"kind":       "GameServer",
-		"metadata": map[string]any{
-			"name":        name,
-			"namespace":   "gameplane-games",
-			"annotations": ann,
-		},
-	}}
+	obj.SetAnnotations(ann)
 	return obj
 }
