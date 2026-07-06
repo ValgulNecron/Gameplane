@@ -344,6 +344,14 @@ type ModProvider struct {
 	// +optional
 	Community string `json:"community,omitempty"`
 
+	// CredentialsSecretRef references a Secret in the GameServer's namespace
+	// that holds registry download credentials. The Secret must contain
+	// "username" and "token" keys. Currently used by the "factorio" provider
+	// for mod-portal downloads. The agent injects these credentials
+	// transparently during installs.
+	// +optional
+	CredentialsSecretRef *SecretNameRef `json:"credentialsSecretRef,omitempty"`
+
 	// Modpacks, when set, surfaces a Modpacks browser for this provider and
 	// declares how installing one is applied. A modpack is selected as a
 	// whole (not added to the mods dir like a single mod), so install
@@ -867,6 +875,14 @@ type SecretKeySelector struct {
 	Name string `json:"name"`
 	// +kubebuilder:validation:MinLength=1
 	Key string `json:"key"`
+}
+
+// SecretNameRef references a Secret by name only (no key selection).
+// Used when the Secret has a fixed schema with known keys.
+type SecretNameRef struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Name string `json:"name"`
 }
 
 // GameTemplateStatus is intentionally minimal — templates are mostly

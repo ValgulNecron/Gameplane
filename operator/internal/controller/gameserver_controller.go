@@ -604,6 +604,12 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		if v := modVolume(gs, tmpl, ver); v != nil {
 			volumes = append(volumes, *v)
 		}
+		// Mod-portal credential volumes for each configured provider. When a
+		// provider's CredentialsSecretRef is set, its Secret is mounted
+		// read-only at /etc/gameplane/mod-creds/<provider>/ so the agent can
+		// inject credentials on install. Assigned wholesale so removing the
+		// secret ref drops the mount on the next reconcile.
+		volumes = append(volumes, modCredsVolumes(resolveModCreds(tmpl))...)
 		ss.Spec.Template.Spec.Volumes = volumes
 		// Assign unconditionally so clearing spec.nodeSelector also clears the
 		// pod template's selector (nil resets it); the previous nil-guard left

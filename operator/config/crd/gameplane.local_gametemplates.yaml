@@ -421,6 +421,21 @@ spec:
                                     ignored by others.
                                   maxLength: 64
                                   type: string
+                                credentialsSecretRef:
+                                  description: |-
+                                    CredentialsSecretRef references a Secret in the GameServer's namespace
+                                    that holds registry download credentials. The Secret must contain
+                                    "username" and "token" keys. Currently used by the "factorio" provider
+                                    for mod-portal downloads. The agent injects these credentials
+                                    transparently during installs.
+                                  properties:
+                                    name:
+                                      maxLength: 253
+                                      minLength: 1
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
                                 modpacks:
                                   description: |-
                                     Modpacks, when set, surfaces a Modpacks browser for this provider and
