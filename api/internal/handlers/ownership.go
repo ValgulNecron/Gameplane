@@ -25,9 +25,9 @@ import (
 // is informational (display + transfer + audit), and can grant per-server
 // access to the owner and collaborators.
 const (
-	ownerIDAnnotation        = "gameplane.local/owner-id"
-	ownerAnnotation          = "gameplane.local/owner"
-	collaboratorsAnnotation  = "gameplane.local/collaborators"
+	ownerIDAnnotation           = "gameplane.local/owner-id"
+	ownerAnnotation             = "gameplane.local/owner"
+	collaboratorsAnnotation     = "gameplane.local/collaborators"
 	collaboratorNamesAnnotation = "gameplane.local/collaborator-names"
 )
 
@@ -207,7 +207,7 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 	patch, _ := json.Marshal(map[string]any{
 		"metadata": map[string]any{
 			"annotations": map[string]any{
-				collaboratorsAnnotation:  collabIDsStr,
+				collaboratorsAnnotation:     collabIDsStr,
 				collaboratorNamesAnnotation: collabNamesStr,
 			},
 		},

@@ -42,7 +42,7 @@ const (
 
 // Ownership role constants for server access fallback.
 const (
-	roleOwner     = iota
+	roleOwner = iota
 	roleCollaborator
 	roleNone
 )

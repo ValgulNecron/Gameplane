@@ -74,14 +74,14 @@ func TestServerNameFromPath(t *testing.T) {
 		name string
 		ok   bool
 	}{
-		"simple":         {"/servers/alpha", "alpha", true},
-		"with verb":      {"/servers/alpha:transfer", "alpha", true},
-		"with subpath":   {"/servers/alpha/files", "alpha", true},
-		"ws console":     {"/ws/servers/alpha/console", "alpha", true},
-		"ws with verb":   {"/ws/servers/alpha:collaborators", "alpha", true},
-		"list":           {"/servers", "", false},
-		"empty name":     {"/servers/", "", false},
-		"wrong segment":  {"/backups/alpha", "", false},
+		"simple":        {"/servers/alpha", "alpha", true},
+		"with verb":     {"/servers/alpha:transfer", "alpha", true},
+		"with subpath":  {"/servers/alpha/files", "alpha", true},
+		"ws console":    {"/ws/servers/alpha/console", "alpha", true},
+		"ws with verb":  {"/ws/servers/alpha:collaborators", "alpha", true},
+		"list":          {"/servers", "", false},
+		"empty name":    {"/servers/", "", false},
+		"wrong segment": {"/backups/alpha", "", false},
 	}
 	for label, tc := range cases {
 		name, ok := serverNameFromPath(tc.path)
@@ -98,21 +98,21 @@ func TestParseServerPath(t *testing.T) {
 		verb string
 		ok   bool
 	}{
-		"simple":                  {"/servers/alpha", "alpha", "", true},
-		"with transfer verb":      {"/servers/alpha:transfer", "alpha", "transfer", true},
-		"with collaborators verb": {"/servers/alpha:collaborators", "alpha", "collaborators", true},
-		"with wipe-data verb":     {"/servers/alpha:wipe-data", "alpha", "wipe-data", true},
-		"with clone verb":         {"/servers/alpha:clone", "alpha", "clone", true},
-		"with subpath":            {"/servers/alpha/files", "alpha", "", true},
-		"with subpath and name":   {"/servers/alpha/players", "alpha", "", true},
-		"ws simple":               {"/ws/servers/alpha", "alpha", "", true},
-		"ws with verb":            {"/ws/servers/alpha:transfer", "alpha", "transfer", true},
-		"ws with subpath":         {"/ws/servers/alpha/console", "alpha", "", true},
+		"simple":                            {"/servers/alpha", "alpha", "", true},
+		"with transfer verb":                {"/servers/alpha:transfer", "alpha", "transfer", true},
+		"with collaborators verb":           {"/servers/alpha:collaborators", "alpha", "collaborators", true},
+		"with wipe-data verb":               {"/servers/alpha:wipe-data", "alpha", "wipe-data", true},
+		"with clone verb":                   {"/servers/alpha:clone", "alpha", "clone", true},
+		"with subpath":                      {"/servers/alpha/files", "alpha", "", true},
+		"with subpath and name":             {"/servers/alpha/players", "alpha", "", true},
+		"ws simple":                         {"/ws/servers/alpha", "alpha", "", true},
+		"ws with verb":                      {"/ws/servers/alpha:transfer", "alpha", "transfer", true},
+		"ws with subpath":                   {"/ws/servers/alpha/console", "alpha", "", true},
 		"invalid: verb with trailing slash": {"/servers/alpha:transfer/extra", "", "", false},
 		"invalid: verb with subpath":        {"/servers/alpha:clone/files", "", "", false},
-		"list":                    {"/servers", "", "", false},
-		"empty name":              {"/servers/", "", "", false},
-		"wrong segment":           {"/backups/alpha", "", "", false},
+		"list":                              {"/servers", "", "", false},
+		"empty name":                        {"/servers/", "", "", false},
+		"wrong segment":                     {"/backups/alpha", "", "", false},
 	}
 	for label, tc := range cases {
 		name, verb, ok := parseServerPath(tc.path)
