@@ -43,10 +43,32 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer admin.Close()
 
-	// Create two users with no role bindings (viewer role is just for creating
-	// a user; neither will have namespace bindings).
-	ownerName, ownerPW, ownerID := envInstance.CreateUser(t, admin, "viewer", "e2e-owner-collab-owner")
-	collabName, collabPW, collabID := envInstance.CreateUser(t, admin, "viewer", "e2e-owner-collab-collab")
+	// Create a zero-permission custom role for the test users. POST /users
+	// always mirrors the primary role into a cluster-wide binding, so a user
+	// created with the viewer role could read every server through that
+	// binding — the pre-add 403 subtest would fail, and the owner/collab
+	// GET subtests would pass via the binding instead of proving the
+	// ownership fallback. A no-permission role keeps both users' access
+	// coming exclusively from the owner/collaborator annotations.
+	// Registered for cleanup before the users so it is deleted after them
+	// (role deletion requires no remaining bindings).
+	noPermRole := fmt.Sprintf("e2e-owner-collab-noperm-%d", time.Now().UnixNano())
+	t.Cleanup(func() { _, _, _ = admin.Delete("/roles/" + noPermRole) })
+	roleResp, roleBody, err := admin.Post("/roles", map[string]any{
+		"name":        noPermRole,
+		"description": "e2e: zero permissions (ownership fallback tests)",
+		"permissions": []string{},
+	})
+	if err != nil {
+		t.Fatalf("create no-perm role: %v", err)
+	}
+	if roleResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create no-perm role: status=%d body=%s", roleResp.StatusCode, string(roleBody))
+	}
+
+	// Create two users whose only access can come from ownership annotations.
+	ownerName, ownerPW, ownerID := envInstance.CreateUser(t, admin, noPermRole, "e2e-owner-collab-owner")
+	collabName, collabPW, collabID := envInstance.CreateUser(t, admin, noPermRole, "e2e-owner-collab-collab")
 
 	t.Cleanup(func() {
 		_, _, _ = admin.Delete("/users/" + ownerID)
