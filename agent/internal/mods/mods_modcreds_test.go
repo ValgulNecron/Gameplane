@@ -1,11 +1,15 @@
 package mods
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestInjectModCreds_FactorioWithCredentials verifies that when factorio
@@ -248,5 +252,112 @@ func TestModMetaProvider(t *testing.T) {
 	}
 	if meta.Provider != "factorio" {
 		t.Errorf("ModMeta.Provider not set correctly; got %q", meta.Provider)
+	}
+}
+
+// TestDownloadTemp_CredentialsNotLeaked verifies that when a download fails
+// with credentialed query parameters in the URL, the error returned by
+// downloadTemp does not contain the token. This ensures credentials can
+// never be exposed in logs.
+func TestDownloadTemp_CredentialsNotLeaked(t *testing.T) {
+	// Create a server that immediately closes the connection on any request.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Hijack the connection to force a client-side error.
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("http.ResponseWriter does not support hijack")
+			return
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+			return
+		}
+		// Close immediately without sending a response.
+		conn.Close()
+	}))
+	defer srv.Close()
+
+	// Build a credentialed URL directly (simulating what install would inject).
+	secret := "super-secret-token-12345"
+	credentialedURL := srv.URL + "/api/download?username=testuser&token=" + url.QueryEscape(secret)
+
+	// Create a handler with the test server allowed.
+	tmpDir := t.TempDir()
+	testURL, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parse server URL: %v", err)
+	}
+	h := &handler{
+		dir:      tmpDir,
+		maxBytes: 256 << 20,
+		client:   newSafeClient([]string{testURL.Hostname()}),
+	}
+
+	// Perform the download; this should fail because the server closes the connection.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, _, err = h.downloadTemp(ctx, credentialedURL)
+	if err == nil {
+		t.Fatal("expected downloadTemp to fail when server closes connection")
+	}
+
+	// The error must not contain the token.
+	errStr := err.Error()
+	if strings.Contains(errStr, secret) {
+		t.Errorf("token leaked in error: %q", errStr)
+	}
+	// The error also should not contain the raw query string.
+	if strings.Contains(errStr, "username=") {
+		t.Errorf("credentialed query leaked in error: %q", errStr)
+	}
+}
+
+// TestDownloadTemp_EmptyTokenNotLeaked verifies the symmetric case: when
+// an empty token is used in a credentialed URL, the error doesn't leak it.
+func TestDownloadTemp_EmptyTokenNotLeaked(t *testing.T) {
+	// Create a server that immediately closes the connection.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("http.ResponseWriter does not support hijack")
+			return
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+			return
+		}
+		conn.Close()
+	}))
+	defer srv.Close()
+
+	// Build a credentialed URL with an empty token.
+	credentialedURL := srv.URL + "/api/download?username=testuser&token="
+
+	tmpDir := t.TempDir()
+	testURL, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parse server URL: %v", err)
+	}
+	h := &handler{
+		dir:      tmpDir,
+		maxBytes: 256 << 20,
+		client:   newSafeClient([]string{testURL.Hostname()}),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, _, err = h.downloadTemp(ctx, credentialedURL)
+	if err == nil {
+		t.Fatal("expected downloadTemp to fail when server closes connection")
+	}
+
+	// The error must not contain the query string even with empty token.
+	errStr := err.Error()
+	if strings.Contains(errStr, "username=") {
+		t.Errorf("credentialed query leaked in error: %q", errStr)
 	}
 }

@@ -387,7 +387,7 @@ func (h *handler) downloadTemp(ctx context.Context, url string) (string, int64, 
 	}
 	resp, err := h.client.Do(req)
 	if err != nil {
-		return "", 0, err
+		return "", 0, redactURLErr(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -617,16 +617,45 @@ func safeName(name string) (string, error) {
 // subdomain. Comparison is case-insensitive.
 // modCredsBasePath is where mod-portal credentials are mounted, organized
 // by provider. The agent tries to read username and token files for the
-// requested provider; missing files are treated gracefully. Package var
-// so tests can override it.
+// requested provider; missing files are treated gracefully. Must stay in
+// lockstep with the operator's copy in gameserver_modcreds.go.
+// Package var so tests can override it.
 var modCredsBasePath = "/etc/gameplane/mod-creds"
+
+// redactURLErr strips the query from the URL embedded in a *url.Error so
+// credentials injected for mod-portal downloads can never reach logs.
+// Mutates in place to preserve the errors.Is/As chain.
+func redactURLErr(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		if u, perr := url.Parse(ue.URL); perr == nil {
+			u.RawQuery = ""
+			ue.URL = u.String()
+		}
+	}
+	return err
+}
 
 // injectModCreds appends username and token query parameters to the URL
 // for providers that have credentials mounted. Missing or unreadable
 // credential files are ignored, and the URL is returned unchanged.
+// Credentials are only injected when provider=="factorio" and the URL
+// hostname is mods.factorio.com or a .factorio.com subdomain.
 func injectModCreds(urlStr, provider string) string {
-	if provider == "" || provider != "factorio" {
+	if provider != "factorio" {
 		// Only factorio currently needs credentials.
+		return urlStr
+	}
+
+	// Parse the URL first to validate the hostname and ensure injection is safe.
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		// Should not happen (URL was already validated), but be safe.
+		return urlStr
+	}
+	hostname := strings.ToLower(u.Hostname())
+	// Only inject for factorio.com or *.factorio.com.
+	if hostname != "mods.factorio.com" && !strings.HasSuffix(hostname, ".factorio.com") {
 		return urlStr
 	}
 
@@ -651,11 +680,6 @@ func injectModCreds(urlStr, provider string) string {
 
 	// Append credentials as query parameters. Re-parse the URL so we can
 	// safely modify the query string without corrupting existing params.
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		// Should not happen (URL was already validated), but be safe.
-		return urlStr
-	}
 	q := u.Query()
 	q.Set("username", usernameStr)
 	q.Set("token", tokenStr)
