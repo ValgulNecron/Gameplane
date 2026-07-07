@@ -9,6 +9,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Changed
 
+- **modules:** official Factorio template now uses RCON (via the operator's
+  `rcon.passwordFile` pointed at the image's self-generated `config/rconpw`)
+  instead of pty-only; Factorio and Palworld templates gained a `players.list`
+  capability (version 1.1.0).
 - **api/web/chart:** the Admin Settings → Updates **channel selector is now a
   read-only label**. The old select persisted a channel that nothing consumed
   (Gameplane is upgraded via Helm, not an in-app updater); the channel is now
