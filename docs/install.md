@@ -202,6 +202,44 @@ a slow or down sink never blocks or fails a request.
     --set api.audit.webhook.syslogBridge.syslog.addr=syslog.example:514
   ```
 
+- `api.audit.s3.*` — native S3-compatible sink for batching audit events as
+  NDJSON objects. Events are buffered in memory and flushed when ANY of three
+  thresholds are hit: 100 events, 1 MiB, or 5 seconds. Upload uses S3 `PutObject`
+  with retries (immediate/+2s/+8s); watch `gameplane_audit_s3_events_total`
+  for delivery health. Works with AWS S3, MinIO, Backblaze, Wasabi, or any
+  S3-compatible endpoint.
+  - `api.audit.s3.endpoint` — S3 endpoint `host:port` (e.g.,
+    `minio:9000` for a local MinIO, `s3.amazonaws.com` for AWS).
+  - `api.audit.s3.bucket` — bucket name (required when endpoint is set).
+  - `api.audit.s3.prefix` — optional object key prefix (e.g.,
+    `gameplane-audit`; empty = root).
+  - `api.audit.s3.region` — S3 region (e.g., `us-east-1`; empty = path-style
+    requests).
+  - `api.audit.s3.insecure` — `true` to skip TLS certificate verification
+    (for self-signed certs on dev/homelab clusters).
+  - `api.audit.s3.credentialsSecretRef` — reference to a Secret holding S3
+    credentials (see [security](security.md)); leave `name` empty to disable S3.
+
+  **MinIO homelab example**:
+
+  ```sh
+  # Create a Secret with MinIO credentials (user must have read/write on the bucket).
+  kubectl create secret generic gameplane-s3-creds \
+    -n gameplane-system \
+    --from-literal=access-key=minioadmin \
+    --from-literal=secret-key=minioadmin
+
+  # Enable S3 sink pointing at local MinIO.
+  helm upgrade ... \
+    --set api.audit.s3.endpoint="minio.gameplane-system:9000" \
+    --set api.audit.s3.bucket="gameplane-audit" \
+    --set api.audit.s3.prefix="events" \
+    --set api.audit.s3.insecure=true \
+    --set api.audit.s3.credentialsSecretRef.name=gameplane-s3-creds \
+    --set api.audit.s3.credentialsSecretRef.accessKeyKey=access-key \
+    --set api.audit.s3.credentialsSecretRef.secretKeyKey=secret-key
+  ```
+
 ### Telemetry
 
 Gameplane can report anonymous usage once a day: `{version, servers,

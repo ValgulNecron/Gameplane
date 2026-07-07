@@ -116,6 +116,23 @@ api:
         severity: info    # emerg/alert/crit/err/warning/notice/info/debug
         replicas: 1
         resources: {}
+    # Native S3-compatible audit sink. When endpoint and bucket are set, the API
+    # batches audit events as NDJSON and uploads them to S3 (or MinIO, Backblaze,
+    # etc.). Best-effort delivery: events always land in the database regardless,
+    # and S3 acts as an external mirror. Batching thresholds: 100 events, 1 MiB,
+    # or 5 seconds (whichever comes first). Retries 3 times on transient errors.
+    s3:
+      endpoint: ""        # S3-compatible endpoint host:port (e.g., "minio:9000" or "s3.amazonaws.com")
+      bucket: ""          # S3 bucket name (required when endpoint is set)
+      prefix: ""          # object key prefix, e.g. "gameplane-audit" (empty = root)
+      region: ""          # S3 region, e.g. "us-east-1" (empty = path-style requests)
+      insecure: false     # disable TLS certificate verification (for self-signed certs)
+      # S3 credentials sourced from a Secret (never passed as flags). Leave
+      # credentialsSecretRef.name empty to disable the S3 sink entirely.
+      credentialsSecretRef:
+        name: ""          # name of a Secret in the API's namespace
+        accessKeyKey: access-key   # key containing the access key ID
+        secretKeyKey: secret-key    # key containing the secret access key
 
   # Anonymous usage telemetry ({version, servers, templates} once a day —
   # see docs/install.md). Two independent gates: the admin toggle in the

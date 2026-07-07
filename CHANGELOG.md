@@ -19,6 +19,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **api:** native S3 audit sink — batched NDJSON objects to any S3-compatible
+  endpoint (`api.audit.s3.*`), alongside the existing stdout/webhook/syslog
+  sinks. Events are buffered and flushed when ANY of: 100 events, 1 MiB, or 5
+  seconds elapsed. Works with AWS S3, MinIO, Backblaze, Wasabi, etc. Retries 3
+  times on transient errors; watch `gameplane_audit_s3_events_total` for
+  delivery health.
 - **api/web/rbac:** per-GameServer access control — server owners and
   collaborators get enforced per-server access on top of namespace role
   bindings. Collaborators are managed from the new Access section (server
