@@ -518,8 +518,8 @@ export interface FileEntry {
   modTime?: string;
 }
 
-function filesBase(server: string, ns?: string): string {
-  return withNS(`/servers/${encodeURIComponent(server)}/files`, ns);
+function filesBase(server: string): string {
+  return `/servers/${encodeURIComponent(server)}/files`;
 }
 
 // Shared helper for the non-JSON file endpoints (read/write/mkdir/upload/
@@ -537,10 +537,10 @@ async function filesFetch(input: string, init: RequestInit = {}): Promise<Respon
 
 export const Files = {
   list: (server: string, path: string, ns?: string) =>
-    api<FileEntry[]>(`${filesBase(server, ns)}/list?path=${encodeURIComponent(path)}`),
+    api<FileEntry[]>(withNS(`${filesBase(server)}/list?path=${encodeURIComponent(path)}`, ns)),
   read: async (server: string, path: string, ns?: string): Promise<string> => {
     const res = await filesFetch(
-      `${filesBase(server, ns)}/read?path=${encodeURIComponent(path)}`,
+      withNS(`${filesBase(server)}/read?path=${encodeURIComponent(path)}`, ns),
     );
     return res.text();
   },
@@ -550,14 +550,14 @@ export const Files = {
     content: string | Blob,
     ns?: string,
   ): Promise<void> => {
-    await filesFetch(`${filesBase(server, ns)}/write?path=${encodeURIComponent(path)}`, {
+    await filesFetch(withNS(`${filesBase(server)}/write?path=${encodeURIComponent(path)}`, ns), {
       method: "POST",
       headers: { "Content-Type": "application/octet-stream", ...csrfHeaders() },
       body: content,
     });
   },
   mkdir: async (server: string, path: string, ns?: string): Promise<void> => {
-    await filesFetch(`${filesBase(server, ns)}/mkdir?path=${encodeURIComponent(path)}`, {
+    await filesFetch(withNS(`${filesBase(server)}/mkdir?path=${encodeURIComponent(path)}`, ns), {
       method: "POST",
       headers: csrfHeaders(),
     });
@@ -569,7 +569,7 @@ export const Files = {
     ns?: string,
   ): Promise<void> => {
     const qs = `path=${encodeURIComponent(path)}${recursive ? "&recursive=true" : ""}`;
-    await filesFetch(`${filesBase(server, ns)}/delete?${qs}`, {
+    await filesFetch(withNS(`${filesBase(server)}/delete?${qs}`, ns), {
       method: "DELETE",
       headers: csrfHeaders(),
     });
@@ -582,14 +582,14 @@ export const Files = {
   ): Promise<void> => {
     const fd = new FormData();
     for (const f of Array.from(files)) fd.append("files", f, f.name);
-    await filesFetch(`${filesBase(server, ns)}/upload?path=${encodeURIComponent(dir)}`, {
+    await filesFetch(withNS(`${filesBase(server)}/upload?path=${encodeURIComponent(dir)}`, ns), {
       method: "POST",
       headers: csrfHeaders(),
       body: fd,
     });
   },
   downloadURL: (server: string, path: string, ns?: string) =>
-    `${filesBase(server, ns)}/download?path=${encodeURIComponent(path)}`,
+    withNS(`${filesBase(server)}/download?path=${encodeURIComponent(path)}`, ns),
 };
 
 // Historical + live log access. download fetches the whole current log

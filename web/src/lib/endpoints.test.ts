@@ -178,6 +178,73 @@ describe("endpoints", () => {
         "/servers/mc-survival/files/download?path=%2Fworld%2Flevel.dat",
       );
     });
+
+    it("list appends namespace param last when ns is set", async () => {
+      fetchMock.mockImplementation(
+        async () =>
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      );
+      await Files.list("mc-survival", "/", "team-a");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/files/list?path=%2F&namespace=team-a");
+      expect(url).not.toContain("files?namespace=");
+    });
+
+    it("read appends namespace param last when ns is set", async () => {
+      fetchMock.mockImplementation(
+        async () =>
+          new Response("content", {
+            status: 200,
+            headers: { "Content-Type": "text/plain" },
+          }),
+      );
+      await Files.read("mc-survival", "/config.yml", "team-b");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/files/read?path=%2Fconfig.yml&namespace=team-b");
+      expect(url).not.toContain("files?namespace=");
+    });
+
+    it("write appends namespace param last when ns is set", async () => {
+      fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+      await Files.write("mc-survival", "/server.properties", "k=v", "team-c");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/files/write?path=%2Fserver.properties&namespace=team-c");
+      expect(url).not.toContain("files?namespace=");
+    });
+
+    it("mkdir appends namespace param last when ns is set", async () => {
+      fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+      await Files.mkdir("mc-survival", "/mods", "team-d");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/files/mkdir?path=%2Fmods&namespace=team-d");
+      expect(url).not.toContain("files?namespace=");
+    });
+
+    it("remove appends namespace param last when ns is set", async () => {
+      fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+      await Files.remove("mc-survival", "/temp", false, "team-e");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/files/delete?path=%2Ftemp&namespace=team-e");
+      expect(url).not.toContain("files?namespace=");
+    });
+
+    it("upload appends namespace param last when ns is set", async () => {
+      fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+      const file = new File(["bytes"], "mod.jar", { type: "application/octet-stream" });
+      await Files.upload("mc-survival", "/mods", [file], "team-f");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/files/upload?path=%2Fmods&namespace=team-f");
+      expect(url).not.toContain("files?namespace=");
+    });
+
+    it("downloadURL appends namespace param last when ns is set", () => {
+      const url = Files.downloadURL("mc-survival", "/world.zip", "team-g");
+      expect(url).toBe("/servers/mc-survival/files/download?path=%2Fworld.zip&namespace=team-g");
+      expect(url).not.toContain("files?namespace=");
+    });
   });
 
   describe("Logs", () => {
