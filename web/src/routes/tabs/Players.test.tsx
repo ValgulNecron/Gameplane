@@ -57,6 +57,18 @@ describe("PlayersTab", () => {
     expect(await screen.findByText(/0 \/ 20 online/)).toBeInTheDocument();
   });
 
+  it("hides unknown max player count (renders -1 as just online count)", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ online: 5, max: -1, players: [] })),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    expect(await screen.findByText(/5 online/)).toBeInTheDocument();
+    expect(screen.queryByText("-1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/5 \/ -1/)).not.toBeInTheDocument();
+  });
+
   it("lists the whitelist and adds an entry", async () => {
     const added: string[] = [];
     server.use(

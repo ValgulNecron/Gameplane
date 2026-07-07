@@ -255,4 +255,38 @@ describe("ServersPage", () => {
     // "shared" should appear once in the shared section
     expect(screen.getByText("shared")).toBeInTheDocument();
   });
+
+  it("renders shared servers from non-default namespaces as enabled links with namespace param", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "owned", namespace: "gameplane-games" },
+              status: { phase: "Running" },
+            }),
+          ],
+        }),
+      ),
+      http.get("/users/me/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "owned", namespace: "gameplane-games" },
+              status: { phase: "Running" },
+            }),
+            makeServer({
+              metadata: { name: "other-ns-server", namespace: "other-namespace" },
+              status: { phase: "Running" },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("owned");
+    const sharedLink = screen.getByText("other-ns-server").closest("a") as HTMLAnchorElement;
+    expect(sharedLink).toBeInTheDocument();
+    expect(sharedLink.href).toContain("ns=other-namespace");
+  });
 });

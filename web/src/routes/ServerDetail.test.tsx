@@ -9,11 +9,13 @@ import { makeServer, makeTemplate, makeUser } from "@/test/factories";
 
 // Router APIs the route reaches into.
 const navigate = vi.fn();
+let searchParams = {};
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>{children}</a>
   ),
   useParams: () => ({ name: "alpha" }),
+  useSearch: () => searchParams,
   useNavigate: () => navigate,
 }));
 
@@ -177,6 +179,34 @@ describe("ServerDetailPage", () => {
     const filesTab = await screen.findByRole("button", { name: /Files/i });
     await userEvent.click(filesTab);
     await waitFor(() => expect(screen.getByText("files-tab")).toBeInTheDocument());
+  });
+
+  it("passes namespace query param to server API when ns search param is set", async () => {
+    let requestUrl = "";
+    server.use(
+      http.get("/servers/:name", ({ request }) => {
+        requestUrl = request.url;
+        return HttpResponse.json(makeServer({ metadata: { name: "alpha", namespace: "other-ns" } }));
+      }),
+    );
+    searchParams = { ns: "other-ns" };
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    expect(requestUrl).toContain("namespace=other-ns");
+  });
+
+  it("fetches server without namespace param when no ns search param is set", async () => {
+    let requestUrl = "";
+    server.use(
+      http.get("/servers/:name", ({ request }) => {
+        requestUrl = request.url;
+        return HttpResponse.json(makeServer());
+      }),
+    );
+    searchParams = {};
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    expect(requestUrl).not.toContain("namespace=");
   });
 });
 
