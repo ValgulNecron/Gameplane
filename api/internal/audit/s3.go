@@ -1,0 +1,249 @@
+package audit
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"sync/atomic"
+	"time"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+// s3Events counts audit-event S3 deliveries by outcome. Like the webhook
+// counter, a "dropped" or "failed" delta is operationally important — it means
+// the external audit mirror has a gap — so it's surfaced at /metrics.
+var s3Events = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "gameplane_audit_s3_events_total",
+	Help: "Audit-event S3 deliveries by result (sent, failed, dropped).",
+}, []string{"result"})
+
+const (
+	s3Buffer         = 1024
+	s3FlushCountSize = 100
+	s3FlushByteSize  = 1024 * 1024 // 1 MiB
+	s3FlushInterval  = 5 * time.Second
+)
+
+// S3Sink mirrors each audit event to an S3-compatible endpoint by batching
+// events as NDJSON lines into objects. Delivery is best-effort and fully
+// decoupled from the request path: events are handed to a bounded buffer and
+// shipped by a single background worker, so a slow or unreachable endpoint
+// never blocks — or fails — an audited request. The database stays the source
+// of truth; this is the same "mirror, don't gate" contract as the webhook sink,
+// just batched into S3 objects rather than individual POSTs.
+//
+// Buffered events not yet flushed are lost on crash (same model as the webhook
+// sink).
+type S3Sink struct {
+	endpoint   string
+	bucket     string
+	prefix     string
+	region     string
+	insecure   bool
+	accessKey  string
+	secretKey  string
+	client     *minio.Client
+	ch         chan Event
+	seqCounter *atomic.Uint64
+}
+
+// S3Config holds the configuration needed to create an S3Sink.
+type S3Config struct {
+	Endpoint  string
+	Bucket    string
+	Prefix    string
+	Region    string
+	Insecure  bool
+	AccessKey string
+	SecretKey string
+}
+
+// NewS3Sink returns a sink that batches audit events as NDJSON to an S3-compatible
+// endpoint. The endpoint is not validated at startup — validation happens on first
+// flush. Call Start to launch the delivery worker.
+func NewS3Sink(cfg S3Config) (*S3Sink, error) {
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure: !cfg.Insecure,
+		Region: cfg.Region,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s3 client init: %w", err)
+	}
+	return &S3Sink{
+		endpoint:   cfg.Endpoint,
+		bucket:     cfg.Bucket,
+		prefix:     cfg.Prefix,
+		region:     cfg.Region,
+		insecure:   cfg.Insecure,
+		accessKey:  cfg.AccessKey,
+		secretKey:  cfg.SecretKey,
+		client:     client,
+		ch:         make(chan Event, s3Buffer),
+		seqCounter: &atomic.Uint64{},
+	}, nil
+}
+
+// Enqueue hands an event to the worker without ever blocking. When the buffer
+// is full (a stalled endpoint backing up), the event is dropped and counted —
+// a dropped mirror leaves a hole in the external trail, so it must be visible.
+func (s *S3Sink) Enqueue(e Event) {
+	select {
+	case s.ch <- e:
+	default:
+		s3Events.WithLabelValues("dropped").Inc()
+	}
+}
+
+// Start runs the delivery worker until ctx is cancelled, then best-effort
+// drains whatever is already buffered within a short deadline. It blocks; run
+// it in a goroutine.
+func (s *S3Sink) Start(ctx context.Context) {
+	ticker := time.NewTicker(s3FlushInterval)
+	defer ticker.Stop()
+
+	var buffer []Event
+	var bufferBytes int64
+
+	flush := func() {
+		if len(buffer) == 0 {
+			return
+		}
+		s.pushBatch(buffer)
+		buffer = buffer[:0]
+		bufferBytes = 0
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.drain(buffer)
+			return
+		case e := <-s.ch:
+			buffer = append(buffer, e)
+			bufferBytes += int64(len(e.TS) + len(e.Actor) + len(e.Method) + len(e.Path) + len(e.Target) + len(e.IP) + 50) // rough estimate
+			if len(buffer) >= s3FlushCountSize || bufferBytes >= s3FlushByteSize {
+				flush()
+			}
+		case <-ticker.C:
+			if len(buffer) > 0 {
+				flush()
+			}
+		}
+	}
+}
+
+// drain ships already-buffered events on shutdown, bounded by a short deadline.
+func (s *S3Sink) drain(buffer []Event) {
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-s.ch:
+			buffer = append(buffer, e)
+			if len(buffer) >= s3FlushCountSize {
+				s.pushBatch(buffer)
+				buffer = buffer[:0]
+			}
+		case <-deadline:
+			if len(buffer) > 0 {
+				s.pushBatch(buffer)
+			}
+			return
+		default:
+			if len(buffer) > 0 {
+				s.pushBatch(buffer)
+			}
+			return
+		}
+	}
+}
+
+// pushBatch ships a batch of events. It retries 3 times (immediate, +2s, +8s)
+// on transient errors; on final failure or success, counts each event accordingly.
+func (s *S3Sink) pushBatch(events []Event) {
+	if len(events) == 0 {
+		return
+	}
+
+	body := s.encodeNDJSON(events)
+	key := s.objectKey()
+
+	// Retry logic: immediate, +2s, +8s.
+	delays := []time.Duration{0, 2 * time.Second, 8 * time.Second}
+	var lastErr error
+
+	for attempt, delay := range delays {
+		if attempt > 0 {
+			time.Sleep(delay)
+		}
+
+		_, err := s.client.PutObject(context.Background(), s.bucket, key,
+			bytes.NewReader(body), int64(len(body)),
+			minio.PutObjectOptions{ContentType: "application/x-ndjson"})
+
+		if err == nil {
+			s3Events.WithLabelValues("sent").Add(float64(len(events)))
+			return
+		}
+
+		lastErr = err
+		// Check if it's a transient error (network, timeout, 5xx).
+		// For simplicity, retry on all errors except the last attempt.
+		if attempt == len(delays)-1 {
+			break
+		}
+	}
+
+	// Final failure: count all events as failed.
+	s3Events.WithLabelValues("failed").Add(float64(len(events)))
+	slog.Warn("audit s3 batch failed", "err", lastErr, "endpoint", s.endpoint,
+		"bucket", s.bucket, "key", key, "events", len(events))
+}
+
+// encodeNDJSON encodes events as NDJSON (one JSON object per line),
+// excluding the database id (same payload as the webhook sink).
+func (s *S3Sink) encodeNDJSON(events []Event) []byte {
+	var buf bytes.Buffer
+	for _, e := range events {
+		p := map[string]any{
+			"ts":     e.TS,
+			"actor":  e.Actor,
+			"method": e.Method,
+			"path":   e.Path,
+			"status": e.Status,
+		}
+		if e.Target != "" {
+			p["target"] = e.Target
+		}
+		if e.IP != "" {
+			p["ip"] = e.IP
+		}
+		_ = json.NewEncoder(&buf).Encode(p)
+	}
+	return buf.Bytes()
+}
+
+// objectKey returns the S3 object key in format:
+// <prefix>/<YYYY>/<MM>/<DD>/<HHMMSS.nano>-<seq>.ndjson
+// If prefix is empty, it omits the leading component cleanly.
+func (s *S3Sink) objectKey() string {
+	now := time.Now().UTC()
+	seq := s.seqCounter.Add(1)
+	nanos := now.Nanosecond()
+	micro := nanos / 1000 // nanoseconds to microseconds for readable timestamp
+
+	key := fmt.Sprintf("%04d/%02d/%02d/%02d%02d%02d.%06d-%d.ndjson",
+		now.Year(), now.Month(), now.Day(),
+		now.Hour(), now.Minute(), now.Second(), micro, seq)
+
+	if s.prefix == "" {
+		return key
+	}
+	return s.prefix + "/" + key
+}

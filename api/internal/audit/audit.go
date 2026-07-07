@@ -37,6 +37,7 @@ type Auditor struct {
 	db      *db.Store
 	sink    *slog.Logger // structured stdout sink; nil disables it
 	webhook *WebhookSink // outbound HTTP push sink; nil disables it
+	s3      *S3Sink      // S3 batch sink; nil disables it
 }
 
 // Option configures an Auditor.
@@ -56,6 +57,13 @@ func WithStdoutSink(logger *slog.Logger) Option {
 // (sink.Start) by the caller; see NewWebhookSink.
 func WithWebhookSink(s *WebhookSink) Option {
 	return func(a *Auditor) { a.webhook = s }
+}
+
+// WithS3Sink batches each audited event into NDJSON objects written to an
+// S3-compatible endpoint. A nil sink leaves it disabled (the default). The
+// sink's worker must be started (sink.Start) by the caller; see NewS3Sink.
+func WithS3Sink(s *S3Sink) Option {
+	return func(a *Auditor) { a.s3 = s }
 }
 
 // webhookBuffer bounds how many unsent events the webhook sink holds before it
@@ -245,6 +253,12 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			}
 			if a.webhook != nil {
 				a.webhook.Enqueue(Event{
+					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
+					Target: target, Status: rw.status, IP: req.RemoteAddr,
+				})
+			}
+			if a.s3 != nil {
+				a.s3.Enqueue(Event{
 					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
 					Target: target, Status: rw.status, IP: req.RemoteAddr,
 				})
