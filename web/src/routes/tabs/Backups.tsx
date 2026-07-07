@@ -13,7 +13,7 @@ import { RestoreDialog } from "@/components/backups/RestoreDialog";
 import { BackupDetailDrawer } from "@/components/backups/BackupDetailDrawer";
 import type { Backup } from "@/types";
 
-export function BackupsTab({ name }: { name: string }) {
+export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
   const qc = useQueryClient();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState<Backup | null>(null);

@@ -1680,6 +1680,17 @@ spec:
                       sidecar, so the dashboard console can authenticate. Leave empty for
                       games that take their RCON password some other way.
                     type: string
+                  passwordFile:
+                    description: |-
+                      PasswordFile is the path, relative to the game data mount, of a
+                      password file the game image manages itself (e.g. "config/rconpw"
+                      for factorio). When set, the operator does not generate or mount an
+                      RCON Secret and does not inject PasswordEnv; the agent reads the
+                      password from this file inside the data volume on every connection.
+                      Ignored when PasswordSecretRef is set.
+                    maxLength: 255
+                    pattern: ^([A-Za-z0-9_][A-Za-z0-9_.-]*/)*[A-Za-z0-9_][A-Za-z0-9_.-]*$
+                    type: string
                   passwordSecretRef:
                     description: |-
                       PasswordSecretRef references a Secret+key containing the RCON

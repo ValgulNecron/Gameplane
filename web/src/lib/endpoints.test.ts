@@ -187,4 +187,38 @@ describe("endpoints", () => {
       );
     });
   });
+
+  describe("withNS query-append branch", () => {
+    it("removeMod appends &namespace= when ns is set on a query-bearing path", async () => {
+      await Servers.removeMod("mc-survival", "MyMod", "other");
+      const url = called().url;
+      expect(url).toContain("/servers/mc-survival/mods");
+      expect(url).toContain("?name=MyMod");
+      expect(url).toContain("&namespace=other");
+      expect(url).not.toContain("?namespace=");
+    });
+
+    it("removeMod excludes namespace when ns is not set", async () => {
+      await Servers.removeMod("mc-survival", "MyMod");
+      const url = called().url;
+      expect(url).toBe("/servers/mc-survival/mods?name=MyMod");
+      expect(url).not.toContain("namespace=");
+    });
+
+    it("searchRegistry appends &namespace= when ns is set on a pre-existing query string", async () => {
+      await Servers.searchRegistry("mc-survival", {}, "other");
+      const url = called().url;
+      expect(url).toContain("/servers/mc-survival/mods/registry/search");
+      expect(url).toContain("?limit=24");
+      expect(url).toContain("&namespace=other");
+      expect(url).not.toContain("?namespace=");
+    });
+
+    it("searchRegistry excludes namespace when ns is not set", async () => {
+      await Servers.searchRegistry("mc-survival", {});
+      const url = called().url;
+      expect(url).toContain("/servers/mc-survival/mods/registry/search?limit=24");
+      expect(url).not.toContain("namespace=");
+    });
+  });
 });

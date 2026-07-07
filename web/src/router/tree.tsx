@@ -46,6 +46,9 @@ const serverDetailRoute = new Route({
   getParentRoute: () => appLayoutRoute,
   path: "/servers/$name",
   component: ServerDetailPage,
+  validateSearch: (search: Record<string, unknown>): { ns?: string } => ({
+    ns: typeof search.ns === "string" && search.ns !== "" ? search.ns : undefined,
+  }),
 });
 
 const createServerRoute = new Route({

@@ -25,6 +25,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   seconds elapsed. Works with AWS S3, MinIO, Backblaze, Wasabi, etc. Retries 3
   times on transient errors; watch `gameplane_audit_s3_events_total` for
   delivery health.
+- **operator:** GameTemplate `rcon.passwordFile` — point the console agent at
+  a game-managed password file inside the data volume (e.g., Factorio's
+  `config/rconpw`). Precedence: `passwordSecretRef` > `passwordFile` >
+  operator-generated Secret. No Secret is created or injected when using
+  `passwordFile` mode; the agent reads the file on every connection.
 - **api/web/rbac:** per-GameServer access control — server owners and
   collaborators get enforced per-server access on top of namespace role
   bindings. Collaborators are managed from the new Access section (server
@@ -122,6 +127,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Fixed
 
+- **web:** servers shared from other namespaces are now **navigable** —
+  the detail route and namespace-aware API calls (lifecycle, console, files,
+  players, and mods) carry the server's namespace through search params and
+  query strings, while backups and schedules remain cluster-scoped. Player
+  counts no longer render `"-1 online"` when the maximum is unknown (agent
+  metric unavailable); they show just the online count instead.
 - **api/web:** the Cluster page no longer presents **"Add node" and
   "Download kubeconfig" as click-to-error dead-ends** on installs where
   cluster operations are off (the default). `GET /cluster/info` now reports

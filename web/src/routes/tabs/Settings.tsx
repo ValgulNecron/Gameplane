@@ -50,10 +50,11 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] 
 export interface SettingsTabProps {
   gs?: GameServer;
   name: string;
+  ns?: string;
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function SettingsTab({ gs, name, onDirtyChange }: SettingsTabProps) {
+export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   const qc = useQueryClient();
   const [section, setSection] = useState<SectionKey>("general");
   const [draft, setDraft] = useState<GameServer | null>(null);
@@ -101,9 +102,9 @@ export function SettingsTab({ gs, name, onDirtyChange }: SettingsTabProps) {
       // Re-fetch latest to merge edits onto the freshest copy. This
       // keeps fields the UI doesn't model (e.g. operator-managed status,
       // newly-added spec keys) from being clobbered.
-      const latest = await Servers.get(name);
+      const latest = await Servers.get(name, ns);
       const merged = mergeDraftOntoLatest(next, baselineRef.current!, latest);
-      return Servers.update(name, merged);
+      return Servers.update(name, merged, ns);
     },
     onSuccess: (saved) => {
       const clone = structuredClone(saved);
@@ -112,7 +113,7 @@ export function SettingsTab({ gs, name, onDirtyChange }: SettingsTabProps) {
       setConflict(false);
       setError(null);
       setSavedAt(Date.now());
-      return qc.invalidateQueries({ queryKey: ["server", name] });
+      return qc.invalidateQueries({ queryKey: ["server", name, ns] });
     },
     onError: (err) => {
       if (err instanceof APIError && err.status === 409) {

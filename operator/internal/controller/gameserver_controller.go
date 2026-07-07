@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -565,8 +566,9 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		}
 		// Mount the resolved RCON password (operator-generated or the
 		// template's referenced Secret) so the agent sidecar can read it
-		// via --rcon-password-file. Added only when the game exposes RCON.
-		if rc := resolveRCON(gs, tmpl); rc.enabled {
+		// via --rcon-password-file. Added only when the game exposes RCON
+		// and doesn't use a game-managed password file.
+		if rc := resolveRCON(gs, tmpl); rc.enabled && rc.passwordFile == "" {
 			volumes = append(volumes, corev1.Volume{
 				Name: "rcon-password",
 				VolumeSource: corev1.VolumeSource{
@@ -788,8 +790,13 @@ func buildAgentContainer(
 	if tmpl.Spec.LogPath != "" {
 		args = append(args, "--game-log-path="+tmpl.Spec.LogPath)
 	}
-	if resolveRCON(gs, tmpl).enabled {
-		args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
+	rc := resolveRCON(gs, tmpl)
+	if rc.enabled {
+		if rc.passwordFile != "" {
+			args = append(args, "--rcon-password-file="+path.Join(mountPath, rc.passwordFile))
+		} else {
+			args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
+		}
 	}
 	env := []corev1.EnvVar{
 		{Name: "GAMEPLANE_SERVER_NAME", Value: gs.Name},

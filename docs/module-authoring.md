@@ -514,14 +514,36 @@ game container via `passwordEnv`, and mounts the same value for the agent
 works automatically. Some images reuse one env for RCON and in-game admin
 (Palworld's `ADMIN_PASSWORD`); that's fine — name it here.
 
-For games without usable RCON set `protocol: none`. Two real cases from
-the official modules:
+#### Password source precedence
+
+When the game image manages its own RCON password file (e.g., Factorio's
+`config/rconpw`), use `passwordFile` instead of `passwordEnv`:
+
+```yaml
+rcon:
+  protocol: source
+  port: 25575
+  passwordFile: config/rconpw  # path relative to the game data mount
+```
+
+In this mode, the operator does not generate a Secret or inject any env var.
+The agent reads the password directly from the file on every connection.
+
+The password source is chosen by precedence: `passwordSecretRef` (external
+Secret) > `passwordFile` (game-managed) > operator-generated Secret (default).
+
+| Mode | Use case | Secret injected | Env var | Example |
+|------|----------|-----------------|---------|---------|
+| operator-generated (default) | Operator controls the password | Yes (auto-created) | Via `passwordEnv` | Minecraft with `RCON_PASSWORD` |
+| `passwordSecretRef` | Use external credentials | Yes (external) | Via `passwordEnv` | Any game with your own Secret |
+| `passwordFile` | Game manages the password | No | No | Factorio with `config/rconpw` |
+
+For games without usable RCON set `protocol: none`. Real cases from the
+official modules:
 
 - the game simply has none (Valheim, Terraria);
 - the image manages its own RCON password in a file the operator can't
-  inject into (factoriotools reads `/factorio/config/rconpw`), so the
-  agent could never authenticate — declare `none` rather than shipping a
-  console that always fails.
+  inject into — use `passwordFile` to read from the data volume.
 
 ### Console mode and game log
 

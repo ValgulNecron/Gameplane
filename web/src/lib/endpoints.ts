@@ -43,6 +43,13 @@ import type {
 export type LifecycleVerb = "start" | "stop" | "restart";
 export type ModerateAction = "kick" | "ban" | "unban";
 
+// Helper to append namespace query param when provided.
+function withNS(path: string, ns?: string): string {
+  if (!ns) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}namespace=${encodeURIComponent(ns)}`;
+}
+
 export interface ServerCreate {
   name: string;
   description?: string;
@@ -76,69 +83,69 @@ function gameServerEnvelope(input: ServerCreate) {
 
 export const Servers = {
   list: () => api<List<GameServer>>("/servers"),
-  get: (name: string) => api<GameServer>(`/servers/${name}`),
+  get: (name: string, ns?: string) => api<GameServer>(withNS(`/servers/${name}`, ns)),
   create: (body: ServerCreate) =>
     api<GameServer>("/servers", { method: "POST", body: gameServerEnvelope(body) }),
-  update: (name: string, body: GameServer) =>
-    api<GameServer>(`/servers/${name}`, { method: "PUT", body }),
-  remove: (name: string) =>
-    api<void>(`/servers/${name}`, { method: "DELETE" }),
-  lifecycle: (name: string, verb: LifecycleVerb) =>
-    api<void>(`/servers/${name}:${verb}`, { method: "POST" }),
-  clone: (name: string, newName: string) =>
-    api<GameServer>(`/servers/${name}:clone`, { method: "POST", body: { newName } }),
+  update: (name: string, body: GameServer, ns?: string) =>
+    api<GameServer>(withNS(`/servers/${name}`, ns), { method: "PUT", body }),
+  remove: (name: string, ns?: string) =>
+    api<void>(withNS(`/servers/${name}`, ns), { method: "DELETE" }),
+  lifecycle: (name: string, verb: LifecycleVerb, ns?: string) =>
+    api<void>(withNS(`/servers/${name}:${verb}`, ns), { method: "POST" }),
+  clone: (name: string, newName: string, ns?: string) =>
+    api<GameServer>(withNS(`/servers/${name}:clone`, ns), { method: "POST", body: { newName } }),
   // Suspends the server and asks the operator to wipe its data volume.
   // `confirm` must equal the server name.
-  wipeData: (name: string, confirm: string) =>
-    api<void>(`/servers/${name}:wipe-data`, { method: "POST", body: { confirm } }),
+  wipeData: (name: string, confirm: string, ns?: string) =>
+    api<void>(withNS(`/servers/${name}:wipe-data`, ns), { method: "POST", body: { confirm } }),
   // Reassigns the server's (informational) owner to another user.
-  transfer: (name: string, userId: number) =>
-    api<void>(`/servers/${name}:transfer`, { method: "POST", body: { userId } }),
+  transfer: (name: string, userId: number, ns?: string) =>
+    api<void>(withNS(`/servers/${name}:transfer`, ns), { method: "POST", body: { userId } }),
   // Updates the collaborators list for a server. userIds and usernames are
   // merged; either or both can be provided. Empty list clears collaborators.
-  // The namespace query parameter is required.
   setCollaborators: (name: string, ns: string, body: { userIds?: number[]; usernames?: string[] }) =>
-    api<void>(`/servers/${name}:collaborators?namespace=${encodeURIComponent(ns)}`, { method: "PUT", body }),
+    api<void>(withNS(`/servers/${name}:collaborators`, ns), { method: "PUT", body }),
   // Lists all servers where the caller is owner or collaborator (cluster-wide).
   getMyServers: () => api<List<GameServer>>("/users/me/servers"),
   // Live module-declared metrics for the Overview tab. The agent returns
   // [] when the game has no RCON, so the UI hides the panel.
-  status: (name: string) => api<StatusReading[]>(`/servers/${name}/status`),
+  status: (name: string, ns?: string) => api<StatusReading[]>(withNS(`/servers/${name}/status`, ns)),
   // Recent Kubernetes events for the server's pod/StatefulSet/GameServer
   // (image pull, scheduling, crash-loop) — feeds the Overview events feed,
   // most useful while a new server is still provisioning.
-  events: (name: string) => api<ServerEvent[]>(`/servers/${name}/events`),
+  events: (name: string, ns?: string) => api<ServerEvent[]>(withNS(`/servers/${name}/events`, ns)),
   // Run a module-declared action (spec.capabilities.actions[]). params
   // are the user-supplied values for the action's declared inputs.
-  runAction: (name: string, body: { id: string; params?: Record<string, string> }) =>
-    api<{ ok: boolean; raw?: string }>(`/servers/${name}/actions/run`, {
+  runAction: (name: string, body: { id: string; params?: Record<string, string> }, ns?: string) =>
+    api<{ ok: boolean; raw?: string }>(withNS(`/servers/${name}/actions/run`, ns), {
       method: "POST",
       body,
     }),
   // Mod/plugin management (spec.capabilities.mods). The agent enforces
   // the install policy (host allowlist, size cap); the dashboard just
   // lists, installs by URL, and removes by name.
-  mods: (name: string) => api<InstalledMod[]>(`/servers/${name}/mods`),
+  mods: (name: string, ns?: string) => api<InstalledMod[]>(withNS(`/servers/${name}/mods`, ns)),
   // meta records the registry identity in the agent's install manifest;
   // replaces performs an in-place upgrade (install new → remove old).
   installMod: (
     name: string,
     body: { url: string; name?: string; replaces?: string; meta?: ModMeta },
-  ) => api<InstalledMod>(`/servers/${name}/mods/install`, { method: "POST", body }),
-  removeMod: (name: string, mod: string) =>
-    api<void>(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, {
+    ns?: string,
+  ) => api<InstalledMod>(withNS(`/servers/${name}/mods/install`, ns), { method: "POST", body }),
+  removeMod: (name: string, mod: string, ns?: string) =>
+    api<void>(withNS(`/servers/${name}/mods?name=${encodeURIComponent(mod)}`, ns), {
       method: "DELETE",
     }),
   // Batch update check over the install manifest: every managed mod is
   // checked against its registry provider server-side in one call.
-  modUpdates: (name: string) =>
-    api<ModUpdatesResponse>(`/servers/${name}/mods/updates`),
+  modUpdates: (name: string, ns?: string) =>
+    api<ModUpdatesResponse>(withNS(`/servers/${name}/mods/updates`, ns)),
   // Direct mod upload (multipart) — same name/extension/size checks as a
   // URL install; the manifest records provider "upload".
-  uploadMod: async (name: string, file: File): Promise<InstalledMod> => {
+  uploadMod: async (name: string, file: File, ns?: string): Promise<InstalledMod> => {
     const fd = new FormData();
     fd.append("file", file, file.name);
-    const res = await filesFetch(`/servers/${encodeURIComponent(name)}/mods/upload`, {
+    const res = await filesFetch(withNS(`/servers/${encodeURIComponent(name)}/mods/upload`, ns), {
       method: "POST",
       headers: csrfHeaders(),
       body: fd,
@@ -147,8 +154,8 @@ export const Servers = {
   },
   // Registries the server's game declares, with availability (e.g.
   // CurseForge needs an API key) — drives the provider switch.
-  registryProviders: (name: string) =>
-    api<RegistryProviderInfo[]>(`/servers/${name}/mods/registry/providers`),
+  registryProviders: (name: string, ns?: string) =>
+    api<RegistryProviderInfo[]>(withNS(`/servers/${name}/mods/registry/providers`, ns)),
   // In-app registry browse (spec.capabilities.mods.registry). The API
   // resolves the active version's loader + game version, so the dashboard
   // sends only the browse params + which provider. type="modpack" drives
@@ -165,6 +172,7 @@ export const Servers = {
       limit?: number;
       offset?: number;
     } = {},
+    ns?: string,
   ) => {
     const p = new URLSearchParams();
     if (opts.q) p.set("q", opts.q);
@@ -174,25 +182,31 @@ export const Servers = {
     if (opts.category) p.set("category", opts.category);
     p.set("limit", String(opts.limit ?? 24));
     if (opts.offset) p.set("offset", String(opts.offset));
-    return api<RegistryProject[]>(`/servers/${name}/mods/registry/search?${p.toString()}`);
+    return api<RegistryProject[]>(withNS(`/servers/${name}/mods/registry/search?${p.toString()}`, ns));
   },
-  modVersions: (name: string, project: string, provider?: string) =>
+  modVersions: (name: string, project: string, provider?: string, ns?: string) =>
     api<RegistryVersion[]>(
-      `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions` +
-        (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+      withNS(
+        `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/versions` +
+          (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+        ns,
+      ),
     ),
   // Modpacks: resolve a pack's dependency files (deps-mode, e.g. Valheim) —
   // the dashboard installs each via installMod.
-  modpackDeps: (name: string, project: string, provider?: string) =>
+  modpackDeps: (name: string, project: string, provider?: string, ns?: string) =>
     api<RegistryFile[]>(
-      `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/modpack` +
-        (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+      withNS(
+        `/servers/${name}/mods/registry/projects/${encodeURIComponent(project)}/modpack` +
+          (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+        ns,
+      ),
     ),
   // Apply an env-mode modpack (e.g. Minecraft/itzg): pins the pack on the
   // server and restarts it.
-  installModpack: (name: string, body: { ref: string }, provider?: string) =>
+  installModpack: (name: string, body: { ref: string }, provider?: string, ns?: string) =>
     api<{ ok: boolean }>(
-      `/servers/${name}/modpack` + (provider ? `?provider=${encodeURIComponent(provider)}` : ""),
+      withNS(`/servers/${name}/modpack` + (provider ? `?provider=${encodeURIComponent(provider)}` : ""), ns),
       { method: "POST", body },
     ),
 };
@@ -329,28 +343,29 @@ export const BackupDestinations = {
 };
 
 export const Players = {
-  snapshot: (server: string) => api<PlayersResp>(`/servers/${server}/players`),
-  banned: (server: string) =>
-    api<BannedPlayer[]>(`/servers/${server}/players/banned`),
+  snapshot: (server: string, ns?: string) => api<PlayersResp>(withNS(`/servers/${server}/players`, ns)),
+  banned: (server: string, ns?: string) =>
+    api<BannedPlayer[]>(withNS(`/servers/${server}/players/banned`, ns)),
   moderate: (
     server: string,
     action: ModerateAction,
     body: { name: string; reason?: string },
+    ns?: string,
   ) =>
     api<{ ok: boolean; raw?: string }>(
-      `/servers/${server}/players/${action}`,
+      withNS(`/servers/${server}/players/${action}`, ns),
       { method: "POST", body },
     ),
-  whitelist: (server: string) =>
-    api<string[]>(`/servers/${server}/players/whitelist`),
-  whitelistAdd: (server: string, name: string) =>
+  whitelist: (server: string, ns?: string) =>
+    api<string[]>(withNS(`/servers/${server}/players/whitelist`, ns)),
+  whitelistAdd: (server: string, name: string, ns?: string) =>
     api<{ ok: boolean; raw?: string }>(
-      `/servers/${server}/players/whitelist/add`,
+      withNS(`/servers/${server}/players/whitelist/add`, ns),
       { method: "POST", body: { name } },
     ),
-  whitelistRemove: (server: string, name: string) =>
+  whitelistRemove: (server: string, name: string, ns?: string) =>
     api<{ ok: boolean; raw?: string }>(
-      `/servers/${server}/players/whitelist/remove`,
+      withNS(`/servers/${server}/players/whitelist/remove`, ns),
       { method: "POST", body: { name } },
     ),
 };
@@ -503,8 +518,8 @@ export interface FileEntry {
   modTime?: string;
 }
 
-function filesBase(server: string): string {
-  return `/servers/${encodeURIComponent(server)}/files`;
+function filesBase(server: string, ns?: string): string {
+  return withNS(`/servers/${encodeURIComponent(server)}/files`, ns);
 }
 
 // Shared helper for the non-JSON file endpoints (read/write/mkdir/upload/
@@ -521,11 +536,11 @@ async function filesFetch(input: string, init: RequestInit = {}): Promise<Respon
 }
 
 export const Files = {
-  list: (server: string, path: string) =>
-    api<FileEntry[]>(`${filesBase(server)}/list?path=${encodeURIComponent(path)}`),
-  read: async (server: string, path: string): Promise<string> => {
+  list: (server: string, path: string, ns?: string) =>
+    api<FileEntry[]>(`${filesBase(server, ns)}/list?path=${encodeURIComponent(path)}`),
+  read: async (server: string, path: string, ns?: string): Promise<string> => {
     const res = await filesFetch(
-      `${filesBase(server)}/read?path=${encodeURIComponent(path)}`,
+      `${filesBase(server, ns)}/read?path=${encodeURIComponent(path)}`,
     );
     return res.text();
   },
@@ -533,15 +548,16 @@ export const Files = {
     server: string,
     path: string,
     content: string | Blob,
+    ns?: string,
   ): Promise<void> => {
-    await filesFetch(`${filesBase(server)}/write?path=${encodeURIComponent(path)}`, {
+    await filesFetch(`${filesBase(server, ns)}/write?path=${encodeURIComponent(path)}`, {
       method: "POST",
       headers: { "Content-Type": "application/octet-stream", ...csrfHeaders() },
       body: content,
     });
   },
-  mkdir: async (server: string, path: string): Promise<void> => {
-    await filesFetch(`${filesBase(server)}/mkdir?path=${encodeURIComponent(path)}`, {
+  mkdir: async (server: string, path: string, ns?: string): Promise<void> => {
+    await filesFetch(`${filesBase(server, ns)}/mkdir?path=${encodeURIComponent(path)}`, {
       method: "POST",
       headers: csrfHeaders(),
     });
@@ -550,9 +566,10 @@ export const Files = {
     server: string,
     path: string,
     recursive = false,
+    ns?: string,
   ): Promise<void> => {
     const qs = `path=${encodeURIComponent(path)}${recursive ? "&recursive=true" : ""}`;
-    await filesFetch(`${filesBase(server)}/delete?${qs}`, {
+    await filesFetch(`${filesBase(server, ns)}/delete?${qs}`, {
       method: "DELETE",
       headers: csrfHeaders(),
     });
@@ -561,33 +578,34 @@ export const Files = {
     server: string,
     dir: string,
     files: FileList | File[],
+    ns?: string,
   ): Promise<void> => {
     const fd = new FormData();
     for (const f of Array.from(files)) fd.append("files", f, f.name);
-    await filesFetch(`${filesBase(server)}/upload?path=${encodeURIComponent(dir)}`, {
+    await filesFetch(`${filesBase(server, ns)}/upload?path=${encodeURIComponent(dir)}`, {
       method: "POST",
       headers: csrfHeaders(),
       body: fd,
     });
   },
-  downloadURL: (server: string, path: string) =>
-    `${filesBase(server)}/download?path=${encodeURIComponent(path)}`,
+  downloadURL: (server: string, path: string, ns?: string) =>
+    `${filesBase(server, ns)}/download?path=${encodeURIComponent(path)}`,
 };
 
 // Historical + live log access. download fetches the whole current log
 // file from the agent as an attachment; the two stream paths are the
 // live WebSocket sources the Logs tab toggles between.
 export const Logs = {
-  downloadURL: (server: string) =>
-    `/servers/${encodeURIComponent(server)}/logs/download`,
+  downloadURL: (server: string, ns?: string) =>
+    withNS(`/servers/${encodeURIComponent(server)}/logs/download`, ns),
   // Live tail of the configured game log file, via the agent (mTLS).
-  fileStreamPath: (server: string) =>
-    `/ws/servers/${encodeURIComponent(server)}/logs`,
+  fileStreamPath: (server: string, ns?: string) =>
+    withNS(`/ws/servers/${encodeURIComponent(server)}/logs`, ns),
   // Live stream of the game container's stdout via the pod-log API.
   // Shows download/config output during startup — before the game's own
   // log file exists — and works even when agent mTLS isn't configured.
-  podStreamPath: (server: string) =>
-    `/ws/servers/${encodeURIComponent(server)}/logs/pod?from=start`,
+  podStreamPath: (server: string, ns?: string) =>
+    withNS(`/ws/servers/${encodeURIComponent(server)}/logs/pod?from=start`, ns),
 };
 
 // Module catalog and install/uninstall surface. The dashboard reads

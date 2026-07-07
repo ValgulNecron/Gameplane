@@ -25,7 +25,7 @@ interface ModResp {
 
 type Action = "kick" | "ban";
 
-export function PlayersTab({ name }: { name: string }) {
+export function PlayersTab({ name, ns }: { name: string; ns?: string }) {
   const qc = useQueryClient();
   const [pending, setPending] = useState<{ player: string; action: Action } | null>(null);
   const [reason, setReason] = useState("");
@@ -35,8 +35,8 @@ export function PlayersTab({ name }: { name: string }) {
   const [status, setStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const { data, refetch, isFetching } = useQuery({
-    queryKey: ["players", name],
-    queryFn: () => PlayersAPI.snapshot(name),
+    queryKey: ["players", name, ns],
+    queryFn: () => PlayersAPI.snapshot(name, ns),
     refetchInterval: 5_000,
   });
   const caps = data?.capabilities;
@@ -45,13 +45,13 @@ export function PlayersTab({ name }: { name: string }) {
   // summary tiles always have counts; the sections below just toggle the
   // list's visibility, not the fetch.
   const { data: banned, isFetching: bannedFetching } = useQuery({
-    queryKey: ["banned", name],
-    queryFn: () => PlayersAPI.banned(name),
+    queryKey: ["banned", name, ns],
+    queryFn: () => PlayersAPI.banned(name, ns),
     enabled: caps?.unban ?? false,
   });
   const { data: whitelist, isFetching: whitelistFetching } = useQuery({
-    queryKey: ["whitelist", name],
-    queryFn: () => PlayersAPI.whitelist(name),
+    queryKey: ["whitelist", name, ns],
+    queryFn: () => PlayersAPI.whitelist(name, ns),
     enabled: caps?.whitelist ?? false,
   });
 
@@ -60,7 +60,7 @@ export function PlayersTab({ name }: { name: string }) {
       PlayersAPI.moderate(name, vars.action, {
         name: vars.player,
         ...(vars.reason ? { reason: vars.reason } : {}),
-      }),
+      }, ns),
     onSuccess: (resp, vars) => {
       setPending(null);
       setReason("");
@@ -69,8 +69,8 @@ export function PlayersTab({ name }: { name: string }) {
         text: resp.raw ? truncate(resp.raw, 200) : `${vars.action} ${vars.player} ok`,
       });
       return Promise.all([
-        qc.invalidateQueries({ queryKey: ["players", name] }),
-        qc.invalidateQueries({ queryKey: ["banned", name] }),
+        qc.invalidateQueries({ queryKey: ["players", name, ns] }),
+        qc.invalidateQueries({ queryKey: ["banned", name, ns] }),
       ]);
     },
     onError: (err) => setStatus({ kind: "err", text: errMsg(err) }),
@@ -79,15 +79,15 @@ export function PlayersTab({ name }: { name: string }) {
   const whitelistMut = useMutation<ModResp, unknown, { op: "add" | "remove"; player: string }>({
     mutationFn: (vars) =>
       vars.op === "add"
-        ? PlayersAPI.whitelistAdd(name, vars.player)
-        : PlayersAPI.whitelistRemove(name, vars.player),
+        ? PlayersAPI.whitelistAdd(name, vars.player, ns)
+        : PlayersAPI.whitelistRemove(name, vars.player, ns),
     onSuccess: (resp, vars) => {
       setWlName("");
       setStatus({
         kind: "ok",
         text: resp.raw ? truncate(resp.raw, 200) : `whitelist ${vars.op} ${vars.player} ok`,
       });
-      return qc.invalidateQueries({ queryKey: ["whitelist", name] });
+      return qc.invalidateQueries({ queryKey: ["whitelist", name, ns] });
     },
     onError: (err) => setStatus({ kind: "err", text: errMsg(err) }),
   });
@@ -99,7 +99,7 @@ export function PlayersTab({ name }: { name: string }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard
           label="Online"
-          value={data ? `${data.online} / ${data.max}` : "—"}
+          value={data ? (data.max >= 0 ? `${data.online} / ${data.max}` : `${data.online}`) : "—"}
           accent="success"
         />
         {caps?.whitelist && (
@@ -112,7 +112,7 @@ export function PlayersTab({ name }: { name: string }) {
 
       <header className="flex items-center justify-between">
         <h2 className="text-sm text-muted">
-          {data ? `${data.online} / ${data.max} online` : "Loading…"}
+          {data ? (data.max >= 0 ? `${data.online} / ${data.max} online` : `${data.online} online`) : "Loading…"}
         </h2>
         <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
           <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
