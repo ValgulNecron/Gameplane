@@ -22,17 +22,7 @@ files, backups/restore, modules, RBAC — work end to end and are covered by
 unit, integration (envtest), and kind-based e2e suites. Before you rely on it,
 know that the following are **deferred past the first beta**:
 
-- **Per-GameServer (owner-based) RBAC** — authorization is namespace-scoped
-  today; server ownership is informational only.
 - **Multi-cluster** — one target cluster per dashboard.
-- **Native S3 audit sink** — audit events are stored in the database, pruned on
-  a configurable retention window (`api.audit.retentionDays`), exportable in
-  full via `GET /admin/audit/export` (CSV/JSON), mirrored to stdout as
-  structured JSON (`api.audit.stdout`), pushed to any HTTP/JSON receiver via an
-  outbound webhook (`api.audit.webhook.url`), forwarded to **syslog** through a
-  bundled bridge (`api.audit.webhook.syslogBridge.enabled`), and batched as
-  NDJSON objects to any S3-compatible endpoint (`api.audit.s3.*`). Any other
-  receiver can still sit behind the webhook if needed.
 
 CI runs the full suite (unit, envtest, and kind e2e) on every PR. The kind
 e2e jobs can occasionally flake under resource pressure on the self-hosted
