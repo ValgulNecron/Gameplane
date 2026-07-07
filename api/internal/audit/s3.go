@@ -182,7 +182,23 @@ func (s *S3Sink) pushBatch(events []Event) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		_, err := s.client.PutObject(ctx, s.bucket, key,
 			bytes.NewReader(body), int64(len(body)),
-			minio.PutObjectOptions{ContentType: "application/x-ndjson"})
+			minio.PutObjectOptions{
+				ContentType: "application/x-ndjson",
+				// Our batches are single-part PUTs bounded well under the
+				// multipart threshold, so there's no streaming benefit here —
+				// but minio-go's default behavior for a known-size PUT against
+				// a non-TLS endpoint is still to sign the payload with
+				// STREAMING-AWS4-HMAC-SHA256-PAYLOAD and wrap the body in
+				// aws-chunked framing on the wire (see api.go's newRequest:
+				// the streaming branch is keyed on "!c.secure", independent of
+				// any MD5 option). Several self-hosted S3-compatible stores —
+				// and this package's own tests, which talk plain HTTP to an
+				// httptest server — don't expect that framing and choke on
+				// it. DisableContentSha256 forces the plain, non-chunked V4
+				// signer (X-Amz-Content-Sha256: UNSIGNED-PAYLOAD) so the
+				// wire body is exactly the NDJSON bytes above.
+				DisableContentSha256: true,
+			})
 		cancel()
 
 		if err == nil {

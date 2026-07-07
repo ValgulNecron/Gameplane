@@ -24,6 +24,22 @@ func s3CounterValue(t *testing.T, result string) float64 {
 	return m.GetCounter().GetValue()
 }
 
+// startSink launches the sink's delivery worker in a goroutine and returns a
+// channel that closes once Start returns, mirroring the join pattern
+// cmd/main.go uses around WebhookSink/S3Sink.Start. Tests must cancel ctx and
+// wait on the returned channel before returning: s3Events is a package-global
+// counter, so a test that lets its worker goroutine outlive the test (still
+// retrying PutObject against an already-closed httptest server) pollutes the
+// counter deltas read by every later test in this file.
+func startSink(sink *S3Sink, ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		sink.Start(ctx)
+		close(done)
+	}()
+	return done
+}
+
 // TestS3Sink_FlushOnCountThreshold flushes when buffer reaches 100 events.
 func TestS3Sink_FlushOnCountThreshold(t *testing.T) {
 	received := make(chan []byte, 1)
@@ -54,8 +70,11 @@ func TestS3Sink_FlushOnCountThreshold(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	before := s3CounterValue(t, "sent")
 
@@ -121,8 +140,11 @@ func TestS3Sink_FlushOnByteThreshold(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	largeStr := strings.Repeat("x", 10000)
 	for i := 0; i < 120; i++ {
@@ -165,8 +187,11 @@ func TestS3Sink_FlushOnInterval(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	sink.Enqueue(Event{
 		TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST",
@@ -207,8 +232,11 @@ func TestS3Sink_NDJSONFormat(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	sink.Enqueue(Event{
 		TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST",
@@ -272,8 +300,11 @@ func TestS3Sink_ObjectKeyFormat(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	for i := 0; i < s3FlushCountSize; i++ {
 		sink.Enqueue(Event{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200})
@@ -313,8 +344,11 @@ func TestS3Sink_ObjectKeyFormatNoPrefix(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	for i := 0; i < s3FlushCountSize; i++ {
 		sink.Enqueue(Event{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200})
@@ -396,11 +430,19 @@ func TestS3Sink_RetryAndFail(t *testing.T) {
 		{TS: "2026-06-30T00:00:01Z", Actor: "user", Method: "DELETE", Path: "/api", Status: 204},
 	})
 
-	if failures < 3 {
-		t.Errorf("expected at least 3 retries, got %d", failures)
+	// pushBatch is synchronous here (no worker goroutine involved), and every
+	// attempt gets a 5xx from srv, so all 3 scheduled attempts (immediate,
+	// +2s, +8s) must have reached the fake server — assert that directly
+	// against what the server actually saw, rather than only the shared
+	// counter.
+	if failures != 3 {
+		t.Errorf("attempts received by server = %d, want 3", failures)
 	}
-	if delta := s3CounterValue(t, "failed") - before; delta != 2.0 {
-		t.Errorf("failed delta = %v, want 2", delta)
+	// s3Events is a package-global CounterVec shared by every test in this
+	// file, so its delta can only ever be a lower bound here — tolerate
+	// >= rather than requiring an exact match (see startSink's doc comment).
+	if delta := s3CounterValue(t, "failed") - before; delta < 2.0 {
+		t.Errorf("failed delta = %v, want >= 2", delta)
 	}
 }
 
@@ -429,14 +471,13 @@ func TestS3Sink_DrainOnShutdown(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go sink.Start(ctx)
+	done := startSink(sink, ctx)
 
 	for i := 0; i < 10; i++ {
 		sink.Enqueue(Event{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200})
 	}
 
 	cancel()
-	time.Sleep(100 * time.Millisecond)
 
 	select {
 	case count := <-received:
@@ -445,6 +486,12 @@ func TestS3Sink_DrainOnShutdown(t *testing.T) {
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("drain did not flush events")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("worker did not stop after cancel")
 	}
 }
 
