@@ -29,12 +29,12 @@ const wipeRequestedAnnotation = "gameplane.local/wipe-data-requested"
 // operator reconciles the rest). Restart is a pair of patches with a
 // short pause between them; we implement it as a stop+start sequence
 // the client can also do manually, but the UI gets a single endpoint.
-func MountLifecycle(r chi.Router, k *kube.Client) {
-	r.Post("/servers/{name}:start", patchSuspend(k, false))
-	r.Post("/servers/{name}:stop", patchSuspend(k, true))
-	r.Post("/servers/{name}:restart", restartHandler(k))
-	r.Post("/servers/{name}:clone", cloneHandler(k))
-	r.Post("/servers/{name}:wipe-data", wipeDataHandler(k))
+func MountLifecycle(r chi.Router, reg *kube.Registry) {
+	r.Post("/servers/{name}:start", patchSuspend(reg, false))
+	r.Post("/servers/{name}:stop", patchSuspend(reg, true))
+	r.Post("/servers/{name}:restart", restartHandler(reg))
+	r.Post("/servers/{name}:clone", cloneHandler(reg))
+	r.Post("/servers/{name}:wipe-data", wipeDataHandler(reg))
 }
 
 type wipeDataReq struct {
@@ -45,8 +45,12 @@ type wipeDataReq struct {
 // the operator runs a one-shot Job that empties the data PVC while the pod
 // is down, then acks. Destructive, so it requires the server name typed
 // back as confirmation.
-func wipeDataHandler(k *kube.Client) http.HandlerFunc {
+func wipeDataHandler(reg *kube.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		ns, ok := resolveNS(w, req)
 		if !ok {
@@ -78,8 +82,12 @@ func wipeDataHandler(k *kube.Client) http.HandlerFunc {
 	}
 }
 
-func patchSuspend(k *kube.Client, suspend bool) http.HandlerFunc {
+func patchSuspend(reg *kube.Registry, suspend bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		ns, ok := resolveNS(w, req)
 		if !ok {
@@ -97,8 +105,12 @@ func patchSuspend(k *kube.Client, suspend bool) http.HandlerFunc {
 	}
 }
 
-func restartHandler(k *kube.Client) http.HandlerFunc {
+func restartHandler(reg *kube.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		ns, ok := resolveNS(w, req)
 		if !ok {
@@ -166,8 +178,12 @@ type cloneReq struct {
 	NewName string `json:"newName"`
 }
 
-func cloneHandler(k *kube.Client) http.HandlerFunc {
+func cloneHandler(reg *kube.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		ns, ok := resolveNS(w, req)
 		if !ok {

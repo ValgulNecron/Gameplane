@@ -15,11 +15,14 @@ import (
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 func mountDestRouter(k *kube.Client) *chi.Mux {
 	r := chi.NewRouter()
-	MountDestinations(r, k)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
+	MountDestinations(r, reg)
 	return r
 }
 

@@ -20,12 +20,16 @@ import (
 // MountEvents exposes /events as a Server-Sent Events stream mirroring
 // Kubernetes watch events on the Gameplane CRDs, for clients that want
 // cache-freshness without polling.
-func MountEvents(r chi.Router, k *kube.Client) {
-	r.Get("/events", eventsHandler(k))
+func MountEvents(r chi.Router, reg *kube.Registry) {
+	r.Get("/events", eventsHandler(reg))
 }
 
-func eventsHandler(k *kube.Client) http.HandlerFunc {
+func eventsHandler(reg *kube.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)

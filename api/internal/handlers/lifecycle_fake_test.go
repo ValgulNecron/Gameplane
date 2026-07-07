@@ -14,11 +14,14 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 func mountLifecycleRouter(k *kube.Client) *chi.Mux {
 	r := chi.NewRouter()
-	MountLifecycle(r, k)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
+	MountLifecycle(r, reg)
 	return r
 }
 

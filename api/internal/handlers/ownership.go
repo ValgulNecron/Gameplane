@@ -53,16 +53,16 @@ func stampOwner(obj *unstructured.Unstructured, req *http.Request) {
 }
 
 // MountOwnership wires the server ownership and collaborator endpoints.
-func MountOwnership(r chi.Router, k *kube.Client, store *db.Store) {
-	h := &ownershipHandler{k: k, db: store}
+func MountOwnership(r chi.Router, reg *kube.Registry, store *db.Store) {
+	h := &ownershipHandler{reg: reg, db: store}
 	r.Post("/servers/{name}:transfer", h.transfer)
 	r.Put("/servers/{name}:collaborators", h.setCollaborators)
 	r.Get("/users/me/servers", h.getOwnedServers)
 }
 
 type ownershipHandler struct {
-	k  *kube.Client
-	db *db.Store
+	reg *kube.Registry
+	db  *db.Store
 }
 
 type transferReq struct {
@@ -77,6 +77,10 @@ type setCollaboratorsReq struct {
 // transfer reassigns a server's owner annotations to another user after
 // validating the target exists. The audit middleware records the actor.
 func (h *ownershipHandler) transfer(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	name := chi.URLParam(req, "name")
 	ns, ok := resolveNS(w, req)
 	if !ok {
@@ -106,7 +110,7 @@ func (h *ownershipHandler) transfer(w http.ResponseWriter, req *http.Request) {
 			},
 		},
 	})
-	if _, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).
+	if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
 		Namespace(ns).
 		Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		httperr.Write(w, req, err)
@@ -119,6 +123,10 @@ func (h *ownershipHandler) transfer(w http.ResponseWriter, req *http.Request) {
 // Validates all user IDs exist, dedupes, drops the owner ID, and
 // merges both ID and name annotations. Empty list clears both.
 func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	name := chi.URLParam(req, "name")
 	ns, ok := resolveNS(w, req)
 	if !ok {
@@ -131,7 +139,7 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 	}
 
 	// Get the server to check ownership and access current state.
-	obj, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).
+	obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
 		Namespace(ns).
 		Get(req.Context(), name, metav1.GetOptions{})
 	if err != nil {
@@ -212,7 +220,7 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 			},
 		},
 	})
-	if _, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).
+	if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
 		Namespace(ns).
 		Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		httperr.Write(w, req, err)
@@ -223,14 +231,18 @@ func (h *ownershipHandler) setCollaborators(w http.ResponseWriter, req *http.Req
 
 // getOwnedServers returns GameServers where the caller is owner or collaborator.
 func (h *ownershipHandler) getOwnedServers(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	u := auth.UserFromContext(req.Context())
 	if u == nil {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
 		return
 	}
 
-	// List all servers across all namespaces.
-	list, err := h.k.Dynamic.Resource(kube.GVRs["servers"]).
+	// List all servers across all namespaces within the resolved cluster.
+	list, err := k.Dynamic.Resource(kube.GVRs["servers"]).
 		Namespace("").
 		List(req.Context(), metav1.ListOptions{})
 	if err != nil {

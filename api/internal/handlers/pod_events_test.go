@@ -13,6 +13,7 @@ import (
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // scope.Resolve defaults to this namespace when no ?namespace is given.
@@ -33,7 +34,9 @@ func newEvent(name, kind, objName, evType, reason, msg, component string, t time
 
 func mountPodEventsRouter(k *kube.Client) http.Handler {
 	r := chi.NewRouter()
-	MountPodEvents(r, k)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
+	MountPodEvents(r, reg)
 	return r
 }
 

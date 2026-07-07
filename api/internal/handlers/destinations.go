@@ -41,8 +41,8 @@ var nameRE = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 // MountDestinations wires /backup-destinations onto the supplied router.
 // Reads return a redacted projection (no secret values); writes accept
 // {url, password} and persist them as Secret stringData.
-func MountDestinations(r chi.Router, k *kube.Client) {
-	h := destinationHandler{k: k}
+func MountDestinations(r chi.Router, reg *kube.Registry) {
+	h := destinationHandler{reg: reg}
 	r.Route("/backup-destinations", func(r chi.Router) {
 		r.Get("/", h.list)
 		r.Post("/", h.create)
@@ -52,7 +52,7 @@ func MountDestinations(r chi.Router, k *kube.Client) {
 }
 
 type destinationHandler struct {
-	k *kube.Client
+	reg *kube.Registry
 }
 
 // destinationView is the public projection. Note password is absent;
@@ -75,11 +75,15 @@ type destinationListResp struct {
 }
 
 func (h destinationHandler) list(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
 	}
-	secrets, err := h.k.Typed.CoreV1().Secrets(ns).List(req.Context(), metav1.ListOptions{
+	secrets, err := k.Typed.CoreV1().Secrets(ns).List(req.Context(), metav1.ListOptions{
 		LabelSelector: destinationLabel + "=true",
 	})
 	if err != nil {
@@ -94,12 +98,16 @@ func (h destinationHandler) list(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h destinationHandler) get(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
 	}
 	name := chi.URLParam(req, "name")
-	s, err := h.k.Typed.CoreV1().Secrets(ns).Get(req.Context(), name, metav1.GetOptions{})
+	s, err := k.Typed.CoreV1().Secrets(ns).Get(req.Context(), name, metav1.GetOptions{})
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
@@ -112,6 +120,10 @@ func (h destinationHandler) get(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -151,7 +163,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 	// patch that preserves any extra keys an admin may have set via
 	// kubectl. This lets users rotate the password without nuking unrelated
 	// fields like a pinned restic version.
-	created, err := h.k.Typed.CoreV1().Secrets(ns).Create(req.Context(), desired, metav1.CreateOptions{})
+	created, err := k.Typed.CoreV1().Secrets(ns).Create(req.Context(), desired, metav1.CreateOptions{})
 	if err == nil {
 		writeJSON(w, project(created))
 		return
@@ -161,7 +173,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Verify the existing object is one of ours before patching.
-	existing, err := h.k.Typed.CoreV1().Secrets(ns).Get(req.Context(), in.Name, metav1.GetOptions{})
+	existing, err := k.Typed.CoreV1().Secrets(ns).Get(req.Context(), in.Name, metav1.GetOptions{})
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
@@ -177,7 +189,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		},
 	}
 	patchBytes, _ := json.Marshal(patch)
-	updated, err := h.k.Typed.CoreV1().Secrets(ns).Patch(
+	updated, err := k.Typed.CoreV1().Secrets(ns).Patch(
 		req.Context(), in.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{},
 	)
 	if err != nil {
@@ -188,6 +200,10 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h destinationHandler) del(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -196,7 +212,7 @@ func (h destinationHandler) del(w http.ResponseWriter, req *http.Request) {
 	// Refuse to delete arbitrary Secrets through this endpoint — only
 	// labelled ones. This matters because the route name is friendly to
 	// guess but the underlying object is a core Secret with broader trust.
-	existing, err := h.k.Typed.CoreV1().Secrets(ns).Get(req.Context(), name, metav1.GetOptions{})
+	existing, err := k.Typed.CoreV1().Secrets(ns).Get(req.Context(), name, metav1.GetOptions{})
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
@@ -205,7 +221,7 @@ func (h destinationHandler) del(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, apierrors.NewNotFound(corev1.Resource("secrets"), name))
 		return
 	}
-	if err := h.k.Typed.CoreV1().Secrets(ns).Delete(req.Context(), name, metav1.DeleteOptions{}); err != nil {
+	if err := k.Typed.CoreV1().Secrets(ns).Delete(req.Context(), name, metav1.DeleteOptions{}); err != nil {
 		httperr.Write(w, req, err)
 		return
 	}
