@@ -212,6 +212,19 @@ spec:
             {{- if $webhookURL }}
             - --audit-webhook-url={{ $webhookURL }}
             {{- end }}
+            {{- if .Values.api.audit.s3.endpoint }}
+            - --audit-s3-endpoint={{ .Values.api.audit.s3.endpoint }}
+            - --audit-s3-bucket={{ .Values.api.audit.s3.bucket }}
+            {{- if .Values.api.audit.s3.prefix }}
+            - --audit-s3-prefix={{ .Values.api.audit.s3.prefix }}
+            {{- end }}
+            {{- if .Values.api.audit.s3.region }}
+            - --audit-s3-region={{ .Values.api.audit.s3.region }}
+            {{- end }}
+            {{- if .Values.api.audit.s3.insecure }}
+            - --audit-s3-insecure
+            {{- end }}
+            {{- end }}
             {{- $telemetryURL := .Values.api.telemetry.endpoint }}
             {{- if and (not $telemetryURL) .Values.api.telemetry.receiver.enabled }}
             {{- $telemetryURL = printf "http://gameplane-telemetry-receiver.%s.svc:8080/ingest" .Release.Namespace }}
@@ -243,6 +256,18 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.api.audit.webhook.authSecretRef.name }}
                   key:  {{ .Values.api.audit.webhook.authSecretRef.key }}
+            {{- end }}
+            {{- if .Values.api.audit.s3.credentialsSecretRef.name }}
+            - name: GAMEPLANE_AUDIT_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.audit.s3.credentialsSecretRef.name }}
+                  key:  {{ .Values.api.audit.s3.credentialsSecretRef.accessKeyKey }}
+            - name: GAMEPLANE_AUDIT_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.audit.s3.credentialsSecretRef.name }}
+                  key:  {{ .Values.api.audit.s3.credentialsSecretRef.secretKeyKey }}
             {{- end }}
             {{- if .Values.api.telemetry.authSecretRef.name }}
             - name: GAMEPLANE_TELEMETRY_AUTH

@@ -214,6 +214,11 @@ Secrets Gameplane reads or creates, by convention:
 - audit-webhook auth — any Secret you reference via
   `api.audit.webhook.authSecretRef` (user-supplied). The token is injected as an
   env var, never a flag, so it does not appear in the pod spec or `ps` output.
+- audit S3 credentials — any Secret you reference via
+  `api.audit.s3.credentialsSecretRef` (user-supplied). The access key and secret
+  key are injected as env vars (`GAMEPLANE_AUDIT_S3_ACCESS_KEY`,
+  `GAMEPLANE_AUDIT_S3_SECRET_KEY`), never flags, so they do not appear in the pod
+  spec or `ps` output.
 - notification sinks — any Secret labelled
   `gameplane.local/notification-sink=true` in the control-plane namespace
   (user-supplied; referenced by name from Admin Settings → Notifications, read

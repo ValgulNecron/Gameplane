@@ -107,6 +107,7 @@ func main() {
 
 	var auditOpts []audit.Option
 	var webhookDone <-chan struct{}
+	var s3Done <-chan struct{}
 	if cfg.auditStdout {
 		auditOpts = append(auditOpts, audit.WithStdoutSink(logger))
 	}
@@ -117,6 +118,26 @@ func main() {
 		webhookDone = done
 		auditOpts = append(auditOpts, audit.WithWebhookSink(webhook))
 		logger.Info("audit webhook sink enabled", "url", cfg.auditWebhookURL)
+	}
+	if cfg.auditS3Endpoint != "" && cfg.auditS3Bucket != "" {
+		s3Sink, err := audit.NewS3Sink(audit.S3Config{
+			Endpoint:  cfg.auditS3Endpoint,
+			Bucket:    cfg.auditS3Bucket,
+			Prefix:    cfg.auditS3Prefix,
+			Region:    cfg.auditS3Region,
+			Insecure:  cfg.auditS3Insecure,
+			AccessKey: cfg.auditS3AccessKey,
+			SecretKey: cfg.auditS3SecretKey,
+		})
+		if err != nil {
+			logger.Warn("audit s3 sink init failed", "err", err)
+		} else {
+			done := make(chan struct{})
+			go func() { s3Sink.Start(ctx); close(done) }()
+			s3Done = done
+			auditOpts = append(auditOpts, audit.WithS3Sink(s3Sink))
+			logger.Info("audit s3 sink enabled", "endpoint", cfg.auditS3Endpoint, "bucket", cfg.auditS3Bucket)
+		}
 	}
 	auditor := audit.New(store, auditOpts...)
 
@@ -244,6 +265,14 @@ func main() {
 			logger.Warn("audit webhook drain did not finish before deadline")
 		}
 	}
+	// The S3 worker drains buffered events similarly on ctx cancellation.
+	if s3Done != nil {
+		select {
+		case <-s3Done:
+		case <-time.After(3 * time.Second):
+			logger.Warn("audit s3 drain did not finish before deadline")
+		}
+	}
 }
 
 type config struct {
@@ -267,6 +296,13 @@ type config struct {
 	auditStdout        bool
 	auditWebhookURL    string
 	auditWebhookAuth   string
+	auditS3Endpoint    string
+	auditS3Bucket      string
+	auditS3Prefix      string
+	auditS3Region      string
+	auditS3Insecure    bool
+	auditS3AccessKey   string
+	auditS3SecretKey   string
 
 	agentCABundle   string
 	agentClientCert string
@@ -301,6 +337,14 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	// mounted Secret) only — never a flag, since flag values are visible in the
 	// pod spec and `ps`.
 	c.auditWebhookAuth = envOr("GAMEPLANE_AUDIT_WEBHOOK_AUTH", "")
+	fs.StringVar(&c.auditS3Endpoint, "audit-s3-endpoint", envOr("GAMEPLANE_AUDIT_S3_ENDPOINT", ""), "S3-compatible endpoint host:port (empty = disabled)")
+	fs.StringVar(&c.auditS3Bucket, "audit-s3-bucket", envOr("GAMEPLANE_AUDIT_S3_BUCKET", ""), "S3 bucket for audit events (required if endpoint is set)")
+	fs.StringVar(&c.auditS3Prefix, "audit-s3-prefix", envOr("GAMEPLANE_AUDIT_S3_PREFIX", ""), "S3 object key prefix (e.g., 'gameplane-audit')")
+	fs.StringVar(&c.auditS3Region, "audit-s3-region", envOr("GAMEPLANE_AUDIT_S3_REGION", ""), "S3 region (e.g., 'us-east-1'; defaults to us-east-1 if empty)")
+	fs.BoolVar(&c.auditS3Insecure, "audit-s3-insecure", envOr("GAMEPLANE_AUDIT_S3_INSECURE", "") == "true", "disable TLS certificate verification for S3 endpoint (for self-signed certs)")
+	// S3 credentials come from environment only (mounted Secret), never flags.
+	c.auditS3AccessKey = envOr("GAMEPLANE_AUDIT_S3_ACCESS_KEY", "")
+	c.auditS3SecretKey = envOr("GAMEPLANE_AUDIT_S3_SECRET_KEY", "")
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("GAMEPLANE_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("GAMEPLANE_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
