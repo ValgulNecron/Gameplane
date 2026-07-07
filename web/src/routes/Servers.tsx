@@ -261,19 +261,14 @@ function ServerRow({
         <div className="flex items-center gap-3">
           <GameIcon game={gs.spec.templateRef.name} size="sm" />
           <div className="min-w-0">
-            {isSharedNonDefault ? (
-              <div className="truncate font-mono text-sm text-fg">
-                {gs.metadata.name}
-              </div>
-            ) : (
-              <Link
-                to="/servers/$name"
-                params={{ name: gs.metadata.name }}
-                className="truncate font-mono text-sm text-fg hover:text-primary"
-              >
-                {gs.metadata.name}
-              </Link>
-            )}
+            <Link
+              to="/servers/$name"
+              params={{ name: gs.metadata.name }}
+              search={isSharedNonDefault ? { ns: gs.metadata.namespace } : {}}
+              className="truncate font-mono text-sm text-fg hover:text-primary"
+            >
+              {gs.metadata.name}
+            </Link>
             <div className="text-[11px] text-muted">
               {gs.metadata.namespace ?? "gameplane-games"}
             </div>
@@ -285,7 +280,11 @@ function ServerRow({
       <td className="px-4 py-3 font-mono">{cpuLabel}</td>
       <td className="px-4 py-3 font-mono">{memLabel}</td>
       <td className="px-4 py-3 font-mono">
-        {typeof players === "number" ? `${players}/${maxPlayers ?? "—"}` : "—"}
+        {typeof players === "number" && players >= 0
+          ? typeof maxPlayers === "number" && maxPlayers >= 0
+            ? `${players}/${maxPlayers}`
+            : `${players}`
+          : "—"}
       </td>
       <td className="px-4 py-3 font-mono text-muted">{node ?? "—"}</td>
       <td className="px-4 py-3 text-right">

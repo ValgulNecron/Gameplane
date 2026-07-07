@@ -42,14 +42,16 @@ export function OverviewTab({
   gs,
   name,
   tmpl,
+  ns,
 }: {
   gs?: GameServer;
   name: string;
   tmpl?: GameTemplate;
+  ns?: string;
 }) {
   const { data: roster } = useQuery({
-    queryKey: ["players", name, "overview"],
-    queryFn: () => Players.snapshot(name),
+    queryKey: ["players", name, "overview", ns],
+    queryFn: () => Players.snapshot(name, ns),
     enabled: !!name && (gs?.status?.phase === "Running"),
     refetchInterval: 10_000,
     retry: false,
@@ -59,8 +61,8 @@ export function OverviewTab({
   // scheduling, crash-loops. Poll faster while not Running so provisioning
   // diagnostics stay fresh; back off once the server is up.
   const { data: rawEvents } = useQuery({
-    queryKey: ["events", name],
-    queryFn: () => Servers.events(name),
+    queryKey: ["events", name, ns],
+    queryFn: () => Servers.events(name, ns),
     enabled: !!name,
     refetchInterval: gs?.status?.phase === "Running" ? 30_000 : 5_000,
     retry: false,

@@ -29,9 +29,9 @@ import { cn, formatBytes } from "@/lib/utils";
 
 const ROOT = "/";
 
-export function FilesTab({ name }: { name: string }) {
+export function FilesTab({ name, ns }: { name: string; ns?: string }) {
   const qc = useQueryClient();
-  const listKey = (cwd: string) => ["files", name, cwd] as const;
+  const listKey = (cwd: string) => ["files", name, cwd, ns] as const;
 
   const [cwd, setCwd] = useState(ROOT);
   const [selected, setSelected] = useState<FileEntry | null>(null);
@@ -50,7 +50,7 @@ export function FilesTab({ name }: { name: string }) {
 
   const { data: entries, isFetching, refetch } = useQuery({
     queryKey: listKey(cwd),
-    queryFn: () => Files.list(name, cwd),
+    queryFn: () => Files.list(name, cwd, ns),
   });
 
   // Load file contents when a file is selected (and only then). Folder
@@ -59,7 +59,7 @@ export function FilesTab({ name }: { name: string }) {
     if (!selected || selected.dir) return;
     let aborted = false;
     setLoadError(null);
-    Files.read(name, selected.path)
+    Files.read(name, selected.path, ns)
       .then((text) => {
         if (aborted) return;
         setServerContent(text);
@@ -74,7 +74,7 @@ export function FilesTab({ name }: { name: string }) {
     return () => {
       aborted = true;
     };
-  }, [selected, name]);
+  }, [selected, name, ns]);
 
   function navigateTo(path: string) {
     if (dirty && !confirmDiscard()) return;
@@ -97,7 +97,7 @@ export function FilesTab({ name }: { name: string }) {
   const saveMutation = useMutation({
     mutationFn: async (body: string) => {
       if (!selected) throw new Error("no file selected");
-      await Files.write(name, selected.path, body);
+      await Files.write(name, selected.path, body, ns);
     },
     onSuccess: async (_data, body) => {
       setServerContent(body);
@@ -109,7 +109,7 @@ export function FilesTab({ name }: { name: string }) {
 
   const deleteMutation = useMutation({
     mutationFn: async (entry: FileEntry) => {
-      await Files.remove(name, entry.path, entry.dir);
+      await Files.remove(name, entry.path, entry.dir, ns);
       return entry;
     },
     onSuccess: async (entry) => {
@@ -127,7 +127,7 @@ export function FilesTab({ name }: { name: string }) {
 
   const mkdirMutation = useMutation({
     mutationFn: (folderName: string) =>
-      Files.mkdir(name, joinPath(cwd, folderName)),
+      Files.mkdir(name, joinPath(cwd, folderName), ns),
     onSuccess: async () => {
       setMkdirOpen(false);
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
@@ -139,7 +139,7 @@ export function FilesTab({ name }: { name: string }) {
   const newFileMutation = useMutation({
     mutationFn: async (fileName: string) => {
       const path = joinPath(cwd, fileName);
-      await Files.write(name, path, "");
+      await Files.write(name, path, "", ns);
       return path;
     },
     onSuccess: async (path) => {
@@ -157,7 +157,7 @@ export function FilesTab({ name }: { name: string }) {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (files: FileList) => Files.upload(name, cwd, files),
+    mutationFn: (files: FileList) => Files.upload(name, cwd, files, ns),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
       setOpError(null);
@@ -173,7 +173,7 @@ export function FilesTab({ name }: { name: string }) {
 
   function downloadSelected() {
     if (!selected || selected.dir) return;
-    window.location.href = Files.downloadURL(name, selected.path);
+    window.location.href = Files.downloadURL(name, selected.path, ns);
   }
 
   return (

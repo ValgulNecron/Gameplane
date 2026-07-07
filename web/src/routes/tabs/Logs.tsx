@@ -42,11 +42,13 @@ type LogSource = "pod" | "file";
 
 export function LogsTab({
   name,
+  ns,
   logPath,
   phase,
   progressMessage,
 }: {
   name: string;
+  ns?: string;
   logPath?: string;
   phase?: GameServerPhase;
   progressMessage?: string;
@@ -73,7 +75,7 @@ export function LogsTab({
     setConnected(false);
     setStreamFailed(false);
     const path =
-      effectiveSource === "pod" ? Logs.podStreamPath(name) : Logs.fileStreamPath(name);
+      effectiveSource === "pod" ? Logs.podStreamPath(name, ns) : Logs.fileStreamPath(name, ns);
     const sock = openWS(path, {
       onOpen: () => setConnected(true),
       onClose: () => setConnected(false),
@@ -95,7 +97,7 @@ export function LogsTab({
         }),
     });
     return () => sock.close();
-  }, [name, effectiveSource]);
+  }, [name, ns, effectiveSource]);
 
   // Parse each line's level once; derive counts + the filtered view from it.
   const parsed = useMemo(

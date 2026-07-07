@@ -7,10 +7,10 @@ import type { GameServer, GameTemplate } from "@/types";
 import { ConsoleShell } from "./ConsoleShell";
 import { useConsoleTerminal } from "./useConsoleTerminal";
 
-export function ConsoleTab({ name }: { name: string }) {
+export function ConsoleTab({ name, ns }: { name: string; ns?: string }) {
   const { data: gs } = useQuery({
-    queryKey: ["server", name],
-    queryFn: () => api<GameServer>(`/servers/${name}`),
+    queryKey: ["server", name, ns],
+    queryFn: () => api<GameServer>(`/servers/${name}${ns ? `?namespace=${encodeURIComponent(ns)}` : ""}`),
   });
   const templateName = gs?.spec.templateRef.name;
   const { data: tmpl } = useQuery({
@@ -30,15 +30,16 @@ export function ConsoleTab({ name }: { name: string }) {
       </div>
     );
   }
-  return mode === "pty" ? <PtyConsole name={name} /> : <RconConsole name={name} />;
+  return mode === "pty" ? <PtyConsole name={name} ns={ns} /> : <RconConsole name={name} ns={ns} />;
 }
 
 // RconConsole speaks the existing line-based RCON protocol — text is
 // buffered until Enter, then sent as {kind:"cmd"}. Server replies arrive
 // as {kind:"out"|"err"} with a string body.
-function RconConsole({ name }: { name: string }) {
+function RconConsole({ name, ns }: { name: string; ns?: string }) {
+  const wsPath = ns ? `/ws/servers/${name}/console?namespace=${encodeURIComponent(ns)}` : `/ws/servers/${name}/console`;
   const handle = useConsoleTerminal({
-    wsPath: `/ws/servers/${name}/console`,
+    wsPath,
     name,
     connectLabel: "— connected —",
     disconnectLabel: "— disconnected —",
@@ -94,9 +95,10 @@ function RconConsole({ name }: { name: string }) {
 // terminal resizes ship as {kind:"resize", cols, rows}. Server frames
 // arrive as {kind:"stdout", body:base64} (stderr merged into stdout under
 // TTY) or {kind:"err", body:string} on a teardown.
-function PtyConsole({ name }: { name: string }) {
+function PtyConsole({ name, ns }: { name: string; ns?: string }) {
+  const wsPath = ns ? `/ws/servers/${name}/console-pty?namespace=${encodeURIComponent(ns)}` : `/ws/servers/${name}/console-pty`;
   const handle = useConsoleTerminal({
-    wsPath: `/ws/servers/${name}/console-pty`,
+    wsPath,
     name,
     connectLabel: "— attached —",
     disconnectLabel: "— detached —",
