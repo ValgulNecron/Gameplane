@@ -30,10 +30,12 @@ export function ModpacksTab({
   name,
   tmpl,
   gs,
+  ns,
 }: {
   name: string;
   tmpl?: GameTemplate;
   gs?: GameServer;
+  ns?: string;
 }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
@@ -59,11 +61,11 @@ export function ModpacksTab({
 
   const installEnv = useMutation({
     mutationFn: (v: { p: RegistryProject; provider: string }) =>
-      Servers.installModpack(name, { ref: v.p.slug || v.p.id }, v.provider),
+      Servers.installModpack(name, { ref: v.p.slug || v.p.id }, v.provider, ns),
     onMutate: (v) => setBusy(v.p.id),
     onSuccess: (_r, v) => {
       setBanner({ kind: "ok", text: `Set modpack ${v.p.title}. The server is restarting to install it.` });
-      return qc.invalidateQueries({ queryKey: ["server", name] });
+      return qc.invalidateQueries({ queryKey: ["server", name, ns] });
     },
     onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
     onSettled: () => setBusy(null),
@@ -71,9 +73,9 @@ export function ModpacksTab({
 
   const installDeps = useMutation({
     mutationFn: async (v: { p: RegistryProject; provider: string }) => {
-      const files = await Servers.modpackDeps(name, v.p.id, v.provider);
+      const files = await Servers.modpackDeps(name, v.p.id, v.provider, ns);
       for (const f of files) {
-        await Servers.installMod(name, { url: f.downloadUrl, name: f.filename });
+        await Servers.installMod(name, { url: f.downloadUrl, name: f.filename }, ns);
       }
       return files.length;
     },

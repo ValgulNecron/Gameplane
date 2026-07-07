@@ -31,7 +31,7 @@ type InstallBody = { url: string; name?: string; replaces?: string; meta?: ModMe
 // template declares spec.capabilities.mods; everything game-specific
 // (the mods directory, what installs are allowed) lives server-side. The
 // dashboard just lists, installs by URL, and removes by name.
-export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate; gs?: GameServer }) {
+export function ModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate; gs?: GameServer; ns?: string }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const canManage = can(me, "servers:write");
@@ -59,16 +59,16 @@ export function ModsTab({ name, tmpl, gs }: { name: string; tmpl?: GameTemplate;
   const [banner, setBanner] = useState<Banner | null>(null);
 
   const { data: mods, isFetching, isError, error: listError, refetch } = useQuery({
-    queryKey: ["mods", name],
-    queryFn: () => Servers.mods(name),
+    queryKey: ["mods", name, ns],
+    queryFn: () => Servers.mods(name, ns),
   });
 
   // Update check is on demand (button), not on mount — it fans out to
   // external registries server-side, so the tab shouldn't trigger it on
   // every visit. Results stay cached for the session.
   const updates = useQuery({
-    queryKey: ["mod-updates", name],
-    queryFn: () => Servers.modUpdates(name),
+    queryKey: ["mod-updates", name, ns],
+    queryFn: () => Servers.modUpdates(name, ns),
     enabled: false,
   });
   const updateByName = useMemo(() => {

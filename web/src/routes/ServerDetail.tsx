@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -62,6 +62,7 @@ const tabs: Array<{ key: TabKey; label: string }> = [
 
 export function ServerDetailPage() {
   const { name } = useParams({ from: "/app-layout/servers/$name" });
+  const { ns } = useSearch({ from: "/app-layout/servers/$name" });
   const [tab, setTab] = useState<TabKey>("overview");
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
@@ -70,8 +71,8 @@ export function ServerDetailPage() {
   const canClone = can(me, "servers:write");
 
   const { data: gs } = useQuery({
-    queryKey: ["server", name],
-    queryFn: () => Servers.get(name),
+    queryKey: ["server", name, ns],
+    queryFn: () => Servers.get(name, ns),
     refetchInterval: settingsDirty ? false : 5_000,
   });
 
@@ -83,8 +84,8 @@ export function ServerDetailPage() {
   });
 
   const act = useMutation({
-    mutationFn: (verb: LifecycleVerb) => Servers.lifecycle(name, verb),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["server", name] }),
+    mutationFn: (verb: LifecycleVerb) => Servers.lifecycle(name, verb, ns),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["server", name, ns] }),
   });
 
   const phase = gs?.status?.phase;
@@ -254,23 +255,24 @@ export function ServerDetailPage() {
 
       <div className="flex-1 overflow-auto scrollbar-thin">
         <Suspense fallback={<TabFallback />}>
-          {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} />}
-          {tab === "console"  && <ConsoleTab name={name} />}
+          {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} ns={ns} />}
+          {tab === "console"  && <ConsoleTab name={name} ns={ns} />}
           {tab === "logs"     && (
             <LogsTab
               name={name}
+              ns={ns}
               logPath={tmpl?.spec.logPath}
               phase={phase}
               progressMessage={progressMessage}
             />
           )}
-          {tab === "files"    && <FilesTab   name={name} />}
-          {tab === "mods"     && <ModsTab    name={name} tmpl={tmpl} gs={gs} />}
-          {tab === "modpacks" && <ModpacksTab name={name} tmpl={tmpl} gs={gs} />}
-          {tab === "players"  && <PlayersTab name={name} />}
-          {tab === "backups"  && <BackupsTab name={name} />}
+          {tab === "files"    && <FilesTab   name={name} ns={ns} />}
+          {tab === "mods"     && <ModsTab    name={name} ns={ns} tmpl={tmpl} gs={gs} />}
+          {tab === "modpacks" && <ModpacksTab name={name} ns={ns} tmpl={tmpl} gs={gs} />}
+          {tab === "players"  && <PlayersTab name={name} ns={ns} />}
+          {tab === "backups"  && <BackupsTab name={name} ns={ns} />}
           {tab === "settings" && (
-            <SettingsTab gs={gs} name={name} onDirtyChange={setSettingsDirty} />
+            <SettingsTab gs={gs} name={name} ns={ns} onDirtyChange={setSettingsDirty} />
           )}
         </Suspense>
       </div>
