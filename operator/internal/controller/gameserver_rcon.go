@@ -72,7 +72,7 @@ func (r *GameServerReconciler) reconcileRCONSecret(
 	}
 	// Only manage <gs>-rcon ourselves when RCON is enabled, no external
 	// PasswordSecretRef is set, and no game-managed password file is used.
-	if !rc.enabled || rc.secretName == "" {
+	if !rc.enabled || rc.secretName != rconSecretName(gs) {
 		return client.IgnoreNotFound(r.Delete(ctx, sec))
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sec, func() error {
