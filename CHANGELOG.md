@@ -19,6 +19,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **operator:** GameTemplate `rcon.passwordFile` — point the console agent at
+  a game-managed password file inside the data volume (e.g., Factorio's
+  `config/rconpw`). Precedence: `passwordSecretRef` > `passwordFile` >
+  operator-generated Secret. No Secret is created or injected when using
+  `passwordFile` mode; the agent reads the file on every connection.
 - **api/web/rbac:** per-GameServer access control — server owners and
   collaborators get enforced per-server access on top of namespace role
   bindings. Collaborators are managed from the new Access section (server

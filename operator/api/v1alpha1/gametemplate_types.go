@@ -758,6 +758,17 @@ type RCONSpec struct {
 	// games that take their RCON password some other way.
 	// +optional
 	PasswordEnv string `json:"passwordEnv,omitempty"`
+
+	// PasswordFile is the path, relative to the game data mount, of a
+	// password file the game image manages itself (e.g. "config/rconpw"
+	// for factorio). When set, the operator does not generate or mount an
+	// RCON Secret and does not inject PasswordEnv; the agent reads the
+	// password from this file inside the data volume on every connection.
+	// Ignored when PasswordSecretRef is set.
+	// +kubebuilder:validation:Pattern=`^([A-Za-z0-9_][A-Za-z0-9_.-]*/)*[A-Za-z0-9_][A-Za-z0-9_.-]*$`
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	PasswordFile string `json:"passwordFile,omitempty"`
 }
 
 // GameProbesSpec are the default probes for the game container.
