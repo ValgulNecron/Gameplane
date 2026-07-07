@@ -340,7 +340,7 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.auditS3Endpoint, "audit-s3-endpoint", envOr("GAMEPLANE_AUDIT_S3_ENDPOINT", ""), "S3-compatible endpoint host:port (empty = disabled)")
 	fs.StringVar(&c.auditS3Bucket, "audit-s3-bucket", envOr("GAMEPLANE_AUDIT_S3_BUCKET", ""), "S3 bucket for audit events (required if endpoint is set)")
 	fs.StringVar(&c.auditS3Prefix, "audit-s3-prefix", envOr("GAMEPLANE_AUDIT_S3_PREFIX", ""), "S3 object key prefix (e.g., 'gameplane-audit')")
-	fs.StringVar(&c.auditS3Region, "audit-s3-region", envOr("GAMEPLANE_AUDIT_S3_REGION", ""), "S3 region (e.g., 'us-east-1'; empty for path-style requests)")
+	fs.StringVar(&c.auditS3Region, "audit-s3-region", envOr("GAMEPLANE_AUDIT_S3_REGION", ""), "S3 region (e.g., 'us-east-1'; defaults to us-east-1 if empty)")
 	fs.BoolVar(&c.auditS3Insecure, "audit-s3-insecure", envOr("GAMEPLANE_AUDIT_S3_INSECURE", "") == "true", "disable TLS certificate verification for S3 endpoint (for self-signed certs)")
 	// S3 credentials come from environment only (mounted Secret), never flags.
 	c.auditS3AccessKey = envOr("GAMEPLANE_AUDIT_S3_ACCESS_KEY", "")

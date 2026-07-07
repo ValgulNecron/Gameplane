@@ -44,10 +44,6 @@ type S3Sink struct {
 	endpoint   string
 	bucket     string
 	prefix     string
-	region     string
-	insecure   bool
-	accessKey  string
-	secretKey  string
 	client     *minio.Client
 	ch         chan Event
 	seqCounter *atomic.Uint64
@@ -68,10 +64,14 @@ type S3Config struct {
 // endpoint. The endpoint is not validated at startup — validation happens on first
 // flush. Call Start to launch the delivery worker.
 func NewS3Sink(cfg S3Config) (*S3Sink, error) {
+	region := cfg.Region
+	if region == "" {
+		region = "us-east-1"
+	}
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: !cfg.Insecure,
-		Region: cfg.Region,
+		Region: region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 client init: %w", err)
@@ -80,10 +80,6 @@ func NewS3Sink(cfg S3Config) (*S3Sink, error) {
 		endpoint:   cfg.Endpoint,
 		bucket:     cfg.Bucket,
 		prefix:     cfg.Prefix,
-		region:     cfg.Region,
-		insecure:   cfg.Insecure,
-		accessKey:  cfg.AccessKey,
-		secretKey:  cfg.SecretKey,
 		client:     client,
 		ch:         make(chan Event, s3Buffer),
 		seqCounter: &atomic.Uint64{},
@@ -183,9 +179,11 @@ func (s *S3Sink) pushBatch(events []Event) {
 			time.Sleep(delay)
 		}
 
-		_, err := s.client.PutObject(context.Background(), s.bucket, key,
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		_, err := s.client.PutObject(ctx, s.bucket, key,
 			bytes.NewReader(body), int64(len(body)),
 			minio.PutObjectOptions{ContentType: "application/x-ndjson"})
+		cancel()
 
 		if err == nil {
 			s3Events.WithLabelValues("sent").Add(float64(len(events)))
@@ -193,8 +191,14 @@ func (s *S3Sink) pushBatch(events []Event) {
 		}
 
 		lastErr = err
-		// Check if it's a transient error (network, timeout, 5xx).
-		// For simplicity, retry on all errors except the last attempt.
+		// Check if it's a permanent error (4xx). Stop retrying immediately.
+		if respErr := minio.ToErrorResponse(err); respErr.StatusCode >= 400 && respErr.StatusCode < 500 {
+			s3Events.WithLabelValues("failed").Add(float64(len(events)))
+			slog.Warn("audit s3 batch failed (permanent)", "err", lastErr, "endpoint", s.endpoint,
+				"bucket", s.bucket, "key", key, "events", len(events), "status", respErr.StatusCode)
+			return
+		}
+		// Retry on transient errors (network, timeout, 5xx) except on the last attempt.
 		if attempt == len(delays)-1 {
 			break
 		}

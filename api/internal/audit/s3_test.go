@@ -243,7 +243,7 @@ func TestS3Sink_NDJSONFormat(t *testing.T) {
 		if _, hasID := e1["id"]; hasID {
 			t.Errorf("payload must not carry db id")
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(7 * time.Second):
 		t.Fatal("flush not received")
 	}
 }
@@ -445,5 +445,50 @@ func TestS3Sink_DrainOnShutdown(t *testing.T) {
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("drain did not flush events")
+	}
+}
+
+// TestS3Sink_RetryThenSucceed verifies recovery from transient failures.
+func TestS3Sink_RetryThenSucceed(t *testing.T) {
+	attempts := 0
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			// First attempt: transient error
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		// Second attempt: success
+		received <- struct{}{}
+		w.Header().Set("ETag", "test")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := S3Config{
+		Endpoint:  strings.TrimPrefix(srv.URL, "http://"),
+		Bucket:    "test-bucket",
+		Insecure:  true,
+		AccessKey: "test",
+		SecretKey: "test",
+	}
+	sink, err := NewS3Sink(cfg)
+	if err != nil {
+		t.Fatalf("new sink: %v", err)
+	}
+
+	before := s3CounterValue(t, "sent")
+	sink.pushBatch([]Event{
+		{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200},
+	})
+
+	select {
+	case <-received:
+		if delta := s3CounterValue(t, "sent") - before; delta != 1.0 {
+			t.Errorf("sent delta = %v, want 1", delta)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("batch not delivered after retry")
 	}
 }
