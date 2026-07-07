@@ -40,6 +40,19 @@ func startSink(sink *S3Sink, ctx context.Context) <-chan struct{} {
 	return done
 }
 
+// recordFlush hands a flushed batch to the test via a non-blocking send. Test
+// handlers MUST NOT block: the worker can flush more than once (a threshold
+// flush plus a shutdown drain), and a blocking send on a full channel wedges
+// the handler goroutine forever, so httptest's srv.Close() (which waits for
+// in-flight handlers) deadlocks and hangs the package until -timeout fires.
+// Tests read the first (meaningful) flush; extras are dropped.
+func recordFlush[T any](ch chan T, v T) {
+	select {
+	case ch <- v:
+	default:
+	}
+}
+
 // TestS3Sink_FlushOnCountThreshold flushes when buffer reaches 100 events.
 func TestS3Sink_FlushOnCountThreshold(t *testing.T) {
 	received := make(chan []byte, 1)
@@ -50,7 +63,7 @@ func TestS3Sink_FlushOnCountThreshold(t *testing.T) {
 			return
 		}
 		b, _ := io.ReadAll(r.Body)
-		received <- b
+		recordFlush(received, b)
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -121,7 +134,7 @@ func TestS3Sink_FlushOnByteThreshold(t *testing.T) {
 	received := make(chan int, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		received <- len(b)
+		recordFlush(received, len(b))
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -168,7 +181,7 @@ func TestS3Sink_FlushOnByteThreshold(t *testing.T) {
 func TestS3Sink_FlushOnInterval(t *testing.T) {
 	received := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received <- struct{}{}
+		recordFlush(received, struct{}{})
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -213,7 +226,7 @@ func TestS3Sink_NDJSONFormat(t *testing.T) {
 			t.Errorf("content-type = %q", r.Header.Get("Content-Type"))
 		}
 		b, _ := io.ReadAll(r.Body)
-		received <- b
+		recordFlush(received, b)
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -280,7 +293,7 @@ func TestS3Sink_NDJSONFormat(t *testing.T) {
 func TestS3Sink_ObjectKeyFormat(t *testing.T) {
 	received := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received <- r.URL.Path
+		recordFlush(received, r.URL.Path)
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -324,7 +337,7 @@ func TestS3Sink_ObjectKeyFormat(t *testing.T) {
 func TestS3Sink_ObjectKeyFormatNoPrefix(t *testing.T) {
 	received := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received <- r.URL.Path
+		recordFlush(received, r.URL.Path)
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -454,7 +467,7 @@ func TestS3Sink_DrainOnShutdown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		lines := bytes.Count(b, []byte("\n"))
-		received <- lines
+		recordFlush(received, lines)
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -509,7 +522,7 @@ func TestS3Sink_RetryThenSucceed(t *testing.T) {
 			return
 		}
 		// Second attempt: success
-		received <- struct{}{}
+		recordFlush(received, struct{}{})
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
 	}))
