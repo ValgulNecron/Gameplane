@@ -53,6 +53,11 @@ func classify(err error) (int, string) {
 	switch {
 	case errors.Is(err, scope.ErrForbiddenNamespace):
 		return http.StatusForbidden, "namespace not permitted"
+	case errors.Is(err, scope.ErrForbiddenCluster):
+		// 400, not 403: an unknown ?cluster= is a malformed request (like an
+		// unrecognized query param value), not an authorization decision —
+		// that mirrors rbac.Middleware's direct 400 for the same error.
+		return http.StatusBadRequest, "cluster not permitted"
 	case apierrors.IsNotFound(err):
 		return http.StatusNotFound, "not found"
 	case apierrors.IsAlreadyExists(err):

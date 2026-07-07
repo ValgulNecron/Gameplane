@@ -28,9 +28,13 @@ import (
 )
 
 // ServerFetcher fetches a GameServer so the middleware can evaluate
-// owner/collaborator access. nil disables the fallback.
+// owner/collaborator access, and lists the registered cluster IDs so the
+// middleware can validate the `?cluster=` selector. nil disables the
+// fallback (and cluster validation defaults to scope.DefaultCluster).
+// *kube.Registry satisfies this.
 type ServerFetcher interface {
-	GetServer(ctx context.Context, ns, name string) (*unstructured.Unstructured, error)
+	GetServer(ctx context.Context, cluster, ns, name string) (*unstructured.Unstructured, error)
+	IDs() []string
 }
 
 // Built-in role names. Custom roles may take any other (valid) name.
@@ -57,6 +61,12 @@ const (
 // are denied to collaborators. Invalid paths (trailing segments after a verb,
 // e.g. /servers/a:transfer/extra) fail closed — the fallback does not apply.
 // No matching rule means deny (fail-closed).
+//
+// For namespaced permissions, the `?cluster=` selector is also validated
+// against fetch.IDs() (when fetch is non-nil) so the owner/collaborator
+// fallback fetches from the right cluster; an unknown cluster is a 400.
+// This does not add a cluster dimension to the permission check itself
+// (u.Can) — that stays namespace-only.
 func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -75,6 +85,7 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 				return
 			}
 			ns := ""
+			cl := scope.DefaultCluster
 			if Namespaced(r.perm) {
 				resolved, err := scope.Resolve(req)
 				if err != nil {
@@ -82,6 +93,14 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 					return
 				}
 				ns = resolved
+				if fetch != nil {
+					resolvedCluster, err := scope.ResolveCluster(req, fetch)
+					if err != nil {
+						http.Error(w, "cluster not permitted", http.StatusBadRequest)
+						return
+					}
+					cl = resolvedCluster
+				}
 			}
 			if !allow(u, req.Method, req.URL.Path, ns) {
 				// Try owner/collaborator fallback for namespaced server permissions.
@@ -89,7 +108,7 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 					(r.perm == "servers:read" || r.perm == "servers:write" || r.perm == "servers:console") {
 					name, verb, ok := parseServerPath(req.URL.Path)
 					if ok {
-						obj, err := fetch.GetServer(req.Context(), ns, name)
+						obj, err := fetch.GetServer(req.Context(), cl, ns, name)
 						if err == nil && obj != nil {
 							role := ownershipRole(obj, u.ID)
 							if role != roleNone {
