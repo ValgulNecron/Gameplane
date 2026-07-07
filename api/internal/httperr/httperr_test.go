@@ -46,6 +46,7 @@ func TestWrite_Classification(t *testing.T) {
 		want int
 	}{
 		{"forbidden namespace", scope.ErrForbiddenNamespace, http.StatusForbidden},
+		{"forbidden cluster", scope.ErrForbiddenCluster, http.StatusBadRequest},
 		{"not found", apierrors.NewNotFound(gr, "n"), http.StatusNotFound},
 		{"already exists", apierrors.NewAlreadyExists(gr, "n"), http.StatusConflict},
 		{"forbidden", apierrors.NewForbidden(gr, "n", errors.New("rbac")), http.StatusForbidden},

@@ -26,6 +26,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/notify"
 	"github.com/ValgulNecron/gameplane/api/internal/rbac"
 	"github.com/ValgulNecron/gameplane/api/internal/registry"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 	"github.com/ValgulNecron/gameplane/api/internal/telemetry"
 	"github.com/ValgulNecron/gameplane/api/internal/ws"
 )
@@ -91,6 +92,13 @@ func main() {
 		logger.Error("kube client", "err", err)
 		os.Exit(1)
 	}
+	// reg is the pool of per-cluster clients that cluster-dispatch-aware
+	// handlers (MountResources, rbac.Middleware) resolve `?cluster=`
+	// against. A single-cluster install has exactly one entry: the home
+	// cluster registered as scope.DefaultCluster ("local"). Other Mount*
+	// calls still take the bare k8s client directly (Phase 2 migrates them).
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k8s)
 
 	sessions := auth.NewSessionStore(store)
 	sessions.StartGC(ctx, time.Hour)
@@ -193,9 +201,9 @@ func main() {
 		// pegging the DB or k8s API. Reads go through unlimited (the main
 		// bottleneck there is the dashboard's own polling).
 		p.Use(mutationRateLimit)
-		p.Use(rbac.Middleware(k8s))
+		p.Use(rbac.Middleware(reg))
 
-		handlers.MountResources(p, k8s)
+		handlers.MountResources(p, reg)
 		handlers.MountPodEvents(p, k8s)
 		handlers.MountLifecycle(p, k8s)
 		handlers.MountOwnership(p, k8s, store)

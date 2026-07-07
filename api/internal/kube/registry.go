@@ -1,8 +1,12 @@
 package kube
 
 import (
+	"context"
+	"fmt"
 	"sort"
 	"sync"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // Registry holds a pool of Kubernetes clients keyed by cluster ID, so the API
@@ -67,4 +71,15 @@ func (r *Registry) IDs() []string {
 	}
 	sort.Strings(ids)
 	return ids
+}
+
+// GetServer fetches a GameServer from the named cluster, so callers like the
+// rbac middleware's owner/collaborator fallback can target the right cluster.
+// Returns an error if the cluster is not registered.
+func (r *Registry) GetServer(ctx context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
+	c, ok := r.Get(cluster)
+	if !ok {
+		return nil, fmt.Errorf("cluster %q not registered", cluster)
+	}
+	return c.GetServer(ctx, ns, name)
 }

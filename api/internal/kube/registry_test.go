@@ -1,8 +1,14 @@
 package kube
 
 import (
+	"context"
 	"sync"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
 func TestNewRegistry(t *testing.T) {
@@ -89,6 +95,38 @@ func TestRegistryIDs(t *testing.T) {
 		if id != want[i] {
 			t.Errorf("IDs()[%d] = %q, want %q", i, id, want[i])
 		}
+	}
+}
+
+func TestRegistryGetServer_UnregisteredCluster(t *testing.T) {
+	r := NewRegistry("local")
+	if _, err := r.GetServer(context.Background(), "ghost", "gameplane-games", "alpha"); err == nil {
+		t.Fatal("GetServer on unregistered cluster returned nil error, want error")
+	}
+}
+
+func TestRegistryGetServer_RegisteredCluster(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata": map[string]any{
+			"name":      "alpha",
+			"namespace": "gameplane-games",
+		},
+	}}
+	scheme := runtime.NewScheme()
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{
+		GVRs["servers"]: "GameServerList",
+	}, obj)
+	r := NewRegistry("local")
+	r.Set("local", &Client{Dynamic: dyn})
+
+	got, err := r.GetServer(context.Background(), "local", "gameplane-games", "alpha")
+	if err != nil {
+		t.Fatalf("GetServer() error = %v", err)
+	}
+	if got.GetName() != "alpha" {
+		t.Errorf("GetServer() name = %q, want alpha", got.GetName())
 	}
 }
 

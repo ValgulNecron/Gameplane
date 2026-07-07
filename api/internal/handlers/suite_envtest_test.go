@@ -14,6 +14,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -70,8 +74,26 @@ func TestMain(m *testing.M) {
 		panic("create games namespace: " + err.Error())
 	}
 
+	// reg dispatches MountResources' cluster-aware routes: kubeC as the
+	// default "local" cluster (the real envtest apiserver), plus a second,
+	// empty "other" cluster backed by a fake dynamic client so
+	// TestResources_ClusterDispatch_Isolation can prove that a `?cluster=`
+	// selector never leaks objects across clusters. Every other Mount*
+	// call below still takes kubeC directly (Phase 2 migrates them).
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, kubeC)
+	fakeScheme := runtime.NewScheme()
+	fakeDyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(fakeScheme, map[schema.GroupVersionResource]string{
+		kube.GVRs["servers"]:   "GameServerList",
+		kube.GVRs["templates"]: "GameTemplateList",
+		kube.GVRs["backups"]:   "BackupList",
+		kube.GVRs["schedules"]: "BackupScheduleList",
+		kube.GVRs["restores"]:  "RestoreList",
+	})
+	reg.Set("other", &kube.Client{Dynamic: fakeDyn, Typed: k8sfake.NewSimpleClientset()})
+
 	mountedR = chi.NewRouter()
-	MountResources(mountedR, kubeC)
+	MountResources(mountedR, reg)
 	MountLifecycle(mountedR, kubeC)
 	MountDestinations(mountedR, kubeC)
 	MountModules(mountedR, kubeC, "default")

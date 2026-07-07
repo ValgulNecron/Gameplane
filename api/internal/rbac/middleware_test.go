@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 const (
@@ -127,9 +128,11 @@ type fakeFetcher struct {
 	err error
 }
 
-func (f *fakeFetcher) GetServer(ctx context.Context, ns, name string) (*unstructured.Unstructured, error) {
+func (f *fakeFetcher) GetServer(ctx context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
 	return f.obj, f.err
 }
+
+func (f *fakeFetcher) IDs() []string { return []string{scope.DefaultCluster} }
 
 // newServerWithAnnotations creates a GameServer object with the given annotations.
 func newServerWithAnnotations(ownerID int64, collaborators []int64) *unstructured.Unstructured {
@@ -429,12 +432,14 @@ func TestFirstSegment(t *testing.T) {
 // fakeServerFetcher mocks the ServerFetcher for tests.
 type fakeServerFetcher map[string]*unstructured.Unstructured
 
-func (f fakeServerFetcher) GetServer(ctx context.Context, ns, name string) (*unstructured.Unstructured, error) {
+func (f fakeServerFetcher) GetServer(ctx context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
 	if obj, ok := f[ns+"/"+name]; ok {
 		return obj, nil
 	}
 	return nil, nil // not found (same as API not-found behavior)
 }
+
+func (f fakeServerFetcher) IDs() []string { return []string{scope.DefaultCluster} }
 
 func TestMiddleware_OwnerAllowedOnOwnedServer(t *testing.T) {
 	// Owner should be allowed to read/write their own server even without namespace role.
@@ -529,6 +534,46 @@ func TestMiddleware_StrangerDenied(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("stranger want 403 got %d", rr.Code)
+	}
+}
+
+func TestMiddleware_UnknownClusterRejected(t *testing.T) {
+	// A namespaced route with an unregistered ?cluster= selector must be
+	// rejected with 400 before the permission check or fallback ever runs.
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", ""),
+	})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler should not run")
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha?cluster=ghost", nil)
+	// Owner of the server, but the cluster selector is invalid — the
+	// fallback must never even be attempted.
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("unknown cluster want 400 got %d", rr.Code)
+	}
+}
+
+func TestMiddleware_OwnershipFallback_DefaultCluster(t *testing.T) {
+	// With no ?cluster= param, the owner/collaborator fallback still
+	// grants access — it resolves to scope.DefaultCluster.
+	called := false
+	h := Middleware(fakeServerFetcher{
+		"gameplane-games/alpha": newOwnershipObj("alpha", 42, "alice", ""),
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(204)
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42, Role: "viewer"}))
+	h.ServeHTTP(rr, req)
+	if rr.Code != 204 || !called {
+		t.Fatalf("owner fallback with default cluster: code=%d called=%v", rr.Code, called)
 	}
 }
 

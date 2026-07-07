@@ -33,20 +33,23 @@ const heartbeatStaleTTL = 60 * time.Second
 // MountResources wires /servers, /templates, /backups, /schedules.
 //
 // Templates are cluster-scoped; the others are namespaced. The kube
-// package's GVR map determines which is which via resource path.
-func MountResources(r chi.Router, k *kube.Client) {
+// package's GVR map determines which is which via resource path. Every
+// handler resolves its target cluster per request from reg via the
+// `?cluster=` selector (resolveCluster) — a request with no selector
+// resolves to scope.DefaultCluster, preserving single-cluster behavior.
+func MountResources(r chi.Router, reg *kube.Registry) {
 	for path, gvr := range kube.GVRs {
-		mountOne(r, k, path, gvr)
+		mountOne(r, reg, path, gvr)
 	}
 }
 
-func mountOne(r chi.Router, k *kube.Client, path string, gvr schema.GroupVersionResource) {
+func mountOne(r chi.Router, reg *kube.Registry, path string, gvr schema.GroupVersionResource) {
 	r.Route("/"+path, func(r chi.Router) {
-		r.Get("/", listHandler(k, gvr))
-		r.Post("/", createHandler(k, gvr))
-		r.Get("/{name}", getHandler(k, gvr))
-		r.Put("/{name}", updateHandler(k, gvr))
-		r.Delete("/{name}", deleteHandler(k, gvr))
+		r.Get("/", listHandler(reg, gvr))
+		r.Post("/", createHandler(reg, gvr))
+		r.Get("/{name}", getHandler(reg, gvr))
+		r.Put("/{name}", updateHandler(reg, gvr))
+		r.Delete("/{name}", deleteHandler(reg, gvr))
 	})
 }
 
@@ -62,8 +65,28 @@ func resolveNS(w http.ResponseWriter, req *http.Request) (string, bool) {
 	return ns, true
 }
 
-func listHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFunc {
+// resolveCluster validates the ?cluster= query param and returns the target
+// cluster's client. ok=false means a response was already written; stop.
+func resolveCluster(w http.ResponseWriter, req *http.Request, reg *kube.Registry) (*kube.Client, bool) {
+	id, err := scope.ResolveCluster(req, reg)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return nil, false
+	}
+	c, ok := reg.Get(id)
+	if !ok {
+		httperr.Write(w, req, scope.ErrForbiddenCluster)
+		return nil, false
+	}
+	return c, true
+}
+
+func listHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		var (
 			list *unstructured.UnstructuredList
 			err  error
@@ -86,8 +109,12 @@ func listHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFu
 	}
 }
 
-func getHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFunc {
+func getHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		var (
 			obj *unstructured.Unstructured
@@ -109,8 +136,12 @@ func getHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFun
 	}
 }
 
-func createHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFunc {
+func createHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		obj, err := decode(req.Body)
 		if err != nil {
 			httperr.Write(w, req, err)
@@ -141,8 +172,12 @@ func createHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 	}
 }
 
-func updateHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFunc {
+func updateHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		obj, err := decode(req.Body)
 		if err != nil {
 			httperr.Write(w, req, err)
@@ -209,8 +244,12 @@ func updateHandler(k *kube.Client, gvr schema.GroupVersionResource) http.Handler
 	}
 }
 
-func deleteHandler(k *kube.Client, gvr schema.GroupVersionResource) http.HandlerFunc {
+func deleteHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		if gvr.Resource == "gametemplates" {
 			if blocked, err := managedTemplateBlocked(req, k, name); err != nil {
