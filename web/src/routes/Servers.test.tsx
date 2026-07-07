@@ -9,12 +9,25 @@ import { makeServer, makeClusterStats } from "@/test/factories";
 
 // TanStack Router's Link needs a router context the test doesn't supply.
 // Replace it with a plain anchor — same DOM contract for what we assert.
+// Extract search params and build the full href so route-parameter assertions work.
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
-    <a href={to} {...rest}>
-      {children}
-    </a>
-  ),
+  Link: ({ children, to, search, ...rest }: { children: ReactNode; to: string; search?: Record<string, unknown> } & Record<string, unknown>) => {
+    let href = to;
+    if (search && Object.keys(search).length > 0) {
+      const params = new URLSearchParams();
+      Object.entries(search).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.set(key, String(value));
+        }
+      });
+      href = `${to}?${params.toString()}`;
+    }
+    return (
+      <a href={href} {...rest}>
+        {children}
+      </a>
+    );
+  },
 }));
 
 import { ServersPage } from "./Servers";

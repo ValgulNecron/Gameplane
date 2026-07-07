@@ -280,7 +280,7 @@ function ServerRow({
       <td className="px-4 py-3 font-mono">{cpuLabel}</td>
       <td className="px-4 py-3 font-mono">{memLabel}</td>
       <td className="px-4 py-3 font-mono">
-        {typeof players === "number"
+        {typeof players === "number" && players >= 0
           ? typeof maxPlayers === "number" && maxPlayers >= 0
             ? `${players}/${maxPlayers}`
             : `${players}`
