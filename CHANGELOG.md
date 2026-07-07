@@ -7,6 +7,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- **web:** file browser (list/read/write/upload/delete) now works for servers
+  shared from a non-default namespace — the namespace query param was being
+  inserted mid-URL, producing 400s and a silently-empty file tree.
+
 ### Changed
 
 - **modules:** official Factorio template now uses RCON (via the operator's
