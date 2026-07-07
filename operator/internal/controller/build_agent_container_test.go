@@ -168,6 +168,54 @@ func TestBuildAgentContainer_GameLogPathArg(t *testing.T) {
 	}
 }
 
+func TestBuildAgentContainer_RconPasswordFile(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "factorio"
+	gs.Namespace = "g"
+
+	hasArg := func(c corev1.Container, want string) bool {
+		for _, a := range c.Args {
+			if a == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("passwordFile mode uses data mount path", func(t *testing.T) {
+		tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
+			RCON: &gameplanev1alpha1.RCONSpec{
+				Protocol:     "source",
+				PasswordFile: "config/rconpw",
+			},
+		}}
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		if !hasArg(c, "--rcon-password-file=/data/config/rconpw") {
+			t.Fatalf("expected --rcon-password-file=/data/config/rconpw in args: %v", c.Args)
+		}
+		// Should not mount rcon-password volume
+		for _, m := range c.VolumeMounts {
+			if m.Name == "rcon-password" {
+				t.Fatalf("passwordFile mode should not mount rcon-password volume")
+			}
+		}
+	})
+
+	t.Run("passwordFile mode with custom mount path", func(t *testing.T) {
+		tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
+			Storage: gameplanev1alpha1.GameStorageSpec{MountPath: "/srv"},
+			RCON: &gameplanev1alpha1.RCONSpec{
+				Protocol:     "source",
+				PasswordFile: "config/rconpw",
+			},
+		}}
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		if !hasArg(c, "--rcon-password-file=/srv/config/rconpw") {
+			t.Fatalf("expected --rcon-password-file=/srv/config/rconpw in args: %v", c.Args)
+		}
+	})
+}
+
 func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
 	gs := &gameplanev1alpha1.GameServer{}
 	gs.Name = "smp"

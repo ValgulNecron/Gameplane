@@ -47,6 +47,36 @@ func TestResolveRCON(t *testing.T) {
 			t.Fatalf("got %+v", rc)
 		}
 	})
+
+	t.Run("passwordFile sets file mode", func(t *testing.T) {
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+			Protocol:     "source",
+			PasswordFile: "config/rconpw",
+		}))
+		if !rc.enabled || rc.passwordFile != "config/rconpw" {
+			t.Fatalf("got %+v", rc)
+		}
+		if rc.secretName != "" || rc.secretKey != "" {
+			t.Fatalf("passwordFile mode should not set secretName/secretKey: %+v", rc)
+		}
+		if rc.passwordEnv != "" {
+			t.Fatalf("passwordFile mode should clear passwordEnv, got %q", rc.passwordEnv)
+		}
+	})
+
+	t.Run("PasswordSecretRef wins over PasswordFile", func(t *testing.T) {
+		rc := resolveRCON(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+			Protocol:          "source",
+			PasswordSecretRef: &gameplanev1alpha1.SecretKeySelector{Name: "my-secret", Key: "pw"},
+			PasswordFile:      "config/rconpw",
+		}))
+		if rc.secretName != "my-secret" || rc.secretKey != "pw" {
+			t.Fatalf("got %+v", rc)
+		}
+		if rc.passwordFile != "" {
+			t.Fatalf("PasswordSecretRef should win over PasswordFile: %+v", rc)
+		}
+	})
 }
 
 func TestRCONGameEnv(t *testing.T) {
@@ -61,6 +91,14 @@ func TestRCONGameEnv(t *testing.T) {
 	}
 	if e.ValueFrom.SecretKeyRef.Name != "smp-rcon" || e.ValueFrom.SecretKeyRef.Key != "password" {
 		t.Fatalf("secretKeyRef = %+v", e.ValueFrom.SecretKeyRef)
+	}
+	// PasswordFile mode → no env injected even if PasswordEnv is set.
+	if rconGameEnv(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+		Protocol:     "source",
+		PasswordEnv:  "RCON_PASSWORD",
+		PasswordFile: "config/rconpw",
+	})) != nil {
+		t.Fatal("passwordFile mode should not inject env")
 	}
 }
 
@@ -79,6 +117,16 @@ func TestAgentVolumeMounts(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("rcon agent missing rcon-password mount: %+v", withRCON)
+	}
+	// PasswordFile mode should not mount rcon-password volume
+	withFile := agentVolumeMounts(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{
+		Protocol:     "source",
+		PasswordFile: "config/rconpw",
+	}), nil, "/data")
+	for _, m := range withFile {
+		if m.Name == "rcon-password" {
+			t.Fatalf("passwordFile mode should not mount rcon-password volume: %+v", withFile)
+		}
 	}
 }
 
