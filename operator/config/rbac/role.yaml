@@ -64,6 +64,7 @@ rules:
   resources:
   - backups/status
   - backupschedules/status
+  - clusters/status
   - gameservers/status
   - gametemplates/status
   - modules/status
@@ -73,6 +74,18 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - gameplane.local
+  resources:
+  - clusters
+  - modules
+  - restores
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - gameplane.local
   resources:
@@ -91,17 +104,6 @@ rules:
   - modules/finalizers
   verbs:
   - update
-- apiGroups:
-  - gameplane.local
-  resources:
-  - modules
-  - restores
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - gameplane.local
   resources:

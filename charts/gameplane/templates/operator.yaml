@@ -212,6 +212,11 @@ spec:
             {{- if .Values.operator.agentLogLevel }}
             - --agent-log-level={{ .Values.operator.agentLogLevel }}
             {{- end }}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           ports:
             - { name: metrics, containerPort: 8080 }
             - { name: health,  containerPort: 8081 }
