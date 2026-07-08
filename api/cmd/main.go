@@ -158,6 +158,12 @@ func main() {
 	notifier := notify.New(store, k8s, cfg.namespace)
 	go notifier.Run(ctx)
 
+	// Cluster registry: watch Cluster CRDs and populate the client registry
+	// with remote cluster connections. Single-cluster installs only have the
+	// "local" cluster (the control plane); this watcher loads remote clusters
+	// from kubeconfigs stored as Secrets.
+	go kube.WatchClusters(ctx, k8s, reg, cfg.namespace)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, middleware.RealIP)
 	r.Use(secureHeaders)
@@ -217,6 +223,7 @@ func main() {
 		handlers.MountAuthProviderSecrets(p, k8s, cfg.namespace)
 		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps, cfg.updateChannel)
 		handlers.MountClusterActions(p, k8s, cfg.clusterOps)
+		handlers.MountClusters(p, reg, k8s, cfg.namespace)
 		handlers.MountEvents(p, reg)
 		handlers.MountDestinations(p, reg)
 		handlers.MountSystemLogs(p, k8s, cfg.namespace)
