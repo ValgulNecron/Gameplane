@@ -27,6 +27,9 @@ rules:
   - apiGroups: ["gameplane.local"]
     resources: [modulesources]
     verbs: [create, update, patch, delete]      # source management (add/edit/remove sources) from the dashboard
+  - apiGroups: ["gameplane.local"]
+    resources: [clusters]
+    verbs: [get, list, watch, create, delete]   # cluster registration and management from the dashboard
   - apiGroups: [""]
     resources: [nodes, events]
     verbs: [get, list, watch]

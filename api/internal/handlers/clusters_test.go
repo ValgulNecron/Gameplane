@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -111,7 +112,7 @@ func TestMountClusters_ListWithRemote(t *testing.T) {
 				"key":  "kubeconfig",
 			},
 		}, map[string]any{
-			"phase":         "Ready",
+			"phase":         "Healthy",
 			"message":       "Connected",
 			"serverVersion": "v1.28.0",
 		}),
@@ -149,8 +150,8 @@ func TestMountClusters_ListWithRemote(t *testing.T) {
 	if remote.DisplayName != "Remote Cluster 1" {
 		t.Fatalf("expected displayName 'Remote Cluster 1', got %q", remote.DisplayName)
 	}
-	if remote.Phase != "Ready" {
-		t.Fatalf("expected phase 'Ready', got %q", remote.Phase)
+	if remote.Phase != "Healthy" {
+		t.Fatalf("expected phase 'Healthy', got %q", remote.Phase)
 	}
 }
 
@@ -305,7 +306,7 @@ func TestMountClusters_DeleteSuccess(t *testing.T) {
 			"kubeconfig": []byte("fake"),
 		},
 	}
-	_, _ = k.Typed.CoreV1().Secrets("gameplane-system").Create(nil, secret, metav1.CreateOptions{})
+	_, _ = k.Typed.CoreV1().Secrets("gameplane-system").Create(context.Background(), secret, metav1.CreateOptions{})
 
 	r := mountClustersRouter(k, reg)
 

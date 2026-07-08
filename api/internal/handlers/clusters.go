@@ -39,18 +39,18 @@ type clustersHandler struct {
 
 // clusterRegistryView is the public projection of a remote cluster. Never includes kubeconfig data.
 type clusterRegistryView struct {
-	Name            string `json:"name"`
-	DisplayName     string `json:"displayName"`
-	Phase           string `json:"phase"`
-	Message         string `json:"message,omitempty"`
-	ServerVersion   string `json:"serverVersion,omitempty"`
-	LastCheckTime   string `json:"lastCheckTime,omitempty"`
+	Name          string `json:"name"`
+	DisplayName   string `json:"displayName"`
+	Phase         string `json:"phase"`
+	Message       string `json:"message,omitempty"`
+	ServerVersion string `json:"serverVersion,omitempty"`
+	LastCheckTime string `json:"lastCheckTime,omitempty"`
 }
 
 type clusterCreateReq struct {
-	Name       string `json:"name"`
+	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
-	Kubeconfig string `json:"kubeconfig"`
+	Kubeconfig  string `json:"kubeconfig"`
 }
 
 type clustersListResp struct {
