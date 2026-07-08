@@ -209,7 +209,7 @@ func main() {
 		handlers.MountPodEvents(p, reg)
 		handlers.MountLifecycle(p, reg)
 		handlers.MountOwnership(p, reg, store)
-		handlers.MountUsers(p, store, sessions)
+		handlers.MountUsers(p, store, sessions, reg)
 		handlers.MountRoles(p, store)
 		handlers.MountAudit(p, auditor)
 		handlers.MountConfig(p, store, oidcAuth != nil)
