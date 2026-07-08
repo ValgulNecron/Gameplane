@@ -94,6 +94,9 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 					return
 				}
 				ns = resolved
+				// rbac.Middleware must be mounted with a non-nil fetcher: cluster gating
+				// for namespaced perms depends on resolving cl here, so a nil fetcher
+				// would leave cl at the default cluster while a handler could dispatch elsewhere.
 				if fetch != nil {
 					resolvedCluster, err := scope.ResolveCluster(req, fetch)
 					if err != nil {

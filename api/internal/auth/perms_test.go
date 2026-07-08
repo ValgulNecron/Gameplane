@@ -155,7 +155,7 @@ func TestUserCan(t *testing.T) {
 	admin := &User{Perms: map[string]map[string]map[string]struct{}{"local": {"*": {"*": {}}}}}
 	clusterReader := &User{Perms: map[string]map[string]map[string]struct{}{"local": {"*": {"users:read": {}}}}}
 	nsOp := &User{Perms: map[string]map[string]map[string]struct{}{"local": {"team-a": {"servers:write": {}}}}}
-	nsWild := &User{Perms: map[string]map[string]map[string]struct{}{"local": {"team-a": {"*": {}}}}}}
+	nsWild := &User{Perms: map[string]map[string]map[string]struct{}{"local": {"team-a": {"*": {}}}}}
 	prodAdmin := &User{Perms: map[string]map[string]map[string]struct{}{"prod": {"*": {"*": {}}}}}
 
 	cases := []struct {
@@ -171,6 +171,8 @@ func TestUserCan(t *testing.T) {
 		{"admin wildcard grants namespaced on same cluster", admin, "servers:write", true, "local", "team-a", true},
 		{"admin wildcard grants cluster perm", admin, "users:manage", false, "prod", "", true},
 		{"admin on local denied on prod", admin, "servers:write", true, "prod", "team-a", false},
+		{"prod admin grants on prod", prodAdmin, "servers:write", true, "prod", "team-a", true},
+		{"prod admin denied on local", prodAdmin, "servers:write", true, "local", "team-a", false},
 		{"wildcard cluster grants namespaced on any cluster", &User{Perms: map[string]map[string]map[string]struct{}{"*": {"*": {"servers:write": {}}}}}, "servers:write", true, "prod", "team-a", true},
 		{"cluster perm granted on any binding", clusterReader, "users:read", false, "prod", "", true},
 		{"cluster perm not held is denied", clusterReader, "users:manage", false, "local", "", false},
