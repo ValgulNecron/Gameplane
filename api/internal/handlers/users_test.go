@@ -64,6 +64,16 @@ func seedUser(t *testing.T, store *db.Store, username, role, password string) in
 	return id
 }
 
+// allowTeamA permits the "team-a" namespace for the duration of a test,
+// restoring the default allow-list afterwards. Cluster-dimension binding
+// tests need it because they grant roles in "team-a".
+func allowTeamA(t *testing.T) {
+	t.Helper()
+	saved := scope.AllowedNamespaces
+	t.Cleanup(func() { scope.AllowedNamespaces = saved })
+	scope.AllowedNamespaces = []string{scope.DefaultNamespace, "team-a"}
+}
+
 func sessionCount(t *testing.T, store *db.Store, userID int64) int {
 	t.Helper()
 	var n int
@@ -390,6 +400,7 @@ func TestUsers_ResetPasswordHashesAndInvalidatesSessions(t *testing.T) {
 // Cluster dimension tests
 
 func TestAddBinding_RejectWildcardCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, _, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
 	status, _ := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
@@ -404,6 +415,7 @@ func TestAddBinding_RejectWildcardCluster(t *testing.T) {
 }
 
 func TestAddBinding_RejectUnknownCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, _, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
 	status, _ := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
@@ -418,6 +430,7 @@ func TestAddBinding_RejectUnknownCluster(t *testing.T) {
 }
 
 func TestAddBinding_DefaultsAndReturnsCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, store, "alice", "viewer", "pw")
 	status, body := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
@@ -447,6 +460,7 @@ func TestAddBinding_DefaultsAndReturnsCluster(t *testing.T) {
 }
 
 func TestAddBinding_ExplicitCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, store, "alice", "viewer", "pw")
 	status, body := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
@@ -468,6 +482,7 @@ func TestAddBinding_ExplicitCluster(t *testing.T) {
 }
 
 func TestListBindings_IncludesCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, store, "alice", "operator", "pw")
 	// Insert an explicit binding with cluster.
@@ -497,6 +512,7 @@ func TestListBindings_IncludesCluster(t *testing.T) {
 }
 
 func TestDeleteBinding_RejectWildcardCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, _, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
 	status, _ := doReq(t, "DELETE",
@@ -507,6 +523,7 @@ func TestDeleteBinding_RejectWildcardCluster(t *testing.T) {
 }
 
 func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
+	allowTeamA(t)
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, store, "alice", "operator", "pw")
 	// Insert a binding with cluster.
