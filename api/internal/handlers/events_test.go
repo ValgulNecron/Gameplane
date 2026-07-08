@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // nonFlushingWriter is an http.ResponseWriter that does NOT implement
@@ -25,9 +28,11 @@ func (n *nonFlushingWriter) WriteHeader(c int)           { n.code = c }
 // the no-Flusher 500 branch deterministically.
 func TestEvents_StreamingUnsupported(t *testing.T) {
 	k := fakeKubeClient()
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
 	w := &nonFlushingWriter{header: http.Header{}}
 	req := httptest.NewRequest("GET", "/events", nil)
-	eventsHandler(k)(w, req)
+	eventsHandler(reg)(w, req)
 	if w.code != http.StatusInternalServerError {
 		t.Fatalf("got %d", w.code)
 	}
@@ -39,9 +44,11 @@ func TestEvents_StreamingUnsupported(t *testing.T) {
 // old metav1.NamespaceAll cross-namespace leak.
 func TestEvents_RejectsForbiddenNamespace(t *testing.T) {
 	k := fakeKubeClient()
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
 	rr := httptest.NewRecorder() // implements http.Flusher → past the 500 branch
 	req := httptest.NewRequest("GET", "/events?namespace=forbidden", nil)
-	eventsHandler(k)(rr, req)
+	eventsHandler(reg)(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("got %d, want 403 for a non-permitted namespace", rr.Code)
 	}

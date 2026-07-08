@@ -14,6 +14,7 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 func TestStampOwner(t *testing.T) {
@@ -31,8 +32,10 @@ func TestOwnership_Transfer(t *testing.T) {
 	store := newTestStore(t)
 	uid := seedUser(t, store, "bob", "viewer", "")
 	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
 	r := chi.NewRouter()
-	MountOwnership(r, k, store)
+	MountOwnership(r, reg, store)
 
 	t.Run("rejects an unknown user", func(t *testing.T) {
 		rr := do(t, r, "POST", "/servers/alpha:transfer", map[string]any{"userId": 999999})
@@ -72,8 +75,10 @@ func TestOwnership_SetCollaborators(t *testing.T) {
 	charlie := seedUser(t, store, "charlie", "viewer", "")
 
 	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
 	r := chi.NewRouter()
-	MountOwnership(r, k, store)
+	MountOwnership(r, reg, store)
 
 	t.Run("unknown userId rejected", func(t *testing.T) {
 		rr := do(t, r, "PUT", "/servers/alpha:collaborators", map[string]any{"userIds": []int64{999999}})
@@ -205,8 +210,10 @@ func TestOwnership_GetOwnedServers(t *testing.T) {
 	})
 
 	k := fakeKubeClient(ownedByAlice, collaboratorOfBob, notOwned)
+	reg := kube.NewRegistry(scope.DefaultCluster)
+	reg.Set(scope.DefaultCluster, k)
 	r := chi.NewRouter()
-	MountOwnership(r, k, store)
+	MountOwnership(r, reg, store)
 
 	t.Run("returns owned servers", func(t *testing.T) {
 		rr := doAs(t, r, alice, "GET", "/users/me/servers", nil)

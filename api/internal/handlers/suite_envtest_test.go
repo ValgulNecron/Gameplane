@@ -94,8 +94,8 @@ func TestMain(m *testing.M) {
 
 	mountedR = chi.NewRouter()
 	MountResources(mountedR, reg)
-	MountLifecycle(mountedR, kubeC)
-	MountDestinations(mountedR, kubeC)
+	MountLifecycle(mountedR, reg)
+	MountDestinations(mountedR, reg)
 	MountModules(mountedR, kubeC, "default")
 
 	apiSrv = httptest.NewServer(mountedR)

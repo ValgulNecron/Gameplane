@@ -23,8 +23,8 @@ import (
 // It's a read: the route lives under /servers, so the RBAC middleware
 // already gates it behind servers:read, and scope.Resolve pins the
 // namespace. The API's ClusterRole already grants events get/list.
-func MountPodEvents(r chi.Router, k *kube.Client) {
-	r.Get("/servers/{name}/events", podEventsHandler(k))
+func MountPodEvents(r chi.Router, reg *kube.Registry) {
+	r.Get("/servers/{name}/events", podEventsHandler(reg))
 }
 
 // maxPodEvents caps the snapshot so a long-running, churny pod can't return
@@ -45,8 +45,12 @@ type PodEvent struct {
 	Count   int32  `json:"count"`
 }
 
-func podEventsHandler(k *kube.Client) http.HandlerFunc {
+func podEventsHandler(reg *kube.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
 		name := chi.URLParam(req, "name")
 		ns, ok := resolveNS(w, req)
 		if !ok {
