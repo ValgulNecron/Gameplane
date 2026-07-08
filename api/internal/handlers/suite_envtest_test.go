@@ -74,12 +74,12 @@ func TestMain(m *testing.M) {
 		panic("create games namespace: " + err.Error())
 	}
 
-	// reg dispatches MountResources' cluster-aware routes: kubeC as the
-	// default "local" cluster (the real envtest apiserver), plus a second,
-	// empty "other" cluster backed by a fake dynamic client so
-	// TestResources_ClusterDispatch_Isolation can prove that a `?cluster=`
-	// selector never leaks objects across clusters. Every other Mount*
-	// call below still takes kubeC directly (Phase 2 migrates them).
+	// reg dispatches cluster-aware routes: kubeC as the default "local"
+	// cluster (the real envtest apiserver), plus a second, empty "other"
+	// cluster backed by a fake dynamic client so dispatch-isolation tests
+	// can prove that a `?cluster=` selector never leaks objects across
+	// clusters. MountResources, MountLifecycle, and MountDestinations take
+	// reg; only MountModules still takes kubeC directly.
 	reg := kube.NewRegistry(scope.DefaultCluster)
 	reg.Set(scope.DefaultCluster, kubeC)
 	fakeScheme := runtime.NewScheme()
@@ -96,6 +96,7 @@ func TestMain(m *testing.M) {
 	MountResources(mountedR, reg)
 	MountLifecycle(mountedR, reg)
 	MountDestinations(mountedR, reg)
+	MountEvents(mountedR, reg)
 	MountModules(mountedR, kubeC, "default")
 
 	apiSrv = httptest.NewServer(mountedR)
