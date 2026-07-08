@@ -329,9 +329,17 @@ Before registering a target cluster, ensure it has:
    metadata:
      name: my-cluster
    spec:
-     kubeconfigSecretRef:
+     displayName: My Cluster
+     kubeconfigSecret:
        name: my-cluster-kubeconfig
+       # key is optional; defaults to "kubeconfig" if omitted
+       key: kubeconfig
    ```
+
+   **Cluster spec fields:**
+   - `displayName` (optional): Human-readable name shown in the dashboard
+   - `kubeconfigSecret.name` (required): Name of the Secret containing the kubeconfig
+   - `kubeconfigSecret.key` (optional): Data key within the Secret; defaults to `"kubeconfig"`
 
 3. Apply both to the control-plane cluster:
 
