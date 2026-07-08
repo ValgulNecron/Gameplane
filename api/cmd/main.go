@@ -93,10 +93,12 @@ func main() {
 		os.Exit(1)
 	}
 	// reg is the pool of per-cluster clients that cluster-dispatch-aware
-	// handlers (MountResources, rbac.Middleware) resolve `?cluster=`
-	// against. A single-cluster install has exactly one entry: the home
-	// cluster registered as scope.DefaultCluster ("local"). Other Mount*
-	// calls still take the bare k8s client directly (Phase 2 migrates them).
+	// handlers resolve `?cluster=` against. A single-cluster install has
+	// exactly one entry: the home cluster registered as scope.DefaultCluster
+	// ("local"). Cluster-dispatch handlers (Resources, PodEvents, Lifecycle,
+	// Ownership, Events, Destinations) take reg; home-cluster/control-plane
+	// handlers (SystemLogs, Modules, Cluster, ClusterActions, AuthProviderSecrets, ws)
+	// still take the bare k8s client directly.
 	reg := kube.NewRegistry(scope.DefaultCluster)
 	reg.Set(scope.DefaultCluster, k8s)
 
