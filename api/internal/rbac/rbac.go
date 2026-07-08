@@ -201,6 +201,11 @@ var rules = []rule{
 	{method: "GET", segment: "cluster", perm: "cluster:read"},
 	{segment: "cluster", perm: "cluster:manage"},
 
+	// Cluster registration (multi-cluster): list/create/delete remote clusters
+	// (plural /clusters endpoint).
+	{method: "GET", segment: "clusters", perm: "cluster:read"},
+	{segment: "clusters", perm: "cluster:manage"},
+
 	// Events SSE is a namespaced, multiplexed read.
 	{method: "GET", segment: "events", perm: "servers:read"},
 
