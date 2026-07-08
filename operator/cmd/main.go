@@ -55,6 +55,7 @@ func main() {
 		agentCASecretNamespace string
 		moduleNamespace        string
 		moduleLocalRoot        string
+		controlPlaneNamespace  string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the probe endpoint binds to.")
@@ -78,6 +79,12 @@ func main() {
 		"Name of the Secret holding the agent CA cert+key used to sign per-GameServer agent server certs.")
 	flag.StringVar(&agentCASecretNamespace, "agent-ca-secret-namespace", "gameplane-system",
 		"Namespace of the agent CA Secret.")
+	controlPlaneNamespaceDefault := os.Getenv("POD_NAMESPACE")
+	if controlPlaneNamespaceDefault == "" {
+		controlPlaneNamespaceDefault = "gameplane-system"
+	}
+	flag.StringVar(&controlPlaneNamespace, "control-plane-namespace", controlPlaneNamespaceDefault,
+		"Namespace where the operator runs and where cluster kubeconfig Secrets are stored.")
 
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
@@ -177,6 +184,14 @@ func main() {
 		FetchOptions:    fetchOptions,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "Module")
+		os.Exit(1)
+	}
+	if err := (&controller.ClusterStatusReconciler{
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Namespace: controlPlaneNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to set up controller", "controller", "Cluster")
 		os.Exit(1)
 	}
 
