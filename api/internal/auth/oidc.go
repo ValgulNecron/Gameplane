@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 const (
@@ -396,7 +397,7 @@ func (o *OIDC) syncUserRole(ctx context.Context, userID int64, role string) (app
 		`UPDATE users SET role = ? WHERE id = ?`, role, userID); err != nil {
 		return false, fmt.Errorf("update role: %w", err)
 	}
-	if err := o.db.SetClusterRoleBinding(ctx, tx, userID, role); err != nil {
+	if err := o.db.SetClusterRoleBinding(ctx, tx, userID, scope.DefaultCluster, role); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(); err != nil {

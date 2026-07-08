@@ -14,6 +14,7 @@ import (
 
 	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/db"
+	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
 // bootstrapAdmin seeds (or, with --force, resets) the initial admin user
@@ -97,7 +98,7 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 		// Mirror the admin role into a cluster-wide role binding so RBAC
 		// resolves the user's permissions (this runs after Migrate, so the
 		// migration's backfill never saw this row).
-		if err := store.SetClusterRoleBinding(ctx, nil, newID, "admin"); err != nil {
+		if err := store.SetClusterRoleBinding(ctx, nil, newID, scope.DefaultCluster, "admin"); err != nil {
 			return fmt.Errorf("bind admin role: %w", err)
 		}
 		fmt.Fprintf(stderr, "bootstrap-admin: created user %q\n", bf.username)
@@ -117,7 +118,7 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 	); err != nil {
 		return fmt.Errorf("update user: %w", err)
 	}
-	if err := store.SetClusterRoleBinding(ctx, nil, existingID, "admin"); err != nil {
+	if err := store.SetClusterRoleBinding(ctx, nil, existingID, scope.DefaultCluster, "admin"); err != nil {
 		return fmt.Errorf("bind admin role: %w", err)
 	}
 	fmt.Fprintf(stderr, "bootstrap-admin: updated user %q\n", bf.username)
