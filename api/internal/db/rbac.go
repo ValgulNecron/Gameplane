@@ -13,22 +13,22 @@ type Execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-// SetClusterRoleBinding repoints the user's cluster-wide ("*") role
-// binding at role, leaving any per-namespace bindings intact. Call it
-// whenever a user's primary role is set so RBAC resolves their
-// cluster-wide permissions from the new role. Pass ex to run inside a
-// transaction, or nil to use the store's connection.
-func (s *Store) SetClusterRoleBinding(ctx context.Context, ex Execer, userID int64, role string) error {
+// SetClusterRoleBinding repoints the user's cluster-wide ("*") role binding
+// at the given cluster/role, leaving any per-namespace bindings intact. Call it
+// whenever a user's primary role is set so RBAC resolves their cluster-wide
+// permissions from the new role. Pass ex to run inside a transaction, or nil
+// to use the store's connection.
+func (s *Store) SetClusterRoleBinding(ctx context.Context, ex Execer, userID int64, cluster, role string) error {
 	if ex == nil {
 		ex = s.DB
 	}
 	if _, err := ex.ExecContext(ctx,
-		`DELETE FROM user_role_bindings WHERE user_id = ? AND namespace = '*'`, userID); err != nil {
+		`DELETE FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = '*'`, userID, cluster); err != nil {
 		return fmt.Errorf("clear cluster role binding: %w", err)
 	}
 	if _, err := ex.ExecContext(ctx,
-		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, ?, '*')`,
-		userID, role); err != nil {
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, '*')`,
+		userID, role, cluster); err != nil {
 		return fmt.Errorf("set cluster role binding: %w", err)
 	}
 	return nil
@@ -74,7 +74,8 @@ func (s *Store) RoleGrantsUserManagement(ctx context.Context, role string) (bool
 }
 
 // UserManagesUsers reports whether the given user's primary (cluster-wide)
-// role can manage users.
+// role can manage users. No cluster filter: control-plane permissions are
+// not partitioned per cluster, so any cluster-wide binding confers users:manage.
 func (s *Store) UserManagesUsers(ctx context.Context, userID int64) (bool, error) {
 	var n int
 	err := s.DB.QueryRowContext(ctx, `
