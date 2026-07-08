@@ -33,12 +33,12 @@ type User struct {
 	Email       string
 	Role        string
 
-	// Perms is the caller's resolved permission set, keyed by namespace.
-	// The "*" namespace holds cluster-wide grants; a permission value of
-	// "*" within a namespace means "all permissions in that scope". It is
-	// loaded from the user's role bindings at authentication time. Nil for
-	// Users built outside the session path (treated as holding nothing).
-	Perms map[string]map[string]struct{}
+	// Perms is the caller's resolved permission set, three-level map:
+	// cluster (outer key; "*" = all clusters) → namespace (middle key;
+	// "*" = cluster-wide) → permission set (value; "*" = all permissions).
+	// It is loaded from the user's role bindings at authentication time.
+	// Nil for Users built outside the session path (treated as holding nothing).
+	Perms map[string]map[string]map[string]struct{}
 }
 
 type SessionStore struct {

@@ -66,7 +66,7 @@ func TestUsers_Me(t *testing.T) {
 	t.Run("returns the caller with its permission set", func(t *testing.T) {
 		caller := &auth.User{
 			ID: 7, Username: "self", Role: "operator",
-			Perms: map[string]map[string]struct{}{"*": {"servers:read": {}, "servers:write": {}}},
+			Perms: map[string]map[string]map[string]struct{}{scope.DefaultCluster: {"*": {"servers:read": {}, "servers:write": {}}}},
 		}
 		srv, _, _ := newUsersServer(t, caller)
 		status, body := doReq(t, "GET", srv.URL+"/users/me", nil)

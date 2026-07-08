@@ -20,8 +20,8 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
-func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore) {
-	h := &userHandler{db: store, sessions: sessions}
+func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore, clusters scope.ClusterLister) {
+	h := &userHandler{db: store, sessions: sessions, clusters: clusters}
 	r.Route("/users", func(r chi.Router) {
 		r.Get("/", h.list)
 		r.Post("/", h.create)
@@ -40,6 +40,7 @@ func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore) {
 type userHandler struct {
 	db       *db.Store
 	sessions *auth.SessionStore
+	clusters scope.ClusterLister
 }
 
 type userDTO struct {
@@ -57,13 +58,27 @@ type userDTO struct {
 }
 
 // permsToJSON flattens the in-memory permission set into a
-// JSON-friendly namespace→permissions map.
-func permsToJSON(perms map[string]map[string]struct{}) map[string][]string {
+// JSON-friendly namespace→permissions map. It merges permissions across
+// all clusters, so the frontend sees the union of what the user can do
+// (permissions are cluster-agnostic for most features).
+func permsToJSON(perms map[string]map[string]map[string]struct{}) map[string][]string {
 	if len(perms) == 0 {
 		return nil
 	}
-	out := make(map[string][]string, len(perms))
-	for ns, set := range perms {
+	// Merge all clusters into a single namespace→permissions map.
+	merged := make(map[string]map[string]struct{})
+	for _, clusterPerms := range perms {
+		for ns, permSet := range clusterPerms {
+			if merged[ns] == nil {
+				merged[ns] = make(map[string]struct{})
+			}
+			for p := range permSet {
+				merged[ns][p] = struct{}{}
+			}
+		}
+	}
+	out := make(map[string][]string, len(merged))
+	for ns, set := range merged {
 		keys := make([]string, 0, len(set))
 		for p := range set {
 			keys = append(keys, p)
@@ -165,7 +180,7 @@ func (h *userHandler) create(w http.ResponseWriter, req *http.Request) {
 	// Mirror the primary role into a cluster-wide ("*") role binding so
 	// RBAC resolves the new user's permissions. Without this the user has
 	// no effective permissions at all.
-	if err := h.db.SetClusterRoleBinding(req.Context(), nil, id, body.Role); err != nil {
+	if err := h.db.SetClusterRoleBinding(req.Context(), nil, id, scope.DefaultCluster, body.Role); err != nil {
 		httperr.Write(w, req, err)
 		return
 	}
@@ -336,7 +351,7 @@ func (h *userHandler) update(w http.ResponseWriter, req *http.Request) {
 		}
 		// Keep the cluster-wide ("*") role binding in sync with the primary
 		// role; per-namespace bindings are left untouched.
-		if err := h.db.SetClusterRoleBinding(req.Context(), tx, id, *body.Role); err != nil {
+		if err := h.db.SetClusterRoleBinding(req.Context(), tx, id, scope.DefaultCluster, *body.Role); err != nil {
 			httperr.Write(w, req, err)
 			return
 		}
@@ -418,6 +433,7 @@ func (h *userHandler) resetPassword(w http.ResponseWriter, req *http.Request) {
 type bindingDTO struct {
 	RoleName  string `json:"roleName"`
 	Namespace string `json:"namespace"`
+	Cluster   string `json:"cluster"`
 }
 
 func (h *userHandler) listBindings(w http.ResponseWriter, req *http.Request) {
@@ -427,7 +443,7 @@ func (h *userHandler) listBindings(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	rows, err := h.db.DB.QueryContext(req.Context(),
-		`SELECT role_name, namespace FROM user_role_bindings WHERE user_id = ? ORDER BY namespace, role_name`, id)
+		`SELECT role_name, namespace, cluster FROM user_role_bindings WHERE user_id = ? ORDER BY cluster, namespace, role_name`, id)
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
@@ -436,7 +452,7 @@ func (h *userHandler) listBindings(w http.ResponseWriter, req *http.Request) {
 	out := []bindingDTO{}
 	for rows.Next() {
 		var b bindingDTO
-		if err := rows.Scan(&b.RoleName, &b.Namespace); err != nil {
+		if err := rows.Scan(&b.RoleName, &b.Namespace, &b.Cluster); err != nil {
 			httperr.Write(w, req, err)
 			return
 		}
@@ -452,6 +468,7 @@ func (h *userHandler) listBindings(w http.ResponseWriter, req *http.Request) {
 type addBindingReq struct {
 	RoleName  string `json:"roleName"`
 	Namespace string `json:"namespace"`
+	Cluster   string `json:"cluster"`
 }
 
 func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
@@ -465,10 +482,30 @@ func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	// Default the cluster to the default cluster.
+	if body.Cluster == "" {
+		body.Cluster = scope.DefaultCluster
+	}
 	// The cluster-wide role is the user's primary role (set via PATCH); this
 	// endpoint only grants additional per-namespace roles.
 	if body.Namespace == "*" || !scope.Allowed(body.Namespace) {
 		http.Error(w, "namespace not permitted", http.StatusBadRequest)
+		return
+	}
+	// Validate the cluster.
+	if body.Cluster == "*" {
+		http.Error(w, "cluster not permitted", http.StatusBadRequest)
+		return
+	}
+	known := false
+	for _, id := range h.clusters.IDs() {
+		if id == body.Cluster {
+			known = true
+			break
+		}
+	}
+	if !known {
+		http.Error(w, "cluster not permitted", http.StatusBadRequest)
 		return
 	}
 	if ok, err := h.db.RoleExists(req.Context(), body.RoleName); err != nil {
@@ -487,8 +524,8 @@ func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
 	}
 	var dup int
 	if err := h.db.DB.QueryRowContext(req.Context(),
-		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND role_name = ? AND namespace = ?`,
-		id, body.RoleName, body.Namespace).Scan(&dup); err != nil {
+		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND role_name = ? AND cluster = ? AND namespace = ?`,
+		id, body.RoleName, body.Cluster, body.Namespace).Scan(&dup); err != nil {
 		httperr.Write(w, req, err)
 		return
 	}
@@ -497,14 +534,14 @@ func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if _, err := h.db.DB.ExecContext(req.Context(),
-		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, ?, ?)`,
-		id, body.RoleName, body.Namespace); err != nil {
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
+		id, body.RoleName, body.Cluster, body.Namespace); err != nil {
 		httperr.Write(w, req, err)
 		return
 	}
 	h.invalidateSessions(req, id, "role binding added")
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, bindingDTO{RoleName: body.RoleName, Namespace: body.Namespace})
+	writeJSON(w, bindingDTO{RoleName: body.RoleName, Namespace: body.Namespace, Cluster: body.Cluster})
 }
 
 func (h *userHandler) deleteBinding(w http.ResponseWriter, req *http.Request) {
@@ -515,13 +552,21 @@ func (h *userHandler) deleteBinding(w http.ResponseWriter, req *http.Request) {
 	}
 	role := chi.URLParam(req, "role")
 	namespace := chi.URLParam(req, "namespace")
+	cluster := req.URL.Query().Get("cluster")
+	if cluster == "" {
+		cluster = scope.DefaultCluster
+	}
 	if namespace == "*" {
 		http.Error(w, "the cluster-wide role is managed via the primary role", http.StatusBadRequest)
 		return
 	}
+	if cluster == "*" {
+		http.Error(w, "cluster not permitted", http.StatusBadRequest)
+		return
+	}
 	res, err := h.db.DB.ExecContext(req.Context(),
-		`DELETE FROM user_role_bindings WHERE user_id = ? AND role_name = ? AND namespace = ?`,
-		id, role, namespace)
+		`DELETE FROM user_role_bindings WHERE user_id = ? AND role_name = ? AND cluster = ? AND namespace = ?`,
+		id, role, cluster, namespace)
 	if err != nil {
 		httperr.Write(w, req, err)
 		return

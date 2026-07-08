@@ -15,6 +15,13 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
+// testClusterLister is a minimal ClusterLister for tests.
+type testClusterLister struct{}
+
+func (testClusterLister) IDs() []string {
+	return []string{scope.DefaultCluster}
+}
+
 // newUsersServer wires MountUsers behind a test middleware that injects
 // `caller` as the authenticated user. Mirrors what sessions.Authenticate
 // does in production, without paying for the cookie round-trip.
@@ -30,7 +37,7 @@ func newUsersServer(t *testing.T, caller *auth.User) (*httptest.Server, *db.Stor
 			})
 		})
 	}
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 	return srv, store, sessions
@@ -55,6 +62,16 @@ func seedUser(t *testing.T, store *db.Store, username, role, password string) in
 	}
 	id, _ := res.LastInsertId()
 	return id
+}
+
+// allowTeamA permits the "team-a" namespace for the duration of a test,
+// restoring the default allow-list afterwards. Cluster-dimension binding
+// tests need it because they grant roles in "team-a".
+func allowTeamA(t *testing.T) {
+	t.Helper()
+	saved := scope.AllowedNamespaces
+	t.Cleanup(func() { scope.AllowedNamespaces = saved })
+	scope.AllowedNamespaces = []string{scope.DefaultNamespace, "team-a"}
 }
 
 func sessionCount(t *testing.T, store *db.Store, userID int64) int {
@@ -130,8 +147,8 @@ func TestUsers_CreateBindsClusterRole(t *testing.T) {
 	}
 	var role string
 	err := store.DB.QueryRow(
-		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND namespace = '*'`,
-		created.ID).Scan(&role)
+		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = '*'`,
+		created.ID, scope.DefaultCluster).Scan(&role)
 	if err != nil || role != "operator" {
 		t.Fatalf("cluster binding = %q err=%v, want operator", role, err)
 	}
@@ -259,7 +276,7 @@ func TestUsers_PatchSelfDemoteRejected(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: id, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -290,7 +307,7 @@ func TestUsers_PatchRoleInvalidatesSessions(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 999, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -315,7 +332,7 @@ func TestUsers_DeleteSelfRejected(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: id, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -355,7 +372,7 @@ func TestUsers_ResetPasswordHashesAndInvalidatesSessions(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 999, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -377,5 +394,156 @@ func TestUsers_ResetPasswordHashesAndInvalidatesSessions(t *testing.T) {
 	}
 	if got := sessionCount(t, store, id); got != 0 {
 		t.Fatalf("expected sessions cleared, got %d", got)
+	}
+}
+
+// Cluster dimension tests
+
+func TestAddBinding_RejectWildcardCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, _, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
+	status, _ := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
+		map[string]any{
+			"roleName":  "operator",
+			"namespace": "team-a",
+			"cluster":   "*",
+		})
+	if status != 400 {
+		t.Fatalf("want 400 for wildcard cluster, got %d", status)
+	}
+}
+
+func TestAddBinding_RejectUnknownCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, _, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
+	status, _ := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
+		map[string]any{
+			"roleName":  "operator",
+			"namespace": "team-a",
+			"cluster":   "unknown-cluster",
+		})
+	if status != 400 {
+		t.Fatalf("want 400 for unknown cluster, got %d", status)
+	}
+}
+
+func TestAddBinding_DefaultsAndReturnsCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, store, "alice", "viewer", "pw")
+	status, body := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
+		map[string]any{
+			"roleName":  "operator",
+			"namespace": "team-a",
+			// Omit cluster; should default to "local"
+		})
+	if status != 201 {
+		t.Fatalf("want 201, got %d body=%s", status, body)
+	}
+	var binding bindingDTO
+	if err := json.Unmarshal(body, &binding); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if binding.Cluster != scope.DefaultCluster {
+		t.Fatalf("cluster = %q, want %q", binding.Cluster, scope.DefaultCluster)
+	}
+	// Verify it was persisted.
+	var role string
+	err := store.DB.QueryRow(
+		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`,
+		alice, scope.DefaultCluster, "team-a").Scan(&role)
+	if err != nil || role != "operator" {
+		t.Fatalf("persisted binding: role=%q err=%v", role, err)
+	}
+}
+
+func TestAddBinding_ExplicitCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, store, "alice", "viewer", "pw")
+	status, body := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
+		map[string]any{
+			"roleName":  "operator",
+			"namespace": "team-a",
+			"cluster":   "local",
+		})
+	if status != 201 {
+		t.Fatalf("want 201, got %d", status)
+	}
+	var binding bindingDTO
+	if err := json.Unmarshal(body, &binding); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if binding.Cluster != "local" {
+		t.Fatalf("cluster = %q, want local", binding.Cluster)
+	}
+}
+
+func TestListBindings_IncludesCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, store, "alice", "operator", "pw")
+	// Insert an explicit binding with cluster.
+	if _, err := store.DB.Exec(
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
+		alice, "viewer", "local", "team-a"); err != nil {
+		t.Fatalf("seed binding: %v", err)
+	}
+	status, body := doReq(t, "GET", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings", nil)
+	if status != 200 {
+		t.Fatalf("want 200, got %d", status)
+	}
+	var bindings []bindingDTO
+	if err := json.Unmarshal(body, &bindings); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	found := false
+	for _, b := range bindings {
+		if b.Cluster == "local" && b.Namespace == "team-a" && b.RoleName == "viewer" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("binding with cluster not found in %+v", bindings)
+	}
+}
+
+func TestDeleteBinding_RejectWildcardCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, _, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
+	status, _ := doReq(t, "DELETE",
+		srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings/operator/team-a?cluster=*", nil)
+	if status != 400 {
+		t.Fatalf("want 400 for wildcard cluster, got %d", status)
+	}
+}
+
+func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
+	allowTeamA(t)
+	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
+	alice := seedUser(t, store, "alice", "operator", "pw")
+	// Insert a binding with cluster.
+	if _, err := store.DB.Exec(
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
+		alice, "viewer", "local", "team-a"); err != nil {
+		t.Fatalf("seed binding: %v", err)
+	}
+	// Delete without specifying cluster (should default to "local").
+	status, _ := doReq(t, "DELETE",
+		srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings/viewer/team-a", nil)
+	if status != 204 {
+		t.Fatalf("want 204, got %d", status)
+	}
+	// Verify deleted.
+	var n int
+	err := store.DB.QueryRow(
+		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`,
+		alice, "local", "team-a").Scan(&n)
+	if err != nil || n != 0 {
+		t.Fatalf("binding should be deleted, got count=%d err=%v", n, err)
 	}
 }

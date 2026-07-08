@@ -31,13 +31,17 @@ func TestMiddleware_Unauthenticated(t *testing.T) {
 	}
 }
 
-// clusterWide builds a User holding perms as a cluster-wide ("*") binding.
+// clusterWide builds a User holding perms as a cluster-wide ("*") binding on the default cluster.
 func clusterWide(role string, perms ...string) *auth.User {
 	set := map[string]struct{}{}
 	for _, p := range perms {
 		set[p] = struct{}{}
 	}
-	return &auth.User{ID: 1, Role: role, Perms: map[string]map[string]struct{}{"*": set}}
+	return &auth.User{ID: 1, Role: role, Perms: map[string]map[string]map[string]struct{}{
+		scope.DefaultCluster: {
+			"*": set,
+		},
+	}}
 }
 
 func TestMiddleware_AllowsViewerRead(t *testing.T) {

@@ -65,8 +65,9 @@ const (
 // For namespaced permissions, the `?cluster=` selector is also validated
 // against fetch.IDs() (when fetch is non-nil) so the owner/collaborator
 // fallback fetches from the right cluster; an unknown cluster is a 400.
-// This does not add a cluster dimension to the permission check itself
-// (u.Can) — that stays namespace-only.
+// The cluster selector ALSO gates the permission check (u.Can): a binding on
+// one cluster never grants access to another — this prevents cross-cluster
+// privilege escalation.
 func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -93,6 +94,9 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 					return
 				}
 				ns = resolved
+				// rbac.Middleware must be mounted with a non-nil fetcher: cluster gating
+				// for namespaced perms depends on resolving cl here, so a nil fetcher
+				// would leave cl at the default cluster while a handler could dispatch elsewhere.
 				if fetch != nil {
 					resolvedCluster, err := scope.ResolveCluster(req, fetch)
 					if err != nil {
@@ -102,7 +106,7 @@ func Middleware(fetch ServerFetcher) func(http.Handler) http.Handler {
 					cl = resolvedCluster
 				}
 			}
-			if !allow(u, req.Method, req.URL.Path, ns) {
+			if !allow(u, req.Method, req.URL.Path, cl, ns) {
 				// Try owner/collaborator fallback for namespaced server permissions.
 				if Namespaced(r.perm) && fetch != nil &&
 					(r.perm == "servers:read" || r.perm == "servers:write" || r.perm == "servers:console") {
@@ -340,10 +344,10 @@ func parseUserID(s string) (int64, bool) {
 	return n, err == nil
 }
 
-// allow is the pure authorization check, factored out for testing. ns is
-// the already-resolved target namespace (ignored for cluster-scoped
-// permissions).
-func allow(u *auth.User, method, path, ns string) bool {
+// allow is the pure authorization check, factored out for testing. cluster
+// is the resolved target cluster; ns is the already-resolved target namespace
+// (ignored for cluster-scoped permissions).
+func allow(u *auth.User, method, path, cluster, ns string) bool {
 	r, ok := match(method, path)
 	if !ok {
 		return false
@@ -351,5 +355,5 @@ func allow(u *auth.User, method, path, ns string) bool {
 	if r.perm == "" {
 		return true
 	}
-	return u.Can(r.perm, Namespaced(r.perm), ns)
+	return u.Can(r.perm, Namespaced(r.perm), cluster, ns)
 }
