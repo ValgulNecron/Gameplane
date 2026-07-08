@@ -37,10 +37,11 @@ var GVRs = map[string]schema.GroupVersionResource{
 	"restores":  {Group: "gameplane.local", Version: "v1alpha1", Resource: "restores"},
 }
 
-// ModuleGVRs lists the cluster-scoped CRDs the modules handler manages.
-// Kept separate from GVRs because /modules is not a generic CRUD route —
-// it serves a merged catalog endpoint and an install/uninstall surface.
+// ClusterGVRs lists the cluster-scoped CRDs the clusters handler manages.
+// Kept separate from GVRs because /clusters is not a generic CRUD route —
+// it serves the cluster registry and mTLS kubeconfig distribution surface.
 var (
+	GVRCluster      = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "clusters"}
 	GVRModule       = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modules"}
 	GVRModuleSource = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modulesources"}
 )
