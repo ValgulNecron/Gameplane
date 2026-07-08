@@ -44,6 +44,19 @@ func assertBinding(t *testing.T, s *Store, uid int64, ns, wantRole string) {
 	}
 }
 
+func assertBindingCluster(t *testing.T, s *Store, uid int64, cluster, ns, wantRole string) {
+	t.Helper()
+	var got string
+	err := s.DB.QueryRow(
+		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`, uid, cluster, ns).Scan(&got)
+	if err != nil {
+		t.Fatalf("binding for cluster=%q ns=%q missing: %v", cluster, ns, err)
+	}
+	if got != wantRole {
+		t.Fatalf("cluster=%q ns=%q role=%q, want %q", cluster, ns, got, wantRole)
+	}
+}
+
 func TestSetClusterRoleBinding(t *testing.T) {
 	s := newRBACStore(t)
 	ctx := context.Background()
@@ -51,31 +64,31 @@ func TestSetClusterRoleBinding(t *testing.T) {
 
 	// A pre-existing per-namespace binding must survive cluster repointing.
 	if _, err := s.DB.Exec(
-		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, 'operator', 'team-a')`, uid); err != nil {
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, 'operator', 'local', 'team-a')`, uid); err != nil {
 		t.Fatalf("seed ns binding: %v", err)
 	}
 
-	if err := s.SetClusterRoleBinding(ctx, nil, uid, "operator"); err != nil {
+	if err := s.SetClusterRoleBinding(ctx, nil, uid, "local", "operator"); err != nil {
 		t.Fatalf("set: %v", err)
 	}
-	assertBinding(t, s, uid, "*", "operator")
+	assertBindingCluster(t, s, uid, "local", "*", "operator")
 
 	// Repointing replaces only the cluster ("*") binding.
-	if err := s.SetClusterRoleBinding(ctx, nil, uid, "admin"); err != nil {
+	if err := s.SetClusterRoleBinding(ctx, nil, uid, "local", "admin"); err != nil {
 		t.Fatalf("repoint: %v", err)
 	}
-	assertBinding(t, s, uid, "*", "admin")
+	assertBindingCluster(t, s, uid, "local", "*", "admin")
 
 	var nStar int
 	if err := s.DB.QueryRow(
-		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND namespace = '*'`, uid).Scan(&nStar); err != nil {
+		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = '*'`, uid, "local").Scan(&nStar); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if nStar != 1 {
 		t.Fatalf("want exactly 1 cluster binding, got %d", nStar)
 	}
 	// The team-a binding is untouched.
-	assertBinding(t, s, uid, "team-a", "operator")
+	assertBindingCluster(t, s, uid, "local", "team-a", "operator")
 }
 
 func TestSetClusterRoleBinding_InTx(t *testing.T) {
@@ -87,23 +100,23 @@ func TestSetClusterRoleBinding_InTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	if err := s.SetClusterRoleBinding(ctx, tx, uid, "admin"); err != nil {
+	if err := s.SetClusterRoleBinding(ctx, tx, uid, "local", "admin"); err != nil {
 		t.Fatalf("set in tx: %v", err)
 	}
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
-	assertBinding(t, s, uid, "*", "admin")
+	assertBindingCluster(t, s, uid, "local", "*", "admin")
 }
 
 func TestDeleteUserBindings(t *testing.T) {
 	s := newRBACStore(t)
 	ctx := context.Background()
 	uid := insertUser(t, s, "carol", "operator")
-	for _, b := range []struct{ role, ns string }{{"operator", "*"}, {"viewer", "team-a"}} {
+	for _, b := range []struct{ cluster, role, ns string }{{"local", "operator", "*"}, {"local", "viewer", "team-a"}} {
 		if _, err := s.DB.Exec(
-			`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, ?, ?)`,
-			uid, b.role, b.ns); err != nil {
+			`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
+			uid, b.role, b.cluster, b.ns); err != nil {
 			t.Fatalf("seed binding: %v", err)
 		}
 	}
