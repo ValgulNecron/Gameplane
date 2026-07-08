@@ -64,9 +64,9 @@ type ClusterStatus struct {
 
 // Cluster phases.
 const (
-	ClusterPhaseUnknown    = "Unknown"
-	ClusterPhaseHealthy    = "Healthy"
-	ClusterPhaseUnhealthy  = "Unhealthy"
+	ClusterPhaseUnknown   = "Unknown"
+	ClusterPhaseHealthy   = "Healthy"
+	ClusterPhaseUnhealthy = "Unhealthy"
 )
 
 // Cluster condition types.
