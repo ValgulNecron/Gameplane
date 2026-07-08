@@ -266,7 +266,7 @@ func TestUsers_PatchSelfDemoteRejected(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: id, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -297,7 +297,7 @@ func TestUsers_PatchRoleInvalidatesSessions(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 999, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -322,7 +322,7 @@ func TestUsers_DeleteSelfRejected(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: id, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -362,7 +362,7 @@ func TestUsers_ResetPasswordHashesAndInvalidatesSessions(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 999, Role: "admin"})))
 		})
 	})
-	MountUsers(r, store, sessions)
+	MountUsers(r, store, sessions, testClusterLister{})
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -419,7 +419,7 @@ func TestAddBinding_RejectUnknownCluster(t *testing.T) {
 
 func TestAddBinding_DefaultsAndReturnsCluster(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
-	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
+	alice := seedUser(t, store, "alice", "viewer", "pw")
 	status, body := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
 		map[string]any{
 			"roleName":  "operator",
@@ -448,7 +448,7 @@ func TestAddBinding_DefaultsAndReturnsCluster(t *testing.T) {
 
 func TestAddBinding_ExplicitCluster(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
-	alice := seedUser(t, newTestStore(t), "alice", "viewer", "pw")
+	alice := seedUser(t, store, "alice", "viewer", "pw")
 	status, body := doReq(t, "POST", srv.URL+"/users/"+strconv.FormatInt(alice, 10)+"/bindings",
 		map[string]any{
 			"roleName":  "operator",
@@ -469,7 +469,7 @@ func TestAddBinding_ExplicitCluster(t *testing.T) {
 
 func TestListBindings_IncludesCluster(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
-	alice := seedUser(t, newTestStore(t), "alice", "operator", "pw")
+	alice := seedUser(t, store, "alice", "operator", "pw")
 	// Insert an explicit binding with cluster.
 	if _, err := store.DB.Exec(
 		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
@@ -508,7 +508,7 @@ func TestDeleteBinding_RejectWildcardCluster(t *testing.T) {
 
 func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
-	alice := seedUser(t, newTestStore(t), "alice", "operator", "pw")
+	alice := seedUser(t, store, "alice", "operator", "pw")
 	// Insert a binding with cluster.
 	if _, err := store.DB.Exec(
 		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,

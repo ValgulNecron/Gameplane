@@ -191,7 +191,7 @@ func TestRBACReads_ClosedDB(t *testing.T) {
 	ctx := context.Background()
 	_ = s.Close() // every query/exec below now fails
 
-	if err := s.SetClusterRoleBinding(ctx, nil, 1, "admin"); err == nil {
+	if err := s.SetClusterRoleBinding(ctx, nil, 1, "local", "admin"); err == nil {
 		t.Error("SetClusterRoleBinding: want error on closed DB")
 	}
 	if err := s.DeleteUserBindings(ctx, nil, 1); err == nil {
