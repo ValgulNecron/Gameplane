@@ -131,6 +131,51 @@ bundle upload) only reads and writes these CRs/ConfigMaps; the
 operator owns all reconciliation, so the dashboard and kubectl always
 converge on the same outcome. Format spec: `docs/module-authoring.md`.
 
+## Multi-cluster (federation)
+
+Gameplane scales across multiple Kubernetes clusters through a
+federation model: each target cluster runs its own operator and agents,
+while the API server (on the control-plane cluster) holds a pool of
+Kubernetes clients keyed by cluster ID and dispatches requests via a
+`?cluster=` URL parameter. The built-in "local" cluster targets the
+same cluster as the API; any additional cluster is registered through
+a cluster-scoped CRD.
+
+**Cluster registration and health:**
+
+- A `Cluster` CRD (group `gameplane.local/v1alpha1`) is the source of
+  truth for additional clusters. Each `Cluster` references a
+  `kubeconfig` Secret via a selector, and the API watches `Cluster`
+  updates to populate its client pool live.
+- The kubeconfig Secret **must** be labelled
+  `gameplane.local/cluster-kubeconfig=true` in the control-plane
+  namespace — the label guard prevents pointing at arbitrary Secrets
+  (see "Kubeconfig Secret handling" in `docs/security.md`).
+- The operator health-checks each registered `Cluster` and reconciles
+  `status.phase` (Unknown/Healthy/Unhealthy), so cluster connectivity
+  is visible in the dashboard.
+
+**Deployment model:**
+
+- The **target cluster** runs its own operator instance (deployed via
+  Helm to manage GameServer, Backup, and other CRDs on that cluster).
+  The same agent sidecar image is used in all clusters.
+- The **control-plane cluster** hosts the API and dashboard; it may or
+  may not have game pods itself (if `cluster=local`).
+- A **request** made to the API with `?cluster=<name>` is dispatched to
+  the named cluster's Kubernetes client. Omitting the selector targets
+  the built-in "local" cluster.
+
+**RBAC and permissions:**
+
+Registering an additional cluster grants **no implicit RBAC** on it.
+Each cluster's role bindings are independent; existing bindings
+created before federation was enabled are pinned to "local". To grant
+a user access to resources on a newly registered cluster, create
+matching role bindings on that target cluster or add cluster-scoped
+permissions through the API. See `docs/install.md#registering-an-additional-cluster`
+for the registration flow.
+
 ## Security boundaries
 
 - **Browser → API**: HTTPS, session cookie + CSRF header, OIDC or local login.
