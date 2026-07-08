@@ -280,6 +280,125 @@ git repositories, http archives, a local directory — under
 CRs. See `docs/module-authoring.md` for the source types and the
 bundle format.
 
+## Registering an additional cluster
+
+Gameplane can manage game servers across multiple Kubernetes clusters
+through a federation model. Each target cluster runs its own operator
+instance; the control-plane cluster's API dispatches requests to the
+target cluster via a `?cluster=<name>` parameter. See
+[architecture.md](architecture.md#multi-cluster-federation) for the
+design details.
+
+### Prerequisites
+
+Before registering a target cluster, ensure it has:
+
+- Kubernetes 1.28+
+- Gameplane operator and agent images accessible (same registry as the control-plane)
+- A valid kubeconfig with admin credentials to manage Gameplane CRDs on that cluster
+
+### Path 1: kubectl apply
+
+1. Create a `kubeconfig` Secret in the control-plane's `gameplane-system` namespace.
+   The Secret **must** be labelled `gameplane.local/cluster-kubeconfig=true`:
+
+   ```yaml
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: my-cluster-kubeconfig
+     namespace: gameplane-system
+     labels:
+       gameplane.local/cluster-kubeconfig: "true"
+   type: Opaque
+   data:
+     kubeconfig: <base64-encoded kubeconfig for the target cluster>
+   ```
+
+   To base64-encode your kubeconfig:
+
+   ```sh
+   cat /path/to/target-cluster-kubeconfig.yaml | base64 -w0
+   ```
+
+2. Create the `Cluster` CRD referencing the Secret:
+
+   ```yaml
+   apiVersion: gameplane.local/v1alpha1
+   kind: Cluster
+   metadata:
+     name: my-cluster
+   spec:
+     displayName: My Cluster
+     kubeconfigSecret:
+       name: my-cluster-kubeconfig
+       # key is optional; defaults to "kubeconfig" if omitted
+       key: kubeconfig
+   ```
+
+   **Cluster spec fields:**
+   - `displayName` (optional): Human-readable name shown in the dashboard
+   - `kubeconfigSecret.name` (required): Name of the Secret containing the kubeconfig
+   - `kubeconfigSecret.key` (optional): Data key within the Secret; defaults to `"kubeconfig"`
+
+3. Apply both to the control-plane cluster:
+
+   ```sh
+   kubectl apply -f secret.yaml -f cluster.yaml
+   ```
+
+4. Verify the cluster status:
+
+   ```sh
+   kubectl get clusters
+   kubectl describe cluster my-cluster
+   ```
+
+The operator on the control-plane will reconcile the `Cluster` and
+update `status.phase` (Unknown → Healthy/Unhealthy). When `Healthy`,
+the API can dispatch requests to that cluster.
+
+### Path 2: Dashboard API
+
+POST to `/clusters` with permission `cluster:manage` (admin-only):
+
+```sh
+curl -X POST https://<dashboard>/api/clusters \
+  -H "Content-Type: application/json" \
+  -H "X-Gameplane-CSRF: <csrf-token>" \
+  --cookie "session=<session-cookie>" \
+  -d '{
+    "name": "my-cluster",
+    "kubeconfig": "<base64-encoded kubeconfig>"
+  }'
+```
+
+The API stores the kubeconfig as a labelled Secret and creates the
+`Cluster` CRD. The kubeconfig is never returned by the API and never
+logged.
+
+### Helm CRD caveat
+
+The `Cluster` CRD is installed by Helm on first deploy. **`helm upgrade`
+never updates CRDs** — if you upgrade the chart and the CRD schema has
+changed, manually apply the updated CRD:
+
+```sh
+kubectl apply -f charts/gameplane/crds/gameplane.local_clusters.yaml
+```
+
+After that, you can proceed with your `helm upgrade`.
+
+### RBAC and permissions
+
+Registering a cluster grants **no implicit RBAC** on it — a user who
+can start servers on the "local" cluster will not automatically be able
+to do so on a newly registered cluster. Each cluster maintains its own
+role bindings. To grant a user access to resources on the target
+cluster, create matching role bindings there, or use the dashboard to
+add cluster-scoped permissions if the target cluster's API also
+supports the same RBAC model.
+
 ## Upgrading
 
 ```sh

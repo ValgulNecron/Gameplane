@@ -227,6 +227,28 @@ Secrets Gameplane reads or creates, by convention:
 Rotation: deleting the `-rcon` secret triggers a reconciliation and
 generates a fresh password on the next pod restart.
 
+## Kubeconfig Secret handling
+
+In a multi-cluster setup, each target cluster is referenced by a Secret
+containing its kubeconfig. Access to cluster credentials is protected
+by several layers:
+
+- **Label guard.** The API only reads Secrets labelled
+  `gameplane.local/cluster-kubeconfig=true` when registering a cluster
+  via the dashboard or API. This prevents a user from pointing at an
+  arbitrary control-plane Secret (e.g., the OIDC client secret or
+  backup credentials) and using it as a kubeconfig.
+- **Never logged or returned.** The kubeconfig is never logged by the
+  API, never echoed in responses, never visible in audit trails. It
+  exists only to bootstrap the Kubernetes client for that cluster.
+- **Permission gating.** Only users holding the `cluster:manage`
+  permission (admin-only) can register, list, or delete clusters via
+  the API. Dashboard access to `/clusters` is similarly gated.
+- **No implicit RBAC.** Registering a cluster does not grant any user
+  access to resources on that cluster. Access is determined by role
+  bindings created independently on the target cluster, not by
+  federation. See [install.md](install.md#rbac-and-permissions).
+
 ## Pre-auth screens
 
 No internal infrastructure metrics are displayed on the login page or
