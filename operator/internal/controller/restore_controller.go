@@ -25,6 +25,10 @@ import (
 type RestoreReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	// ResticImage is the image for the restic restore Job. Set from an
+	// operator flag so air-gapped installs can point it at a private
+	// registry mirror. Empty falls back to DefaultResticImage.
+	ResticImage string
 }
 
 // +kubebuilder:rbac:groups=gameplane.local,resources=restores,verbs=get;list;watch;update;patch
@@ -237,7 +241,7 @@ func (r *RestoreReconciler) buildRestorePodSpec(
 		},
 		Containers: []corev1.Container{{
 			Name:  "restic",
-			Image: "restic/restic:0.17.1",
+			Image: resticImageOrDefault(r.ResticImage),
 			// --target / restores each snapshot entry at its original
 			// absolute path. The companion backup runs `restic backup
 			// /data`, so the snapshot tree is rooted at /data/...; with

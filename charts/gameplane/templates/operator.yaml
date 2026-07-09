@@ -207,6 +207,12 @@ spec:
             - --leader-elect
             {{- end }}
             - --agent-image={{ include "gameplane.agentImage" . }}
+            {{- if .Values.operator.configInitImage }}
+            - --config-init-image={{ .Values.operator.configInitImage }}
+            {{- end }}
+            {{- if .Values.operator.resticImage }}
+            - --restic-image={{ .Values.operator.resticImage }}
+            {{- end }}
             - --agent-ca-bundle=/etc/gameplane/agent-ca/ca.crt
             - --agent-client-cert=/etc/gameplane/agent-client/tls.crt
             - --agent-client-key=/etc/gameplane/agent-client/tls.key

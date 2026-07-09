@@ -65,6 +65,100 @@ type BackupReconciler struct {
 	// LogReader, if set, overrides the default kubernetes-Clientset
 	// based log reader. Used by tests.
 	LogReader BackupLogReader
+	// ResticImage is the image for the restic backup Job. Set from an
+	// operator flag so air-gapped installs can point it at a private
+	// registry mirror. Empty falls back to DefaultResticImage.
+	ResticImage string
+	// SnapshotScrapeGracePeriod bounds how long after the restic Job
+	// completes the reconciler keeps retrying to read the snapshot id from
+	// the pod logs before failing the Backup. Zero uses
+	// defaultSnapshotScrapeGracePeriod; tests set it small.
+	SnapshotScrapeGracePeriod time.Duration
+}
+
+// defaultSnapshotScrapeGracePeriod bounds how long, after the restic Job
+// finishes, the reconciler keeps retrying to read the snapshot id out of the
+// pod logs before giving up. Log availability can lag Job completion by a few
+// seconds, but logs that were rotated or garbage-collected never come back —
+// and a Backup with no snapshot id is not restorable, so past this window it
+// is failed rather than left parked at a misleading Succeeded.
+const defaultSnapshotScrapeGracePeriod = 3 * time.Minute
+
+func (r *BackupReconciler) snapshotScrapeGracePeriod() time.Duration {
+	if r.SnapshotScrapeGracePeriod > 0 {
+		return r.SnapshotScrapeGracePeriod
+	}
+	return defaultSnapshotScrapeGracePeriod
+}
+
+// completedSince reports how long ago the backup Job finished. It prefers the
+// Job's own CompletionTime and falls back to the copy mirrored onto the Backup,
+// so the grace period stays bounded even once the Job object is gone. Returns 0
+// when neither is set, which keeps the caller retrying rather than failing on a
+// Job that hasn't recorded a completion time yet.
+func completedSince(job *batchv1.Job, b *gameplanev1alpha1.Backup) time.Duration {
+	ct := job.Status.CompletionTime
+	if ct == nil {
+		ct = b.Status.CompletionTime
+	}
+	if ct == nil {
+		return 0
+	}
+	return time.Since(ct.Time)
+}
+
+// snapshotUnavailableMsg explains a Backup that wrote data but can never be
+// restored, because its restic snapshot id was never recoverable.
+const snapshotUnavailableMsg = "backup job completed but its restic snapshot id could not be " +
+	"read from the pod logs; the backup is not restorable"
+
+// retrySnapshotScrape re-reads the restic summary for a Backup that finished
+// without yielding a snapshot id, without re-entering the create/validate
+// pipeline. If the Job is gone its pod logs went with it, so the id can never be
+// recovered and the Backup fails now rather than after the grace period.
+func (r *BackupReconciler) retrySnapshotScrape(
+	ctx context.Context, b *gameplanev1alpha1.Backup,
+) (ctrl.Result, error) {
+	var job batchv1.Job
+	if err := r.Get(ctx, types.NamespacedName{Namespace: b.Namespace, Name: b.Name}, &job); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		return r.failUnrestorable(ctx, b)
+	}
+	return r.mirrorJobStatus(ctx, b, &job)
+}
+
+// failUnrestorable terminates a Backup whose snapshot id could not be read.
+//
+// It releases the game world FIRST. If spec.quiesce was set, the world is
+// sitting with auto-save off waiting for the post-backup unquiesce; once the
+// Backup is Failed the Reconcile guard short-circuits and the unquiesce would
+// never run — leaving the world frozen. So retry the unquiesce until it lands
+// (runUnquiesce asks for a requeue when the agent is unreachable) and only then
+// commit the terminal phase.
+func (r *BackupReconciler) failUnrestorable(
+	ctx context.Context, b *gameplanev1alpha1.Backup,
+) (ctrl.Result, error) {
+	res, err := r.runUnquiesce(ctx, b)
+	if err != nil || res.RequeueAfter > 0 || res.Requeue {
+		return res, err
+	}
+	return r.fail(ctx, b, snapshotUnavailableMsg)
+}
+
+// DefaultResticImage is the pinned restic image used by the backup and
+// restore Jobs. Overridable via the operator's --restic-image flag for
+// air-gapped installs (both reconcilers fall back to it when unset).
+const DefaultResticImage = "restic/restic:0.17.1"
+
+// resticImageOrDefault resolves the configured restic image, falling back
+// to the pin when the operator wasn't given a --restic-image.
+func resticImageOrDefault(image string) string {
+	if image == "" {
+		return DefaultResticImage
+	}
+	return image
 }
 
 // +kubebuilder:rbac:groups=gameplane.local,resources=backups,verbs=get;list;watch;update;patch
@@ -81,6 +175,15 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// A Succeeded Backup whose restic snapshot id we never managed to read isn't
+	// restorable yet, so keep working on it — but retry only the log scrape.
+	// Re-entering the full pipeline would re-validate the GameServer and repo
+	// Secret (flipping an already-Succeeded Backup to Failed if either was since
+	// deleted) and would re-create a cleaned-up Job, running a second backup.
+	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
+		return r.retrySnapshotScrape(ctx, &b)
+	}
+	// Terminal Backups need no further reconciliation.
 	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded ||
 		b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
 		return ctrl.Result{}, nil
@@ -245,21 +348,34 @@ func (r *BackupReconciler) mirrorJobStatus(
 		dirty = true
 	}
 
-	// On first observation of Succeeded, scrape the restic summary
-	// for snapshot id + size. Restore depends on a non-empty
-	// snapshotID so this isn't optional — but a parse error must
-	// not flip the Backup to Failed (the data was actually written),
-	// so we surface the error in Message and let the user retry.
+	// On Succeeded, scrape the restic summary for snapshot id + size.
+	// Restore depends on a non-empty snapshotID, so a Succeeded Backup that
+	// never yields one is not restorable. Retry across reconciles (log
+	// availability can lag Job completion); if the id still can't be read a
+	// grace period after the Job finished — e.g. the logs were rotated or
+	// GC'd — fail the Backup rather than leaving it parked at a misleading
+	// Succeeded.
+	snapshotMissing := false
 	if phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
-		if summary, err := r.readResticSummary(ctx, b); err == nil {
+		summary, err := r.readResticSummary(ctx, b)
+		switch {
+		case err == nil && summary.SnapshotID != "":
 			b.Status.SnapshotID = summary.SnapshotID
 			if summary.TotalBytesProcessed > 0 {
 				q := resource.MustParse(strconv.FormatInt(summary.TotalBytesProcessed, 10))
 				b.Status.Size = &q
 			}
+			if b.Status.Message != "" {
+				b.Status.Message = "" // clear any transient scrape error
+			}
 			dirty = true
-		} else if !errors.Is(err, ErrNoResticSummary) {
-			if b.Status.Message != err.Error() {
+		case completedSince(job, b) > r.snapshotScrapeGracePeriod():
+			return r.failUnrestorable(ctx, b)
+		default:
+			// Not yet: keep retrying on requeue until the id lands or the
+			// grace period lapses. Surface why for visibility.
+			snapshotMissing = true
+			if err != nil && !errors.Is(err, ErrNoResticSummary) && b.Status.Message != err.Error() {
 				b.Status.Message = err.Error()
 				dirty = true
 			}
@@ -299,7 +415,17 @@ func (r *BackupReconciler) mirrorJobStatus(
 	}
 
 	if phase == gameplanev1alpha1.BackupPhaseSucceeded || phase == gameplanev1alpha1.BackupPhaseFailed {
-		return r.runUnquiesce(ctx, b)
+		res, err := r.runUnquiesce(ctx, b)
+		if err != nil {
+			return res, err
+		}
+		// A Succeeded Backup whose snapshot id we still couldn't read isn't
+		// restorable yet — keep requeuing to retry the scrape (runUnquiesce
+		// asks for no requeue on success).
+		if snapshotMissing && res.RequeueAfter == 0 && !res.Requeue {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+		return res, nil
 	}
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 }
@@ -522,7 +648,7 @@ func (r *BackupReconciler) buildBackupPodSpec(b *gameplanev1alpha1.Backup) corev
 		},
 		InitContainers: []corev1.Container{{
 			Name:    "restic-init",
-			Image:   "restic/restic:0.17.1",
+			Image:   resticImageOrDefault(r.ResticImage),
 			Command: []string{"/bin/sh", "-c"},
 			// `cat config` is the canonical "does the repo exist" probe;
 			// `init` is idempotent against an empty target.
@@ -535,7 +661,7 @@ func (r *BackupReconciler) buildBackupPodSpec(b *gameplanev1alpha1.Backup) corev
 		}},
 		Containers: []corev1.Container{{
 			Name:  "restic",
-			Image: "restic/restic:0.17.1",
+			Image: resticImageOrDefault(r.ResticImage),
 			Args:  args,
 			Env:   env,
 			VolumeMounts: []corev1.VolumeMount{

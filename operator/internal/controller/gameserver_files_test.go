@@ -9,13 +9,13 @@ import (
 
 func TestBuildConfigInitContainer_Defaults(t *testing.T) {
 	tmpl := &gameplanev1alpha1.GameTemplate{}
-	c := buildConfigInitContainer(tmpl)
+	c := buildConfigInitContainer("", tmpl)
 
 	if c.Name != "config-init" {
 		t.Errorf("name = %q, want config-init", c.Name)
 	}
-	if c.Image != configInitImage {
-		t.Errorf("image = %q, want pinned %q", c.Image, configInitImage)
+	if c.Image != DefaultConfigInitImage {
+		t.Errorf("image = %q, want default pin %q", c.Image, DefaultConfigInitImage)
 	}
 	if len(c.Args) != 1 || !strings.Contains(c.Args[0], configFilesStagingPath+"/*") {
 		t.Errorf("args should copy from the staging glob, got %v", c.Args)
@@ -41,12 +41,22 @@ func TestBuildConfigInitContainer_HonorsMountPath(t *testing.T) {
 			Storage: gameplanev1alpha1.GameStorageSpec{MountPath: "/world"},
 		},
 	}
-	c := buildConfigInitContainer(tmpl)
+	c := buildConfigInitContainer("", tmpl)
 
 	if !strings.Contains(c.Args[0], "'/world/'") {
 		t.Errorf("args should copy into /world, got %v", c.Args)
 	}
 	if c.VolumeMounts[1].MountPath != "/world" {
 		t.Errorf("data mount path = %q, want /world", c.VolumeMounts[1].MountPath)
+	}
+}
+
+func TestBuildConfigInitContainer_HonorsImageOverride(t *testing.T) {
+	tmpl := &gameplanev1alpha1.GameTemplate{}
+	const override = "registry.internal.example/busybox:1.37.0"
+	c := buildConfigInitContainer(override, tmpl)
+
+	if c.Image != override {
+		t.Errorf("image = %q, want override %q", c.Image, override)
 	}
 }

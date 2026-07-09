@@ -220,7 +220,7 @@ Commit the regenerated files in the same change:
 - `operator/config/rbac/*.yaml`
 - `charts/gameplane/crds/*.yaml` (synced automatically by `make manifests`)
 
-Note: Helm only installs `crds/` on first install — `helm upgrade` never updates CRDs, so e2e/dev clusters must be recreated after CRD schema changes.
+Note: Helm only installs `crds/` on first install — `helm upgrade` never updates CRDs. `make dev-install` works around this by running `kubectl apply --server-side -f charts/gameplane/crds/` before the upgrade, so CRD schema changes land in-place on a dev cluster without a full `dev-down`/`dev-up`. A raw `helm upgrade` (or an e2e cluster brought up some other way) still won't update CRDs.
 
 ### 8. Do NOT run the test or lint suites locally — CI is the source of truth
 
