@@ -69,6 +69,35 @@ type BackupReconciler struct {
 	// operator flag so air-gapped installs can point it at a private
 	// registry mirror. Empty falls back to DefaultResticImage.
 	ResticImage string
+	// SnapshotScrapeGracePeriod bounds how long after the restic Job
+	// completes the reconciler keeps retrying to read the snapshot id from
+	// the pod logs before failing the Backup. Zero uses
+	// defaultSnapshotScrapeGracePeriod; tests set it small.
+	SnapshotScrapeGracePeriod time.Duration
+}
+
+// defaultSnapshotScrapeGracePeriod bounds how long, after the restic Job
+// finishes, the reconciler keeps retrying to read the snapshot id out of the
+// pod logs before giving up. Log availability can lag Job completion by a few
+// seconds, but logs that were rotated or garbage-collected never come back —
+// and a Backup with no snapshot id is not restorable, so past this window it
+// is failed rather than left parked at a misleading Succeeded.
+const defaultSnapshotScrapeGracePeriod = 3 * time.Minute
+
+func (r *BackupReconciler) snapshotScrapeGracePeriod() time.Duration {
+	if r.SnapshotScrapeGracePeriod > 0 {
+		return r.SnapshotScrapeGracePeriod
+	}
+	return defaultSnapshotScrapeGracePeriod
+}
+
+// jobCompletedSince reports how long ago the Job recorded completion, or 0 if
+// it hasn't recorded a completion time yet.
+func jobCompletedSince(job *batchv1.Job) time.Duration {
+	if job.Status.CompletionTime == nil {
+		return 0
+	}
+	return time.Since(job.Status.CompletionTime.Time)
 }
 
 // DefaultResticImage is the pinned restic image used by the backup and
@@ -99,8 +128,12 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded ||
-		b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
+	// Terminal Backups need no further reconciliation — except a Succeeded one
+	// whose restic snapshot id we still haven't managed to read: it isn't
+	// restorable yet, so keep reconciling to retry the scrape (mirrorJobStatus
+	// gives up and fails it once the grace period lapses).
+	if b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed ||
+		(b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID != "") {
 		return ctrl.Result{}, nil
 	}
 
@@ -263,21 +296,36 @@ func (r *BackupReconciler) mirrorJobStatus(
 		dirty = true
 	}
 
-	// On first observation of Succeeded, scrape the restic summary
-	// for snapshot id + size. Restore depends on a non-empty
-	// snapshotID so this isn't optional — but a parse error must
-	// not flip the Backup to Failed (the data was actually written),
-	// so we surface the error in Message and let the user retry.
+	// On Succeeded, scrape the restic summary for snapshot id + size.
+	// Restore depends on a non-empty snapshotID, so a Succeeded Backup that
+	// never yields one is not restorable. Retry across reconciles (log
+	// availability can lag Job completion); if the id still can't be read a
+	// grace period after the Job finished — e.g. the logs were rotated or
+	// GC'd — fail the Backup rather than leaving it parked at a misleading
+	// Succeeded. Unquiesce is unaffected: it already ran when the Backup
+	// first reached Succeeded, so the world is not left frozen.
+	snapshotMissing := false
 	if phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
-		if summary, err := r.readResticSummary(ctx, b); err == nil {
+		summary, err := r.readResticSummary(ctx, b)
+		switch {
+		case err == nil && summary.SnapshotID != "":
 			b.Status.SnapshotID = summary.SnapshotID
 			if summary.TotalBytesProcessed > 0 {
 				q := resource.MustParse(strconv.FormatInt(summary.TotalBytesProcessed, 10))
 				b.Status.Size = &q
 			}
+			if b.Status.Message != "" {
+				b.Status.Message = "" // clear any transient scrape error
+			}
 			dirty = true
-		} else if !errors.Is(err, ErrNoResticSummary) {
-			if b.Status.Message != err.Error() {
+		case jobCompletedSince(job) > r.snapshotScrapeGracePeriod():
+			return r.fail(ctx, b,
+				"backup job completed but its restic snapshot id could not be read from the pod logs; the backup is not restorable")
+		default:
+			// Not yet: keep retrying on requeue until the id lands or the
+			// grace period lapses. Surface why for visibility.
+			snapshotMissing = true
+			if err != nil && !errors.Is(err, ErrNoResticSummary) && b.Status.Message != err.Error() {
 				b.Status.Message = err.Error()
 				dirty = true
 			}
@@ -317,7 +365,17 @@ func (r *BackupReconciler) mirrorJobStatus(
 	}
 
 	if phase == gameplanev1alpha1.BackupPhaseSucceeded || phase == gameplanev1alpha1.BackupPhaseFailed {
-		return r.runUnquiesce(ctx, b)
+		res, err := r.runUnquiesce(ctx, b)
+		if err != nil {
+			return res, err
+		}
+		// A Succeeded Backup whose snapshot id we still couldn't read isn't
+		// restorable yet — keep requeuing to retry the scrape (runUnquiesce
+		// asks for no requeue on success).
+		if snapshotMissing && res.RequeueAfter == 0 && !res.Requeue {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+		return res, nil
 	}
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 }
