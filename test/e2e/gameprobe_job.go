@@ -14,6 +14,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// probeNamespace is where the game-bot probe Job runs. It must NOT be the games
+// namespace: the chart installs a default-deny-egress NetworkPolicy there with
+// `podSelector: {}`, so every pod in it — including the probe — may egress only
+// to DNS, and the probe's connect to the game port would be dropped. From
+// outside that namespace the probe's egress is unrestricted, and the game pod's
+// own `allow-kubelet-probes` policy admits ingress from any RFC1918 pod IP.
+// This also mirrors how a real player reaches the game: from off-cluster.
+const probeNamespace = "default"
+
 // probeImage is the in-cluster game-bot image: built by the game-bot CI job
 // (docker-bake.hcl target "e2e-gameprobe") and side-loaded into kind by
 // deploy/kind/e2e.sh. Override it when the cluster pulls from a registry
@@ -41,17 +50,19 @@ func (e *Env) probeImage() string {
 // gameprobe owns its own retry loop (a game server accepts TCP well before it
 // accepts a login), so this waits for a single terminal Job outcome rather than
 // retrying the protocol here.
-func (e *Env) RunGameProbe(t *testing.T, ns, gsName, game string, port int, deadline time.Duration) {
+//
+// The Job runs in probeNamespace (default) and dials the game Service in gameNS.
+func (e *Env) RunGameProbe(t *testing.T, gameNS, gsName, game string, port int, deadline time.Duration) {
 	t.Helper()
 	ctx := context.Background()
 	jobName := gsName + "-probe"
-	addr := fmt.Sprintf("%s.%s.svc.cluster.local:%d", gsName, ns, port)
+	addr := fmt.Sprintf("%s.%s.svc.cluster.local:%d", gsName, gameNS, port)
 
 	bg := metav1.DeletePropagationBackground
 	// Recreate so a previous failure can't leave a Failed shell behind.
-	_ = e.K8s.BatchV1().Jobs(ns).Delete(ctx, jobName, metav1.DeleteOptions{PropagationPolicy: &bg})
+	_ = e.K8s.BatchV1().Jobs(probeNamespace).Delete(ctx, jobName, metav1.DeleteOptions{PropagationPolicy: &bg})
 	t.Cleanup(func() {
-		_ = e.K8s.BatchV1().Jobs(ns).Delete(
+		_ = e.K8s.BatchV1().Jobs(probeNamespace).Delete(
 			context.Background(), jobName, metav1.DeleteOptions{PropagationPolicy: &bg})
 	})
 
@@ -63,7 +74,7 @@ func (e *Env) RunGameProbe(t *testing.T, ns, gsName, game string, port int, dead
 		backoff   = int32(0)
 	)
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: ns},
+		ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: probeNamespace},
 		Spec: batchv1.JobSpec{
 			// One shot: gameprobe already retries internally, so a non-zero
 			// exit means the server never became playable.
@@ -98,7 +109,7 @@ func (e *Env) RunGameProbe(t *testing.T, ns, gsName, game string, port int, dead
 			},
 		},
 	}
-	if _, err := e.K8s.BatchV1().Jobs(ns).Create(ctx, job, metav1.CreateOptions{}); err != nil {
+	if _, err := e.K8s.BatchV1().Jobs(probeNamespace).Create(ctx, job, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("create %s probe job: %v", game, err)
 	}
 
@@ -107,21 +118,21 @@ func (e *Env) RunGameProbe(t *testing.T, ns, gsName, game string, port int, dead
 	wait := deadline + 2*time.Minute
 	expiry := time.Now().Add(wait)
 	for {
-		j, err := e.K8s.BatchV1().Jobs(ns).Get(ctx, jobName, metav1.GetOptions{})
+		j, err := e.K8s.BatchV1().Jobs(probeNamespace).Get(ctx, jobName, metav1.GetOptions{})
 		if err == nil {
 			if j.Status.Succeeded > 0 {
-				out, _ := e.Kubectl("logs", "-n", ns, "job/"+jobName, "--tail=50")
+				out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=50")
 				t.Logf("%s probe passed against %s:\n%s", game, addr, out)
 				return
 			}
 			if j.Status.Failed > 0 {
-				out, _ := e.Kubectl("logs", "-n", ns, "job/"+jobName, "--tail=200")
+				out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
 				t.Fatalf("%s probe failed — %s never became playable:\n%s", game, addr, out)
 			}
 		}
 		if time.Now().After(expiry) {
-			out, _ := e.Kubectl("logs", "-n", ns, "job/"+jobName, "--tail=200")
-			pods, _ := e.Kubectl("get", "pods", "-n", ns, "-l", "job-name="+jobName, "-o", "wide")
+			out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
+			pods, _ := e.Kubectl("get", "pods", "-n", probeNamespace, "-l", "job-name="+jobName, "-o", "wide")
 			t.Fatalf("%s probe job did not finish within %s (is %s loaded into the cluster?)\npods:\n%s\nlogs:\n%s",
 				game, wait, e.probeImage(), pods, out)
 		}
