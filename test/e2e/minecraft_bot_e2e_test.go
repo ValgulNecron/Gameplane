@@ -19,9 +19,8 @@ import (
 // inside the cluster that pings the server and completes a login — proving the
 // server is genuinely playable, not merely "Running" in Kubernetes.
 //
-// The bot runs as an in-cluster Job (see Env.RunGameProbe) rather than dialing
-// a `kubectl port-forward`: that tunnel corrupts the login handshake under CI
-// load, which is what used to make this job advisory.
+// The bot runs as an in-cluster Job (see `Env.RunGameProbe`) and dials the game
+// Service directly rather than through a `kubectl port-forward` tunnel.
 //
 // Unlike the other GameServer tests (which use a busybox "fake game" and never
 // wait for a Ready pod), this pulls a large external image and boots a JVM, so

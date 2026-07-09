@@ -1,9 +1,9 @@
 # Image for the e2e game-bot probe (test/e2e/cmd/gameprobe).
 #
 # Built only by the e2e game-bot CI job and loaded straight into kind; it is
-# never published. Running the protocol bot from inside the cluster is what
-# lets that job drop `kubectl port-forward`, whose tunnel corrupts the
-# Minecraft login handshake under runner load.
+# never published. Running the protocol bot from inside the cluster lets that
+# job dial the game Service directly, exercising the same network path a real
+# in-cluster client uses instead of a `kubectl port-forward` tunnel.
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY test/e2e/ ./

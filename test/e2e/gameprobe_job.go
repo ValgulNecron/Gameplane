@@ -41,11 +41,9 @@ func (e *Env) probeImage() string {
 // RunGameProbe runs the headless protocol bot as a Job inside the cluster,
 // pointed at the game Service's DNS name, and fails the test unless it exits 0.
 //
-// The bot runs in-cluster on purpose. Reaching the game through
-// `kubectl port-forward` carries the game protocol over an apiserver SPDY
-// tunnel which, under CI load, corrupts the Minecraft login handshake — the
-// server then drops the connection ("Failed to decode packet
-// 'serverbound/minecraft:hello'"). Dialing the Service directly removes that hop.
+// The bot runs in-cluster on purpose — it dials the game Service the way a real
+// in-cluster client does, rather than tunnelling the game protocol through an
+// apiserver SPDY connection via `kubectl port-forward`.
 //
 // gameprobe owns its own retry loop (a game server accepts TCP well before it
 // accepts a login), so this waits for a single terminal Job outcome rather than

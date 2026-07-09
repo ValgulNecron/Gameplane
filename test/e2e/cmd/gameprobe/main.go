@@ -3,10 +3,7 @@
 //
 // It is built into a small image and run as a Job *inside* the kind cluster by
 // the e2e game-bot tests, so the bot reaches the game over the cluster network
-// (Service DNS) rather than through a `kubectl port-forward` tunnel. Under CI
-// load that tunnel corrupts the Minecraft login handshake and the server drops
-// the connection ("Failed to decode packet 'serverbound/minecraft:hello'"),
-// which is why the game-bot job used to be advisory.
+// (Service DNS) rather than through a `kubectl port-forward` tunnel.
 //
 // The probe owns its own retry loop: a game server accepts TCP — and, for
 // Minecraft, answers server-list pings — before it will accept a login, so a

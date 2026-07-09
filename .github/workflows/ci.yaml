@@ -414,11 +414,12 @@ jobs:
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (game bot)
-        # Blocking. The bot now runs as a Job inside the cluster and dials the
-        # game Service directly, so the protocol no longer crosses the
-        # `kubectl port-forward` SPDY tunnel that corrupted the Minecraft login
-        # handshake under runner load ("Failed to decode packet
-        # 'serverbound/minecraft:hello'") and forced this job to be advisory.
+        # Blocking. The bot runs as a Job inside the cluster and dials the game
+        # Service directly, removing the `kubectl port-forward` hop this job's
+        # flakiness was once blamed on. (That blame turned out to be wrong: the
+        # real failures were a too-long bot username and a drifted Terraria image
+        # tag, both fixed. The in-cluster harness is still what exercises the
+        # network path a real client uses.)
         run: |
           RUN_REGEX="$(./test/e2e/buckets.sh regex bot)"
           cd test/e2e && \
