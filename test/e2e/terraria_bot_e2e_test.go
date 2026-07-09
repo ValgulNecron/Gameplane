@@ -48,7 +48,11 @@ func TestGameServer_TerrariaBotConnects(t *testing.T) {
 			"displayName": "E2E Terraria",
 			"game":        "terraria",
 			"version":     "1",
-			"image":       "passivelemon/terraria-docker:terraria-latest",
+			// Pinned because terrabot speaks protocol Terraria279 (1.4.4.x);
+			// terraria-latest has moved to 1.4.5.x, whose protocol differs.
+			// The server's version-mismatch kick (LegacyMultiplayer.4) names no version,
+			// so the bot cannot self-correct. A blocking test must be hermetic.
+			"image": "passivelemon/terraria-docker:terraria-1.4.4.9",
 			"env": []any{
 				map[string]any{"name": "WORLDNAME", "value": "e2e"},
 				map[string]any{"name": "AUTOCREATE", "value": "1"}, // small world

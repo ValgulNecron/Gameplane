@@ -108,6 +108,15 @@ func Ping(ctx context.Context, addr string) (*Status, error) {
 // Login completes a login handshake against addr using the given protocol
 // number (get it from Ping) and username, in offline mode (no encryption).
 func Login(ctx context.Context, addr string, protocol int, username string) (*LoginResult, error) {
+	// Minecraft reads the login name with readUtf(16); a longer name makes the
+	// server throw DecoderException and drop the connection with the opaque
+	// "Failed to decode packet 'serverbound/minecraft:hello'". Fail loudly here
+	// instead.
+	if len(username) > 16 {
+		return nil, fmt.Errorf("mcbot: username %q is %d characters; Minecraft allows at most 16",
+			username, len(username))
+	}
+
 	host, port, err := splitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -127,13 +136,9 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 	}
 	ls.Write(uuid)
 
-	// Send the handshake and Login Start in a SINGLE write. As two back-to-back
-	// writes, kubectl port-forward (used by the e2e harness) can split them
-	// across the server's handshake->login state transition under load, so the
-	// server decodes the Login Start with the wrong pipeline and drops the
-	// connection ("Failed to decode packet 'serverbound/minecraft:hello'"). One
-	// write keeps both packets in a single segment — the way a real client
-	// sends them — which is reliable through the port-forward proxy.
+	// Send the handshake and Login Start in a SINGLE write. A real client
+	// sends them together in one packet, avoiding any partial-pipeline risk
+	// across the handshake->login state transition.
 	var login bytes.Buffer
 	login.Write(handshake(int32(protocol), host, port, 2))
 	login.Write(buildPacket(0x00, ls.Bytes()))

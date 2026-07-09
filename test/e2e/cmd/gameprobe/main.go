@@ -42,7 +42,8 @@ func main() {
 	log.SetFlags(log.Ltime)
 	game := flag.String("game", "", "game protocol to probe: minecraft | terraria")
 	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
-	user := flag.String("user", "gameplane-e2e-bot", "username the minecraft bot logs in with")
+	user := flag.String("user", "gameplane-bot",
+		"username the minecraft bot logs in with (Minecraft allows at most 16 characters)")
 	deadline := flag.Duration("deadline", 4*time.Minute,
 		"overall deadline; the probe retries until the server is playable or this elapses")
 	flag.Parse()
