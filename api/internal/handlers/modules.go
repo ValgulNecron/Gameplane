@@ -69,6 +69,7 @@ type CatalogEntry struct {
 	DisplayName      string      `json:"displayName,omitempty"`
 	Summary          string      `json:"summary,omitempty"`
 	Game             string      `json:"game,omitempty"`
+	Category         string      `json:"category,omitempty"`
 	Icon             string      `json:"icon,omitempty"`
 	Sources          []SourceRef `json:"sources"`
 	Versions         []string    `json:"versions,omitempty"`
@@ -315,6 +316,9 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 			}
 			if g, _ := m["game"].(string); g != "" && e.Game == "" {
 				e.Game = g
+			}
+			if c, _ := m["category"].(string); c != "" && e.Category == "" {
+				e.Category = c
 			}
 			if ic, _ := m["icon"].(string); ic != "" && e.Icon == "" {
 				e.Icon = ic

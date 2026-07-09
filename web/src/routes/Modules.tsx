@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { verifyForEntry } from "@/lib/verify";
-import { GAME_CATEGORIES, gameCategory } from "@/lib/games";
+import { resolveCategory, categoryFilters } from "@/lib/games";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -56,9 +56,14 @@ export function ModulesPage() {
     return ["all", ...Array.from(out).sort()];
   }, [items]);
 
+  const catChips = useMemo(
+    () => categoryFilters((data?.items ?? []).map((e) => resolveCategory(e.category, e.game ?? ""))),
+    [data],
+  );
+
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
-    if (catFilter !== "all" && gameCategory(e.game ?? "") !== catFilter) return false;
+    if (catFilter !== "all" && resolveCategory(e.category, e.game ?? "") !== catFilter) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }
@@ -135,7 +140,7 @@ export function ModulesPage() {
           ))}
         </div>
         <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
-          {GAME_CATEGORIES.map((c) => (
+          {catChips.map((c) => (
             <button
               key={c}
               onClick={() => setCatFilter(c)}
@@ -145,6 +150,7 @@ export function ModulesPage() {
                   ? "bg-primary/15 text-primary"
                   : "text-muted hover:text-fg",
               )}
+              aria-pressed={catFilter === c}
             >
               {c === "all" ? "All categories" : c}
             </button>

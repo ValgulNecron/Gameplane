@@ -247,6 +247,12 @@ type ModuleEntry struct {
 	// +optional
 	Game string `json:"game,omitempty"`
 
+	// Category is the catalog grouping from module.yaml (e.g. "Survival",
+	// "Sandbox"). Surfaced so the dashboard can build its module-catalog
+	// filter from author-declared values instead of a hardcoded heuristic.
+	// +optional
+	Category string `json:"category,omitempty"`
+
 	// Icon is either a relative filename (resolved against the bundle)
 	// or a URL/data URI passed straight through to the UI.
 	// +optional
