@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -488,25 +489,72 @@ func resticWarmup() error {
 			return fmt.Errorf("apply %s: %v\n%s", fixture, err, out)
 		}
 	}
-	if out, err := e.Kubectl("rollout", "status", "-n", "gameplane-system",
-		"deploy/gameplane-test-restic", "--timeout=120s"); err != nil {
-		return fmt.Errorf("restic server rollout: %v\n%s", err, out)
-	}
-	// Recreate the Job so reruns against a kept cluster don't trip over a
-	// completed (immutable) shell from a previous run.
-	_, _ = e.Kubectl("delete", "job", "-n", "gameplane-games",
-		"e2e-restic-warmup", "--ignore-not-found")
-	abs, err := filepath.Abs(filepath.Join("fixtures", "restic-warmup-job.yaml"))
+	jobAbs, err := filepath.Abs(filepath.Join("fixtures", "restic-warmup-job.yaml"))
 	if err != nil {
 		return fmt.Errorf("resolve restic-warmup-job.yaml: %w", err)
 	}
-	if out, err := e.Kubectl("apply", "-f", abs); err != nil {
+
+	// `restic init` writes the repo `config` before the key, so a restic-server
+	// eviction (node memory pressure — the usual kind-e2e flake) in that window
+	// leaves a config with no key: `restic cat config` can't decrypt and the
+	// `|| restic init` fallback 403s forever (rest-server won't overwrite an
+	// existing config), so no amount of in-pod retry recovers. Between attempts
+	// wipe the server pod's emptyDir (a fresh /data is an empty repo) so the
+	// re-init starts clean.
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if out, err := e.Kubectl("rollout", "status", "-n", "gameplane-system",
+			"deploy/gameplane-test-restic", "--timeout=90s"); err != nil {
+			lastErr = fmt.Errorf("restic server rollout: %v\n%s", err, out)
+			continue
+		}
+		runErr := runResticWarmupJob(e, jobAbs)
+		if runErr == nil {
+			return nil
+		}
+		lastErr = runErr
+		// Reset the server's repo for the next attempt; the Deployment
+		// recreates the pod and the loop's rollout wait blocks on it.
+		_, _ = e.Kubectl("delete", "pod", "-n", "gameplane-system",
+			"-l", "app.kubernetes.io/name=gameplane-test-restic", "--ignore-not-found")
+	}
+	return fmt.Errorf("restic warm-up failed after 3 attempts: %w", lastErr)
+}
+
+// runResticWarmupJob recreates the one-shot init Job and blocks until it
+// reaches a terminal state, returning nil once it Completes and an error
+// (with the pod log) if it Fails or doesn't finish in time. kubectl delete
+// blocks until the old Job's pods clear, so the re-applied Job starts clean.
+func runResticWarmupJob(e *Env, jobAbs string) error {
+	ctx := context.Background()
+	if out, err := e.Kubectl("delete", "job", "-n", "gameplane-games",
+		"e2e-restic-warmup", "--ignore-not-found"); err != nil {
+		return fmt.Errorf("delete old warm-up job: %v\n%s", err, out)
+	}
+	if out, err := e.Kubectl("apply", "-f", jobAbs); err != nil {
 		return fmt.Errorf("apply restic-warmup-job.yaml: %v\n%s", err, out)
 	}
-	if out, err := e.Kubectl("wait", "-n", "gameplane-games",
-		"--for=condition=complete", "job/e2e-restic-warmup", "--timeout=180s"); err != nil {
-		logs, _ := e.Kubectl("logs", "-n", "gameplane-games", "job/e2e-restic-warmup", "--tail=50")
-		return fmt.Errorf("restic warm-up job: %v\n%s\nlogs:\n%s", err, out, logs)
+	deadline := time.Now().Add(120 * time.Second)
+	for {
+		j, err := e.K8s.BatchV1().Jobs("gameplane-games").Get(ctx, "e2e-restic-warmup", metav1.GetOptions{})
+		if err == nil {
+			for _, c := range j.Status.Conditions {
+				if c.Status != corev1.ConditionTrue {
+					continue
+				}
+				switch c.Type {
+				case batchv1.JobComplete:
+					return nil
+				case batchv1.JobFailed:
+					logs, _ := e.Kubectl("logs", "-n", "gameplane-games", "job/e2e-restic-warmup", "--tail=50")
+					return fmt.Errorf("restic warm-up job failed: %s\nlogs:\n%s", c.Message, logs)
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			logs, _ := e.Kubectl("logs", "-n", "gameplane-games", "job/e2e-restic-warmup", "--tail=50")
+			return fmt.Errorf("restic warm-up job timed out:\nlogs:\n%s", logs)
+		}
+		time.Sleep(2 * time.Second)
 	}
-	return nil
 }
