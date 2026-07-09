@@ -86,25 +86,23 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 }
 
 // TestAPI_LifecycleRestart verifies POST :restart drives the existing
-// StatefulSet pod through a delete/recreate cycle. The handler issues a
-// stop+start patch pair; the operator owns the actual pod replacement.
+// StatefulSet pod through a delete/recreate cycle. The handler stamps a
+// restart-requested annotation; the operator owns the actual pod
+// replacement (it drains gracefully and only brings a fresh pod up once the
+// old one is confirmed gone).
 //
 // We capture the original pod's UID, hit :restart, and wait for a pod
 // with the same name and a different UID. The UID change is the
 // canonical "this pod is a different object" check — a name match alone
 // is insufficient since the StatefulSet always recreates with the same
 // name.
-// NOT t.Parallel(): restart is implemented as a suspend=true patch, a
-// bounded wait for the StatefulSet to drain, then a suspend=false patch
-// (api/internal/handlers/lifecycle.go). When the operator's reconcile
-// queue is deep — exactly what a parallel bucket produces — both patches
-// can land between two reconciles of this GameServer, the operator
-// coalesces them into "suspend unchanged", and the restart is silently
-// lost: the pod UID never changes. Go runs non-parallel tests before the
-// parallel phase, so this test gets the idle operator its contract
-// currently requires. TODO: make restart an operator-side primitive
-// (rule 10) so a request can't be lost, then re-parallelize.
+//
+// This runs in parallel: because the restart is an operator-owned token that
+// persists until acked, a deep reconcile queue can no longer coalesce it into
+// a no-op the way the old suspend/resume patch pair could.
 func TestAPI_LifecycleRestart(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 	tmpl := "e2e-api-lifecycle-restart-tmpl"
@@ -119,13 +117,8 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 	waitStatefulSetReplicas(t, ns, gs, 1, 90*time.Second)
 
 	// Restart a genuinely RUNNING server (which is what the dashboard's
-	// restart button acts on). Without the agent sidecar up, the
-	// operator's graceful stop can't issue the agent stop sequence and
-	// waits out the 30s stop-grace period — under parallel-suite load
-	// that pushes the drain past the restart handler's 45s window, the
-	// resume patch races the reconcile, and the two suspend patches
-	// coalesce into a no-op: the pod never recycles and its UID never
-	// changes.
+	// restart button acts on), so the operator's graceful stop can issue the
+	// agent stop sequence and drive the full drain→recycle cycle.
 	requireAgentReady(t, ns, gs)
 
 	// Capture the original pod UID. The pod must exist before :restart;
