@@ -379,7 +379,7 @@ jobs:
           if-no-files-found: warn
 
   e2e-game-bot:
-    name: e2e game bot (kind, advisory)
+    name: e2e game bot (kind)
     runs-on: ubuntu-latest
     # Two serial real-game boots (Minecraft, then Terraria — deliberately
     # not parallel: two game servers booting at once OOM-starve the node).
@@ -407,19 +407,18 @@ jobs:
           install_only: true
       - name: build images
         uses: ./.github/actions/e2e-images
+      - name: build game-bot probe image
+        # Only this job needs the probe, so it lives outside the "e2e" bake
+        # group. deploy/kind/e2e.sh side-loads it into the cluster when present.
+        run: docker buildx bake -f docker-bake.hcl --load e2e-gameprobe
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (game bot)
-        # Advisory (non-blocking). The bot is proven correct — it logs into a
-        # real Minecraft 1.21.4 server locally (direct AND via kubectl
-        # port-forward) — but under a loaded runner the port-forward path
-        # can corrupt the login handshake so the server drops it ("Failed to
-        # decode packet 'serverbound/minecraft:hello'"). Until the harness is
-        # moved off port-forward (run the bot in-cluster), this least-critical
-        # liveness check must not block merges; it still runs and its result
-        # is visible in the log.
-        # TODO: run the bot in-cluster, then drop continue-on-error.
-        continue-on-error: true
+        # Blocking. The bot now runs as a Job inside the cluster and dials the
+        # game Service directly, so the protocol no longer crosses the
+        # `kubectl port-forward` SPDY tunnel that corrupted the Minecraft login
+        # handshake under runner load ("Failed to decode packet
+        # 'serverbound/minecraft:hello'") and forced this job to be advisory.
         run: |
           RUN_REGEX="$(./test/e2e/buckets.sh regex bot)"
           cd test/e2e && \

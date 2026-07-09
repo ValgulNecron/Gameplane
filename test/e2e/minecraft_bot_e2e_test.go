@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -12,15 +11,17 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/mcbot"
 )
 
 // TestGameServer_MinecraftBotConnects is the most end-to-end test in the suite:
 // it stands up a REAL Minecraft server (itzg/minecraft-server) through the
-// operator, waits for it to actually boot, port-forwards the game port, and
-// drives a headless protocol bot that pings the server and completes a login —
-// proving the server is genuinely playable, not merely "Running" in Kubernetes.
+// operator, waits for it to actually boot, and runs a headless protocol bot
+// inside the cluster that pings the server and completes a login — proving the
+// server is genuinely playable, not merely "Running" in Kubernetes.
+//
+// The bot runs as an in-cluster Job (see Env.RunGameProbe) rather than dialing
+// a `kubectl port-forward`: that tunnel corrupts the login handshake under CI
+// load, which is what used to make this job advisory.
 //
 // Unlike the other GameServer tests (which use a busybox "fake game" and never
 // wait for a Ready pod), this pulls a large external image and boots a JVM, so
@@ -131,48 +132,13 @@ func TestGameServer_MinecraftBotConnects(t *testing.T) {
 		return false, "phase=" + phase
 	})
 
-	// Reach the game over the in-cluster Service via a port-forward.
-	local, stop := envInstance.PortForward(t, ns, "svc/"+gsName, 25565)
-	defer stop()
-	addr := fmt.Sprintf("127.0.0.1:%d", local)
-
-	// The server can accept TCP a moment before it answers the protocol; retry
-	// the ping briefly until it responds.
-	var st *mcbot.Status
-	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
-		pctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		defer cancel()
-		s, err := mcbot.Ping(pctx, addr)
-		if err != nil {
-			return false, "ping: " + err.Error()
-		}
-		st = s
-		return true, ""
-	})
-	t.Logf("server list ping ok: version=%q protocol=%d players=%d/%d",
-		st.Version.Name, st.Version.Protocol, st.Players.Online, st.Players.Max)
-
-	// The bot must complete a real login. ONLINE_MODE=FALSE means the server
-	// skips encryption and answers Login Success for our offline bot.
+	// Drive the bot from inside the cluster: it pings the server for its
+	// protocol version and then completes a real login. ONLINE_MODE=FALSE means
+	// the server skips encryption and answers Login Success for our offline bot.
 	//
-	// A Minecraft server answers server-list pings while it is still preparing
-	// the spawn area, but rejects logins until the world is ready — the early
-	// connection is dropped (the server logs "Failed to decode packet hello").
-	// So retry the login until the server is genuinely login-ready, exactly as
-	// the ping above is retried; a single attempt races slow world generation.
-	var res *mcbot.LoginResult
-	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
-		lctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-		defer cancel()
-		r, err := mcbot.Login(lctx, addr, st.Version.Protocol, "gameplane-e2e-bot")
-		if err != nil {
-			return false, "login: " + err.Error()
-		}
-		if r.Outcome != mcbot.Success {
-			return false, fmt.Sprintf("login outcome=%v (%q), want Success", r.Outcome, r.Detail)
-		}
-		res = r
-		return true, ""
-	})
-	t.Logf("bot login succeeded: server accepted %q", res.Detail)
+	// gameprobe retries both steps internally — a Minecraft server answers
+	// server-list pings while it is still preparing the spawn area but rejects
+	// logins until the world is ready, so a single attempt races world
+	// generation.
+	envInstance.RunGameProbe(t, ns, gsName, "minecraft", 25565, 4*time.Minute)
 }

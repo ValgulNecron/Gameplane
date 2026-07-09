@@ -62,6 +62,14 @@ EOF
         kind load docker-image "gameplane-test/${img}:${TAG}" --name "${CLUSTER}"
     done
 
+    # The game-bot probe runs the protocol bot inside the cluster. Only the
+    # game-bot job builds it, so load it when it happens to be present rather
+    # than forcing every other bucket to build it.
+    if docker image inspect "gameplane-test/gameprobe:${TAG}" >/dev/null 2>&1; then
+        echo "loading gameplane-test/gameprobe:${TAG} into kind"
+        kind load docker-image "gameplane-test/gameprobe:${TAG}" --name "${CLUSTER}"
+    fi
+
     echo "helm upgrade --install gameplane"
     # Bump the API container's memory limit above the chart default of
     # 256Mi. The bootstrap-admin subcommand and every login endpoint
