@@ -13,7 +13,10 @@ metadata:
   labels:
     app.kubernetes.io/component: e2e-fixture
 spec:
-  backoffLimit: 4
+  # A poisoned repo (config written, key not — see restic-server.yaml) makes
+  # every in-pod retry 403, so long in-pod backoff only delays recovery. Fail
+  # fast and let ensureResticRepo reset the server + re-init (test_helpers).
+  backoffLimit: 2
   template:
     metadata:
       labels:
@@ -42,6 +45,10 @@ spec:
                 secretKeyRef: { name: e2e-restic-creds, key: password }
             - name: XDG_CACHE_HOME
               value: /tmp/restic-cache
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
           volumeMounts:
             - { name: cache, mountPath: /tmp }
           securityContext:

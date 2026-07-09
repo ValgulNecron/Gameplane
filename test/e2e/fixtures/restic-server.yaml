@@ -28,6 +28,15 @@ spec:
           args: ["--listen", ":8000", "--no-auth"]
           ports:
             - { name: http, containerPort: 8000 }
+          # Requests (no limits) make this Burstable rather than
+          # Best-Effort. Best-Effort pods are the first to be node-pressure
+          # evicted, and an eviction mid `restic init` leaves a half-written
+          # `config` in the emptyDir that poisons every retry (rest-server
+          # then 403s on the re-init). rest-server itself is tiny.
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
           readinessProbe:
             tcpSocket: { port: http }
             initialDelaySeconds: 2
