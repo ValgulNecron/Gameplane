@@ -288,6 +288,11 @@ dev-push: ## Push operator/api/agent images to REGISTRY (remote clusters)
 	docker push $(REGISTRY)/agent:$(TAG)
 
 dev-install: ## Install Gameplane Helm chart into the selected cluster
+	# Helm only installs crds/ on first install — `helm upgrade` never updates
+	# them. Apply them explicitly first so CRD schema changes land in-place on a
+	# dev cluster without a full dev-down/dev-up (server-side apply avoids the
+	# last-applied-annotation size limit on large CRDs).
+	$(KUBECONFIG_ENV) kubectl apply --server-side -f $(CHART_DIR)/crds/
 	$(KUBECONFIG_ENV) helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
