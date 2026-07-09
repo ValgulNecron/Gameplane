@@ -104,8 +104,10 @@ func (r *GameServerReconciler) createWipeJob(
 						SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 					},
 					Containers: []corev1.Container{{
-						Name:    "wipe",
-						Image:   "busybox:1.36",
+						Name: "wipe",
+						// Same shell image as the config-init container, so an
+						// air-gapped install only has to mirror one.
+						Image:   configInitImageOrDefault(r.ConfigInitImage),
 						Command: []string{"/bin/sh", "-c"},
 						// Remove all contents (including dotfiles) but keep the
 						// mount point itself.

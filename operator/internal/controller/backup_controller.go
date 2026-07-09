@@ -91,13 +91,60 @@ func (r *BackupReconciler) snapshotScrapeGracePeriod() time.Duration {
 	return defaultSnapshotScrapeGracePeriod
 }
 
-// jobCompletedSince reports how long ago the Job recorded completion, or 0 if
-// it hasn't recorded a completion time yet.
-func jobCompletedSince(job *batchv1.Job) time.Duration {
-	if job.Status.CompletionTime == nil {
+// completedSince reports how long ago the backup Job finished. It prefers the
+// Job's own CompletionTime and falls back to the copy mirrored onto the Backup,
+// so the grace period stays bounded even once the Job object is gone. Returns 0
+// when neither is set, which keeps the caller retrying rather than failing on a
+// Job that hasn't recorded a completion time yet.
+func completedSince(job *batchv1.Job, b *gameplanev1alpha1.Backup) time.Duration {
+	ct := job.Status.CompletionTime
+	if ct == nil {
+		ct = b.Status.CompletionTime
+	}
+	if ct == nil {
 		return 0
 	}
-	return time.Since(job.Status.CompletionTime.Time)
+	return time.Since(ct.Time)
+}
+
+// snapshotUnavailableMsg explains a Backup that wrote data but can never be
+// restored, because its restic snapshot id was never recoverable.
+const snapshotUnavailableMsg = "backup job completed but its restic snapshot id could not be " +
+	"read from the pod logs; the backup is not restorable"
+
+// retrySnapshotScrape re-reads the restic summary for a Backup that finished
+// without yielding a snapshot id, without re-entering the create/validate
+// pipeline. If the Job is gone its pod logs went with it, so the id can never be
+// recovered and the Backup fails now rather than after the grace period.
+func (r *BackupReconciler) retrySnapshotScrape(
+	ctx context.Context, b *gameplanev1alpha1.Backup,
+) (ctrl.Result, error) {
+	var job batchv1.Job
+	if err := r.Get(ctx, types.NamespacedName{Namespace: b.Namespace, Name: b.Name}, &job); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		return r.failUnrestorable(ctx, b)
+	}
+	return r.mirrorJobStatus(ctx, b, &job)
+}
+
+// failUnrestorable terminates a Backup whose snapshot id could not be read.
+//
+// It releases the game world FIRST. If spec.quiesce was set, the world is
+// sitting with auto-save off waiting for the post-backup unquiesce; once the
+// Backup is Failed the Reconcile guard short-circuits and the unquiesce would
+// never run — leaving the world frozen. So retry the unquiesce until it lands
+// (runUnquiesce asks for a requeue when the agent is unreachable) and only then
+// commit the terminal phase.
+func (r *BackupReconciler) failUnrestorable(
+	ctx context.Context, b *gameplanev1alpha1.Backup,
+) (ctrl.Result, error) {
+	res, err := r.runUnquiesce(ctx, b)
+	if err != nil || res.RequeueAfter > 0 || res.Requeue {
+		return res, err
+	}
+	return r.fail(ctx, b, snapshotUnavailableMsg)
 }
 
 // DefaultResticImage is the pinned restic image used by the backup and
@@ -128,12 +175,17 @@ func (r *BackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	// Terminal Backups need no further reconciliation — except a Succeeded one
-	// whose restic snapshot id we still haven't managed to read: it isn't
-	// restorable yet, so keep reconciling to retry the scrape (mirrorJobStatus
-	// gives up and fails it once the grace period lapses).
-	if b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed ||
-		(b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID != "") {
+	// A Succeeded Backup whose restic snapshot id we never managed to read isn't
+	// restorable yet, so keep working on it — but retry only the log scrape.
+	// Re-entering the full pipeline would re-validate the GameServer and repo
+	// Secret (flipping an already-Succeeded Backup to Failed if either was since
+	// deleted) and would re-create a cleaned-up Job, running a second backup.
+	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
+		return r.retrySnapshotScrape(ctx, &b)
+	}
+	// Terminal Backups need no further reconciliation.
+	if b.Status.Phase == gameplanev1alpha1.BackupPhaseSucceeded ||
+		b.Status.Phase == gameplanev1alpha1.BackupPhaseFailed {
 		return ctrl.Result{}, nil
 	}
 
@@ -302,8 +354,7 @@ func (r *BackupReconciler) mirrorJobStatus(
 	// availability can lag Job completion); if the id still can't be read a
 	// grace period after the Job finished — e.g. the logs were rotated or
 	// GC'd — fail the Backup rather than leaving it parked at a misleading
-	// Succeeded. Unquiesce is unaffected: it already ran when the Backup
-	// first reached Succeeded, so the world is not left frozen.
+	// Succeeded.
 	snapshotMissing := false
 	if phase == gameplanev1alpha1.BackupPhaseSucceeded && b.Status.SnapshotID == "" {
 		summary, err := r.readResticSummary(ctx, b)
@@ -318,9 +369,8 @@ func (r *BackupReconciler) mirrorJobStatus(
 				b.Status.Message = "" // clear any transient scrape error
 			}
 			dirty = true
-		case jobCompletedSince(job) > r.snapshotScrapeGracePeriod():
-			return r.fail(ctx, b,
-				"backup job completed but its restic snapshot id could not be read from the pod logs; the backup is not restorable")
+		case completedSince(job, b) > r.snapshotScrapeGracePeriod():
+			return r.failUnrestorable(ctx, b)
 		default:
 			// Not yet: keep retrying on requeue until the id lands or the
 			// grace period lapses. Surface why for visibility.

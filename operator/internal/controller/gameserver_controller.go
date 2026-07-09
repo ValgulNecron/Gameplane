@@ -695,20 +695,29 @@ func effectiveMountPath(tmpl *gameplanev1alpha1.GameTemplate) string {
 // volume.
 const configFilesStagingPath = "/etc/gameplane/config-files"
 
-// DefaultConfigInitImage runs the copy from the staging mount onto the
-// data volume. Pinned like the restic image in backup_controller.go; the
-// agent image can't do this job (distroless, no shell or cp). Overridable
-// via the operator's --config-init-image flag for air-gapped installs.
+// DefaultConfigInitImage is the small shell image the operator uses for the
+// utility containers it injects into game workloads: the config-init container
+// that seeds rendered config files, and the wipe Job that clears a data volume.
+// Pinned like the restic image in backup_controller.go; the agent image can't do
+// either job (distroless, no shell or cp). Overridable via the operator's
+// --config-init-image flag for air-gapped installs.
 const DefaultConfigInitImage = "busybox:1.37.0"
+
+// configInitImageOrDefault resolves the configured shell image, falling back to
+// the pin when the operator wasn't given a --config-init-image.
+func configInitImageOrDefault(image string) string {
+	if image == "" {
+		return DefaultConfigInitImage
+	}
+	return image
+}
 
 // buildConfigInitContainer copies the rendered config files onto the
 // data volume on every pod start — operator-rendered files always win
 // over in-place edits (e.g. via the dashboard Files tab). image is the
 // operator-configured config-init image; empty falls back to the pin.
 func buildConfigInitContainer(image string, tmpl *gameplanev1alpha1.GameTemplate) corev1.Container {
-	if image == "" {
-		image = DefaultConfigInitImage
-	}
+	image = configInitImageOrDefault(image)
 	mountPath := effectiveMountPath(tmpl)
 	return corev1.Container{
 		Name:    "config-init",
