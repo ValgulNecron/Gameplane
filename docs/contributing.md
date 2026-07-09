@@ -49,17 +49,25 @@ buckets defined in `test/e2e/buckets.sh` — the `e2e bucket coverage` job fails
 any test that isn't in one, so add new tests to a bucket.
 
 The two game-bot tests (`TestGameServer_MinecraftBotConnects`,
-`TestGameServer_TerrariaBotConnects`) boot a real game server and then run a
-headless protocol bot as a **Job inside the cluster**, dialing the game Service's
-DNS name. They deliberately do not use `kubectl port-forward`: that tunnel
-carries the game protocol over an apiserver SPDY connection which, under CI load,
-corrupts the Minecraft login handshake and makes the server drop it.
+`TestGameServer_TerrariaBotConnects`) boot a real game server and run a
+headless protocol bot as a **Job inside the cluster**, dialing the game
+Service's DNS name — the same network path a real in-cluster client uses —
+rather than tunnelling through `kubectl port-forward`.
 
-The bot is `test/e2e/cmd/gameprobe`, built into `gameplane-test/gameprobe:e2e` by
-the `e2e-gameprobe` bake target. That target sits outside the `e2e` bake group so
-only the game-bot job pays to build it, and `deploy/kind/e2e.sh` side-loads it
-into the cluster when present. With the flaky hop gone, the `e2e game bot (kind)`
-CI job is blocking rather than advisory.
+The games namespace carries a `default-deny-egress` NetworkPolicy whose
+`podSelector: {}` matches every pod in it. This allows DNS resolution but
+blocks outbound connections, so an in-cluster helper pod placed there cannot
+connect to the game Service. The probe Job therefore runs in the `default`
+namespace, where no NetworkPolicy restricts it. Note that `kubectl
+port-forward` bypasses NetworkPolicy entirely (it tunnels kubelet→pod), so
+"it works via port-forward" is not evidence that in-cluster pod→game traffic
+works.
+
+The bot is `test/e2e/cmd/gameprobe`, built into `gameplane-test/gameprobe:e2e`
+by the `e2e-gameprobe` bake target. That target sits outside the `e2e` bake
+group so only the game-bot job pays to build it, and `deploy/kind/e2e.sh`
+side-loads it into the cluster when present. The `e2e game bot (kind)` CI job
+is now blocking rather than advisory.
 
 ## AI-assisted development
 
