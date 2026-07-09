@@ -395,10 +395,14 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
     () => categoryFilters((data?.items ?? []).map((t) => resolveCategory(t.spec.category, t.spec.game))),
     [data],
   );
+  // The chips come from the data, so a selected category can disappear when the
+  // template list changes. Fall back to "all" instead of showing an empty
+  // picker with no chip highlighted.
+  const activeCat = templateCategories.includes(cat) ? cat : "all";
 
   const needle = q.trim().toLowerCase();
   const filtered = (data?.items ?? []).filter((t) => {
-    if (cat !== "all" && resolveCategory(t.spec.category, t.spec.game) !== cat) return false;
+    if (activeCat !== "all" && resolveCategory(t.spec.category, t.spec.game) !== activeCat) return false;
     if (needle) {
       const hay = `${t.spec.displayName} ${t.spec.game} ${t.spec.description ?? ""}`.toLowerCase();
       if (!hay.includes(needle)) return false;
@@ -423,9 +427,9 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
               onClick={() => setCat(c)}
               className={cn(
                 "rounded px-3 py-1 text-xs font-medium",
-                cat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+                activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
               )}
-              aria-pressed={cat === c}
+              aria-pressed={activeCat === c}
             >
               {c === "all" ? "All" : c}
             </button>

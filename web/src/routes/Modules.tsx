@@ -60,10 +60,14 @@ export function ModulesPage() {
     () => categoryFilters((data?.items ?? []).map((e) => resolveCategory(e.category, e.game ?? ""))),
     [data],
   );
+  // Chips are derived from the data, so the selected one can disappear when the
+  // catalog changes. Fall back to "all" rather than filtering to an empty grid
+  // with no chip highlighted.
+  const activeCat = catChips.includes(catFilter) ? catFilter : "all";
 
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
-    if (catFilter !== "all" && resolveCategory(e.category, e.game ?? "") !== catFilter) return false;
+    if (activeCat !== "all" && resolveCategory(e.category, e.game ?? "") !== activeCat) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }
@@ -146,11 +150,11 @@ export function ModulesPage() {
               onClick={() => setCatFilter(c)}
               className={cn(
                 "rounded px-3 py-1.5 text-xs transition-colors",
-                catFilter === c
+                activeCat === c
                   ? "bg-primary/15 text-primary"
                   : "text-muted hover:text-fg",
               )}
-              aria-pressed={catFilter === c}
+              aria-pressed={activeCat === c}
             >
               {c === "all" ? "All categories" : c}
             </button>
