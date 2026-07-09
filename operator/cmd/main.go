@@ -47,6 +47,8 @@ func main() {
 		probeAddr              string
 		enableLeaderElection   bool
 		agentImage             string
+		configInitImage        string
+		resticImage            string
 		agentLogLevel          string
 		agentCABundle          string
 		agentClientCert        string
@@ -62,6 +64,12 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election.")
 	flag.StringVar(&agentImage, "agent-image", "ghcr.io/valgulnecron/gameplane/agent:dev",
 		"Image to use for the Gameplane agent sidecar injected into game pods.")
+	flag.StringVar(&configInitImage, "config-init-image", controller.DefaultConfigInitImage,
+		"Image for the init container that copies rendered config files onto the data volume. "+
+			"Point at a private registry mirror for air-gapped installs.")
+	flag.StringVar(&resticImage, "restic-image", controller.DefaultResticImage,
+		"Image for the restic backup/restore Jobs. "+
+			"Point at a private registry mirror for air-gapped installs.")
 	flag.StringVar(&agentLogLevel, "agent-log-level", "",
 		"Log level (debug, info, warn, or error) injected into agent sidecars as GAMEPLANE_LOG_LEVEL. "+
 			"Empty injects nothing (the agent defaults to info) and avoids rolling existing pods.")
@@ -127,6 +135,7 @@ func main() {
 		Client:                 mgr.GetClient(),
 		Scheme:                 mgr.GetScheme(),
 		AgentImage:             agentImage,
+		ConfigInitImage:        configInitImage,
 		AgentLogLevel:          agentLogLevel,
 		AgentCASecretName:      agentCASecretName,
 		AgentCASecretNamespace: agentCASecretNamespace,
@@ -148,6 +157,7 @@ func main() {
 		Scheme:      mgr.GetScheme(),
 		Clientset:   kubernetes.NewForConfigOrDie(mgr.GetConfig()),
 		AgentClient: agentClient,
+		ResticImage: resticImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "Backup")
 		os.Exit(1)
@@ -160,8 +170,9 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.RestoreReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		ResticImage: resticImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "Restore")
 		os.Exit(1)

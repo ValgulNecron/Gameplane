@@ -65,6 +65,24 @@ type BackupReconciler struct {
 	// LogReader, if set, overrides the default kubernetes-Clientset
 	// based log reader. Used by tests.
 	LogReader BackupLogReader
+	// ResticImage is the image for the restic backup Job. Set from an
+	// operator flag so air-gapped installs can point it at a private
+	// registry mirror. Empty falls back to DefaultResticImage.
+	ResticImage string
+}
+
+// DefaultResticImage is the pinned restic image used by the backup and
+// restore Jobs. Overridable via the operator's --restic-image flag for
+// air-gapped installs (both reconcilers fall back to it when unset).
+const DefaultResticImage = "restic/restic:0.17.1"
+
+// resticImageOrDefault resolves the configured restic image, falling back
+// to the pin when the operator wasn't given a --restic-image.
+func resticImageOrDefault(image string) string {
+	if image == "" {
+		return DefaultResticImage
+	}
+	return image
 }
 
 // +kubebuilder:rbac:groups=gameplane.local,resources=backups,verbs=get;list;watch;update;patch
@@ -522,7 +540,7 @@ func (r *BackupReconciler) buildBackupPodSpec(b *gameplanev1alpha1.Backup) corev
 		},
 		InitContainers: []corev1.Container{{
 			Name:    "restic-init",
-			Image:   "restic/restic:0.17.1",
+			Image:   resticImageOrDefault(r.ResticImage),
 			Command: []string{"/bin/sh", "-c"},
 			// `cat config` is the canonical "does the repo exist" probe;
 			// `init` is idempotent against an empty target.
@@ -535,7 +553,7 @@ func (r *BackupReconciler) buildBackupPodSpec(b *gameplanev1alpha1.Backup) corev
 		}},
 		Containers: []corev1.Container{{
 			Name:  "restic",
-			Image: "restic/restic:0.17.1",
+			Image: resticImageOrDefault(r.ResticImage),
 			Args:  args,
 			Env:   env,
 			VolumeMounts: []corev1.VolumeMount{

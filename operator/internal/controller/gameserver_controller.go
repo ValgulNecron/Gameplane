@@ -45,6 +45,13 @@ type GameServerReconciler struct {
 	// to info and existing StatefulSets don't roll on operator upgrade.
 	AgentLogLevel string
 
+	// ConfigInitImage is the image for the init container that copies
+	// operator-rendered config files onto the data volume. Set from an
+	// operator flag so air-gapped installs can point it at a private
+	// registry mirror instead of Docker Hub. Empty falls back to
+	// DefaultConfigInitImage.
+	ConfigInitImage string
+
 	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
 	// wide Secret holding `ca.crt` + `ca.key` used to sign the
 	// per-GameServer agent server cert. Provisioned by the chart
@@ -631,7 +638,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 					},
 				},
 			})
-			ss.Spec.Template.Spec.InitContainers = []corev1.Container{buildConfigInitContainer(tmpl)}
+			ss.Spec.Template.Spec.InitContainers = []corev1.Container{buildConfigInitContainer(r.ConfigInitImage, tmpl)}
 		} else {
 			ss.Spec.Template.Spec.InitContainers = nil
 		}
@@ -688,19 +695,24 @@ func effectiveMountPath(tmpl *gameplanev1alpha1.GameTemplate) string {
 // volume.
 const configFilesStagingPath = "/etc/gameplane/config-files"
 
-// configInitImage runs the copy from the staging mount onto the data
-// volume. Pinned like the restic image in backup_controller.go; the
-// agent image can't do this job (distroless, no shell or cp).
-const configInitImage = "busybox:1.37.0"
+// DefaultConfigInitImage runs the copy from the staging mount onto the
+// data volume. Pinned like the restic image in backup_controller.go; the
+// agent image can't do this job (distroless, no shell or cp). Overridable
+// via the operator's --config-init-image flag for air-gapped installs.
+const DefaultConfigInitImage = "busybox:1.37.0"
 
 // buildConfigInitContainer copies the rendered config files onto the
 // data volume on every pod start — operator-rendered files always win
-// over in-place edits (e.g. via the dashboard Files tab).
-func buildConfigInitContainer(tmpl *gameplanev1alpha1.GameTemplate) corev1.Container {
+// over in-place edits (e.g. via the dashboard Files tab). image is the
+// operator-configured config-init image; empty falls back to the pin.
+func buildConfigInitContainer(image string, tmpl *gameplanev1alpha1.GameTemplate) corev1.Container {
+	if image == "" {
+		image = DefaultConfigInitImage
+	}
 	mountPath := effectiveMountPath(tmpl)
 	return corev1.Container{
 		Name:    "config-init",
-		Image:   configInitImage,
+		Image:   image,
 		Command: []string{"/bin/sh", "-c"},
 		// -L dereferences the kubelet's per-key symlinks; the * glob
 		// skips the ..data/..<timestamp> dot-entries of the Secret mount.
