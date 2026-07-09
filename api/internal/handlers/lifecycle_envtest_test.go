@@ -53,9 +53,10 @@ func TestLifecycle_StartClearsSuspend(t *testing.T) {
 	}
 }
 
-// TestLifecycle_RestartLeavesUnSuspended — :restart issues stop+start
-// in sequence; the final state must be spec.suspend=false.
-func TestLifecycle_RestartLeavesUnSuspended(t *testing.T) {
+// TestLifecycle_RestartStampsAnnotation — :restart stamps the
+// restart-requested annotation (the operator owns the recycle) and must NOT
+// touch spec.suspend.
+func TestLifecycle_RestartStampsAnnotation(t *testing.T) {
 	name := uniqueResourceName("life-restart")
 	createServerForLifecycleTest(t, name)
 
@@ -64,8 +65,17 @@ func TestLifecycle_RestartLeavesUnSuspended(t *testing.T) {
 		t.Fatalf(":restart status = %d, want 202; body=%s", resp.StatusCode, readBody(t, resp))
 	}
 
+	gs, err := kubeC.Dynamic.Resource(gvrServers()).
+		Namespace(scope.DefaultNamespace).
+		Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get server: %v", err)
+	}
+	if got := gs.GetAnnotations()[restartRequestedAnnotation]; got == "" {
+		t.Errorf("after :restart, missing %s annotation; got %v", restartRequestedAnnotation, gs.GetAnnotations())
+	}
 	if got := lifecycleSuspendOf(t, name); got != false {
-		t.Errorf("after :restart, spec.suspend = %v, want false", got)
+		t.Errorf("after :restart, spec.suspend = %v, want it left false", got)
 	}
 }
 
