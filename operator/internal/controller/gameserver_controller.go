@@ -425,22 +425,58 @@ func svcPortsFromTemplate(
 	return out
 }
 
-// desiredReplicas decides the StatefulSet replica count, driving the
-// module-declared soft stop on the suspend transition. On stop it issues the
-// in-game stop sequence over the agent (once, tracked by an annotation), keeps
-// the pod running while the game saves and shuts down, and scales to zero as
-// soon as the game goes not-ready — or when spec.stopGracePeriodSeconds elapses
-// as a backstop. The second return value is a requeue hint (>0 while a soft
-// stop is in progress). Templates with no stop sequence keep the original
-// behaviour: suspend scales straight to zero.
+// desiredReplicas decides the StatefulSet replica count. It brings the server
+// down (gracefully, via the soft stop) on a spec.suspend or while a restart
+// drains, and back up otherwise. A restart is an operator-owned scale-down →
+// scale-up: the pod is recycled only once it is confirmed gone, so the request
+// survives coalesced reconciles. The second return value is a requeue hint (>0
+// while a soft stop or restart drain is in progress).
 func (r *GameServerReconciler) desiredReplicas(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) (int32, time.Duration, error) {
-	if !gs.Spec.Suspend {
+	// A pending restart (stamped by the API) drives a transient scale-down →
+	// scale-up entirely operator-side, so the request can't be lost to a
+	// coalesced reconcile the way a client-issued suspend/resume pair can.
+	restart, err := r.restartPhase(ctx, gs)
+	if err != nil {
+		return 1, 0, err
+	}
+	if restart == restartComplete {
+		// The pod is gone (Status.Replicas == 0 / StatefulSet absent), so a
+		// scale back to 1 yields a fresh pod identity. Ack so the same token
+		// never re-runs, then return to the spec'd power state.
+		if err := r.ackRestart(ctx, gs); err != nil {
+			return 1, 0, err
+		}
+		if gs.Spec.Suspend {
+			return 0, 0, nil // an explicit suspend outlives the restart
+		}
+		return 1, 0, nil
+	}
+
+	stopping := gs.Spec.Suspend || restart == restartDraining
+	if !stopping {
 		// Running: drop any stale soft-stop bookkeeping from a prior stop.
 		return 1, 0, r.clearStopAnnotation(ctx, gs)
 	}
 
+	replicas, requeue, err := r.softStop(ctx, gs, tmpl)
+	// While a restart drains, keep requeuing until the pod is actually gone —
+	// the StatefulSet watch already wakes us on pod deletion; this is a backstop.
+	if err == nil && restart == restartDraining && requeue == 0 {
+		requeue = restartDrainPoll
+	}
+	return replicas, requeue, err
+}
+
+// softStop computes the replica count while a server is being brought down —
+// via spec.suspend or a draining restart. It drives the module-declared
+// graceful stop over the agent and holds the pod up while the game saves, then
+// scales to zero once the game goes not-ready (or the grace deadline elapses).
+// Templates with no stop sequence scale straight to zero.
+func (r *GameServerReconciler) softStop(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+) (int32, time.Duration, error) {
 	declared := tmpl.Spec.Capabilities != nil &&
 		tmpl.Spec.Capabilities.Lifecycle != nil &&
 		len(tmpl.Spec.Capabilities.Lifecycle.Stop) > 0

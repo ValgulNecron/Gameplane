@@ -53,6 +53,19 @@ func TestLifecycle_Restart(t *testing.T) {
 	if rr.Code != 202 {
 		t.Fatalf("got %d %s", rr.Code, rr.Body)
 	}
+
+	obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+		Namespace("gameplane-games").Get(t.Context(), "alpha", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if obj.GetAnnotations()[restartRequestedAnnotation] == "" {
+		t.Errorf("expected restart-requested annotation, got %v", obj.GetAnnotations())
+	}
+	// The operator owns the recycle; the handler must not touch spec.suspend.
+	if suspend, _, _ := unstructured.NestedBool(obj.Object, "spec", "suspend"); suspend {
+		t.Error("restart must not set spec.suspend")
+	}
 }
 
 func TestLifecycle_StartUnknown(t *testing.T) {
