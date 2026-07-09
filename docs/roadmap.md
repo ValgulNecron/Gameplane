@@ -109,6 +109,15 @@ bumping the submodule pointer) makes the grouping author-owned end to end.
   caveat (Helm never updates CRDs on `helm upgrade`; see
   [Helm CRD caveat](install.md#helm-crd-caveat)).
 - Resource-limit guidance sized from real workloads rather than defaults.
+- Hermetic module images: the shipped game modules pin floating upstream tags
+  (`terraria-latest`, `tmodloader-latest`), meaning a server binary can change
+  underneath a user on pod restart with no version bump or changelog. This is not
+  hypothetical: `terraria-latest` moved from Terraria 1.4.4.9 to 1.4.5.6,
+  changing the network protocol version and breaking the e2e Terraria bot. The
+  fix is to pin explicit image tags for the default image, and keep a floating
+  "latest" entry only in `spec.versions` where drift is the user's explicit,
+  labelled choice. Changes live in the `gameplane-module` repo with a submodule
+  pointer bump here.
 
 ---
 
