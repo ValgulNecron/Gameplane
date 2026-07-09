@@ -94,6 +94,15 @@ startup, before the game's own log file exists.
 4. Job completes; operator mirrors Job status into Backup.status
 5. (Agent, during the Job, optionally issues an RCON `save-all` to quiesce)
 
+A `Backup` only reaches `Succeeded` once its `status.snapshotID` has been
+read out of the restic Job's pod logs. If the snapshot id cannot be read
+within a grace period after the Job completes (e.g. the pod logs were
+rotated or garbage-collected), the operator transitions the Backup to
+`Failed` — a backup with no snapshot id cannot be restored, so reporting
+`Succeeded` would be misleading. The post-backup unquiesce is unaffected:
+it runs when the Backup first reaches `Succeeded`, so the game world is
+never left frozen.
+
 ## Module system
 
 A game module is a bundle of `module.yaml` (catalog metadata) +

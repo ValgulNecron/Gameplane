@@ -42,6 +42,25 @@ cd audit-syslog-bridge && go test ./...
 cd web      && npm test
 ```
 
+## E2E testing
+
+The e2e suite runs against a real kind cluster. CI splits it into parallel
+buckets defined in `test/e2e/buckets.sh` — the `e2e bucket coverage` job fails on
+any test that isn't in one, so add new tests to a bucket.
+
+The two game-bot tests (`TestGameServer_MinecraftBotConnects`,
+`TestGameServer_TerrariaBotConnects`) boot a real game server and then run a
+headless protocol bot as a **Job inside the cluster**, dialing the game Service's
+DNS name. They deliberately do not use `kubectl port-forward`: that tunnel
+carries the game protocol over an apiserver SPDY connection which, under CI load,
+corrupts the Minecraft login handshake and makes the server drop it.
+
+The bot is `test/e2e/cmd/gameprobe`, built into `gameplane-test/gameprobe:e2e` by
+the `e2e-gameprobe` bake target. That target sits outside the `e2e` bake group so
+only the game-bot job pays to build it, and `deploy/kind/e2e.sh` side-loads it
+into the cluster when present. With the flaky hop gone, the `e2e game bot (kind)`
+CI job is blocking rather than advisory.
+
 ## AI-assisted development
 
 Much of this codebase is developed with AI coding assistants (Claude

@@ -41,6 +41,7 @@ name: minecraft-java                       # required, DNS-1123 label
 displayName: Minecraft (Java Edition)      # required
 version: 1.0.0                             # required, semver, must match the OCI tag
 game: minecraft-java                       # required, free-form game family identifier
+category: Sandbox                          # optional, catalog grouping (e.g. Survival, Sandbox)
 summary: Vanilla / Paper / Forge / Fabric  # required, one-line description for the card
 homepage: https://minecraft.net            # optional
 license: MIT                               # optional, SPDX identifier
@@ -54,6 +55,12 @@ Field rules:
   with the same `name` in the same `ModuleSource` are an error.
 - `version` is the canonical version string and **must** match the OCI tag
   the bundle is pushed under.
+- `category` groups the module in the dashboard's Modules catalog. The
+  dashboard builds its filter chips from the distinct `category` values
+  across installed/available modules, so naming a new category here
+  creates its filter button with no frontend change. When omitted, the
+  dashboard falls back to a best-effort heuristic on the `game` slug,
+  and finally to "Other".
 - `gameplaneMinVersion` is checked at install time against the operator's
   build version; a module that needs a newer operator fails the `Module`
   reconcile with an `IncompatibleOperator` condition. The check is skipped
@@ -337,8 +344,12 @@ wizard-managed server-settings.json, portal registry), **palworld**
 ```yaml
 spec:
   icon: icon.png            # bundle file or URL/data-URI shown in the catalog
+  category: Sandbox         # optional, catalog grouping (mirrors module.yaml)
   accentColor: "#5b9a3e"    # CSS hex; tints this game's icon + accents
 ```
+
+`category` mirrors the `module.yaml` field and drives the Create-Server
+template picker's category chips. Optional; the same fallback logic applies.
 
 `accentColor` is how a module carries its own brand color into the
 dashboard — the app no longer hardcodes a per-game palette, so a new
