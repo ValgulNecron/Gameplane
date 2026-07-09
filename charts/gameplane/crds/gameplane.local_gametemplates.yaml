@@ -822,6 +822,15 @@ spec:
                         type: array
                     type: object
                 type: object
+              category:
+                description: |-
+                  Category groups this game in the dashboard's catalog and Create
+                  Server picker (e.g. "Survival", "Sandbox", "Shooter"). The dashboard
+                  builds its category filter from the distinct values present across
+                  installed templates, so a module introduces a new category simply by
+                  naming it here — no frontend change. Empty falls back to "Other".
+                maxLength: 32
+                type: string
               command:
                 description: Command / Args override the container image entrypoint
                   when set.

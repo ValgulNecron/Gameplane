@@ -239,6 +239,7 @@ export interface GameTemplate {
   spec: {
     displayName: string;
     game: string;
+    category?: string;
     version: string;
     description?: string;
     icon?: string;
@@ -710,6 +711,7 @@ export interface CatalogEntry {
   displayName?: string;
   summary?: string;
   game?: string;
+  category?: string;
   icon?: string;
   sources: SourceRef[];
   versions?: string[];

@@ -105,15 +105,19 @@ describe("ModulesPage", () => {
   });
 
   it("filters the catalog by game category", async () => {
+    const minecraftEntry = { ...MINECRAFT, category: "Sandbox" };
+    const valheimEntry = { ...VALHEIM_INSTALLED, game: "valheim", category: "Survival" };
     catalog.mockResolvedValue({
-      items: [MINECRAFT, { ...VALHEIM_INSTALLED, game: "valheim" }],
+      items: [minecraftEntry, valheimEntry],
     });
     renderPage();
     expect(await screen.findByText("Minecraft (Java)")).toBeInTheDocument();
     expect(screen.getByText("Valheim")).toBeInTheDocument();
 
-    // minecraft-java → Sandbox; valheim → Survival.
-    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    // Both declared categories should have chips. Click Sandbox to filter.
+    const sandboxBtn = screen.getByRole("button", { name: "Sandbox" });
+    expect(sandboxBtn).toBeInTheDocument();
+    await userEvent.click(sandboxBtn);
     expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
     expect(screen.queryByText("Valheim")).toBeNull();
   });

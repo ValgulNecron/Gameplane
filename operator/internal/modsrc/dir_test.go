@@ -23,8 +23,8 @@ func validModuleFiles(name, version string) map[string]string {
 	return map[string]string{
 		FileMetadata: "apiVersion: gameplane.local/module/v1\nname: " + name +
 			"\ndisplayName: " + strings.ToUpper(name) + "\nversion: " + version +
-			"\ngame: " + name + "\nsummary: test\n",
-		FileTemplate: "spec:\n  game: " + name + "\n",
+			"\ngame: " + name + "\ncategory: Sandbox\nsummary: test\n",
+		FileTemplate: "spec:\n  game: " + name + "\n  category: Sandbox\n",
 	}
 }
 
@@ -64,6 +64,9 @@ func TestFSFetcher_IndexDiscoversModules(t *testing.T) {
 	}
 	if mc.DisplayName != "MC" || mc.Game != "mc" {
 		t.Errorf("mc metadata = %+v", mc)
+	}
+	if mc.Category != "Sandbox" {
+		t.Errorf("mc category = %q, want Sandbox", mc.Category)
 	}
 }
 

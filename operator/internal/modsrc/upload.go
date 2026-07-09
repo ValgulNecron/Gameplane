@@ -42,6 +42,7 @@ func (f *uploadFetcher) Index(ctx context.Context) ([]gameplanev1alpha1.ModuleEn
 			DisplayName:   meta.DisplayName,
 			Summary:       meta.Summary,
 			Game:          meta.Game,
+			Category:      meta.Category,
 			Icon:          meta.Icon,
 			Reference:     "upload:" + b.configMap,
 			Versions:      []string{meta.Version},

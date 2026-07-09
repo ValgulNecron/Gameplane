@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
@@ -16,7 +16,7 @@ import {
   validateConfig,
 } from "@/lib/validation";
 import { cn } from "@/lib/utils";
-import { GAME_CATEGORIES, gameCategory, type GameCategory } from "@/lib/games";
+import { resolveCategory, categoryFilters } from "@/lib/games";
 import type { GameTemplate, PortOverride } from "@/types";
 
 // Wizard steps are derived per-template: the "version" step only appears when
@@ -383,20 +383,26 @@ function StepBar({ steps, stepIndex }: { steps: StepKey[]; stepIndex: number }) 
   );
 }
 
-const TEMPLATE_CATEGORIES = GAME_CATEGORIES;
-type TemplateCategory = GameCategory;
-
 function PickTemplate({ state, setState }: { state: WizardState; setState: (s: WizardState) => void }) {
   const { data } = useQuery({
     queryKey: ["templates"],
     queryFn: () => Templates.list(),
   });
   const [q, setQ] = useState("");
-  const [cat, setCat] = useState<TemplateCategory>("all");
+  const [cat, setCat] = useState<string>("all");
+
+  const templateCategories = useMemo(
+    () => categoryFilters((data?.items ?? []).map((t) => resolveCategory(t.spec.category, t.spec.game))),
+    [data],
+  );
+  // The chips come from the data, so a selected category can disappear when the
+  // template list changes. Fall back to "all" instead of showing an empty
+  // picker with no chip highlighted.
+  const activeCat = templateCategories.includes(cat) ? cat : "all";
 
   const needle = q.trim().toLowerCase();
   const filtered = (data?.items ?? []).filter((t) => {
-    if (cat !== "all" && gameCategory(t.spec.game) !== cat) return false;
+    if (activeCat !== "all" && resolveCategory(t.spec.category, t.spec.game) !== activeCat) return false;
     if (needle) {
       const hay = `${t.spec.displayName} ${t.spec.game} ${t.spec.description ?? ""}`.toLowerCase();
       if (!hay.includes(needle)) return false;
@@ -415,14 +421,15 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
           aria-label="Search templates"
         />
         <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
-          {TEMPLATE_CATEGORIES.map((c) => (
+          {templateCategories.map((c: string) => (
             <button
               key={c}
               onClick={() => setCat(c)}
               className={cn(
                 "rounded px-3 py-1 text-xs font-medium",
-                cat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+                activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
               )}
+              aria-pressed={activeCat === c}
             >
               {c === "all" ? "All" : c}
             </button>

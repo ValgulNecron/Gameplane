@@ -32,6 +32,7 @@ type Metadata struct {
 	DisplayName       string `yaml:"displayName" json:"displayName"`
 	Version           string `yaml:"version" json:"version"`
 	Game              string `yaml:"game" json:"game"`
+	Category          string `yaml:"category,omitempty" json:"category,omitempty"`
 	Summary           string `yaml:"summary,omitempty" json:"summary,omitempty"`
 	Homepage          string `yaml:"homepage,omitempty" json:"homepage,omitempty"`
 	License           string `yaml:"license,omitempty" json:"license,omitempty"`
