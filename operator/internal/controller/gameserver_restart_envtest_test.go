@@ -155,6 +155,9 @@ func TestGameServer_RestartIdempotent(t *testing.T) {
 	// Seed a request that already has a matching completion echo.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		g := getGameServer(t, ns, "idem")
+		if g.Annotations == nil {
+			g.Annotations = map[string]string{}
+		}
 		g.Annotations[RestartRequestedAnnotation] = "tok1"
 		g.Annotations[RestartCompletedAnnotation] = "tok1"
 		return k8sClient.Update(context.Background(), g)
