@@ -295,11 +295,6 @@ export const handlers = [
   ),
   http.delete("/modules/:name", () => new HttpResponse(null, { status: 204 })),
 
-  // Legacy path retained for backwards compatibility with earlier tests.
-  http.get("/module-sources", () =>
-    HttpResponse.json({ items: [makeModuleSource()] }),
-  ),
-
   // Pod/StatefulSet/GameServer Kubernetes events (Overview events feed).
   http.get("/servers/:name/events", () => HttpResponse.json([])),
 

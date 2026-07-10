@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameIcon } from "@/components/ui/game-icon";
@@ -30,6 +30,8 @@ const STEP_TITLES: Record<StepKey, string> = {
   network: "Network",
   review: "Review",
 };
+
+const DOCS_CREATE_SERVER_URL = "https://valgulnecron.github.io/gameplane-website/docs/getting-started";
 
 function stepsFor(template: GameTemplate | null): StepKey[] {
   const base: StepKey[] = ["template", "configure", "network", "review"];
@@ -297,7 +299,9 @@ export function CreateServerWizard() {
         )}
 
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          <div />
+          <a href={DOCS_CREATE_SERVER_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+            <ExternalLink className="h-3 w-3" /> Docs: Creating game servers
+          </a>
           <div className="flex items-center gap-3">
             {!stepCheck.ok && !isLast && (
               <span className="text-[11px] text-muted" data-testid="step-reason">
