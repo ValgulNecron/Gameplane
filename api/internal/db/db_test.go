@@ -413,6 +413,40 @@ func TestAdoptLegacySQLite_EmptyDSN(t *testing.T) {
 	}
 }
 
+// TestMigrate_AddsAuditChainColumns verifies migration 005 adds prev_hash and
+// hash columns to audit_events (used by the audit-log tamper-evidence hash
+// chain in api/internal/audit), and applies cleanly on top of 001-004.
+func TestMigrate_AddsAuditChainColumns(t *testing.T) {
+	s, err := Open(context.Background(), "sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Migrate(context.Background()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	if _, err := s.DB.Exec(
+		`INSERT INTO audit_events(ts, actor, method, path, status, prev_hash, hash)
+		 VALUES (?, 'a', 'POST', '/x', 200, 'p', 'h')`,
+		"2026-01-01T00:00:00Z",
+	); err != nil {
+		t.Fatalf("insert with chain columns: %v", err)
+	}
+	var prevHash, hash string
+	if err := s.DB.QueryRow(`SELECT prev_hash, hash FROM audit_events LIMIT 1`).Scan(&prevHash, &hash); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if prevHash != "p" || hash != "h" {
+		t.Fatalf("prev_hash=%q hash=%q, want p/h", prevHash, hash)
+	}
+
+	applied, err := s.migrationApplied(context.Background(), "005_audit_chain.sql")
+	if err != nil || !applied {
+		t.Fatalf("005_audit_chain.sql applied=%v err=%v", applied, err)
+	}
+}
+
 // TestOpen_AdoptsLegacySQLite verifies that Open() triggers adoption
 // and migrations run successfully on the adopted file.
 func TestOpen_AdoptsLegacySQLite(t *testing.T) {
@@ -436,6 +470,21 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 	}
 	if _, err := legacyDB.Exec(`INSERT INTO users(id, username, role) VALUES (1, 'Alice', 'admin')`); err != nil {
 		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE TABLE audit_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts         TEXT NOT NULL DEFAULT (datetime('now')),
+    actor      TEXT NOT NULL,
+    method     TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    target     TEXT,
+    status     INTEGER NOT NULL,
+    ip         TEXT
+)`); err != nil {
+		t.Fatalf("create audit_events: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE INDEX idx_audit_ts ON audit_events(ts DESC)`); err != nil {
+		t.Fatalf("create audit_events index: %v", err)
 	}
 	legacyDB.Close()
 
