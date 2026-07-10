@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, CalendarClock, Clock, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat";
+import { Badge } from "@/components/ui/badge";
 import { Backups, Schedules, Restores } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
 import { formatBytes, formatRelative, formatRelativeFuture, parseQuantityToBytes } from "@/lib/utils";
@@ -119,18 +120,33 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
         {creatingSchedule && (
           <ScheduleForm serverName={name} onClose={() => setCreatingSchedule(false)} />
         )}
+        {serverSchedules.length > 1 && (
+          <div className="mb-3 rounded border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted">
+            This server has multiple backup schedules — consider consolidating to avoid duplicate backups.
+          </div>
+        )}
         <div className="space-y-1 pt-2">
-          {serverSchedules.map((s) => (
-            <div
-              key={s.metadata.name}
-              className="flex justify-between rounded border border-border bg-surface/30 px-4 py-2 text-sm"
-            >
-              <span className="font-mono">{s.spec.schedule}</span>
-              <span className="text-muted">
-                Next: {formatRelative(s.status?.nextScheduleTime)}
-              </span>
-            </div>
-          ))}
+          {serverSchedules.map((s) => {
+            const isAutoManaged = s.metadata.name === `${name}-auto`;
+            return (
+              <div
+                key={s.metadata.name}
+                className="flex items-center justify-between rounded border border-border bg-surface/30 px-4 py-2 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">{s.spec.schedule}</span>
+                  {isAutoManaged && (
+                    <Badge variant="default" className="text-[10px]">
+                      Managed by server settings
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-muted">
+                  Next: {formatRelative(s.status?.nextScheduleTime)}
+                </span>
+              </div>
+            );
+          })}
           {serverSchedules.length === 0 && !creatingSchedule && (
             <p className="text-sm text-muted">No schedules yet.</p>
           )}

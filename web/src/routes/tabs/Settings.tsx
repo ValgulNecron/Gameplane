@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  CalendarClock,
   HardDrive,
   Layers,
   Network,
@@ -23,6 +24,7 @@ import { ResourcesSection } from "./settings/Resources";
 import { NetworkingSection } from "./settings/Networking";
 import { EnvVarsSection } from "./settings/EnvVars";
 import { LifecycleSection } from "./settings/Lifecycle";
+import { BackupsSection } from "./settings/Backups";
 import { AccessSection } from "./settings/Access";
 import { DangerSection } from "./settings/Danger";
 
@@ -33,6 +35,7 @@ type SectionKey =
   | "networking"
   | "env"
   | "lifecycle"
+  | "backups"
   | "access"
   | "danger";
 
@@ -43,6 +46,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] 
   { key: "networking", label: "Networking",    icon: Network },
   { key: "env",        label: "Environment",   icon: Variable },
   { key: "lifecycle",  label: "Lifecycle",     icon: Sliders },
+  { key: "backups",    label: "Scheduled backups", icon: CalendarClock },
   { key: "access",     label: "RBAC & access", icon: ShieldCheck },
   { key: "danger",     label: "Danger zone",   icon: AlertTriangle },
 ];
@@ -187,6 +191,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
           {section === "networking" && <NetworkingSection draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "lifecycle"  && <LifecycleSection  draft={draft} onChange={onChangeDraft} template={template} />}
+          {section === "backups"    && <BackupsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "access"     && <AccessSection     gs={gs} />}
           {section === "danger"     && <DangerSection     name={name} ns={ns} />}
         </div>

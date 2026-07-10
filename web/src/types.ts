@@ -310,6 +310,20 @@ export interface GameServerStorage {
   mountPath?: string;
 }
 
+export interface InlineBackupPolicy {
+  schedule: string;
+  repoRef: { name: string; key: string };
+  retention?: {
+    keepLast?: number;
+    keepHourly?: number;
+    keepDaily?: number;
+    keepWeekly?: number;
+    keepMonthly?: number;
+    keepYearly?: number;
+  };
+  suspend?: boolean;
+}
+
 export interface GameServer {
   metadata: ObjectMeta & { resourceVersion?: string };
   spec: {
@@ -329,6 +343,7 @@ export interface GameServer {
     resources?: ResourceRequirements;
     storage?: GameServerStorage;
     networking?: GameServerNetworking;
+    backupPolicy?: InlineBackupPolicy;
     nodeSelector?: Record<string, string>;
     serviceAccountName?: string;
   };
