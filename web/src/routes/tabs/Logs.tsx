@@ -146,7 +146,7 @@ export function LogsTab({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         {logPath ? (
           <div className="flex rounded border border-border text-xs">
             <button
@@ -178,7 +178,7 @@ export function LogsTab({
         )}
         <input
           placeholder="filter…"
-          className="h-8 w-64 rounded border border-border bg-surface px-2 font-mono text-xs"
+          className="h-8 w-full rounded border border-border bg-surface px-2 font-mono text-xs sm:w-64"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />

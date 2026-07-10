@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -517,5 +517,91 @@ describe("ServersPage", () => {
     expect(screen.getByText("mc-running")).toBeInTheDocument();
     expect(screen.queryByText("mc-stopped")).not.toBeInTheDocument();
     expect(screen.queryByText("val-running")).not.toBeInTheDocument();
+  });
+});
+
+// The page renders either a <table> (desktop) or a stacked card list
+// (mobile), decided by useMediaQuery("(max-width: 767px)"). Everywhere else
+// in this suite window.matchMedia is left at the global jsdom stub (always
+// `matches: false`, see src/test/setup.ts), which is why the table has been
+// what every test above exercises. These cases override matchMedia to force
+// the mobile branch so ServerCard/StatChip get real coverage too.
+describe("ServersPage mobile layout", () => {
+  const ORIGINAL_MATCH_MEDIA = window.matchMedia;
+
+  function setMobileViewport() {
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(max-width: 767px)",
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+  }
+
+  afterEach(() => {
+    window.matchMedia = ORIGINAL_MATCH_MEDIA;
+  });
+
+  it("renders a stacked card list (with stat chips and lifecycle actions) instead of the table", async () => {
+    setMobileViewport();
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "mobile-alpha", namespace: "gameplane-games" },
+              status: {
+                phase: "Running",
+                agent: {
+                  cpuMillicores: 500,
+                  cpuLimitMillicores: 2000,
+                  memoryBytes: 536870912,
+                  memoryLimitBytes: 1073741824,
+                  playersOnline: 3,
+                  playersMax: 10,
+                },
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("mobile-alpha");
+
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText("3/10")).toBeInTheDocument();
+    expect(screen.getByText("25%")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByTitle("Start")).toBeInTheDocument();
+    expect(screen.getByTitle("Stop")).toBeInTheDocument();
+    expect(screen.getByTitle("Restart")).toBeInTheDocument();
+  });
+
+  it("shows an empty-state card and a 'Shared with you' section on mobile", async () => {
+    setMobileViewport();
+    server.use(
+      http.get("/servers", () => HttpResponse.json({ items: [] })),
+      http.get("/users/me/servers", () =>
+        HttpResponse.json({
+          items: [makeServer({ metadata: { name: "mobile-shared" }, status: { phase: "Stopped" } })],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    expect(await screen.findByText(/Shared with you/i)).toBeInTheDocument();
+    expect(screen.getByText("mobile-shared")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows the 'No servers match' card when the list is empty", async () => {
+    setMobileViewport();
+    server.use(http.get("/servers", () => HttpResponse.json({ items: [] })));
+    renderWithQuery(<ServersPage />);
+    expect(await screen.findByText("No servers match.")).toBeInTheDocument();
   });
 });

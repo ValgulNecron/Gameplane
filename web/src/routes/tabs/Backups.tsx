@@ -187,49 +187,51 @@ export function BackupsTab({ name, ns: _ns }: { name: string; ns?: string }) {
           </Button>
         </div>
         {createNow.error && <ErrorBanner err={createNow.error} />}
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase text-muted">
-            <tr>
-              <th className="py-2">Name</th>
-              <th>Phase</th>
-              <th>Size</th>
-              <th>Completed</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {serverBackups.map((b) => {
-              const restorable =
-                b.status?.phase === "Succeeded" && Boolean(b.status?.snapshotID);
-              return (
-                <tr
-                  key={b.metadata.name}
-                  className="cursor-pointer hover:bg-surface/40"
-                  onClick={() => setSelectedBackup(b.metadata.name)}
-                >
-                  <td className="py-2 font-mono">{b.metadata.name}</td>
-                  <td>
-                    <PhaseBadge phase={b.status?.phase} />
-                  </td>
-                  <td className="font-mono">{b.status?.size ?? "—"}</td>
-                  <td className="font-mono text-muted">
-                    {formatRelative(b.status?.completionTime)}
-                  </td>
-                  <td className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!restorable}
-                      onClick={() => setRestoringBackup(b)}
-                    >
-                      Restore
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs uppercase text-muted">
+              <tr>
+                <th className="py-2">Name</th>
+                <th>Phase</th>
+                <th>Size</th>
+                <th>Completed</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {serverBackups.map((b) => {
+                const restorable =
+                  b.status?.phase === "Succeeded" && Boolean(b.status?.snapshotID);
+                return (
+                  <tr
+                    key={b.metadata.name}
+                    className="cursor-pointer hover:bg-surface/40"
+                    onClick={() => setSelectedBackup(b.metadata.name)}
+                  >
+                    <td className="py-2 font-mono">{b.metadata.name}</td>
+                    <td>
+                      <PhaseBadge phase={b.status?.phase} />
+                    </td>
+                    <td className="font-mono">{b.status?.size ?? "—"}</td>
+                    <td className="font-mono text-muted">
+                      {formatRelative(b.status?.completionTime)}
+                    </td>
+                    <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!restorable}
+                        onClick={() => setRestoringBackup(b)}
+                      >
+                        Restore
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <RestoreDialog

@@ -30,12 +30,12 @@ export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
   const [cmd, setCmd] = useState("");
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <span className="inline-flex items-center gap-1.5 font-mono text-xs">
           <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[handle.status])} aria-hidden />
           {STATUS_LABEL[handle.status]}
         </span>
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex flex-wrap gap-1">
           <Button variant="outline" size="sm" onClick={handle.clear}>
             <Eraser className="h-3 w-3" /> Clear
           </Button>

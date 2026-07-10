@@ -31,8 +31,10 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
+import { Card } from "@/components/ui/card";
 import { cn, formatBytes } from "@/lib/utils";
-import type { ClusterStats, ClusterView, GameServer } from "@/types";
+import { useMediaQuery } from "@/lib/media";
+import type { ClusterStats, ClusterView, GameServer, GameServerPhase } from "@/types";
 import { Cluster, Servers, type LifecycleVerb } from "@/lib/endpoints";
 import { countByState } from "@/lib/servers";
 
@@ -68,6 +70,12 @@ export function ServersPage() {
       Servers.lifecycle(args.name, args.verb),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["servers"] }),
   });
+
+  // Below `md`, a wide table doesn't fit — render stacked cards instead.
+  // Driven by matchMedia (not a responsive CSS class toggle) so only one
+  // representation of each server ever mounts; two would duplicate every
+  // row's accessible text in the DOM.
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
@@ -311,59 +319,86 @@ export function ServersPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Game</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">CPU</th>
-              <th className="px-4 py-3">Memory</th>
-              <th className="px-4 py-3">Players</th>
-              <th className="px-4 py-3">Node</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {isLoading && (
-              <tr><td className="px-4 py-10 text-center text-muted" colSpan={8}>Loading…</td></tr>
-            )}
-            {!isLoading && visible.length === 0 && visibleShared.length === 0 && (
-              <tr><td className="px-4 py-12 text-center text-muted" colSpan={8}>
-                No servers match.
-              </td></tr>
-            )}
-            {visible.map((gs) => <ServerRow key={gs.metadata.name} gs={gs} onAct={act.mutate} />)}
+      {isMobile ? (
+        <div className="space-y-3">
+          {isLoading && (
+            <Card className="p-10 text-center text-sm text-muted">Loading…</Card>
+          )}
+          {!isLoading && visible.length === 0 && visibleShared.length === 0 && (
+            <Card className="p-12 text-center text-sm text-muted">No servers match.</Card>
+          )}
+          {visible.map((gs) => (
+            <ServerCard key={gs.metadata.name} gs={gs} onAct={act.mutate} />
+          ))}
 
-            {visibleShared.length > 0 && (
-              <>
-                <tr className="bg-surface/20">
-                  <td colSpan={8} className="px-4 py-3">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-                      <Share2 className="h-4 w-4" />
-                      Shared with you
-                    </div>
-                  </td>
-                </tr>
-                {visibleShared.map((gs) => <ServerRow key={`shared-${gs.metadata.namespace ?? ""}-${gs.metadata.name}`} gs={gs} onAct={act.mutate} />)}
-              </>
-            )}
-          </tbody>
-        </table>
-      </div>
+          {visibleShared.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 px-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                <Share2 className="h-4 w-4" />
+                Shared with you
+              </div>
+              {visibleShared.map((gs) => (
+                <ServerCard
+                  key={`shared-${gs.metadata.namespace ?? ""}-${gs.metadata.name}`}
+                  gs={gs}
+                  onAct={act.mutate}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <table className="w-full text-sm">
+            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
+              <tr>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Game</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">CPU</th>
+                <th className="px-4 py-3">Memory</th>
+                <th className="px-4 py-3">Players</th>
+                <th className="px-4 py-3">Node</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {isLoading && (
+                <tr><td className="px-4 py-10 text-center text-muted" colSpan={8}>Loading…</td></tr>
+              )}
+              {!isLoading && visible.length === 0 && visibleShared.length === 0 && (
+                <tr><td className="px-4 py-12 text-center text-muted" colSpan={8}>
+                  No servers match.
+                </td></tr>
+              )}
+              {visible.map((gs) => <ServerRow key={gs.metadata.name} gs={gs} onAct={act.mutate} />)}
+
+              {visibleShared.length > 0 && (
+                <>
+                  <tr className="bg-surface/20">
+                    <td colSpan={8} className="px-4 py-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                        <Share2 className="h-4 w-4" />
+                        Shared with you
+                      </div>
+                    </td>
+                  </tr>
+                  {visibleShared.map((gs) => <ServerRow key={`shared-${gs.metadata.namespace ?? ""}-${gs.metadata.name}`} gs={gs} onAct={act.mutate} />)}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
-function ServerRow({
-  gs,
-  onAct,
-}: {
-  gs: GameServer;
-  onAct: (args: { name: string; verb: LifecycleVerb }) => void;
-}) {
-  const qc = useQueryClient();
+// serverRowData derives the small set of display values ServerRow and
+// ServerCard both need (CPU/memory %, player count, shared-read-only flag)
+// so the mobile card list can't silently drift from the desktop table's
+// formatting.
+function serverRowData(gs: GameServer) {
   const phase = gs.status?.phase;
   const agent = gs.status?.agent;
   const players = agent?.playersOnline;
@@ -372,7 +407,7 @@ function ServerRow({
   // Shared rows with non-default namespace are read-only (detail route and
   // lifecycle calls are namespace-blind).
   const isSharedNonDefault =
-    gs.metadata.namespace && gs.metadata.namespace !== "gameplane-games";
+    !!gs.metadata.namespace && gs.metadata.namespace !== "gameplane-games";
 
   // Resource usage comes from the agent's heartbeat (cgroup + statfs).
   // null/undefined means "unknown" (unreadable source, or a stale heartbeat
@@ -396,6 +431,68 @@ function ServerRow({
       ? `${((memUsed / memLimit) * 100).toFixed(0)}%`
       : formatBytes(memUsed)
     : "—";
+
+  const playersLabel =
+    typeof players === "number" && players >= 0
+      ? typeof maxPlayers === "number" && maxPlayers >= 0
+        ? `${players}/${maxPlayers}`
+        : `${players}`
+      : "—";
+
+  return { phase, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel };
+}
+
+// ServerLifecycleActions is the Start/Stop/Restart/menu cluster shared by
+// the desktop table row and the mobile card.
+function ServerLifecycleActions({
+  gs,
+  phase,
+  onAct,
+}: {
+  gs: GameServer;
+  phase?: GameServerPhase;
+  onAct: (args: { name: string; verb: LifecycleVerb }) => void;
+}) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["servers"] });
+    void qc.invalidateQueries({ queryKey: ["my-servers"] });
+  };
+  return (
+    <div className="inline-flex items-center">
+      <ActionButton
+        title="Start"
+        disabled={phase === "Running" || phase === "Starting"}
+        onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
+      >
+        <Play className="h-4 w-4" />
+      </ActionButton>
+      <ActionButton
+        title="Stop"
+        disabled={phase === "Stopped" || phase === "Suspended"}
+        onClick={() => onAct({ name: gs.metadata.name, verb: "stop" })}
+      >
+        <Square className="h-4 w-4" />
+      </ActionButton>
+      <ActionButton
+        title="Restart"
+        onClick={() => onAct({ name: gs.metadata.name, verb: "restart" })}
+      >
+        <RotateCw className="h-4 w-4" />
+      </ActionButton>
+      <ServerActionsMenu gs={gs} onDeleted={invalidate} onTransferred={invalidate} />
+    </div>
+  );
+}
+
+function ServerRow({
+  gs,
+  onAct,
+}: {
+  gs: GameServer;
+  onAct: (args: { name: string; verb: LifecycleVerb }) => void;
+}) {
+  const { phase, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
 
   return (
     <tr className="hover:bg-surface/40">
@@ -421,52 +518,71 @@ function ServerRow({
       <td className="px-4 py-3"><PhaseBadge phase={phase} /></td>
       <td className="px-4 py-3 font-mono">{cpuLabel}</td>
       <td className="px-4 py-3 font-mono">{memLabel}</td>
-      <td className="px-4 py-3 font-mono">
-        {typeof players === "number" && players >= 0
-          ? typeof maxPlayers === "number" && maxPlayers >= 0
-            ? `${players}/${maxPlayers}`
-            : `${players}`
-          : "—"}
-      </td>
+      <td className="px-4 py-3 font-mono">{playersLabel}</td>
       <td className="px-4 py-3 font-mono text-muted">{node ?? "—"}</td>
       <td className="px-4 py-3 text-right">
-        {!isSharedNonDefault && (
-          <div className="inline-flex items-center">
-            <ActionButton
-              title="Start"
-              disabled={phase === "Running" || phase === "Starting"}
-              onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
-            >
-              <Play className="h-4 w-4" />
-            </ActionButton>
-            <ActionButton
-              title="Stop"
-              disabled={phase === "Stopped" || phase === "Suspended"}
-              onClick={() => onAct({ name: gs.metadata.name, verb: "stop" })}
-            >
-              <Square className="h-4 w-4" />
-            </ActionButton>
-            <ActionButton
-              title="Restart"
-              onClick={() => onAct({ name: gs.metadata.name, verb: "restart" })}
-            >
-              <RotateCw className="h-4 w-4" />
-            </ActionButton>
-            <ServerActionsMenu
-              gs={gs}
-              onDeleted={() => {
-                void qc.invalidateQueries({ queryKey: ["servers"] });
-                void qc.invalidateQueries({ queryKey: ["my-servers"] });
-              }}
-              onTransferred={() => {
-                void qc.invalidateQueries({ queryKey: ["servers"] });
-                void qc.invalidateQueries({ queryKey: ["my-servers"] });
-              }}
-            />
-          </div>
-        )}
+        {!isSharedNonDefault && <ServerLifecycleActions gs={gs} phase={phase} onAct={onAct} />}
       </td>
     </tr>
+  );
+}
+
+// ServerCard is the mobile (< md) stand-in for a table row: name, game,
+// status pill, a row of stat chips, and the same lifecycle actions.
+function ServerCard({
+  gs,
+  onAct,
+}: {
+  gs: GameServer;
+  onAct: (args: { name: string; verb: LifecycleVerb }) => void;
+}) {
+  const { phase, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <GameIcon game={gs.spec.templateRef.name} size="sm" />
+          <div className="min-w-0">
+            <Link
+              to="/servers/$name"
+              params={{ name: gs.metadata.name }}
+              search={isSharedNonDefault ? { ns: gs.metadata.namespace } : {}}
+              className="block truncate font-mono text-sm text-fg hover:text-primary"
+            >
+              {gs.metadata.name}
+            </Link>
+            <div className="truncate text-[11px] text-muted">
+              {gs.spec.templateRef.name} · {gs.metadata.namespace ?? "gameplane-games"}
+            </div>
+          </div>
+        </div>
+        <PhaseBadge phase={phase} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <StatChip icon={<Cpu className="h-3 w-3" />} label="CPU" value={cpuLabel} />
+        <StatChip icon={<HardDrive className="h-3 w-3" />} label="Mem" value={memLabel} />
+        <StatChip icon={<UsersIcon className="h-3 w-3" />} label="Players" value={playersLabel} />
+        <StatChip icon={<ServerIcon className="h-3 w-3" />} label="Node" value={node ?? "—"} />
+      </div>
+
+      {!isSharedNonDefault && (
+        <div className="mt-3 flex items-center justify-end border-t border-border pt-3">
+          <ServerLifecycleActions gs={gs} phase={phase} onAct={onAct} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StatChip({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-surface px-2 py-1 text-[11px] text-muted">
+      {icon}
+      {label}
+      <span className="font-mono text-fg">{value}</span>
+    </span>
   );
 }
 

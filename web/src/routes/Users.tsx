@@ -157,37 +157,39 @@ export function UsersPage() {
       )}
 
       {tab === "users" && (
-        <Card>
-          <table className="w-full text-sm">
-            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-              <tr>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Provider</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {visible.length === 0 && (
+        <Card className="overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted">
-                    No entries.
-                  </td>
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Provider</th>
+                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3" />
                 </tr>
-              )}
-              {visible.map((u) => (
-                <UserRow
-                  key={u.id}
-                  u={u}
-                  isMe={!!me && me.id === u.id}
-                  onEdit={() => setEditing(u)}
-                  onResetPassword={() => setResetting(u)}
-                  onDelete={() => setDeleting(u)}
-                />
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {visible.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-muted">
+                      No entries.
+                    </td>
+                  </tr>
+                )}
+                {visible.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    u={u}
+                    isMe={!!me && me.id === u.id}
+                    onEdit={() => setEditing(u)}
+                    onResetPassword={() => setResetting(u)}
+                    onDelete={() => setDeleting(u)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
 

@@ -70,6 +70,50 @@ describe("AppLayout", () => {
     expect(await screen.findByText("Recent activity")).toBeInTheDocument();
   });
 
+  it("hamburger opens the mobile nav drawer; scrim and nav clicks close it", async () => {
+    renderWithQuery(<AppLayout />);
+    // Closed by default — no close button (drawer-only) in the document.
+    expect(screen.queryByRole("button", { name: /close navigation/i })).not.toBeInTheDocument();
+
+    const menuBtn = await screen.findByRole("button", { name: /open navigation/i });
+    await userEvent.click(menuBtn);
+
+    // The drawer is now open with its nav rendered. Desktop sidebar is aria-hidden.
+    const closeBtn = await screen.findByRole("button", { name: /close navigation/i });
+    expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument();
+
+    await userEvent.click(closeBtn);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /close navigation/i })).not.toBeInTheDocument(),
+    );
+
+    // Re-open, then close via a nav-item click instead of the X button.
+    await userEvent.click(menuBtn);
+    await screen.findByRole("button", { name: /close navigation/i });
+    const drawerLinks = screen.getAllByRole("link", { name: /Servers/i });
+    await userEvent.click(drawerLinks[drawerLinks.length - 1]);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /close navigation/i })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("drawer closes when Escape is pressed (Radix Dialog default)", async () => {
+    renderWithQuery(<AppLayout />);
+    const menuBtn = await screen.findByRole("button", { name: /open navigation/i });
+    await userEvent.click(menuBtn);
+
+    // Drawer is open — close button is visible.
+    await screen.findByRole("button", { name: /close navigation/i });
+
+    // Press Escape to close (Radix Dialog handles this automatically).
+    await userEvent.keyboard("{Escape}");
+
+    // Close button should be gone, drawer is closed.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /close navigation/i })).not.toBeInTheDocument(),
+    );
+  });
+
   it("global search filters servers by name and links to detail", async () => {
     server.use(
       http.get("/servers", () =>

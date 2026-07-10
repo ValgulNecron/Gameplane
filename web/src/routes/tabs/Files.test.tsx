@@ -151,4 +151,41 @@ describe("FilesTab", () => {
       ),
     );
   });
+
+  // Below `md` the tree and editor stack instead of sitting side by side;
+  // which one is showing is tracked by a `pane` state that toggles a
+  // "flex"/"hidden" class (real CSS, so it's inert in jsdom — this asserts
+  // the class tokens directly rather than actual visibility).
+  it("mobile pane toggle: selecting a file switches to the editor pane; 'Back to files' returns to the tree", async () => {
+    function hasClass(el: Element, cls: string): boolean {
+      return el.className.split(/\s+/).includes(cls);
+    }
+
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
+      if (url.startsWith("/servers/mc-survival/files/read")) return textRes("hello");
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const { container } = render(withClient(<FilesTab name="mc-survival" />));
+    await screen.findByText("server.properties");
+
+    const aside = container.querySelector("aside") as HTMLElement;
+    const main = container.querySelector("main") as HTMLElement;
+
+    // Tree pane showing, editor pane hidden before any file is selected.
+    expect(hasClass(aside, "flex")).toBe(true);
+    expect(hasClass(main, "hidden")).toBe(true);
+
+    fireEvent.click(screen.getByText("server.properties"));
+    await screen.findByTestId("monaco");
+
+    // Selecting a file switches the mobile pane to the editor.
+    expect(hasClass(main, "flex")).toBe(true);
+    expect(hasClass(aside, "hidden")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /back to files/i }));
+
+    expect(hasClass(aside, "flex")).toBe(true);
+    expect(hasClass(main, "hidden")).toBe(true);
+  });
 });

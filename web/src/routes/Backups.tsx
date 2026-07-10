@@ -128,38 +128,40 @@ function BackupsTabPanel() {
       />
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Server</th>
-              <th className="px-4 py-3">Phase</th>
-              <th className="px-4 py-3">Size</th>
-              <th className="px-4 py-3">Completed</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted">
-                  {items.length === 0
-                    ? "No backups yet. Use “Back up now” to create the first one."
-                    : "No backups match the current filters."}
-                </td>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Server</th>
+                <th className="px-4 py-3">Phase</th>
+                <th className="px-4 py-3">Size</th>
+                <th className="px-4 py-3">Completed</th>
+                <th className="px-4 py-3" />
               </tr>
-            )}
-            {filtered.map((b) => (
-              <BackupRow
-                key={b.metadata.name}
-                backup={b}
-                showServer
-                onSelect={(x) => setSelectedBackup(x.metadata.name)}
-                onRestore={setRestoringBackup}
-              />
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted">
+                    {items.length === 0
+                      ? "No backups yet. Use “Back up now” to create the first one."
+                      : "No backups match the current filters."}
+                  </td>
+                </tr>
+              )}
+              {filtered.map((b) => (
+                <BackupRow
+                  key={b.metadata.name}
+                  backup={b}
+                  showServer
+                  onSelect={(x) => setSelectedBackup(x.metadata.name)}
+                  onRestore={setRestoringBackup}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <RestoreDialog
@@ -345,59 +347,61 @@ function SchedulesTabPanel() {
       {remove.error && <ErrorBanner err={remove.error} />}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Server</th>
-              <th className="px-4 py-3">Cron</th>
-              <th className="px-4 py-3">Last run</th>
-              <th className="px-4 py-3">Next run</th>
-              <th className="px-4 py-3">Active</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {items.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted">
-                  No schedules configured yet.
-                </td>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Server</th>
+                <th className="px-4 py-3">Cron</th>
+                <th className="px-4 py-3">Last run</th>
+                <th className="px-4 py-3">Next run</th>
+                <th className="px-4 py-3">Active</th>
+                <th className="px-4 py-3" />
               </tr>
-            )}
-            {items.map((s) => (
-              <tr key={s.metadata.name} className="hover:bg-surface/40">
-                <td className="px-4 py-3 font-mono text-xs">{s.metadata.name}</td>
-                <td className="px-4 py-3">{s.spec.serverRef.name}</td>
-                <td className="px-4 py-3 font-mono text-xs">{s.spec.schedule}</td>
-                <td className="px-4 py-3 text-muted">
-                  {formatRelative(s.status?.lastSuccessfulTime)}
-                </td>
-                <td className="px-4 py-3 text-muted">
-                  {s.spec.suspend ? "—" : formatRelative(s.status?.nextScheduleTime)}
-                </td>
-                <td className="px-4 py-3">
-                  <Switch
-                    checked={!s.spec.suspend}
-                    onCheckedChange={(active) =>
-                      toggleSuspend.mutate({ name: s.metadata.name, suspend: !active })
-                    }
-                    aria-label="Schedule active"
-                  />
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setDeleting(s.metadata.name)}
-                  >
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-muted">
+                    No schedules configured yet.
+                  </td>
+                </tr>
+              )}
+              {items.map((s) => (
+                <tr key={s.metadata.name} className="hover:bg-surface/40">
+                  <td className="px-4 py-3 font-mono text-xs">{s.metadata.name}</td>
+                  <td className="px-4 py-3">{s.spec.serverRef.name}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{s.spec.schedule}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {formatRelative(s.status?.lastSuccessfulTime)}
+                  </td>
+                  <td className="px-4 py-3 text-muted">
+                    {s.spec.suspend ? "—" : formatRelative(s.status?.nextScheduleTime)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Switch
+                      checked={!s.spec.suspend}
+                      onCheckedChange={(active) =>
+                        toggleSuspend.mutate({ name: s.metadata.name, suspend: !active })
+                      }
+                      aria-label="Schedule active"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDeleting(s.metadata.name)}
+                    >
+                      Delete
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <ConfirmDialog
@@ -470,43 +474,45 @@ function RestoresTabPanel() {
         trailing={`${filtered.length} of ${items.length} ${items.length === 1 ? "restore" : "restores"}`}
       />
       <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Backup</th>
-              <th className="px-4 py-3">Target</th>
-              <th className="px-4 py-3">Phase</th>
-              <th className="px-4 py-3">Completed</th>
-              <th className="px-4 py-3">Message</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface/70 text-left text-[11px] uppercase tracking-wider text-muted">
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted">
-                  {items.length === 0
-                    ? "No restores have been run."
-                    : "No restores match the current filters."}
-                </td>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Backup</th>
+                <th className="px-4 py-3">Target</th>
+                <th className="px-4 py-3">Phase</th>
+                <th className="px-4 py-3">Completed</th>
+                <th className="px-4 py-3">Message</th>
               </tr>
-            )}
-            {filtered.map((r) => (
-              <tr key={r.metadata.name} className="hover:bg-surface/40">
-                <td className="px-4 py-3 font-mono text-xs">{r.metadata.name}</td>
-                <td className="px-4 py-3 font-mono text-xs">{r.spec.backupRef.name}</td>
-                <td className="px-4 py-3">{r.spec.serverRef.name}</td>
-                <td className="px-4 py-3"><PhaseBadge phase={r.status?.phase} /></td>
-                <td className="px-4 py-3 text-muted">
-                  {formatRelative(r.status?.completionTime)}
-                </td>
-                <td className="px-4 py-3 text-xs text-muted">
-                  {r.status?.message ?? "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted">
+                    {items.length === 0
+                      ? "No restores have been run."
+                      : "No restores match the current filters."}
+                  </td>
+                </tr>
+              )}
+              {filtered.map((r) => (
+                <tr key={r.metadata.name} className="hover:bg-surface/40">
+                  <td className="px-4 py-3 font-mono text-xs">{r.metadata.name}</td>
+                  <td className="px-4 py-3 font-mono text-xs">{r.spec.backupRef.name}</td>
+                  <td className="px-4 py-3">{r.spec.serverRef.name}</td>
+                  <td className="px-4 py-3"><PhaseBadge phase={r.status?.phase} /></td>
+                  <td className="px-4 py-3 text-muted">
+                    {formatRelative(r.status?.completionTime)}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted">
+                    {r.status?.message ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
