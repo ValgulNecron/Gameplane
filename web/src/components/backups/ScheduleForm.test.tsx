@@ -7,9 +7,11 @@ import { renderWithQuery } from "@/test/render";
 import { ScheduleForm } from "./ScheduleForm";
 
 describe("ScheduleForm", () => {
-  it("renders the form with default schedule and the lone destination preselected", async () => {
+  it("renders the form with default schedule, retention, and the lone destination preselected", async () => {
     renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
     expect(screen.getByDisplayValue("0 */6 * * *")).toBeInTheDocument();
+    // Retention policy defaults to keepLast: 7
+    expect((screen.getByLabelText("Keep last") as HTMLInputElement).value).toBe("7");
     // Destination select defaults to the only configured destination
     // (the MSW handler returns one named "default").
     await waitFor(() => {
