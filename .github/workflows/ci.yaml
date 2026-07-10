@@ -304,6 +304,68 @@ jobs:
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
 
+  # Dual-cluster ?cluster= dispatch + scoped RBAC (test/e2e/multicluster_e2e_test.go).
+  # Split out from e2e-go: it's the only bucket that needs a SECOND kind
+  # cluster (registered as a remote target via POST /clusters), so it gets
+  # its own job rather than complicating the single-cluster matrix above.
+  e2e-multicluster:
+    name: e2e multicluster (kind x2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLUSTER: gameplane-e2e
+      CLUSTER_B: gameplane-e2e-b
+      CTX: kind-gameplane-e2e
+      CTX_B: kind-gameplane-e2e-b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25", cache: false }
+      - name: go module + build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-e2e-
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: build images
+        uses: ./.github/actions/e2e-images
+      - name: bring up cluster A + helm install
+        run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
+      - name: bring up cluster B + helm install
+        # A second, fully independent kind cluster with the same chart
+        # installed — it needs its own operator to reconcile the GameServer
+        # this test dispatches to it. kind attaches every cluster's nodes to
+        # the same docker bridge network ("kind"), so cluster A's api/
+        # operator pods can reach cluster B's control-plane container by its
+        # docker-network IP; see multicluster_e2e_test.go's package doc.
+        run: ./deploy/kind/e2e.sh up "$CLUSTER_B" e2e
+      - name: run go e2e (multicluster)
+        run: |
+          RUN_REGEX="$(./test/e2e/buckets.sh regex multicluster)"
+          cd test/e2e && \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
+            GAMEPLANE_E2E_CLUSTER_B="$CLUSTER_B" \
+            go test -tags=e2e -timeout 15m -v -run "$RUN_REGEX" ./...
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl --context "$CTX" get all -A || true
+          kubectl --context "$CTX_B" get all -A || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX_B" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+          kubectl --context "$CTX_B" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+
   e2e-web-live:
     name: e2e web live (kind)
     runs-on: ubuntu-latest

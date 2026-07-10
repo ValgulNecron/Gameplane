@@ -89,7 +89,7 @@ make test-web            # vitest for web
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
 make test-e2e            # kind + helm + real components (≈ 10–20 min)
 make test-e2e-keep       # re-run e2e against an already-up cluster
-make test-e2e-bucket     # one CI bucket (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot)
+make test-e2e-bucket     # one CI bucket (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot|multicluster)
 ```
 
 **e2e test conventions** (CI runs the suite as parallel per-bucket jobs, one kind cluster each):
