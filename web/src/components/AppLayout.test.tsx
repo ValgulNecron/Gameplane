@@ -78,9 +78,9 @@ describe("AppLayout", () => {
     const menuBtn = await screen.findByRole("button", { name: /open navigation/i });
     await userEvent.click(menuBtn);
 
-    // The drawer mounts a second "Dashboard" link (desktop sidebar + drawer).
+    // The drawer is now open with its nav rendered. Desktop sidebar is aria-hidden.
     const closeBtn = await screen.findByRole("button", { name: /close navigation/i });
-    expect(screen.getAllByRole("link", { name: /Dashboard/i }).length).toBeGreaterThan(1);
+    expect(screen.getByRole("link", { name: /Dashboard/i })).toBeInTheDocument();
 
     await userEvent.click(closeBtn);
     await waitFor(() =>
