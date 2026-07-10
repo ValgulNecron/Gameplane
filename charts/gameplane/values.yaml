@@ -247,6 +247,18 @@ networkPolicies:
 clusterOps:
   enabled: false
 
+# Optional, strictly read-only MCP (Model Context Protocol) server: lets an
+# AI assistant read cluster state (the 7 Gameplane CRDs, Pods, Events, pod
+# logs) and propose fixes as text, over stdio JSON-RPC only — never a
+# network port, and never a create/update/patch/delete tool. Off by default.
+# See mcp-server/README.md for how to connect (kubectl exec -i ... -- serve).
+mcpServer:
+  enabled: false
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 32Mi }
+    limits:   { cpu: 200m, memory: 128Mi }
+
 # Informational release-channel label shown read-only in the dashboard's
 # Admin Settings → Updates section. Nothing consumes it — Gameplane is
 # upgraded via Helm (image tags / chart versions) — so set it to whatever

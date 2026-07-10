@@ -128,13 +128,22 @@ TestGameServer_TerrariaBotConnects
 EOF
 }
 
+# Needs a SECOND kind cluster (dual-cluster ?cluster= dispatch + scoped
+# RBAC), which none of the other buckets' single-cluster jobs provide — see
+# multicluster_e2e_test.go's package doc. Its own dedicated CI job
+# (e2e-multicluster) brings up both clusters before running it.
+bucket_multicluster() { cat <<'EOF'
+TestMultiCluster_ClusterDispatchAndScopedRBAC
+EOF
+}
+
 # Tests that exist in the suite but deliberately run in NO bucket. Every
 # entry needs a reason; `verify` fails on any unlisted stray so additions
 # here are a conscious, reviewed act. Currently empty.
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot
+	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot multicluster
 }
 
 list_bucket() {
@@ -147,6 +156,7 @@ list_bucket() {
 	api-mods) bucket_api_mods ;;
 	ratelimit) bucket_ratelimit ;;
 	bot) bucket_bot ;;
+	multicluster) bucket_multicluster ;;
 	*)
 		echo "unknown bucket: $1 (known: $(bucket_names | tr '\n' ' '))" >&2
 		exit 2

@@ -55,6 +55,23 @@ func newEnv() (*Env, error) {
 	tag := getenvOr("GAMEPLANE_E2E_TAG", "e2e")
 	kctx := getenvOr("GAMEPLANE_E2E_CONTEXT", "kind-"+cluster)
 
+	env, err := newEnvForContext(kctx)
+	if err != nil {
+		return nil, err
+	}
+	env.ClusterName = cluster
+	env.Tag = tag
+	return env, nil
+}
+
+// newEnvForContext builds an Env pointed at an explicit kubeconfig context,
+// bypassing the GAMEPLANE_E2E_CLUSTER/GAMEPLANE_E2E_CONTEXT env vars newEnv
+// reads. Used by dual-cluster tests (see multicluster_e2e_test.go) to talk
+// directly to a second kind cluster that TestMain does not itself manage.
+// ClusterName and Tag on the returned Env are set to kctx; callers that care
+// about those fields (none of the dual-cluster helpers currently do) should
+// overwrite them.
+func newEnvForContext(kctx string) (*Env, error) {
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kc := os.Getenv("KUBECONFIG"); kc != "" {
 		loader.ExplicitPath = kc
@@ -64,7 +81,7 @@ func newEnv() (*Env, error) {
 	}
 	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loader, override).ClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("build rest config: %w", err)
+		return nil, fmt.Errorf("build rest config for context %s: %w", kctx, err)
 	}
 	k8s, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -78,8 +95,8 @@ func newEnv() (*Env, error) {
 		Cfg:         cfg,
 		K8s:         k8s,
 		Dyn:         dyn,
-		ClusterName: cluster,
-		Tag:         tag,
+		ClusterName: kctx,
+		Tag:         getenvOr("GAMEPLANE_E2E_TAG", "e2e"),
 		Context:     kctx,
 	}, nil
 }

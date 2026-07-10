@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard operator api agent audit-syslog-bridge telemetry-receiver
+GO_MODULES     := netguard operator api agent audit-syslog-bridge telemetry-receiver mcp-server
 GO_INTEGRATION_MODULES := operator api
 GO_BUILDFLAGS  ?= -trimpath
 
@@ -188,7 +188,7 @@ test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/de
 		go test -tags=e2e -timeout 35m -v ./...
 
 .PHONY: test-e2e-bucket
-test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot)
+test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot|multicluster). BUCKET=multicluster additionally needs a second kind cluster up and GAMEPLANE_E2E_CLUSTER_B set to its name (default gameplane-e2e-b).
 	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
 		go test -tags=e2e -timeout 35m -v -run "$$(./buckets.sh regex $(BUCKET))" ./...
 
@@ -230,7 +230,7 @@ lint-web: ## Run web linters
 
 # -------- images --------
 .PHONY: images
-images: image-operator image-api image-agent image-audit-syslog image-telemetry-receiver ## Build all container images
+images: image-operator image-api image-agent image-audit-syslog image-telemetry-receiver image-mcp-server ## Build all container images
 
 image-operator: ## Build operator image
 	docker build -t $(REGISTRY)/operator:$(TAG) -f operator/Dockerfile .
@@ -246,6 +246,9 @@ image-audit-syslog: ## Build audit-syslog-bridge image
 
 image-telemetry-receiver: ## Build telemetry-receiver image
 	docker build -t $(REGISTRY)/telemetry-receiver:$(TAG) -f telemetry-receiver/Dockerfile .
+
+image-mcp-server: ## Build mcp-server image
+	docker build -t $(REGISTRY)/mcp-server:$(TAG) -f mcp-server/Dockerfile .
 
 # -------- codegen --------
 .PHONY: generate manifests
