@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { APIError } from "@/lib/api";
+import { withCluster } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -103,7 +104,7 @@ export function AdminLogsPage() {
       for (;;) {
         try {
           await streamSystemLogs({
-            url: logsURL(component, tail, follow, currentPod || undefined),
+            url: withCluster(logsURL(component, tail, follow, currentPod || undefined)),
             signal: ctrl.signal,
             onPod: (p) => {
               currentPod = p;
@@ -154,7 +155,7 @@ export function AdminLogsPage() {
   const downloadLogs = async () => {
     setError("");
     try {
-      const res = await fetch(logsURL(component, tail, false, pod || undefined), {
+      const res = await fetch(withCluster(logsURL(component, tail, false, pod || undefined)), {
         credentials: "include",
       });
       if (!res.ok) {

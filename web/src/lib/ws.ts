@@ -1,4 +1,9 @@
 // Thin reconnecting WebSocket helper. Used by the console and logs tabs.
+//
+// NOTE: WebSocket streams are currently local-cluster-scoped. The cluster
+// selector threads ?cluster= through API fetches (REST), but WS paths
+// (console/RCON/log streams) remain bound to the local cluster. Cross-cluster
+// WebSocket support is a follow-up task. See docs/roadmap.md.
 
 // Connection lifecycle, surfaced to callers via onStatus so the UI can
 // reflect "reconnecting…" in its chrome instead of writing a status line

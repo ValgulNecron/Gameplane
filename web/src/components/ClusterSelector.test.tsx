@@ -1,25 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 
-// Mock the router Link component
+// Mock the router navigation
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
-    <a href={to} {...rest}>{children}</a>
-  ),
+  useNavigate: () => vi.fn(),
 }));
 
 import { ClusterSelector } from "./ClusterSelector";
+import { setCurrentCluster } from "@/lib/cluster";
 import type { ClusterRegistry } from "@/types";
 
 describe("ClusterSelector", () => {
   beforeEach(() => {
-    // Clear localStorage to reset the cluster selection
+    // Clear localStorage and reset cluster selection for test isolation
     localStorage.clear();
+    setCurrentCluster("local");
   });
 
   it("renders the current cluster name with a health dot", async () => {
@@ -110,15 +109,9 @@ describe("ClusterSelector", () => {
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
 
-    // Find and click the "Production" option
-    const prodOptions = screen.getAllByRole("button").filter((btn) =>
-      btn.textContent?.includes("Production"),
-    );
-    const prodButton = prodOptions[1]; // The one in the dropdown (not the trigger)
-
-    if (prodButton) {
-      await userEvent.click(prodButton);
-    }
+    // Find and click the "Production" menu item
+    const prodItem = await screen.findByRole("menuitem", { name: /Production/ });
+    await userEvent.click(prodItem);
 
     // The query cache should be cleared
     await waitFor(() => {
@@ -126,7 +119,7 @@ describe("ClusterSelector", () => {
     });
   });
 
-  it("includes an 'Add cluster' link at the bottom of the dropdown", async () => {
+  it("includes an 'Add cluster' option at the bottom of the dropdown", async () => {
     const clusters: ClusterRegistry[] = [
       { name: "local", displayName: "Local", phase: "Healthy" },
     ];
@@ -140,9 +133,9 @@ describe("ClusterSelector", () => {
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
 
-    // Look for the "Add cluster" link
-    const addLink = await screen.findByRole("link", { name: /add cluster/i });
-    expect(addLink).toHaveAttribute("href", "/cluster");
+    // Look for the "Add cluster" menu item
+    const addItem = await screen.findByRole("menuitem", { name: /add cluster/i });
+    expect(addItem).toBeInTheDocument();
   });
 
   it("gracefully handles empty cluster list", async () => {

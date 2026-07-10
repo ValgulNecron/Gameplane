@@ -1,10 +1,11 @@
 import { ChevronDown, Check, Plus } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { setCurrentCluster, useCurrentCluster } from "@/lib/cluster";
 import { Clusters } from "@/lib/endpoints";
 import type { ClusterRegistry } from "@/types";
 import { cn } from "@/lib/utils";
+import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -32,6 +33,7 @@ function getDisplayName(cluster: ClusterRegistry | undefined | null): string {
 export function ClusterSelector() {
   const currentClusterId = useCurrentCluster();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ["clusters"],
     queryFn: () => Clusters.list(),
@@ -46,6 +48,10 @@ export function ClusterSelector() {
   const handleSelectCluster = (clusterId: string): void => {
     setCurrentCluster(clusterId);
     void qc.clear();
+  };
+
+  const handleAddCluster = (): void => {
+    void navigate({ to: "/cluster" });
   };
 
   return (
@@ -73,13 +79,12 @@ export function ClusterSelector() {
         ) : (
           <>
             {clusters.map((cluster) => (
-              <button
+              <Menu.Item
                 key={cluster.name}
-                type="button"
-                onClick={() => handleSelectCluster(cluster.name)}
+                onSelect={() => handleSelectCluster(cluster.name)}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm",
-                  "text-fg hover:bg-surface/70 outline-none",
+                  "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none",
+                  "text-fg data-[highlighted]:bg-surface/70",
                 )}
               >
                 <span className={cn("h-2 w-2 rounded-full", getPhaseColor(cluster.phase))} />
@@ -87,25 +92,21 @@ export function ClusterSelector() {
                 {cluster.name === currentClusterId && (
                   <Check className="h-3.5 w-3.5 text-primary shrink-0" />
                 )}
-              </button>
+              </Menu.Item>
             ))}
 
             <DropdownMenuSeparator />
 
-            <Link
-              to="/cluster"
-              onClick={(e) => {
-                // Prevent default dropdown close behavior so navigation happens
-                e.stopPropagation();
-              }}
+            <Menu.Item
+              onSelect={handleAddCluster}
               className={cn(
                 "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none",
-                "text-fg hover:bg-surface/70 block w-full text-left no-underline",
+                "text-fg data-[highlighted]:bg-surface/70",
               )}
             >
               <Plus className="h-3.5 w-3.5 text-muted shrink-0" />
               <span>Add cluster</span>
-            </Link>
+            </Menu.Item>
           </>
         )}
       </DropdownMenuContent>

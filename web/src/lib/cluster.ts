@@ -15,6 +15,7 @@ let currentClusterId: string | undefined;
 /**
  * Gets the currently selected cluster id from localStorage, defaulting to "local".
  * Safe for SSR/initial render (reads lazily, guarded for missing localStorage).
+ * Handles SecurityError in private-browsing or storage-blocked contexts.
  */
 export function getCurrentCluster(): string {
   // Return cached value if available (even without localStorage for SSR compatibility)
@@ -27,20 +28,29 @@ export function getCurrentCluster(): string {
     return DEFAULT_CLUSTER;
   }
 
-  // Load from localStorage on first read
-  const stored = localStorage.getItem(CLUSTER_KEY);
-  currentClusterId = stored || DEFAULT_CLUSTER;
+  // Load from localStorage on first read, guarded against SecurityError
+  try {
+    const stored = localStorage.getItem(CLUSTER_KEY);
+    currentClusterId = stored || DEFAULT_CLUSTER;
+  } catch {
+    // Private browsing or storage blocked — use default
+    currentClusterId = DEFAULT_CLUSTER;
+  }
 
   return currentClusterId;
 }
 
 /**
  * Sets the current cluster id and persists to localStorage.
- * Notifies all subscribers.
+ * Notifies all subscribers. Gracefully ignores SecurityError from storage-blocked contexts.
  */
 export function setCurrentCluster(id: string): void {
   if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
-    localStorage.setItem(CLUSTER_KEY, id);
+    try {
+      localStorage.setItem(CLUSTER_KEY, id);
+    } catch {
+      // Private browsing or storage blocked — ignore write failure
+    }
   }
   currentClusterId = id;
   notifySubscribers();

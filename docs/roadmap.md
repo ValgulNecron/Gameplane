@@ -32,6 +32,11 @@ page implicitly targets the local cluster. Remaining work:
 
 Per the repo's design-first rule this starts in `design.pen`, not in React.
 
+**Note on WebSocket streams:** Console, RCON, and log WebSocket streams remain
+local-cluster-scoped in this release. The dashboard's API client threads `?cluster=`
+through REST fetches, but WebSocket paths have not yet been updated. Cross-cluster
+WebSocket support is a follow-up task.
+
 ### Multi-cluster: dual-cluster e2e coverage
 
 Nothing in CI exercises two clusters at once, so the `?cluster=` dispatch and the
