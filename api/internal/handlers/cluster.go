@@ -79,9 +79,14 @@ type clusterInfo struct {
 }
 
 type clusterStats struct {
-	Nodes             int   `json:"nodes"`
+	Nodes int `json:"nodes"`
+	// TotalStorageBytes is the physical disk the cluster's nodes report
+	// (ephemeral-storage capacity) — the denominator of the storage meter.
 	TotalStorageBytes int64 `json:"totalStorageBytes"`
-	UsedStorageBytes  int64 `json:"usedStorageBytes"`
+	// UsedStorageBytes is storage provisioned to a workload: the capacity of
+	// Bound PersistentVolumes. Kubernetes exposes no real disk *usage*
+	// without a metrics pipeline, so "handed out" is the honest signal.
+	UsedStorageBytes int64 `json:"usedStorageBytes"`
 }
 
 func (h *clusterHandler) view(w http.ResponseWriter, req *http.Request) {
@@ -127,21 +132,45 @@ func (h *clusterHandler) stats(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	var total, used int64
-	for i := range pvs.Items {
-		cap := pvs.Items[i].Spec.Capacity[corev1.ResourceStorage]
-		total += cap.Value()
-		// "Used" here means provisioned-and-bound storage — the closest
-		// signal available without a metrics pipeline.
-		if pvs.Items[i].Status.Phase == corev1.VolumeBound {
-			used += cap.Value()
-		}
-	}
 	writeJSON(w, clusterStats{
 		Nodes:             len(nodes.Items),
-		TotalStorageBytes: total,
-		UsedStorageBytes:  used,
+		TotalStorageBytes: nodeStorageCapacity(nodes.Items),
+		UsedStorageBytes:  boundVolumeBytes(pvs.Items),
 	})
+}
+
+// nodeStorageCapacity sums the ephemeral-storage capacity each node reports:
+// the physical disk behind the cluster.
+//
+// Measuring "total" as the sum of *all* PersistentVolume capacity — as this
+// once did — makes the storage meter degenerate. Every PV that exists is
+// almost always Bound, so used == total and the meter reads 100% on every
+// install. Nodes give an independent denominator.
+//
+// Caveat: with networked storage (Ceph, EBS) the volumes do not come off the
+// node disks, so provisioned storage can exceed this figure. That reads as
+// >100% — an honest signal of overcommit rather than a silent 100%.
+func nodeStorageCapacity(nodes []corev1.Node) int64 {
+	var total int64
+	for i := range nodes {
+		q := nodes[i].Status.Capacity[corev1.ResourceEphemeralStorage]
+		total += q.Value()
+	}
+	return total
+}
+
+// boundVolumeBytes sums the capacity of Bound PersistentVolumes. An unbound
+// volume is spare capacity, not consumption.
+func boundVolumeBytes(pvs []corev1.PersistentVolume) int64 {
+	var used int64
+	for i := range pvs {
+		if pvs[i].Status.Phase != corev1.VolumeBound {
+			continue
+		}
+		q := pvs[i].Spec.Capacity[corev1.ResourceStorage]
+		used += q.Value()
+	}
+	return used
 }
 
 // serverVersion returns the cluster's Kubernetes version (e.g.
