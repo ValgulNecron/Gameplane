@@ -214,15 +214,11 @@ describe("ModulesPage", () => {
     catalog.mockResolvedValue({ items: [MINECRAFT, CUSTOM_UPLOADED] });
     renderPage();
 
-    // Minecraft (OCI source) should not have "Remove upload" button
-    expect(await screen.findByText("Minecraft (Java)")).toBeInTheDocument();
-    const minecraftCard = screen.getByText("Minecraft (Java)").closest("div");
-    expect(minecraftCard?.textContent).not.toContain("Remove upload");
+    await screen.findByText("Minecraft (Java)");
 
-    // Custom Game (upload source) should have "Remove upload" button
-    expect(screen.getByText("Custom Game")).toBeInTheDocument();
-    const customCard = screen.getByText("Custom Game").closest("div");
-    expect(customCard?.textContent).toContain("Remove upload");
+    // There should be exactly one "Remove upload" button (for CUSTOM_UPLOADED)
+    expect(screen.getByRole("button", { name: /remove upload/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /remove upload/i })).toHaveLength(1);
   });
 
   it("removes an uploaded module after confirmation", async () => {

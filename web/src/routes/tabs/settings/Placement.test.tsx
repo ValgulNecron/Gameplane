@@ -265,15 +265,11 @@ describe("PlacementSection", () => {
       />,
     );
     const tolEditor = screen.getAllByTestId("monaco-editor")[0];
+    fireEvent.change(tolEditor, { target: { value: '[{"key":"gpu","operator":"Exists"}]' } });
     fireEvent.change(tolEditor, { target: { value: "[]" } });
 
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        spec: expect.objectContaining({
-          tolerations: undefined,
-        }),
-      }),
-    );
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.tolerations).toBeUndefined();
   });
 
   it("empty object clears affinity (undefined)", () => {
@@ -285,15 +281,11 @@ describe("PlacementSection", () => {
       />,
     );
     const affEditor = screen.getAllByTestId("monaco-editor")[1];
+    fireEvent.change(affEditor, { target: { value: '{"nodeAffinity":{}}' } });
     fireEvent.change(affEditor, { target: { value: "{}" } });
 
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        spec: expect.objectContaining({
-          affinity: undefined,
-        }),
-      }),
-    );
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.affinity).toBeUndefined();
   });
 
   it("reports validity=true initially and after clearing errors", () => {

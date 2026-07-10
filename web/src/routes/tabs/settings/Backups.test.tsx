@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { BackupsSection } from "./Backups";
@@ -120,8 +120,7 @@ describe("BackupsSection", () => {
     );
 
     const scheduleInput = screen.getByDisplayValue("0 0 * * *");
-    await userEvent.clear(scheduleInput);
-    await userEvent.type(scheduleInput, "0 12 * * *");
+    fireEvent.change(scheduleInput, { target: { value: "0 12 * * *" } });
 
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.backupPolicy.schedule).toBe("0 12 * * *");

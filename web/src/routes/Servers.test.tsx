@@ -28,6 +28,9 @@ vi.mock("@tanstack/react-router", () => ({
       </a>
     );
   },
+  useNavigate: () => vi.fn(),
+  useSearch: () => ({}),
+  useParams: () => ({}),
 }));
 
 import { ServersPage } from "./Servers";
