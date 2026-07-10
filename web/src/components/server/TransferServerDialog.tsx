@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Servers, Users } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
-
-const OWNER_ANNOTATION = "gameplane.local/owner";
+import { OWNER_ANNOTATION } from "@/lib/annotations";
 
 interface Props {
   name: string;

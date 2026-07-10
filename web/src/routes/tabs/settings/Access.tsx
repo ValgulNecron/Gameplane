@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { useMe, can } from "@/lib/auth";
+import { OWNER_ID_ANNOTATION, OWNER_ANNOTATION } from "@/lib/annotations";
 
-const OWNER_ID_ANNOTATION = "gameplane.local/owner-id";
-const OWNER_ANNOTATION = "gameplane.local/owner";
 const COLLABORATORS_ANNOTATION = "gameplane.local/collaborators";
 const COLLABORATOR_NAMES_ANNOTATION = "gameplane.local/collaborator-names";
 

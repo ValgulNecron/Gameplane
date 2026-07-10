@@ -7,7 +7,7 @@ import { Schedules } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
 import { ErrorBanner } from "./ErrorBanner";
 import { FieldLabel } from "@/components/ui/field";
-import { RetentionFields, RetentionForm, buildRetention } from "./RetentionFields";
+import { RetentionFields, buildRetention, type RetentionForm } from "./RetentionFields";
 
 interface Props {
   serverName: string;

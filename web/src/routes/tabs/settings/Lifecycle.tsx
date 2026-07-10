@@ -80,7 +80,7 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
   const graceNumber = Number(grace);
   const graceInvalid =
     grace !== "" &&
-    (!Number.isFinite(graceNumber) || graceNumber < 0 || graceNumber > 600);
+    (!Number.isFinite(graceNumber) || graceNumber < 0 || graceNumber > 600 || !Number.isInteger(graceNumber));
 
   return (
     <div className="space-y-6">

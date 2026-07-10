@@ -16,12 +16,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMe, can } from "@/lib/auth";
+import { OWNER_ID_ANNOTATION } from "@/lib/annotations";
 import { CloneServerDialog } from "./CloneServerDialog";
 import { DeleteServerDialog } from "./DeleteServerDialog";
 import { TransferServerDialog } from "./TransferServerDialog";
 import { WipeServerDialog } from "./WipeServerDialog";
-
-const OWNER_ID_ANNOTATION = "gameplane.local/owner-id";
 
 interface Props {
   gs: GameServer;
@@ -35,7 +34,7 @@ export function ServerActionsMenu({ gs, onDeleted, onTransferred }: Props) {
   const ann = gs.metadata.annotations ?? {};
   const ownerID = ann[OWNER_ID_ANNOTATION];
 
-  const canClone = can(me, "servers:write", ns);
+  const canClone = can(me, "servers:write", ns ?? "gameplane-games");
   const canManage =
     ownerID === String(me?.id) || can(me, "servers:write", ns ?? "gameplane-games");
 

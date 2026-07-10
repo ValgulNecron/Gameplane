@@ -51,6 +51,7 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
         <div className="flex items-center gap-3 pt-1">
           <Switch
             checked={!!policy}
+            disabled={!policy && destinations.length === 0}
             onCheckedChange={(enabled) => {
               if (enabled) {
                 // Seed with defaults
@@ -71,6 +72,11 @@ export function BackupsSection({ draft, onChange }: SectionProps) {
             {policy ? "Enabled" : "Disabled"}
           </span>
         </div>
+        {!policy && destinations.length === 0 && (
+          <div className="pt-1 text-xs text-muted">
+            Configure a backup destination first.
+          </div>
+        )}
       </Field>
 
       {policy && (
