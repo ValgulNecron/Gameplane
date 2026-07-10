@@ -824,7 +824,7 @@
                         {
                           "type": "frame",
                           "id": "VPhfQ",
-                          "name": "sortBtn",
+                          "name": "filterBtn",
                           "height": 40,
                           "cornerRadius": 999,
                           "stroke": "$c:--border",
@@ -77638,6 +77638,440 @@
                   "fontWeight": "normal"
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "OAzss",
+      "x": 18840,
+      "y": 0,
+      "name": "Screen/Servers — Filter Popover",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "width": 560,
+      "fill": "$c:--background",
+      "cornerRadius": 12,
+      "stroke": "$c:--border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 24,
+      "children": [
+        {
+          "type": "text",
+          "id": "m83WTU",
+          "name": "title",
+          "fill": "$c:--foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Servers filter — popover",
+          "fontFamily": "$c:--font-secondary",
+          "fontSize": 18,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "y6BBP",
+          "name": "subtitle",
+          "fill": "$c:--muted-foreground",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Popover opened by the Filter button in the Servers toolbar. Shows facets for Game and Namespace.",
+          "lineHeight": 1.5,
+          "fontFamily": "$c:--font-secondary",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "A7aL5t",
+          "name": "popoverContent",
+          "width": "fill_container",
+          "fill": "$c:--card",
+          "cornerRadius": 8,
+          "stroke": "$c:--border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "b9Lm85",
+              "name": "gameLabel",
+              "fill": "$c:--muted-foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Game",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "gwjFP",
+              "name": "gameCheckboxes",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "NiDxQ",
+                  "name": "row1",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "zpk5H",
+                      "type": "ref",
+                      "ref": "c:r91nP",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "AhKu5",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Minecraft (Java Edition)",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Snggl",
+                  "name": "row2",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "mAQYH",
+                      "type": "ref",
+                      "ref": "c:r91nP",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "iarPW",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Valheim",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "gyzyz",
+                  "name": "row3",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "u0f8tc",
+                      "type": "ref",
+                      "ref": "c:Wxq1C",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "b8QeL6",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Terraria",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "twBN4",
+                  "name": "row4",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "XFCHc",
+                      "type": "ref",
+                      "ref": "c:Wxq1C",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "UVh97",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Factorio",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "o6RXai",
+                  "name": "row5",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "tw8SP",
+                      "type": "ref",
+                      "ref": "c:Wxq1C",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "xhdSK",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Palworld",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "a5Goav",
+                  "name": "row6",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "sHywh",
+                      "type": "ref",
+                      "ref": "c:Wxq1C",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "ehZfW",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Satisfactory",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "G56j8",
+              "type": "ref",
+              "ref": "c:ZIXiw",
+              "name": "divider1",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "text",
+              "id": "ImjPI",
+              "name": "namespaceLabel",
+              "fill": "$c:--muted-foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Namespace",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "vZddD",
+              "name": "namespaceCheckboxes",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "oZ2FF",
+                  "name": "nsRow1",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "fLpTr",
+                      "type": "ref",
+                      "ref": "c:r91nP",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "bNKg0",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "gameplane-games",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "B5h4UY",
+                  "name": "nsRow2",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "oMe2W",
+                      "type": "ref",
+                      "ref": "c:Wxq1C",
+                      "name": "checkbox",
+                      "width": 16,
+                      "height": 16
+                    },
+                    {
+                      "type": "text",
+                      "id": "y4yFt",
+                      "fill": "$c:--foreground",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "default",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "uIKBZ",
+              "type": "ref",
+              "ref": "c:ZIXiw",
+              "name": "divider2",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "vil7h",
+              "name": "footerButtons",
+              "width": "fill_container",
+              "gap": 8,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "iqD40",
+                  "type": "ref",
+                  "ref": "c:Svd9t",
+                  "name": "clearBtn",
+                  "descendants": {
+                    "c:Xphxk": {
+                      "enabled": false
+                    },
+                    "c:yqG8L": {
+                      "content": "Clear"
+                    }
+                  }
+                },
+                {
+                  "id": "N39fEV",
+                  "type": "ref",
+                  "ref": "c:ZETEA",
+                  "name": "applyBtn",
+                  "descendants": {
+                    "c:mRGd3": {
+                      "enabled": false
+                    },
+                    "c:q5Hn5": {
+                      "content": "Apply"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "l9pSc",
+          "name": "notes",
+          "width": "fill_container",
+          "fill": "$c:--card",
+          "cornerRadius": 8,
+          "stroke": "$c:--border",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "layout": "vertical",
+          "gap": 8,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "VAozh",
+              "name": "notesTitle",
+              "fill": "$c:--foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Implementation notes",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "lwqdD",
+              "name": "notesBody",
+              "fill": "$c:--muted-foreground",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Status is intentionally NOT in this popover because the tab group already owns it. The button shows a count badge when any facet is active. Clear resets all facets. The popover is anchored to the Filter button's bottom-right corner.",
+              "lineHeight": 1.5,
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
             }
           ]
         }

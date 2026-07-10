@@ -249,7 +249,7 @@ export function auditAction(e: { method: string; path: string; target?: string }
   if (m("/users")) return `${VERB[e.method] ?? e.method} user${t}`;
   if (m("/roles")) return `${VERB[e.method] ?? e.method} role${t}`;
   if (m("/modules")) return `${VERB[e.method] ?? e.method} module${t}`;
-  if (m("/module-sources")) return `${VERB[e.method] ?? e.method} module source${t}`;
+  if (m("/modules/sources")) return `${VERB[e.method] ?? e.method} module source${t}`;
   if (m("/destinations") || m("/backup-destinations")) return `${VERB[e.method] ?? e.method} backup destination${t}`;
   if (m("/admin/config")) return "Updated settings";
   if (m("/auth/login")) return "Signed in";

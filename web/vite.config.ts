@@ -39,7 +39,7 @@ export default defineConfig({
       // Accept: */* or application/json and is forwarded to the API.
       //
       // /auth, /events, /healthz, /ws, /cluster, /templates, /schedules,
-      // /restores, /backup-destinations, /module-sources, /roles, /users
+      // /restores, /backup-destinations, /roles, /users
       // have no SPA-route collision so they're forwarded unconditionally.
       // (/roles also covers /roles/permissions by prefix — the Users page's
       // Roles tab and the permission catalog both depend on it.)
@@ -57,7 +57,6 @@ export default defineConfig({
       "/restores": { target: apiTarget, changeOrigin: true },
       "/backup-destinations": { target: apiTarget, changeOrigin: true },
       "/modules": { target: apiTarget, changeOrigin: true, bypass: htmlBypass },
-      "/module-sources": { target: apiTarget, changeOrigin: true },
       "/admin":  { target: apiTarget, changeOrigin: true, bypass: htmlBypass },
       "/ws":     { target: wsTarget,  ws: true },
     },

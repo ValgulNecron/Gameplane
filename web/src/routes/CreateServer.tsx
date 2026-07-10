@@ -31,6 +31,8 @@ const STEP_TITLES: Record<StepKey, string> = {
   review: "Review",
 };
 
+const DOCS_CREATE_SERVER_URL = "https://valgulnecron.github.io/gameplane-website/docs/getting-started";
+
 function stepsFor(template: GameTemplate | null): StepKey[] {
   const base: StepKey[] = ["template", "configure", "network", "review"];
   if ((template?.spec.versions?.length ?? 0) > 0) base.splice(1, 0, "version");
@@ -297,7 +299,7 @@ export function CreateServerWizard() {
         )}
 
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          <a href="#" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+          <a href={DOCS_CREATE_SERVER_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
             <ExternalLink className="h-3 w-3" /> Docs: Creating game servers
           </a>
           <div className="flex items-center gap-3">

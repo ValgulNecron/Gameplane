@@ -302,4 +302,215 @@ describe("ServersPage", () => {
     expect(sharedLink).toBeInTheDocument();
     expect(sharedLink.href).toContain("ns=other-namespace");
   });
+
+  it("renders the Filter button with no badge when no facets are applied", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "alpha", namespace: "gameplane-games" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("alpha");
+    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    expect(filterButton).toBeInTheDocument();
+    // Badge text should not be a number when no facets are applied
+    expect(filterButton.textContent).not.toMatch(/\d/);
+  });
+
+  it("opens the popover and lists distinct games and namespaces", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "alpha", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+            }),
+            makeServer({
+              metadata: { name: "beta", namespace: "other-ns" },
+              spec: { templateRef: { name: "valheim" } },
+            }),
+            makeServer({
+              metadata: { name: "gamma", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("alpha");
+
+    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    await userEvent.click(filterButton);
+
+    expect(screen.getByText("minecraft-java")).toBeInTheDocument();
+    expect(screen.getByText("valheim")).toBeInTheDocument();
+    expect(screen.getByText("gameplane-games")).toBeInTheDocument();
+    expect(screen.getByText("other-ns")).toBeInTheDocument();
+  });
+
+  it("filters servers by game when a game is selected and Apply is clicked", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "alpha", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+            }),
+            makeServer({
+              metadata: { name: "beta", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "valheim" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("alpha");
+
+    // Open filter
+    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    await userEvent.click(filterButton);
+
+    // Select minecraft-java
+    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    await userEvent.click(minecraftCheckbox);
+
+    // Click Apply
+    const applyButton = screen.getByRole("button", { name: /^Apply$/i });
+    await userEvent.click(applyButton);
+
+    // Only alpha should be visible, beta should not
+    await waitFor(() => expect(screen.queryByText("beta")).not.toBeInTheDocument());
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+  });
+
+  it("clears selected facets when Clear is clicked", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "alpha", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+            }),
+            makeServer({
+              metadata: { name: "beta", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "valheim" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("alpha");
+
+    // Open filter
+    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    await userEvent.click(filterButton);
+
+    // Select minecraft-java
+    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    await userEvent.click(minecraftCheckbox);
+
+    // Click Clear (should keep popover open)
+    const clearButton = screen.getByRole("button", { name: /^Clear$/i });
+    await userEvent.click(clearButton);
+
+    // minecraft-java should no longer be checked
+    expect(minecraftCheckbox).not.toHaveAttribute("data-state", "checked");
+  });
+
+  it("shows count badge when facets are applied", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "alpha", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+            }),
+            makeServer({
+              metadata: { name: "beta", namespace: "other-ns" },
+              spec: { templateRef: { name: "valheim" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("alpha");
+
+    // Open filter
+    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    await userEvent.click(filterButton);
+
+    // Select one game
+    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    await userEvent.click(minecraftCheckbox);
+
+    // Select one namespace
+    const otherNsCheckbox = screen.getByRole("menuitemcheckbox", { name: "other-ns" });
+    await userEvent.click(otherNsCheckbox);
+
+    // Click Apply
+    const applyButton = screen.getByRole("button", { name: /^Apply$/i });
+    await userEvent.click(applyButton);
+
+    // Badge should show "2" (1 game + 1 namespace)
+    await waitFor(() => {
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+  });
+
+  it("composes status filter and game facet filter together", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "mc-running", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+              status: { phase: "Running" },
+            }),
+            makeServer({
+              metadata: { name: "mc-stopped", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "minecraft-java" } },
+              status: { phase: "Stopped" },
+            }),
+            makeServer({
+              metadata: { name: "val-running", namespace: "gameplane-games" },
+              spec: { templateRef: { name: "valheim" } },
+              status: { phase: "Running" },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("mc-running");
+
+    // Apply game filter for minecraft-java
+    const filterButton = screen.getByRole("button", { name: /Filter/i });
+    await userEvent.click(filterButton);
+    const minecraftCheckbox = screen.getByRole("menuitemcheckbox", { name: "minecraft-java" });
+    await userEvent.click(minecraftCheckbox);
+    const applyButton = screen.getByRole("button", { name: /^Apply$/i });
+    await userEvent.click(applyButton);
+
+    // Now apply status filter to "Running"
+    const runningTab = screen.getByRole("tab", { name: /Running/i });
+    await userEvent.click(runningTab);
+
+    // Only mc-running should be visible
+    expect(screen.getByText("mc-running")).toBeInTheDocument();
+    expect(screen.queryByText("mc-stopped")).not.toBeInTheDocument();
+    expect(screen.queryByText("val-running")).not.toBeInTheDocument();
+  });
 });
