@@ -333,6 +333,53 @@
                   "alignItems": "center",
                   "children": [
                     {
+                      "type": "frame",
+                      "id": "oybPs",
+                      "name": "Cluster Selector",
+                      "fill": "$c:--card",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "uYvGb",
+                          "name": "healthDot",
+                          "fill": "$c:--color-success-foreground",
+                          "width": 8,
+                          "height": 8
+                        },
+                        {
+                          "type": "text",
+                          "id": "eV9pE",
+                          "name": "clusterName",
+                          "fill": "$c:--foreground",
+                          "content": "local",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Oj4PJ",
+                          "name": "chevron",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "unfold_more",
+                          "library": "Material Symbols Sharp",
+                          "weight": 300,
+                          "fill": "$c:--muted-foreground"
+                        }
+                      ]
+                    },
+                    {
                       "id": "in0Io",
                       "type": "ref",
                       "ref": "c:T5yK2",
@@ -81191,8 +81238,8 @@
                   "type": "frame",
                   "id": "etA11",
                   "name": "Menu Button",
-                  "width": 28,
-                  "height": 28,
+                  "width": 44,
+                  "height": 44,
                   "justifyContent": "center",
                   "alignItems": "center",
                   "children": [
@@ -81262,7 +81309,7 @@
                   "name": "Filter Button",
                   "width": 40,
                   "height": 40,
-                  "cornerRadius": 8,
+                  "cornerRadius": 2,
                   "stroke": "$c:--border",
                   "strokeWidth": 1,
                   "strokeAlignment": "inner",
@@ -82242,8 +82289,8 @@
                   "type": "frame",
                   "id": "jNoau",
                   "name": "Menu Button",
-                  "width": 28,
-                  "height": 28,
+                  "width": 44,
+                  "height": 44,
                   "justifyContent": "center",
                   "alignItems": "center",
                   "children": [
@@ -82313,7 +82360,7 @@
                   "name": "Filter Button",
                   "width": 40,
                   "height": 40,
-                  "cornerRadius": 8,
+                  "cornerRadius": 2,
                   "stroke": "$c:--border",
                   "strokeWidth": 1,
                   "strokeAlignment": "inner",
@@ -83517,6 +83564,245 @@
                   ]
                 }
               }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "aI9PL",
+      "x": 0,
+      "y": 1940,
+      "name": "Component/Cluster Selector — Open",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "width": 260,
+      "fill": "$c:--popover",
+      "cornerRadius": 6,
+      "stroke": "$c:--border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#00000059",
+        "offset": {
+          "x": 0,
+          "y": 4
+        },
+        "blur": 12,
+        "spread": -2
+      },
+      "layout": "vertical",
+      "gap": 4,
+      "padding": 8,
+      "children": [
+        {
+          "type": "frame",
+          "id": "m1xIc",
+          "name": "Row — local (active)",
+          "width": "fill_container",
+          "fill": "$c:--accent",
+          "cornerRadius": 6,
+          "gap": 8,
+          "padding": [
+            8,
+            10
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "LmQkU",
+              "name": "left",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "jyq0X",
+                  "name": "dot",
+                  "fill": "$c:--color-success-foreground",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "pOHKz",
+                  "name": "label",
+                  "fill": "$c:--foreground",
+                  "content": "local",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "icon",
+              "id": "KTKLx",
+              "name": "check",
+              "width": 16,
+              "height": 16,
+              "icon": "check",
+              "library": "Material Symbols Sharp",
+              "weight": 400,
+              "fill": "$c:--foreground"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "fUIeQ",
+          "name": "Row — homelab-02 (unhealthy)",
+          "width": "fill_container",
+          "fill": {
+            "type": "color",
+            "color": "$c:--accent",
+            "enabled": false
+          },
+          "cornerRadius": 6,
+          "gap": 8,
+          "padding": [
+            8,
+            10
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "gr42E",
+              "name": "left",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "MiZzW",
+                  "name": "dot",
+                  "fill": "$c:--color-error-foreground",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "PLfyW",
+                  "name": "label",
+                  "fill": "$c:--foreground",
+                  "content": "homelab-02",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "buOdD",
+          "name": "Row — edge-03 (unknown)",
+          "width": "fill_container",
+          "fill": {
+            "type": "color",
+            "color": "$c:--accent",
+            "enabled": false
+          },
+          "cornerRadius": 6,
+          "gap": 8,
+          "padding": [
+            8,
+            10
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "GiMj9",
+              "name": "left",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "m6eR5w",
+                  "name": "dot",
+                  "fill": "$c:--muted-foreground",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "u26Zm5",
+                  "name": "label",
+                  "fill": "$c:--foreground",
+                  "content": "edge-03",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "u0Sv4",
+          "name": "dividerWrap",
+          "width": "fill_container",
+          "padding": [
+            4,
+            2
+          ],
+          "children": [
+            {
+              "type": "rectangle",
+              "id": "NuYcw",
+              "name": "divider",
+              "fill": "$c:--border",
+              "width": "fill_container",
+              "height": 1
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "C5mmE",
+          "name": "Row — Add cluster",
+          "width": "fill_container",
+          "cornerRadius": 6,
+          "gap": 8,
+          "padding": [
+            8,
+            10
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "DAlQK",
+              "name": "plus",
+              "width": 16,
+              "height": 16,
+              "icon": "add",
+              "library": "Material Symbols Sharp",
+              "weight": 300,
+              "fill": "$c:--muted-foreground"
+            },
+            {
+              "type": "text",
+              "id": "K81DE",
+              "name": "label",
+              "fill": "$c:--muted-foreground",
+              "content": "Add cluster",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 13,
+              "fontWeight": "normal"
             }
           ]
         }
