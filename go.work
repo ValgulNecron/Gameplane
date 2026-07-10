@@ -7,5 +7,6 @@ use (
 	./agent
 	./audit-syslog-bridge
 	./telemetry-receiver
+	./mcp-server
 	./test/e2e
 )

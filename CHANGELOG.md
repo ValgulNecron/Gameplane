@@ -23,6 +23,13 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **mcp-server:** new optional component — a strictly read-only Model
+  Context Protocol (MCP) server for Gameplane clusters. Lets an AI assistant
+  list/get the 7 Gameplane CRDs, Pods, and Events, fetch pod logs, and get a
+  `propose_fix` suggestion (YAML/kubectl as text) — never create, update,
+  patch, delete, or apply. Speaks MCP (JSON-RPC 2.0) over stdio only, no
+  network port; off by default via `mcpServer.enabled`. See
+  `mcp-server/README.md`.
 - **api:** native S3 audit sink — batched NDJSON objects to any S3-compatible
   endpoint (`api.audit.s3.*`), alongside the existing stdout/webhook/syslog
   sinks. Events are buffered and flushed when ANY of: 100 events, 1 MiB, or 5
