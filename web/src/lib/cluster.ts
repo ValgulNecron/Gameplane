@@ -17,16 +17,19 @@ let currentClusterId: string | undefined;
  * Safe for SSR/initial render (reads lazily, guarded for missing localStorage).
  */
 export function getCurrentCluster(): string {
-  // SSR guard: return default immediately if localStorage is unavailable
+  // Return cached value if available (even without localStorage for SSR compatibility)
+  if (currentClusterId !== undefined) {
+    return currentClusterId;
+  }
+
+  // SSR guard: if localStorage is unavailable, use default
   if (typeof window === "undefined" || typeof localStorage === "undefined") {
     return DEFAULT_CLUSTER;
   }
 
-  // Cache the value after first read
-  if (currentClusterId === undefined) {
-    const stored = localStorage.getItem(CLUSTER_KEY);
-    currentClusterId = stored || DEFAULT_CLUSTER;
-  }
+  // Load from localStorage on first read
+  const stored = localStorage.getItem(CLUSTER_KEY);
+  currentClusterId = stored || DEFAULT_CLUSTER;
 
   return currentClusterId;
 }

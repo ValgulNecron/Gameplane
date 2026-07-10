@@ -108,21 +108,20 @@ describe("Cluster Store", () => {
   });
 
   it("useCurrentCluster hook returns current cluster", async () => {
-    // Import React hooks
-    const React = await import("react");
-    const { useCurrentCluster: freshUseCurrentCluster } = await import("./cluster");
+    const { renderHook, act } = await import("@testing-library/react");
+    const { useCurrentCluster: freshUseCurrentCluster, setCurrentCluster: freshSetCurrentCluster } =
+      await import("./cluster");
 
-    // Mock useSyncExternalStore to test the hook setup
-    const useSyncExternalStoreSpy = vi.spyOn(React, "useSyncExternalStore");
-    useSyncExternalStoreSpy.mockImplementation((_subscribe, getSnapshot) => {
-      // Call getSnapshot and return its value
-      return getSnapshot();
+    const { result } = renderHook(() => freshUseCurrentCluster());
+
+    // Initially should return "local"
+    expect(result.current).toBe("local");
+
+    // After setting a new cluster, the hook should reflect the change
+    act(() => {
+      freshSetCurrentCluster("remote-prod");
     });
 
-    // Get the cluster from the hook
-    const cluster = freshUseCurrentCluster();
-    expect(cluster).toBe("local");
-
-    useSyncExternalStoreSpy.mockRestore();
+    expect(result.current).toBe("remote-prod");
   });
 });
