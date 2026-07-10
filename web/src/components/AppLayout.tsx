@@ -7,6 +7,7 @@ import {
   ChevronDown,
   LayoutDashboard,
   LogOut,
+  Menu,
   Package,
   ScrollText,
   Search,
@@ -15,6 +16,7 @@ import {
   ShieldCheck,
   Terminal,
   Users,
+  X,
 } from "lucide-react";
 import { APIError } from "@/lib/api";
 import { Auth, Cluster as ClusterAPI, Servers } from "@/lib/endpoints";
@@ -36,6 +38,10 @@ function useClusterInfo() {
 export function AppLayout() {
   const { data: me, error } = useMe();
   const { data: cluster } = useClusterInfo();
+  // Below `lg`, the fixed sidebar becomes an off-canvas drawer toggled by
+  // the Topbar's hamburger button. Desktop (`lg`+) keeps the always-on
+  // sidebar and never mounts the drawer/scrim.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (error instanceof APIError && error.status === 401) {
@@ -45,9 +51,31 @@ export function AppLayout() {
 
   return (
     <div className="flex h-full bg-background text-fg">
-      <Sidebar me={me} clusterName={cluster?.clusterName} />
+      <div className="hidden lg:flex">
+        <Sidebar me={me} clusterName={cluster?.clusterName} />
+      </div>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/60"
+            aria-hidden="true"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <div className="relative flex h-full w-[280px] max-w-[85vw] shadow-2xl">
+            <Sidebar
+              me={me}
+              clusterName={cluster?.clusterName}
+              className="w-full"
+              onNavigate={() => setDrawerOpen(false)}
+              onClose={() => setDrawerOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar user={me} />
+        <Topbar user={me} onMenuClick={() => setDrawerOpen(true)} />
         <main className="flex-1 overflow-auto scrollbar-thin">
           <Outlet />
         </main>
@@ -62,7 +90,22 @@ interface NavItem {
   icon: typeof LayoutDashboard;
 }
 
-function Sidebar({ me, clusterName }: { me?: User; clusterName?: string }) {
+function Sidebar({
+  me,
+  clusterName,
+  className,
+  onNavigate,
+  onClose,
+}: {
+  me?: User;
+  clusterName?: string;
+  /** Overrides the fixed desktop width — used by the mobile drawer instance. */
+  className?: string;
+  /** Called when a nav link is clicked — the mobile drawer closes itself. */
+  onNavigate?: () => void;
+  /** Renders a close (X) button in the header — mobile drawer only. */
+  onClose?: () => void;
+}) {
   const general: NavItem[] = [
     { to: "/",        label: "Dashboard", icon: LayoutDashboard },
     { to: "/servers", label: "Servers",   icon: Server },
@@ -89,25 +132,35 @@ function Sidebar({ me, clusterName }: { me?: User; clusterName?: string }) {
   }
 
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col border-r border-border bg-surface/60">
+    <aside className={cn("flex shrink-0 flex-col border-r border-border bg-surface/60", className ?? "w-[260px]")}>
       <div className="flex items-center gap-2 px-5 py-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15">
           <ShieldCheck className="h-4 w-4 text-primary" />
         </div>
-        <div className="leading-tight">
+        <div className="min-w-0 flex-1 leading-tight">
           <div className="font-mono text-base font-semibold text-fg">gameplane</div>
           <div className="text-[11px] text-muted">{clusterName || "—"}</div>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-muted hover:bg-border/60 hover:text-fg"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-auto px-3 py-2 scrollbar-thin">
         <SectionLabel>General</SectionLabel>
-        <NavGroup items={general} />
+        <NavGroup items={general} onNavigate={onNavigate} />
         {admin.length > 0 && (
           <>
             <div className="h-3" />
             <SectionLabel>Admin</SectionLabel>
-            <NavGroup items={admin} />
+            <NavGroup items={admin} onNavigate={onNavigate} />
           </>
         )}
       </nav>
@@ -125,7 +178,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function NavGroup({ items }: { items: NavItem[] }) {
+function NavGroup({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   return (
     <ul className="flex flex-col gap-0.5">
       {items.map(({ to, label, icon: Icon }) => {
@@ -139,6 +192,7 @@ function NavGroup({ items }: { items: NavItem[] }) {
           <li key={to}>
             <Link
               to={to}
+              onClick={onNavigate}
               className={cn(
                 "group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted transition-colors",
                 "hover:bg-border/60 hover:text-fg",
@@ -185,7 +239,7 @@ function ProfileFooter({ me }: { me?: User }) {
   );
 }
 
-function Topbar({ user }: { user?: User }) {
+function Topbar({ user, onMenuClick }: { user?: User; onMenuClick: () => void }) {
   const { pathname } = useLocation();
   const matches = useMatches();
 
@@ -194,9 +248,19 @@ function Topbar({ user }: { user?: User }) {
   const initials = name.slice(0, 2).toUpperCase();
 
   return (
-    <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-6">
-      <Breadcrumbs items={crumbs} />
-      <div className="flex items-center gap-3">
+    <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          aria-label="Open navigation"
+          onClick={onMenuClick}
+          className="shrink-0 rounded-md p-2 text-muted hover:bg-surface hover:text-fg lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <Breadcrumbs items={crumbs} />
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
         <GlobalSearch />
         <Notifications />
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">
