@@ -1,42 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Cpu, HardDrive, MemoryStick } from "lucide-react";
-import type { GameServer, GameTemplate, PlayersResp, ServerEvent } from "@/types";
+import type { GameServer, GameTemplate, PlayersResp } from "@/types";
 import { Players, Servers } from "@/lib/endpoints";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
 import { formatBytes, formatRelative } from "@/lib/utils";
-
-interface Event {
-  id: string;
-  ts: string;
-  kind: "info" | "warn" | "error";
-  message: string;
-  source?: string;
-}
-
-// humanizeBytes rewrites raw byte counts in kubelet event messages
-// ("Image size: 333546371 bytes") into a readable form ("Image size:
-// 318 MB"). Only 7+ digit runs followed by "bytes" are touched, so small
-// numbers elsewhere in a message are left alone.
-export function humanizeBytes(msg: string): string {
-  return msg.replace(/\b(\d{7,})\s*bytes\b/g, (_m, n: string) => formatBytes(Number(n)));
-}
-
-// Maps a Kubernetes event onto the card's view model: Warning → warn,
-// everything else → info; the reason prefixes the message ("Pulling:
-// pulling image…") and the reporting component is the source.
-function mapServerEvent(e: ServerEvent): Event {
-  return {
-    id: e.id,
-    ts: e.time,
-    kind: e.type === "Warning" ? "warn" : "info",
-    message: humanizeBytes(e.reason ? `${e.reason}: ${e.message}` : e.message),
-    source: e.source || undefined,
-  };
-}
+import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
 
 export function OverviewTab({
   gs,
@@ -101,7 +73,9 @@ export function OverviewTab({
     typeof agent?.playersOnline === "number" && agent.playersOnline >= 0
       ? (agent.playersOnline as number)
       : 0;
-  const events: Event[] = (Array.isArray(rawEvents) ? rawEvents : []).map(mapServerEvent);
+  const events: NormalizedServerEvent[] = (Array.isArray(rawEvents) ? rawEvents : []).map(
+    mapServerEvent,
+  );
   const endpoints = status.endpoints ?? [];
   const primary = endpoints[0];
 
@@ -279,7 +253,7 @@ function MetricTile({
   );
 }
 
-function EventDot({ kind }: { kind: Event["kind"] }) {
+function EventDot({ kind }: { kind: NormalizedServerEvent["kind"] }) {
   const color = {
     info:  "bg-primary",
     warn:  "bg-warning",
