@@ -290,6 +290,14 @@ export interface ResourceRequirements {
   limits?: Partial<Record<"cpu" | "memory", string>>;
 }
 
+export interface Toleration {
+  key?: string;
+  operator?: "Exists" | "Equal";
+  value?: string;
+  effect?: "NoSchedule" | "PreferNoSchedule" | "NoExecute";
+  tolerationSeconds?: number;
+}
+
 export interface PortOverride {
   name: string;
   servicePort?: number;
@@ -345,6 +353,8 @@ export interface GameServer {
     networking?: GameServerNetworking;
     backupPolicy?: InlineBackupPolicy;
     nodeSelector?: Record<string, string>;
+    tolerations?: Toleration[];
+    affinity?: Record<string, unknown>;
     serviceAccountName?: string;
   };
   status?: {

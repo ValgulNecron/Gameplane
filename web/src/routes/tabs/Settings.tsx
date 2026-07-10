@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CalendarClock,
   HardDrive,
   Layers,
+  MapPin,
   Network,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -27,6 +28,9 @@ import { LifecycleSection } from "./settings/Lifecycle";
 import { BackupsSection } from "./settings/Backups";
 import { AccessSection } from "./settings/Access";
 import { DangerSection } from "./settings/Danger";
+const PlacementSection = lazy(() =>
+  import("./settings/Placement").then((m) => ({ default: m.PlacementSection })),
+);
 
 type SectionKey =
   | "general"
@@ -36,6 +40,7 @@ type SectionKey =
   | "env"
   | "lifecycle"
   | "backups"
+  | "placement"
   | "access"
   | "danger";
 
@@ -47,6 +52,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] 
   { key: "env",        label: "Environment",   icon: Variable },
   { key: "lifecycle",  label: "Lifecycle",     icon: Sliders },
   { key: "backups",    label: "Scheduled backups", icon: CalendarClock },
+  { key: "placement",  label: "Placement",     icon: MapPin },
   { key: "access",     label: "RBAC & access", icon: ShieldCheck },
   { key: "danger",     label: "Danger zone",   icon: AlertTriangle },
 ];
@@ -65,6 +71,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [sectionValid, setSectionValid] = useState(true);
   const baselineRef = useRef<GameServer | null>(null);
   const lastSeenRef = useRef<GameServer | undefined>(undefined);
 
@@ -167,7 +174,10 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
         {sections.map((s) => (
           <button
             key={s.key}
-            onClick={() => setSection(s.key)}
+            onClick={() => {
+              setSection(s.key);
+              setSectionValid(true);
+            }}
             className={cn(
               "flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm transition-colors",
               section === s.key
@@ -192,6 +202,16 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "lifecycle"  && <LifecycleSection  draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "backups"    && <BackupsSection    draft={draft} onChange={onChangeDraft} template={template} />}
+          {section === "placement"  && (
+            <Suspense fallback={<div className="text-sm text-muted">Loading…</div>}>
+              <PlacementSection
+                draft={draft}
+                onChange={onChangeDraft}
+                template={template}
+                onValidityChange={setSectionValid}
+              />
+            </Suspense>
+          )}
           {section === "access"     && <AccessSection     gs={gs} />}
           {section === "danger"     && <DangerSection     name={name} ns={ns} />}
         </div>
@@ -228,7 +248,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
               <Button
                 size="sm"
                 onClick={() => save.mutate(draft)}
-                disabled={!dirty || save.isPending}
+                disabled={!dirty || !sectionValid || save.isPending}
               >
                 {save.isPending ? "Saving…" : "Save changes"}
               </Button>
