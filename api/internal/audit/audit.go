@@ -401,7 +401,7 @@ func (a *Auditor) previousHash(ctx context.Context, tx *sql.Tx) (string, error) 
 		return "", nil
 	}
 
-	raw, ok, err := a.db.ConfigValue(ctx, chainConfigKey)
+	raw, ok, err := db.ConfigValueTx(ctx, tx, chainConfigKey)
 	if err != nil {
 		return "", err
 	}
