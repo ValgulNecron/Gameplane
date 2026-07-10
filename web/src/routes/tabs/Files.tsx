@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import Editor from "@monaco-editor/react";
 import {
+  ChevronLeft,
   Download,
   File as FileIcon,
   FilePlus,
@@ -35,6 +36,11 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
 
   const [cwd, setCwd] = useState(ROOT);
   const [selected, setSelected] = useState<FileEntry | null>(null);
+  // Below `md` the tree and the file view can't sit side by side — show one
+  // pane at a time, switched by tapping an entry (→ view) or the "Files"
+  // back-button (→ tree). At `md`+ both panes are always visible regardless
+  // of this state (see the `md:flex` overrides below).
+  const [pane, setPane] = useState<"tree" | "view">("tree");
   const [serverContent, setServerContent] = useState<string | null>(null);
   const [editorValue, setEditorValue] = useState<string>("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -82,6 +88,9 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
     setServerContent(null);
     setEditorValue("");
     setCwd(path);
+    // Navigating (breadcrumbs, "..") is a browsing action — show the tree
+    // on mobile rather than stranding the user on the now-stale editor pane.
+    setPane("tree");
   }
 
   function onEntryClick(e: FileEntry) {
@@ -89,9 +98,13 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
       navigateTo(e.path);
       return;
     }
-    if (selected?.path === e.path) return;
+    if (selected?.path === e.path) {
+      setPane("view");
+      return;
+    }
     if (dirty && !confirmDiscard()) return;
     setSelected(e);
+    setPane("view");
   }
 
   const saveMutation = useMutation({
@@ -117,6 +130,7 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
         setSelected(null);
         setServerContent(null);
         setEditorValue("");
+        setPane("tree");
       }
       setConfirmDelete(null);
       await qc.invalidateQueries({ queryKey: listKey(cwd) });
@@ -226,7 +240,12 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
       )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden rounded border border-border bg-card">
-        <aside className="flex w-72 shrink-0 flex-col border-r border-border">
+        <aside
+          className={cn(
+            "w-full shrink-0 flex-col border-r border-border md:flex md:w-72",
+            pane === "tree" ? "flex" : "hidden",
+          )}
+        >
           <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">
             {cwd}
           </div>
@@ -269,7 +288,22 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
           </ul>
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main
+          className={cn(
+            "min-w-0 flex-1 flex-col md:flex",
+            pane === "view" ? "flex" : "hidden",
+          )}
+        >
+          <div className="flex items-center border-b border-border px-2 py-1.5 md:hidden">
+            <button
+              type="button"
+              onClick={() => setPane("tree")}
+              aria-label="Back to files"
+              className="inline-flex items-center gap-1 rounded p-1 text-xs text-muted hover:bg-surface hover:text-fg"
+            >
+              <ChevronLeft className="h-4 w-4" /> Files
+            </button>
+          </div>
           {selected && !selected.dir ? (
             <>
               <div className="flex items-center justify-between border-b border-border px-4 py-2">
