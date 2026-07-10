@@ -38,6 +38,7 @@ export function ModulesPage() {
   const [catFilter, setCatFilter] = useState<string>("all");
   const [installTarget, setInstallTarget] = useState<CatalogEntry | null>(null);
   const [uninstallTarget, setUninstallTarget] = useState<CatalogEntry | null>(null);
+  const [removeUploadTarget, setRemoveUploadTarget] = useState<CatalogEntry | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
 
@@ -99,6 +100,17 @@ export function ModulesPage() {
     mutationFn: (name: string) => Modules.uninstall(name),
     onSuccess: async () => {
       setUninstallTarget(null);
+      setPageError(null);
+      await qc.invalidateQueries({ queryKey: ["modules-catalog"] });
+    },
+    onError: (err: Error) => setPageError(formatErr(err)),
+  });
+
+  const removeUploadMutation = useMutation({
+    mutationFn: (args: { source: string; module: string }) =>
+      ModuleSources.removeUpload(args.source, args.module),
+    onSuccess: async () => {
+      setRemoveUploadTarget(null);
       setPageError(null);
       await qc.invalidateQueries({ queryKey: ["modules-catalog"] });
     },
@@ -192,7 +204,8 @@ export function ModulesPage() {
               upgradeMutation.mutate({ name: e.moduleName, version: e.latestVersion });
             }}
             onUninstall={setUninstallTarget}
-            busy={installMutation.isPending || upgradeMutation.isPending}
+            onRemoveUpload={setRemoveUploadTarget}
+            busy={installMutation.isPending || upgradeMutation.isPending || removeUploadMutation.isPending}
           />
         ))}
         {!isLoading && visible.length === 0 && (
@@ -248,6 +261,32 @@ export function ModulesPage() {
         onConfirm={() => {
           if (!uninstallTarget?.moduleName) return;
           uninstallMutation.mutate(uninstallTarget.moduleName);
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!removeUploadTarget}
+        onOpenChange={(o) => !o && setRemoveUploadTarget(null)}
+        title={`Remove uploaded module?`}
+        description={
+          <>
+            <p>
+              Deletes the uploaded bundle backing the <span className="font-mono">{removeUploadTarget?.displayName ?? removeUploadTarget?.name}</span> catalog entry.
+              The entry can be re-uploaded later.
+            </p>
+          </>
+        }
+        confirmLabel="Remove upload"
+        destructive
+        busy={removeUploadMutation.isPending}
+        onConfirm={() => {
+          if (!removeUploadTarget) return;
+          const uploadSource = removeUploadTarget.sources.find((s) => s.type === "upload");
+          if (!uploadSource) return;
+          removeUploadMutation.mutate({
+            source: uploadSource.name,
+            module: removeUploadTarget.name,
+          });
         }}
       />
     </div>

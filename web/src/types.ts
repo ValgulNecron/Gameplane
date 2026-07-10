@@ -290,6 +290,14 @@ export interface ResourceRequirements {
   limits?: Partial<Record<"cpu" | "memory", string>>;
 }
 
+export interface Toleration {
+  key?: string;
+  operator?: "Exists" | "Equal";
+  value?: string;
+  effect?: "NoSchedule" | "PreferNoSchedule" | "NoExecute";
+  tolerationSeconds?: number;
+}
+
 export interface PortOverride {
   name: string;
   servicePort?: number;
@@ -310,11 +318,29 @@ export interface GameServerStorage {
   mountPath?: string;
 }
 
+export interface InlineBackupPolicy {
+  schedule: string;
+  repoRef: { name: string; key: string };
+  retention?: {
+    keepLast?: number;
+    keepHourly?: number;
+    keepDaily?: number;
+    keepWeekly?: number;
+    keepMonthly?: number;
+    keepYearly?: number;
+  };
+  suspend?: boolean;
+}
+
 export interface GameServer {
   metadata: ObjectMeta & { resourceVersion?: string };
   spec: {
     templateRef: { name: string };
     suspend?: boolean;
+    // Seconds the operator waits for the template's stop sequence to run
+    // over RCON before scaling the pod down (soft-stop). Range 0–600,
+    // default 30. No effect when the template declares no stop sequence.
+    stopGracePeriodSeconds?: number;
     image?: string;
     // Selects a GameTemplate.spec.versions[].id (image + per-loader mod
     // volume). Omit to use the template's default version.
@@ -325,7 +351,10 @@ export interface GameServer {
     resources?: ResourceRequirements;
     storage?: GameServerStorage;
     networking?: GameServerNetworking;
+    backupPolicy?: InlineBackupPolicy;
     nodeSelector?: Record<string, string>;
+    tolerations?: Toleration[];
+    affinity?: Record<string, unknown>;
     serviceAccountName?: string;
   };
   status?: {

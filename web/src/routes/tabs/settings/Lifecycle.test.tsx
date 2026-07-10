@@ -44,7 +44,7 @@ describe("LifecycleSection", () => {
     expect(screen.getByText(/Pod is suspended/i)).toBeInTheDocument();
   });
 
-  it("setGrace writes the annotation when given a value", () => {
+  it("setGrace writes spec.stopGracePeriodSeconds as a number", () => {
     const onChange = vi.fn();
     render(<LifecycleSection draft={baseDraft} onChange={onChange} />);
     // Controlled input — fire a single change with the full string
@@ -53,20 +53,51 @@ describe("LifecycleSection", () => {
     const grace = screen.getAllByRole("textbox")[0];
     fireEvent.change(grace, { target: { value: "30" } });
     const lastCall = onChange.mock.calls.at(-1)![0];
-    expect(lastCall.metadata.annotations[GRACE_PERIOD_ANNOTATION]).toBe("30");
+    expect(lastCall.spec.stopGracePeriodSeconds).toBe(30);
   });
 
-  it("removing the value clears the annotation", () => {
+  it("removing the value clears spec.stopGracePeriodSeconds", () => {
     const draft = {
       ...baseDraft,
-      metadata: { ...baseDraft.metadata, annotations: { [GRACE_PERIOD_ANNOTATION]: "10" } },
+      spec: { ...baseDraft.spec, stopGracePeriodSeconds: 10 },
     };
     const onChange = vi.fn();
     render(<LifecycleSection draft={draft} onChange={onChange} />);
     const grace = screen.getAllByRole("textbox")[0];
     fireEvent.change(grace, { target: { value: "" } });
     const lastCall = onChange.mock.calls.at(-1)![0];
-    expect(lastCall.metadata.annotations).toBeUndefined();
+    expect(lastCall.spec.stopGracePeriodSeconds).toBeUndefined();
+  });
+
+  it("reads the legacy annotation as a fallback and migrates it on edit", () => {
+    const draft = {
+      ...baseDraft,
+      metadata: {
+        ...baseDraft.metadata,
+        annotations: { [GRACE_PERIOD_ANNOTATION]: "45" },
+      },
+    };
+    const onChange = vi.fn();
+    render(<LifecycleSection draft={draft} onChange={onChange} />);
+    const grace = screen.getAllByRole("textbox")[0] as HTMLInputElement;
+    // The legacy value is shown in the field...
+    expect(grace.value).toBe("45");
+    // ...and the first edit writes the real spec field and drops the
+    // dead annotation.
+    fireEvent.change(grace, { target: { value: "60" } });
+    const last = onChange.mock.calls.at(-1)![0];
+    expect(last.spec.stopGracePeriodSeconds).toBe(60);
+    expect(last.metadata.annotations).toBeUndefined();
+  });
+
+  it("flags an out-of-range grace period", () => {
+    render(
+      <LifecycleSection
+        draft={{ ...baseDraft, spec: { ...baseDraft.spec, stopGracePeriodSeconds: 900 } }}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText(/between 0 and 600/i)).toBeInTheDocument();
   });
 
   it("editing a probe field seeds an override from the template", () => {

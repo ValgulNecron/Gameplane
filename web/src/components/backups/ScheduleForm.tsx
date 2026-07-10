@@ -7,6 +7,7 @@ import { Schedules } from "@/lib/endpoints";
 import { useBackupDestinations } from "@/lib/destinations";
 import { ErrorBanner } from "./ErrorBanner";
 import { FieldLabel } from "@/components/ui/field";
+import { RetentionFields, buildRetention, type RetentionForm } from "./RetentionFields";
 
 interface Props {
   serverName: string;
@@ -21,8 +22,8 @@ export function ScheduleForm({ serverName, onClose }: Props) {
     strategy: "restic-snapshot" as "restic-snapshot" | "volume-snapshot",
     repoName: "",
     repoKey: "repo",
-    keepLast: 7,
   });
+  const [retention, setRetention] = useState<RetentionForm>({ keepLast: 7 });
   const isVolumeSnapshot = form.strategy === "volume-snapshot";
   // Default the destination to the first one once the list resolves.
   // The user can still pick a different one if more than one exists.
@@ -42,7 +43,7 @@ export function ScheduleForm({ serverName, onClose }: Props) {
         ...(isVolumeSnapshot
           ? {}
           : { repoRef: { name: form.repoName, key: form.repoKey } }),
-        retention: { keepLast: form.keepLast },
+        retention: buildRetention(retention),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["schedules"] });
@@ -71,24 +72,16 @@ export function ScheduleForm({ serverName, onClose }: Props) {
           <option value="volume-snapshot">Volume snapshot (CSI)</option>
         </select>
       </FieldLabel>
-      <div className="grid gap-3 md:grid-cols-[1fr_140px]">
-        <FieldLabel label="Schedule (cron)">
-          <Input
-            value={form.schedule}
-            onChange={(e) => setForm({ ...form, schedule: e.target.value })}
-            placeholder="0 */6 * * *"
-          />
-        </FieldLabel>
-        <FieldLabel label="Keep last">
-          <Input
-            type="number"
-            min={1}
-            value={form.keepLast}
-            onChange={(e) => setForm({ ...form, keepLast: Number(e.target.value) })}
-          />
-        </FieldLabel>
-        {!isVolumeSnapshot && (
-          <>
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+          <FieldLabel label="Schedule (cron)">
+            <Input
+              value={form.schedule}
+              onChange={(e) => setForm({ ...form, schedule: e.target.value })}
+              placeholder="0 */6 * * *"
+            />
+          </FieldLabel>
+          {!isVolumeSnapshot && (
             <FieldLabel label="Destination">
               <select
                 className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm"
@@ -104,14 +97,20 @@ export function ScheduleForm({ serverName, onClose }: Props) {
                 ))}
               </select>
             </FieldLabel>
-            <FieldLabel label="Repo secret · key">
-              <Input
-                value={form.repoKey}
-                onChange={(e) => setForm({ ...form, repoKey: e.target.value })}
-              />
-            </FieldLabel>
-          </>
+          )}
+        </div>
+        {!isVolumeSnapshot && (
+          <FieldLabel label="Repo secret · key">
+            <Input
+              value={form.repoKey}
+              onChange={(e) => setForm({ ...form, repoKey: e.target.value })}
+            />
+          </FieldLabel>
         )}
+        <div>
+          <div className="text-xs font-medium text-fg mb-3">Retention policy</div>
+          <RetentionFields value={retention} onChange={setRetention} />
+        </div>
       </div>
       {create.error && <ErrorBanner err={create.error} />}
       <div className="flex justify-end gap-2">

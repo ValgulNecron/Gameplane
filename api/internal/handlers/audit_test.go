@@ -247,3 +247,226 @@ func TestMountAudit_ExportTimeWindow(t *testing.T) {
 		t.Fatalf("window export = %+v, want only the Feb event", got)
 	}
 }
+
+func TestMountAudit_ExportFilteredByActor(t *testing.T) {
+	store := newTestStore(t)
+	rows := []struct {
+		actor  string
+		method string
+		status int
+	}{
+		{"alice", "POST", 201},
+		{"bob", "DELETE", 204},
+		{"Alice", "PATCH", 200},
+	}
+	for i, row := range rows {
+		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
+		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+			VALUES (?, ?, ?, '/x', ?)`, ts, row.actor, row.method, row.status); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/export?format=json&actor=alice")
+	defer resp.Body.Close()
+	var got []audit.Event
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d events, want 2 (case-insensitive match of alice + Alice)", len(got))
+	}
+	if got[0].Actor != "alice" || got[1].Actor != "Alice" {
+		t.Fatalf("actors = %q/%q, want alice/Alice", got[0].Actor, got[1].Actor)
+	}
+}
+
+func TestMountAudit_ExportFilteredByMethod(t *testing.T) {
+	store := newTestStore(t)
+	rows := []struct {
+		actor  string
+		method string
+		status int
+	}{
+		{"admin", "POST", 201},
+		{"admin", "DELETE", 204},
+		{"admin", "PATCH", 200},
+	}
+	for i, row := range rows {
+		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
+		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+			VALUES (?, ?, ?, '/x', ?)`, ts, row.actor, row.method, row.status); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/export?format=json&method=DELETE")
+	defer resp.Body.Close()
+	var got []audit.Event
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d events, want 1 DELETE", len(got))
+	}
+	if got[0].Method != "DELETE" {
+		t.Fatalf("method = %q, want DELETE", got[0].Method)
+	}
+}
+
+func TestMountAudit_ExportFilteredByStatus(t *testing.T) {
+	store := newTestStore(t)
+	rows := []struct {
+		actor  string
+		status int
+	}{
+		{"admin", 200},
+		{"admin", 201},
+		{"admin", 400},
+		{"admin", 500},
+		{"admin", 502},
+	}
+	for i, row := range rows {
+		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
+		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+			VALUES (?, ?, 'POST', '/x', ?)`, ts, row.actor, row.status); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	// Test 2xx filter
+	resp := auditGet(t, srv.URL+"/admin/audit/export?format=json&status=2xx")
+	defer resp.Body.Close()
+	var got []audit.Event
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode 2xx: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("2xx: got %d events, want 2", len(got))
+	}
+	for _, e := range got {
+		if e.Status < 200 || e.Status >= 300 {
+			t.Fatalf("2xx filter: got status %d, want 200-299", e.Status)
+		}
+	}
+
+	// Test 5xx filter
+	resp = auditGet(t, srv.URL+"/admin/audit/export?format=json&status=5xx")
+	defer resp.Body.Close()
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode 5xx: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("5xx: got %d events, want 2", len(got))
+	}
+	for _, e := range got {
+		if e.Status < 500 || e.Status >= 600 {
+			t.Fatalf("5xx filter: got status %d, want 500-599", e.Status)
+		}
+	}
+}
+
+func TestMountAudit_ExportLiteralPercentInActor(t *testing.T) {
+	store := newTestStore(t)
+	actors := []string{"a%b", "axxb"}
+	for i, actor := range actors {
+		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
+		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+			VALUES (?, ?, 'POST', '/x', 200)`, ts, actor); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/export?format=json&actor=a%25b")
+	defer resp.Body.Close()
+	var got []audit.Event
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d events, want 1 (exact match of a%%b)", len(got))
+	}
+	if got[0].Actor != "a%b" {
+		t.Fatalf("actor = %q, want a%%b", got[0].Actor)
+	}
+}
+
+func TestMountAudit_ExportBadMethod(t *testing.T) {
+	store := newTestStore(t)
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/export?method=BOGUS")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", resp.StatusCode)
+	}
+}
+
+func TestMountAudit_ExportBadStatus(t *testing.T) {
+	store := newTestStore(t)
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/export?status=9xx")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", resp.StatusCode)
+	}
+}
+
+func TestMountAudit_ExportBareNoFilters(t *testing.T) {
+	store := newTestStore(t)
+	rows := []struct {
+		actor  string
+		method string
+	}{
+		{"alice", "POST"},
+		{"bob", "DELETE"},
+		{"charlie", "PATCH"},
+	}
+	for i, row := range rows {
+		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
+		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+			VALUES (?, ?, ?, '/x', 201)`, ts, row.actor, row.method); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	r := chi.NewRouter()
+	MountAudit(r, audit.New(store))
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/export")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d, want 200", resp.StatusCode)
+	}
+	recs, err := csv.NewReader(resp.Body).ReadAll()
+	if err != nil {
+		t.Fatalf("read csv: %v", err)
+	}
+	if len(recs) != 4 { // header + 3 rows
+		t.Fatalf("got %d records, want 4 (header + 3 data rows)", len(recs))
+	}
+}

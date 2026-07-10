@@ -2,6 +2,9 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -144,5 +147,327 @@ func TestMigrationApplied(t *testing.T) {
 	got, err = s.migrationApplied(context.Background(), "999_never.sql")
 	if err != nil || got {
 		t.Fatalf("expected false for missing, got %v err=%v", got, err)
+	}
+}
+
+// TestSqlitePath tests DSN path extraction for various formats.
+func TestSqlitePath(t *testing.T) {
+	tests := []struct {
+		dsn  string
+		want string
+	}{
+		{`file:/data/gameplane.db?_pragma=journal_mode(WAL)`, `/data/gameplane.db`},
+		{`/data/gameplane.db`, `/data/gameplane.db`},
+		{`/data/gameplane.db?mode=rwc`, `/data/gameplane.db`},
+		{`:memory:`, ""},
+		{`file::memory:`, ""},
+		{`file:/tmp/test.db`, `/tmp/test.db`},
+		{`file:/tmp/test.db?journal_mode=WAL&_pragma=cache_size(5000)`, `/tmp/test.db`},
+		{``, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.dsn, func(t *testing.T) {
+			got := sqlitePath(tc.dsn)
+			if got != tc.want {
+				t.Errorf("sqlitePath(%q) = %q, want %q", tc.dsn, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAdoptLegacySQLite_TargetAbsentLegacyPresent tests adoption of kestrel.db.
+func TestAdoptLegacySQLite_TargetAbsentLegacyPresent(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	// Create a legacy kestrel.db with a table and a row.
+	legacyPath := filepath.Join(tmpdir, "kestrel.db")
+	legacyDB, err := sql.Open("sqlite", legacyPath)
+	if err != nil {
+		t.Fatalf("create legacy db: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE TABLE test_data (id INTEGER, name TEXT)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+	if _, err := legacyDB.Exec(`INSERT INTO test_data VALUES (1, 'alice')`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	legacyDB.Close()
+
+	// Now adopt the legacy file to gameplane.db.
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+	dsn := "file:" + targetPath + "?_pragma=journal_mode(WAL)"
+	if err := adoptLegacySQLite(dsn); err != nil {
+		t.Fatalf("adoptLegacySQLite: %v", err)
+	}
+
+	// Verify target now exists.
+	if _, err := os.Stat(targetPath); err != nil {
+		t.Fatalf("target file not found: %v", err)
+	}
+
+	// Verify legacy is gone.
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Fatalf("legacy file still exists or unexpected error: %v", err)
+	}
+
+	// Verify data survived the rename.
+	targetDB, err := sql.Open("sqlite", targetPath)
+	if err != nil {
+		t.Fatalf("open target: %v", err)
+	}
+	defer targetDB.Close()
+	var id int
+	var name string
+	if err := targetDB.QueryRow(`SELECT id, name FROM test_data WHERE id = 1`).Scan(&id, &name); err != nil {
+		t.Fatalf("query target: %v", err)
+	}
+	if id != 1 || name != "alice" {
+		t.Errorf("data mismatch: got (%d, %q), want (1, alice)", id, name)
+	}
+}
+
+// TestAdoptLegacySQLite_Sidecars tests that the -wal sidecar moves but -shm is never moved.
+func TestAdoptLegacySQLite_Sidecars(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	legacyPath := filepath.Join(tmpdir, "kestrel.db")
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+
+	// Create legacy DB with WAL to generate sidecars.
+	legacyDB, err := sql.Open("sqlite", legacyPath+"?_pragma=journal_mode(WAL)")
+	if err != nil {
+		t.Fatalf("create legacy: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE TABLE t (id INTEGER)`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+	legacyDB.Close()
+
+	// Manually create both -wal and -shm sidecar files for testing.
+	for _, suffix := range []string{"-wal", "-shm"} {
+		sidecarPath := legacyPath + suffix
+		if f, err := os.Create(sidecarPath); err == nil {
+			f.Close()
+		}
+	}
+
+	dsn := "file:" + targetPath + "?_pragma=journal_mode(WAL)"
+	if err := adoptLegacySQLite(dsn); err != nil {
+		t.Fatalf("adoptLegacySQLite: %v", err)
+	}
+
+	// -wal must be moved to the target.
+	legacyWAL := legacyPath + "-wal"
+	targetWAL := targetPath + "-wal"
+	if _, err := os.Stat(targetWAL); err != nil {
+		t.Errorf("target -wal not found: %v", err)
+	}
+	if _, err := os.Stat(legacyWAL); !os.IsNotExist(err) {
+		t.Errorf("legacy -wal still exists: %v", err)
+	}
+
+	// -shm must NOT be moved (it's rebuilt, and moving it adds failure modes for zero benefit).
+	legacySHM := legacyPath + "-shm"
+	targetSHM := targetPath + "-shm"
+	if _, err := os.Stat(targetSHM); !os.IsNotExist(err) {
+		t.Errorf("target -shm should not exist but does: %v", err)
+	}
+	if _, err := os.Stat(legacySHM); err != nil {
+		t.Errorf("legacy -shm should still exist but doesn't: %v", err)
+	}
+}
+
+// TestAdoptLegacySQLite_LegacyIsDirectory tests that if kestrel.db is a directory,
+// adoption is skipped silently (no error, and the directory is left untouched).
+func TestAdoptLegacySQLite_LegacyIsDirectory(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	legacyPath := filepath.Join(tmpdir, "kestrel.db")
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+
+	// Create kestrel.db as a directory instead of a file.
+	if err := os.Mkdir(legacyPath, 0755); err != nil {
+		t.Fatalf("create legacy dir: %v", err)
+	}
+
+	// Create a marker file inside to verify the directory is untouched.
+	markerPath := filepath.Join(legacyPath, "marker")
+	if f, err := os.Create(markerPath); err == nil {
+		f.Close()
+	}
+
+	// Adoption should succeed silently (no error).
+	dsn := "file:" + targetPath
+	if err := adoptLegacySQLite(dsn); err != nil {
+		t.Fatalf("adoptLegacySQLite: %v", err)
+	}
+
+	// Target should not have been created.
+	if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
+		t.Errorf("target should not exist after skipping adoption: %v", err)
+	}
+
+	// Legacy directory should still exist with its marker file.
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Errorf("legacy directory should still exist: %v", err)
+	}
+	if _, err := os.Stat(markerPath); err != nil {
+		t.Errorf("legacy directory marker should still exist: %v", err)
+	}
+}
+
+// TestAdoptLegacySQLite_TargetExists tests that we never overwrite an existing target.
+func TestAdoptLegacySQLite_TargetExists(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	legacyPath := filepath.Join(tmpdir, "kestrel.db")
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+
+	// Create both legacy and target files with distinct content.
+	legacyDB, err := sql.Open("sqlite", legacyPath)
+	if err != nil {
+		t.Fatalf("create legacy: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE TABLE legacy_data (value TEXT)`); err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	if _, err := legacyDB.Exec(`INSERT INTO legacy_data VALUES ('from_legacy')`); err != nil {
+		t.Fatalf("insert legacy: %v", err)
+	}
+	legacyDB.Close()
+
+	targetDB, err := sql.Open("sqlite", targetPath)
+	if err != nil {
+		t.Fatalf("create target: %v", err)
+	}
+	if _, err := targetDB.Exec(`CREATE TABLE target_data (value TEXT)`); err != nil {
+		t.Fatalf("create target table: %v", err)
+	}
+	if _, err := targetDB.Exec(`INSERT INTO target_data VALUES ('from_target')`); err != nil {
+		t.Fatalf("insert target: %v", err)
+	}
+	targetDB.Close()
+
+	// Attempt adoption.
+	dsn := "file:" + targetPath
+	if err := adoptLegacySQLite(dsn); err != nil {
+		t.Fatalf("adoptLegacySQLite: %v", err)
+	}
+
+	// Verify target still has its original data.
+	targetDB, err = sql.Open("sqlite", targetPath)
+	if err != nil {
+		t.Fatalf("open target: %v", err)
+	}
+	defer targetDB.Close()
+	var val string
+	if err := targetDB.QueryRow(`SELECT value FROM target_data WHERE value = 'from_target'`).Scan(&val); err != nil {
+		t.Fatalf("target data lost: %v", err)
+	}
+
+	// Verify legacy still exists (not overwritten).
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Fatalf("legacy file missing: %v", err)
+	}
+}
+
+// TestAdoptLegacySQLite_NeitherPresent tests fresh install behavior.
+func TestAdoptLegacySQLite_NeitherPresent(t *testing.T) {
+	tmpdir := t.TempDir()
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+
+	dsn := "file:" + targetPath + "?_pragma=journal_mode(WAL)"
+	if err := adoptLegacySQLite(dsn); err != nil {
+		t.Fatalf("adoptLegacySQLite: %v", err)
+	}
+
+	// Opening the database should create a fresh one without error.
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatalf("open after adopt: %v", err)
+	}
+	defer db.Close()
+
+	// Verify we can create a table in the fresh database.
+	if _, err := db.Exec(`CREATE TABLE test (id INTEGER)`); err != nil {
+		t.Fatalf("create table in fresh db: %v", err)
+	}
+}
+
+// TestAdoptLegacySQLite_MemoryDatabase tests that memory databases are untouched.
+func TestAdoptLegacySQLite_MemoryDatabase(t *testing.T) {
+	// These should be no-ops and not error.
+	for _, dsn := range []string{`:memory:`, `file::memory:`} {
+		if err := adoptLegacySQLite(dsn); err != nil {
+			t.Errorf("adoptLegacySQLite(%q): %v", dsn, err)
+		}
+	}
+}
+
+// TestAdoptLegacySQLite_PostgresNotAffected tests that adoptLegacySQLite
+// is only called for sqlite (already tested in Open), but we verify sqlitePath
+// returns "" for empty/invalid DSNs to confirm the guard.
+func TestAdoptLegacySQLite_EmptyDSN(t *testing.T) {
+	if err := adoptLegacySQLite(""); err != nil {
+		t.Errorf("adoptLegacySQLite(empty): %v", err)
+	}
+}
+
+// TestOpen_AdoptsLegacySQLite verifies that Open() triggers adoption
+// and migrations run successfully on the adopted file.
+func TestOpen_AdoptsLegacySQLite(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	// Create legacy database with schema and data.
+	legacyPath := filepath.Join(tmpdir, "kestrel.db")
+	legacyDB, err := sql.Open("sqlite", legacyPath)
+	if err != nil {
+		t.Fatalf("create legacy: %v", err)
+	}
+	// Create the schema_migrations table so Open/Migrate recognizes it as initialized.
+	if _, err := legacyDB.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatalf("create schema_migrations: %v", err)
+	}
+	if _, err := legacyDB.Exec(`INSERT INTO schema_migrations VALUES ('001_init.sql', datetime('now'))`); err != nil {
+		t.Fatalf("seed migration: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'viewer')`); err != nil {
+		t.Fatalf("create users: %v", err)
+	}
+	if _, err := legacyDB.Exec(`INSERT INTO users(id, username, role) VALUES (1, 'Alice', 'admin')`); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	legacyDB.Close()
+
+	// Open with a new target path — adoption should happen.
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+	dsn := "file:" + targetPath + "?_pragma=journal_mode(WAL)"
+	store, err := Open(context.Background(), "sqlite", dsn)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	// Verify data from legacy survives.
+	var username string
+	if err := store.DB.QueryRow(`SELECT username FROM users WHERE id = 1`).Scan(&username); err != nil {
+		t.Fatalf("query user: %v", err)
+	}
+	if username != "Alice" {
+		t.Errorf("user data mismatch: got %q, want Alice", username)
+	}
+
+	// Verify migrations can run on the adopted database.
+	if err := store.Migrate(context.Background()); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+
+	// Verify the migrations table has entries.
+	var count int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
+		t.Fatalf("query migrations: %v", err)
+	}
+	if count == 0 {
+		t.Fatal("no migrations applied")
 	}
 }

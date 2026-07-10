@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Thin styled wrappers over Radix DropdownMenu. Root/Trigger/Portal pass
@@ -12,16 +13,18 @@ export const DropdownMenuTrigger = Menu.Trigger;
 export function DropdownMenuContent({
   children,
   align = "end",
+  className,
 }: {
   children: ReactNode;
   align?: "start" | "center" | "end";
+  className?: string;
 }) {
   return (
     <Menu.Portal>
       <Menu.Content
         align={align}
         sideOffset={4}
-        className="z-50 min-w-[180px] rounded-md border border-border bg-card p-1 text-sm shadow-lg"
+        className={cn("z-50 min-w-[180px] rounded-md border border-border bg-card p-1 text-sm shadow-lg", className)}
       >
         {children}
       </Menu.Content>
@@ -72,3 +75,24 @@ export function DropdownMenuItem({
     </Menu.Item>
   );
 }
+
+export const DropdownMenuCheckboxItem = forwardRef<
+  React.ElementRef<typeof Menu.CheckboxItem>,
+  React.ComponentPropsWithoutRef<typeof Menu.CheckboxItem>
+>(({ className, checked, children, ...props }, ref) => (
+  <Menu.CheckboxItem
+    ref={ref}
+    checked={checked}
+    className={cn(
+      "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-none text-fg",
+      "data-[highlighted]:bg-surface/70",
+      className,
+    )}
+    {...props}
+  >
+    <Menu.ItemIndicator className="flex items-center justify-center w-4 h-4">
+      <Check className="h-3.5 w-3.5" />
+    </Menu.ItemIndicator>
+    <span>{children}</span>
+  </Menu.CheckboxItem>
+));

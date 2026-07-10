@@ -8,6 +8,7 @@ import {
   Loader2,
   ShieldCheck,
   ShieldQuestion,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,6 +25,7 @@ interface ModuleCardProps {
   onInstall: (entry: CatalogEntry) => void;
   onUpgrade: (entry: CatalogEntry) => void;
   onUninstall: (entry: CatalogEntry) => void;
+  onRemoveUpload?: (entry: CatalogEntry) => void;
   busy?: boolean;
 }
 
@@ -39,6 +41,7 @@ export function ModuleCard({
   onInstall,
   onUpgrade,
   onUninstall,
+  onRemoveUpload,
   busy,
 }: ModuleCardProps) {
   const upgradeAvailable =
@@ -133,6 +136,17 @@ export function ModuleCard({
               disabled={busy || !!inFlight}
             >
               Uninstall
+            </Button>
+          )}
+          {entry.sources.some((s) => s.type === "upload") && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onRemoveUpload?.(entry)}
+              disabled={busy}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove upload
             </Button>
           )}
         </div>

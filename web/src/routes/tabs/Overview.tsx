@@ -1,53 +1,28 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Cpu, HardDrive, MemoryStick } from "lucide-react";
-import type { GameServer, GameTemplate, PlayersResp, ServerEvent } from "@/types";
+import type { GameServer, GameTemplate, PlayersResp } from "@/types";
 import { Players, Servers } from "@/lib/endpoints";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
-import { formatBytes, formatRelative } from "@/lib/utils";
-
-interface Event {
-  id: string;
-  ts: string;
-  kind: "info" | "warn" | "error";
-  message: string;
-  source?: string;
-}
-
-// humanizeBytes rewrites raw byte counts in kubelet event messages
-// ("Image size: 333546371 bytes") into a readable form ("Image size:
-// 318 MB"). Only 7+ digit runs followed by "bytes" are touched, so small
-// numbers elsewhere in a message are left alone.
-export function humanizeBytes(msg: string): string {
-  return msg.replace(/\b(\d{7,})\s*bytes\b/g, (_m, n: string) => formatBytes(Number(n)));
-}
-
-// Maps a Kubernetes event onto the card's view model: Warning → warn,
-// everything else → info; the reason prefixes the message ("Pulling:
-// pulling image…") and the reporting component is the source.
-function mapServerEvent(e: ServerEvent): Event {
-  return {
-    id: e.id,
-    ts: e.time,
-    kind: e.type === "Warning" ? "warn" : "info",
-    message: humanizeBytes(e.reason ? `${e.reason}: ${e.message}` : e.message),
-    source: e.source || undefined,
-  };
-}
+import { EventList } from "@/components/server/EventList";
+import { formatBytes } from "@/lib/utils";
+import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
 
 export function OverviewTab({
   gs,
   name,
   tmpl,
   ns,
+  onViewAllEvents,
 }: {
   gs?: GameServer;
   name: string;
   tmpl?: GameTemplate;
   ns?: string;
+  onViewAllEvents?: () => void;
 }) {
   const { data: roster } = useQuery({
     queryKey: ["players", name, "overview", ns],
@@ -101,7 +76,9 @@ export function OverviewTab({
     typeof agent?.playersOnline === "number" && agent.playersOnline >= 0
       ? (agent.playersOnline as number)
       : 0;
-  const events: Event[] = (Array.isArray(rawEvents) ? rawEvents : []).map(mapServerEvent);
+  const events: NormalizedServerEvent[] = (Array.isArray(rawEvents) ? rawEvents : []).map(
+    mapServerEvent,
+  );
   const endpoints = status.endpoints ?? [];
   const primary = endpoints[0];
 
@@ -153,28 +130,18 @@ export function OverviewTab({
             <div className="flex items-center gap-2">
               <CardTitle>Recent events</CardTitle>
             </div>
-            <button className="text-xs text-primary hover:underline">View all</button>
+            <button
+              className="text-xs text-primary hover:underline"
+              onClick={onViewAllEvents}
+            >
+              View all
+            </button>
           </CardHeader>
           <CardContent className="px-0">
-            {events.length === 0 && (
-              <div className="px-6 pb-6 text-sm text-muted">
-                No events yet. Lifecycle, backup, and agent activity will appear here.
-              </div>
-            )}
-            <ul className="divide-y divide-border">
-              {events.map((e) => (
-                <li key={e.id} className="flex items-start gap-3 px-6 py-3">
-                  <EventDot kind={e.kind} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-fg">{e.message}</div>
-                    <div className="pt-0.5 text-xs text-muted">
-                      {e.source ?? "system"}
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted">{formatRelative(e.ts)}</div>
-                </li>
-              ))}
-            </ul>
+            <EventList
+              events={events}
+              emptyMessage="No events yet. Lifecycle, backup, and agent activity will appear here."
+            />
           </CardContent>
         </Card>
       </div>
@@ -277,15 +244,6 @@ function MetricTile({
       {secondary && <div className="pt-2 text-xs text-muted">{secondary}</div>}
     </Card>
   );
-}
-
-function EventDot({ kind }: { kind: Event["kind"] }) {
-  const color = {
-    info:  "bg-primary",
-    warn:  "bg-warning",
-    error: "bg-danger",
-  }[kind];
-  return <span className={`mt-1.5 inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {

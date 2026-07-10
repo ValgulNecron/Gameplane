@@ -1,5 +1,24 @@
 import { cn } from "@/lib/utils";
 
+// Generic badge for counts and simple labels.
+export function Badge({ children, variant = "default", className }: { children: React.ReactNode; variant?: "default" | "primary"; className?: string }) {
+  const variantClass = {
+    default: "bg-muted/20 text-muted",
+    primary: "bg-primary/20 text-primary",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 items-center rounded px-2 text-xs font-mono",
+        variantClass[variant],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 // Phase strings span three CRDs: GameServer (Pending/Starting/Running/
 // Stopping/Stopped/Suspended/Failed), Backup (Pending/Running/Succeeded/
 // Failed), and Restore (Pending/Suspending/Running/Resuming/Succeeded/

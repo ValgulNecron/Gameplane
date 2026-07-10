@@ -337,6 +337,49 @@ func TestWriteJSON(t *testing.T) {
 	}
 }
 
+func TestStream_StatusFilterSentinel(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	ts := time.Now().UTC().Format(time.RFC3339)
+
+	// Insert one 2xx event and one 5xx event
+	if _, err := s.DB.ExecContext(context.Background(),
+		`INSERT INTO audit_events(ts, actor, method, path, status) VALUES (?, 'tester', 'POST', '/x', 200)`,
+		ts,
+	); err != nil {
+		t.Fatalf("insert 2xx: %v", err)
+	}
+
+	if _, err := s.DB.ExecContext(context.Background(),
+		`INSERT INTO audit_events(ts, actor, method, path, status) VALUES (?, 'tester', 'POST', '/y', 500)`,
+		ts,
+	); err != nil {
+		t.Fatalf("insert 5xx: %v", err)
+	}
+
+	// Call Stream directly with StatusMin=0, StatusMax=299 (meaning "filter to 2xx")
+	// This exercises the sentinel: StatusMax should gate the filter, not StatusMin.
+	filter := StreamFilter{StatusMin: 0, StatusMax: 299}
+	var got []Event
+	err := a.Stream(context.Background(), filter, func(e Event) error {
+		got = append(got, e)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("got %d events, want 1", len(got))
+	}
+	if got[0].Status != 200 {
+		t.Fatalf("got status %d, want 200", got[0].Status)
+	}
+	if got[0].Path != "/x" {
+		t.Fatalf("got path %q, want /x", got[0].Path)
+	}
+}
+
 func itoa(i int) string {
 	if i == 0 {
 		return "0"

@@ -414,6 +414,16 @@ func (r *BackupReconciler) mirrorJobStatus(
 		}
 	}
 
+	// Stamp the owning GameServer with this backup's completion time so the
+	// dashboard can show "last backup" without scanning the Backup list. Only
+	// once the snapshot is confirmed restorable — a Succeeded Backup whose id
+	// never lands flips to Failed, and must not have advanced the timestamp.
+	if phase == gameplanev1alpha1.BackupPhaseSucceeded && !snapshotMissing {
+		if err := r.recordServerBackupTime(ctx, b); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	if phase == gameplanev1alpha1.BackupPhaseSucceeded || phase == gameplanev1alpha1.BackupPhaseFailed {
 		res, err := r.runUnquiesce(ctx, b)
 		if err != nil {
@@ -428,6 +438,37 @@ func (r *BackupReconciler) mirrorJobStatus(
 		return res, nil
 	}
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+}
+
+// recordServerBackupTime stamps the owning GameServer's
+// status.lastBackupTime with this backup's completion time. Best-effort: a
+// missing GameServer (deleted, or a backup without a resolvable server) is
+// ignored, and the timestamp only ever advances forward so an out-of-order
+// reconcile can't rewind it. Patches (not updates) status so it doesn't race
+// the agent's concurrently written status.agent — same rationale as the
+// GameServer reconciler's setPhase.
+func (r *BackupReconciler) recordServerBackupTime(ctx context.Context, b *gameplanev1alpha1.Backup) error {
+	if b.Status.CompletionTime == nil || b.Spec.ServerRef.Name == "" {
+		return nil
+	}
+	gs := &gameplanev1alpha1.GameServer{}
+	key := types.NamespacedName{Namespace: b.Namespace, Name: b.Spec.ServerRef.Name}
+	if err := r.Get(ctx, key, gs); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("get gameserver %s for last-backup time: %w", key.Name, err)
+	}
+	if gs.Status.LastBackupTime != nil &&
+		!b.Status.CompletionTime.After(gs.Status.LastBackupTime.Time) {
+		return nil
+	}
+	base := gs.DeepCopy()
+	gs.Status.LastBackupTime = b.Status.CompletionTime.DeepCopy()
+	if err := r.Status().Patch(ctx, gs, client.MergeFrom(base)); err != nil {
+		return fmt.Errorf("patch gameserver %s last-backup time: %w", key.Name, err)
+	}
+	return nil
 }
 
 // runUnquiesce performs the terminal-phase unquiesce + Unquiesced condition

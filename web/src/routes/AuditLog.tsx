@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { Download, RefreshCw } from "lucide-react";
 import type { AuditEvent } from "@/types";
-import { Audit } from "@/lib/endpoints";
+import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,19 @@ export function AuditLogPage() {
     initialPageParam: 0,
     getNextPageParam: (last) =>
       last.length === PAGE_SIZE ? last[last.length - 1].id : undefined,
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: (filter: AuditExportFilter) => Audit.exportCsv(filter),
+    onSuccess: (blob) => {
+      const filename = "gameplane-audit-" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   });
 
   const all: AuditEvent[] = useMemo(
@@ -61,8 +74,14 @@ export function AuditLogPage() {
           <>
             <Button
               variant="outline"
-              onClick={() => exportCsv(filtered)}
-              disabled={filtered.length === 0}
+              onClick={() => {
+                const filter: AuditExportFilter = {};
+                if (actorQ.trim()) filter.actor = actorQ.trim();
+                if (methodFilter !== "all") filter.method = methodFilter;
+                if (statusClass !== "all") filter.status = statusClass;
+                exportMutation.mutate(filter);
+              }}
+              disabled={exportMutation.isPending}
             >
               <Download className="h-4 w-4" /> Export CSV
             </Button>
@@ -230,7 +249,7 @@ export function auditAction(e: { method: string; path: string; target?: string }
   if (m("/users")) return `${VERB[e.method] ?? e.method} user${t}`;
   if (m("/roles")) return `${VERB[e.method] ?? e.method} role${t}`;
   if (m("/modules")) return `${VERB[e.method] ?? e.method} module${t}`;
-  if (m("/module-sources")) return `${VERB[e.method] ?? e.method} module source${t}`;
+  if (m("/modules/sources")) return `${VERB[e.method] ?? e.method} module source${t}`;
   if (m("/destinations") || m("/backup-destinations")) return `${VERB[e.method] ?? e.method} backup destination${t}`;
   if (m("/admin/config")) return "Updated settings";
   if (m("/auth/login")) return "Signed in";
@@ -283,28 +302,5 @@ function statusBucket(s: number): "2xx" | "4xx" | "5xx" | "other" {
 
 function labelFor(s: StatusClass): string {
   if (s === "all") return "All";
-  return s;
-}
-
-function exportCsv(events: AuditEvent[]) {
-  const head = ["id", "ts", "actor", "method", "path", "status", "ip", "target"];
-  const rows = events.map((e) => [
-    e.id, e.ts, e.actor, e.method, e.path, e.status, e.ip ?? "", e.target ?? "",
-  ]);
-  const csv = [head, ...rows]
-    .map((r) => r.map(csvCell).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `gameplane-audit-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function csvCell(v: string | number): string {
-  const s = String(v);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
