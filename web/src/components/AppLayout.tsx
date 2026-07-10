@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation, useMatches } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   Archive,
   Bell,
@@ -55,24 +56,28 @@ export function AppLayout() {
         <Sidebar me={me} clusterName={cluster?.clusterName} />
       </div>
 
-      {drawerOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/60"
-            aria-hidden="true"
-            onClick={() => setDrawerOpen(false)}
-          />
-          <div className="relative flex h-full w-[280px] max-w-[85vw] shadow-2xl">
+      <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 lg:hidden" />
+          <Dialog.Content
+            className="fixed inset-0 z-50 flex h-full w-[280px] max-w-[85vw] flex-col border-r border-border bg-surface/60 lg:hidden"
+            onInteractOutside={(e) => {
+              // Allow Escape and scrim clicks to close the drawer
+              e.preventDefault();
+              setDrawerOpen(false);
+            }}
+          >
+            <Dialog.Title className="sr-only">Navigation</Dialog.Title>
             <Sidebar
               me={me}
               clusterName={cluster?.clusterName}
-              className="w-full"
+              className="flex-1 w-full"
               onNavigate={() => setDrawerOpen(false)}
               onClose={() => setDrawerOpen(false)}
             />
-          </div>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={me} onMenuClick={() => setDrawerOpen(true)} />
