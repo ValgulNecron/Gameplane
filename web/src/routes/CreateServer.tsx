@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameIcon } from "@/components/ui/game-icon";
+import { ResourceInput } from "@/components/ui/resource-input";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { APIError } from "@/lib/api";
 import { Cluster, Servers, Templates, type ServerCreate } from "@/lib/endpoints";
@@ -15,6 +16,7 @@ import {
   isValidVersion,
   validateConfig,
 } from "@/lib/validation";
+import { parseCpuQuantity, cpuCores, parseMemQuantity, memBytes } from "@/lib/quantity";
 import { cn } from "@/lib/utils";
 import { resolveCategory, categoryFilters } from "@/lib/games";
 import type { GameTemplate, PortOverride } from "@/types";
@@ -58,22 +60,11 @@ interface WizardState {
 const initial: WizardState = {
   name: "", description: "",
   template: null, version: "", config: {},
-  cpuLimit: "2", memoryLimit: "4",
+  cpuLimit: "2", memoryLimit: "4Gi",
   storageSize: "20Gi", nodePlacement: "auto",
   expose: "NodePort", hostname: "", sourceRanges: "",
   portOverrides: [],
 };
-
-// cpuRequest reserves a modest CPU floor so a pod schedules on a
-// partially-used node: CPU is compressible, so we reserve at most 1 core
-// (or the whole limit when it's smaller) and let the container burst up to
-// its limit. Memory, by contrast, is guaranteed at the full limit (below),
-// since under-requesting risks OOM eviction under node pressure.
-export function cpuRequest(cpuLimit: string): string {
-  const n = Number(cpuLimit);
-  if (!Number.isFinite(n) || n <= 0) return "250m";
-  return n <= 1 ? cpuLimit : "1";
-}
 
 // Largest single-node capacity from the cluster view — the ceiling a pod
 // can ever be scheduled onto. Returns 0 when node data is unavailable
@@ -124,13 +115,12 @@ function buildCreateBody(state: WizardState): ServerCreate {
         : {}),
     },
     resources: {
-      // Requests are what the scheduler places on; keep CPU modest so the
-      // pod fits a partially-used node, and guarantee memory at the limit.
-      // (The operator replaces the template's resources with these, so we
-      // must set both requests and limits here or K8s defaults
-      // requests=limits — a full-core request that needs an empty node.)
-      requests: { cpu: cpuRequest(state.cpuLimit), memory: `${state.memoryLimit}Gi` },
-      limits: { cpu: state.cpuLimit, memory: `${state.memoryLimit}Gi` },
+      // The create form uses Guaranteed QoS: requests == limits, so the pod
+      // is scheduled onto (and kept on) a node that can always give it the
+      // full amount, and never gets OOM-killed or CPU-throttled below what
+      // was configured.
+      requests: { cpu: state.cpuLimit, memory: state.memoryLimit },
+      limits: { cpu: state.cpuLimit, memory: state.memoryLimit },
     },
     ...(nodeSelector ? { nodeSelector } : {}),
   };
@@ -168,10 +158,12 @@ function validateStep(
     if (!isValidQuantity(state.cpuLimit) || !isValidQuantity(state.memoryLimit)) {
       return { ok: false, reason: "CPU and memory must be valid quantities" };
     }
-    if (caps.maxCpu > 0 && Number(state.cpuLimit) > caps.maxCpu) {
+    const cpuParsed = parseCpuQuantity(state.cpuLimit);
+    if (caps.maxCpu > 0 && cpuParsed && cpuCores(cpuParsed) > caps.maxCpu) {
       return { ok: false, reason: `CPU can't exceed ${caps.maxCpu} cores — no single node has more` };
     }
-    if (caps.maxMemGi > 0 && Number(state.memoryLimit) > caps.maxMemGi) {
+    const memParsed = parseMemQuantity(state.memoryLimit);
+    if (caps.maxMemGi > 0 && memParsed && memBytes(memParsed) / 1024 ** 3 > caps.maxMemGi) {
       return { ok: false, reason: `Memory can't exceed ${caps.maxMemGi} GiB — no single node has more` };
     }
     const cfgErrors = validateConfig(state.template?.spec.configSchema ?? [], state.config);
@@ -522,11 +514,6 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
     staleTime: 30_000,
   });
   const { maxCpu, maxMemGi } = nodeCaps(cluster?.nodes ?? []);
-  const clamp = (v: string, max: number) => {
-    const n = Number(v);
-    if (max > 0 && Number.isFinite(n) && n > max) return String(max);
-    return v;
-  };
   return (
     <div className="space-y-4">
       <label className="block space-y-1.5">
@@ -553,35 +540,25 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1.5">
-          <span className="text-xs text-muted">CPU limit</span>
-          <div className="relative">
-            <Input
-              type="number"
-              min="1"
-              max={maxCpu > 0 ? maxCpu : undefined}
-              value={state.cpuLimit}
-              onChange={(e) => setState({ ...state, cpuLimit: e.target.value })}
-              onBlur={(e) => setState({ ...state, cpuLimit: clamp(e.target.value, maxCpu) })}
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted">cores</span>
-          </div>
+          <span className="text-xs text-muted">CPU</span>
+          <ResourceInput
+            kind="cpu"
+            value={state.cpuLimit}
+            onChange={(q) => setState({ ...state, cpuLimit: q })}
+            max={maxCpu > 0 ? maxCpu : undefined}
+          />
           {maxCpu > 0 && (
             <span className="text-[11px] text-muted">Max {maxCpu} (largest node)</span>
           )}
         </label>
         <label className="block space-y-1.5">
-          <span className="text-xs text-muted">Memory limit</span>
-          <div className="relative">
-            <Input
-              type="number"
-              min="1"
-              max={maxMemGi > 0 ? maxMemGi : undefined}
-              value={state.memoryLimit}
-              onChange={(e) => setState({ ...state, memoryLimit: e.target.value })}
-              onBlur={(e) => setState({ ...state, memoryLimit: clamp(e.target.value, maxMemGi) })}
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted">GiB</span>
-          </div>
+          <span className="text-xs text-muted">Memory</span>
+          <ResourceInput
+            kind="memory"
+            value={state.memoryLimit}
+            onChange={(q) => setState({ ...state, memoryLimit: q })}
+            max={maxMemGi > 0 ? maxMemGi : undefined}
+          />
           {maxMemGi > 0 && (
             <span className="text-[11px] text-muted">Max {maxMemGi} GiB (largest node)</span>
           )}
@@ -747,8 +724,8 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
       title: "Configuration",
       rows: [
         ["Name", state.name || "—"],
-        ["CPU", `${state.cpuLimit} cores`],
-        ["Memory", `${state.memoryLimit} GiB`],
+        ["CPU", state.cpuLimit],
+        ["Memory", state.memoryLimit],
         ["Storage", state.storageSize],
         ["Placement", state.nodePlacement],
       ] as Array<[string, string]>,
@@ -819,7 +796,7 @@ spec:
     name: ${state.template.metadata.name}
 ${state.version ? `  version: ${state.version}\n` : ""}  resources:
     cpu: ${state.cpuLimit}
-    memory: ${state.memoryLimit}Gi
+    memory: ${state.memoryLimit}
     storage: ${state.storageSize}
 `
     : "# Pick a template to preview the YAML.";

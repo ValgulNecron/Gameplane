@@ -17514,47 +17514,109 @@
                               "type": "text",
                               "id": "PN3Yw",
                               "fill": "$c:--foreground",
-                              "content": "CPU limit",
+                              "content": "CPU",
                               "fontFamily": "$c:--font-primary",
                               "fontSize": 13,
                               "fontWeight": "500"
                             },
                             {
                               "type": "frame",
-                              "id": "x9uUM",
-                              "name": "f3lin",
+                              "id": "ox6Su",
+                              "name": "resControl",
                               "width": "fill_container",
-                              "height": 40,
-                              "fill": "$c:--card",
-                              "cornerRadius": 6,
-                              "stroke": "$c:--border",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "padding": [
-                                10,
-                                14
-                              ],
-                              "justifyContent": "space_between",
+                              "gap": 8,
                               "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "text",
-                                  "id": "t7nDU",
-                                  "fill": "$c:--foreground",
-                                  "content": "4 cores",
-                                  "fontFamily": "$c:--font-primary",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "type": "frame",
+                                  "id": "n4jEX",
+                                  "name": "sliderTrack",
+                                  "width": "fill_container",
+                                  "height": 6,
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 999,
+                                  "children": [
+                                    {
+                                      "type": "rectangle",
+                                      "cornerRadius": 999,
+                                      "id": "nPmI1",
+                                      "name": "sliderFill",
+                                      "fill": "$c:--primary",
+                                      "width": 90,
+                                      "height": 6
+                                    }
+                                  ]
                                 },
                                 {
-                                  "type": "icon",
-                                  "id": "kEOmJ",
-                                  "width": 14,
-                                  "height": 14,
-                                  "icon": "unfold_more",
-                                  "library": "Material Symbols Sharp",
-                                  "weight": 400,
-                                  "fill": "$c:--muted-foreground"
+                                  "type": "frame",
+                                  "id": "caoIp",
+                                  "name": "valueInput",
+                                  "width": 56,
+                                  "height": 36,
+                                  "fill": "$c:--card",
+                                  "cornerRadius": 6,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "padding": [
+                                    6,
+                                    8
+                                  ],
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "QC6QV",
+                                      "name": "value",
+                                      "fill": "$c:--foreground",
+                                      "content": "2",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 14,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "thtNp",
+                                  "name": "unitSelect",
+                                  "width": 92,
+                                  "height": 36,
+                                  "fill": "$c:--card",
+                                  "cornerRadius": 6,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "padding": [
+                                    6,
+                                    8
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "xc5Rt",
+                                      "name": "unit",
+                                      "fill": "$c:--foreground",
+                                      "content": "cores",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "icon",
+                                      "id": "R8YINN",
+                                      "name": "chevron",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "unfold_more",
+                                      "library": "Material Symbols Sharp",
+                                      "weight": 400,
+                                      "fill": "$c:--muted-foreground"
+                                    }
+                                  ]
                                 }
                               ]
                             }
@@ -17572,47 +17634,109 @@
                               "type": "text",
                               "id": "rlfRF",
                               "fill": "$c:--foreground",
-                              "content": "Memory limit",
+                              "content": "Memory",
                               "fontFamily": "$c:--font-primary",
                               "fontSize": 13,
                               "fontWeight": "500"
                             },
                             {
                               "type": "frame",
-                              "id": "3QoW6",
-                              "name": "f3rin",
+                              "id": "sPU6v",
+                              "name": "resControl",
                               "width": "fill_container",
-                              "height": 40,
-                              "fill": "$c:--card",
-                              "cornerRadius": 6,
-                              "stroke": "$c:--border",
-                              "strokeWidth": 1,
-                              "strokeAlignment": "inner",
-                              "padding": [
-                                10,
-                                14
-                              ],
-                              "justifyContent": "space_between",
+                              "gap": 8,
                               "alignItems": "center",
                               "children": [
                                 {
-                                  "type": "text",
-                                  "id": "4uq1T",
-                                  "fill": "$c:--foreground",
-                                  "content": "8 GB",
-                                  "fontFamily": "$c:--font-primary",
-                                  "fontSize": 14,
-                                  "fontWeight": "normal"
+                                  "type": "frame",
+                                  "id": "Wikgr",
+                                  "name": "sliderTrack",
+                                  "width": "fill_container",
+                                  "height": 6,
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 999,
+                                  "children": [
+                                    {
+                                      "type": "rectangle",
+                                      "cornerRadius": 999,
+                                      "id": "uwVc1",
+                                      "name": "sliderFill",
+                                      "fill": "$c:--primary",
+                                      "width": 90,
+                                      "height": 6
+                                    }
+                                  ]
                                 },
                                 {
-                                  "type": "icon",
-                                  "id": "KPe7Y",
-                                  "width": 14,
-                                  "height": 14,
-                                  "icon": "unfold_more",
-                                  "library": "Material Symbols Sharp",
-                                  "weight": 400,
-                                  "fill": "$c:--muted-foreground"
+                                  "type": "frame",
+                                  "id": "m8Y317",
+                                  "name": "valueInput",
+                                  "width": 56,
+                                  "height": 36,
+                                  "fill": "$c:--card",
+                                  "cornerRadius": 6,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "padding": [
+                                    6,
+                                    8
+                                  ],
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Q66qdO",
+                                      "name": "value",
+                                      "fill": "$c:--foreground",
+                                      "content": "4",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 14,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "PQ8uC",
+                                  "name": "unitSelect",
+                                  "width": 76,
+                                  "height": 36,
+                                  "fill": "$c:--card",
+                                  "cornerRadius": 6,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "strokeAlignment": "inner",
+                                  "padding": [
+                                    6,
+                                    8
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "IaPDX",
+                                      "name": "unit",
+                                      "fill": "$c:--foreground",
+                                      "content": "Gi",
+                                      "fontFamily": "$c:--font-primary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "icon",
+                                      "id": "qPGSo",
+                                      "name": "chevron",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "unfold_more",
+                                      "library": "Material Symbols Sharp",
+                                      "weight": 400,
+                                      "fill": "$c:--muted-foreground"
+                                    }
+                                  ]
                                 }
                               ]
                             }
@@ -25498,7 +25622,7 @@
                                               "type": "text",
                                               "id": "G7fTz",
                                               "fill": "$c:--primary",
-                                              "content": "2.0 → 4.0",
+                                              "content": "2 cores",
                                               "fontFamily": "$c:--font-secondary",
                                               "fontSize": 12,
                                               "fontWeight": "600"
@@ -25507,20 +25631,102 @@
                                         },
                                         {
                                           "type": "frame",
-                                          "id": "24f0N",
-                                          "name": "rr1Lslider",
+                                          "id": "aA1qW",
+                                          "name": "resControl",
                                           "width": "fill_container",
-                                          "height": 6,
-                                          "fill": "$c:--muted",
-                                          "cornerRadius": 999,
+                                          "gap": 8,
+                                          "alignItems": "center",
                                           "children": [
                                             {
-                                              "type": "rectangle",
+                                              "type": "frame",
+                                              "id": "ohALm",
+                                              "name": "sliderTrack",
+                                              "width": "fill_container",
+                                              "height": 6,
+                                              "fill": "$c:--muted",
                                               "cornerRadius": 999,
-                                              "id": "fwKfP",
-                                              "fill": "$c:--primary",
-                                              "width": 280,
-                                              "height": 6
+                                              "children": [
+                                                {
+                                                  "type": "rectangle",
+                                                  "cornerRadius": 999,
+                                                  "id": "ZeTOT",
+                                                  "name": "sliderFill",
+                                                  "fill": "$c:--primary",
+                                                  "width": 180,
+                                                  "height": 6
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "OTLLj",
+                                              "name": "valueInput",
+                                              "width": 64,
+                                              "height": 36,
+                                              "fill": "$c:--card",
+                                              "cornerRadius": 6,
+                                              "stroke": "$c:--border",
+                                              "strokeWidth": 1,
+                                              "strokeAlignment": "inner",
+                                              "padding": [
+                                                6,
+                                                10
+                                              ],
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "i06kor",
+                                                  "name": "value",
+                                                  "fill": "$c:--foreground",
+                                                  "content": "2",
+                                                  "fontFamily": "$c:--font-primary",
+                                                  "fontSize": 14,
+                                                  "fontWeight": "500"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "ESWBk",
+                                              "name": "unitSelect",
+                                              "width": 96,
+                                              "height": 36,
+                                              "fill": "$c:--card",
+                                              "cornerRadius": 6,
+                                              "stroke": "$c:--border",
+                                              "strokeWidth": 1,
+                                              "strokeAlignment": "inner",
+                                              "padding": [
+                                                6,
+                                                10
+                                              ],
+                                              "justifyContent": "space_between",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "N2I9C",
+                                                  "name": "unit",
+                                                  "fill": "$c:--foreground",
+                                                  "content": "cores",
+                                                  "fontFamily": "$c:--font-primary",
+                                                  "fontSize": 13,
+                                                  "fontWeight": "normal"
+                                                },
+                                                {
+                                                  "type": "icon",
+                                                  "id": "g3mbE",
+                                                  "name": "chevron",
+                                                  "width": 14,
+                                                  "height": 14,
+                                                  "icon": "unfold_more",
+                                                  "library": "Material Symbols Sharp",
+                                                  "weight": 400,
+                                                  "fill": "$c:--muted-foreground"
+                                                }
+                                              ]
                                             }
                                           ]
                                         },
@@ -25534,7 +25740,7 @@
                                               "type": "text",
                                               "id": "f6Arn",
                                               "fill": "$c:--muted-foreground",
-                                              "content": "req: 2.0 cores · limit: 4.0 cores",
+                                              "content": "requests = limits (Guaranteed QoS)",
                                               "fontFamily": "$c:--font-secondary",
                                               "fontSize": 11,
                                               "fontWeight": "normal"
@@ -25580,7 +25786,7 @@
                                               "type": "text",
                                               "id": "E1Ov0",
                                               "fill": "$c:--primary",
-                                              "content": "4 → 8 GB",
+                                              "content": "4 Gi",
                                               "fontFamily": "$c:--font-secondary",
                                               "fontSize": 12,
                                               "fontWeight": "600"
@@ -25589,20 +25795,102 @@
                                         },
                                         {
                                           "type": "frame",
-                                          "id": "ZUya7",
-                                          "name": "rr2Lslider",
+                                          "id": "GlSTm",
+                                          "name": "resControl",
                                           "width": "fill_container",
-                                          "height": 6,
-                                          "fill": "$c:--muted",
-                                          "cornerRadius": 999,
+                                          "gap": 8,
+                                          "alignItems": "center",
                                           "children": [
                                             {
-                                              "type": "rectangle",
+                                              "type": "frame",
+                                              "id": "xkhdt",
+                                              "name": "sliderTrack",
+                                              "width": "fill_container",
+                                              "height": 6,
+                                              "fill": "$c:--muted",
                                               "cornerRadius": 999,
-                                              "id": "69fAQ",
-                                              "fill": "$c:--primary",
-                                              "width": 220,
-                                              "height": 6
+                                              "children": [
+                                                {
+                                                  "type": "rectangle",
+                                                  "cornerRadius": 999,
+                                                  "id": "SAMzp",
+                                                  "name": "sliderFill",
+                                                  "fill": "$c:--primary",
+                                                  "width": 150,
+                                                  "height": 6
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "zIqz5",
+                                              "name": "valueInput",
+                                              "width": 64,
+                                              "height": 36,
+                                              "fill": "$c:--card",
+                                              "cornerRadius": 6,
+                                              "stroke": "$c:--border",
+                                              "strokeWidth": 1,
+                                              "strokeAlignment": "inner",
+                                              "padding": [
+                                                6,
+                                                10
+                                              ],
+                                              "justifyContent": "center",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "vUDNO",
+                                                  "name": "value",
+                                                  "fill": "$c:--foreground",
+                                                  "content": "4",
+                                                  "fontFamily": "$c:--font-primary",
+                                                  "fontSize": 14,
+                                                  "fontWeight": "500"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "frame",
+                                              "id": "AY362",
+                                              "name": "unitSelect",
+                                              "width": 80,
+                                              "height": 36,
+                                              "fill": "$c:--card",
+                                              "cornerRadius": 6,
+                                              "stroke": "$c:--border",
+                                              "strokeWidth": 1,
+                                              "strokeAlignment": "inner",
+                                              "padding": [
+                                                6,
+                                                10
+                                              ],
+                                              "justifyContent": "space_between",
+                                              "alignItems": "center",
+                                              "children": [
+                                                {
+                                                  "type": "text",
+                                                  "id": "Ywmca",
+                                                  "name": "unit",
+                                                  "fill": "$c:--foreground",
+                                                  "content": "Gi",
+                                                  "fontFamily": "$c:--font-primary",
+                                                  "fontSize": 13,
+                                                  "fontWeight": "normal"
+                                                },
+                                                {
+                                                  "type": "icon",
+                                                  "id": "elUfH",
+                                                  "name": "chevron",
+                                                  "width": 14,
+                                                  "height": 14,
+                                                  "icon": "unfold_more",
+                                                  "library": "Material Symbols Sharp",
+                                                  "weight": 400,
+                                                  "fill": "$c:--muted-foreground"
+                                                }
+                                              ]
                                             }
                                           ]
                                         },
@@ -25616,7 +25904,7 @@
                                               "type": "text",
                                               "id": "tD6Kd",
                                               "fill": "$c:--muted-foreground",
-                                              "content": "req: 4 Gi · limit: 8 Gi",
+                                              "content": "requests = limits (Guaranteed QoS)",
                                               "fontFamily": "$c:--font-secondary",
                                               "fontSize": 11,
                                               "fontWeight": "normal"

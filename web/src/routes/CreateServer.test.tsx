@@ -13,7 +13,6 @@ vi.mock("@tanstack/react-router", () => ({
 
 import {
   CreateServerWizard,
-  cpuRequest,
   nodeCaps,
   nonEmptyPortOverrides,
   parseSourceRanges,
@@ -187,6 +186,27 @@ describe("CreateServerWizard", () => {
     expect(body.spec.nodeSelector).toEqual({ "gameplane.local/pinned": "true" });
   });
 
+  it("sends requests equal to limits (Guaranteed QoS)", async () => {
+    routeFetch();
+
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "mc-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    // Defaults from the wizard state: 2 cores / 4Gi.
+    expect(body.spec.resources.requests).toEqual({ cpu: "2", memory: "4Gi" });
+    expect(body.spec.resources.limits).toEqual({ cpu: "2", memory: "4Gi" });
+  });
+
   it("keeps the 4-step flow when the template declares no versions", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
     render(withClient(<CreateServerWizard />));
@@ -292,20 +312,6 @@ describe("nonEmptyPortOverrides", () => {
       ]),
     ).toEqual([{ name: "game", nodePort: 30005 }]);
     expect(nonEmptyPortOverrides([])).toEqual([]);
-  });
-});
-
-describe("cpuRequest", () => {
-  it("reserves at most one core so a pod schedules on a busy node", () => {
-    // The bug this fixes: a limit-only payload made K8s set request=limit,
-    // so a 4-core limit needed a fully-empty node. Request stays ≤ 1.
-    expect(cpuRequest("4")).toBe("1");
-    expect(cpuRequest("2")).toBe("1");
-    // Sub-core limits reserve exactly what they ask for.
-    expect(cpuRequest("1")).toBe("1");
-    expect(cpuRequest("0.5")).toBe("0.5");
-    // Garbage falls back to a tiny floor rather than NaN.
-    expect(cpuRequest("")).toBe("250m");
   });
 });
 
