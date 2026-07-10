@@ -7,6 +7,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +17,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,6 +43,12 @@ type Auditor struct {
 	sink    *slog.Logger // structured stdout sink; nil disables it
 	webhook *WebhookSink // outbound HTTP push sink; nil disables it
 	s3      *S3Sink      // S3 batch sink; nil disables it
+
+	// chainMu serializes the read-prev/compute-hash/insert sequence (and the
+	// checkpoint-then-delete sequence in Prune) so two requests never read
+	// the same "previous row" and fork the chain. See insertChained's doc
+	// comment for the single-writer/multi-replica caveat this doesn't cover.
+	chainMu sync.Mutex
 }
 
 // Option configures an Auditor.
@@ -202,6 +213,210 @@ func New(store *db.Store, opts ...Option) *Auditor {
 	return a
 }
 
+// ---- tamper-evidence (hash chain) ----
+//
+// Every row inserted after migration 005 carries prev_hash (the previous
+// row's hash) and hash = SHA-256(prev_hash || canonical(row)). A DB-level
+// UPDATE changes a row's content without recomputing hash, and a DELETE
+// removes a link entirely — both break the chain, which Verify detects by
+// re-walking it and recomputing each hash. Rows written before migration 005
+// have NULL prev_hash/hash; the chain simply starts fresh at the first row
+// inserted afterward (see previousHash).
+
+// chainConfigKey is the config-table key Prune writes a checkpoint under
+// before deleting rows, so Verify can resume the chain across a retention
+// sweep instead of needing every historical row kept forever.
+const chainConfigKey = "audit.checkpoint"
+
+// chainCheckpoint is the JSON value stored under chainConfigKey: the id and
+// hash of the newest row a retention sweep is about to delete. Verify starts
+// just after ID, trusting Hash as the prev_hash of the first surviving row —
+// it doesn't reappear in the table, but its hash needs to be remembered for
+// the link into what does survive to still check out.
+type chainCheckpoint struct {
+	ID   int64  `json:"id"`
+	Hash string `json:"hash"`
+}
+
+// canonicalize serializes the chained fields of an event into an
+// unambiguous byte string. Each field is prefixed with its own length so
+// that no delimiter embedded in attacker-influenced content (path, actor,
+// ip, ...) can make two different rows canonicalize to the same bytes.
+func canonicalize(e Event) []byte {
+	var buf bytes.Buffer
+	field := func(s string) {
+		fmt.Fprintf(&buf, "%d:", len(s))
+		buf.WriteString(s)
+	}
+	field(e.TS)
+	field(e.Actor)
+	field(e.Method)
+	field(e.Path)
+	field(e.Target)
+	field(strconv.Itoa(e.Status))
+	field(e.IP)
+	return buf.Bytes()
+}
+
+// computeHash chains prevHash into the SHA-256 of the canonicalized row, so
+// altering any field of the row, or splicing in a different predecessor,
+// changes the result.
+func computeHash(prevHash string, e Event) string {
+	h := sha256.New()
+	h.Write([]byte(prevHash))
+	h.Write(canonicalize(e))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// insertChained appends one row to audit_events, chaining it to the
+// previous row's hash so a later DB-level UPDATE or DELETE against
+// audit_events is detectable via Verify.
+//
+// Single-writer assumption: chainMu serializes the read-prev/compute/insert
+// sequence against other requests in this process. That's correct for a
+// single API replica — the only deployment topology this covers today (see
+// docs/architecture.md). A multi-replica deployment would let two processes
+// each read the same "previous row" concurrently and insert two rows
+// chained to the same prev_hash, silently forking the chain; making that
+// safe needs a DB-level serialization point (e.g. a Postgres advisory lock
+// keyed on the audit_events table) in addition to this in-process mutex.
+func (a *Auditor) insertChained(ctx context.Context, ts, actor, method, path, target string, status int, ip string) error {
+	a.chainMu.Lock()
+	defer a.chainMu.Unlock()
+
+	tx, err := a.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin audit tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	prevHash, err := a.previousHash(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("read previous audit hash: %w", err)
+	}
+
+	e := Event{TS: ts, Actor: actor, Method: method, Path: path, Target: target, Status: status, IP: ip}
+	hash := computeHash(prevHash, e)
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO audit_events(ts, actor, method, path, target, status, ip, prev_hash, hash)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		ts, actor, method, path, target, status, ip, prevHash, hash,
+	); err != nil {
+		return fmt.Errorf("insert audit event: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// previousHash returns the hash to chain the next insert from: the current
+// latest row's hash, the latest retention checkpoint's hash if the table has
+// been pruned to empty (or the latest row predates this feature and carries
+// no hash), or "" (genesis) if neither exists yet.
+func (a *Auditor) previousHash(ctx context.Context, tx *sql.Tx) (string, error) {
+	var hash sql.NullString
+	err := tx.QueryRowContext(ctx,
+		`SELECT hash FROM audit_events ORDER BY id DESC LIMIT 1`,
+	).Scan(&hash)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		// Empty table: fresh install, or every row was just pruned. Either
+		// way, fall through to the checkpoint below.
+	case err != nil:
+		return "", err
+	default:
+		if hash.Valid && hash.String != "" {
+			return hash.String, nil
+		}
+		// The latest row predates this feature (migrated in with a NULL
+		// hash): the chain restarts here at genesis.
+		return "", nil
+	}
+
+	raw, ok, err := a.db.ConfigValue(ctx, chainConfigKey)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", nil
+	}
+	var cp chainCheckpoint
+	if err := json.Unmarshal([]byte(raw), &cp); err != nil {
+		return "", fmt.Errorf("decode audit checkpoint: %w", err)
+	}
+	return cp.Hash, nil
+}
+
+// VerifyResult is the outcome of walking the audit_events hash chain.
+type VerifyResult struct {
+	OK         bool   `json:"ok"`
+	FirstBadID int64  `json:"firstBadId,omitempty"`
+	Checked    int64  `json:"checked"`
+	Message    string `json:"message"`
+}
+
+// Verify walks the audit_events hash chain from the latest retention
+// checkpoint (or genesis, if the table has never been pruned), recomputing
+// each row's hash. It checks both that a row's stored hash matches its
+// current content (an UPDATE would change the content without updating the
+// hash) and that its prev_hash matches the previous row's hash (a DELETE, or
+// an inserted/reordered row, breaks that link). It stops and reports at the
+// first break; rows written before migration 005 (NULL hash) are treated as
+// pre-chain history, not breaks.
+func (a *Auditor) Verify(ctx context.Context) (VerifyResult, error) {
+	expectedPrev := ""
+	var afterID int64
+
+	if raw, ok, err := a.db.ConfigValue(ctx, chainConfigKey); err != nil {
+		return VerifyResult{}, fmt.Errorf("load audit checkpoint: %w", err)
+	} else if ok {
+		var cp chainCheckpoint
+		if err := json.Unmarshal([]byte(raw), &cp); err != nil {
+			return VerifyResult{}, fmt.Errorf("decode audit checkpoint: %w", err)
+		}
+		expectedPrev = cp.Hash
+		afterID = cp.ID
+	}
+
+	rows, err := a.db.DB.QueryContext(ctx,
+		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''), COALESCE(prev_hash,''), COALESCE(hash,'')
+		 FROM audit_events
+		 WHERE id > ? AND hash IS NOT NULL AND hash <> ''
+		 ORDER BY id ASC`, afterID,
+	)
+	if err != nil {
+		return VerifyResult{}, fmt.Errorf("query audit chain: %w", err)
+	}
+	defer rows.Close()
+
+	var checked int64
+	for rows.Next() {
+		var e Event
+		var prevHash, hash string
+		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &prevHash, &hash); err != nil {
+			return VerifyResult{}, fmt.Errorf("scan audit row: %w", err)
+		}
+		checked++
+		if prevHash != expectedPrev {
+			return VerifyResult{
+				OK: false, FirstBadID: e.ID, Checked: checked,
+				Message: fmt.Sprintf("row %d: prev_hash does not match the previous row's hash (a row was inserted, deleted, or reordered)", e.ID),
+			}, nil
+		}
+		if want := computeHash(prevHash, e); want != hash {
+			return VerifyResult{
+				OK: false, FirstBadID: e.ID, Checked: checked,
+				Message: fmt.Sprintf("row %d: stored hash does not match its recomputed content (the row was modified)", e.ID),
+			}, nil
+		}
+		expectedPrev = hash
+	}
+	if err := rows.Err(); err != nil {
+		return VerifyResult{}, fmt.Errorf("iterate audit chain: %w", err)
+	}
+	return VerifyResult{OK: true, Checked: checked, Message: "audit chain intact"}, nil
+}
+
 // Middleware logs every mutating request after the handler returns.
 // Reads and health probes are skipped to keep the audit log signal-dense.
 func Middleware(a *Auditor) func(http.Handler) http.Handler {
@@ -233,14 +448,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			// Stamp once so the DB row, stdout line, and webhook payload all
 			// agree on the event time.
 			ts := time.Now().UTC().Format(time.RFC3339)
-			_, err := a.db.DB.ExecContext(req.Context(),
-				`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
-				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				ts,
-				actor, req.Method, req.URL.Path, target,
-				rw.status, req.RemoteAddr,
-			)
-			if err != nil {
+			if err := a.insertChained(req.Context(), ts, actor, req.Method, req.URL.Path, target, rw.status, req.RemoteAddr); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",
@@ -420,15 +628,72 @@ func (a *Auditor) Stream(ctx context.Context, f StreamFilter, fn func(Event) err
 // fixed-width zero-padded UTC format, so a lexicographic "<" comparison is
 // also a chronological one — no per-row time parsing needed, and the query
 // stays portable across the sqlite and postgres drivers.
+//
+// Before deleting, it checkpoints the newest row about to be removed (see
+// chainCheckpoint) so Verify can still validate the hash-chain link into the
+// first surviving row after the boundary row itself is gone.
 func (a *Auditor) Prune(ctx context.Context, cutoff time.Time) (int64, error) {
-	res, err := a.db.DB.ExecContext(ctx,
-		`DELETE FROM audit_events WHERE ts < ?`,
-		cutoff.UTC().Format(time.RFC3339),
-	)
+	cutoffStr := cutoff.UTC().Format(time.RFC3339)
+
+	// Same in-process serialization as insertChained: checkpointing and
+	// deleting must be atomic with respect to a concurrent insert reading
+	// "the previous row's hash", or that insert could read a row that's
+	// about to be pruned out from under it.
+	a.chainMu.Lock()
+	defer a.chainMu.Unlock()
+
+	tx, err := a.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin prune tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var boundaryID int64
+	var boundaryHash sql.NullString
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, hash FROM audit_events WHERE ts < ? ORDER BY id DESC LIMIT 1`,
+		cutoffStr,
+	).Scan(&boundaryID, &boundaryHash)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		// Nothing to prune.
+		return 0, tx.Commit()
+	case err != nil:
+		return 0, fmt.Errorf("find prune boundary: %w", err)
+	}
+
+	// A NULL boundary hash means every row up to the cutoff predates the
+	// chain (migration 005 hasn't shipped a hash for anything this old yet);
+	// there's no live link to preserve, so skip the checkpoint write.
+	if boundaryHash.Valid && boundaryHash.String != "" {
+		cp, mErr := json.Marshal(chainCheckpoint{ID: boundaryID, Hash: boundaryHash.String})
+		if mErr != nil {
+			return 0, fmt.Errorf("encode audit checkpoint: %w", mErr)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO config(key, value, updated_at)
+			 VALUES (?, ?, datetime('now'))
+			 ON CONFLICT(key) DO UPDATE SET
+			     value      = excluded.value,
+			     updated_at = excluded.updated_at`,
+			chainConfigKey, string(cp),
+		); err != nil {
+			return 0, fmt.Errorf("write audit checkpoint: %w", err)
+		}
+	}
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM audit_events WHERE ts < ?`, cutoffStr)
 	if err != nil {
 		return 0, fmt.Errorf("prune audit events: %w", err)
 	}
-	return res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("prune audit events: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit prune: %w", err)
+	}
+	return n, nil
 }
 
 // RunRetention periodically prunes audit events older than the retention
