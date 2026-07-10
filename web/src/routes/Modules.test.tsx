@@ -14,6 +14,7 @@ const catalog = vi.fn();
 const install = vi.fn();
 const upgrade = vi.fn();
 const uninstall = vi.fn();
+const removeUpload = vi.fn();
 const listSources = vi.fn();
 vi.mock("@/lib/endpoints", () => ({
   Modules: {
@@ -24,6 +25,7 @@ vi.mock("@/lib/endpoints", () => ({
   },
   ModuleSources: {
     list: () => listSources(),
+    removeUpload: (source: string, module: string) => removeUpload(source, module),
   },
 }));
 
@@ -70,6 +72,17 @@ const TERRARIA_UPGRADE: CatalogEntry = {
   phase: "Ready",
 };
 
+const CUSTOM_UPLOADED: CatalogEntry = {
+  name: "custom-game",
+  displayName: "Custom Game",
+  summary: "Custom uploaded module",
+  game: "custom",
+  sources: [{ name: "uploads", type: "upload" }],
+  versions: ["1.0.0"],
+  latestVersion: "1.0.0",
+  installed: false,
+};
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -84,6 +97,7 @@ afterEach(() => {
   install.mockReset();
   upgrade.mockReset();
   uninstall.mockReset();
+  removeUpload.mockReset();
   listSources.mockReset();
 });
 
@@ -194,5 +208,37 @@ describe("ModulesPage", () => {
     renderPage();
     await screen.findByText("Minecraft (Java)");
     expect(screen.queryByRole("button", { name: /upload module/i })).not.toBeInTheDocument();
+  });
+
+  it("shows 'Remove upload' button only on upload-type entries", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT, CUSTOM_UPLOADED] });
+    renderPage();
+
+    // Minecraft (OCI source) should not have "Remove upload" button
+    expect(await screen.findByText("Minecraft (Java)")).toBeInTheDocument();
+    const minecraftCard = screen.getByText("Minecraft (Java)").closest("div");
+    expect(minecraftCard?.textContent).not.toContain("Remove upload");
+
+    // Custom Game (upload source) should have "Remove upload" button
+    expect(screen.getByText("Custom Game")).toBeInTheDocument();
+    const customCard = screen.getByText("Custom Game").closest("div");
+    expect(customCard?.textContent).toContain("Remove upload");
+  });
+
+  it("removes an uploaded module after confirmation", async () => {
+    catalog.mockResolvedValue({ items: [CUSTOM_UPLOADED] });
+    removeUpload.mockResolvedValue(undefined);
+    renderPage();
+
+    await screen.findByText("Custom Game");
+    await userEvent.click(screen.getByRole("button", { name: /remove upload/i }));
+
+    // Confirm dialog button (label "Remove upload" in the dialog).
+    const buttons = await screen.findAllByRole("button", { name: /remove upload/i });
+    await userEvent.click(buttons[buttons.length - 1]);
+
+    await waitFor(() =>
+      expect(removeUpload).toHaveBeenCalledWith("uploads", "custom-game"),
+    );
   });
 });
