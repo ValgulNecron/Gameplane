@@ -30,9 +30,10 @@ func readyNode(name string, ready bool, cpu, mem string) *corev1.Node {
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: cond}},
 			Capacity: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse(cpu),
-				corev1.ResourceMemory: resource.MustParse(mem),
-				corev1.ResourcePods:   resource.MustParse("110"),
+				corev1.ResourceCPU:              resource.MustParse(cpu),
+				corev1.ResourceMemory:           resource.MustParse(mem),
+				corev1.ResourcePods:             resource.MustParse("110"),
+				corev1.ResourceEphemeralStorage: resource.MustParse("100Gi"),
 			},
 		},
 	}
@@ -119,11 +120,43 @@ func TestCluster_Stats(t *testing.T) {
 		t.Fatalf("nodes = %d, want 1", stats.Nodes)
 	}
 	const gi = 1024 * 1024 * 1024
-	if stats.TotalStorageBytes != 15*gi {
-		t.Fatalf("total = %d, want %d", stats.TotalStorageBytes, int64(15*gi))
+	// Total is the node's disk, not the sum of PV capacity — otherwise every
+	// PV being Bound would pin the storage meter at 100%.
+	if stats.TotalStorageBytes != 100*gi {
+		t.Fatalf("total = %d, want %d", stats.TotalStorageBytes, int64(100*gi))
 	}
 	if stats.UsedStorageBytes != 10*gi {
 		t.Fatalf("used = %d, want %d", stats.UsedStorageBytes, int64(10*gi))
+	}
+	if stats.UsedStorageBytes >= stats.TotalStorageBytes {
+		t.Fatalf("used %d must be below total %d", stats.UsedStorageBytes, stats.TotalStorageBytes)
+	}
+}
+
+// Regression: bound PVs were counted as both numerator and denominator, so
+// used == total on every real cluster and the meter always read 100%.
+func TestStorageAccounting(t *testing.T) {
+	const gi = 1024 * 1024 * 1024
+
+	nodes := []corev1.Node{*readyNode("a", true, "4", "8Gi"), *readyNode("b", true, "4", "8Gi")}
+	if got := nodeStorageCapacity(nodes); got != 200*gi {
+		t.Errorf("nodeStorageCapacity = %d, want %d", got, int64(200*gi))
+	}
+
+	pvs := []corev1.PersistentVolume{
+		*boundPV("bound-a", "10Gi", true),
+		*boundPV("bound-b", "5Gi", true),
+		*boundPV("spare", "50Gi", false),
+	}
+	if got := boundVolumeBytes(pvs); got != 15*gi {
+		t.Errorf("boundVolumeBytes = %d, want %d (unbound volumes are not usage)", got, int64(15*gi))
+	}
+
+	if got := nodeStorageCapacity(nil); got != 0 {
+		t.Errorf("nodeStorageCapacity(nil) = %d, want 0", got)
+	}
+	if got := boundVolumeBytes(nil); got != 0 {
+		t.Errorf("boundVolumeBytes(nil) = %d, want 0", got)
 	}
 }
 
