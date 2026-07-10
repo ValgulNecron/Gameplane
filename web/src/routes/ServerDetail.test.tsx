@@ -287,10 +287,10 @@ describe("ServerDetailPage clone action", () => {
       http.get("/servers/alpha", () => HttpResponse.json(makeServer({ metadata: { name: "alpha" } }))),
     );
     renderWithQuery(<ServerDetailPage />);
-    await user.click(await screen.findByRole("button", { name: "More actions" }));
+    await user.click(await screen.findByRole("button", { name: "Server actions" }));
   }
 
-  it("shows Clone server in the More menu", async () => {
+  it("shows Clone server in the actions menu", async () => {
     const user = userEvent.setup();
     await openMenu(user);
     expect(screen.getByText("Clone server")).toBeInTheDocument();

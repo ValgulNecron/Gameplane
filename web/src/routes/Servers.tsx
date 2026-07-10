@@ -1,12 +1,12 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
 import {
   Activity,
   Cpu,
   Filter,
   HardDrive,
-  MoreHorizontal,
   Play,
   Plus,
   RotateCw,
@@ -360,6 +360,7 @@ function ServerRow({
   gs: GameServer;
   onAct: (args: { name: string; verb: LifecycleVerb }) => void;
 }) {
+  const qc = useQueryClient();
   const phase = gs.status?.phase;
   const agent = gs.status?.agent;
   const players = agent?.playersOnline;
@@ -448,9 +449,17 @@ function ServerRow({
             >
               <RotateCw className="h-4 w-4" />
             </ActionButton>
-            <ActionButton title="More">
-              <MoreHorizontal className="h-4 w-4" />
-            </ActionButton>
+            <ServerActionsMenu
+              gs={gs}
+              onDeleted={() => {
+                void qc.invalidateQueries({ queryKey: ["servers"] });
+                void qc.invalidateQueries({ queryKey: ["my-servers"] });
+              }}
+              onTransferred={() => {
+                void qc.invalidateQueries({ queryKey: ["servers"] });
+                void qc.invalidateQueries({ queryKey: ["my-servers"] });
+              }}
+            />
           </div>
         )}
       </td>
