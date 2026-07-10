@@ -188,7 +188,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "lifecycle"  && <LifecycleSection  draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "access"     && <AccessSection     gs={gs} />}
-          {section === "danger"     && <DangerSection     name={name} />}
+          {section === "danger"     && <DangerSection     name={name} ns={ns} />}
         </div>
 
         {section !== "danger" && section !== "access" && (
