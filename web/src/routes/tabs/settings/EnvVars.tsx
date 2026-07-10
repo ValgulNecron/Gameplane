@@ -48,10 +48,11 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
         return (
           <div
             key={idx}
-            className="grid grid-cols-[24px_220px_1fr_32px] items-start gap-2 rounded border border-border bg-surface/30 p-2"
+            className="grid grid-cols-1 items-start gap-2 rounded border border-border bg-surface/30 p-2 sm:grid-cols-[24px_220px_1fr_32px]"
           >
-            <div className="pt-2 text-muted">
+            <div className="flex items-center gap-1.5 text-muted sm:block sm:pt-2">
               {isSecret ? <Lock className="h-3 w-3" /> : <Type className="h-3 w-3" />}
+              <span className="text-xs sm:hidden">{isSecret ? "Secret" : "Literal"}</span>
             </div>
             <div>
               <Input
@@ -115,12 +116,13 @@ export function EnvVarsSection({ draft, onChange }: SectionProps) {
             )}
             <Button
               variant="ghost"
-              size="icon"
-              className="h-8 w-8"
+              size="sm"
+              className="justify-self-start sm:h-8 sm:w-8 sm:justify-self-auto sm:p-0"
               title="Remove"
               onClick={() => remove(idx)}
             >
               <X className="h-3 w-3" />
+              <span className="sm:hidden">Remove</span>
             </Button>
           </div>
         );
