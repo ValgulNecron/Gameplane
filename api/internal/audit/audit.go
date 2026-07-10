@@ -354,18 +354,48 @@ func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, err
 	return out, rows.Err()
 }
 
-// Stream invokes fn for every audit event within the optional time window,
-// oldest-first. since/until are RFC3339 bounds (inclusive); an empty string
-// means unbounded. It iterates rows rather than buffering, so the whole table
-// can be exported without holding it in memory. ts is stored as fixed-width
-// RFC3339 (see Middleware), so the lexicographic comparison is chronological —
-// no per-row parsing, and it stays portable across the sqlite and pgx drivers.
-func (a *Auditor) Stream(ctx context.Context, since, until string, fn func(Event) error) error {
+// StreamFilter narrows an export. The zero value streams everything.
+//
+// It deliberately mirrors the dashboard's audit-page filters so an export
+// contains exactly the rows the operator is looking at — the page filters
+// client-side over the pages it has scrolled, which is a different (and
+// smaller) set than the table holds.
+type StreamFilter struct {
+	Since  string // RFC3339 lower bound, inclusive; "" = unbounded
+	Until  string // RFC3339 upper bound, inclusive; "" = unbounded
+	Actor  string // case-insensitive substring; "" = any
+	Method string // exact HTTP method; "" = any
+	// StatusMin/StatusMax bound the HTTP status inclusively. Both zero = any.
+	StatusMin int
+	StatusMax int
+}
+
+// likeEscape neutralizes the LIKE wildcards so an actor containing "%" or
+// "_" matches literally instead of broadening the export.
+func likeEscape(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
+// Stream invokes fn for every audit event matching f, oldest-first. It
+// iterates rows rather than buffering, so the whole table can be exported
+// without holding it in memory. ts is stored as fixed-width RFC3339 (see
+// Middleware), so the lexicographic comparison is chronological — no per-row
+// parsing, and it stays portable across the sqlite and pgx drivers.
+func (a *Auditor) Stream(ctx context.Context, f StreamFilter, fn func(Event) error) error {
+	actorPattern := "%" + likeEscape(strings.ToLower(f.Actor)) + "%"
 	rows, err := a.db.DB.QueryContext(ctx,
 		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,'')
 		 FROM audit_events
 		 WHERE (? = '' OR ts >= ?) AND (? = '' OR ts <= ?)
-		 ORDER BY id ASC`, since, since, until, until,
+		   AND (? = '' OR LOWER(actor) LIKE ? ESCAPE '\')
+		   AND (? = '' OR method = ?)
+		   AND (? = 0 OR (status >= ? AND status <= ?))
+		 ORDER BY id ASC`,
+		f.Since, f.Since, f.Until, f.Until,
+		f.Actor, actorPattern,
+		f.Method, f.Method,
+		f.StatusMin, f.StatusMin, f.StatusMax,
 	)
 	if err != nil {
 		return err
