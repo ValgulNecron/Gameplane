@@ -7,7 +7,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
-import { formatBytes, formatRelative } from "@/lib/utils";
+import { EventList } from "@/components/server/EventList";
+import { formatBytes } from "@/lib/utils";
 import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
 
 export function OverviewTab({
@@ -15,11 +16,13 @@ export function OverviewTab({
   name,
   tmpl,
   ns,
+  onViewAllEvents,
 }: {
   gs?: GameServer;
   name: string;
   tmpl?: GameTemplate;
   ns?: string;
+  onViewAllEvents?: () => void;
 }) {
   const { data: roster } = useQuery({
     queryKey: ["players", name, "overview", ns],
@@ -127,28 +130,18 @@ export function OverviewTab({
             <div className="flex items-center gap-2">
               <CardTitle>Recent events</CardTitle>
             </div>
-            <button className="text-xs text-primary hover:underline">View all</button>
+            <button
+              className="text-xs text-primary hover:underline"
+              onClick={onViewAllEvents}
+            >
+              View all
+            </button>
           </CardHeader>
           <CardContent className="px-0">
-            {events.length === 0 && (
-              <div className="px-6 pb-6 text-sm text-muted">
-                No events yet. Lifecycle, backup, and agent activity will appear here.
-              </div>
-            )}
-            <ul className="divide-y divide-border">
-              {events.map((e) => (
-                <li key={e.id} className="flex items-start gap-3 px-6 py-3">
-                  <EventDot kind={e.kind} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-fg">{e.message}</div>
-                    <div className="pt-0.5 text-xs text-muted">
-                      {e.source ?? "system"}
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted">{formatRelative(e.ts)}</div>
-                </li>
-              ))}
-            </ul>
+            <EventList
+              events={events}
+              emptyMessage="No events yet. Lifecycle, backup, and agent activity will appear here."
+            />
           </CardContent>
         </Card>
       </div>
@@ -251,15 +244,6 @@ function MetricTile({
       {secondary && <div className="pt-2 text-xs text-muted">{secondary}</div>}
     </Card>
   );
-}
-
-function EventDot({ kind }: { kind: NormalizedServerEvent["kind"] }) {
-  const color = {
-    info:  "bg-primary",
-    warn:  "bg-warning",
-    error: "bg-danger",
-  }[kind];
-  return <span className={`mt-1.5 inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {

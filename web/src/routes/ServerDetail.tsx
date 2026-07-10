@@ -18,6 +18,7 @@ import { capitalize, cn, formatUptime } from "@/lib/utils";
 import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
 
 import { OverviewTab } from "./tabs/Overview";
+import { EventsTab } from "./tabs/Events";
 import { LogsTab } from "./tabs/Logs";
 import { ModsTab } from "./tabs/Mods";
 import { ModpacksTab } from "./tabs/Modpacks";
@@ -34,10 +35,11 @@ const FilesTab = lazy(() =>
 );
 
 type TabKey =
-  | "overview" | "console" | "logs" | "files" | "mods" | "modpacks" | "players" | "backups" | "settings";
+  | "overview" | "events" | "console" | "logs" | "files" | "mods" | "modpacks" | "players" | "backups" | "settings";
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "overview", label: "Overview" },
+  { key: "events",   label: "Events" },
   { key: "console",  label: "Console" },
   { key: "logs",     label: "Logs" },
   { key: "files",    label: "Files" },
@@ -231,7 +233,10 @@ export function ServerDetailPage() {
 
       <div className="flex-1 overflow-auto scrollbar-thin">
         <Suspense fallback={<TabFallback />}>
-          {tab === "overview" && <OverviewTab gs={gs} name={name} tmpl={tmpl} ns={ns} />}
+          {tab === "overview" && (
+            <OverviewTab gs={gs} name={name} tmpl={tmpl} ns={ns} onViewAllEvents={() => setTab("events")} />
+          )}
+          {tab === "events"   && <EventsTab name={name} ns={ns} gs={gs} />}
           {tab === "console"  && <ConsoleTab name={name} ns={ns} />}
           {tab === "logs"     && (
             <LogsTab
