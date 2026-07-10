@@ -431,10 +431,10 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 	if _, err := legacyDB.Exec(`INSERT INTO schema_migrations VALUES ('001_init.sql', datetime('now'))`); err != nil {
 		t.Fatalf("seed migration: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)`); err != nil {
+	if _, err := legacyDB.Exec(`CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'viewer')`); err != nil {
 		t.Fatalf("create users: %v", err)
 	}
-	if _, err := legacyDB.Exec(`INSERT INTO users VALUES ('user1', 'Alice')`); err != nil {
+	if _, err := legacyDB.Exec(`INSERT INTO users(id, username, role) VALUES (1, 'Alice', 'admin')`); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
 	legacyDB.Close()
@@ -449,12 +449,12 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 	defer store.Close()
 
 	// Verify data from legacy survives.
-	var name string
-	if err := store.DB.QueryRow(`SELECT name FROM users WHERE id = 'user1'`).Scan(&name); err != nil {
+	var username string
+	if err := store.DB.QueryRow(`SELECT username FROM users WHERE id = 1`).Scan(&username); err != nil {
 		t.Fatalf("query user: %v", err)
 	}
-	if name != "Alice" {
-		t.Errorf("user data mismatch: got %q, want Alice", name)
+	if username != "Alice" {
+		t.Errorf("user data mismatch: got %q, want Alice", username)
 	}
 
 	// Verify migrations can run on the adopted database.

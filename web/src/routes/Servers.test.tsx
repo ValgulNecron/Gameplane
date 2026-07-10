@@ -351,10 +351,11 @@ describe("ServersPage", () => {
     const filterButton = screen.getByRole("button", { name: /Filter/i });
     await userEvent.click(filterButton);
 
-    expect(screen.getByText("minecraft-java")).toBeInTheDocument();
-    expect(screen.getByText("valheim")).toBeInTheDocument();
-    expect(screen.getByText("gameplane-games")).toBeInTheDocument();
-    expect(screen.getByText("other-ns")).toBeInTheDocument();
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "minecraft-java" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "valheim" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "gameplane-games" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "other-ns" })).toBeInTheDocument();
   });
 
   it("filters servers by game when a game is selected and Apply is clicked", async () => {
@@ -466,9 +467,10 @@ describe("ServersPage", () => {
     const applyButton = screen.getByRole("button", { name: /^Apply$/i });
     await userEvent.click(applyButton);
 
-    // Badge should show "2" (1 game + 1 namespace)
+    // Badge should show "2" (1 game + 1 namespace) — scope to the Filter
+    // button so it doesn't collide with other "2"s (stat tiles, tab counts).
     await waitFor(() => {
-      expect(screen.getByText("2")).toBeInTheDocument();
+      expect(within(filterButton).getByText("2")).toBeInTheDocument();
     });
   });
 
@@ -508,8 +510,8 @@ describe("ServersPage", () => {
     await userEvent.click(applyButton);
 
     // Now apply status filter to "Running"
-    const runningTab = screen.getByRole("tab", { name: /Running/i });
-    await userEvent.click(runningTab);
+    const runningButton = screen.getByRole("button", { name: /Running/i });
+    await userEvent.click(runningButton);
 
     // Only mc-running should be visible
     expect(screen.getByText("mc-running")).toBeInTheDocument();

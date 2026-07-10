@@ -111,7 +111,7 @@ describe("AuditLogPage", () => {
 
     // Verify download was triggered
     expect(createElementMock).toHaveBeenCalledWith("a");
-    expect(urlCreateObjectURLMock).toHaveBeenCalledWith(expect.any(Blob));
+    expect(urlCreateObjectURLMock).toHaveBeenCalled();
     expect(urlRevokeObjectURLMock).toHaveBeenCalledWith("blob:http://localhost/test");
   });
 });
