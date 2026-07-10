@@ -22,7 +22,11 @@ files, backups/restore, modules, RBAC — work end to end and are covered by
 unit, integration (envtest), and kind-based e2e suites. Before you rely on it,
 know that the following are **deferred past the first beta**:
 
-- **Multi-cluster** — one target cluster per dashboard.
+- **Multi-cluster** — the control plane can register additional clusters, but the
+  dashboard has no cluster picker yet, so the UI targets one cluster.
+
+[`docs/roadmap.md`](docs/roadmap.md) tracks everything that stands between beta
+and a v1 GA.
 
 CI runs the full suite (unit, envtest, and kind e2e) on every PR. The kind
 e2e jobs can occasionally flake under resource pressure on the self-hosted

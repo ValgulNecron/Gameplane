@@ -97,6 +97,12 @@ Top-level knobs (see `values.yaml` for the full list):
 
 - `image.registry` / `image.tag` — container image pinning
 - `operator.replicas` — leader-elected, safe at 2+
+- `operator.configInitImage` / `operator.resticImage` — the two images the operator
+  injects into workloads it creates: the config-init container on game pods
+  (`busybox`) and the backup/restore Jobs (`restic/restic`). Both default to the
+  upstream pins; retag them to a private registry mirror for air-gapped clusters
+  where Docker Hub is unreachable. They map to the operator's
+  `--config-init-image` / `--restic-image` flags, mirroring `operator.agentImage`
 - `api.db.driver` — `sqlite` (default) or `postgres`
 - `api.db.dsn` — connection string; SQLite default persists to a PVC
 - `api.oidc.enabled` + `issuer` / `clientID` / `clientSecretRef` — wire OIDC login
