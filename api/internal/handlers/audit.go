@@ -30,6 +30,19 @@ func MountAudit(r chi.Router, a *audit.Auditor) {
 		audit.WriteJSON(w, events)
 	})
 
+	// Verify re-walks the tamper-evidence hash chain and reports the first
+	// broken link, if any — the backend half of detecting a DB-level
+	// UPDATE/DELETE against audit_events. The dashboard integrity banner
+	// that surfaces this is a separate follow-up.
+	r.Get("/admin/audit/verify", func(w http.ResponseWriter, req *http.Request) {
+		result, err := a.Verify(req.Context())
+		if err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		audit.WriteJSON(w, result)
+	})
+
 	// Export streams the audit log as a CSV or JSON download. Unlike the
 	// paginated /admin/audit view, this gives the whole matching trail in one
 	// request — for compliance archival or an external pipeline. Streams

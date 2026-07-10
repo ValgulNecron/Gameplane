@@ -117,6 +117,69 @@ func TestMountAudit_HappyPath(t *testing.T) {
 	}
 }
 
+// TestMountAudit_Verify exercises the tamper-evidence endpoint through
+// MountAudit + the RBAC-covered path prefix: a clean chain reports OK, and a
+// DB-level tamper is caught and reported with the offending row id.
+func TestMountAudit_Verify(t *testing.T) {
+	store := newTestStore(t)
+	a := audit.New(store)
+	h := audit.Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	for i := 0; i < 3; i++ {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/servers", nil))
+	}
+
+	r := chi.NewRouter()
+	MountAudit(r, a)
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/verify")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var result audit.VerifyResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !result.OK || result.Checked != 3 {
+		t.Fatalf("result = %+v, want OK with Checked=3", result)
+	}
+
+	// Tamper directly at the DB level, then verify again through the endpoint.
+	if _, err := store.DB.Exec(`UPDATE audit_events SET actor = 'attacker' WHERE id = 2`); err != nil {
+		t.Fatalf("tamper: %v", err)
+	}
+	resp2 := auditGet(t, srv.URL+"/admin/audit/verify")
+	defer resp2.Body.Close()
+	if err := json.NewDecoder(resp2.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.OK || result.FirstBadID != 2 {
+		t.Fatalf("result = %+v, want a break reported at row 2", result)
+	}
+}
+
+// TestMountAudit_VerifyDBError — Verify's own query failure (not just Page's)
+// must also surface as a 500 through the endpoint, not a panic or a false OK.
+func TestMountAudit_VerifyDBError(t *testing.T) {
+	store := newTestStore(t)
+	a := audit.New(store)
+	if _, err := store.DB.ExecContext(context.Background(), `DROP TABLE audit_events`); err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	r := chi.NewRouter()
+	MountAudit(r, a)
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	resp := auditGet(t, srv.URL+"/admin/audit/verify")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", resp.StatusCode)
+	}
+}
+
 func TestMountAudit_DBError(t *testing.T) {
 	store := newTestStore(t)
 	a := audit.New(store)
