@@ -2,6 +2,9 @@
 //   - base URL (relative; vite proxy forwards in dev, same-origin in prod)
 //   - CSRF header injection for mutating requests (cookie → header)
 //   - uniform error throwing so TanStack Query .error works consistently
+//   - cluster query param threading for multi-cluster support
+
+import { getCurrentCluster } from "./cluster";
 
 const CSRF_COOKIE = "gameplane_csrf";
 const CSRF_HEADER = "X-Gameplane-CSRF";
@@ -44,7 +47,16 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const mutating = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
   if (mutating) headers[CSRF_HEADER] = csrfToken();
 
-  const res = await fetch(path, {
+  // Thread cluster query param for multi-cluster support.
+  // Only append when non-local to preserve back-compat (local = default, omit param).
+  const clusterId = getCurrentCluster();
+  let requestPath = path;
+  if (clusterId !== "local") {
+    const sep = path.includes("?") ? "&" : "?";
+    requestPath = `${path}${sep}cluster=${encodeURIComponent(clusterId)}`;
+  }
+
+  const res = await fetch(requestPath, {
     method,
     headers,
     credentials: "include",

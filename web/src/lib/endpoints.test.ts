@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Audit, Auth, Files, Logs, Players, Servers, Templates, Users } from "./endpoints";
+import { Audit, Auth, Clusters, Files, Logs, Players, Servers, Templates, Users } from "./endpoints";
+
+// Mock the cluster module so we don't depend on actual localStorage in tests
+vi.mock("./cluster", () => ({
+  getCurrentCluster: vi.fn(() => "local"),
+  setCurrentCluster: vi.fn(),
+  subscribeCluster: vi.fn(),
+  useCurrentCluster: vi.fn(),
+}));
 
 const fetchMock = vi.fn();
 
@@ -286,6 +294,21 @@ describe("endpoints", () => {
       const url = called().url;
       expect(url).toContain("/servers/mc-survival/mods/registry/search?limit=24");
       expect(url).not.toContain("namespace=");
+    });
+  });
+
+  describe("Clusters", () => {
+    it("list GETs /clusters", async () => {
+      fetchMock.mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ items: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      );
+      await Clusters.list();
+      expect(called().url).toBe("/clusters");
+      expect(called().init.method).toBe("GET");
     });
   });
 });

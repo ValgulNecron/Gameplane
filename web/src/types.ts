@@ -572,6 +572,15 @@ export interface NodeJoinInfo {
   expiresAt: string;
 }
 
+export interface ClusterRegistry {
+  name: string;
+  displayName: string;
+  phase: "Healthy" | "Unhealthy" | "Unknown";
+  message?: string;
+  serverVersion?: string;
+  lastCheckTime?: string;
+}
+
 export interface LoginProvider {
   name?: string; // route slug for /auth/oidc/{name}/start ("helm" = the Helm-flag provider)
   kind: "local" | "oidc" | string;

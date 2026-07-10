@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, APIError } from "./api";
 
+// Mock the cluster module to control getCurrentCluster
+vi.mock("./cluster", () => ({
+  getCurrentCluster: vi.fn(() => "local"),
+  setCurrentCluster: vi.fn(),
+  subscribeCluster: vi.fn(),
+  useCurrentCluster: vi.fn(),
+}));
+
 const fetchMock = vi.fn();
 
 beforeEach(() => {
@@ -60,5 +68,39 @@ describe("api()", () => {
       body: "nope",
     });
     await expect(api("/users/me")).rejects.toBeInstanceOf(APIError);
+  });
+
+  it("does not append cluster param when cluster is 'local'", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
+    await api("/servers");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers");
+  });
+
+  it("appends ?cluster= when cluster is non-local", async () => {
+    const { getCurrentCluster } = await import("./cluster");
+    vi.mocked(getCurrentCluster).mockReturnValueOnce("remote-prod");
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
+    await api("/servers");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers?cluster=remote-prod");
+  });
+
+  it("appends &cluster= when path already has query string", async () => {
+    const { getCurrentCluster } = await import("./cluster");
+    vi.mocked(getCurrentCluster).mockReturnValueOnce("remote-prod");
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
+    await api("/servers?namespace=games");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers?namespace=games&cluster=remote-prod");
+  });
+
+  it("URL-encodes the cluster id", async () => {
+    const { getCurrentCluster } = await import("./cluster");
+    vi.mocked(getCurrentCluster).mockReturnValueOnce("cluster@special");
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { ok: true }));
+    await api("/servers");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/servers?cluster=cluster%40special");
   });
 });

@@ -1,4 +1,5 @@
 import { APIError, api, csrfHeaders } from "@/lib/api";
+import { getCurrentCluster } from "@/lib/cluster";
 import type {
   AuditEvent,
   Backup,
@@ -7,6 +8,7 @@ import type {
   BannedPlayer,
   CatalogEntry,
   ClusterInfo,
+  ClusterRegistry,
   ClusterStats,
   ClusterView,
   ExtendedUser,
@@ -48,6 +50,15 @@ function withNS(path: string, ns?: string): string {
   if (!ns) return path;
   const sep = path.includes("?") ? "&" : "?";
   return `${path}${sep}namespace=${encodeURIComponent(ns)}`;
+}
+
+// Helper to append cluster query param for multi-cluster support.
+// Only appends when the current cluster is non-local (preserves back-compat).
+export function withCluster(path: string): string {
+  const clusterId = getCurrentCluster();
+  if (clusterId === "local") return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}cluster=${encodeURIComponent(clusterId)}`;
 }
 
 export interface ServerCreate {
@@ -224,7 +235,7 @@ export const Cluster = {
   addNode: () => api<NodeJoinInfo>("/cluster/nodes:join", { method: "POST" }),
   // kubeconfig is a file download, so it bypasses api()'s JSON handling.
   kubeconfig: async (): Promise<Blob> => {
-    const res = await fetch("/cluster/kubeconfig", {
+    const res = await fetch(withCluster("/cluster/kubeconfig"), {
       method: "POST",
       credentials: "include",
       headers: csrfHeaders(),
@@ -232,6 +243,12 @@ export const Cluster = {
     if (!res.ok) throw new APIError(res.status, await res.text().catch(() => ""));
     return res.blob();
   },
+};
+
+// Multi-cluster registry operations.
+export const Clusters = {
+  // list returns all registered clusters in the registry, including the local cluster.
+  list: () => api<List<ClusterRegistry>>("/clusters"),
 };
 
 // envelope wraps a typed `spec` in the unstructured Kubernetes envelope the
@@ -474,7 +491,7 @@ export const Audit = {
     if (filter.actor) params.set("actor", filter.actor);
     if (filter.method) params.set("method", filter.method);
     if (filter.status) params.set("status", filter.status);
-    const res = await fetch(`/admin/audit/export?${params.toString()}`, {
+    const res = await fetch(withCluster(`/admin/audit/export?${params.toString()}`), {
       method: "GET",
       credentials: "include",
     });
@@ -548,7 +565,7 @@ function filesBase(server: string): string {
 // generic api<T>() helper can't express. Errors are still surfaced as
 // APIError so callers and TanStack Query treat them uniformly.
 async function filesFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(input, { credentials: "include", ...init });
+  const res = await fetch(withCluster(input), { credentials: "include", ...init });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new APIError(res.status, text);
@@ -672,7 +689,7 @@ async function uploadBundle(
   opts: { dryRun?: boolean } = {},
 ): Promise<UploadedModule> {
   const path = `/modules/sources/${source}/upload${opts.dryRun ? "?dryRun=true" : ""}`;
-  const res = await fetch(path, {
+  const res = await fetch(withCluster(path), {
     method: "POST",
     headers: csrfHeaders(),
     credentials: "include",
