@@ -112,12 +112,15 @@ export function ServersPage() {
 
   const filterServer = (gs: GameServer) => {
     if (query && !gs.metadata.name.toLowerCase().includes(query.toLowerCase())) return false;
-    const phase = gs.status?.phase;
-    if (filter === "running") return phase === "Running";
-    if (filter === "stopped") return phase === "Stopped" || phase === "Suspended" || phase === "Failed";
+    // Facet filters compose with the status tab: evaluate them before the
+    // status short-circuit so an active Running/Stopped tab doesn't bypass
+    // the applied game/namespace facets.
     if (appliedGames.size > 0 && !appliedGames.has(gs.spec.templateRef.name)) return false;
     const ns = gs.metadata.namespace ?? "gameplane-games";
     if (appliedNamespaces.size > 0 && !appliedNamespaces.has(ns)) return false;
+    const phase = gs.status?.phase;
+    if (filter === "running") return phase === "Running";
+    if (filter === "stopped") return phase === "Stopped" || phase === "Suspended" || phase === "Failed";
     return true;
   };
 

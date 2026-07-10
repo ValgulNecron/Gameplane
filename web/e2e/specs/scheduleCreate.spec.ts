@@ -47,8 +47,9 @@ test.describe("schedule create", () => {
     const cronInput = page.locator('input[placeholder="0 */6 * * *"]');
     await cronInput.fill("*/15 * * * *");
 
-    // keepLast input — the type=number Input.
-    await page.locator('input[type="number"]').fill("5");
+    // keepLast input — RetentionFields renders six number inputs, so target
+    // the "Keep last" bucket by its accessible label rather than input[type].
+    await page.getByLabel("Keep last").fill("5");
 
     const created = page.waitForRequest(
       (req) => /\/schedules$/.test(req.url()) && req.method() === "POST",
