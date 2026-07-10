@@ -50,7 +50,7 @@ operator:
     mountPath: /var/lib/gameplane/modules
 
 api:
-  replicas: 1
+  replicas: 1        # SQLite driver is single-writer on a RWO volume; only values >1 are safe with db.driver=postgres
   logLevel: info     # API log verbosity (debug|info|warn|error), passed as GAMEPLANE_LOG_LEVEL
   resources:
     requests: { cpu: 100m, memory: 64Mi }

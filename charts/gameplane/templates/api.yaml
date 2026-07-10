@@ -175,6 +175,15 @@ spec:
   replicas: {{ .Values.api.replicas }}
   selector:
     matchLabels: { app.kubernetes.io/name: gameplane-api }
+  {{- if eq .Values.api.db.driver "sqlite" }}
+  # Recreate strategy for SQLite: the database is a single-writer store
+  # on a ReadWriteOnce PVC. RollingUpdate would start a new pod before
+  # terminating the old one, allowing two processes to compete for the
+  # database file. The legacy adoption code would race the old writer,
+  # risking corruption. Recreate ensures the old pod is fully gone first.
+  strategy:
+    type: Recreate
+  {{- end }}
   template:
     metadata:
       labels:

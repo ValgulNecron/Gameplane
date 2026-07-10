@@ -419,3 +419,26 @@ For CRD schema changes, run:
 ```sh
 kubectl apply -f charts/gameplane/crds/
 ```
+
+### SQLite database adoption (Kestrel → Gameplane)
+
+Installations that predate the Kestrel → Gameplane rename (v0.2.0-beta.2, July 2026)
+and use the SQLite database driver will have their legacy `kestrel.db` file
+automatically adopted on the first start of the new API. The adoption is
+one-time and atomic: the file is renamed to `gameplane.db` in place, and a
+WARN-level log entry records the event. If a `gameplane.db` already exists
+(e.g., if this is not a fresh upgrade), the legacy file is left untouched
+and the existing database is used instead — no data loss.
+
+Nothing else needs to happen; the upgrade proceeds normally.
+
+### SQLite upgrades (brief downtime)
+
+When using the SQLite database driver, the API Deployment uses a `Recreate`
+upgrade strategy: the old pod is fully terminated before the new one starts.
+This ensures no two API processes try to write the same SQLite database file
+(which is a single-writer store on a ReadWriteOnce PVC). As a result,
+SQLite-backed installs experience a few seconds of dashboard downtime during
+an upgrade — this is expected and deliberate. Postgres-backed installs use
+rolling updates with no downtime, since the database is external and
+shared.
