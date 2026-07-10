@@ -204,5 +204,11 @@ for the registration flow.
 - **API → telemetry-receiver (optional)**: the anonymous daily usage report
   (admin-toggle gated), auto-wired via `api.telemetry.receiver.enabled` or
   aimed at an external URL via `api.telemetry.endpoint`.
+- **mcp-server (optional)**: a standalone, strictly read-only MCP server —
+  `get`/`list`/`watch` ClusterRole only, no create/update/patch/delete
+  anywhere in its RBAC or its tool set — that talks directly to the
+  Kubernetes API (not through the API server), gated via `mcpServer.enabled`
+  and reachable only via `kubectl exec` (stdio transport, no network port).
+  See `mcp-server/README.md`.
 
 See `docs/security.md` for the threat model.

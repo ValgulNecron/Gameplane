@@ -29,6 +29,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 │   └── internal/{auth,console,files,heartbeat,logs,players,rcon,quiesce}/
 ├── audit-syslog-bridge/      # optional HTTP-JSON → syslog relay image (Go), behind the audit webhook sink
 ├── telemetry-receiver/       # optional anonymous-usage-telemetry collector image (Go), behind the API's telemetry reporter
+├── mcp-server/               # optional, strictly read-only MCP server image (Go), behind mcpServer.enabled
 ├── web/                      # React 18 + TS strict + Vite dashboard
 │   └── src/{routes,components,lib,router,styles,test}/
 ├── modules/                  # GIT SUBMODULE → gameplane-module repo (game template OCI bundles)
@@ -41,11 +42,11 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
 ├── design.pen                # Pencil design source — encrypted, MCP only
 ├── cosign.pub                # public key for verifying signed images + module bundles
-├── go.work                   # Go workspace linking netguard/operator/api/agent/audit-syslog-bridge/telemetry-receiver/test/e2e
+├── go.work                   # Go workspace linking netguard/operator/api/agent/audit-syslog-bridge/telemetry-receiver/mcp-server/test/e2e
 └── Makefile                  # canonical entry point for every command
 ```
 
-The Go modules `netguard`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
+The Go modules `netguard`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, `mcp-server`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
 
 `modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
 
@@ -73,9 +74,9 @@ make dev-install   # re-run helm upgrade against the local cluster
 
 ```sh
 make build                       # all components (Go + web)
-make build-go                    # compiles every Go module: netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver
+make build-go                    # compiles every Go module: netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
 make build-web                   # web/dist via `npm ci && npm run build`
-make images                      # docker images: operator, api, agent, audit-syslog-bridge, telemetry-receiver
+make images                      # docker images: operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
 make image-operator              # one image; same for image-api, image-agent, image-audit-syslog
 ```
 
@@ -83,7 +84,7 @@ make image-operator              # one image; same for image-api, image-agent, i
 
 ```sh
 make test                # everything (≈ seconds)
-make test-go             # Go unit tests across netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver
+make test-go             # Go unit tests across netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
 make test-web            # vitest for web
 
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
@@ -107,6 +108,7 @@ cd api      && go test ./...
 cd agent    && go test ./...
 cd audit-syslog-bridge && go test ./...
 cd telemetry-receiver && go test ./...
+cd mcp-server && go test ./...
 cd web      && npm test
 ```
 
@@ -121,7 +123,7 @@ make cover           # full coverage with threshold gates (CI-equivalent)
 make cover-ratchet   # measured-vs-threshold delta per module
 ```
 
-Coverage gates: `netguard/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
+Coverage gates: `netguard/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `mcp-server/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
 
 ### Codegen — mandatory after CRD type edits
 
@@ -295,6 +297,8 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`telemetry-receiver/`** — optional collector for the anonymous usage telemetry the API reports daily (`{version, servers, templates}`; opt-in via the admin toggle). Validates, logs, and aggregates into Prometheus metrics; deployed via `api.telemetry.receiver.enabled` (API auto-pointed at it) or run standalone for a public endpoint. See `telemetry-receiver/README.md`.
 
+**`mcp-server/`** — optional, strictly read-only Model Context Protocol server. Speaks MCP (JSON-RPC 2.0) over stdio only (no network port); reads the 7 Gameplane CRDs plus Pods/Events/pod-logs via a `get`/`list`/`watch`-only ClusterRole, and offers a `propose_fix` tool that returns suggested YAML/kubectl as text. No create/update/patch/delete tool exists anywhere in it — enforced structurally (`Client` has no mutating method) and by a test asserting the registered tool set. Deployed via `mcpServer.enabled`; reach a running instance with `kubectl exec -i ... -- /mcp-server serve`. See `mcp-server/README.md`.
+
 **`web/`** — React 18 + TS strict + Vite. Entry: `web/src/main.tsx`. Routing in `web/src/router/tree.tsx` (TanStack Router). Data fetching is TanStack Query calling through the thin fetch wrapper in `web/src/lib/api.ts`; WebSocket helpers in `web/src/lib/ws.ts`. Pages in `web/src/routes/`. Shared types mirroring CRDs in `web/src/types.ts`.
 
 **`modules/`** — a **git submodule** (the standalone `gameplane-module` repo) holding the official game template bundles distributed as OCI artifacts. Each has `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Built and pushed via `modules/build.sh` (uses `oras ≥ 1.2.0`). Format spec: `docs/module-authoring.md`. Run `git submodule update --init` after clone to populate it.
@@ -307,7 +311,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 | Layer | What's used |
 |---|---|
-| Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver share `go.work`) |
+| Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server share `go.work`) |
 | K8s libs | `controller-runtime` v0.19.0, `client-go` v0.35.0, envtest 1.31 |
 | HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 |
 | Persistence | `modernc.org/sqlite` **or** `pgx/v5` (driver-selectable at runtime) |
@@ -385,6 +389,7 @@ The site lives in the **`gameplane-website`** repo, checked out here as the `web
 - **`docs/install.md`** — Helm values, K8s/Helm prerequisites, OIDC setup.
 - **`docs/module-authoring.md`** — OCI bundle format for game templates.
 - **`audit-syslog-bridge/README.md`** — the syslog relay's config vars, transport tradeoffs (why TCP over UDP), and standalone `docker run` usage.
+- **`mcp-server/README.md`** — the read-only MCP server's tool list, stdio transport (`idle` vs `serve` subcommands), and how to connect via `kubectl exec`.
 - **`Makefile`** — canonical source of every build/test/dev command (this file paraphrases it; if they disagree, `Makefile` wins).
 - **`.golangci.yml`** and **`web/eslint.config.js`** — the linter rule sets that "fix, don't silence" applies to.
 - **`.editorconfig`** — indentation: tabs in Go, 2 spaces elsewhere; LF line endings.
