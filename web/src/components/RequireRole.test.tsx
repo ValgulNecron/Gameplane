@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { RequireRole, RequirePermission } from "./RequireRole";
 import { APIError } from "@/lib/api";
 
@@ -18,12 +19,14 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const assignMock = vi.fn();
+const refetchMock = vi.fn();
 beforeEach(() => {
   vi.stubGlobal("location", { assign: assignMock });
 });
 afterEach(() => {
   useMeMock.mockReset();
   assignMock.mockReset();
+  refetchMock.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -72,6 +75,31 @@ describe("RequireRole", () => {
     renderGuard(["admin"]);
     expect(assignMock).toHaveBeenCalledWith("/login");
   });
+
+  it("offers a retry — not Access denied — when the identity fetch fails", () => {
+    useMeMock.mockReturnValue({
+      data: undefined,
+      error: new APIError(500, "boom"),
+      isLoading: false,
+      refetch: refetchMock,
+    });
+    renderGuard(["admin"]);
+    expect(screen.getByText("Can't reach the control plane")).toBeInTheDocument();
+    expect(screen.queryByText("Access denied")).toBeNull();
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it("refetches when the retry button is pressed", async () => {
+    useMeMock.mockReturnValue({
+      data: undefined,
+      error: new APIError(503, "unavailable"),
+      isLoading: false,
+      refetch: refetchMock,
+    });
+    renderGuard(["admin"]);
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(refetchMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe("RequirePermission", () => {
@@ -102,5 +130,19 @@ describe("RequirePermission", () => {
     renderPerm("users:manage");
     expect(screen.getByText("Access denied")).toBeInTheDocument();
     expect(screen.queryByText("secret")).toBeNull();
+  });
+
+  // Regression: a 500 on /users/me used to fall through to Forbidden, so a
+  // transient API restart told an admin they had lost their permissions.
+  it("offers a retry — not Access denied — when the identity fetch fails", () => {
+    useMeMock.mockReturnValue({
+      data: undefined,
+      error: new APIError(500, "boom"),
+      isLoading: false,
+      refetch: refetchMock,
+    });
+    renderPerm("users:manage");
+    expect(screen.getByText("Can't reach the control plane")).toBeInTheDocument();
+    expect(screen.queryByText("Access denied")).toBeNull();
   });
 });
