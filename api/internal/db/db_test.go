@@ -471,6 +471,21 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 	if _, err := legacyDB.Exec(`INSERT INTO users(id, username, role) VALUES (1, 'Alice', 'admin')`); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
+	if _, err := legacyDB.Exec(`CREATE TABLE audit_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts         TEXT NOT NULL DEFAULT (datetime('now')),
+    actor      TEXT NOT NULL,
+    method     TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    target     TEXT,
+    status     INTEGER NOT NULL,
+    ip         TEXT
+)`); err != nil {
+		t.Fatalf("create audit_events: %v", err)
+	}
+	if _, err := legacyDB.Exec(`CREATE INDEX idx_audit_ts ON audit_events(ts DESC)`); err != nil {
+		t.Fatalf("create audit_events index: %v", err)
+	}
 	legacyDB.Close()
 
 	// Open with a new target path — adoption should happen.
