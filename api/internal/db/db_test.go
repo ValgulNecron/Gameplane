@@ -226,7 +226,7 @@ func TestAdoptLegacySQLite_TargetAbsentLegacyPresent(t *testing.T) {
 	}
 }
 
-// TestAdoptLegacySQLite_Sidecars tests that WAL sidecars move with the main file.
+// TestAdoptLegacySQLite_Sidecars tests that the -wal sidecar moves but -shm is never moved.
 func TestAdoptLegacySQLite_Sidecars(t *testing.T) {
 	tmpdir := t.TempDir()
 
@@ -243,8 +243,7 @@ func TestAdoptLegacySQLite_Sidecars(t *testing.T) {
 	}
 	legacyDB.Close()
 
-	// Manually create the sidecar files if they don't exist
-	// (they may not exist on first creation; we'll create them for testing).
+	// Manually create both -wal and -shm sidecar files for testing.
 	for _, suffix := range []string{"-wal", "-shm"} {
 		sidecarPath := legacyPath + suffix
 		if f, err := os.Create(sidecarPath); err == nil {
@@ -257,16 +256,63 @@ func TestAdoptLegacySQLite_Sidecars(t *testing.T) {
 		t.Fatalf("adoptLegacySQLite: %v", err)
 	}
 
-	// Check that sidecars moved.
-	for _, suffix := range []string{"-wal", "-shm"} {
-		legacySidecar := legacyPath + suffix
-		targetSidecar := targetPath + suffix
-		if _, err := os.Stat(targetSidecar); err != nil {
-			t.Errorf("target sidecar %s not found: %v", targetSidecar, err)
-		}
-		if _, err := os.Stat(legacySidecar); !os.IsNotExist(err) {
-			t.Errorf("legacy sidecar %s still exists: %v", legacySidecar, err)
-		}
+	// -wal must be moved to the target.
+	legacyWAL := legacyPath + "-wal"
+	targetWAL := targetPath + "-wal"
+	if _, err := os.Stat(targetWAL); err != nil {
+		t.Errorf("target -wal not found: %v", err)
+	}
+	if _, err := os.Stat(legacyWAL); !os.IsNotExist(err) {
+		t.Errorf("legacy -wal still exists: %v", err)
+	}
+
+	// -shm must NOT be moved (it's rebuilt, and moving it adds failure modes for zero benefit).
+	legacySHM := legacyPath + "-shm"
+	targetSHM := targetPath + "-shm"
+	if _, err := os.Stat(targetSHM); !os.IsNotExist(err) {
+		t.Errorf("target -shm should not exist but does: %v", err)
+	}
+	if _, err := os.Stat(legacySHM); err != nil {
+		t.Errorf("legacy -shm should still exist but doesn't: %v", err)
+	}
+}
+
+// TestAdoptLegacySQLite_LegacyIsDirectory tests that if kestrel.db is a directory,
+// adoption is skipped silently (no error, and the directory is left untouched).
+func TestAdoptLegacySQLite_LegacyIsDirectory(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	legacyPath := filepath.Join(tmpdir, "kestrel.db")
+	targetPath := filepath.Join(tmpdir, "gameplane.db")
+
+	// Create kestrel.db as a directory instead of a file.
+	if err := os.Mkdir(legacyPath, 0755); err != nil {
+		t.Fatalf("create legacy dir: %v", err)
+	}
+
+	// Create a marker file inside to verify the directory is untouched.
+	markerPath := filepath.Join(legacyPath, "marker")
+	if f, err := os.Create(markerPath); err == nil {
+		f.Close()
+	}
+
+	// Adoption should succeed silently (no error).
+	dsn := "file:" + targetPath
+	if err := adoptLegacySQLite(dsn); err != nil {
+		t.Fatalf("adoptLegacySQLite: %v", err)
+	}
+
+	// Target should not have been created.
+	if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
+		t.Errorf("target should not exist after skipping adoption: %v", err)
+	}
+
+	// Legacy directory should still exist with its marker file.
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Errorf("legacy directory should still exist: %v", err)
+	}
+	if _, err := os.Stat(markerPath); err != nil {
+		t.Errorf("legacy directory marker should still exist: %v", err)
 	}
 }
 

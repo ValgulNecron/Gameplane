@@ -173,7 +173,7 @@ func sqlitePath(dsn string) string {
 // adoptLegacySQLite renames kestrel.db to the target DSN path if the target
 // doesn't exist but the legacy file does. This handles Kestrel → Gameplane
 // upgrades where the DSN changed from kestrel.db to gameplane.db.
-// Also moves the -wal and -shm WAL sidecars if present.
+// Also moves the -wal WAL sidecar if present (but not -shm, which is rebuilt).
 // Returns a fatal error if the rename fails; silently succeeds if either
 // the target exists (do not overwrite) or the legacy file is absent.
 func adoptLegacySQLite(dsn string) error {
@@ -197,7 +197,8 @@ func adoptLegacySQLite(dsn string) error {
 	dir := filepath.Dir(targetPath)
 	legacyPath := filepath.Join(dir, "kestrel.db")
 
-	if _, err := os.Stat(legacyPath); errors.Is(err, os.ErrNotExist) {
+	legacyInfo, err := os.Stat(legacyPath)
+	if errors.Is(err, os.ErrNotExist) {
 		// Legacy file does not exist either; this is a fresh install.
 		return nil
 	} else if err != nil {
@@ -205,26 +206,36 @@ func adoptLegacySQLite(dsn string) error {
 		return fmt.Errorf("checking legacy file %s: %w", legacyPath, err)
 	}
 
-	// Legacy file exists and target does not. Rename the legacy file.
+	// Guard: legacy must be a regular file, not a directory or other type.
+	// A directory would be renamed into place, then sql.Open would fail confusingly.
+	if !legacyInfo.Mode().IsRegular() {
+		// Not a regular file; skip adoption silently (leave it alone).
+		return nil
+	}
+
+	// Legacy file exists and target does not. Move the -wal sidecar FIRST (if present),
+	// then the main database file. This ordering ensures that a partial failure always
+	// leaves the original kestrel.db intact, so the next startup re-adopts cleanly
+	// instead of silently skipping adoption with an orphaned WAL.
+	legacyWAL := legacyPath + "-wal"
+	targetWAL := targetPath + "-wal"
+	if _, err := os.Stat(legacyWAL); err == nil {
+		// WAL sidecar exists; move it first.
+		if err := os.Rename(legacyWAL, targetWAL); err != nil {
+			return fmt.Errorf("rename %s to %s: %w", legacyWAL, targetWAL, err)
+		}
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Some error other than "not exist"; propagate it.
+		return fmt.Errorf("checking legacy WAL %s: %w", legacyWAL, err)
+	}
+
+	// Now rename the main database file (this is the point of no return for the rename pair).
 	if err := os.Rename(legacyPath, targetPath); err != nil {
 		return fmt.Errorf("rename %s to %s: %w", legacyPath, targetPath, err)
 	}
 
-	// Move the WAL sidecars if they exist.
-	for _, suffix := range []string{"-wal", "-shm"} {
-		legacySidecar := legacyPath + suffix
-		targetSidecar := targetPath + suffix
-		if _, err := os.Stat(legacySidecar); errors.Is(err, os.ErrNotExist) {
-			// Sidecar doesn't exist; skip.
-			continue
-		} else if err != nil {
-			// Some error other than "not exist"; propagate it.
-			return fmt.Errorf("checking legacy sidecar %s: %w", legacySidecar, err)
-		}
-		if err := os.Rename(legacySidecar, targetSidecar); err != nil {
-			return fmt.Errorf("rename %s to %s: %w", legacySidecar, targetSidecar, err)
-		}
-	}
+	// Note: -shm (shared memory index) is not moved because SQLite rebuilds it automatically.
+	// Moving it adds a failure mode for zero benefit.
 
 	slog.Warn("adopted legacy SQLite database", "old", legacyPath, "new", targetPath)
 	return nil
