@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   Cpu,
+  Filter,
   HardDrive,
   MoreHorizontal,
   Play,
@@ -18,10 +19,17 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PhaseBadge } from "@/components/ui/badge";
+import { Badge, PhaseBadge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat";
 import { TabBar } from "@/components/ui/tabs";
 import { GameIcon } from "@/components/ui/game-icon";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
 import { cn, formatBytes } from "@/lib/utils";
 import type { ClusterStats, ClusterView, GameServer } from "@/types";
@@ -63,6 +71,11 @@ export function ServersPage() {
 
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [appliedGames, setAppliedGames] = useState<Set<string>>(new Set());
+  const [appliedNamespaces, setAppliedNamespaces] = useState<Set<string>>(new Set());
+  const [draftGames, setDraftGames] = useState<Set<string>>(new Set());
+  const [draftNamespaces, setDraftNamespaces] = useState<Set<string>>(new Set());
 
   const servers = useMemo(() => data?.items ?? [], [data?.items]);
 
@@ -78,12 +91,73 @@ export function ServersPage() {
   const counts = useMemo(() => countByState(servers), [servers]);
   const vcpus = (clusterView?.nodes ?? []).reduce((s, n) => s + (n.cpu?.capacity ?? 0), 0);
 
+  // Derive distinct games and namespaces from servers
+  const distinctGames = useMemo(() => {
+    const games = new Set<string>();
+    servers.forEach((s) => {
+      games.add(s.spec.templateRef.name);
+    });
+    return Array.from(games).sort();
+  }, [servers]);
+
+  const distinctNamespaces = useMemo(() => {
+    const namespaces = new Set<string>();
+    servers.forEach((s) => {
+      namespaces.add(s.metadata.namespace ?? "gameplane-games");
+    });
+    return Array.from(namespaces).sort();
+  }, [servers]);
+
+  const appliedFacetCount = appliedGames.size + appliedNamespaces.size;
+
   const filterServer = (gs: GameServer) => {
     if (query && !gs.metadata.name.toLowerCase().includes(query.toLowerCase())) return false;
     const phase = gs.status?.phase;
     if (filter === "running") return phase === "Running";
     if (filter === "stopped") return phase === "Stopped" || phase === "Suspended" || phase === "Failed";
+    if (appliedGames.size > 0 && !appliedGames.has(gs.spec.templateRef.name)) return false;
+    const ns = gs.metadata.namespace ?? "gameplane-games";
+    if (appliedNamespaces.size > 0 && !appliedNamespaces.has(ns)) return false;
     return true;
+  };
+
+  const handleOpenFilterChange = (open: boolean) => {
+    setIsFilterOpen(open);
+    if (open) {
+      setDraftGames(new Set(appliedGames));
+      setDraftNamespaces(new Set(appliedNamespaces));
+    }
+  };
+
+  const handleToggleDraftGame = (game: string) => {
+    const newSet = new Set(draftGames);
+    if (newSet.has(game)) {
+      newSet.delete(game);
+    } else {
+      newSet.add(game);
+    }
+    setDraftGames(newSet);
+  };
+
+  const handleToggleDraftNamespace = (ns: string) => {
+    const newSet = new Set(draftNamespaces);
+    if (newSet.has(ns)) {
+      newSet.delete(ns);
+    } else {
+      newSet.add(ns);
+    }
+    setDraftNamespaces(newSet);
+  };
+
+  const handleApplyFilter = () => {
+    setAppliedGames(new Set(draftGames));
+    setAppliedNamespaces(new Set(draftNamespaces));
+    setIsFilterOpen(false);
+  };
+
+  const handleClearFilter = () => {
+    setDraftGames(new Set());
+    setDraftNamespaces(new Set());
   };
 
   const visible = servers.filter(filterServer);
@@ -163,6 +237,74 @@ export function ServersPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
+          <DropdownMenu open={isFilterOpen} onOpenChange={handleOpenFilterChange}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="default" className="relative">
+                <Filter className="h-4 w-4" />
+                Filter
+                {appliedFacetCount > 0 && (
+                  <Badge variant="primary" className="ml-1.5">
+                    {appliedFacetCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[280px]">
+              {/* Game section */}
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted">Game</div>
+              {distinctGames.map((game) => (
+                <DropdownMenuCheckboxItem
+                  key={game}
+                  checked={draftGames.has(game)}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleToggleDraftGame(game);
+                  }}
+                >
+                  {game}
+                </DropdownMenuCheckboxItem>
+              ))}
+
+              <DropdownMenuSeparator />
+
+              {/* Namespace section */}
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted">Namespace</div>
+              {distinctNamespaces.map((ns) => (
+                <DropdownMenuCheckboxItem
+                  key={ns}
+                  checked={draftNamespaces.has(ns)}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleToggleDraftNamespace(ns);
+                  }}
+                >
+                  {ns}
+                </DropdownMenuCheckboxItem>
+              ))}
+
+              <DropdownMenuSeparator />
+
+              {/* Footer buttons */}
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearFilter}
+                  className="h-7"
+                >
+                  Clear
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleApplyFilter}
+                  className="h-7"
+                >
+                  Apply
+                </Button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
