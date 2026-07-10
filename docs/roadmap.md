@@ -44,29 +44,43 @@ scoped to the first.
 
 The `audit_events` table is a plain, append-only-by-convention table. Anyone with
 write access to the database can `UPDATE` or `DELETE` rows — including rows
-outside the retention window — and nothing detects it. The optional stdout,
-webhook, and S3 sinks mirror events but explicitly do not gate on delivery, so a
-dropped mirror is indistinguishable from a suppressed event.
+outside the retention window. The optional stdout, webhook, and S3 sinks mirror
+events but explicitly do not gate on delivery, so a dropped mirror is
+indistinguishable from a suppressed event.
 
-The backend half shipped per the planned design below (migration
-`005_audit_chain.sql`, `Auditor.insertChained`/`Auditor.Verify`,
-`GET /admin/audit/verify`). Outstanding: a dashboard integrity banner on the
-audit page that calls the verify endpoint and surfaces a break to the admin —
-tracked as a separate follow-up (design-first in `design.pen` per repo rule 1).
+The backend half shipped per the design below (migration `005_audit_chain.sql`,
+`Auditor.insertChained`/`Auditor.Verify`, `GET /admin/audit/verify`). Outstanding:
+a dashboard integrity banner on the audit page that calls the verify endpoint
+and surfaces a break to the admin — tracked as a separate follow-up
+(design-first in `design.pen` per repo rule 1).
 
 Design (as implemented):
 
 - Migration `005_audit_chain.sql` added `prev_hash` + `hash` columns.
 - On insert (inside a transaction, serialized per-process by a mutex — see the
   single-writer caveat on `insertChained`) compute
-  `hash = SHA-256(prev_hash || canonical(row))`.
+  `hash = SHA-256(prev_hash || canonical(row))`, and upsert `audit.head`
+  (the newest row's id + hash) in the same transaction.
 - `Verify()` walks the chain and reports the first break, exposed as an
-  admin-only `GET /admin/audit/verify`.
+  admin-only `GET /admin/audit/verify`. It also checks `audit.head` against
+  the newest surviving row, so truncating the tail (`DELETE ... WHERE id > N`,
+  which leaves every surviving link internally consistent) is detected too —
+  previously a known blind spot.
 - `Prune` writes a checkpoint (the newest about-to-be-deleted row's id + hash,
   in the `config` table under `audit.checkpoint`) before deleting, so
   verification resumes from the checkpoint rather than the genesis row.
 
-Threat-model context lives in [`security.md`](security.md).
+**What this does and does not guarantee:** the chain is unkeyed, and the
+checkpoint/head it verifies against live in the same DB-writable `config`
+table. It reliably catches naive in-DB tampering (`UPDATE`/`DELETE`, including
+tail truncation) and accidental corruption — it does not, and cannot, defeat a
+sophisticated attacker with DB write access who also recomputes and rewrites
+the checkpoint/head to match. The external sinks (stdout/webhook/S3) remain the
+append-only record of last resort such an attacker cannot retroactively alter.
+An HMAC-keyed chain (key held outside the database) would close that
+remaining gap and is a candidate future hardening, not yet implemented.
+
+Threat-model context lives in [`security.md`](security.md#audit-log-integrity).
 
 ### Module signing: activate for official bundles
 

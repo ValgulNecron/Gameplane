@@ -202,6 +202,50 @@ namespace (so a sink `configRef` can't be aimed at an arbitrary Secret),
 and delivery errors are sanitized to never echo the sink URL, whose path
 often embeds a capability token.
 
+## Audit log integrity
+
+`audit_events` is a hash chain (migration `005_audit_chain.sql`): every row
+inserted after that migration stores `hash = SHA-256(prev_hash ||
+canonical(row))`, and `GET /admin/audit/verify` re-walks the chain to report
+the first broken link. Two config-table entries bound the walk: a
+`Prune`-written checkpoint anchors the oldest surviving row after a
+retention sweep, and a per-insert head anchors the newest row, so a
+`DELETE FROM audit_events WHERE id > N` — truncating only the tail, which
+would otherwise leave every surviving link internally consistent — is
+detected too.
+
+**Be precise about what this catches.** The chain is unkeyed: it recomputes
+hashes from row content and two config-table entries, and `config` is
+writable by anyone with the same database access an attacker would need to
+tamper with `audit_events` in the first place. This mechanism reliably
+detects:
+
+- naive in-DB tampering — `UPDATE`/`DELETE` (including tail truncation)
+  against `audit_events` alone, without also touching `config`; and
+- accidental corruption (a bad migration, a restore from an inconsistent
+  backup, etc).
+
+It does **not** detect a sophisticated attacker who has DB write access and
+also recomputes and rewrites the checkpoint and head to match — that
+attacker can forge an internally-consistent chain from any starting point.
+Nothing server-side can close that gap while the verification data lives in
+the same database the attacker can already write to.
+
+**The real append-only record of last resort is the external sinks** —
+stdout (cluster log aggregation), the audit webhook, and the S3 batch sink
+(see [Secrets](#secrets) below for how their credentials are contained).
+Because delivery is push-based and decoupled from the request path, an
+attacker who compromises the database after the fact cannot retroactively
+alter what was already shipped to those destinations. Treat the hash chain
+as tamper-*evidence* for common-case tampering and corruption, and the
+external sinks as the actual tamper-*proof* trail.
+
+A documented future hardening is HMAC-keyed chaining (`hash =
+HMAC-SHA256(key, prev_hash || canonical(row))` with the key held outside the
+database — e.g. a K8s Secret the API process reads but never writes back),
+which would raise the bar to compromising that external key as well. Not
+implemented today; tracked in [`roadmap.md`](roadmap.md).
+
 ## Secrets
 
 Secrets Gameplane reads or creates, by convention:
