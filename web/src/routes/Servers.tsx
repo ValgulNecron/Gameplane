@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   Cpu,
-  Filter,
   HardDrive,
   MoreHorizontal,
   Play,
@@ -164,9 +163,6 @@ export function ServersPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline" size="default">
-            <Filter className="h-4 w-4" /> Filter
-          </Button>
         </div>
       </div>
 

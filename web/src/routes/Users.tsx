@@ -86,8 +86,6 @@ export function UsersPage() {
     () => ({
       users: users.length,
       roles: roles.length,
-      service: 0,
-      idp: 0,
     }),
     [users, roles],
   );
@@ -136,8 +134,8 @@ export function UsersPage() {
           items={[
             { key: "users",   label: "Users",              count: counts.users },
             { key: "roles",   label: "Roles",              count: counts.roles },
-            { key: "service", label: "Service accounts",   count: counts.service },
-            { key: "idp",     label: "Identity providers", count: counts.idp },
+            { key: "service", label: "Service accounts" },
+            { key: "idp",     label: "Identity providers" },
           ]}
           value={tab}
           onChange={setTab}
