@@ -3,14 +3,14 @@ import { Slider } from "./slider";
 import { Input } from "./input";
 import { Select, type SelectOption } from "./select";
 import {
-  parseCpuQuantity,
   formatCpuQuantity,
   convertCpu,
   cpuCores,
-  parseMemQuantity,
+  parseCpuQuantity,
   formatMemQuantity,
   convertMem,
   memBytes,
+  parseMemQuantity,
   type CpuAmount,
   type MemAmount,
   type CpuUnit,
@@ -43,13 +43,20 @@ const MEM_UNIT_OPTIONS: SelectOption[] = [
   { value: "Ti", label: "TiB" },
 ];
 
+// Round a value for passive display so unit switches don't surface float
+// noise (e.g. 100 MiB shown in GiB as "0.09765625"). Display-only — the
+// emitted quantity always derives from the full-precision base magnitude.
+function roundDisplay(n: number): number {
+  if (Number.isInteger(n)) return n;
+  return Math.round(n * 10000) / 10000;
+}
+
 /**
- * ResourceInput: a reusable control combining slider + numeric input + unit dropdown
- * for selecting CPU and memory resources. All three controls stay in sync.
- *
- * The slider's axis is always the base unit (cores for CPU, GiB for memory).
- * The input shows the value in the currently selected display unit.
- * Interactions are always converted back to canonical k8s quantity strings.
+ * ResourceInput: a reusable control combining slider + numeric input + unit
+ * dropdown for selecting CPU and memory resources. The slider axis is always
+ * the base unit (cores for CPU, GiB for memory); the input shows the value in
+ * the currently selected display unit; every interaction is converted back to
+ * a canonical Kubernetes quantity string via `onChange`.
  */
 export function ResourceInput({
   kind,
@@ -66,98 +73,83 @@ export function ResourceInput({
   const maxBase = userMax ?? defaults.max;
   const stepBase = userStep ?? defaults.step;
 
-  // Parse the canonical value to get the base magnitude and infer a natural display unit.
+  // Parse the canonical value into a base magnitude (cores / GiB) plus its
+  // natural display amount. An unparseable/empty value is treated as the min.
   const parsed = useMemo(() => {
     if (kind === "cpu") {
-      const parsed = parseCpuQuantity(value);
-      if (!parsed) return { baseValue: minBase, displayAmount: { value: minBase, unit: "cores" as CpuUnit } };
-      const cores = cpuCores(parsed);
-      return { baseValue: cores, displayAmount: parsed };
-    } else {
-      const parsed = parseMemQuantity(value);
-      if (!parsed) return { baseValue: minBase, displayAmount: { value: minBase, unit: "Gi" as MemUnit } };
-      const gib = memBytes(parsed) / (1024 ** 3);
-      return { baseValue: gib, displayAmount: parsed };
+      const amt = parseCpuQuantity(value);
+      if (!amt) {
+        return { base: minBase, amount: { value: minBase, unit: "cores" } as CpuAmount };
+      }
+      return { base: cpuCores(amt), amount: amt };
     }
+    const amt = parseMemQuantity(value);
+    if (!amt) {
+      return { base: minBase, amount: { value: minBase, unit: "Gi" } as MemAmount };
+    }
+    return { base: memBytes(amt) / 1024 ** 3, amount: amt };
   }, [value, kind, minBase]);
 
-  // Internal display unit state: initialize from the parsed value.
-  const [displayUnit, setDisplayUnit] = useState<CpuUnit | MemUnit>(parsed.displayAmount.unit);
+  // Display unit — initialised from the parsed value, thereafter driven by the
+  // dropdown.
+  const [displayUnit, setDisplayUnit] = useState<CpuUnit | MemUnit>(parsed.amount.unit);
 
-  // Current base value (clamped to [min, max]).
-  const baseValue = Math.max(minBase, Math.min(maxBase, parsed.baseValue));
+  // Local edit buffer: while the user is typing we hold their raw text and do
+  // NOT emit, so the field can pass through transient/invalid states ("", "0.",
+  // "1.5") without being clamped or reformatted mid-keystroke (which, since the
+  // input is otherwise controlled off `value`, would fight the user's typing).
+  // `null` means "not editing — show the derived value"; we commit on blur.
+  const [buffer, setBuffer] = useState<string | null>(null);
 
-  // Compute the input value in the current display unit.
-  const inputValue = useMemo(() => {
+  const baseValue = Math.max(minBase, Math.min(maxBase, parsed.base));
+
+  // Passive (derived) input text in the current display unit.
+  const derivedText = useMemo(() => {
     if (kind === "cpu") {
-      const cpuAmount = parsed.displayAmount as CpuAmount;
-      const converted = convertCpu(cpuAmount, displayUnit as CpuUnit);
-      return String(converted.value);
-    } else {
-      const memAmount = parsed.displayAmount as MemAmount;
-      const converted = convertMem(memAmount, displayUnit as MemUnit);
-      return String(converted.value);
+      return String(roundDisplay(convertCpu(parsed.amount as CpuAmount, displayUnit as CpuUnit).value));
     }
-  }, [parsed.displayAmount, displayUnit, kind]);
+    return String(roundDisplay(convertMem(parsed.amount as MemAmount, displayUnit as MemUnit).value));
+  }, [parsed.amount, displayUnit, kind]);
 
-  // Emit a canonical k8s quantity string.
-  const emitQuantity = (base: number) => {
+  // Emit a canonical quantity for a base magnitude (cores / GiB), clamped to
+  // [min, max].
+  const emitBase = (base: number) => {
     const clamped = Math.max(minBase, Math.min(maxBase, base));
     if (kind === "cpu") {
-      const amount: CpuAmount = { value: clamped, unit: "cores" };
-      onChange(formatCpuQuantity(amount));
+      onChange(formatCpuQuantity({ value: clamped, unit: "cores" }));
     } else {
-      const amount: MemAmount = { value: clamped, unit: "Gi" };
-      onChange(formatMemQuantity(amount));
+      onChange(formatMemQuantity({ value: clamped, unit: "Gi" }));
     }
   };
 
-  // Slider change: emit based on base value.
-  const handleSliderChange = (newBase: number) => {
-    emitQuantity(newBase);
+  const handleSliderChange = (next: number) => {
+    setBuffer(null);
+    emitBase(next);
   };
 
-  // Input change: parse in display unit, convert to base, emit.
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const text = e.target.value;
-    if (!text) return; // Ignore empty input during typing.
-
-    const num = Number(text);
-    if (!Number.isFinite(num)) return; // Ignore non-numeric input.
-
-    if (kind === "cpu") {
-      const amount: CpuAmount = { value: num, unit: displayUnit as CpuUnit };
-      const cores = cpuCores(amount);
-      emitQuantity(cores);
-    } else {
-      const amount: MemAmount = { value: num, unit: displayUnit as MemUnit };
-      const gib = memBytes(amount) / (1024 ** 3);
-      emitQuantity(gib);
-    }
-  };
-
-  // Input blur: snap to clamped value.
   const handleInputBlur = () => {
-    emitQuantity(baseValue);
+    const text = buffer;
+    setBuffer(null);
+    if (text === null) return; // focused but never edited — nothing to commit
+    const num = Number(text);
+    if (text.trim() === "" || !Number.isFinite(num)) {
+      emitBase(minBase); // empty / garbage snaps to the min
+      return;
+    }
+    if (kind === "cpu") {
+      emitBase(cpuCores({ value: num, unit: displayUnit as CpuUnit }));
+    } else {
+      emitBase(memBytes({ value: num, unit: displayUnit as MemUnit }) / 1024 ** 3);
+    }
   };
 
-  // Unit dropdown change: convert the current amount to the new display unit (no base change).
-  const handleUnitChange = (newUnit: string) => {
-    if (kind === "cpu") {
-      const cpuAmount = parsed.displayAmount as CpuAmount;
-      const converted = convertCpu(cpuAmount, newUnit as CpuUnit);
-      setDisplayUnit(converted.unit);
-    } else {
-      const memAmount = parsed.displayAmount as MemAmount;
-      const converted = convertMem(memAmount, newUnit as MemUnit);
-      setDisplayUnit(converted.unit);
-    }
+  const handleUnitChange = (next: string) => {
+    setBuffer(null);
+    setDisplayUnit(next as CpuUnit | MemUnit);
   };
 
   const ariaLabel = kind === "cpu" ? "CPU cores" : "Memory (GiB)";
   const unitOptions = kind === "cpu" ? CPU_UNIT_OPTIONS : MEM_UNIT_OPTIONS;
-  const inputId = id ? `${id}-input` : undefined;
-  const selectId = id ? `${id}-unit` : undefined;
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
@@ -173,10 +165,10 @@ export function ResourceInput({
         className="flex-1"
       />
       <Input
-        id={inputId}
+        id={id ? `${id}-input` : undefined}
         type="number"
-        value={inputValue}
-        onChange={handleInputChange}
+        value={buffer ?? derivedText}
+        onChange={(e) => setBuffer(e.target.value)}
         onBlur={handleInputBlur}
         disabled={disabled}
         step={stepBase}
@@ -184,7 +176,7 @@ export function ResourceInput({
         aria-label={`${ariaLabel} value`}
       />
       <Select
-        id={selectId}
+        id={id ? `${id}-unit` : undefined}
         options={unitOptions}
         value={displayUnit}
         onValueChange={handleUnitChange}

@@ -243,7 +243,7 @@ describe("ResourceInput", () => {
       render(
         <ResourceInput
           kind="memory"
-          value="4"
+          value="4Gi"
           onChange={fn}
           min={1}
           max={16}
@@ -422,7 +422,7 @@ describe("ResourceInput", () => {
       expect(Number(sliderEl.step)).toBe(2);
     });
 
-    it("converts Ki/Ti memory units if specified", async () => {
+    it("normalizes 1024Ki to 1Mi and converts across units", async () => {
       const user = userEvent.setup();
       render(
         <ResourceInput
@@ -431,15 +431,13 @@ describe("ResourceInput", () => {
           onChange={() => {}}
         />
       );
-      // Input should show 1024 in Ki
-      expect(screen.getByDisplayValue("1024")).toBeInTheDocument();
-      // Select should show "Ki"
+      // 1024Ki normalizes to its natural unit, 1Mi.
+      expect(screen.getByDisplayValue("1")).toBeInTheDocument();
       const select = screen.getByRole("combobox") as HTMLSelectElement;
-      expect(select.value).toBe("Ki");
-      // Convert to Gi
+      expect(select.value).toBe("Mi");
+      // Convert to Gi: 1Mi = 1/1024 Gi ≈ 0.001 after display rounding.
       await user.selectOptions(select, "Gi");
-      // Should display 0.001 Gi (1 Ki = 1/1024 Mi = 1/(1024^2) Gi)
-      expect(screen.getByDisplayValue("0.0009765625")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("0.001")).toBeInTheDocument();
     });
   });
 });

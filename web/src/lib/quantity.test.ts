@@ -87,7 +87,7 @@ describe("parseMemQuantity", () => {
 
   it("returns null for invalid quantities", () => {
     expect(parseMemQuantity("abc")).toBeNull();
-    expect(parseMemQuantity("50")).toBeNull(); // only bytes isn't "invalid" but parseQuantityToBytes returns 0
+    expect(parseMemQuantity("5Xi")).toBeNull(); // unknown suffix
     expect(parseMemQuantity("-5Gi")).toBeNull();
   });
 });
