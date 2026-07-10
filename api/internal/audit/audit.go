@@ -365,7 +365,7 @@ type StreamFilter struct {
 	Until  string // RFC3339 upper bound, inclusive; "" = unbounded
 	Actor  string // case-insensitive substring; "" = any
 	Method string // exact HTTP method; "" = any
-	// StatusMin/StatusMax bound the HTTP status inclusively. Both zero = any.
+	// StatusMin/StatusMax bound the HTTP status inclusively. StatusMax == 0 means no status filter.
 	StatusMin int
 	StatusMax int
 }
@@ -395,7 +395,7 @@ func (a *Auditor) Stream(ctx context.Context, f StreamFilter, fn func(Event) err
 		f.Since, f.Since, f.Until, f.Until,
 		f.Actor, actorPattern,
 		f.Method, f.Method,
-		f.StatusMin, f.StatusMin, f.StatusMax,
+		f.StatusMax, f.StatusMin, f.StatusMax,
 	)
 	if err != nil {
 		return err
