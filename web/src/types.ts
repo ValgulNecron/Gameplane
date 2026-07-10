@@ -315,6 +315,10 @@ export interface GameServer {
   spec: {
     templateRef: { name: string };
     suspend?: boolean;
+    // Seconds the operator waits for the template's stop sequence to run
+    // over RCON before scaling the pod down (soft-stop). Range 0–600,
+    // default 30. No effect when the template declares no stop sequence.
+    stopGracePeriodSeconds?: number;
     image?: string;
     // Selects a GameTemplate.spec.versions[].id (image + per-loader mod
     // volume). Omit to use the template's default version.

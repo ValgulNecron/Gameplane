@@ -18,7 +18,13 @@ const PROBE_KINDS: ProbeKind[] = ["readiness", "liveness", "startup"];
 export function LifecycleSection({ draft, onChange, template }: SectionProps) {
   const annotations = draft.metadata.annotations ?? {};
   const autoRestart = !(draft.spec.suspend ?? false);
-  const grace = annotations[GRACE_PERIOD_ANNOTATION] ?? "";
+  // Read the real spec field; fall back to the legacy annotation for servers
+  // created before the migration so their value still shows (display only —
+  // we don't mutate the draft on mount, so this doesn't mark the form dirty).
+  const grace =
+    draft.spec.stopGracePeriodSeconds !== undefined
+      ? String(draft.spec.stopGracePeriodSeconds)
+      : (annotations[GRACE_PERIOD_ANNOTATION] ?? "");
   const templateProbes = template?.spec.probes;
   const overrides = draft.spec.probes;
 
@@ -54,20 +60,27 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
   };
 
   const setGrace = (value: string) => {
-    const next = { ...annotations };
-    if (value) next[GRACE_PERIOD_ANNOTATION] = value;
-    else delete next[GRACE_PERIOD_ANNOTATION];
+    // Write the field the operator actually reads, and migrate off the dead
+    // legacy annotation on first edit.
+    const spec = { ...draft.spec };
+    if (value === "") delete spec.stopGracePeriodSeconds;
+    else spec.stopGracePeriodSeconds = Number(value);
+    const nextAnnotations = { ...annotations };
+    delete nextAnnotations[GRACE_PERIOD_ANNOTATION];
     onChange({
       ...draft,
+      spec,
       metadata: {
         ...draft.metadata,
-        annotations: Object.keys(next).length ? next : undefined,
+        annotations: Object.keys(nextAnnotations).length ? nextAnnotations : undefined,
       },
     });
   };
 
   const graceNumber = Number(grace);
-  const graceInvalid = grace !== "" && (!Number.isFinite(graceNumber) || graceNumber < 0);
+  const graceInvalid =
+    grace !== "" &&
+    (!Number.isFinite(graceNumber) || graceNumber < 0 || graceNumber > 600);
 
   return (
     <div className="space-y-6">
@@ -89,7 +102,7 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
 
       <Field
         label="Termination grace period"
-        hint="Seconds the pod has to flush state before SIGKILL. Persisted as an annotation; read by the operator on next reconcile."
+        hint="Seconds the operator waits for the template's stop sequence to finish before scaling the pod down. Range 0–600; defaults to 30. No effect when the template declares no stop sequence."
       >
         <div className="flex items-center gap-2">
           <Input
@@ -102,7 +115,9 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
           <span className="text-xs text-muted">seconds</span>
         </div>
         {graceInvalid && (
-          <div className="pt-1 text-xs text-danger">Must be a non-negative integer.</div>
+          <div className="pt-1 text-xs text-danger">
+            Must be an integer between 0 and 600.
+          </div>
         )}
       </Field>
 
