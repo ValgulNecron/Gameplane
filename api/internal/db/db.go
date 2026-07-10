@@ -13,6 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -31,6 +34,12 @@ type Store struct {
 func Open(ctx context.Context, driver, dsn string) (*Store, error) {
 	switch driver {
 	case "sqlite":
+		// Before opening the database, attempt to adopt any legacy kestrel.db file.
+		// This is safe because we only rename if the target does not exist.
+		if err := adoptLegacySQLite(dsn); err != nil {
+			return nil, err
+		}
+
 		db, err := sql.Open("sqlite", dsn)
 		if err != nil {
 			return nil, err
@@ -132,4 +141,91 @@ func splitStatements(s string) []string {
 		parts[i] = strings.TrimSpace(parts[i])
 	}
 	return parts
+}
+
+// sqlitePath extracts the filesystem path from a SQLite DSN.
+// Returns "" for non-file DSNs (e.g., :memory:, file::memory:).
+// Handles DSN formats like "file:/path/db.db?_pragma=..." and bare "/path/db.db".
+func sqlitePath(dsn string) string {
+	// Strip the "file:" prefix if present.
+	if strings.HasPrefix(dsn, "file:") {
+		dsn = dsn[5:]
+	}
+
+	// If it's a memory database, return empty.
+	if dsn == ":memory:" || strings.HasPrefix(dsn, ":memory:") {
+		return ""
+	}
+
+	// Strip query parameters (everything from the first ?).
+	if idx := strings.IndexByte(dsn, '?'); idx != -1 {
+		dsn = dsn[:idx]
+	}
+
+	// If nothing remains, it's not a valid file path.
+	if dsn == "" {
+		return ""
+	}
+
+	return dsn
+}
+
+// adoptLegacySQLite renames kestrel.db to the target DSN path if the target
+// doesn't exist but the legacy file does. This handles Kestrel → Gameplane
+// upgrades where the DSN changed from kestrel.db to gameplane.db.
+// Also moves the -wal and -shm WAL sidecars if present.
+// Returns a fatal error if the rename fails; silently succeeds if either
+// the target exists (do not overwrite) or the legacy file is absent.
+func adoptLegacySQLite(dsn string) error {
+	targetPath := sqlitePath(dsn)
+
+	// Not a file-based SQLite database; nothing to adopt.
+	if targetPath == "" {
+		return nil
+	}
+
+	// Check if target already exists. If it does, never overwrite.
+	if _, err := os.Stat(targetPath); err == nil {
+		// Target exists; nothing to do.
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		// Some other error (permission, etc.); propagate it.
+		return fmt.Errorf("checking target file %s: %w", targetPath, err)
+	}
+
+	// Target does not exist. Check for legacy kestrel.db in the same directory.
+	dir := filepath.Dir(targetPath)
+	legacyPath := filepath.Join(dir, "kestrel.db")
+
+	if _, err := os.Stat(legacyPath); errors.Is(err, os.ErrNotExist) {
+		// Legacy file does not exist either; this is a fresh install.
+		return nil
+	} else if err != nil {
+		// Some error other than "not exist"; propagate it.
+		return fmt.Errorf("checking legacy file %s: %w", legacyPath, err)
+	}
+
+	// Legacy file exists and target does not. Rename the legacy file.
+	if err := os.Rename(legacyPath, targetPath); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", legacyPath, targetPath, err)
+	}
+
+	// Move the WAL sidecars if they exist.
+	for _, suffix := range []string{"-wal", "-shm"} {
+		legacySidecar := legacyPath + suffix
+		targetSidecar := targetPath + suffix
+		if _, err := os.Stat(legacySidecar); errors.Is(err, os.ErrNotExist) {
+			// Sidecar doesn't exist; skip.
+			continue
+		} else if err != nil {
+			// Some error other than "not exist"; propagate it.
+			return fmt.Errorf("checking legacy sidecar %s: %w", legacySidecar, err)
+		}
+		if err := os.Rename(legacySidecar, targetSidecar); err != nil {
+			return fmt.Errorf("rename %s to %s: %w", legacySidecar, targetSidecar, err)
+		}
+	}
+
+	slog.Warn("adopted legacy SQLite database", "old", legacyPath, "new", targetPath)
+	return nil
 }
