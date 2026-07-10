@@ -457,11 +457,32 @@ export const AuthProviders = {
     }),
 };
 
+export interface AuditExportFilter {
+  actor?: string;
+  method?: string;
+  status?: string;
+}
+
 export const Audit = {
   page: (limit: number, before: number) => {
     const qs = new URLSearchParams({ limit: String(limit) });
     if (before > 0) qs.set("before", String(before));
     return api<AuditEvent[]>(`/admin/audit?${qs.toString()}`);
+  },
+  exportCsv: async (filter: AuditExportFilter = {}): Promise<Blob> => {
+    const params = new URLSearchParams({ format: "csv" });
+    if (filter.actor) params.set("actor", filter.actor);
+    if (filter.method) params.set("method", filter.method);
+    if (filter.status) params.set("status", filter.status);
+    const res = await fetch(`/admin/audit/export?${params.toString()}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new APIError(res.status, text);
+    }
+    return res.blob();
   },
 };
 

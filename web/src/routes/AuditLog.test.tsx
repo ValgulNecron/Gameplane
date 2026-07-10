@@ -78,6 +78,42 @@ describe("AuditLogPage", () => {
     fireEvent.click(screen.getByText(/4xx · 0/));
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
   });
+
+  it("exports CSV with applied filters", async () => {
+    const csvBlob = new Blob(["id,ts,actor\n1,2026-05-03T12:00:00Z,alice"], { type: "text/csv" });
+    const urlCreateObjectURLMock = vi.fn(() => "blob:http://localhost/test");
+    const urlRevokeObjectURLMock = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: urlCreateObjectURLMock, revokeObjectURL: urlRevokeObjectURLMock });
+
+    const createElementMock = vi.spyOn(document, "createElement");
+
+    fetchMock
+      .mockResolvedValueOnce(jsonRes([event(1, { actor: "alice", method: "POST" })]))
+      .mockResolvedValueOnce(new Response(csvBlob)); // export endpoint
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("Created server");
+
+    // Set a filter to verify it's passed to the export endpoint
+    const methodSelect = screen.getByDisplayValue("All methods");
+    fireEvent.change(methodSelect, { target: { value: "POST" } });
+
+    fireEvent.click(screen.getByText("Export CSV"));
+
+    // Wait for mutation to complete
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Verify the export endpoint was called with the filter
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/admin/audit/export?format=csv&method=POST"),
+      expect.any(Object),
+    );
+
+    // Verify download was triggered
+    expect(createElementMock).toHaveBeenCalledWith("a");
+    expect(urlCreateObjectURLMock).toHaveBeenCalledWith(expect.any(Blob));
+    expect(urlRevokeObjectURLMock).toHaveBeenCalledWith("blob:http://localhost/test");
+  });
 });
 
 describe("auditAction", () => {
