@@ -24,3 +24,12 @@ target "e2e-agent" {
   dockerfile = "agent/Dockerfile"
   tags       = ["gameplane-test/agent:e2e"]
 }
+
+# The headless protocol bot the game-bot job runs inside the cluster. It is
+# deliberately outside the "e2e" group: only that one job needs it, and the
+# other e2e buckets shouldn't pay to build it.
+target "e2e-gameprobe" {
+  context    = "."
+  dockerfile = "test/e2e/Dockerfile"
+  tags       = ["gameplane-test/gameprobe:e2e"]
+}

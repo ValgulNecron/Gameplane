@@ -30,7 +30,9 @@ const (
 )
 
 // DefaultVersion is the protocol string for Terraria 1.4.4.x. Connect
-// self-corrects when the server's kick message names a different one.
+// attempts to self-correct on version-mismatch kicks, but only when the
+// server's disconnect message names a version (some servers' kicks, like
+// Terraria's LegacyMultiplayer.4, do not); see e2e's terraria template.
 const DefaultVersion = "Terraria279"
 
 // ErrPasswordRequired reports a handshake that reached the server's
@@ -53,8 +55,10 @@ type Conn struct {
 func (c *Conn) Close() error { return c.c.Close() }
 
 // Connect dials addr and completes the ConnectRequest handshake. On a
-// version-mismatch kick it retries once with the version string the
-// server's disconnect message names, so the bot tracks image upgrades.
+// version-mismatch kick, it retries once with the version string the
+// server's disconnect message names — but only if the kick actually names one.
+// Terraria's LegacyMultiplayer.4 kick does not, so e2e pins the image to
+// prevent protocol drift; see terraria_bot_e2e_test.go.
 func Connect(ctx context.Context, addr string) (*Conn, *ConnectResult, error) {
 	version := DefaultVersion
 	for attempt := 0; attempt < 2; attempt++ {

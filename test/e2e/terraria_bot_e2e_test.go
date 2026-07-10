@@ -4,8 +4,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -13,18 +11,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/terrabot"
 )
 
 // TestGameServer_TerrariaBotConnects boots a REAL Terraria server
 // (passivelemon/terraria-docker — the same image the shipped terraria
 // module uses) through the operator, waits for it to generate a world and
-// reach Running, port-forwards the game port, and drives a minimal
-// Terraria-protocol bot: ConnectRequest → ContinueConnecting, then a
-// world-data request the server must answer. That proves the module's
-// template boots a genuinely joinable server, not merely a pod that
-// accepts TCP.
+// reach Running, then runs a minimal Terraria-protocol bot inside the cluster:
+// ConnectRequest → ContinueConnecting, then a world-data request the server
+// must answer. That proves the module's template boots a genuinely joinable
+// server, not merely a pod that accepts TCP.
 //
 // Terraria is the one non-Minecraft shipped game where this is practical:
 // the server ships in the image (no steamcmd download) and speaks TCP.
@@ -32,8 +27,8 @@ import (
 // UDP protocols, and Factorio is UDP-only — none are bot-testable in CI.
 //
 // Like the Minecraft bot test, it is opt-in (GAMEPLANE_E2E_GAME_BOT=1) and
-// runs in the advisory bot bucket. Deliberately NOT t.Parallel(): two real
-// game servers booting concurrently OOM-starves a single kind node.
+// runs in the bot bucket. Deliberately NOT t.Parallel(): two real game
+// servers booting concurrently OOM-starves a single kind node.
 func TestGameServer_TerrariaBotConnects(t *testing.T) {
 	if os.Getenv("GAMEPLANE_E2E_GAME_BOT") == "" {
 		t.Skip("heavy: set GAMEPLANE_E2E_GAME_BOT=1 to run the real-Terraria bot test")
@@ -53,7 +48,11 @@ func TestGameServer_TerrariaBotConnects(t *testing.T) {
 			"displayName": "E2E Terraria",
 			"game":        "terraria",
 			"version":     "1",
-			"image":       "passivelemon/terraria-docker:terraria-latest",
+			// Pinned because terrabot speaks protocol Terraria279 (1.4.4.x);
+			// terraria-latest has moved to 1.4.5.x, whose protocol differs.
+			// The server's version-mismatch kick (LegacyMultiplayer.4) names no version,
+			// so the bot cannot self-correct. A blocking test must be hermetic.
+			"image": "passivelemon/terraria-docker:terraria-1.4.4.9",
 			"env": []any{
 				map[string]any{"name": "WORLDNAME", "value": "e2e"},
 				map[string]any{"name": "AUTOCREATE", "value": "1"}, // small world
@@ -122,39 +121,12 @@ func TestGameServer_TerrariaBotConnects(t *testing.T) {
 		return false, "phase=" + phase
 	})
 
-	// Reach the game over the in-cluster Service via a port-forward.
-	local, stop := envInstance.PortForward(t, ns, "svc/"+gsName, 7777)
-	defer stop()
-	addr := fmt.Sprintf("127.0.0.1:%d", local)
-
-	// The readiness probe is a TCP check, so the pod can be Ready a moment
-	// before the server answers the protocol — retry the handshake. A
-	// password prompt would also prove the protocol, but this template sets
-	// none, so only ContinueConnecting counts as success.
-	var res *terrabot.ConnectResult
-	var conn *terrabot.Conn
-	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
-		cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		defer cancel()
-		c, r, err := terrabot.Connect(cctx, addr)
-		if errors.Is(err, terrabot.ErrPasswordRequired) {
-			return false, "unexpected password prompt (template sets no password)"
-		}
-		if err != nil {
-			return false, "connect: " + err.Error()
-		}
-		conn, res = c, r
-		return true, ""
-	})
-	defer conn.Close()
-	t.Logf("terraria handshake ok: slot=%d protocol=%s", res.Slot, res.Version)
-
-	// A joining client asks for the world header next; the server answering
-	// WorldData is the "actually playable" assertion.
-	wctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	if err := conn.RequestWorldData(wctx); err != nil {
-		t.Fatalf("world data request: %v", err)
-	}
-	t.Log("server answered WorldData — world is being served to clients")
+	// Drive the bot from inside the cluster: ConnectRequest →
+	// ContinueConnecting, then a world-data request the server must answer.
+	//
+	// gameprobe retries the handshake internally — the readiness probe is a TCP
+	// check, so the pod can be Ready a moment before the server answers the
+	// protocol. A password prompt would also prove the protocol, but this
+	// template sets none, so the probe treats one as a hard failure.
+	envInstance.RunGameProbe(t, ns, gsName, "terraria", 7777, 4*time.Minute)
 }
