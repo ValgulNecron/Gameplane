@@ -40,7 +40,7 @@ kind-based e2e bucket that stands up a second cluster, registers it, and asserts
 that a GameServer created against it lands there and is invisible to a viewer
 scoped to the first.
 
-### Audit log integrity (tamper evidence)
+### Audit log integrity (tamper evidence) — backend shipped, dashboard banner outstanding
 
 The `audit_events` table is a plain, append-only-by-convention table. Anyone with
 write access to the database can `UPDATE` or `DELETE` rows — including rows
@@ -48,17 +48,23 @@ outside the retention window — and nothing detects it. The optional stdout,
 webhook, and S3 sinks mirror events but explicitly do not gate on delivery, so a
 dropped mirror is indistinguishable from a suppressed event.
 
-Planned design:
+The backend half shipped per the planned design below (migration
+`005_audit_chain.sql`, `Auditor.insertChained`/`Auditor.Verify`,
+`GET /admin/audit/verify`). Outstanding: a dashboard integrity banner on the
+audit page that calls the verify endpoint and surfaces a break to the admin —
+tracked as a separate follow-up (design-first in `design.pen` per repo rule 1).
 
-- Migration `005_audit_chain.sql` adding `prev_hash` + `hash` columns.
-- On insert (inside a transaction, to serialize under concurrency) compute
+Design (as implemented):
+
+- Migration `005_audit_chain.sql` added `prev_hash` + `hash` columns.
+- On insert (inside a transaction, serialized per-process by a mutex — see the
+  single-writer caveat on `insertChained`) compute
   `hash = SHA-256(prev_hash || canonical(row))`.
-- A `Verify()` that walks the chain and reports the first break, exposed as an
-  admin-only `GET /admin/audit/verify` and surfaced as an integrity banner on the
-  dashboard's audit page.
-- Retention interacts badly with a naive chain: `Prune` deletes rows. Store a
-  periodic **checkpoint** hash (in the `config` table) so verification resumes
-  from the checkpoint rather than the genesis row.
+- `Verify()` walks the chain and reports the first break, exposed as an
+  admin-only `GET /admin/audit/verify`.
+- `Prune` writes a checkpoint (the newest about-to-be-deleted row's id + hash,
+  in the `config` table under `audit.checkpoint`) before deleting, so
+  verification resumes from the checkpoint rather than the genesis row.
 
 Threat-model context lives in [`security.md`](security.md).
 
