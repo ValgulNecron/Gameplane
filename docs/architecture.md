@@ -205,10 +205,15 @@ for the registration flow.
   (admin-toggle gated), auto-wired via `api.telemetry.receiver.enabled` or
   aimed at an external URL via `api.telemetry.endpoint`.
 - **mcp-server (optional)**: a standalone, strictly read-only MCP server —
-  `get`/`list`/`watch` ClusterRole only, no create/update/patch/delete
-  anywhere in its RBAC or its tool set — that talks directly to the
-  Kubernetes API (not through the API server), gated via `mcpServer.enabled`
-  and reachable only via `kubectl exec` (stdio transport, no network port).
-  See `mcp-server/README.md`.
+  its tool handlers only ever hold a `*kube.Client` (`mcp-server/internal/kube`),
+  whose sole exported methods are List/Get-shaped; the underlying typed/
+  dynamic Kubernetes clientsets are unexported fields in that package, so
+  no handler can reach a mutating verb. The authoritative backstop is RBAC:
+  a `get`/`list`/`watch` ClusterRole, no create/update/patch/delete anywhere
+  in it — but note it is **cluster-wide** (all namespaces, including
+  `kube-system`), and pod logs can surface secrets an app logs at startup.
+  Talks directly to the Kubernetes API (not through the API server), gated
+  via `mcpServer.enabled` and reachable only via `kubectl exec` (stdio
+  transport, no network port). See `mcp-server/README.md`.
 
 See `docs/security.md` for the threat model.

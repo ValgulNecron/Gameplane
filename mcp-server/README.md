@@ -9,17 +9,50 @@ operator to review and run.
 It **never** creates, updates, patches, deletes, or applies anything. That
 is a hard invariant, enforced two ways:
 
-1. **Structurally**: `Client` (`client.go`) exposes only List/Get-shaped
-   methods (`ListCRD`, `GetCRD`, `ListPods`, `GetPod`, `ListEvents`,
-   `PodLogs`). There is no mutating method for a tool to call, even by
-   mistake.
-2. **By registration**: every tool this server installs (`tools.go`) carries
-   the MCP spec's `readOnlyHint: true` annotation, and `main_test.go` asserts
-   the registered tool set never contains a mutating verb.
+1. **Structurally, by package boundary**: every MCP tool handler
+   (`tools.go`, `fixadvice.go`) lives in `package main` and takes a
+   `*kube.Client` (`internal/kube/client.go`). That type's only exported
+   methods are List/Get-shaped (`ListCRD`, `GetCRD`, `ListPods`, `GetPod`,
+   `ListEvents`, `PodLogs`); the typed and dynamic Kubernetes clientsets
+   that could mutate anything are **unexported fields** on `Client`, defined
+   in `internal/kube`. Code in `package main` — where every handler lives —
+   has no way to reach those fields, so it has no way to call
+   `Create`/`Update`/`Delete`/`Patch`/`Apply` even by mistake, regardless of
+   what methods `Client` happens to have. `main_test.go`'s
+   `TestClientHasNoMutatingMethods` is a lint-level tripwire on top of that
+   (it reflects over `kube.Client`'s method set so a future mutating method
+   added to `internal/kube` fails a test immediately) — it is not itself the
+   guarantee.
+2. **By RBAC**: the Kubernetes ClusterRole the chart's `mcpServer.enabled`
+   toggle installs grants only `get`/`list`/`watch` (plus `get` on
+   `pods/log`) — there is no `create`/`update`/`patch`/`delete` verb in it.
+   This is the **authoritative** backstop: even a hypothetical bug in (1)
+   would still be rejected by the API server, because the ServiceAccount
+   this pod runs as is not authorized to do anything else.
 
-The corresponding Kubernetes RBAC (the chart's `mcpServer.enabled` toggle)
-grants only `get`/`list`/`watch` — there is no `create`/`update`/`patch`/
-`delete` in its ClusterRole either.
+A third, cosmetic layer: every tool this server installs (`tools.go`)
+carries the MCP spec's `readOnlyHint: true` annotation, and `main_test.go`'s
+`TestRegisteredToolsAreReadOnly` asserts the registered tool set never
+contains a mutating verb — this makes the guarantee visible to MCP clients,
+it doesn't enforce it.
+
+### RBAC blast radius
+
+The `get`/`list`/`watch` ClusterRole above is **cluster-wide**: it is not
+scoped to `gameplane-games` or any other single namespace, so it can read
+Pods, Events, and pod logs in every namespace the cluster has, including
+`kube-system` and any other workload's namespace. Pod logs in particular
+can surface application secrets that a container logs at startup (API keys,
+connection strings, etc.) — Kubernetes doesn't distinguish "log line" from
+"log line containing a secret". This is an accepted tradeoff (the server is
+opt-in, admin-installed via `mcpServer.enabled`, and write-free even so),
+but install it with that blast radius in mind: anyone who can
+`kubectl exec` into the `gameplane-mcp-server` pod (or otherwise reach an
+MCP client already wired to it) can read logs and object state for
+*any* pod in the cluster, not just Gameplane-managed ones. If that's wider
+than you want, don't enable `mcpServer` on a cluster that also runs
+unrelated, more sensitive workloads. See `docs/security.md` for the rest of
+the threat model.
 
 ## Tools
 

@@ -202,6 +202,29 @@ namespace (so a sink `configRef` can't be aimed at an arbitrary Secret),
 and delivery errors are sanitized to never echo the sink URL, whose path
 often embeds a capability token.
 
+## mcp-server (optional)
+
+The optional MCP server (`mcpServer.enabled`, see [`mcp-server/README.md`](../mcp-server/README.md))
+is strictly read-only — no tool it exposes can create, update, patch,
+delete, or apply anything, enforced structurally (its tool handlers only
+ever hold a client whose exported methods are List/Get-shaped) and by RBAC
+(a ClusterRole granting only `get`/`list`/`watch`, plus `get` on
+`pods/log`).
+
+That RBAC grant is **cluster-wide**, not scoped to `gameplane-games` or any
+other single namespace: the server can list/read Pods, Events, and pod logs
+in every namespace, including `kube-system` and any other workload's
+namespace sharing the cluster. Pod logs in particular can surface secrets
+an application logs at startup or during errors (API keys, connection
+strings, stack traces) — Kubernetes has no mechanism to redact those.
+Combined with write-freedom and opt-in, admin-only installation
+(`mcpServer.enabled` plus whatever gates `kubectl exec` access to the
+`gameplane-mcp-server` pod), this is an accepted tradeoff, not an oversight
+— but install it knowing that anyone who can reach a `serve` session gets
+read access to cluster-wide pod state and logs, not just Gameplane-managed
+namespaces. If that blast radius is wider than acceptable for a given
+cluster, don't enable `mcpServer` there.
+
 ## Secrets
 
 Secrets Gameplane reads or creates, by convention:

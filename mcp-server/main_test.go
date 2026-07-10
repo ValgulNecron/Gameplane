@@ -10,28 +10,40 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ValgulNecron/gameplane/mcp-server/internal/kube"
 )
 
-// mutatingVerbs is the denylist asserted against both the Client method set
-// and the registered tool names: this server's entire reason for existing
-// is that none of these ever appear.
+// mutatingVerbs is the denylist asserted against both kube.Client's method
+// set and the registered tool names: this server's entire reason for
+// existing is that none of these ever appear.
 var mutatingVerbs = []string{"Create", "Update", "Delete", "Patch", "Apply", "Remove"}
 
-// TestClientHasNoMutatingMethods is the structural half of the read-only
-// invariant described in main.go's package doc: Client must not expose any
-// method a tool could use to mutate the cluster, regardless of what tools
-// happen to be registered.
+// TestClientHasNoMutatingMethods is a lint-level tripwire, not the read-only
+// guarantee itself: since kube.Client's typed/dynamic clientsets are
+// unexported fields defined in internal/kube, this package (main, where
+// every tool handler lives) has no way to reach a mutating verb through a
+// *kube.Client no matter what methods it has — that structural guarantee
+// holds even if this test were deleted. What this test catches is a
+// regression *within* internal/kube: if a future change adds an exported
+// Create/Update/Delete/Patch/Apply-shaped method to Client, this fails
+// immediately, before that method could ever be wired to a tool. The other,
+// authoritative backstop is the get/list/watch-only RBAC ClusterRole the
+// Helm chart installs (charts/gameplane/templates/mcp-server.yaml) — that
+// holds even if both Go-level checks were somehow bypassed.
 func TestClientHasNoMutatingMethods(t *testing.T) {
-	typ := reflect.TypeOf(&Client{})
+	typ := reflect.TypeOf(&kube.Client{})
 	for i := 0; i < typ.NumMethod(); i++ {
 		name := typ.Method(i).Name
 		for _, verb := range mutatingVerbs {
 			if strings.HasPrefix(name, verb) {
-				t.Errorf("Client has mutating-looking method %q (matches verb %q)", name, verb)
+				t.Errorf("kube.Client has mutating-looking method %q (matches verb %q)", name, verb)
 			}
 		}
 	}
@@ -59,7 +71,7 @@ func connectInMemory(t *testing.T, server *mcp.Server) *mcp.ClientSession {
 // verb — checked over the wire via a real client session, not just against
 // the in-process registry.
 func TestRegisteredToolsAreReadOnly(t *testing.T) {
-	server := newMCPServer(&Client{})
+	server := newMCPServer(&kube.Client{})
 	cs := connectInMemory(t, server)
 	ctx := context.Background()
 
@@ -116,9 +128,39 @@ func callToolText(t *testing.T, cs *mcp.ClientSession, name string, args map[str
 	return tc.Text
 }
 
-func testClientWithFixtures(t *testing.T) *Client {
+// gvrToListKindMap gives the fake dynamic client an explicit GVR->ListKind
+// mapping for every registered CRD, so List() doesn't depend on the fake
+// client's pluralization guesser. Kept here (rather than shared with
+// internal/kube's own test file) since kube.CRDKind's fields are exported
+// specifically so callers like this one can build it without this package
+// needing a test-only export from internal/kube.
+func gvrToListKindMap() map[schema.GroupVersionResource]string {
+	m := make(map[schema.GroupVersionResource]string, len(kube.CRDKinds))
+	for kind, k := range kube.CRDKinds {
+		m[k.GVR] = kind + "List"
+	}
+	return m
+}
+
+func newUnstructuredCRD(kind, ns, name string, status map[string]any) *unstructured.Unstructured {
+	metadata := map[string]any{"name": name}
+	if ns != "" {
+		metadata["namespace"] = ns
+	}
+	obj := map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       kind,
+		"metadata":   metadata,
+	}
+	if status != nil {
+		obj["status"] = status
+	}
+	return &unstructured.Unstructured{Object: obj}
+}
+
+func testClientWithFixtures(t *testing.T) *kube.Client {
 	t.Helper()
-	scheme := newScheme()
+	scheme := kube.NewScheme()
 	gs := newUnstructuredCRD("GameServer", "games", "my-server", map[string]any{"phase": "Running"})
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToListKindMap(), gs)
 
@@ -134,7 +176,7 @@ func testClientWithFixtures(t *testing.T) *Client {
 	}
 	typed := k8sfake.NewSimpleClientset(pod, ev)
 
-	return &Client{Typed: typed, Dynamic: dyn, Scheme: scheme}
+	return kube.NewFrom(typed, dyn, scheme)
 }
 
 func TestToolsListAndGetHappyPath(t *testing.T) {

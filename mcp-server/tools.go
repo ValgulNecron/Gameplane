@@ -1,8 +1,10 @@
 // Tool registration for the Gameplane MCP server. Every tool here is
 // List/Get-shaped (or, for propose_fix, pure text generation) — see the
 // package doc comment in main.go for why that's a hard invariant, not a
-// convention. readOnlyTool() below is the one place a tool gets built, so
-// there's a single spot to audit.
+// convention: every handler below takes a *kube.Client, whose only exported
+// methods are List/Get-shaped, so there is no mutating call these handlers
+// could make even if they tried. readOnlyTool() below is the one place a
+// tool gets built, so there's a single spot to audit.
 package main
 
 import (
@@ -14,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ValgulNecron/gameplane/mcp-server/internal/kube"
 )
 
 // registeredToolNames lists every tool this server installs, in
@@ -49,7 +53,7 @@ func readOnlyTool(name, description string) *mcp.Tool {
 }
 
 // registerTools installs every tool on s, backed by c.
-func registerTools(s *mcp.Server, c *Client) {
+func registerTools(s *mcp.Server, c *kube.Client) {
 	mcp.AddTool(s, readOnlyTool(
 		"list_gameplane_resources",
 		"List objects of one Gameplane CRD kind (GameServer, GameTemplate, Backup, "+
@@ -102,7 +106,7 @@ type listResourcesInput struct {
 	LabelSelector string `json:"labelSelector,omitempty" jsonschema:"Optional Kubernetes label selector, e.g. 'gameplane.local/template=minecraft-java'."`
 }
 
-func listResourcesHandler(c *Client) mcp.ToolHandlerFor[listResourcesInput, any] {
+func listResourcesHandler(c *kube.Client) mcp.ToolHandlerFor[listResourcesInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in listResourcesInput) (*mcp.CallToolResult, any, error) {
 		list, err := c.ListCRD(ctx, in.Kind, in.Namespace, in.LabelSelector)
 		if err != nil {
@@ -124,7 +128,7 @@ type getResourceInput struct {
 	Name      string `json:"name" jsonschema:"Object name."`
 }
 
-func getResourceHandler(c *Client) mcp.ToolHandlerFor[getResourceInput, any] {
+func getResourceHandler(c *kube.Client) mcp.ToolHandlerFor[getResourceInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in getResourceInput) (*mcp.CallToolResult, any, error) {
 		obj, err := c.GetCRD(ctx, in.Kind, in.Namespace, in.Name)
 		if err != nil {
@@ -145,7 +149,7 @@ type listPodsInput struct {
 	LabelSelector string `json:"labelSelector,omitempty" jsonschema:"Optional Kubernetes label selector, e.g. 'gameplane.local/server=my-server'."`
 }
 
-func listPodsHandler(c *Client) mcp.ToolHandlerFor[listPodsInput, any] {
+func listPodsHandler(c *kube.Client) mcp.ToolHandlerFor[listPodsInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in listPodsInput) (*mcp.CallToolResult, any, error) {
 		list, err := c.ListPods(ctx, in.Namespace, in.LabelSelector)
 		if err != nil {
@@ -166,7 +170,7 @@ type getPodInput struct {
 	Name      string `json:"name" jsonschema:"Pod name."`
 }
 
-func getPodHandler(c *Client) mcp.ToolHandlerFor[getPodInput, any] {
+func getPodHandler(c *kube.Client) mcp.ToolHandlerFor[getPodInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in getPodInput) (*mcp.CallToolResult, any, error) {
 		pod, err := c.GetPod(ctx, in.Namespace, in.Name)
 		if err != nil {
@@ -188,7 +192,7 @@ type listEventsInput struct {
 	LabelSelector string `json:"labelSelector,omitempty" jsonschema:"Optional label selector."`
 }
 
-func listEventsHandler(c *Client) mcp.ToolHandlerFor[listEventsInput, any] {
+func listEventsHandler(c *kube.Client) mcp.ToolHandlerFor[listEventsInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in listEventsInput) (*mcp.CallToolResult, any, error) {
 		list, err := c.ListEvents(ctx, in.Namespace, in.FieldSelector)
 		if err != nil {
@@ -237,7 +241,7 @@ type getPodLogsInput struct {
 	Previous  bool   `json:"previous,omitempty" jsonschema:"If true, fetch logs from the previous (crashed) instance of the container instead of the current one."`
 }
 
-func getPodLogsHandler(c *Client) mcp.ToolHandlerFor[getPodLogsInput, any] {
+func getPodLogsHandler(c *kube.Client) mcp.ToolHandlerFor[getPodLogsInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in getPodLogsInput) (*mcp.CallToolResult, any, error) {
 		logs, err := c.PodLogs(ctx, in.Namespace, in.Pod, in.Container, in.TailLines, in.Previous)
 		if err != nil {
@@ -256,7 +260,7 @@ type proposeFixInput struct {
 	Symptom   string `json:"symptom" jsonschema:"Required. Free-text description of the observed problem, e.g. 'GameServer stuck in Pending for 10 minutes' or 'CrashLoopBackOff on the agent container'."`
 }
 
-func proposeFixHandler(c *Client) mcp.ToolHandlerFor[proposeFixInput, any] {
+func proposeFixHandler(c *kube.Client) mcp.ToolHandlerFor[proposeFixInput, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in proposeFixInput) (*mcp.CallToolResult, any, error) {
 		text := buildFixSuggestion(ctx, c, in)
 		return textResult(text), nil, nil

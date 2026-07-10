@@ -1,4 +1,4 @@
-package main
+package kube
 
 import (
 	"context"
@@ -18,9 +18,9 @@ import (
 // mapping for every registered CRD, so List() doesn't depend on the fake
 // client's pluralization guesser.
 func gvrToListKindMap() map[schema.GroupVersionResource]string {
-	m := make(map[schema.GroupVersionResource]string, len(crdKinds))
-	for kind, k := range crdKinds {
-		m[k.gvr] = kind + "List"
+	m := make(map[schema.GroupVersionResource]string, len(CRDKinds))
+	for kind, k := range CRDKinds {
+		m[k.GVR] = kind + "List"
 	}
 	return m
 }
@@ -44,8 +44,8 @@ func newUnstructuredCRD(kind, ns, name string, status map[string]any) *unstructu
 func TestListCRD(t *testing.T) {
 	ctx := context.Background()
 	gs := newUnstructuredCRD("GameServer", "games", "my-server", map[string]any{"phase": "Running"})
-	c := &Client{Scheme: newScheme()}
-	c.Dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap(), gs)
+	c := &Client{Scheme: NewScheme()}
+	c.dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap(), gs)
 
 	list, err := c.ListCRD(ctx, "GameServer", "games", "")
 	if err != nil {
@@ -60,8 +60,8 @@ func TestListCRD(t *testing.T) {
 }
 
 func TestListCRDUnknownKind(t *testing.T) {
-	c := &Client{Scheme: newScheme()}
-	c.Dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap())
+	c := &Client{Scheme: NewScheme()}
+	c.dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap())
 
 	_, err := c.ListCRD(context.Background(), "NotAKind", "", "")
 	if !errors.Is(err, errUnknownKind) {
@@ -72,8 +72,8 @@ func TestListCRDUnknownKind(t *testing.T) {
 func TestGetCRD(t *testing.T) {
 	ctx := context.Background()
 	gs := newUnstructuredCRD("GameServer", "games", "my-server", map[string]any{"phase": "Running"})
-	c := &Client{Scheme: newScheme()}
-	c.Dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap(), gs)
+	c := &Client{Scheme: NewScheme()}
+	c.dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap(), gs)
 
 	obj, err := c.GetCRD(ctx, "GameServer", "games", "my-server")
 	if err != nil {
@@ -91,8 +91,8 @@ func TestGetCRD(t *testing.T) {
 func TestGetCRDClusterScoped(t *testing.T) {
 	ctx := context.Background()
 	tmpl := newUnstructuredCRD("GameTemplate", "", "minecraft-java", nil)
-	c := &Client{Scheme: newScheme()}
-	c.Dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap(), tmpl)
+	c := &Client{Scheme: NewScheme()}
+	c.dynamic = dynamicfake.NewSimpleDynamicClientWithCustomListKinds(c.Scheme, gvrToListKindMap(), tmpl)
 
 	obj, err := c.GetCRD(ctx, "GameTemplate", "", "minecraft-java")
 	if err != nil {
@@ -109,7 +109,7 @@ func TestListPodsAndGetPod(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "my-server-0", Namespace: "games"},
 		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
 	}
-	c := &Client{Typed: k8sfake.NewSimpleClientset(pod), Scheme: newScheme()}
+	c := &Client{typed: k8sfake.NewSimpleClientset(pod), Scheme: NewScheme()}
 
 	list, err := c.ListPods(ctx, "games", "")
 	if err != nil {
@@ -142,7 +142,7 @@ func TestListEvents(t *testing.T) {
 		Reason:  "BackOff",
 		Message: "back-off restarting failed container",
 	}
-	c := &Client{Typed: k8sfake.NewSimpleClientset(ev), Scheme: newScheme()}
+	c := &Client{typed: k8sfake.NewSimpleClientset(ev), Scheme: NewScheme()}
 
 	list, err := c.ListEvents(ctx, "games", "")
 	if err != nil {
@@ -159,7 +159,7 @@ func TestListEvents(t *testing.T) {
 func TestPodLogs(t *testing.T) {
 	ctx := context.Background()
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "my-server-0", Namespace: "games"}}
-	c := &Client{Typed: k8sfake.NewSimpleClientset(pod), Scheme: newScheme()}
+	c := &Client{typed: k8sfake.NewSimpleClientset(pod), Scheme: NewScheme()}
 
 	logs, err := c.PodLogs(ctx, "games", "my-server-0", "", 0, false)
 	if err != nil {
@@ -171,8 +171,8 @@ func TestPodLogs(t *testing.T) {
 }
 
 func TestNewScheme(t *testing.T) {
-	scheme := newScheme()
-	for kind := range crdKinds {
+	scheme := NewScheme()
+	for kind := range CRDKinds {
 		gvk := gameplaneGroupVersion.WithKind(kind)
 		if !scheme.Recognizes(gvk) {
 			t.Errorf("scheme does not recognize %s", gvk)

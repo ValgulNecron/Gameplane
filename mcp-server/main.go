@@ -5,11 +5,27 @@
 // and run. It never creates, updates, patches, deletes, or applies anything.
 //
 // That is a hard invariant, enforced two ways:
-//  1. Structurally: Client (client.go) exposes only List/Get-shaped methods.
-//     There is no mutating method for a tool to call even by mistake.
-//  2. By registration: every tool this server installs (tools.go) carries
-//     ReadOnlyHint: true, and main_test.go asserts the registered tool set
-//     never contains a mutating verb.
+//  1. Structurally: every tool handler in this package (tools.go,
+//     fixadvice.go) takes a *kube.Client (internal/kube/client.go), whose
+//     only exported methods are List/Get-shaped (ListCRD, GetCRD, ListPods,
+//     GetPod, ListEvents, PodLogs). The typed and dynamic Kubernetes
+//     clientsets that could mutate anything are unexported fields on that
+//     type, in a different package — code here has no way to reach them,
+//     so it has no way to call Create/Update/Delete/Patch/Apply even by
+//     mistake. main_test.go's TestClientHasNoMutatingMethods is a
+//     lint-level tripwire on kube.Client's exported method set, not the
+//     guarantee itself; the guarantee is the package boundary above.
+//  2. By RBAC: the Helm chart's mcpServer.enabled ClusterRole grants only
+//     get/list/watch (plus get on pods/log) — see
+//     charts/gameplane/templates/mcp-server.yaml. This is the authoritative
+//     backstop: even a future bug in (1) would still be rejected by the
+//     API server.
+//
+// A third, cosmetic layer: every tool this server installs (tools.go)
+// carries ReadOnlyHint: true, and main_test.go's
+// TestRegisteredToolsAreReadOnly asserts the registered tool set never
+// contains a mutating verb — this makes the guarantee visible to MCP
+// clients, it doesn't enforce it.
 //
 // It speaks MCP (JSON-RPC 2.0) over stdio only — never a network port — and
 // is deliberately standalone (own module, like audit-syslog-bridge and
@@ -43,6 +59,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ValgulNecron/gameplane/mcp-server/internal/kube"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=...".
@@ -91,7 +109,7 @@ func runServe(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("load kubeconfig: %w", err)
 	}
-	client, err := newClient(cfg)
+	client, err := kube.New(cfg)
 	if err != nil {
 		return fmt.Errorf("build kubernetes client: %w", err)
 	}
@@ -105,7 +123,7 @@ func runServe(ctx context.Context) error {
 
 // newMCPServer builds the MCP server and installs every read-only tool
 // against c.
-func newMCPServer(c *Client) *mcp.Server {
+func newMCPServer(c *kube.Client) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gameplane-mcp-server",
 		Version: Version,
