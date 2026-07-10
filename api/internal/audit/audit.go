@@ -222,6 +222,19 @@ func New(store *db.Store, opts ...Option) *Auditor {
 // re-walking it and recomputing each hash. Rows written before migration 005
 // have NULL prev_hash/hash; the chain simply starts fresh at the first row
 // inserted afterward (see previousHash).
+//
+// Walking the surviving chain alone has a blind spot: deleting the newest
+// row(s) (`DELETE FROM audit_events WHERE id > N`) leaves every remaining
+// row's prev_hash/hash link intact, since nothing downstream of the deleted
+// rows exists to notice they're gone. audit.head (see below) closes that
+// case by anchoring the chain's far end the same way audit.checkpoint
+// anchors its near end.
+//
+// Neither anchor defeats an attacker with DB write access who also
+// recomputes and rewrites them — see the threat-model note in
+// docs/security.md. This mechanism is aimed at naive in-DB tampering
+// (UPDATE/DELETE that doesn't also patch the config table) and accidental
+// corruption, not a knowledgeable adversary.
 
 // chainConfigKey is the config-table key Prune writes a checkpoint under
 // before deleting rows, so Verify can resume the chain across a retention
@@ -236,6 +249,40 @@ const chainConfigKey = "audit.checkpoint"
 type chainCheckpoint struct {
 	ID   int64  `json:"id"`
 	Hash string `json:"hash"`
+}
+
+// headConfigKey is the config-table key insertChained upserts, in the same
+// transaction as every row insert, recording the newest row's id + hash.
+//
+// It exists to catch tail truncation: a DELETE that removes only the newest
+// row(s) leaves every surviving row's prev_hash link intact, so walking the
+// chain from audit.checkpoint alone reports no break. The head anchors the
+// chain's *new* boundary the same way audit.checkpoint anchors the *old* one
+// (see Prune) — together they bound the surviving rows on both ends. Prune
+// only ever deletes rows older than its cutoff and writes chainConfigKey,
+// never headConfigKey, so the two coexist without either clobbering the
+// other.
+const headConfigKey = "audit.head"
+
+// chainHead is the JSON value stored under headConfigKey: the id and hash of
+// the newest row as of the most recent insert.
+type chainHead struct {
+	LastID int64  `json:"lastID"`
+	Hash   string `json:"hash"`
+}
+
+// writeConfigTx upserts value under key inside tx, using the same
+// insert-or-update-on-conflict shape as every other config-table write.
+func writeConfigTx(ctx context.Context, tx *sql.Tx, key, value string) error {
+	_, err := tx.ExecContext(ctx,
+		`INSERT INTO config(key, value, updated_at)
+		 VALUES (?, ?, datetime('now'))
+		 ON CONFLICT(key) DO UPDATE SET
+		     value      = excluded.value,
+		     updated_at = excluded.updated_at`,
+		key, value,
+	)
+	return err
 }
 
 // canonicalize serializes the chained fields of an event into an
@@ -270,7 +317,9 @@ func computeHash(prevHash string, e Event) string {
 
 // insertChained appends one row to audit_events, chaining it to the
 // previous row's hash so a later DB-level UPDATE or DELETE against
-// audit_events is detectable via Verify.
+// audit_events is detectable via Verify. It also upserts audit.head (see
+// headConfigKey) in the same transaction, so the newest-row anchor Verify
+// checks against is never out of sync with what was actually committed.
 //
 // Single-writer assumption: chainMu serializes the read-prev/compute/insert
 // sequence against other requests in this process. That's correct for a
@@ -304,6 +353,25 @@ func (a *Auditor) insertChained(ctx context.Context, ts, actor, method, path, ta
 		ts, actor, method, path, target, status, ip, prevHash, hash,
 	); err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
+	}
+
+	// Read back the id of the row just inserted rather than relying on
+	// driver-specific LastInsertId support (pgx's stdlib driver doesn't
+	// implement it): this SELECT runs inside the same tx, guarded by
+	// chainMu, so it can only see the row this call just committed.
+	var newID int64
+	if err := tx.QueryRowContext(ctx,
+		`SELECT id FROM audit_events ORDER BY id DESC LIMIT 1`,
+	).Scan(&newID); err != nil {
+		return fmt.Errorf("read new audit row id: %w", err)
+	}
+
+	head, err := json.Marshal(chainHead{LastID: newID, Hash: hash})
+	if err != nil {
+		return fmt.Errorf("encode audit head: %w", err)
+	}
+	if err := writeConfigTx(ctx, tx, headConfigKey, string(head)); err != nil {
+		return fmt.Errorf("write audit head: %w", err)
 	}
 
 	return tx.Commit()
@@ -363,6 +431,10 @@ type VerifyResult struct {
 // an inserted/reordered row, breaks that link). It stops and reports at the
 // first break; rows written before migration 005 (NULL hash) are treated as
 // pre-chain history, not breaks.
+//
+// Walking the chain can't see a truncated tail on its own (nothing survives
+// to complain about a missing successor), so after the walk it separately
+// checks audit.head — see verifyHead.
 func (a *Auditor) Verify(ctx context.Context) (VerifyResult, error) {
 	expectedPrev := ""
 	var afterID int64
@@ -414,7 +486,76 @@ func (a *Auditor) Verify(ctx context.Context) (VerifyResult, error) {
 	if err := rows.Err(); err != nil {
 		return VerifyResult{}, fmt.Errorf("iterate audit chain: %w", err)
 	}
+	// Release the connection before verifyHead issues its own query: sqlite
+	// is opened with SetMaxOpenConns(1) (see db.Open), so a second query
+	// while rows is still open would deadlock waiting for a connection the
+	// still-open rows is holding. Close is idempotent, so the deferred call
+	// above stays as a safety net for the early returns above.
+	if err := rows.Close(); err != nil {
+		return VerifyResult{}, fmt.Errorf("close audit chain rows: %w", err)
+	}
+
+	if brk, err := a.verifyHead(ctx, afterID, checked); err != nil {
+		return VerifyResult{}, err
+	} else if brk != nil {
+		return *brk, nil
+	}
+
 	return VerifyResult{OK: true, Checked: checked, Message: "audit chain intact"}, nil
+}
+
+// verifyHead checks the audit.head anchor written by insertChained, closing
+// the gap the chain walk above can't see: DELETE FROM audit_events WHERE
+// id > N removes only the newest row(s), so every surviving row's prev_hash
+// link still checks out and the walk reports no break. The head remembers
+// what the newest row was as of the last insert; if that row is now gone,
+// or its content no longer matches, the tail was truncated (or otherwise
+// altered) after the fact.
+//
+// checkpointID is the current audit.checkpoint boundary (0 if none). A head
+// at or before that boundary refers to a row a legitimate Prune has since
+// checkpointed and removed — the checkpoint itself already vouches for that
+// row, so it is not treated as a break (this is what makes a full-table
+// prune, which deletes even the row the head points at, a non-event rather
+// than a false positive).
+func (a *Auditor) verifyHead(ctx context.Context, checkpointID, checked int64) (*VerifyResult, error) {
+	raw, ok, err := a.db.ConfigValue(ctx, headConfigKey)
+	if err != nil {
+		return nil, fmt.Errorf("load audit head: %w", err)
+	}
+	if !ok {
+		// Fresh install, or a legacy DB with no post-migration insert yet:
+		// nothing to anchor against.
+		return nil, nil
+	}
+	var head chainHead
+	if err := json.Unmarshal([]byte(raw), &head); err != nil {
+		return nil, fmt.Errorf("decode audit head: %w", err)
+	}
+	if head.LastID <= checkpointID {
+		return nil, nil
+	}
+
+	var hash string
+	err = a.db.DB.QueryRowContext(ctx,
+		`SELECT COALESCE(hash,'') FROM audit_events WHERE id = ?`, head.LastID,
+	).Scan(&hash)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return &VerifyResult{
+			OK: false, FirstBadID: head.LastID, Checked: checked,
+			Message: fmt.Sprintf("row %d: recorded as the chain's newest row but is now missing (the tail was truncated)", head.LastID),
+		}, nil
+	case err != nil:
+		return nil, fmt.Errorf("read audit head row: %w", err)
+	}
+	if hash != head.Hash {
+		return &VerifyResult{
+			OK: false, FirstBadID: head.LastID, Checked: checked,
+			Message: fmt.Sprintf("row %d: recorded as the chain's newest row but its hash no longer matches (the row was modified)", head.LastID),
+		}, nil
+	}
+	return nil, nil
 }
 
 // Middleware logs every mutating request after the handler returns.
@@ -665,19 +806,20 @@ func (a *Auditor) Prune(ctx context.Context, cutoff time.Time) (int64, error) {
 	// A NULL boundary hash means every row up to the cutoff predates the
 	// chain (migration 005 hasn't shipped a hash for anything this old yet);
 	// there's no live link to preserve, so skip the checkpoint write.
+	//
+	// This only ever writes chainConfigKey ("audit.checkpoint"), never
+	// headConfigKey ("audit.head") — the two anchors bound the surviving
+	// chain from opposite ends and must not clobber each other. Pruning
+	// never touches the head even when it deletes the row the head
+	// currently points at (a full-table prune): Verify treats a head at or
+	// before the checkpoint boundary as already covered by the checkpoint,
+	// not as tail truncation (see verifyHead).
 	if boundaryHash.Valid && boundaryHash.String != "" {
 		cp, mErr := json.Marshal(chainCheckpoint{ID: boundaryID, Hash: boundaryHash.String})
 		if mErr != nil {
 			return 0, fmt.Errorf("encode audit checkpoint: %w", mErr)
 		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO config(key, value, updated_at)
-			 VALUES (?, ?, datetime('now'))
-			 ON CONFLICT(key) DO UPDATE SET
-			     value      = excluded.value,
-			     updated_at = excluded.updated_at`,
-			chainConfigKey, string(cp),
-		); err != nil {
+		if err := writeConfigTx(ctx, tx, chainConfigKey, string(cp)); err != nil {
 			return 0, fmt.Errorf("write audit checkpoint: %w", err)
 		}
 	}

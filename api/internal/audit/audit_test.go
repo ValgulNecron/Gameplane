@@ -594,6 +594,137 @@ func TestVerify_ChecksOutAfterPruneCheckpoint(t *testing.T) {
 	}
 }
 
+// TestVerify_DetectsDeletedTailRow — deleting the newest row(s) is the
+// blind spot plain chain-walking can't see: every surviving row's
+// prev_hash link is untouched, so nothing downstream complains. The
+// audit.head anchor written by insertChained must catch it.
+func TestVerify_DetectsDeletedTailRow(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	for i := 0; i < 3; i++ {
+		postEvent(h)
+	}
+
+	// Sanity check: before tampering, the plain chain is intact.
+	if result, err := a.Verify(context.Background()); err != nil || !result.OK {
+		t.Fatalf("pre-tamper verify = %+v, err=%v, want OK", result, err)
+	}
+
+	if _, err := s.DB.Exec(`DELETE FROM audit_events WHERE id > 2`); err != nil {
+		t.Fatalf("tamper: %v", err)
+	}
+
+	result, err := a.Verify(context.Background())
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if result.OK {
+		t.Fatal("expected tail truncation to be detected via audit.head")
+	}
+	if result.FirstBadID != 3 {
+		t.Fatalf("FirstBadID = %d, want 3 (the deleted row audit.head recorded as newest)", result.FirstBadID)
+	}
+	if !strings.Contains(result.Message, "truncated") {
+		t.Fatalf("message = %q, want it to call out tail truncation", result.Message)
+	}
+	// The two surviving rows still chain correctly; only the head check
+	// should fail here, not the walk itself.
+	if result.Checked != 2 {
+		t.Fatalf("Checked = %d, want 2 (the two surviving rows walked cleanly)", result.Checked)
+	}
+}
+
+// TestInsertChained_WritesAndUpdatesHead checks that every insert upserts
+// audit.head to point at the row it just wrote, not just the first one.
+func TestInsertChained_WritesAndUpdatesHead(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	ctx := context.Background()
+	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	postEvent(h)
+	raw, ok, err := s.ConfigValue(ctx, headConfigKey)
+	if err != nil || !ok {
+		t.Fatalf("head missing after first insert: ok=%v err=%v", ok, err)
+	}
+	var head chainHead
+	if err := json.Unmarshal([]byte(raw), &head); err != nil {
+		t.Fatalf("decode head: %v", err)
+	}
+	if head.LastID != 1 || head.Hash == "" {
+		t.Fatalf("head = %+v, want LastID=1 with a non-empty hash", head)
+	}
+
+	var wantHash string
+	if err := s.DB.QueryRow(`SELECT hash FROM audit_events WHERE id = 1`).Scan(&wantHash); err != nil {
+		t.Fatalf("query row 1 hash: %v", err)
+	}
+	if head.Hash != wantHash {
+		t.Fatalf("head.Hash = %q, want %q (row 1's stored hash)", head.Hash, wantHash)
+	}
+
+	// A second insert must move the head forward, not leave it on row 1.
+	postEvent(h)
+	raw, ok, err = s.ConfigValue(ctx, headConfigKey)
+	if err != nil || !ok {
+		t.Fatalf("head missing after second insert: ok=%v err=%v", ok, err)
+	}
+	if err := json.Unmarshal([]byte(raw), &head); err != nil {
+		t.Fatalf("decode head: %v", err)
+	}
+	if head.LastID != 2 {
+		t.Fatalf("head.LastID = %d, want 2 after a second insert", head.LastID)
+	}
+	if err := s.DB.QueryRow(`SELECT hash FROM audit_events WHERE id = 2`).Scan(&wantHash); err != nil {
+		t.Fatalf("query row 2 hash: %v", err)
+	}
+	if head.Hash != wantHash {
+		t.Fatalf("head.Hash = %q, want %q (row 2's stored hash)", head.Hash, wantHash)
+	}
+}
+
+// TestVerify_FullTablePruneDoesNotFalsePositiveOnHead — a retention sweep
+// that prunes every row, including the one audit.head currently points at,
+// is legitimate housekeeping, not tail truncation. The checkpoint Prune
+// leaves behind already vouches for that row's content, so verifyHead must
+// treat a head at or before the checkpoint boundary as covered, not broken.
+func TestVerify_FullTablePruneDoesNotFalsePositiveOnHead(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	for i := 0; i < 3; i++ {
+		if err := a.insertChained(ctx, now.Add(-48*time.Hour).Add(time.Duration(i)*time.Minute).Format(time.RFC3339),
+			"tester", "POST", "/x", "", 200, ""); err != nil {
+			t.Fatalf("insertChained: %v", err)
+		}
+	}
+
+	// Prune with a cutoff after every existing row: the boundary (and thus
+	// the checkpoint) lands on the very last row inserted, which audit.head
+	// also points at.
+	deleted, err := a.Prune(ctx, now)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if deleted != 3 {
+		t.Fatalf("deleted = %d, want 3 (a full-table prune)", deleted)
+	}
+
+	result, err := a.Verify(ctx)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("result = %+v, want OK: a full-table prune must not look like tail truncation", result)
+	}
+	if result.Checked != 0 {
+		t.Fatalf("Checked = %d, want 0 (nothing survives the prune)", result.Checked)
+	}
+}
+
 func itoa(i int) string {
 	if i == 0 {
 		return "0"
