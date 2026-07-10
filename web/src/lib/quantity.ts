@@ -60,28 +60,42 @@ export function parseMemQuantity(qty: string | undefined): MemAmount | null {
   }
 
   const bytes = parseQuantityToBytes(qty);
-  if (bytes === 0) {
+  if (bytes <= 0) {
     return null;
   }
 
-  // Find the best-fit binary unit (prefer larger units that don't go below 1).
-  const units: MemUnit[] = ["Ti", "Gi", "Mi", "Ki"];
   const magnitudes: Record<MemUnit, number> = {
     Ki: 1024,
     Mi: 1024 ** 2,
     Gi: 1024 ** 3,
     Ti: 1024 ** 4,
   };
+  const order: MemUnit[] = ["Ki", "Mi", "Gi", "Ti"];
 
-  for (const unit of units) {
-    const magnitude = magnitudes[unit];
-    const value = bytes / magnitude;
+  // Binary-suffixed input keeps its source unit, but promotes to a larger one
+  // while the value stays a whole multiple: "512Mi" stays Mi, "4096Mi" → 4Gi,
+  // and a fractional "0.5Gi" is preserved as Gi rather than demoted to 512Mi.
+  const suffix = /(Ki|Mi|Gi|Ti)$/.exec(qty);
+  if (suffix) {
+    let unit = suffix[1] as MemUnit;
+    let value = bytes / magnitudes[unit];
+    let i = order.indexOf(unit);
+    while (i < order.length - 1 && value >= 1024 && value % 1024 === 0) {
+      value /= 1024;
+      i += 1;
+      unit = order[i];
+    }
+    return { value, unit };
+  }
+
+  // Bare byte counts and decimal-SI inputs have no clean binary source unit:
+  // pick the largest unit that stays >= 1, falling back to Ki when < 1 Ki.
+  for (const unit of ["Ti", "Gi", "Mi", "Ki"] as MemUnit[]) {
+    const value = bytes / magnitudes[unit];
     if (value >= 1) {
       return { value, unit };
     }
   }
-
-  // If < 1 Ki, just use Ki (will be < 1).
   return { value: bytes / magnitudes.Ki, unit: "Ki" };
 }
 
