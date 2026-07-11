@@ -226,7 +226,7 @@ export function AuditLogPage() {
 
 function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactNode {
   const data = query.data;
-  if (query.isLoading || query.isPending) {
+  if (query.isLoading) {
     return null;
   }
   if (query.isError) {
@@ -260,7 +260,7 @@ function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactN
     );
   }
   return (
-    <div className="flex items-center justify-between rounded-md border border-danger bg-danger/5 px-4 py-3">
+    <div className="flex items-center justify-between rounded-md border border-danger bg-danger/5 px-4 py-3" role="alert">
       <div className="flex items-center gap-3">
         <AlertTriangle className="h-5 w-5 text-danger" />
         <span className="text-sm font-medium text-danger">
