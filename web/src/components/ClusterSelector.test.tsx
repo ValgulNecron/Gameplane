@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -59,11 +59,15 @@ describe("ClusterSelector", () => {
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
 
-    // All clusters should be listed
+    // Wait for the dropdown to actually open, then scope assertions to it —
+    // the trigger button also renders the current cluster's display name
+    // ("Local"), so an unscoped screen.getByText("Local") matches both the
+    // trigger and the menu item and throws "multiple elements found".
+    const menu = await screen.findByRole("menu");
     await waitFor(() => {
-      expect(screen.getByText("Local")).toBeInTheDocument();
-      expect(screen.getByText("Production")).toBeInTheDocument();
-      expect(screen.getByText("Staging")).toBeInTheDocument();
+      expect(within(menu).getByText("Local")).toBeInTheDocument();
+      expect(within(menu).getByText("Production")).toBeInTheDocument();
+      expect(within(menu).getByText("Staging")).toBeInTheDocument();
     });
   });
 
@@ -179,17 +183,19 @@ describe("ClusterSelector", () => {
     // Open dropdown while loading
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
+    const menu = await screen.findByRole("menu");
 
     // Should show loading state
     await waitFor(() => {
-      expect(screen.getByText("Loading…")).toBeInTheDocument();
+      expect(within(menu).getByText("Loading…")).toBeInTheDocument();
     });
 
-    // Resolve the response and check it updates
+    // Resolve the response and check it updates. Scope to the menu — once
+    // resolved, both the trigger and the menu item render "Local".
     resolveResponse();
 
     await waitFor(() => {
-      expect(screen.getByText("Local")).toBeInTheDocument();
+      expect(within(menu).getByText("Local")).toBeInTheDocument();
     });
   });
 
@@ -224,10 +230,13 @@ describe("ClusterSelector", () => {
     const trigger = await screen.findByRole("button", { name: /select cluster/i });
     await userEvent.click(trigger);
 
+    // Scope to the open menu — the trigger also renders "Local" for the
+    // currently-selected cluster, so an unscoped query is ambiguous.
+    const menu = await screen.findByRole("menu");
     await waitFor(() => {
-      expect(screen.getByText("Local")).toBeInTheDocument();
-      expect(screen.getByText("Down")).toBeInTheDocument();
-      expect(screen.getByText("Unknown")).toBeInTheDocument();
+      expect(within(menu).getByText("Local")).toBeInTheDocument();
+      expect(within(menu).getByText("Down")).toBeInTheDocument();
+      expect(within(menu).getByText("Unknown")).toBeInTheDocument();
     });
 
     // All health dots should be present (rendered as span elements with color classes)
