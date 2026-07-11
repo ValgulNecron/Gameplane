@@ -591,6 +591,11 @@ export interface LoginProvidersResp {
   providers: LoginProvider[];
 }
 
+export interface LoginResponse {
+  user: User;
+  csrf: string;
+}
+
 export interface PlayerCapabilities {
   kick: boolean;
   ban: boolean;

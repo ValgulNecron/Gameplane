@@ -38,7 +38,7 @@ function useClusterInfo() {
 }
 
 export function AppLayout() {
-  const { data: me, error } = useMe();
+  const { data: me, error, isLoading } = useMe();
   const { data: cluster } = useClusterInfo();
   // Below `lg`, the fixed sidebar becomes an off-canvas drawer toggled by
   // the Topbar's hamburger button. Desktop (`lg`+) keeps the always-on
@@ -50,6 +50,8 @@ export function AppLayout() {
       location.assign("/login");
     }
   }, [error]);
+
+  if (isLoading) return <AppShellSkeleton />;
 
   return (
     <div className="flex h-full bg-background text-fg">
@@ -84,6 +86,136 @@ export function AppLayout() {
         <Topbar user={me} onMenuClick={() => setDrawerOpen(true)} />
         <main className="flex-1 overflow-auto scrollbar-thin">
           <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function AppShellSkeleton() {
+  return (
+    <div className="flex h-full bg-background text-fg" aria-busy="true" aria-label="Loading">
+      {/* Desktop sidebar — always rendered, hidden on mobile */}
+      <div className="hidden lg:flex">
+        <aside className="flex w-[260px] shrink-0 flex-col border-r border-border bg-surface/60">
+          {/* Brand block — real wordmark, skeleton cluster line */}
+          <div className="flex items-center gap-2 px-5 py-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="font-mono text-base font-semibold text-fg">gameplane</div>
+              <div className="h-3 w-20 animate-pulse rounded bg-border/60" />
+            </div>
+          </div>
+
+          {/* Nav area with skeleton items */}
+          <nav className="flex-1 overflow-auto px-3 py-2 scrollbar-thin">
+            {/* General section */}
+            <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
+              General
+            </div>
+            <ul className="flex flex-col gap-0.5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={`general-${i}`}>
+                  <div className="flex items-center gap-3 rounded-md px-3 py-2">
+                    <div className="h-[18px] w-[18px] shrink-0 animate-pulse rounded bg-border/60" />
+                    <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            {/* Admin section */}
+            <div className="h-3" />
+            <div className="px-3 pb-2 pt-3 text-[10px] font-semibold uppercase tracking-widest text-muted">
+              Admin
+            </div>
+            <ul className="flex flex-col gap-0.5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <li key={`admin-${i}`}>
+                  <div className="flex items-center gap-3 rounded-md px-3 py-2">
+                    <div className="h-[18px] w-[18px] shrink-0 animate-pulse rounded bg-border/60" />
+                    <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {/* Profile footer skeleton */}
+          <div className="border-t border-border px-3 py-3">
+            <div className="flex items-center gap-3 rounded-md px-2 py-1.5">
+              <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="h-3 animate-pulse rounded bg-border/60" />
+                <div className="h-2 w-16 animate-pulse rounded bg-border/60" />
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Topbar skeleton */}
+        <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-6">
+          {/* Left: hamburger + breadcrumb skeleton */}
+          <div className="flex min-w-0 items-center gap-2">
+            <div
+              aria-hidden="true"
+              className="shrink-0 rounded-md p-2 text-muted lg:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </div>
+            <div className="flex min-w-0 items-center gap-2 text-sm text-muted">
+              <div className="h-3 w-20 animate-pulse rounded bg-border/60" />
+            </div>
+          </div>
+          {/* Right: controls + avatar skeleton */}
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="hidden md:flex">
+              <div className="h-9 w-72 animate-pulse rounded-md bg-border/60" />
+            </div>
+            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
+            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
+            <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-border/60" />
+          </div>
+        </header>
+
+        {/* Main content skeleton */}
+        <main className="flex-1 overflow-auto scrollbar-thin p-6">
+          {/* Header bar */}
+          <div className="mb-6 h-4 w-48 animate-pulse rounded bg-border/60" />
+
+          {/* Stat cards skeleton */}
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={`stat-${i}`}
+                className="rounded-md border border-border bg-surface/60 p-4"
+              >
+                <div className="mb-2 h-3 w-24 animate-pulse rounded bg-border/60" />
+                <div className="h-6 w-12 animate-pulse rounded bg-border/60" />
+              </div>
+            ))}
+          </div>
+
+          {/* Table skeleton */}
+          <div className="rounded-md border border-border">
+            {/* Header */}
+            <div className="flex border-b border-border px-4 py-3">
+              <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
+              <div className="ml-4 h-3 w-20 animate-pulse rounded bg-border/60" />
+            </div>
+            {/* Rows */}
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={`row-${i}`} className="flex border-b border-border px-4 py-3 last:border-b-0">
+                <div className="h-3 flex-1 animate-pulse rounded bg-border/60" />
+                <div className="ml-4 h-3 w-20 animate-pulse rounded bg-border/60" />
+              </div>
+            ))}
+          </div>
         </main>
       </div>
     </div>

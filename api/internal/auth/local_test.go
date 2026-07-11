@@ -92,6 +92,12 @@ func TestLogin_WrongPassword(t *testing.T) {
 func TestLogin_Success_SetsCookies(t *testing.T) {
 	s := newAuthDB(t)
 	seedUser(t, s, "alice", "hunter2", "admin")
+	// Seed a cluster-wide viewer role binding so perms actually load.
+	if _, err := s.DB.Exec(
+		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (1, 'viewer', 'local', '*')`,
+	); err != nil {
+		t.Fatalf("seed binding: %v", err)
+	}
 	body := strings.NewReader(`{"username":"alice","password":"hunter2"}`)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/login", body)
@@ -100,12 +106,42 @@ func TestLogin_Success_SetsCookies(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", rr.Code, rr.Body)
 	}
+	// Assert raw JSON uses camelCase and not PascalCase.
+	bodyBytes := rr.Body.Bytes()
+	bodyStr := string(bodyBytes)
+	if !strings.Contains(bodyStr, `"username"`) {
+		t.Fatalf("raw JSON missing camelCase 'username': %s", bodyStr)
+	}
+	if !strings.Contains(bodyStr, `"permissions"`) {
+		t.Fatalf("raw JSON missing camelCase 'permissions': %s", bodyStr)
+	}
+	if strings.Contains(bodyStr, `"Username"`) {
+		t.Fatalf("raw JSON contains PascalCase 'Username': %s", bodyStr)
+	}
+	if strings.Contains(bodyStr, `"Perms"`) {
+		t.Fatalf("raw JSON contains PascalCase 'Perms': %s", bodyStr)
+	}
+	// Decode and verify permissions loaded.
 	var got loginResp
-	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+	if err := json.NewDecoder(strings.NewReader(bodyStr)).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if got.User.Username != "alice" || got.CSRF == "" {
 		t.Fatalf("got %+v", got)
+	}
+	// Viewer role grants servers:read cluster-wide.
+	if len(got.User.Permissions) == 0 || len(got.User.Permissions["*"]) == 0 {
+		t.Fatalf("permissions empty or missing cluster-wide: %+v", got.User.Permissions)
+	}
+	var hasServersRead bool
+	for _, p := range got.User.Permissions["*"] {
+		if p == "servers:read" {
+			hasServersRead = true
+			break
+		}
+	}
+	if !hasServersRead {
+		t.Fatalf("cluster-wide permissions missing 'servers:read': %+v", got.User.Permissions["*"])
 	}
 	cookies := rr.Result().Cookies()
 	var session, csrf bool
