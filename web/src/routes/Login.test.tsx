@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { LoginPage } from "./Login";
+
+vi.mock("@tanstack/react-router", async () => {
+  const actual = await vi.importActual("@tanstack/react-router");
+  return {
+    ...actual,
+    useNavigate: vi.fn(),
+  };
+});
 
 const fetchMock = vi.fn();
 const assignMock = vi.fn();
+const navigateMock = vi.fn().mockResolvedValue(undefined);
 
 // The login page fetches /auth/providers on mount; route fetches by URL
 // so a single mock serves both the providers probe and the login POST.
@@ -23,20 +34,35 @@ function router(url: RequestInfo | URL): Promise<Response> {
 
 beforeEach(() => {
   providers = [{ kind: "local", label: "Local account" }];
-  loginResponse = () => new Response(JSON.stringify({ id: 1, role: "admin" }), { status: 200 });
+  loginResponse = () =>
+    new Response(
+      JSON.stringify({
+        user: { id: 1, username: "admin", displayName: "Admin", role: "admin", permissions: {} },
+        csrf: "token123",
+      }),
+      { status: 200 },
+    );
   fetchMock.mockImplementation(router);
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("location", { assign: assignMock });
+  vi.mocked(useNavigate).mockReturnValue(navigateMock);
+  navigateMock.mockResolvedValue(undefined);
 });
 afterEach(() => {
   fetchMock.mockReset();
   assignMock.mockReset();
+  navigateMock.mockReset();
   vi.unstubAllGlobals();
 });
 
 describe("LoginPage", () => {
-  it("submits credentials and navigates to / on success", async () => {
-    render(<LoginPage />);
+  it("submits credentials, seeds cache, and navigates to / on success", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
     // The show/hide toggle also carries "password" in its aria-label, so
     // scope the query to the input element.
@@ -45,7 +71,17 @@ describe("LoginPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
 
-    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: "/" }));
+    // Verify no hard reload triggered
+    expect(assignMock).not.toHaveBeenCalled();
+    // Verify the ["me"] cache was seeded with the user from the response
+    expect(queryClient.getQueryData(["me"])).toEqual({
+      id: 1,
+      username: "admin",
+      displayName: "Admin",
+      role: "admin",
+      permissions: {},
+    });
     const login = fetchMock.mock.calls.find((c) => String(c[0]).includes("/auth/login"));
     expect(login).toBeTruthy();
     const init = login![1] as RequestInit;
@@ -55,7 +91,12 @@ describe("LoginPage", () => {
 
   it("shows an error message on 401", async () => {
     loginResponse = () => new Response("nope", { status: 401 });
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "x" } });
     fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), {
       target: { value: "y" },
@@ -64,10 +105,16 @@ describe("LoginPage", () => {
 
     expect(await screen.findByText("Invalid credentials")).toBeInTheDocument();
     expect(assignMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it("reveals a reset hint when Forgot is clicked", async () => {
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     expect(screen.queryByText(/contact your administrator/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Forgot?" }));
     expect(screen.getByText(/contact your administrator to reset/i)).toBeInTheDocument();
@@ -78,14 +125,24 @@ describe("LoginPage", () => {
       { kind: "local", label: "Local account" },
       { kind: "oidc", label: "Acme SSO" },
     ];
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     const btn = await screen.findByRole("button", { name: /Continue with Acme SSO/i });
     fireEvent.click(btn);
     expect(assignMock).toHaveBeenCalledWith("/auth/oidc/start");
   });
 
   it("hides the OIDC button when only local auth is enabled", async () => {
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     await screen.findByRole("button", { name: /sign in/i });
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /Continue with/i })).not.toBeInTheDocument(),
@@ -98,7 +155,12 @@ describe("LoginPage", () => {
       { name: "corp", kind: "oidc", label: "Acme SSO" },
       { name: "helm", kind: "oidc", label: "Helm SSO" },
     ];
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     const corp = await screen.findByRole("button", { name: /Continue with Acme SSO/i });
     fireEvent.click(corp);
     expect(assignMock).toHaveBeenCalledWith("/auth/oidc/corp/start");
@@ -110,7 +172,12 @@ describe("LoginPage", () => {
 
   it("hides the password form when local login is disabled", async () => {
     providers = [{ name: "corp", kind: "oidc", label: "Acme SSO" }];
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     await screen.findByRole("button", { name: /Continue with Acme SSO/i });
     expect(screen.queryByLabelText(/username/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
@@ -123,12 +190,22 @@ describe("LoginPage", () => {
       }
       return router(url);
     });
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
   it("reveals the typed password when the eye toggle is clicked", async () => {
-    render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     const pw = screen.getByLabelText(/password/i, { selector: "input" }) as HTMLInputElement;
     fireEvent.change(pw, { target: { value: "hunter2" } });
     expect(pw.type).toBe("password");
@@ -139,7 +216,12 @@ describe("LoginPage", () => {
   });
 
   it("renders no version string on the pre-auth page", () => {
-    const { container } = render(<LoginPage />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <LoginPage />
+      </QueryClientProvider>,
+    );
     expect(container.textContent).not.toMatch(/v\d+\.\d+\.\d+/);
     expect(container.textContent).not.toMatch(/alpha/i);
   });

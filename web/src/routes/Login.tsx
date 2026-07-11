@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   Cpu,
@@ -18,6 +20,8 @@ import type { LoginProvider } from "@/types";
 // cluster metrics, server counts, hostnames, or version strings. The
 // right panel is static product-marketing content only.
 export function LoginPage() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [u, setU] = useState("");
   const [p, setP] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -76,8 +80,11 @@ export function LoginPage() {
                 setErr(null);
                 setBusy(true);
                 try {
-                  await Auth.login({ username: u, password: p });
-                  location.assign("/");
+                  const { user } = await Auth.login({ username: u, password: p });
+                  // Seed the identity cache so the app shell renders the real user on
+                  // first paint — no post-reload "guest" flash, no second /users/me fetch.
+                  queryClient.setQueryData(["me"], user);
+                  await navigate({ to: "/" });
                 } catch (e) {
                   setErr(e instanceof APIError ? "Invalid credentials" : "Network error");
                 } finally {

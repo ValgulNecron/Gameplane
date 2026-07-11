@@ -20,6 +20,7 @@ import type {
   ModUpdatesResponse,
   List,
   LoginProvidersResp,
+  LoginResponse,
   Module,
   NodeJoinInfo,
   ModuleSource,
@@ -447,7 +448,7 @@ export const Roles = {
 
 export const Auth = {
   login: (body: { username: string; password: string }) =>
-    api<User>("/auth/login", { method: "POST", body }),
+    api<LoginResponse>("/auth/login", { method: "POST", body }),
   logout: () => api<void>("/auth/logout", { method: "POST" }),
   // Per-provider start route. The Helm-flag provider ("helm", or an old
   // response without names) uses the legacy path — its state cookies and
