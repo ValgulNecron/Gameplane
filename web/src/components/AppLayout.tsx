@@ -26,6 +26,7 @@ import type { ClusterInfo, User } from "@/types";
 import { cn } from "@/lib/utils";
 import { openEventStream, queryKeyForKind, type GameplaneEvent } from "@/lib/sse";
 import { useEffect, useState } from "react";
+import { ClusterSelector } from "@/components/ClusterSelector";
 
 function useClusterInfo() {
   return useQuery({
@@ -266,6 +267,7 @@ function Topbar({ user, onMenuClick }: { user?: User; onMenuClick: () => void })
         <Breadcrumbs items={crumbs} />
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        <ClusterSelector />
         <GlobalSearch />
         <Notifications />
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 font-mono text-xs text-primary">

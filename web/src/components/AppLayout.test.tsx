@@ -15,6 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
   Outlet: () => <div data-testid="outlet">outlet</div>,
   useLocation: () => ({ pathname: "/" }),
   useMatches: () => [],
+  useNavigate: () => vi.fn(),
 }));
 
 import { AppLayout } from "./AppLayout";

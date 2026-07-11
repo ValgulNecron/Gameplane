@@ -97,6 +97,11 @@ export const handlers = [
   http.get("/cluster", () => HttpResponse.json(makeClusterView())),
   http.get("/cluster/info", () => HttpResponse.json(makeClusterInfo())),
   http.get("/cluster/stats", () => HttpResponse.json(makeClusterStats())),
+  http.get("/clusters", () =>
+    HttpResponse.json({
+      items: [{ name: "local", displayName: "local", phase: "Healthy" as const }],
+    }),
+  ),
 
   // Servers
   http.get("/servers", () =>
