@@ -35457,6 +35457,76 @@
                   ]
                 },
                 {
+                  "id": "Xl4eq",
+                  "type": "ref",
+                  "ref": "c:nIj3a",
+                  "name": "Integrity Banner",
+                  "width": "fill_container",
+                  "alignItems": "center",
+                  "layout": "horizontal",
+                  "descendants": {
+                    "c:7IdrZ": {
+                      "type": "frame",
+                      "id": "h6dSz",
+                      "name": "contents",
+                      "width": "fill_container",
+                      "gap": 16,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "iUYoF",
+                          "name": "Message",
+                          "fill": "$c:--color-success-foreground",
+                          "content": "Audit chain verified — no tampering detected",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "J6UPYz",
+                          "name": "Recheck",
+                          "cornerRadius": "$c:--radius-pill",
+                          "stroke": "$c:--color-success-foreground",
+                          "strokeWidth": 1,
+                          "gap": 6,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "ibDHn",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "refresh",
+                              "library": "Material Symbols Sharp",
+                              "weight": 500,
+                              "fill": "$c:--color-success-foreground"
+                            },
+                            {
+                              "type": "text",
+                              "id": "xGjAg",
+                              "name": "Recheck Label",
+                              "fill": "$c:--color-success-foreground",
+                              "content": "Re-check",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
                   "type": "frame",
                   "id": "kHr3P",
                   "name": "rTabs",
@@ -83805,6 +83875,64 @@
               "fontWeight": "normal"
             }
           ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kIxaJ",
+      "x": 7600,
+      "y": 1960,
+      "name": "Reference/Audit Integrity Banner — Broken",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "width": 700,
+      "fill": "$c:--background",
+      "layout": "vertical",
+      "gap": 12,
+      "padding": 32,
+      "children": [
+        {
+          "type": "text",
+          "id": "ZEqkj",
+          "fill": "$c:--muted-foreground",
+          "content": "Audit Integrity Banner — Broken state (reference)",
+          "fontFamily": "$c:--font-primary",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "id": "aAaPa",
+          "type": "ref",
+          "ref": "c:YZjRF",
+          "name": "Integrity Banner (Broken)",
+          "width": "fill_container",
+          "layout": "horizontal",
+          "alignItems": "center",
+          "descendants": {
+            "c:7IdrZ": {
+              "type": "frame",
+              "id": "H3d0vj",
+              "name": "contents",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "fuKsy",
+                  "name": "Message",
+                  "fill": "$c:--color-error-foreground",
+                  "content": "Integrity check failed — chain breaks at event #286",
+                  "lineHeight": 1.5,
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 16,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          }
         }
       ]
     }
