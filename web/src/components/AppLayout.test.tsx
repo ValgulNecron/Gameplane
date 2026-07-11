@@ -61,7 +61,7 @@ describe("AppLayout", () => {
 
   it("renders the outlet for child routes", async () => {
     renderWithQuery(<AppLayout />);
-    expect(screen.getByTestId("outlet")).toBeInTheDocument();
+    expect(await screen.findByTestId("outlet")).toBeInTheDocument();
   });
 
   it("notifications bell toggles a panel", async () => {
@@ -129,5 +129,43 @@ describe("AppLayout", () => {
     const link = await screen.findByRole("link", { name: /alpha/i });
     expect(link).toHaveAttribute("href", "/servers/$name");
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
+  });
+
+  it("shows a shell skeleton while useMe is loading", async () => {
+    // Use a promise that never resolves to simulate indefinite loading.
+    server.use(
+      http.get("/users/me", () => new Promise(() => {})), // Never resolves
+      http.get("/cluster/info", () => new Promise(() => {})), // Never resolves
+    );
+
+    renderWithQuery(<AppLayout />);
+
+    // Skeleton should be present with aria-busy attribute and Loading label.
+    const skeleton = screen.getByLabelText("Loading");
+    expect(skeleton).toHaveAttribute("aria-busy", "true");
+
+    // "guest" text must NOT appear anywhere — no pre-auth identity leak.
+    expect(screen.queryByText(/guest/i)).not.toBeInTheDocument();
+
+    // No admin links should appear while loading (they require me data).
+    expect(screen.queryByRole("link", { name: /Users & RBAC/i })).not.toBeInTheDocument();
+  });
+
+  it("transitions from skeleton to real shell when user loads", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "admin" }))),
+      http.get("/cluster/info", () => HttpResponse.json({ clusterName: "homelab" })),
+    );
+
+    renderWithQuery(<AppLayout />);
+
+    // Wait for real content (admin link) — indicates skeleton has been replaced.
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /Users & RBAC/i })).toBeInTheDocument(),
+    );
+
+    // Real nav is present; skeleton is gone.
+    expect(screen.getByRole("link", { name: /Audit log/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
   });
 });
