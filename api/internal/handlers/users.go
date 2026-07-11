@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/mail"
 	"regexp"
-	"sort"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -55,38 +54,6 @@ type userDTO struct {
 	// namespace ("*" = cluster-wide). Populated only on /users/me; it
 	// drives the dashboard's can()-based UI gating.
 	Permissions map[string][]string `json:"permissions,omitempty"`
-}
-
-// permsToJSON flattens the in-memory permission set into a
-// JSON-friendly namespace→permissions map. It merges permissions across
-// all clusters, so the frontend sees the union of what the user can do
-// (permissions are cluster-agnostic for most features).
-func permsToJSON(perms map[string]map[string]map[string]struct{}) map[string][]string {
-	if len(perms) == 0 {
-		return nil
-	}
-	// Merge all clusters into a single namespace→permissions map.
-	merged := make(map[string]map[string]struct{})
-	for _, clusterPerms := range perms {
-		for ns, permSet := range clusterPerms {
-			if merged[ns] == nil {
-				merged[ns] = make(map[string]struct{})
-			}
-			for p := range permSet {
-				merged[ns][p] = struct{}{}
-			}
-		}
-	}
-	out := make(map[string][]string, len(merged))
-	for ns, set := range merged {
-		keys := make([]string, 0, len(set))
-		for p := range set {
-			keys = append(keys, p)
-		}
-		sort.Strings(keys)
-		out[ns] = keys
-	}
-	return out
 }
 
 // usernameRE constrains usernames to a conservative DNS-label-ish set.
@@ -202,7 +169,7 @@ func (h *userHandler) me(w http.ResponseWriter, req *http.Request) {
 	}
 	writeJSON(w, userDTO{
 		ID: u.ID, Username: u.Username, DisplayName: u.DisplayName,
-		Email: u.Email, Role: u.Role, Permissions: permsToJSON(u.Perms),
+		Email: u.Email, Role: u.Role, Permissions: auth.PermsToJSON(u.Perms),
 	})
 }
 

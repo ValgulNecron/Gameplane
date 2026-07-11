@@ -22,9 +22,30 @@ type loginReq struct {
 	Password string `json:"password"`
 }
 
+// userJSON is the wire shape of an authenticated user. It matches the
+// dashboard's User type and the /users/me response exactly, so the
+// frontend can seed its cached identity straight from the login reply.
+type userJSON struct {
+	ID          int64               `json:"id"`
+	Username    string              `json:"username"`
+	DisplayName string              `json:"displayName"`
+	Email       string              `json:"email"`
+	Role        string              `json:"role"`
+	Provider    string              `json:"provider"`
+	CreatedAt   string              `json:"createdAt"`
+	Permissions map[string][]string `json:"permissions,omitempty"`
+}
+
+func newUserJSON(u *User) userJSON {
+	return userJSON{
+		ID: u.ID, Username: u.Username, DisplayName: u.DisplayName,
+		Email: u.Email, Role: u.Role, Permissions: PermsToJSON(u.Perms),
+	}
+}
+
 type loginResp struct {
-	User User   `json:"user"`
-	CSRF string `json:"csrf"`
+	User userJSON `json:"user"`
+	CSRF string   `json:"csrf"`
 }
 
 // HandleLogin serves POST /auth/login. reg gates the whole method: when
@@ -76,6 +97,12 @@ func (l *Local) HandleLogin(sessions *SessionStore, reg *Registry) http.HandlerF
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}
+		perms, err := sessions.LoadPerms(req.Context(), u.ID)
+		if err != nil {
+			http.Error(w, "session error", http.StatusInternalServerError)
+			return
+		}
+		u.Perms = perms
 		token, csrf, err := sessions.Create(req.Context(), u.ID)
 		if err != nil {
 			http.Error(w, "session error", http.StatusInternalServerError)
@@ -84,7 +111,7 @@ func (l *Local) HandleLogin(sessions *SessionStore, reg *Registry) http.HandlerF
 		setSessionCookie(w, token, sessionTTL)
 		setCSRFCookie(w, csrf, sessionTTL)
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(loginResp{User: *u, CSRF: csrf})
+		_ = json.NewEncoder(w).Encode(loginResp{User: newUserJSON(u), CSRF: csrf})
 	}
 }
 

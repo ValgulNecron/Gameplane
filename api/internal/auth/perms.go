@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"sort"
 )
 
 // LoadPerms resolves the user's effective permission set from their role
@@ -39,6 +40,39 @@ func (s *SessionStore) LoadPerms(ctx context.Context, userID int64) (map[string]
 		return nil, fmt.Errorf("iterate permissions: %w", err)
 	}
 	return perms, nil
+}
+
+// PermsToJSON flattens the in-memory three-level permission set into a
+// JSON-friendly namespace→permissions map. It merges permissions across
+// all clusters, so the frontend sees the union of what the user can do
+// (permissions are cluster-agnostic for most features). It is the single
+// source of truth for the `permissions` field on both /users/me and the
+// /auth/login response. Returns nil for an empty set so callers can omitempty.
+func PermsToJSON(perms map[string]map[string]map[string]struct{}) map[string][]string {
+	if len(perms) == 0 {
+		return nil
+	}
+	merged := make(map[string]map[string]struct{})
+	for _, clusterPerms := range perms {
+		for ns, permSet := range clusterPerms {
+			if merged[ns] == nil {
+				merged[ns] = make(map[string]struct{})
+			}
+			for p := range permSet {
+				merged[ns][p] = struct{}{}
+			}
+		}
+	}
+	out := make(map[string][]string, len(merged))
+	for ns, set := range merged {
+		keys := make([]string, 0, len(set))
+		for p := range set {
+			keys = append(keys, p)
+		}
+		sort.Strings(keys)
+		out[ns] = keys
+	}
+	return out
 }
 
 // Can reports whether the user holds perm. namespaced indicates whether the
