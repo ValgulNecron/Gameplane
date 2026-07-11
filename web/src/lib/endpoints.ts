@@ -2,6 +2,7 @@ import { APIError, api, csrfHeaders } from "@/lib/api";
 import { getCurrentCluster } from "@/lib/cluster";
 import type {
   AuditEvent,
+  AuditVerifyResult,
   Backup,
   BackupDestination,
   BackupSchedule,
@@ -486,6 +487,7 @@ export const Audit = {
     if (before > 0) qs.set("before", String(before));
     return api<AuditEvent[]>(`/admin/audit?${qs.toString()}`);
   },
+  verify: () => api<AuditVerifyResult>("/admin/audit/verify"),
   exportCsv: async (filter: AuditExportFilter = {}): Promise<Blob> => {
     const params = new URLSearchParams({ format: "csv" });
     if (filter.actor) params.set("actor", filter.actor);

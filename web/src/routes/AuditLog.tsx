@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
-import { Download, RefreshCw } from "lucide-react";
-import type { AuditEvent } from "@/types";
+import { useInfiniteQuery, useMutation, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { Download, RefreshCw, ShieldCheck, AlertTriangle } from "lucide-react";
+import type { AuditEvent, AuditVerifyResult } from "@/types";
 import { Audit, type AuditExportFilter } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -18,6 +18,11 @@ export function AuditLogPage() {
   const [statusClass, setStatusClass] = useState<StatusClass>("all");
   const [methodFilter, setMethodFilter] = useState<MethodFilter>("all");
   const [actorQ, setActorQ] = useState("");
+
+  const verifyQuery = useQuery({
+    queryKey: ["audit-verify"],
+    queryFn: () => Audit.verify(),
+  });
 
   const query = useInfiniteQuery({
     queryKey: ["audit"],
@@ -100,6 +105,8 @@ export function AuditLogPage() {
           </>
         }
       />
+
+      {renderIntegrityBanner(verifyQuery)}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
@@ -213,6 +220,63 @@ export function AuditLogPage() {
           </Button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+function renderIntegrityBanner(query: UseQueryResult<AuditVerifyResult>): ReactNode {
+  const data = query.data;
+  if (query.isLoading) {
+    return null;
+  }
+  if (query.isError) {
+    return (
+      <div className="flex items-center justify-between rounded-md border border-border bg-surface/50 px-4 py-3">
+        <div className="text-sm text-muted">Integrity status unavailable</div>
+      </div>
+    );
+  }
+  if (!data) {
+    return null;
+  }
+  if (data.ok) {
+    return (
+      <div className="flex items-center justify-between rounded-md border border-success bg-success/5 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="h-5 w-5 text-success" />
+          <span className="text-sm font-medium text-success">Audit chain verified — no tampering detected</span>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            void query.refetch();
+          }}
+          disabled={query.isFetching}
+        >
+          Re-check
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between rounded-md border border-danger bg-danger/5 px-4 py-3" role="alert">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="h-5 w-5 text-danger" />
+        <span className="text-sm font-medium text-danger">
+          {data.message || `Integrity check failed — chain breaks at event #${data.firstBadId}`}
+        </span>
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          void query.refetch();
+        }}
+        disabled={query.isFetching}
+      >
+        Re-check
+      </Button>
     </div>
   );
 }

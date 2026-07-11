@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuditLogPage, auditAction } from "./AuditLog";
-import type { AuditEvent } from "@/types";
+import type { AuditEvent, AuditVerifyResult } from "@/types";
 
 const fetchMock = vi.fn();
 
@@ -34,6 +34,7 @@ function event(id: number, partial: Partial<AuditEvent> = {}): AuditEvent {
 }
 
 function jsonRes(body: unknown): Response {
+  // Return a fresh Response each time so body stream can be read multiple times
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { "Content-Type": "application/json" },
@@ -42,10 +43,17 @@ function jsonRes(body: unknown): Response {
 
 describe("AuditLogPage", () => {
   it("renders rows from the first page", async () => {
-    fetchMock.mockResolvedValue(jsonRes([
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
       event(1, { actor: "alice", method: "POST", path: "/servers/mc:start" }),
       event(2, { actor: "bob",   method: "DELETE", path: "/servers/old", status: 500 }),
-    ]));
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
 
     render(withClient(<AuditLogPage />));
     // Raw HTTP is mapped to human-readable actions + allow/deny outcomes.
@@ -55,10 +63,17 @@ describe("AuditLogPage", () => {
   });
 
   it("filters rows by status class", async () => {
-    fetchMock.mockResolvedValue(jsonRes([
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
       event(1, { status: 200, method: "POST", path: "/backups" }),
       event(2, { status: 500, method: "DELETE", path: "/servers/x" }),
-    ]));
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
 
     render(withClient(<AuditLogPage />));
     expect(await screen.findByText("Created backup")).toBeInTheDocument();
@@ -70,9 +85,15 @@ describe("AuditLogPage", () => {
   });
 
   it("shows an empty state when no events match", async () => {
-    fetchMock.mockResolvedValue(jsonRes([
-      event(1, { status: 200 }),
-    ]));
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1, { status: 200 })];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
     render(withClient(<AuditLogPage />));
     await screen.findByText(/loaded/);
     fireEvent.click(screen.getByText(/4xx · 0/));
@@ -87,9 +108,15 @@ describe("AuditLogPage", () => {
 
     const createElementMock = vi.spyOn(document, "createElement");
 
-    fetchMock
-      .mockResolvedValueOnce(jsonRes([event(1, { actor: "alice", method: "POST" })]))
-      .mockResolvedValueOnce(new Response(csvBlob)); // export endpoint
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1, { actor: "alice", method: "POST" })];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      if (u.includes("/admin/audit/export")) return Promise.resolve(new Response(csvBlob));
+      return Promise.resolve(jsonRes(events));
+    });
 
     render(withClient(<AuditLogPage />));
     await screen.findByText("Created server");
@@ -113,6 +140,64 @@ describe("AuditLogPage", () => {
     expect(createElementMock).toHaveBeenCalledWith("a");
     expect(urlCreateObjectURLMock).toHaveBeenCalled();
     expect(urlRevokeObjectURLMock).toHaveBeenCalledWith("blob:http://localhost/test");
+  });
+
+  it("renders the integrity banner when chain is verified", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 150, message: "audit chain intact" };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("Audit chain verified — no tampering detected")).toBeInTheDocument();
+    expect(screen.getByText("Re-check")).toBeInTheDocument();
+  });
+
+  it("renders the failure banner when chain is broken", async () => {
+    const verifyResult: AuditVerifyResult = {
+      ok: false,
+      firstBadId: 42,
+      checked: 50,
+      message: "row 42: prev_hash does not match the previous row's hash (a row was inserted, deleted, or reordered)",
+    };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText(verifyResult.message)).toBeInTheDocument();
+    expect(screen.getByText("Re-check")).toBeInTheDocument();
+  });
+
+  it("refetches the verify query when Re-check is clicked", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("Audit chain verified — no tampering detected");
+
+    fireEvent.click(screen.getByText("Re-check"));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Verify the verify endpoint was called at least twice (initial mount + re-check click)
+    const verifyCalls = fetchMock.mock.calls.filter((call) =>
+      call[0]?.toString().includes("/admin/audit/verify")
+    );
+    expect(verifyCalls.length).toBeGreaterThanOrEqual(2);
   });
 });
 
