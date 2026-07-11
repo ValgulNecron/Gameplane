@@ -11,55 +11,29 @@ discovered along the way gets added. For what already works today, see
 
 ---
 
-## Blocking v1
+## Shipped toward v1
 
-These are the items a v1 GA should not ship without.
+These items have shipped and are reflected in current `main`.
 
-### Multi-cluster: dashboard cluster selector
+### Multi-cluster: dashboard cluster selector (PR #107)
 
-The control plane is already multi-cluster: there is a `Cluster` CRD, an
-operator health reconciler, a `/clusters` CRUD surface, a `?cluster=` dispatch
-layer through the API, and the RBAC model carries a cluster dimension. See
-[Registering an additional cluster](install.md#registering-an-additional-cluster).
+A Topbar cluster selector with per-cluster health, threading `?cluster=` through
+the API client and raw-fetch escape hatches, with `queryClient.clear()` on cluster
+switch. WebSocket streams remain local-cluster-scoped — a documented follow-up.
 
-What's missing is the last mile — the dashboard has no cluster picker, so every
-page implicitly targets the local cluster. Remaining work:
+### Multi-cluster: dual-cluster e2e coverage (PR #104)
 
-- A cluster selector in the app shell, persisted across navigation, threading
-  `?cluster=` into the existing API client.
-- Per-cluster health/status surfacing (the reconciler already writes it).
-- Empty/unreachable-cluster states.
+A real `kind ×2` e2e test (multicluster bucket) asserting `?cluster=` dispatch
+lands a GameServer on cluster B and that a viewer scoped to cluster A cannot see it.
 
-Per the repo's design-first rule this starts in `design.pen`, not in React.
+### Audit log integrity (tamper evidence) (PR #103, dashboard banner in feat/audit-integrity-banner)
 
-**Note on WebSocket streams:** Console, RCON, and log WebSocket streams remain
-local-cluster-scoped in this release. The dashboard's API client threads `?cluster=`
-through REST fetches, but WebSocket paths have not yet been updated. Cross-cluster
-WebSocket support is a follow-up task.
+Backend half shipped: migration `005_audit_chain.sql`, `Auditor.insertChained`/`Auditor.Verify`,
+and `GET /admin/audit/verify`. Dashboard integrity banner — surfacing a verification break
+to the admin on the audit page — lands in feat/audit-integrity-banner. Once that merges,
+audit integrity is complete end-to-end.
 
-### Multi-cluster: dual-cluster e2e coverage
-
-Nothing in CI exercises two clusters at once, so the `?cluster=` dispatch and the
-cluster-scoped RBAC paths are only unit- and single-cluster-tested. v1 wants a
-kind-based e2e bucket that stands up a second cluster, registers it, and asserts
-that a GameServer created against it lands there and is invisible to a viewer
-scoped to the first.
-
-### Audit log integrity (tamper evidence) — backend shipped, dashboard banner outstanding
-
-The `audit_events` table is a plain, append-only-by-convention table. Anyone with
-write access to the database can `UPDATE` or `DELETE` rows — including rows
-outside the retention window. The optional stdout, webhook, and S3 sinks mirror
-events but explicitly do not gate on delivery, so a dropped mirror is
-indistinguishable from a suppressed event.
-
-The backend half shipped per the design below (migration `005_audit_chain.sql`,
-`Auditor.insertChained`/`Auditor.Verify`, `GET /admin/audit/verify`). Outstanding:
-a dashboard integrity banner on the audit page that calls the verify endpoint
-and surfaces a break to the admin — tracked as a separate follow-up
-(design-first in `design.pen` per repo rule 1).
-
-Design (as implemented):
+**Design (as implemented):**
 
 - Migration `005_audit_chain.sql` added `prev_hash` + `hash` columns.
 - On insert (inside a transaction, serialized per-process by a mutex — see the
@@ -87,6 +61,22 @@ remaining gap and is a candidate future hardening, not yet implemented.
 
 Threat-model context lives in [`security.md`](security.md#audit-log-integrity).
 
+### Read-only MCP server (PR #105)
+
+An [MCP](https://modelcontextprotocol.io) server letting an AI assistant read
+current cluster state and *propose* fixes — strictly read-only, no writes.
+
+A new optional component (distroless Docker image, Helm toggle) exposing only
+`List` / `Get` / `Watch` over the Gameplane CRDs plus Pods, Events, and pod logs.
+"Propose a fix" returns suggested YAML or `kubectl` invocations as text — no
+create/update/delete/patch tool exists. See [`mcp-server/README.md`](../mcp-server/README.md).
+
+---
+
+## Blocking v1
+
+The sole outstanding v1 blocker:
+
 ### Module signing: activate for official bundles
 
 The keyed-cosign signing mechanism is implemented and e2e-proven, and
@@ -99,22 +89,6 @@ as CI secrets. See
 ---
 
 ## Wanted for v1, not blocking
-
-### Read-only MCP server
-
-An [MCP](https://modelcontextprotocol.io) server that lets an AI assistant read
-current cluster state and *propose* fixes — strictly read-only, no writes.
-
-Shape: a new optional component alongside `audit-syslog-bridge/` and
-`telemetry-receiver/` (its own `go.mod`, a distroless `Dockerfile`, a Helm
-toggle), acquiring a client the same way the API does (`ctrl.GetConfig()` →
-typed + dynamic clientsets). It would expose only `List` / `Get` / `Watch` over
-the Gameplane CRDs plus Pods, Events, and pod logs. "Propose a fix" means
-returning suggested YAML or `kubectl` invocations as text — the server never
-applies anything, and no create/update/delete/patch tool exists.
-
-Note that `api/internal/kube` is `internal` to the `api` module, so this either
-copies a thin read-only client or that package gets promoted to a shared one.
 
 ### Module-authored categories for the official modules
 
