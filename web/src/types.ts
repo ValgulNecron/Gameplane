@@ -623,6 +623,13 @@ export interface AuditEvent {
   ip?: string;
 }
 
+export interface AuditVerifyResult {
+  ok: boolean;
+  firstBadId?: number;
+  checked: number;
+  message: string;
+}
+
 // Module catalog types — shape of /modules and /modules/* responses.
 
 export type ModuleSourceType = "oci" | "git" | "http" | "local" | "upload";
