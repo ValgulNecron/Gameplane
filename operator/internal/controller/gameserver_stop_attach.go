@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,10 +36,15 @@ type PodStopAttacher interface {
 
 // StopAttachClient implements PodStopAttacher via the pods/attach
 // subresource, mirroring the dashboard's own console-pty bridge
-// (api/internal/ws/attach.go) but writing a canned command sequence
-// instead of proxying an interactive terminal, and without a TTY — plain
-// line-based stdin is enough to drive the game's stdin-reading command
-// loop.
+// (api/internal/ws/attach.go) — including its TTY: true, Stdout: true
+// attach options — but writing a canned command sequence instead of
+// proxying an interactive terminal. TTY mirrors the known-working attach
+// deliberately: the game container for consoleMode: pty is created with
+// TTY: true, Stdin: true (kubectl attach forces TTY on in this
+// situation too), and a tty/non-tty mismatch on attach behaves
+// differently across container runtimes (containerd vs CRI-O). Stdout
+// is requested and discarded rather than omitted, again to match the
+// attach shape the kubelet already exercises correctly.
 type StopAttachClient struct {
 	Config    *rest.Config
 	Clientset kubernetes.Interface
@@ -59,9 +65,9 @@ func (a *StopAttachClient) Stop(ctx context.Context, namespace, podName, contain
 		VersionedParams(&corev1.PodAttachOptions{
 			Container: container,
 			Stdin:     true,
-			Stdout:    false,
-			Stderr:    false,
-			TTY:       false,
+			Stdout:    true,
+			Stderr:    false, // merged with stdout under TTY
+			TTY:       true,
 		}, clientgoscheme.ParameterCodec).
 		URL()
 
@@ -82,7 +88,11 @@ func (a *StopAttachClient) Stop(ctx context.Context, namespace, podName, contain
 	streamCtx, cancel := context.WithTimeout(ctx, attachStopTimeout)
 	defer cancel()
 
-	err = exec.StreamWithContext(streamCtx, remotecommand.StreamOptions{Stdin: &stdin})
+	err = exec.StreamWithContext(streamCtx, remotecommand.StreamOptions{
+		Stdin:  &stdin,
+		Stdout: io.Discard,
+		Tty:    true,
+	})
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("attach stop sequence to pod %s/%s: %w", namespace, podName, err)
 	}
