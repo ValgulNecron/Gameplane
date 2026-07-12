@@ -352,6 +352,16 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 		}
 		_, _ = conn.Write([]byte("Logon successful.\n"))
 
+		// The client caps its OWN read at maxTelnetReply and stops draining
+		// this connection well before the full 4 MiB below has been sent —
+		// that's the behavior under test. Without a write deadline, once
+		// the client stops reading, this loop's blocking Write calls can
+		// wedge forever on a runner whose socket buffers are too small to
+		// silently absorb the undrained remainder, hanging this goroutine
+		// (and the test's <-done wait below) past the package's test
+		// timeout instead of failing fast. A short deadline turns that
+		// stall into an ordinary, expected write error.
+		_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		chunk := bytes.Repeat([]byte("x"), 65536)
 		for i := 0; i < 64; i++ { // 4 MiB total, well past the 1 MiB cap
 			if _, err := conn.Write(chunk); err != nil {
@@ -372,7 +382,11 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 	defer c.Close()
 
 	out, err := c.Exec("dump")
-	<-done
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("fake server goroutine never returned — its write loop is stuck (see SetWriteDeadline above)")
+	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
