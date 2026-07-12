@@ -42,13 +42,19 @@ func (f *fakeProvider) ModpackDeps(_ context.Context, project string) ([]registr
 	return []registry.File{{Filename: "dep.zip", DownloadURL: "https://cdn/dep.zip", Primary: true}}, nil
 }
 
-// fakeSet returns p for any config, unless absent is true.
+// fakeSet returns p for any config, unless absent is true. When cfgOut is
+// set, For records the Config it was called with, so a test can assert on
+// how the handler translated a template's declared provider block.
 type fakeSet struct {
 	p      registry.Provider
 	absent bool
+	cfgOut *registry.Config
 }
 
-func (s fakeSet) For(_ context.Context, _ registry.Config) (registry.Provider, bool) {
+func (s fakeSet) For(_ context.Context, cfg registry.Config) (registry.Provider, bool) {
+	if s.cfgOut != nil {
+		*s.cfgOut = cfg
+	}
 	if s.absent {
 		return nil, false
 	}
@@ -125,6 +131,36 @@ func TestRegistrySearch_ResolvesLoaderAndGameVersion(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Title != "Mod One" {
 		t.Errorf("body = %+v", got)
+	}
+}
+
+func TestRegistrySearch_ThreadsSteamAppID(t *testing.T) {
+	versions := []any{map[string]any{"id": "v", "loader": "", "gameVersion": "", "default": true}}
+	for _, tc := range []struct {
+		name    string
+		appID   any // matches whatever type an unstructured numeric field may decode as
+		wantVal int32
+	}{
+		{"int", int(4000), 4000},
+		{"int64", int64(4000), 4000},
+		{"float64", float64(4000), 4000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			k := fakeKubeClient(
+				newTemplateObj("gmod", map[string]any{"provider": "steam", "steamAppID": tc.appID}, versions),
+				serverWithVersion("gameplane-games", "alpha", "gmod", ""),
+			)
+			var gotCfg registry.Config
+			r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}, cfgOut: &gotCfg})
+
+			rr := do(t, r, "GET", "/servers/alpha/mods/registry/search?q=wire", nil)
+			if rr.Code != 200 {
+				t.Fatalf("got %d %s", rr.Code, rr.Body)
+			}
+			if gotCfg.Provider != "steam" || gotCfg.SteamAppID != tc.wantVal {
+				t.Errorf("cfg = %+v, want provider=steam steamAppID=%d", gotCfg, tc.wantVal)
+			}
+		})
 	}
 }
 
