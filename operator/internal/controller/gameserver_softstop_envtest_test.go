@@ -16,10 +16,15 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
-// fakeStopper records calls to the agent's soft-stop endpoint.
+// fakeStopper records calls to the agent's soft-stop endpoint. disabled
+// mirrors *agent.Client's Disabled flag (set when no mTLS material is
+// configured): Stop still no-ops rather than erroring — matching the real
+// client's contract — but Enabled() reports false so selectStopTransport
+// can tell a disabled-but-non-nil client apart from a usable one.
 type fakeStopper struct {
-	mu    sync.Mutex
-	calls int
+	mu       sync.Mutex
+	calls    int
+	disabled bool
 }
 
 func (f *fakeStopper) Stop(_ context.Context, _, _ string) error {
@@ -27,6 +32,10 @@ func (f *fakeStopper) Stop(_ context.Context, _, _ string) error {
 	defer f.mu.Unlock()
 	f.calls++
 	return nil
+}
+
+func (f *fakeStopper) Enabled() bool {
+	return !f.disabled
 }
 
 func (f *fakeStopper) count() int {
@@ -339,5 +348,66 @@ func TestGameServer_SoftStop_NoTransportScalesDownImmediately(t *testing.T) {
 	g := getGameServer(t, ns, "notransport")
 	if _, ok := g.Annotations[stopRequestedAtAnnotation]; ok {
 		t.Fatalf("stop-requested annotation was set; softStop took the wait-out-grace path instead of scaling down immediately")
+	}
+}
+
+// TestGameServer_SoftStop_DisabledAgentClientScalesDownImmediately covers a
+// should-fix: agent.New returns a non-nil *Client with Disabled: true when
+// no mTLS material is configured (any dev/non-chart install) — its Stop is
+// a silent no-op. Before Enabled() existed, selectStopTransport only
+// checked AgentClient == nil, so a template with RCON would still pick
+// stopTransportRCON for this non-nil-but-disabled client, stamp the
+// stop-requested annotation, no-op the stop, and then sit through the full
+// stopGracePeriodSeconds for nothing — the exact stall softStop exists to
+// avoid, just reached through a different door. A disabled client must
+// resolve to stopTransportNone and scale straight to zero, exactly like
+// "no transport at all".
+func TestGameServer_SoftStop_DisabledAgentClientScalesDownImmediately(t *testing.T) {
+	ns := newNamespace(t)
+	stopper := &fakeStopper{disabled: true}
+	startMgr(t, ns, withGameServerReconcilerStopper(t, ns, stopper))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if tmpl.Spec.Capabilities == nil {
+		tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{}
+	}
+	tmpl.Spec.Capabilities.Lifecycle = &gameplanev1alpha1.LifecycleSpec{Stop: []string{"stop"}}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "disabledclient", tmpl.Name)
+	// A long grace period so a pass/fail on "scaled down immediately" is
+	// unambiguous, same rationale as the no-transport case above.
+	grace := int32(300)
+	gs.Spec.StopGracePeriodSeconds = &grace
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		return ssReplicas(t, ns, "disabledclient") == 1, "replicas not yet 1"
+	})
+	setSSReady(t, ns, "disabledclient", 1)
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "disabledclient")
+		gs.Spec.Suspend = true
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		return ssReplicas(t, ns, "disabledclient") == 0, "replicas not scaled to zero"
+	})
+
+	if stopper.count() != 0 {
+		t.Fatalf("disabled stopper was called %d times; a disabled client must never be selected as a transport", stopper.count())
+	}
+	g := getGameServer(t, ns, "disabledclient")
+	if _, ok := g.Annotations[stopRequestedAtAnnotation]; ok {
+		t.Fatalf("stop-requested annotation was set; softStop took the wait-out-grace path for a disabled agent client instead of scaling down immediately")
 	}
 }

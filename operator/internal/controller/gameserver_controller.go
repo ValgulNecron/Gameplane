@@ -76,6 +76,14 @@ type GameServerReconciler struct {
 // agent. Satisfied by *operator/internal/agent.Client.
 type AgentStopper interface {
 	Stop(ctx context.Context, namespace, server string) error
+	// Enabled reports whether this stopper can actually reach an agent.
+	// agent.New returns a non-nil *Client with Disabled: true when no
+	// mTLS material is configured (dev clusters, tests) — its Stop is
+	// then a silent no-op, so selectStopTransport must check Enabled(),
+	// not just r.AgentClient == nil, or it picks stopTransportRCON for a
+	// client that will never actually stop anything and sits out the
+	// full grace period for nothing.
+	Enabled() bool
 }
 
 const (
@@ -511,6 +519,21 @@ const (
 	stopTransportPTY
 )
 
+// String implements fmt.Stringer so stopTransport reads as a name (not a
+// bare int) wherever it's logged or formatted.
+func (t stopTransport) String() string {
+	switch t {
+	case stopTransportNone:
+		return "none"
+	case stopTransportRCON:
+		return "rcon"
+	case stopTransportPTY:
+		return "pty"
+	default:
+		return fmt.Sprintf("stopTransport(%d)", int(t))
+	}
+}
+
 // selectStopTransport decides how to run tmpl's declared stop sequence:
 // over RCON when the template exposes it, over a pod-attach to stdin when
 // it instead uses consoleMode: pty, or not at all when neither applies.
@@ -543,7 +566,7 @@ func (r *GameServerReconciler) softStop(
 	}
 
 	transport := selectStopTransport(tmpl)
-	if transport == stopTransportRCON && r.AgentClient == nil {
+	if transport == stopTransportRCON && (r.AgentClient == nil || !r.AgentClient.Enabled()) {
 		transport = stopTransportNone
 	}
 	if transport == stopTransportPTY && r.PodAttacher == nil {
