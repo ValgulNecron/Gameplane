@@ -140,6 +140,10 @@ func main() {
 		AgentCASecretName:      agentCASecretName,
 		AgentCASecretNamespace: agentCASecretNamespace,
 		AgentClient:            agentClient,
+		PodAttacher: &controller.StopAttachClient{
+			Config:    mgr.GetConfig(),
+			Clientset: kubernetes.NewForConfigOrDie(mgr.GetConfig()),
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameServer")
 		os.Exit(1)

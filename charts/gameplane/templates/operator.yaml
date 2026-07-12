@@ -56,6 +56,12 @@ rules:
   - apiGroups: [""]
     resources: [services, persistentvolumeclaims, configmaps, secrets, pods, pods/log, serviceaccounts]
     verbs: [get, list, watch]
+  # softStop writes the module-declared stop sequence to a consoleMode:
+  # pty game's stdin via this subresource when it has no RCON to run the
+  # sequence over instead (see operator/internal/controller/gameserver_stop_attach.go).
+  - apiGroups: [""]
+    resources: [pods/attach]
+    verbs: [create]
   # The GameServer controller owns per-server agent RBAC objects and
   # watches them for drift repair; writes stay namespace-scoped below.
   - apiGroups: ["rbac.authorization.k8s.io"]

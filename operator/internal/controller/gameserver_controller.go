@@ -63,6 +63,13 @@ type GameServerReconciler struct {
 	// during a soft stop. May be nil (or a disabled client) in dev clusters,
 	// in which case the operator falls back to a timed scale-to-zero.
 	AgentClient AgentStopper
+
+	// PodAttacher runs the module-declared stop sequence over a pod attach
+	// to the game container's stdin, for consoleMode: pty games that
+	// declare no RCON. May be nil (dev clusters, tests that don't wire
+	// it), in which case softStop treats a pty-only template the same as
+	// one with no usable transport at all.
+	PodAttacher PodStopAttacher
 }
 
 // AgentStopper issues the module-declared graceful stop sequence to a game's
@@ -97,6 +104,7 @@ const (
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=pods/attach,verbs=create
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
@@ -476,19 +484,67 @@ func (r *GameServerReconciler) desiredReplicas(
 	return replicas, requeue, err
 }
 
+// stopTransport identifies how softStop delivers the module-declared stop
+// sequence.
+type stopTransport int
+
+const (
+	// stopTransportNone means there's no usable way to run the sequence —
+	// either the template declares none, or it declares one but exposes
+	// neither RCON nor a pty console (or the corresponding client wasn't
+	// wired). softStop scales straight to zero in this case rather than
+	// waiting out the grace period for nothing.
+	stopTransportNone stopTransport = iota
+	// stopTransportRCON delivers the sequence over the agent's existing
+	// /lifecycle/stop call, which runs it over the game's RCON connection.
+	stopTransportRCON
+	// stopTransportPTY delivers the sequence over a pod attach to the game
+	// container's stdin (consoleMode: pty, no RCON).
+	stopTransportPTY
+)
+
+// selectStopTransport decides how to run tmpl's declared stop sequence:
+// over RCON when the template exposes it, over a pod-attach to stdin when
+// it instead uses consoleMode: pty, or not at all when neither applies.
+func selectStopTransport(tmpl *gameplanev1alpha1.GameTemplate) stopTransport {
+	switch {
+	case templateHasRCON(tmpl):
+		return stopTransportRCON
+	case EffectiveConsoleMode(tmpl) == "pty":
+		return stopTransportPTY
+	default:
+		return stopTransportNone
+	}
+}
+
 // softStop computes the replica count while a server is being brought down —
 // via spec.suspend or a draining restart. It drives the module-declared
-// graceful stop over the agent and holds the pod up while the game saves, then
-// scales to zero once the game goes not-ready (or the grace deadline elapses).
-// Templates with no stop sequence scale straight to zero.
+// graceful stop over the transport the template supports (RCON or, for
+// consoleMode: pty games with no RCON, a stdin pod-attach) and holds the pod
+// up while the game saves, then scales to zero once the game goes not-ready
+// (or the grace deadline elapses). Templates with no stop sequence — or a
+// sequence but no usable transport — scale straight to zero.
 func (r *GameServerReconciler) softStop(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) (int32, time.Duration, error) {
 	declared := tmpl.Spec.Capabilities != nil &&
 		tmpl.Spec.Capabilities.Lifecycle != nil &&
 		len(tmpl.Spec.Capabilities.Lifecycle.Stop) > 0
-	if !declared || r.AgentClient == nil {
+	if !declared {
 		return 0, 0, nil // hard scale-down (no graceful stop available)
+	}
+
+	transport := selectStopTransport(tmpl)
+	if transport == stopTransportRCON && r.AgentClient == nil {
+		transport = stopTransportNone
+	}
+	if transport == stopTransportPTY && r.PodAttacher == nil {
+		transport = stopTransportNone
+	}
+	if transport == stopTransportNone {
+		// A sequence is declared but there's nothing to run it over — don't
+		// sit through the full grace period for nothing.
+		return 0, 0, nil
 	}
 
 	// Is the game still up? If the StatefulSet is gone or has no ready
@@ -516,11 +572,7 @@ func (r *GameServerReconciler) softStop(
 		if err := r.setStopAnnotation(ctx, gs, time.Now().UTC().Format(time.RFC3339)); err != nil {
 			return 1, 0, err
 		}
-		if err := r.AgentClient.Stop(ctx, gs.Namespace, gs.Name); err != nil {
-			// Best-effort: a failed/unreachable agent must not wedge the stop.
-			// The grace deadline (and readiness) still scale us down.
-			log.FromContext(ctx).Info("soft stop: agent stop call failed; falling back to timed scale-down", "err", err)
-		}
+		r.issueStopSequence(ctx, gs, tmpl, transport)
 		return 1, grace, nil // keep running; requeue at the grace deadline
 	}
 
@@ -534,6 +586,28 @@ func (r *GameServerReconciler) softStop(
 		return 1, remaining, nil
 	}
 	return 0, 0, nil
+}
+
+// issueStopSequence runs tmpl's declared stop sequence over the selected
+// transport. Best-effort: a failed/unreachable transport must not wedge
+// the stop — softStop's readiness check and grace deadline remain the
+// authority on when the server actually scales down.
+func (r *GameServerReconciler) issueStopSequence(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, transport stopTransport,
+) {
+	var err error
+	switch transport {
+	case stopTransportRCON:
+		err = r.AgentClient.Stop(ctx, gs.Namespace, gs.Name)
+	case stopTransportPTY:
+		err = r.PodAttacher.Stop(ctx, gs.Namespace, gs.Name+"-0", gameContainerName, tmpl.Spec.Capabilities.Lifecycle.Stop)
+	case stopTransportNone:
+		return // unreachable: softStop already filtered this out
+	}
+	if err != nil {
+		log.FromContext(ctx).Info("soft stop: stop sequence call failed; falling back to timed scale-down",
+			"transport", transport, "err", err)
+	}
 }
 
 func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *gameplanev1alpha1.GameServer, val string) error {
