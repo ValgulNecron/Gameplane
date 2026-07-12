@@ -354,14 +354,12 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 
 		// The client caps its OWN read at maxTelnetReply and stops draining
 		// this connection well before the full 4 MiB below has been sent —
-		// that's the behavior under test. Without a write deadline, once
-		// the client stops reading, this loop's blocking Write calls can
-		// wedge forever on a runner whose socket buffers are too small to
-		// silently absorb the undrained remainder, hanging this goroutine
-		// (and the test's <-done wait below) past the package's test
-		// timeout instead of failing fast. A short deadline turns that
-		// stall into an ordinary, expected write error.
-		_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		// that's the behavior under test. This blocking write loop relies
+		// on the client closing its side first (see the ordering note by
+		// c.Close() below) to unblock once it stops draining: a write
+		// against an already-closed peer fails immediately rather than
+		// waiting on kernel buffer space that's never going to free up on
+		// its own.
 		chunk := bytes.Repeat([]byte("x"), 65536)
 		for i := 0; i < 64; i++ { // 4 MiB total, well past the 1 MiB cap
 			if _, err := conn.Write(chunk); err != nil {
@@ -379,13 +377,22 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 	// the buffer cap — not the quiet gap or the hard deadline — ends the
 	// read before it would otherwise grow past maxTelnetReply.
 	c.readQuiet = 2 * time.Second
-	defer c.Close()
 
 	out, err := c.Exec("dump")
+	// Close the client side now, BEFORE waiting on the server goroutine.
+	// Both of TelnetClient's reads above (the auth response, then this
+	// Exec's reply) have already returned via the buffer cap under test by
+	// the time Exec returns, so this can't affect out/err. What it does do
+	// is unblock the fake server, which is still trying to blocking-write
+	// the remaining, never-to-be-read tail of its 4 MiB burst: a write
+	// against a peer that has already closed fails right away instead of
+	// stalling on kernel send-buffer space that only frees once someone
+	// reads — which nothing does anymore once Exec has returned.
+	_ = c.Close()
 	select {
 	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("fake server goroutine never returned — its write loop is stuck (see SetWriteDeadline above)")
+	case <-time.After(5 * time.Second):
+		t.Fatal("fake server goroutine never returned after the client closed — its write loop is stuck")
 	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
