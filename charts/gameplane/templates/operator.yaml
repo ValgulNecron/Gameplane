@@ -56,12 +56,6 @@ rules:
   - apiGroups: [""]
     resources: [services, persistentvolumeclaims, configmaps, secrets, pods, pods/log, serviceaccounts]
     verbs: [get, list, watch]
-  # softStop writes the module-declared stop sequence to a consoleMode:
-  # pty game's stdin via this subresource when it has no RCON to run the
-  # sequence over instead (see operator/internal/controller/gameserver_stop_attach.go).
-  - apiGroups: [""]
-    resources: [pods/attach]
-    verbs: [create]
   # The GameServer controller owns per-server agent RBAC objects and
   # watches them for drift repair; writes stay namespace-scoped below.
   - apiGroups: ["rbac.authorization.k8s.io"]
@@ -122,6 +116,16 @@ rules:
   - apiGroups: [""]
     resources: [services, persistentvolumeclaims, configmaps, secrets]
     verbs: [get, list, watch, create, update, patch, delete]
+  # softStop writes the module-declared stop sequence to a consoleMode:
+  # pty game's stdin via this subresource when it has no RCON to run the
+  # sequence over instead (see operator/internal/controller/gameserver_stop_attach.go).
+  # Namespace-scoped, not cluster-wide: game pods only ever exist in
+  # gamesNamespace, and pods/attach create is exec-equivalent — granting
+  # it cluster-wide would let the operator attach to stdin of any pod in
+  # any namespace, including kube-system and the API pod.
+  - apiGroups: [""]
+    resources: [pods/attach]
+    verbs: [create]
   # Per-GameServer agent identity: SA + heartbeat Role/RoleBinding
   # (resourceNames-scoped to one GameServer's status subresource).
   # Granting gameservers/status passes the RBAC escalation check

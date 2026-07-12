@@ -26,12 +26,6 @@ rules:
   - create
   - patch
 - apiGroups:
-  - ""
-  resources:
-  - pods/attach
-  verbs:
-  - create
-- apiGroups:
   - apps
   resources:
   - statefulsets

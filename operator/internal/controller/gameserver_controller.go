@@ -96,6 +96,15 @@ const (
 // operator/config/rbac/role_namespace.yaml and the Helm chart. This
 // keeps a compromised operator token from reading Secrets cluster-wide.
 //
+// pods/attach create (softStop's stdin pod-attach for consoleMode: pty
+// games, see gameserver_stop_attach.go) is likewise namespace-scoped
+// ONLY, not listed here: game pods only ever exist in the games
+// namespace, and pods/attach create is exec-equivalent — a cluster-wide
+// grant would let the operator attach to stdin of any pod in any
+// namespace. It's granted in operator/config/rbac/role_namespace.yaml
+// and the Helm chart's namespaced Role, matching every other write verb
+// in this list.
+//
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/finalizers,verbs=update
@@ -104,7 +113,6 @@ const (
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
-// +kubebuilder:rbac:groups=core,resources=pods/attach,verbs=create
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
