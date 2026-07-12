@@ -2093,6 +2093,11 @@ spec:
                 than 'none'
               rule: '!has(self.consoleMode) || self.consoleMode != ''rcon'' || (has(self.rcon)
                 && (!has(self.rcon.protocol) || self.rcon.protocol != ''none''))'
+            - message: capabilities.mods.loaders requires a non-empty spec.versions
+                catalog (a mod loader is selected by versions[].loader)
+              rule: '!has(self.capabilities) || !has(self.capabilities.mods) || !has(self.capabilities.mods.loaders)
+                || size(self.capabilities.mods.loaders) == 0 || (has(self.versions)
+                && size(self.versions) > 0)'
           status:
             description: |-
               GameTemplateStatus is intentionally minimal — templates are mostly
