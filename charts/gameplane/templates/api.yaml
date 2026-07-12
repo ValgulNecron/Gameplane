@@ -116,15 +116,19 @@ rules:
   - apiGroups: [""]
     resources: [configmaps]
     verbs: [get, list, create, update, delete]
-  # Notification sink credentials live as Secrets here in the
-  # control-plane namespace. The API reads them at delivery time and —
-  # since the Add-sink form accepts the secret value directly — also
-  # creates/updates/deletes them. RBAC can't filter by label, so the
-  # real boundary is in code: reads and updates refuse Secrets not
-  # labelled gameplane.local/notification-sink=true, and deletes
+  # Notification sink credentials, auth-provider clientSecrets, and
+  # mod-registry API keys (CurseForge/Steam/Nexus) all live as Secrets
+  # here in the control-plane namespace, under their own feature label
+  # (gameplane.local/notification-sink, gameplane.local/auth-provider,
+  # gameplane.local/mod-registry respectively). The API reads them at
+  # use time and — since each feature's Add/Set form accepts the secret
+  # value directly — also creates/updates/deletes them. RBAC can't
+  # filter by label, so the real boundary is in code: reads and updates
+  # refuse Secrets not labelled for the calling feature, and deletes
   # additionally require gameplane.local/managed-by=gameplane-api so
   # kubectl-/GitOps-created Secrets are never deleted over HTTP
-  # (api/internal/notify/sinks.go, api/internal/handlers/secrets_managed.go).
+  # (api/internal/notify/sinks.go, api/internal/auth/registry.go,
+  # api/internal/registry/keys.go, api/internal/handlers/secrets_managed.go).
   - apiGroups: [""]
     resources: [secrets]
     verbs: [get, list, create, update, patch, delete]
