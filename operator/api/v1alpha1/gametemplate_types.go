@@ -335,23 +335,50 @@ type ModRegistrySpec struct {
 }
 
 // ModProvider configures one registry engine for a game.
+//
+// +kubebuilder:validation:XValidation:rule="self.provider != 'steam' || self.steamAppID > 0",message="steamAppID is required when provider is steam"
+// +kubebuilder:validation:XValidation:rule="self.provider != 'github' || has(self.github)",message="github is required when provider is github"
 type ModProvider struct {
 	// Provider names the built-in registry engine: "modrinth" (Minecraft
 	// mods/plugins, keyless), "thunderstore" (BepInEx games, keyless,
 	// per-community), "curseforge" (Minecraft mods/modpacks, needs an API
-	// key), "hangar" (PaperMC plugins, keyless), or "factorio" (the official
+	// key), "hangar" (PaperMC plugins, keyless), "factorio" (the official
 	// Factorio mod portal; browse is keyless, downloads need the player's
 	// own factorio.com credentials so installs hand off to the from-URL
-	// form).
-	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar;factorio
+	// form), "steam" (Steam Workshop browse, needs a Steam Web API key;
+	// see SteamAppID — Workshop content has no download URL, so it's a
+	// preview-only browser wired to modpacks.refEnv for collection-based
+	// games like Garry's Mod/CS2), or "nexus" (Nexus Mods, needs an API
+	// key, browse-only for the same reason as steam — see Community for
+	// its per-game domain slug). "spigot", "github", and "umod" are
+	// reserved enum values for engines landing in a follow-up change;
+	// setting one today is accepted by the schema but the provider is
+	// always reported unavailable.
+	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar;factorio;steam;spigot;github;umod;nexus
 	Provider string `json:"provider"`
 
 	// Community is the Thunderstore community slug whose package index to
-	// search, e.g. "valheim". Required by the thunderstore provider;
-	// ignored by others.
+	// search, e.g. "valheim" (required by the thunderstore provider), or
+	// the Nexus Mods game domain slug, e.g. "skyrimspecialedition"
+	// (required by the nexus provider). Ignored by others.
 	// +kubebuilder:validation:MaxLength=64
 	// +optional
 	Community string `json:"community,omitempty"`
+
+	// SteamAppID is the Steam application id this provider browses (e.g.
+	// 4000 for Garry's Mod, 730 for Counter-Strike 2) — it facets the
+	// Workshop search to that app's items/collections. Required when
+	// Provider is "steam"; ignored otherwise.
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	SteamAppID int32 `json:"steamAppID,omitempty"`
+
+	// GitHub binds this provider to one repository's Releases. GitHub has
+	// no cross-repo mod search (unlike Thunderstore's per-community
+	// index), so a template picks exactly one repo to browse. Required
+	// when Provider is "github"; ignored otherwise.
+	// +optional
+	GitHub *GitHubRepoSpec `json:"github,omitempty"`
 
 	// CredentialsSecretRef references a Secret in the GameServer's namespace
 	// that holds registry download credentials. The Secret must contain
@@ -365,9 +392,29 @@ type ModProvider struct {
 	// declares how installing one is applied. A modpack is selected as a
 	// whole (not added to the mods dir like a single mod), so install
 	// either pins it via a game-image env (RefEnv) or resolves and installs
-	// its dependency mods. Omit for providers without modpacks.
+	// its dependency mods. Omit for providers without modpacks. Steam
+	// Workshop collections are always env-mode: set RefEnv to the game
+	// image's collection-id variable (e.g. "WORKSHOP_COLLECTION") since
+	// steamcmd resolves a collection's members itself inside the container.
 	// +optional
 	Modpacks *ModpackSpec `json:"modpacks,omitempty"`
+}
+
+// GitHubRepoSpec identifies the single GitHub repository the "github" mod
+// registry provider browses (its Releases stand in for versions). Both
+// fields are bounded to GitHub's own login/repo-name limits.
+type GitHubRepoSpec struct {
+	// Owner is the repository owner (user or organization login).
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=39
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9][A-Za-z0-9-]*$`
+	Owner string `json:"owner"`
+
+	// Repo is the repository name.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=100
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._-]+$`
+	Repo string `json:"repo"`
 }
 
 // ModpackSpec declares how a chosen modpack is installed for a game.
