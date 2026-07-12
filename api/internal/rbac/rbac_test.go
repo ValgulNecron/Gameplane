@@ -159,6 +159,11 @@ func TestAllow(t *testing.T) {
 		{RoleViewer, "POST", "/admin/notifications/sinks/x/test", scope.DefaultCluster, false},
 		{RoleOperator, "POST", "/admin/notifications/sinks/x/test", scope.DefaultCluster, false},
 		{RoleAdmin, "POST", "/admin/notifications/sinks/x/test", scope.DefaultCluster, true},
+		// Mod-registry provider key secrets share the config manage permission.
+		{RoleViewer, "PUT", "/admin/registries/curseforge/secret", scope.DefaultCluster, false},
+		{RoleOperator, "PUT", "/admin/registries/curseforge/secret", scope.DefaultCluster, false},
+		{RoleAdmin, "PUT", "/admin/registries/curseforge/secret", scope.DefaultCluster, true},
+		{RoleAdmin, "DELETE", "/admin/registries/curseforge/secret", scope.DefaultCluster, true},
 		// Restores: read viewer+, create operator+ (backups:restore).
 		{RoleViewer, "GET", "/restores", scope.DefaultCluster, true},
 		{RoleViewer, "POST", "/restores", scope.DefaultCluster, false},
