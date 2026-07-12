@@ -863,6 +863,11 @@ func buildAgentContainer(
 		// agent dialing a console port that doesn't exist — players
 		// and moderation endpoints degrade instead.
 		{Name: "GAMEPLANE_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+		// Selects which wire protocol the agent speaks when RCON is
+		// enabled above; ignored otherwise. Always set (not just when
+		// non-default) so the agent's own back-compat default and the
+		// operator's stay in one place instead of two.
+		{Name: "GAMEPLANE_RCON_PROTOCOL", Value: rconProtocol(tmpl)},
 		// The pod shares its PID namespace (ShareProcessNamespace), so the
 		// agent reports the GAME process's CPU/memory from /proc rather than
 		// its own per-container cgroup (which shows only the idle sidecar).
