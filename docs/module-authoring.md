@@ -510,6 +510,9 @@ Rules and semantics:
 
 ### RCON
 
+Two wire protocols are actually implemented — `rcon.protocol` accepts only
+`source`, `telnet`, or `none`; there is no generic HTTP-console support.
+
 For Source-protocol games (Minecraft, Valve engine titles) set:
 
 ```yaml
@@ -518,6 +521,23 @@ rcon:
   port: 25575
   passwordEnv: RCON_PASSWORD   # env the game image reads the password from
 ```
+
+For games whose remote console is a raw line-based TCP/telnet session
+instead (7 Days to Die is the reference implementation: connect, send the
+password as a line, send a command as a line, read back whatever the
+server prints), set:
+
+```yaml
+rcon:
+  protocol: telnet
+  port: 8081
+  passwordEnv: TELNET_PASSWORD
+```
+
+The agent's telnet client has no message framing to work with — it infers
+"reply complete" from a short quiet period on the socket rather than a
+length prefix or terminator, so a command that prints nothing at all
+still returns (empty output) rather than hanging.
 
 The operator mints a password secret per GameServer, injects it into the
 game container via `passwordEnv`, and mounts the same value for the agent
@@ -567,7 +587,18 @@ With `rcon.protocol: none`, set `consoleMode: pty` if the server reads
 commands on stdin (Terraria, Factorio) — the Console tab then attaches
 via the kubelet's pod-attach API instead. Without either, the tab shows
 "no live console" and RCON-backed capabilities (players, quiesce,
-lifecycle, actions, status) are reported unsupported.
+actions, status) are reported unsupported.
+
+`capabilities.lifecycle.stop` is the one exception: it works for
+`consoleMode: pty` games too, since the operator (not the agent) drives
+it — it writes the declared commands to the game container's stdin over
+its own pod attach, the same mechanism as the Console tab, rather than
+going through the agent's RCON connection. The operator picks the
+transport per template: RCON when `rcon.protocol` isn't `none`, stdin
+pod-attach when it's `none` and `consoleMode: pty`, and — if neither
+applies — no graceful stop at all, so the server scales down immediately
+on suspend/restart/stop instead of waiting out
+`spec.stopGracePeriodSeconds` for a sequence it has no way to run.
 
 `logPath` is an absolute in-container path pointing the agent at the
 game's own logfile. Omit it for games that log only to stdout; the Logs
@@ -577,8 +608,10 @@ tab's "Container output" source covers those.
 
 `spec.capabilities` declares the console commands behind agent
 features, so a module adds full Players-tab moderation and safe
-backups without any agent code. All commands run over RCON, so this
-requires `rcon.protocol` ≠ `none`.
+backups without any agent code. All of these commands run over RCON,
+so they require `rcon.protocol` ≠ `none` — **except `lifecycle.stop`**,
+which the operator itself can also run over a `consoleMode: pty` pod
+attach (see "Console mode and game log" above).
 
 ```yaml
 capabilities:
@@ -617,10 +650,15 @@ capabilities:
   Games that can't quiesce simply omit the block; backups proceed
   without pausing.
 - `lifecycle.stop` runs before the pod is scaled down (stop button,
-  restarts): the operator issues the sequence over RCON and waits for
-  the server to exit on its own, so a SIGTERM never interrupts an
-  in-progress world save (`["Save", "Shutdown 1"]` on Palworld,
-  `["stop"]` on Minecraft). Omit it for games that save on SIGTERM.
+  restarts): the operator issues the sequence — over RCON when the
+  template has it, otherwise over a stdin pod-attach for `consoleMode:
+  pty` — and waits for the server to exit on its own, so a SIGTERM never
+  interrupts an in-progress world save (`["Save", "Shutdown 1"]` on
+  Palworld, `["stop"]` on Minecraft, `["save", "exit"]` for a
+  stdin-driven game like Terraria). Omit it for games that save on
+  SIGTERM, or for games with neither RCON nor `consoleMode: pty` — there,
+  declaring it has no effect since the operator has no transport to run
+  it over and scales straight down instead.
 
 > The agent has **no per-game special-casing** — every capability above
 > (and the two below) comes from this block. A template that declares
