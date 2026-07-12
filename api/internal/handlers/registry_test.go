@@ -48,14 +48,14 @@ type fakeSet struct {
 	absent bool
 }
 
-func (s fakeSet) For(registry.Config) (registry.Provider, bool) {
+func (s fakeSet) For(_ context.Context, _ registry.Config) (registry.Provider, bool) {
 	if s.absent {
 		return nil, false
 	}
 	return s.p, true
 }
 
-func (s fakeSet) Available(string) bool { return !s.absent }
+func (s fakeSet) Available(_ context.Context, _ string) bool { return !s.absent }
 
 func newTemplateObj(name string, registryBlock map[string]any, versions []any) *unstructured.Unstructured {
 	mods := map[string]any{

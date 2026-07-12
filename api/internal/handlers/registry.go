@@ -26,10 +26,11 @@ var errNoRegistry = errors.New("no mod registry for this server")
 
 // registrySet is the subset of *registry.Set the handler needs, so tests
 // can inject a fake. Available reports whether an engine is usable (e.g.
-// CurseForge needs an API key).
+// CurseForge needs an API key). Both methods take context for lazy key
+// resolution.
 type registrySet interface {
-	For(registry.Config) (registry.Provider, bool)
-	Available(provider string) bool
+	For(ctx context.Context, cfg registry.Config) (registry.Provider, bool)
+	Available(ctx context.Context, provider string) bool
 }
 
 // MountRegistry wires read-only mod-registry browse onto r. Routes are
@@ -76,7 +77,7 @@ func (h *registryHandler) providers(w http.ResponseWriter, req *http.Request) {
 	for _, p := range declared {
 		out = append(out, providerInfo{
 			Provider:  p.provider,
-			Available: h.reg.Available(p.provider),
+			Available: h.reg.Available(req.Context(), p.provider),
 			Modpacks:  p.modpacks != nil,
 		})
 	}
@@ -225,7 +226,7 @@ func (h *registryHandler) resolve(ctx context.Context, ns, name, providerName st
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
-	p, ok := h.reg.For(registry.Config{Provider: prov.provider, Community: prov.community})
+	p, ok := h.reg.For(ctx, registry.Config{Provider: prov.provider, Community: prov.community})
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}

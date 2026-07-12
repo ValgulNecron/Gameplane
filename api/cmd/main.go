@@ -228,7 +228,7 @@ func main() {
 		handlers.MountDestinations(p, reg)
 		handlers.MountSystemLogs(p, k8s, cfg.namespace)
 		handlers.MountModules(p, k8s, cfg.namespace)
-		regSet := registry.NewSet(Version, cfg.curseforgeAPIKey)
+		regSet := registry.NewSet(Version, registry.StaticKeys(map[string]string{"curseforge": cfg.curseforgeAPIKey}))
 		handlers.MountRegistry(p, k8s, regSet)
 		// The update check reads the agent's mod manifest server-side over
 		// the same mTLS material as the proxy. Missing material degrades
