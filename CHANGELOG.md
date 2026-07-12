@@ -20,6 +20,12 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `--update-channel` and served on `GET /cluster/info` as `updateChannel`.
   `PUT /admin/config/updates` is gone (400 unknown section) and any legacy
   `updates` DB row is ignored.
+- **operator:** module-declared stop sequences (`capabilities.lifecycle.stop`)
+  now run over telnet RCON and over pod-attach to stdin (for `consoleMode:
+  pty` games with no RCON), in addition to Source RCON. **Breaking CRD
+  change:** `GameTemplate.spec.rcon.protocol` narrows from
+  `source;telnet;http;none` to `source;telnet;none` — `http` never had an
+  implementation.
 
 ### Added
 
