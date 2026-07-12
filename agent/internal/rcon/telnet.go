@@ -12,6 +12,7 @@ package rcon
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -173,7 +174,25 @@ func (c *TelnetClient) ensureLocked() error {
 	resp, err := c.readReplyLocked(c.connectTimeout)
 	if err != nil {
 		c.dropLocked()
-		return fmt.Errorf("telnet rcon: read auth response: %w", err)
+		if !errors.Is(err, io.EOF) {
+			// A genuine transport failure (reset, broken pipe, timeout
+			// already handled inside readReplyLocked) — not a signal about
+			// the password, so don't reinterpret it as one.
+			return fmt.Errorf("telnet rcon: read auth response: %w", err)
+		}
+		// The server closed the connection while (or instead of) replying
+		// to the password. Real telnet consoles do this on a rejected
+		// password — 7 Days to Die prints a rejection line and hangs up;
+		// others hang up with no line at all — and a healthy console has
+		// no reason to close right after a correct one. So treat the close
+		// itself as the auth-failure signal even with no matching text, but
+		// keep the EOF visible via %w rather than discarding it, so this
+		// remains distinguishable from a real "authentication failed" line
+		// for anyone inspecting the cause.
+		if isTelnetAuthFailure(resp) {
+			return fmt.Errorf("telnet rcon: authentication failed: %w", err)
+		}
+		return fmt.Errorf("telnet rcon: authentication failed (connection closed after password write): %w", err)
 	}
 	if isTelnetAuthFailure(resp) {
 		c.dropLocked()

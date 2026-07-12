@@ -3,6 +3,8 @@ package rcon
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"io"
 	"net"
 	"strings"
 	"testing"
@@ -69,6 +71,37 @@ func fakeTelnetServer(t *testing.T, password, banner string) (addr string, clean
 	return ln.Addr().String(), func() { ln.Close(); <-done }
 }
 
+// fakeTelnetServerSilentReject speaks like fakeTelnetServer but, on a wrong
+// password, closes the connection immediately with no rejection text at
+// all — covering consoles that hang up on bad auth without printing
+// anything, as opposed to fakeTelnetServer's "Incorrect password." line.
+func fakeTelnetServerSilentReject(t *testing.T, password string) (addr string, cleanup func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		scan := bufio.NewScanner(conn)
+		if !scan.Scan() {
+			return
+		}
+		if scan.Text() != password {
+			return // hang up with no text, unlike fakeTelnetServer
+		}
+		_, _ = conn.Write([]byte("Logon successful.\n"))
+	}()
+	return ln.Addr().String(), func() { ln.Close(); <-done }
+}
+
 func TestTelnetClient_Exec(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -76,8 +109,10 @@ func TestTelnetClient_Exec(t *testing.T) {
 		serverPW   string
 		clientPW   string
 		cmd        string
+		silent     bool // use fakeTelnetServerSilentReject instead of fakeTelnetServer
 		wantErr    bool
 		wantErrSub string
+		wantErrIs  error // when set, err must also satisfy errors.Is(err, wantErrIs)
 		wantOutSub string
 	}{
 		{
@@ -89,6 +124,10 @@ func TestTelnetClient_Exec(t *testing.T) {
 			wantOutSub: "help: ok",
 		},
 		{
+			// The fake server prints "Incorrect password." then hangs up,
+			// so the auth-response read ends in EOF with that text already
+			// captured — isTelnetAuthFailure must match it before the EOF
+			// is allowed to fall through as a bare transport error.
 			name:       "wrong password fails to authenticate",
 			banner:     "Welcome\n",
 			serverPW:   "s3kret",
@@ -96,6 +135,22 @@ func TestTelnetClient_Exec(t *testing.T) {
 			cmd:        "help",
 			wantErr:    true,
 			wantErrSub: "authentication failed",
+			wantErrIs:  io.EOF,
+		},
+		{
+			// The server hangs up on a bad password with NO text at all —
+			// the auth-response read ends in EOF with an empty reply. This
+			// must still surface as an auth failure (a healthy console has
+			// no reason to close right after a correct password), not a
+			// bare "read auth response: EOF".
+			name:       "wrong password with no rejection text still fails to authenticate",
+			serverPW:   "s3kret",
+			clientPW:   "nope",
+			cmd:        "help",
+			silent:     true,
+			wantErr:    true,
+			wantErrSub: "authentication failed",
+			wantErrIs:  io.EOF,
 		},
 		{
 			name:       "silent command returns empty output, not an error",
@@ -122,7 +177,13 @@ func TestTelnetClient_Exec(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			addr, cleanup := fakeTelnetServer(t, tc.serverPW, tc.banner)
+			var addr string
+			var cleanup func()
+			if tc.silent {
+				addr, cleanup = fakeTelnetServerSilentReject(t, tc.serverPW)
+			} else {
+				addr, cleanup = fakeTelnetServer(t, tc.serverPW, tc.banner)
+			}
 			defer cleanup()
 
 			host, port, _ := net.SplitHostPort(addr)
@@ -139,6 +200,9 @@ func TestTelnetClient_Exec(t *testing.T) {
 				}
 				if tc.wantErrSub != "" && !strings.Contains(err.Error(), tc.wantErrSub) {
 					t.Fatalf("error %q missing substring %q", err.Error(), tc.wantErrSub)
+				}
+				if tc.wantErrIs != nil && !errors.Is(err, tc.wantErrIs) {
+					t.Fatalf("error %q does not wrap %v (the underlying transport cause must survive via %%w)", err.Error(), tc.wantErrIs)
 				}
 				return
 			}
