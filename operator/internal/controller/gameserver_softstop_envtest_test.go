@@ -148,6 +148,11 @@ func TestGameServer_SoftStopRunsStopThenScalesDown(t *testing.T) {
 	startMgr(t, ns, withGameServerReconcilerStopper(t, ns, stopper))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	// selectStopTransport requires the template to actually declare RCON
+	// before it will pick stopTransportRCON — buildGameTemplate leaves RCON
+	// unset, so without this the stop sequence is never issued and the
+	// eventually() below times out waiting on stopper.count().
+	tmpl.Spec.RCON = &gameplanev1alpha1.RCONSpec{Protocol: "source", Port: 25575}
 	if tmpl.Spec.Capabilities == nil {
 		tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{}
 	}
@@ -368,6 +373,11 @@ func TestGameServer_SoftStop_DisabledAgentClientScalesDownImmediately(t *testing
 	startMgr(t, ns, withGameServerReconcilerStopper(t, ns, stopper))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	// Declare RCON so selectStopTransport would pick stopTransportRCON on
+	// the template alone — this test exists to prove the disabled *client*
+	// (Enabled() == false) is what forces stopTransportNone, not merely an
+	// RCON-less template (that's TestGameServer_SoftStop_NoTransportScalesDownImmediately).
+	tmpl.Spec.RCON = &gameplanev1alpha1.RCONSpec{Protocol: "source", Port: 25575}
 	if tmpl.Spec.Capabilities == nil {
 		tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{}
 	}
