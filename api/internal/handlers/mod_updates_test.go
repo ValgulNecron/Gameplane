@@ -345,7 +345,12 @@ func TestModUpdates_ThreadsSteamAppID(t *testing.T) {
 	set := fakeSet{p: fp, cfgOut: &gotCfg}
 	versions := []any{map[string]any{"id": "1.21.4-paper", "loader": "paper", "gameVersion": "1.21.4", "default": true}}
 	k := fakeKubeClient(
-		newTemplateObj("minecraft", map[string]any{"provider": "steam", "steamAppID": 4000}, versions),
+		// json.Number, not a bare int: the fake dynamic client's object
+		// tracker deep-copies via apimachinery's DeepCopyJSONValue, which
+		// panics on a bare int (a real unstructured decode never produces
+		// one anyway) but supports json.Number, one of the real shapes it
+		// does produce.
+		newTemplateObj("minecraft", map[string]any{"provider": "steam", "steamAppID": json.Number("4000")}, versions),
 		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
 	)
 	lister := &fakeModLister{mods: []installedMod{

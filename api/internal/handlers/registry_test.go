@@ -164,9 +164,16 @@ func TestRegistrySearch_ThreadsSteamAppID(t *testing.T) {
 		appID   any // matches whatever type an unstructured numeric field may decode as
 		wantVal int32
 	}{
-		{"int", int(4000), 4000},
+		// Not int: apimachinery's DeepCopyJSONValue (used by the fake
+		// dynamic client's object tracker) only supports the JSON-decode
+		// shapes a real unstructured object can actually contain — bool,
+		// int64, float64, string, json.Number, nil — and panics on a bare
+		// int, which a real unstructured decode never produces anyway.
+		// nestedInt32's `case int:` branch is covered directly by
+		// TestNestedInt32 below instead.
 		{"int64", int64(4000), 4000},
 		{"float64", float64(4000), 4000},
+		{"json.Number", json.Number("4000"), 4000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			k := fakeKubeClient(
@@ -182,6 +189,34 @@ func TestRegistrySearch_ThreadsSteamAppID(t *testing.T) {
 			}
 			if gotCfg.Provider != "steam" || gotCfg.SteamAppID != tc.wantVal {
 				t.Errorf("cfg = %+v, want provider=steam steamAppID=%d", gotCfg, tc.wantVal)
+			}
+		})
+	}
+}
+
+// TestNestedInt32 covers every numeric shape nestedInt32 accepts, including
+// the bare int case (a defensive branch for a hand-built test fixture; a
+// real unstructured decode never produces it) that TestRegistrySearch_
+// ThreadsSteamAppID above can't exercise since it goes through the fake
+// dynamic client's object tracker, which panics on a bare int.
+func TestNestedInt32(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   any
+		want int32
+	}{
+		{"int", int(4000), 4000},
+		{"int32", int32(4000), 4000},
+		{"int64", int64(4000), 4000},
+		{"float64", float64(4000), 4000},
+		{"json.Number", json.Number("4000"), 4000},
+		{"json.Number invalid", json.Number("not-a-number"), 0},
+		{"unsupported type", "4000", 0},
+		{"nil", nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := nestedInt32(tc.in); got != tc.want {
+				t.Errorf("nestedInt32(%v) = %d, want %d", tc.in, got, tc.want)
 			}
 		})
 	}
