@@ -1903,6 +1903,35 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              security:
+                description: |-
+                  Security overrides the pod/container security settings for games whose
+                  image refuses to run as root or expects a specific uid (e.g. ARK's
+                  image requires uid 25000 and cannot initialise Proton as root).
+                  Omitted means today's behaviour: the image's own default user.
+                properties:
+                  fsGroup:
+                    description: |-
+                      FSGroup makes the kubelet chown the mounted volumes to this gid on
+                      start, so a non-root game user can write to its PVC. This is what
+                      replaces the chown init-container such images normally ship with.
+                    format: int64
+                    maximum: 4294967295
+                    minimum: 0
+                    type: integer
+                  runAsGroup:
+                    description: RunAsGroup is the gid the GAME container runs as.
+                    format: int64
+                    maximum: 4294967295
+                    minimum: 0
+                    type: integer
+                  runAsUser:
+                    description: RunAsUser is the uid the GAME container runs as.
+                    format: int64
+                    maximum: 4294967295
+                    minimum: 0
+                    type: integer
+                type: object
               storage:
                 description: Storage describes the default persistent storage layout.
                 properties:
