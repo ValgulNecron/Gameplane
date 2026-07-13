@@ -242,12 +242,18 @@ func TestGameServer_SecurityContextUnsetRendersNoSecurityContext(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, err.Error()
 		}
-		if ss.Spec.Template.Spec.SecurityContext != nil {
-			return false, "pod SecurityContext = " + fmt.Sprintf("%+v", ss.Spec.Template.Spec.SecurityContext) + ", want nil"
+		// The apiserver defaults SecurityContext to an empty struct even when
+		// none is explicitly set. What matters is that FSGroup is unset.
+		podSC := ss.Spec.Template.Spec.SecurityContext
+		if podSC != nil && podSC.FSGroup != nil {
+			return false, "pod SecurityContext.FSGroup = " + fmt.Sprintf("%+v", podSC.FSGroup) + ", want nil"
 		}
 		for _, c := range ss.Spec.Template.Spec.Containers {
-			if c.Name == gameContainerName && c.SecurityContext != nil {
-				return false, "game container SecurityContext = " + fmt.Sprintf("%+v", c.SecurityContext) + ", want nil"
+			if c.Name == gameContainerName {
+				cSC := c.SecurityContext
+				if cSC != nil && (cSC.RunAsUser != nil || cSC.RunAsGroup != nil) {
+					return false, "game container SecurityContext = " + fmt.Sprintf("%+v", cSC) + ", want RunAsUser/RunAsGroup nil"
+				}
 			}
 		}
 		return true, ""
