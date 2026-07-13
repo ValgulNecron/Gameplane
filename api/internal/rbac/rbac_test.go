@@ -129,6 +129,13 @@ func TestAllow(t *testing.T) {
 		{RoleOperator, "POST", "/servers/foo/mods/install", scope.DefaultCluster, true},
 		{RoleViewer, "DELETE", "/servers/foo/mods", scope.DefaultCluster, false},
 		{RoleOperator, "DELETE", "/servers/foo/mods", scope.DefaultCluster, true},
+		// ID-managed mods (ARK/Zomboid-style): same read/write split as the
+		// file-based mods surface above — GET viewer+, the bulk-replace
+		// PUT operator+ (it's a mod-management write, not a read).
+		{RoleViewer, "GET", "/servers/foo/mods/ids", scope.DefaultCluster, true},
+		{RoleViewer, "PUT", "/servers/foo/mods/ids", scope.DefaultCluster, false},
+		{RoleOperator, "PUT", "/servers/foo/mods/ids", scope.DefaultCluster, true},
+		{RoleAdmin, "PUT", "/servers/foo/mods/ids", scope.DefaultCluster, true},
 		// Module + source management admin-only; reads viewer+.
 		{RoleViewer, "GET", "/modules/catalog", scope.DefaultCluster, true},
 		{RoleViewer, "GET", "/modules/sources", scope.DefaultCluster, true},

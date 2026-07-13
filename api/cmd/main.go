@@ -249,6 +249,10 @@ func main() {
 			agentLister = ac
 		}
 		handlers.MountModUpdates(p, k8s, regSet, agentLister)
+		// ID-managed mods (ARK CurseForge ids, Project Zomboid MOD_IDS,
+		// Steam Workshop lists): the API only writes GameServer.spec.mods.ids;
+		// the operator projects it into the game's env (rule 10).
+		handlers.MountModIDs(p, k8s)
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 
