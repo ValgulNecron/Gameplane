@@ -102,6 +102,29 @@ func mountRegistryRouter(k *kube.Client, set registrySet) http.Handler {
 	return r
 }
 
+// TestRegistrySearch_NegativeOffsetClamped covers the offset-clamp nit: a
+// negative ?offset= must never reach a Provider.Search unchanged — several
+// engines (nexus.go, thunderstore.go, factorio.go) slice their client-side
+// pagination as matched[q.Offset:] after only a q.Offset >= len(matched)
+// bounds check, which a negative offset slips past and panics.
+func TestRegistrySearch_NegativeOffsetClamped(t *testing.T) {
+	versions := []any{map[string]any{"id": "v", "loader": "paper", "gameVersion": "1.21.4", "default": true}}
+	k := fakeKubeClient(
+		newTemplateObj("minecraft", map[string]any{"provider": "modrinth"}, versions),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
+	)
+	fp := &fakeProvider{}
+	r := mountRegistryRouter(k, fakeSet{p: fp})
+
+	rr := do(t, r, "GET", "/servers/alpha/mods/registry/search?q=x&offset=-5", nil)
+	if rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	if fp.gotSearch.Offset != 0 {
+		t.Errorf("Offset = %d, want clamped to 0", fp.gotSearch.Offset)
+	}
+}
+
 func TestRegistrySearch_ResolvesLoaderAndGameVersion(t *testing.T) {
 	versions := []any{
 		map[string]any{"id": "1.21.4-paper", "loader": "paper", "gameVersion": "1.21.4", "default": true},

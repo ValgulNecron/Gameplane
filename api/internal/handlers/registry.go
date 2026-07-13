@@ -96,6 +96,14 @@ func (h *registryHandler) search(w http.ResponseWriter, req *http.Request) {
 	}
 	limit, _ := strconv.Atoi(req.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(req.URL.Query().Get("offset"))
+	if offset < 0 {
+		// A negative offset would reach a negative slice index in several
+		// engines' client-side pagination (nexus.go, thunderstore.go,
+		// factorio.go all do matched[q.Offset:] after the
+		// q.Offset >= len(matched) bounds check, which a negative offset
+		// slips past) — clamp here once rather than in every engine.
+		offset = 0
+	}
 	res, err := p.Search(req.Context(), registry.SearchQuery{
 		Term:        req.URL.Query().Get("q"),
 		Loader:      loader,
