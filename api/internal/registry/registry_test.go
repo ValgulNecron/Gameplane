@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -104,18 +105,14 @@ func TestCurseforgeLazyBuilding(t *testing.T) {
 		t.Error("same key should return cached engine")
 	}
 
-	// Test 2: engine rebuilt when key changes (once the key-resolve cache,
-	// which sits in front of keyFunc, has aged out — see keyResolveTTL).
+	// Test 2: engine rebuilt when key changes
 	s = NewSet("test", StaticKeys(map[string]string{"curseforge": "key1"}))
-	mockTime2 := now
-	s.now = func() time.Time { return mockTime2 }
+	s.now = func() time.Time { return now }
 
 	cf1, _ = s.curseforgeLazy(ctx)
 
-	// Change the key and advance past keyResolveTTL, or resolveKey would
-	// keep serving the cached "key1" resolution regardless of s.keyFunc.
+	// Change the key
 	s.keyFunc = StaticKeys(map[string]string{"curseforge": "key2"})
-	mockTime2 = now.Add(keyResolveTTL + time.Second)
 	cf3, err3 := s.curseforgeLazy(ctx)
 	if err3 != nil || cf3 == nil {
 		t.Fatalf("rebuild with new key: err=%v cf=%v", err3, cf3)
@@ -156,40 +153,73 @@ func TestCurseforgeLazyBuilding(t *testing.T) {
 	}
 }
 
-// TestKeyedLazyResolvesKeyOnceWithinTTL is the B3 regression test:
-// keyedLazy must not call keyFunc on every single lookup — DBKeyFunc does a
-// DB read plus a live apiserver Secret GET, and a hot caller resolving the
-// same provider many times in a burst (e.g. mod_updates.go fanning out once
-// per distinct installed-mod project) would otherwise hit the DB/Secret on
-// every one of those calls. resolveKey's own short TTL cache must collapse
-// a burst of calls within that window into a single keyFunc invocation.
-func TestKeyedLazyResolvesKeyOnceWithinTTL(t *testing.T) {
+// TestKeyedLazyCoalescesConcurrentKeyResolution is the B3 regression test:
+// keyedLazy must not call keyFunc once per caller — DBKeyFunc does a DB
+// read plus a live apiserver Secret GET, and a hot caller resolving the
+// same provider many times concurrently (e.g. mod_updates.go fans out one
+// goroutine per distinct installed-mod project) would otherwise hit the
+// DB/Secret once per goroutine. resolveKey's singleflight coalescing must
+// collapse at least some of a batch of concurrent overlapping calls into
+// shared keyFunc invocations, while still fully re-resolving on any call
+// that does NOT overlap an in-flight one — so key/Secret rotation still
+// takes effect immediately rather than waiting out a cache window (see
+// TestSet_AvailableTogglesWithSecret in keys_test.go for the invariant this
+// preserves).
+//
+// The synchronization here (and the "over 0 and less than n" bound, not
+// exactly 1) mirrors singleflight's own TestDoDupSuppress: reaching the
+// line just before Do doesn't guarantee every goroutine's Do call has
+// actually landed while the first is still in flight, so an exact count
+// isn't a reliable assertion even with careful synchronization.
+func TestKeyedLazyCoalescesConcurrentKeyResolution(t *testing.T) {
 	ctx := context.Background()
 	var calls atomic.Int64
+	const n = 10
+	var wg1, wg2 sync.WaitGroup
+	c := make(chan string, 1)
 	keyFunc := func(context.Context, string) string {
-		calls.Add(1)
-		return "cf-key"
+		if calls.Add(1) == 1 {
+			wg1.Done() // first invocation is now blocked below
+		}
+		v := <-c
+		c <- v // pump; make available to any other invocation that still forms
+		// Give any goroutine that has reached the line just before
+		// curseforgeLazy, but not yet actually called Do, time to land as
+		// a follower of this still-in-flight call rather than a new
+		// leader — the same trick singleflight's own TestDoDupSuppress
+		// uses.
+		time.Sleep(10 * time.Millisecond)
+		return v
 	}
 	s := NewSet("test", keyFunc)
-	mockTime := time.Now()
-	s.now = func() time.Time { return mockTime }
 
-	for range 5 {
-		if _, err := s.curseforgeLazy(ctx); err != nil {
-			t.Fatalf("curseforgeLazy: %v", err)
-		}
+	wg1.Add(1)
+	for range n {
+		wg1.Add(1)
+		wg2.Add(1)
+		go func() {
+			defer wg2.Done()
+			wg1.Done() // reached the line just before curseforgeLazy
+			if _, err := s.curseforgeLazy(ctx); err != nil {
+				t.Errorf("curseforgeLazy: %v", err)
+			}
+		}()
 	}
-	if got := calls.Load(); got != 1 {
-		t.Errorf("keyFunc calls = %d, want 1 (collapsed by the key-resolve TTL cache)", got)
+	wg1.Wait() // at least one goroutine is in keyFunc; all have reached the call site
+	c <- "cf-key"
+	wg2.Wait()
+
+	if got := calls.Load(); got <= 0 || got >= n {
+		t.Errorf("keyFunc calls = %d, want over 0 and less than %d (some coalescing happened)", got, n)
 	}
 
-	// Past keyResolveTTL, the key is re-resolved.
-	mockTime = mockTime.Add(keyResolveTTL + time.Second)
+	// A later, non-overlapping call still fully re-resolves — no staleness.
+	before := calls.Load()
 	if _, err := s.curseforgeLazy(ctx); err != nil {
 		t.Fatalf("curseforgeLazy: %v", err)
 	}
-	if got := calls.Load(); got != 2 {
-		t.Errorf("keyFunc calls = %d, want 2 after the key-resolve TTL expired", got)
+	if got := calls.Load(); got != before+1 {
+		t.Errorf("keyFunc calls = %d, want %d for the later, non-concurrent call", got, before+1)
 	}
 }
 

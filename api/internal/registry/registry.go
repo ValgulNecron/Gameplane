@@ -34,6 +34,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Project is one search hit, normalized across providers.
@@ -151,19 +153,6 @@ type Config struct {
 const (
 	rebuildTTL      = 10 * time.Minute
 	errorBackoffTTL = 30 * time.Second
-
-	// keyResolveTTL bounds how often keyFunc itself is actually invoked,
-	// independent of rebuildTTL above (which only governs how long a
-	// *built engine* is reused once a key is known — it still calls
-	// keyFunc, unconditionally, on every single lookup, before it ever
-	// consults that cache). DBKeyFunc's keyFunc does a DB read plus a live
-	// apiserver Secret GET; a hot caller that resolves the same provider
-	// many times in a burst (e.g. the Mods-tab update check, which fans out
-	// once per distinct installed-mod project) would otherwise hit the
-	// DB/Secret on every one of those calls. The tradeoff is that an
-	// admin's key/Secret change can take up to this long to take effect,
-	// instead of the very next request.
-	keyResolveTTL = 30 * time.Second
 )
 
 // builtEntry caches one keyed provider's most recently built engine. Its
@@ -177,13 +166,6 @@ type builtEntry struct {
 	err     error
 	builtAt time.Time
 	keyHash [sha256.Size]byte
-}
-
-// keyCacheEntry caches one provider's most recently resolved key — see
-// keyResolveTTL.
-type keyCacheEntry struct {
-	key        string
-	resolvedAt time.Time
 }
 
 // Set holds the constructed engines, sharing one HTTP client. Keyless engines
@@ -206,7 +188,7 @@ type Set struct {
 	// keyed engine cache, one entry per provider name
 	mu       sync.Mutex
 	built    map[string]builtEntry
-	keyCache map[string]keyCacheEntry
+	keyGroup singleflight.Group
 	keyFunc  KeyFunc
 	client   *http.Client
 	ua       string
@@ -350,34 +332,32 @@ func (s *Set) nexusLazy(ctx context.Context) (*Nexus, error) {
 	return e.(*Nexus), nil
 }
 
-// resolveKey returns provider's API key, consulting a short TTL cache
-// before ever calling s.keyFunc — see keyResolveTTL.
+// resolveKey returns provider's API key. Concurrent calls for the same
+// provider are collapsed into a single s.keyFunc invocation via
+// singleflight: DBKeyFunc does a DB read plus a live apiserver Secret GET,
+// and a hot caller that resolves the same provider many times in a single
+// burst (e.g. the Mods-tab update check, which fans out one goroutine per
+// distinct installed-mod project) would otherwise hit the DB/Secret once
+// per goroutine. Unlike a TTL cache, this adds no staleness for calls that
+// don't actually overlap in time — the very next call after an in-flight
+// one completes gets a fully fresh resolution, so an admin's key/Secret
+// change (or removal) still takes effect immediately, matching
+// TestSet_AvailableTogglesWithSecret's documented invariant.
 func (s *Set) resolveKey(ctx context.Context, provider string) string {
-	s.mu.Lock()
-	if e, ok := s.keyCache[provider]; ok && s.now().Sub(e.resolvedAt) < keyResolveTTL {
-		s.mu.Unlock()
-		return e.key
-	}
-	s.mu.Unlock()
-
-	key := s.keyFunc(ctx, provider)
-
-	s.mu.Lock()
-	if s.keyCache == nil {
-		s.keyCache = make(map[string]keyCacheEntry)
-	}
-	s.keyCache[provider] = keyCacheEntry{key: key, resolvedAt: s.now()}
-	s.mu.Unlock()
-	return key
+	v, _, _ := s.keyGroup.Do(provider, func() (any, error) {
+		return s.keyFunc(ctx, provider), nil
+	})
+	return v.(string)
 }
 
-// keyedLazy resolves provider's key (via resolveKey, itself TTL-cached) and
-// builds its engine lazily via build, caching the result per-provider
-// against the key hash with a rebuild TTL. When the key is empty, returns
-// (nil, nil) — the provider is unconfigured, not an error. On build
-// failure, the error is cached briefly so repeated requests don't hammer
-// the constructor (build itself never fails for any engine today, but the
-// cache shape supports it for engines that later validate the key eagerly).
+// keyedLazy resolves provider's key (via resolveKey, which coalesces
+// concurrent callers) and builds its engine lazily via build, caching the
+// result per-provider against the key hash with a rebuild TTL. When the key
+// is empty, returns (nil, nil) — the provider is unconfigured, not an
+// error. On build failure, the error is cached briefly so repeated requests
+// don't hammer the constructor (build itself never fails for any engine
+// today, but the cache shape supports it for engines that later validate
+// the key eagerly).
 func (s *Set) keyedLazy(ctx context.Context, provider string, build func(key string) any) (any, error) {
 	key := s.resolveKey(ctx, provider)
 	if key == "" {
