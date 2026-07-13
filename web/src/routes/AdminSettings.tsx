@@ -6,12 +6,15 @@ import {
   BellRing,
   Boxes,
   Cog,
+  Flame,
+  Gamepad2,
   Info,
   Key,
   Lock,
   Mail,
   MessagesSquare,
   Plus,
+  Puzzle,
   RefreshCcw,
   ShieldCheck,
   Slack,
@@ -27,7 +30,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn, formatRelative } from "@/lib/utils";
-import { Auth, AuthProviders, BackupDestinations, Cluster, Notifications } from "@/lib/endpoints";
+import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
 import type { ClusterInfo } from "@/types";
 import {
   useConfig,
@@ -37,6 +40,9 @@ import {
   type AuthKind,
   type AuthProvider,
   type GeneralCfg,
+  type KeyedRegistryProvider,
+  type ModRegistryEntry,
+  type ModRegistriesCfg,
   type NotifEventType,
   type NotifSink,
   type NotificationsCfg,
@@ -48,7 +54,7 @@ import { FieldLabel } from "@/components/ui/field";
 import { ModuleSourcesPanel } from "@/components/modules/ModuleSourcesPanel";
 
 type Section =
-  | "general" | "auth" | "backups" | "modules" | "notifications"
+  | "general" | "auth" | "backups" | "modules" | "modRegistries" | "notifications"
   | "telemetry" | "updates" | "about";
 
 const sections: Array<{ key: Section; label: string; icon: typeof Cog }> = [
@@ -56,6 +62,7 @@ const sections: Array<{ key: Section; label: string; icon: typeof Cog }> = [
   { key: "auth",          label: "Authentication",      icon: ShieldCheck },
   { key: "backups",       label: "Backup destinations", icon: Archive },
   { key: "modules",       label: "Module sources",      icon: Boxes },
+  { key: "modRegistries", label: "Mod registries",      icon: Key },
   { key: "notifications", label: "Notifications",       icon: Bell },
   { key: "telemetry",     label: "Telemetry",           icon: Activity },
   { key: "updates",       label: "Updates",             icon: RefreshCcw },
@@ -106,6 +113,7 @@ export function AdminSettingsPage() {
           {cfg.data && section === "auth"          && <AuthSection          initial={cfg.data.auth} general={cfg.data.general} />}
           {section === "backups"                   && <BackupDestSection />}
           {section === "modules"                   && <ModuleSourcesPanel />}
+          {cfg.data && section === "modRegistries" && <ModRegistriesSection initial={cfg.data.modRegistries} />}
           {cfg.data && section === "notifications" && <NotificationsSection initial={cfg.data.notifications} />}
           {cfg.data && section === "telemetry"     && <TelemetrySection     initial={cfg.data.telemetry} />}
           {section === "updates"                   && <UpdatesSection />}
@@ -763,6 +771,173 @@ function NewDestinationForm({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+const defaultModRegistries: ModRegistriesCfg = { registries: [] };
+
+// The managed-Secret name the API derives for a provider's key (mirrors
+// registryKeySecretPrefix / DefaultKeySecretName in api/internal/registry/keys.go).
+const registryKeySecretPrefix = "gameplane-modreg-";
+
+// Keyed providers only: curseforge, steam, and nexus need an admin-set API
+// key and stay hidden from the Mods browser until one exists (mirrors
+// registry.KeyedProviders server-side). The icon is purely decorative, one
+// per provider, distinct from the section's own nav icon (Key).
+const keyedRegistryProviders: Array<{ provider: KeyedRegistryProvider; label: string; icon: typeof Cog }> = [
+  { provider: "curseforge", label: "CurseForge", icon: Flame },
+  { provider: "steam", label: "Steam Workshop", icon: Gamepad2 },
+  { provider: "nexus", label: "Nexus Mods", icon: Puzzle },
+];
+
+function SetRegistryKeyForm({
+  provider,
+  label,
+  replacing,
+  onSaved,
+  onClose,
+}: {
+  provider: KeyedRegistryProvider;
+  label: string;
+  replacing: boolean;
+  onSaved: (entry: ModRegistryEntry) => void;
+  onClose: () => void;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Store the key Secret directly; the section's Save persists the
+  // registries row referencing it. The key itself is never displayed —
+  // this input only ever writes, and the server never echoes the value.
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await ModRegistries.putSecret(provider, apiKey);
+      onSaved({ provider, configRef: res.name });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to store the API key");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-surface/30 p-4">
+      <div className="text-sm font-medium">
+        {replacing ? "Replace" : "Set"} API key — {label}
+      </div>
+      <FieldLabel label="API key">
+        <Input
+          type="password"
+          autoFocus
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          spellCheck={false}
+        />
+      </FieldLabel>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button disabled={apiKey.trim() === "" || busy} onClick={() => void submit()}>
+          {busy ? "Storing…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ModRegistriesSection({ initial }: { initial?: ModRegistriesCfg }) {
+  const f = useSectionForm<ModRegistriesCfg>(initial ?? defaultModRegistries, "modRegistries");
+  const [editing, setEditing] = useState<KeyedRegistryProvider | null>(null);
+
+  const entryFor = (p: KeyedRegistryProvider) => f.draft.registries.find((r) => r.provider === p);
+
+  const removeEntry = (provider: KeyedRegistryProvider) => {
+    const entry = entryFor(provider);
+    // Best-effort cleanup of the API-managed key Secret; the server
+    // refuses Secrets it didn't create.
+    if (!entry?.configRef || entry.configRef === registryKeySecretPrefix + provider) {
+      void ModRegistries.deleteSecret(provider).catch(() => undefined);
+    }
+    f.replace({ ...f.draft, registries: f.draft.registries.filter((r) => r.provider !== provider) });
+  };
+
+  return (
+    <SectionCard
+      title="Mod registries"
+      subtitle="Registries that require an API key stay hidden from the Mods browser until a key is configured."
+      footer={
+        <>
+          <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
+          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+        </>
+      }
+    >
+      <ul className="divide-y divide-border">
+        {keyedRegistryProviders.map(({ provider, label, icon: Icon }) => {
+          const entry = entryFor(provider);
+          const configured = Boolean(entry);
+          return (
+            <li key={provider} className="flex items-center gap-3 py-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface">
+                <Icon className="h-4 w-4 text-muted" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">{label}</div>
+                <div className="truncate text-xs text-muted">
+                  {configured ? "Active in the Mods browser" : "Hidden from the Mods browser"}
+                </div>
+              </div>
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs",
+                  configured ? "bg-primary/15 text-primary" : "bg-muted/15 text-muted",
+                )}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                {configured ? "Configured" : "Not configured"}
+              </span>
+              {editing !== provider && (
+                configured ? (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setEditing(provider)}>
+                      Replace
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => removeEntry(provider)}>
+                      Remove
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setEditing(provider)}>
+                    Set API key
+                  </Button>
+                )
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {editing && (
+        <SetRegistryKeyForm
+          provider={editing}
+          label={keyedRegistryProviders.find((p) => p.provider === editing)?.label ?? editing}
+          replacing={Boolean(entryFor(editing))}
+          onSaved={(entry) =>
+            f.replace({
+              ...f.draft,
+              registries: [...f.draft.registries.filter((r) => r.provider !== entry.provider), entry],
+            })
+          }
+          onClose={() => setEditing(null)}
+        />
+      )}
+      <p className="text-xs text-muted">
+        Always available: Modrinth, Thunderstore, Hangar, Factorio, Spigot, GitHub, uMod
+      </p>
+    </SectionCard>
   );
 }
 
