@@ -254,6 +254,113 @@ func TestModUpdates_NilListerIs503(t *testing.T) {
 	}
 }
 
+// countingAvailSet counts Available calls per provider so a test can prove
+// B3's hoist: at most one Available call per distinct declared provider,
+// not one per installed mod file.
+type countingAvailSet struct {
+	p              registry.Provider
+	availableCalls map[string]int
+}
+
+func (s *countingAvailSet) For(_ context.Context, _ registry.Config) (registry.Provider, bool) {
+	return s.p, true
+}
+
+func (s *countingAvailSet) Available(_ context.Context, provider string) bool {
+	s.availableCalls[provider]++
+	return true
+}
+
+// TestModUpdates_AvailableResolvedOncePerProvider is B3's first half: three
+// installed mods sharing one declared provider must resolve Available once,
+// not three times — a keyed provider's Available call resolves its API key
+// (a DB read plus a live apiserver Secret GET for DBKeyFunc), so this
+// bounds that cost by distinct provider, not by installed mod count.
+func TestModUpdates_AvailableResolvedOncePerProvider(t *testing.T) {
+	fp := &fakeVersionsProvider{byProject: map[string][]registry.Version{
+		"a": {{ID: "va"}},
+		"b": {{ID: "vb"}},
+		"c": {{ID: "vc"}},
+	}}
+	set := &countingAvailSet{p: fp, availableCalls: map[string]int{}}
+	lister := &fakeModLister{mods: []installedMod{
+		managedMod("a.jar", "modrinth", "a", "va"),
+		managedMod("b.jar", "modrinth", "b", "vb"),
+		managedMod("c.jar", "modrinth", "c", "vc"),
+	}}
+	r := mountUpdatesRouter(updatesFixtureKube(), set, lister)
+
+	if rr := do(t, r, "GET", "/servers/alpha/mods/updates", nil); rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	if got := set.availableCalls["modrinth"]; got != 1 {
+		t.Errorf("Available(modrinth) calls = %d, want 1 (hoisted out of the per-mod loop)", got)
+	}
+}
+
+// TestModUpdates_SkipsGitHubProvider is M4: github's Project.ID and
+// Version.ID are both the release id (see github.go), so an installed
+// mod's "latest" and "installed" release always compare equal — there is
+// never an update to detect, so github mods must be skipped rather than
+// checked (which would also burn a shared 60/hr api.github.com quota for
+// nothing).
+func TestModUpdates_SkipsGitHubProvider(t *testing.T) {
+	fp := &fakeVersionsProvider{}
+	versions := []any{map[string]any{"id": "1.21.4-paper", "loader": "paper", "gameVersion": "1.21.4", "default": true}}
+	k := fakeKubeClient(
+		newTemplateObj("minecraft", map[string]any{
+			"provider": "github",
+			"github":   map[string]any{"owner": "someorg", "repo": "somemod"},
+		}, versions),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
+	)
+	// ProjectID == VersionID, exactly what github.go's Search/Versions
+	// produce for an installed release today.
+	lister := &fakeModLister{mods: []installedMod{
+		managedMod("x.jar", "github", "42", "42"),
+	}}
+	r := mountUpdatesRouter(k, fakeSet{p: fp}, lister)
+
+	rr := do(t, r, "GET", "/servers/alpha/mods/updates", nil)
+	if rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	resp := decodeUpdates(t, rr.Body.Bytes())
+	if len(resp.Updates) != 0 || len(resp.Errors) != 0 {
+		t.Fatalf("resp = %+v, want empty (github is silently skipped)", resp)
+	}
+	if fp.calls.Load() != 0 {
+		t.Errorf("upstream calls = %d, want 0 (github is never checked)", fp.calls.Load())
+	}
+}
+
+// TestModUpdates_ThreadsSteamAppID is M5: modUpdateKey/latestFor must carry
+// SteamAppID through to registry.Config, or Set.For would reject the steam
+// provider (SteamAppID <= 0) for every installed Steam mod.
+func TestModUpdates_ThreadsSteamAppID(t *testing.T) {
+	fp := &fakeVersionsProvider{byProject: map[string][]registry.Version{
+		"42": {{ID: "42"}},
+	}}
+	var gotCfg registry.Config
+	set := fakeSet{p: fp, cfgOut: &gotCfg}
+	versions := []any{map[string]any{"id": "1.21.4-paper", "loader": "paper", "gameVersion": "1.21.4", "default": true}}
+	k := fakeKubeClient(
+		newTemplateObj("minecraft", map[string]any{"provider": "steam", "steamAppID": 4000}, versions),
+		serverWithVersion("gameplane-games", "alpha", "minecraft", ""),
+	)
+	lister := &fakeModLister{mods: []installedMod{
+		managedMod("x.jar", "steam", "42", "41"),
+	}}
+	r := mountUpdatesRouter(k, set, lister)
+
+	if rr := do(t, r, "GET", "/servers/alpha/mods/updates", nil); rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	if gotCfg.Provider != "steam" || gotCfg.SteamAppID != 4000 {
+		t.Errorf("cfg = %+v, want provider=steam steamAppID=4000 (threaded from the template)", gotCfg)
+	}
+}
+
 func TestModUpdates_CacheExpiryRefetches(t *testing.T) {
 	fp := &fakeVersionsProvider{byProject: map[string][]registry.Version{
 		"sodium": {{ID: "v2", Files: []registry.File{{Filename: "s.jar", DownloadURL: "https://cdn/s.jar"}}}},

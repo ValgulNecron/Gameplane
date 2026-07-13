@@ -62,6 +62,7 @@ const modUpdateCacheCap = 1024
 type modUpdateKey struct {
 	provider    string
 	community   string
+	steamAppID  int32
 	githubOwner string
 	githubRepo  string
 	projectID   string
@@ -150,6 +151,16 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 	for _, p := range registryProviders(tmpl) {
 		declared[p.provider] = p
 	}
+	// Resolve availability once per distinct declared provider (at most 8
+	// — ModRegistrySpec.Providers is MaxItems=8), not once per installed
+	// mod file: a keyed provider's Available call resolves its API key
+	// (DBKeyFunc does a DB read plus a live apiserver Secret GET), and a
+	// server with e.g. 40 installed CurseForge mods would otherwise fan
+	// that out to 40 calls per Mods-tab load.
+	availByProvider := make(map[string]bool, len(declared))
+	for name := range declared {
+		availByProvider[name] = h.reg.Available(req.Context(), name)
+	}
 
 	resp := modUpdatesResponse{
 		CheckedAt: time.Now().UTC().Format(time.RFC3339),
@@ -163,8 +174,13 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 		ref := m.Meta
 		// Unmanaged files and direct uploads have no registry identity to
 		// check against; skip them silently — the dashboard already renders
-		// them as unmanaged.
-		if ref == nil || ref.ProjectID == "" || ref.Provider == "" || ref.Provider == "upload" {
+		// them as unmanaged. github is skipped the same way: its Project.ID
+		// and Version.ID are both the release id (see github.go), so an
+		// installed mod's "latest release" and "installed release" always
+		// compare equal here — there is no update to ever detect, and
+		// checking anyway would burn one anonymous api.github.com call per
+		// installed mod against the shared 60/hr quota for zero benefit.
+		if ref == nil || ref.ProjectID == "" || ref.Provider == "" || ref.Provider == "upload" || ref.Provider == "github" {
 			continue
 		}
 		cfg, ok := declared[ref.Provider]
@@ -172,13 +188,14 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 			resp.Errors = append(resp.Errors, modUpdateError{Name: m.Name, Error: "provider not declared by this game"})
 			continue
 		}
-		if !h.reg.Available(req.Context(), ref.Provider) {
+		if !availByProvider[ref.Provider] {
 			resp.Errors = append(resp.Errors, modUpdateError{Name: m.Name, Error: "provider not configured"})
 			continue
 		}
 		key := modUpdateKey{
 			provider:    ref.Provider,
 			community:   cfg.community,
+			steamAppID:  cfg.steamAppID,
 			githubOwner: cfg.githubOwner,
 			githubRepo:  cfg.githubRepo,
 			projectID:   ref.ProjectID,
@@ -265,6 +282,7 @@ func (h *modUpdatesHandler) latestFor(ctx context.Context, key modUpdateKey) (re
 	p, ok := h.reg.For(ctx, registry.Config{
 		Provider:    key.provider,
 		Community:   key.community,
+		SteamAppID:  key.steamAppID,
 		GitHubOwner: key.githubOwner,
 		GitHubRepo:  key.githubRepo,
 	})
