@@ -966,6 +966,12 @@ func buildAgentContainer(
 		"--tls-cert=/etc/gameplane/agent-tls/tls.crt",
 		"--tls-key=/etc/gameplane/agent-tls/tls.key",
 		"--tls-client-ca=/etc/gameplane/agent-tls/ca.crt",
+		// Must match the "data" VolumeMount below (agentVolumeMounts also takes
+		// mountPath) so the agent's file ops, mods dir, and disk-usage stats are
+		// rooted at the same path the game container's data volume is mounted at
+		// — not the agent's own /data default, which is only correct when the
+		// template happens to mount storage at /data.
+		"--data-root=" + mountPath,
 	}
 	if tmpl.Spec.LogPath != "" {
 		args = append(args, "--game-log-path="+tmpl.Spec.LogPath)

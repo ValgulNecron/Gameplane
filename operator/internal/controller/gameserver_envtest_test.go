@@ -573,6 +573,77 @@ func TestGameServer_StorageOverride(t *testing.T) {
 	})
 }
 
+// TestGameServer_AgentDataRootMatchesMountPath guards against the agent
+// silently rooting all its file ops (Files tab, Mods tab, disk-usage stats)
+// at its own /data default when the template mounts the data volume
+// somewhere else. The operator must pass --data-root resolved from the same
+// value used for the "data" VolumeMount on both containers, so the two can
+// never drift apart end-to-end through a real reconcile.
+func TestGameServer_AgentDataRootMatchesMountPath(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	// A custom mountPath, as shipped modules like rust (/steamcmd/rust) use.
+	tmpl := buildGameTemplate(uniqueName("rust"))
+	tmpl.Spec.Storage.MountPath = "/steamcmd/rust"
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		var agent *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == "agent" {
+				agent = &ss.Spec.Template.Spec.Containers[i]
+			}
+		}
+		if agent == nil {
+			return false, "no agent sidecar container"
+		}
+		dataRoot := ""
+		hasArg := false
+		for _, a := range agent.Args {
+			if strings.HasPrefix(a, "--data-root=") {
+				dataRoot = strings.TrimPrefix(a, "--data-root=")
+				hasArg = true
+			}
+		}
+		if !hasArg {
+			return false, "agent missing --data-root arg: " + strings.Join(agent.Args, " ")
+		}
+		if dataRoot != "/steamcmd/rust" {
+			return false, "--data-root=" + dataRoot + ", want /steamcmd/rust"
+		}
+		mountPath := ""
+		mounted := false
+		for _, m := range agent.VolumeMounts {
+			if m.Name == "data" {
+				mountPath = m.MountPath
+				mounted = true
+			}
+		}
+		if !mounted {
+			return false, "agent missing \"data\" VolumeMount"
+		}
+		// The invariant that was violated: the flag must match the actual
+		// mount, not just some hardcoded expectation, so the two can't drift.
+		if dataRoot != mountPath {
+			return false, "--data-root=" + dataRoot + " != data VolumeMount path " + mountPath
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_LoadBalancerSourceRanges asserts the CIDR allow-list is
 // applied to the fronting Service only when Expose=LoadBalancer.
 func TestGameServer_LoadBalancerSourceRanges(t *testing.T) {

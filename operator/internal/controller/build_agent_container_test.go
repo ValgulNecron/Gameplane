@@ -216,6 +216,73 @@ func TestBuildAgentContainer_RconPasswordFile(t *testing.T) {
 	})
 }
 
+// TestBuildAgentContainer_DataRootArg guards the bug where the agent always
+// rooted its file ops at its own --data-root default (/data) regardless of
+// where the template actually mounts the data volume: for any of the 7
+// shipped modules whose storage.mountPath isn't /data (rust, factorio,
+// valheim, terraria, palworld, cs2, ark-survival-ascended), the Mods tab,
+// Files tab, and disk-usage stats all silently pointed at the wrong path.
+// The fix must pass --data-root resolved from the same effectiveMountPath
+// value used for the "data" VolumeMount, so the two can never drift apart —
+// this test asserts that invariant directly rather than just the arg value.
+func TestBuildAgentContainer_DataRootArg(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "smp"
+	gs.Namespace = "g"
+
+	dataRootArg := func(c corev1.Container) (string, bool) {
+		const prefix = "--data-root="
+		for _, a := range c.Args {
+			if strings.HasPrefix(a, prefix) {
+				return strings.TrimPrefix(a, prefix), true
+			}
+		}
+		return "", false
+	}
+	dataVolumeMountPath := func(c corev1.Container) (string, bool) {
+		for _, m := range c.VolumeMounts {
+			if m.Name == "data" {
+				return m.MountPath, true
+			}
+		}
+		return "", false
+	}
+
+	t.Run("custom mountPath (rust)", func(t *testing.T) {
+		tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
+			Storage: gameplanev1alpha1.GameStorageSpec{MountPath: "/steamcmd/rust"},
+		}}
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		got, ok := dataRootArg(c)
+		if !ok || got != "/steamcmd/rust" {
+			t.Fatalf("--data-root=%q, ok=%v, want /steamcmd/rust", got, ok)
+		}
+		mountPath, ok := dataVolumeMountPath(c)
+		if !ok {
+			t.Fatal("no \"data\" VolumeMount on agent container")
+		}
+		if got != mountPath {
+			t.Fatalf("--data-root=%q != data VolumeMount path %q; agent would look in the wrong place", got, mountPath)
+		}
+	})
+
+	t.Run("mountPath omitted defaults to /data", func(t *testing.T) {
+		tmpl := &gameplanev1alpha1.GameTemplate{}
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		got, ok := dataRootArg(c)
+		if !ok || got != "/data" {
+			t.Fatalf("--data-root=%q, ok=%v, want /data", got, ok)
+		}
+		mountPath, ok := dataVolumeMountPath(c)
+		if !ok {
+			t.Fatal("no \"data\" VolumeMount on agent container")
+		}
+		if got != mountPath {
+			t.Fatalf("--data-root=%q != data VolumeMount path %q", got, mountPath)
+		}
+	})
+}
+
 func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
 	gs := &gameplanev1alpha1.GameServer{}
 	gs.Name = "smp"
