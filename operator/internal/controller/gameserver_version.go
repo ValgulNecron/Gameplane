@@ -218,3 +218,69 @@ func (r *GameServerReconciler) reconcileModPVC(
 	}
 	return nil
 }
+
+// modIDListEnv projects GameServer.spec.mods.ids into the game-container
+// env var declared by the template's capabilities.mods.idList, for games
+// whose server downloads its own mods given a list of ids (ARK's
+// "-mods=<id>,<id>" launch flag, Project Zomboid's semicolon-separated
+// MOD_IDS, Steam Workshop id lists) instead of the agent dropping files
+// into a mods directory.
+//
+// env is the env slice built so far (template env, selected version's
+// env, and config-schema-resolved env, in that order — see
+// buildGameContainer). Mode "append" looks up the last entry named
+// idList.Env in that slice and concatenates the rendered ids onto its
+// existing plain Value, so a config-schema-provided launch string (e.g.
+// ARK's ASA_START_PARAMS) is preserved and just gains the mod flag; a
+// matching entry that carries its value via ValueFrom instead of Value
+// (e.g. a password-type config field reusing the same env name, which
+// nothing in-tree does today) has no plain string to append onto, and
+// this deliberately does not fabricate one to avoid guessing at a secret
+// value.
+//
+// Returns nil — projecting nothing — when the template declares no
+// idList or the server selects no ids. Projecting an empty rendered
+// value (e.g. a trailing "-mods=" with nothing after it) would break
+// games like ARK that don't tolerate an empty flag.
+func modIDListEnv(
+	tmpl *gameplanev1alpha1.GameTemplate, gs *gameplanev1alpha1.GameServer, env []corev1.EnvVar,
+) *corev1.EnvVar {
+	if tmpl.Spec.Capabilities == nil || tmpl.Spec.Capabilities.Mods == nil {
+		return nil
+	}
+	idList := tmpl.Spec.Capabilities.Mods.IDList
+	if idList == nil {
+		return nil
+	}
+	if gs.Spec.Mods == nil || len(gs.Spec.Mods.IDs) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(gs.Spec.Mods.IDs))
+	for _, m := range gs.Spec.Mods.IDs {
+		ids = append(ids, m.ID)
+	}
+	// Separator/Format/Mode carry kubebuilder defaults (","/"{{ids}}"/
+	// "replace") that only the API server applies, so treat "" as the
+	// default here — mirrors materializeConfig's handling of ConfigField
+	// Type/Target.
+	sep := idList.Separator
+	if sep == "" {
+		sep = ","
+	}
+	format := idList.Format
+	if format == "" {
+		format = "{{ids}}"
+	}
+	// Deliberately a literal string replacement, not text/template — see
+	// ModIDListSpec.Format's doc comment on why.
+	rendered := strings.ReplaceAll(format, "{{ids}}", strings.Join(ids, sep))
+
+	if idList.Mode == "append" {
+		for i := len(env) - 1; i >= 0; i-- {
+			if env[i].Name == idList.Env && env[i].ValueFrom == nil {
+				return &corev1.EnvVar{Name: idList.Env, Value: env[i].Value + rendered}
+			}
+		}
+	}
+	return &corev1.EnvVar{Name: idList.Env, Value: rendered}
+}

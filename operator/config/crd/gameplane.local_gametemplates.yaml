@@ -301,6 +301,52 @@ spec:
                           into per-mod folders. Not normally set by template authors at this
                           level — set it on the loader entry instead.
                         type: boolean
+                      idList:
+                        description: |-
+                          IDList declares that this game installs mods by ID rather than by file:
+                          the server downloads its own mods given a list of ids, so the operator
+                          projects the GameServer's selected ids into a game-container env var
+                          instead of the agent downloading files into a mods directory.
+                          Mutually exclusive with Path/Loaders in practice — a game does one or
+                          the other.
+                        properties:
+                          env:
+                            description: |-
+                              Env is the game-container environment variable the rendered id list
+                              is projected into (e.g. "ASA_START_PARAMS", "MOD_IDS").
+                            maxLength: 64
+                            minLength: 1
+                            type: string
+                          format:
+                            default: '{{ids}}'
+                            description: |-
+                              Format renders the joined id list into the env value. The literal
+                              token "{{ids}}" is replaced with the separator-joined ids. This is a
+                              plain string replacement, NOT a Go text/template — a module bundle
+                              must not be able to execute template logic through this field.
+                              Defaults to "{{ids}}". ARK uses " -mods={{ids}}" so the ids append
+                              onto its existing launch parameters.
+                            maxLength: 128
+                            type: string
+                          mode:
+                            default: replace
+                            description: |-
+                              Mode is how the rendered value is applied to Env:
+                              "replace" (default) sets Env to the rendered value;
+                              "append" concatenates the rendered value onto Env's existing value
+                              (used when the same env also carries user-supplied launch params).
+                            enum:
+                            - replace
+                            - append
+                            type: string
+                          separator:
+                            default: ','
+                            description: Separator joins the ids. Defaults to ",".
+                            maxLength: 4
+                            type: string
+                        required:
+                        - env
+                        type: object
                       install:
                         description: |-
                           Install, when set, lets the dashboard add new mods by downloading
@@ -712,9 +758,10 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: mods requires either path or at least one loaders entry
+                    - message: mods requires path, at least one loaders entry, or
+                        idList
                       rule: has(self.path) || (has(self.loaders) && size(self.loaders)
-                        > 0)
+                        > 0) || has(self.idList)
                   players:
                     description: Players configures the moderation actions on the
                       Players tab.

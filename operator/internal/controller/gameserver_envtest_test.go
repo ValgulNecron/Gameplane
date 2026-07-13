@@ -4,6 +4,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1605,6 +1606,203 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 		}
 		if got["DIFFICULTY"] != "hard" {
 			return false, "DIFFICULTY = " + got["DIFFICULTY"]
+		}
+		return true, ""
+	})
+}
+
+// gameContainerEnv fetches the reconciled StatefulSet's "game" container
+// env as a name->value map. Later duplicate names win in the kubelet, so
+// callers get the effective value the same way the game container would.
+//
+// It returns an error instead of calling t.Fatal on a miss: callers poll
+// this from inside an eventually() condition, and eventually's cond runs
+// in the test's own goroutine — a t.Fatal in there would abort the whole
+// test on the very first (pre-reconcile) attempt instead of letting the
+// poll retry.
+func gameContainerEnv(t *testing.T, ns, name string) (map[string]string, error) {
+	t.Helper()
+	var ss appsv1.StatefulSet
+	if err := k8sClient.Get(context.Background(),
+		types.NamespacedName{Namespace: ns, Name: name}, &ss); err != nil {
+		return nil, fmt.Errorf("get statefulset: %w", err)
+	}
+	got := map[string]string{}
+	for _, c := range ss.Spec.Template.Spec.Containers {
+		if c.Name != gameContainerName {
+			continue
+		}
+		for _, e := range c.Env {
+			got[e.Name] = e.Value
+		}
+	}
+	return got, nil
+}
+
+// TestGameServer_ModIDList_ReplaceMode — a template declaring
+// capabilities.mods.idList in (default) replace mode gets its env var set
+// to the GameServer's selected ids, joined with the default "," separator.
+func TestGameServer_ModIDList_ReplaceMode(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("zomboid"))
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Mods: &gameplanev1alpha1.ModsSpec{
+			IDList: &gameplanev1alpha1.ModIDListSpec{Env: "MOD_IDS"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "zomboid", tmpl.Name)
+	gs.Spec.Mods = &gameplanev1alpha1.GameServerModsSpec{
+		IDs: []gameplanev1alpha1.ModRef{{ID: "111"}, {ID: "222"}},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got, err := gameContainerEnv(t, ns, "zomboid")
+		if err != nil {
+			return false, err.Error()
+		}
+		if v, ok := got["MOD_IDS"]; !ok || v != "111,222" {
+			return false, fmt.Sprintf("MOD_IDS = %q (present=%v), want \"111,222\"", v, ok)
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_ModIDList_AppendMode — an ARK-shaped template (append
+// mode, a config-schema-provided launch string) keeps the config value
+// and gains the rendered mod flag onto the end of it.
+func TestGameServer_ModIDList_AppendMode(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("ark"))
+	tmpl.Spec.ConfigSchema = []gameplanev1alpha1.ConfigField{
+		{Name: "ASA_START_PARAMS", Type: "string", Default: "TheIsland_WP?listen"},
+	}
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Mods: &gameplanev1alpha1.ModsSpec{
+			IDList: &gameplanev1alpha1.ModIDListSpec{
+				Env:    "ASA_START_PARAMS",
+				Format: " -mods={{ids}}",
+				Mode:   "append",
+			},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "ark", tmpl.Name)
+	gs.Spec.Mods = &gameplanev1alpha1.GameServerModsSpec{
+		IDs: []gameplanev1alpha1.ModRef{{ID: "111"}, {ID: "222"}},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	want := "TheIsland_WP?listen -mods=111,222"
+	eventually(t, func() (bool, string) {
+		got, err := gameContainerEnv(t, ns, "ark")
+		if err != nil {
+			return false, err.Error()
+		}
+		if v, ok := got["ASA_START_PARAMS"]; !ok || v != want {
+			return false, fmt.Sprintf("ASA_START_PARAMS = %q (present=%v), want %q", v, ok, want)
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_ModIDList_NoIDsProjectsNothing — a template declaring
+// idList but a GameServer with no selected mods must leave the target env
+// var completely absent, not set to an empty string (an empty
+// "-mods=" would break games like ARK that don't tolerate a trailing
+// empty flag).
+func TestGameServer_ModIDList_NoIDsProjectsNothing(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("zomboid"))
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Mods: &gameplanev1alpha1.ModsSpec{
+			IDList: &gameplanev1alpha1.ModIDListSpec{Env: "MOD_IDS"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	// No spec.mods at all — the common case for a server that just never
+	// picked any mods.
+	gs := buildGameServer(ns, "noids", tmpl.Name)
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	// Wait for the StatefulSet to exist (reconciliation settled) before
+	// asserting the negative — otherwise a not-yet-reconciled object
+	// would pass a "key absent" check for the wrong reason.
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "noids"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		return len(ss.Spec.Template.Spec.Containers) > 0, "statefulset not yet populated"
+	})
+
+	got, err := gameContainerEnv(t, ns, "noids")
+	if err != nil {
+		t.Fatalf("get statefulset: %v", err)
+	}
+	if v, ok := got["MOD_IDS"]; ok {
+		t.Fatalf("MOD_IDS should not be projected with no selected ids, got %q", v)
+	}
+}
+
+// TestGameServer_ModIDList_CustomSeparator — a non-default Separator is
+// honored when joining ids.
+func TestGameServer_ModIDList_CustomSeparator(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("zomboid"))
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Mods: &gameplanev1alpha1.ModsSpec{
+			IDList: &gameplanev1alpha1.ModIDListSpec{Env: "MOD_IDS", Separator: ";"},
+		},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "sepzomboid", tmpl.Name)
+	gs.Spec.Mods = &gameplanev1alpha1.GameServerModsSpec{
+		IDs: []gameplanev1alpha1.ModRef{{ID: "111"}, {ID: "222"}, {ID: "333"}},
+	}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		got, err := gameContainerEnv(t, ns, "sepzomboid")
+		if err != nil {
+			return false, err.Error()
+		}
+		if v, ok := got["MOD_IDS"]; !ok || v != "111;222;333" {
+			return false, fmt.Sprintf("MOD_IDS = %q (present=%v), want \"111;222;333\"", v, ok)
 		}
 		return true, ""
 	})

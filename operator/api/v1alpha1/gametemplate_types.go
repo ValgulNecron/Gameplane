@@ -265,10 +265,14 @@ type CapabilitiesSpec struct {
 // ModsSpec declares the mod/plugin directory and install policy the
 // agent enforces. A template uses EITHER the single shared Path (legacy,
 // one mods dir on the data volume) OR Loaders (a per-(version+loader) mod
-// volume selected by the active GameVersion.loader). Listing and removal
-// operate on the resolved directory; Install adds a mod by downloading it
-// there.
-// +kubebuilder:validation:XValidation:rule="has(self.path) || (has(self.loaders) && size(self.loaders) > 0)",message="mods requires either path or at least one loaders entry"
+// volume selected by the active GameVersion.loader) OR IDList (the server
+// downloads its own mods given a list of ids, so there is no mods
+// directory at all — see ModIDListSpec). Listing and removal operate on
+// the resolved directory; Install adds a mod by downloading it there.
+// IDList games skip Install/Registry entirely: the dashboard just resolves
+// GameServer.spec.mods.ids some other way (e.g. a registry search) and the
+// operator projects them, no agent download involved.
+// +kubebuilder:validation:XValidation:rule="has(self.path) || (has(self.loaders) && size(self.loaders) > 0) || has(self.idList)",message="mods requires path, at least one loaders entry, or idList"
 type ModsSpec struct {
 	// Path is the single shared mods directory, relative to
 	// storage.mountPath (e.g. "mods" for Forge/Fabric, "plugins" for
@@ -318,6 +322,55 @@ type ModsSpec struct {
 	// URL-only games (e.g. tModLoader, whose mods live on Steam Workshop).
 	// +optional
 	Registry *ModRegistrySpec `json:"registry,omitempty"`
+
+	// IDList declares that this game installs mods by ID rather than by file:
+	// the server downloads its own mods given a list of ids, so the operator
+	// projects the GameServer's selected ids into a game-container env var
+	// instead of the agent downloading files into a mods directory.
+	// Mutually exclusive with Path/Loaders in practice — a game does one or
+	// the other.
+	// +optional
+	IDList *ModIDListSpec `json:"idList,omitempty"`
+}
+
+// ModIDListSpec declares that this game's server downloads its own mods
+// given a list of provider-native ids (e.g. ARK: Survival Ascended's
+// CurseForge ids appended to its launch string, Project Zomboid's
+// semicolon-separated MOD_IDS env, Steam Workshop id lists) rather than
+// the agent dropping files into a mods directory. The operator renders
+// GameServer.spec.mods.ids into Env; there is no agent involvement.
+type ModIDListSpec struct {
+	// Env is the game-container environment variable the rendered id list
+	// is projected into (e.g. "ASA_START_PARAMS", "MOD_IDS").
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	Env string `json:"env"`
+
+	// Separator joins the ids. Defaults to ",".
+	// +kubebuilder:default=","
+	// +kubebuilder:validation:MaxLength=4
+	// +optional
+	Separator string `json:"separator,omitempty"`
+
+	// Format renders the joined id list into the env value. The literal
+	// token "{{ids}}" is replaced with the separator-joined ids. This is a
+	// plain string replacement, NOT a Go text/template — a module bundle
+	// must not be able to execute template logic through this field.
+	// Defaults to "{{ids}}". ARK uses " -mods={{ids}}" so the ids append
+	// onto its existing launch parameters.
+	// +kubebuilder:default="{{ids}}"
+	// +kubebuilder:validation:MaxLength=128
+	// +optional
+	Format string `json:"format,omitempty"`
+
+	// Mode is how the rendered value is applied to Env:
+	// "replace" (default) sets Env to the rendered value;
+	// "append" concatenates the rendered value onto Env's existing value
+	// (used when the same env also carries user-supplied launch params).
+	// +kubebuilder:validation:Enum=replace;append
+	// +kubebuilder:default=replace
+	// +optional
+	Mode string `json:"mode,omitempty"`
 }
 
 // ModRegistrySpec lists the built-in external mod registries the dashboard

@@ -869,12 +869,24 @@ func buildGameContainer(
 	}
 	// Later entries win on duplicate names: template defaults, then the
 	// selected version's env (e.g. itzg TYPE/VERSION), then schema-resolved
-	// config, then explicit spec.env overrides.
+	// config, then the mods-by-id projection, then explicit spec.env
+	// overrides.
 	env := append([]corev1.EnvVar{}, tmpl.Spec.Env...)
 	if ver != nil {
 		env = append(env, ver.Env...)
 	}
 	env = append(env, mc.env...)
+	// capabilities.mods.idList projection: for games whose server
+	// downloads its own mods given a list of ids (ARK's -mods=<id>,<id>
+	// launch flag, Project Zomboid's MOD_IDS) rather than the agent
+	// dropping files into a mods directory. Runs after the config-schema
+	// env above so append mode can extend a config-schema-provided value
+	// (e.g. ARK's ASA_START_PARAMS), but before spec.env so an explicit
+	// user override of the same env var still wins — same precedence
+	// spec.env already holds over everything else.
+	if e := modIDListEnv(tmpl, gs, env); e != nil {
+		env = append(env, *e)
+	}
 	env = append(env, gs.Spec.Env...)
 	// The operator-managed RCON password wins, so the game and the agent
 	// sidecar always agree on it.
