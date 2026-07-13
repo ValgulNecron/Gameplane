@@ -125,6 +125,141 @@ func TestGameServer_AgentSidecarInjected(t *testing.T) {
 	})
 }
 
+// TestGameServer_SecurityContextAppliedToGameContainerAndPod proves the
+// full reconcile wiring for GameTemplate.spec.security (added for games
+// like ARK: Survival Ascended, whose image requires uid 25000 and can't
+// initialise Proton as root): runAsUser/runAsGroup land on the GAME
+// container's SecurityContext, fsGroup lands on the pod's SecurityContext
+// (it's a pod-level-only field that governs volume ownership), and the
+// agent sidecar's own fixed SecurityContext (distroless, uid 65532) is
+// untouched by any of it.
+func TestGameServer_SecurityContextAppliedToGameContainerAndPod(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	uid := int64(25000)
+	gid := int64(25000)
+	tmpl := buildGameTemplate(uniqueName("ark-survival-ascended"))
+	tmpl.Spec.Security = &gameplanev1alpha1.GameSecuritySpec{
+		RunAsUser:  &uid,
+		RunAsGroup: &gid,
+		FSGroup:    &gid,
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "ark", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "ark"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		cs := ss.Spec.Template.Spec.Containers
+		var game, agent *corev1.Container
+		for i := range cs {
+			switch cs[i].Name {
+			case gameContainerName:
+				game = &cs[i]
+			case "agent":
+				agent = &cs[i]
+			}
+		}
+		if game == nil {
+			return false, "no game container yet"
+		}
+		if agent == nil {
+			return false, "no agent sidecar container"
+		}
+
+		// Game container: runAsUser/runAsGroup from spec.security.
+		gsc := game.SecurityContext
+		if gsc == nil {
+			return false, "game container has no SecurityContext"
+		}
+		if gsc.RunAsUser == nil || *gsc.RunAsUser != uid {
+			return false, "game RunAsUser = " + fmt.Sprintf("%v", gsc.RunAsUser) + ", want " + intToStr(int32(uid))
+		}
+		if gsc.RunAsGroup == nil || *gsc.RunAsGroup != gid {
+			return false, "game RunAsGroup = " + fmt.Sprintf("%v", gsc.RunAsGroup) + ", want " + intToStr(int32(gid))
+		}
+
+		// Pod level: fsGroup, not on the game container.
+		psc := ss.Spec.Template.Spec.SecurityContext
+		if psc == nil || psc.FSGroup == nil || *psc.FSGroup != gid {
+			return false, "pod SecurityContext.FSGroup = " + fmt.Sprintf("%+v", psc) + ", want " + intToStr(int32(gid))
+		}
+
+		// Agent sidecar: untouched — still its own fixed distroless identity,
+		// never the game's uid/gid.
+		asc := agent.SecurityContext
+		if asc == nil {
+			return false, "agent has no SecurityContext"
+		}
+		if asc.RunAsUser == nil || *asc.RunAsUser == uid {
+			return false, "agent RunAsUser leaked the game's uid: " + fmt.Sprintf("%v", asc.RunAsUser)
+		}
+		if asc.RunAsNonRoot == nil || !*asc.RunAsNonRoot {
+			return false, "agent RunAsNonRoot != true"
+		}
+		if asc.ReadOnlyRootFilesystem == nil || !*asc.ReadOnlyRootFilesystem {
+			return false, "agent ReadOnlyRootFilesystem != true"
+		}
+		if asc.Capabilities == nil || len(asc.Capabilities.Drop) == 0 || asc.Capabilities.Drop[0] != "ALL" {
+			return false, "agent does not drop ALL caps"
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_SecurityContextUnsetRendersNoSecurityContext is the
+// regression guard: a template with no spec.security must render neither
+// a game-container SecurityContext nor a pod-level SecurityContext — an
+// empty `securityContext: {}` would still change the pod spec (and roll
+// every existing game StatefulSet) even though nothing was requested.
+func TestGameServer_SecurityContextUnsetRendersNoSecurityContext(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("valheim"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, err.Error()
+		}
+		// The apiserver defaults SecurityContext to an empty struct even when
+		// none is explicitly set. What matters is that FSGroup is unset.
+		podSC := ss.Spec.Template.Spec.SecurityContext
+		if podSC != nil && podSC.FSGroup != nil {
+			return false, "pod SecurityContext.FSGroup = " + fmt.Sprintf("%+v", podSC.FSGroup) + ", want nil"
+		}
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			if c.Name == gameContainerName {
+				cSC := c.SecurityContext
+				if cSC != nil && (cSC.RunAsUser != nil || cSC.RunAsGroup != nil) {
+					return false, "game container SecurityContext = " + fmt.Sprintf("%+v", cSC) + ", want RunAsUser/RunAsGroup nil"
+				}
+			}
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_StatusPatchPreservesAgentHeartbeat — the reconciler must
 // not clobber status.agent (written by the sidecar's heartbeat) when it
 // updates phase/conditions. We reproduce the lost-update race
