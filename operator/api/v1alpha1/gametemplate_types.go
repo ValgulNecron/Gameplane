@@ -336,7 +336,7 @@ type ModRegistrySpec struct {
 
 // ModProvider configures one registry engine for a game.
 //
-// +kubebuilder:validation:XValidation:rule="self.provider != 'steam' || self.steamAppID > 0",message="steamAppID is required when provider is steam"
+// +kubebuilder:validation:XValidation:rule="self.provider != 'steam' || (has(self.steamAppID) && self.steamAppID > 0)",message="steamAppID is required when provider is steam"
 // +kubebuilder:validation:XValidation:rule="self.provider != 'github' || has(self.github)",message="github is required when provider is github"
 type ModProvider struct {
 	// Provider names the built-in registry engine: "modrinth" (Minecraft
@@ -348,12 +348,13 @@ type ModProvider struct {
 	// form), "steam" (Steam Workshop browse, needs a Steam Web API key;
 	// see SteamAppID — Workshop content has no download URL, so it's a
 	// preview-only browser wired to modpacks.refEnv for collection-based
-	// games like Garry's Mod/CS2), or "nexus" (Nexus Mods, needs an API
-	// key, browse-only for the same reason as steam — see Community for
-	// its per-game domain slug). "spigot", "github", and "umod" are
-	// reserved enum values for engines landing in a follow-up change;
-	// setting one today is accepted by the schema but the provider is
-	// always reported unavailable.
+	// games like Garry's Mod/CS2), "nexus" (Nexus Mods, needs an API key,
+	// browse-only for the same reason as steam — see Community for its
+	// per-game domain slug), "spigot" (SpigotMC plugins via the Spiget API,
+	// keyless), "github" (one repository's Releases stand in for
+	// versions, keyless but rate-limited — see GitHub), or "umod"
+	// (Rust/Hurtworld/7 Days to Die's Oxide/uMod plugin ecosystem,
+	// keyless).
 	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar;factorio;steam;spigot;github;umod;nexus
 	Provider string `json:"provider"`
 
@@ -414,6 +415,7 @@ type GitHubRepoSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=100
 	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._-]+$`
+	// +kubebuilder:validation:XValidation:rule="!self.contains('..')",message="repo must not contain '..'"
 	Repo string `json:"repo"`
 }
 
