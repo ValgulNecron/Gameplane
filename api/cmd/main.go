@@ -228,7 +228,18 @@ func main() {
 		handlers.MountDestinations(p, reg)
 		handlers.MountSystemLogs(p, k8s, cfg.namespace)
 		handlers.MountModules(p, k8s, cfg.namespace)
-		regSet := registry.NewSet(Version, registry.StaticKeys(map[string]string{"curseforge": cfg.curseforgeAPIKey}))
+		handlers.MountRegistrySecrets(p, k8s, cfg.namespace)
+		// Precedence: a runtime, admin-configured key (DB row + labelled
+		// Secret, resolved lazily per registry.DBKeyFunc) always wins over
+		// the startup --curseforge-api-key flag, so adding/rotating a key
+		// via /admin/registries/{provider}/secret takes effect without a
+		// redeploy. The flag is consulted only when no DB key exists, so
+		// air-gapped/GitOps installs that never touch admin config keep
+		// working exactly as before.
+		regSet := registry.NewSet(Version, registry.FallbackKeys(
+			registry.DBKeyFunc(store, registry.NewK8sSecretReader(k8s, cfg.namespace)),
+			registry.StaticKeys(map[string]string{"curseforge": cfg.curseforgeAPIKey}),
+		))
 		handlers.MountRegistry(p, k8s, regSet)
 		// The update check reads the agent's mod manifest server-side over
 		// the same mTLS material as the proxy. Missing material degrades

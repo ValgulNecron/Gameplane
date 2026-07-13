@@ -15,6 +15,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/notify"
+	"github.com/ValgulNecron/gameplane/api/internal/registry"
 )
 
 // dnsLabelRE matches an RFC1123 label: lowercase alphanumeric and dashes,
@@ -113,10 +114,11 @@ func (h *configHandler) put(w http.ResponseWriter, req *http.Request) {
 // unknown fields silently drop instead of accumulating in the database.
 func newValidators(helmOIDCPresent bool) map[string]func([]byte) (json.RawMessage, error) {
 	return map[string]func([]byte) (json.RawMessage, error){
-		"general":       validateGeneral,
-		"auth":          validateAuth(helmOIDCPresent),
-		"notifications": validateNotifications,
-		"telemetry":     validateTelemetry,
+		"general":                           validateGeneral,
+		"auth":                              validateAuth(helmOIDCPresent),
+		"notifications":                     validateNotifications,
+		"telemetry":                         validateTelemetry,
+		registry.ConfigSectionModRegistries: validateModRegistries,
 	}
 }
 
@@ -365,6 +367,41 @@ func validateTelemetry(body []byte) (json.RawMessage, error) {
 	var c telemetryCfg
 	if err := json.Unmarshal(body, &c); err != nil {
 		return nil, fmt.Errorf("invalid json: %w", err)
+	}
+	return json.Marshal(c)
+}
+
+// modRegistryEntry is one provider's admin-managed mod-registry
+// declaration: which provider, and (optionally) a non-default Secret name
+// holding its key. It carries no secret material — the value lives in a
+// labelled Secret managed by /admin/registries/{provider}/secret
+// (registry_secret.go) and is never round-tripped through this blob.
+type modRegistryEntry struct {
+	Provider  string `json:"provider"`
+	ConfigRef string `json:"configRef,omitempty"`
+}
+
+type modRegistriesCfg struct {
+	Registries []modRegistryEntry `json:"registries"`
+}
+
+func validateModRegistries(body []byte) (json.RawMessage, error) {
+	var c modRegistriesCfg
+	if err := json.Unmarshal(body, &c); err != nil {
+		return nil, fmt.Errorf("invalid json: %w", err)
+	}
+	seen := map[string]bool{}
+	for i, e := range c.Registries {
+		if !registry.KeyedProviders[e.Provider] {
+			return nil, fmt.Errorf("registries[%d].provider must be one of curseforge|steam|nexus", i)
+		}
+		if seen[e.Provider] {
+			return nil, fmt.Errorf("registries[%d].provider duplicate: %s", i, e.Provider)
+		}
+		seen[e.Provider] = true
+		if e.ConfigRef != "" && !dnsLabelRE.MatchString(e.ConfigRef) {
+			return nil, fmt.Errorf("registries[%d].configRef must match RFC1123 label", i)
+		}
 	}
 	return json.Marshal(c)
 }

@@ -162,6 +162,48 @@ func TestValidateTelemetry(t *testing.T) {
 	}
 }
 
+func TestValidateModRegistries(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		ok   bool
+		errs string
+	}{
+		{"empty", `{"registries":[]}`, true, ""},
+		{"happy curseforge", `{"registries":[{"provider":"curseforge"}]}`, true, ""},
+		{"happy with configRef", `{"registries":[{"provider":"curseforge","configRef":"my-cf-secret"}]}`, true, ""},
+		{"happy all keyed providers", `{"registries":[{"provider":"curseforge"},{"provider":"steam"},{"provider":"nexus"}]}`, true, ""},
+		{"unknown provider", `{"registries":[{"provider":"modrinth"}]}`, false, "must be one of"},
+		{"duplicate provider", `{"registries":[{"provider":"curseforge"},{"provider":"curseforge"}]}`, false, "duplicate"},
+		{"bad configRef", `{"registries":[{"provider":"curseforge","configRef":"Not_A_Label"}]}`, false, "configRef"},
+		{"bad json", `{`, false, "invalid json"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := validateModRegistries([]byte(tc.in))
+			if tc.ok && err != nil {
+				t.Fatalf("unexpected: %v", err)
+			}
+			if !tc.ok && (err == nil || !strings.Contains(err.Error(), tc.errs)) {
+				t.Fatalf("got %v want substring %q", err, tc.errs)
+			}
+		})
+	}
+}
+
+// validateModRegistries never round-trips key material — the type itself
+// has no field for it, so a canonicalized blob can't carry one even if a
+// caller tried to sneak an extra "apiKey" field into the request body.
+func TestValidateModRegistriesDropsUnknownFields(t *testing.T) {
+	canon, err := validateModRegistries([]byte(`{"registries":[{"provider":"curseforge","apiKey":"should-be-dropped"}]}`))
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	if strings.Contains(string(canon), "should-be-dropped") || strings.Contains(string(canon), "apiKey") {
+		t.Fatalf("canonicalized output leaked apiKey: %s", canon)
+	}
+}
+
 // The "updates" section is no longer writable — the channel is the
 // chart's informational value on /cluster/info. PUTs must 400 as an
 // unknown section (covered by the round-trip tests in config_test.go).
