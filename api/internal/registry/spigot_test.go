@@ -111,12 +111,14 @@ func TestSpigotVersionsHostedFile(t *testing.T) {
 	}
 }
 
-func TestSpigotVersionsExternalResourceHasNoFiles(t *testing.T) {
+func TestSpigotVersionsExternalResourceHasNoVersions(t *testing.T) {
+	var hitVersionsEndpoint bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/resources/9089":
 			_, _ = w.Write([]byte(`{"id":9089,"name":"EssentialsX","external":true,"premium":false}`))
 		case r.URL.Path == "/resources/9089/versions":
+			hitVersionsEndpoint = true
 			_, _ = w.Write([]byte(`[{"id":639442,"name":"2.22.0"}]`))
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
@@ -128,21 +130,18 @@ func TestSpigotVersionsExternalResourceHasNoFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Versions: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("len = %d, want 1", len(got))
+	// The whole version is dropped (not reported with zero files) so the
+	// dashboard's zero-*versions* empty state fires. Do NOT invent a
+	// DownloadURL.
+	if len(got) != 0 {
+		t.Errorf("got = %+v, want zero versions for an external resource", got)
 	}
-	// The version itself is still reported (title/number), but with zero
-	// files — the dashboard renders "No compatible files." for it. Do NOT
-	// invent a DownloadURL.
-	if len(got[0].Files) != 0 {
-		t.Errorf("files = %+v, want empty for an external resource", got[0].Files)
-	}
-	if got[0].VersionNumber != "2.22.0" {
-		t.Errorf("version number = %q", got[0].VersionNumber)
+	if hitVersionsEndpoint {
+		t.Error("an external/premium resource should short-circuit before the versions-list call")
 	}
 }
 
-func TestSpigotVersionsPremiumResourceHasNoFiles(t *testing.T) {
+func TestSpigotVersionsPremiumResourceHasNoVersions(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/resources/555":
@@ -159,8 +158,31 @@ func TestSpigotVersionsPremiumResourceHasNoFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Versions: %v", err)
 	}
-	if len(got) != 1 || len(got[0].Files) != 0 {
-		t.Errorf("got = %+v, want 1 version with zero files", got)
+	if len(got) != 0 {
+		t.Errorf("got = %+v, want zero versions", got)
+	}
+}
+
+// TestSpigotVersionsMissingFlagsFailClosed proves M6: a Spiget response that
+// omits external/premium (e.g. a future API change dropping the fields)
+// must not be treated as "safe to install" — it decodes to nil, not false,
+// and nil is treated the same as true.
+func TestSpigotVersionsMissingFlagsFailClosed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/resources/1" {
+			_, _ = w.Write([]byte(`{"id":1,"name":"Mystery"}`))
+			return
+		}
+		t.Errorf("unexpected path %q (should short-circuit before the versions call)", r.URL.Path)
+	}))
+	defer srv.Close()
+
+	got, err := testSpigot(srv.URL).Versions(context.Background(), "1", Filter{})
+	if err != nil {
+		t.Fatalf("Versions: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("got = %+v, want zero versions when external/premium are absent", got)
 	}
 }
 

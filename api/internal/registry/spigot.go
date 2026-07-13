@@ -20,12 +20,24 @@ import (
 // purchase Spiget has no way to authorize on our behalf). Spiget's own docs
 // say the resource's `external` field "should be checked before
 // downloading, to not receive any unexpected data" — for both cases
-// Versions() returns the version with zero Files, exactly like
-// curseforge.go's files-with-no-DownloadURL rows and steam.go/nexus.go's
-// Files-always-nil versions; the dashboard already renders that as "No
-// compatible files." Do NOT invent a DownloadURL for these — Spiget's own
+// Versions() drops the version entirely (like curseforge.go dropping an
+// individual files-with-no-DownloadURL row), rather than reporting it with
+// a zero-length Files slice: the dashboard's empty state ("No compatible
+// files.", no Install button) is keyed on zero *versions*, not zero files
+// inside a version, so a lone Files-less Version would instead surface a
+// populated version dropdown next to a permanently-disabled button with no
+// explanation. Do NOT invent a DownloadURL for these — Spiget's own
 // "download" redirect for an external resource just 302s to the resource's
 // GitHub/webpage, not a file.
+//
+// The external/premium flags are read as *bool (not bool) so a response
+// that omits either field decodes to nil, not false: this engine fails
+// CLOSED (treats an unrecognized/absent flag as "no file"), never open.
+// Spiget 302s an external resource's own "download" link to the author's
+// webpage rather than a file, and the agent's install path does no
+// content-type validation before writing the response to disk as a .jar —
+// silently trusting a false "false" here would let a plain webpage get
+// installed as a plugin.
 //
 // Confirmed against the live API (2026-07-12): GET /resources?fields=...
 // and GET /search/resources/{query}?field=name for browse/search, GET
@@ -83,15 +95,21 @@ func (s *Spigot) Search(ctx context.Context, q SearchQuery) ([]Project, error) {
 	return out, nil
 }
 
-// Versions lists a resource's versions, newest first. Files is empty for
-// every version of an external/premium resource — see the package doc
-// comment above.
+// Versions lists a resource's versions, newest first. Every version is
+// dropped for an external/premium resource — see the package doc comment
+// above.
 func (s *Spigot) Versions(ctx context.Context, projectID string, _ Filter) ([]Version, error) {
 	res, err := s.getResource(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	noFile := res.External || res.Premium
+	// Fail closed: absent/unrecognized flags (nil) are treated the same as
+	// "has no installable file". No version of this resource will ever
+	// have a file, so skip the versions-list call entirely.
+	noFile := res.External == nil || *res.External || res.Premium == nil || *res.Premium
+	if noFile {
+		return []Version{}, nil
+	}
 
 	reqURL := s.baseURL + "/resources/" + url.PathEscape(projectID) + "/versions?size=25&sort=-releaseDate&fields=id,name,releaseDate"
 	var raw []spigetVersion
@@ -102,20 +120,17 @@ func (s *Spigot) Versions(ctx context.Context, projectID string, _ Filter) ([]Ve
 	out := make([]Version, 0, len(raw))
 	for _, v := range raw {
 		id := strconv.FormatInt(v.ID, 10)
-		version := Version{
+		out = append(out, Version{
 			ID:            id,
 			Name:          v.Name,
 			VersionNumber: v.Name,
-		}
-		if !noFile {
-			version.Files = []File{{
+			Files: []File{{
 				Filename: spigotFilename(res.Name, v.Name),
 				DownloadURL: s.baseURL + "/resources/" + url.PathEscape(projectID) +
 					"/versions/" + id + "/download",
 				Primary: true,
-			}}
-		}
-		out = append(out, version)
+			}},
+		})
 	}
 	return out, nil
 }
@@ -141,9 +156,12 @@ type spigetResource struct {
 	Name      string `json:"name"`
 	Tag       string `json:"tag"`
 	Downloads int64  `json:"downloads"`
-	External  bool   `json:"external"`
-	Premium   bool   `json:"premium"`
-	Icon      struct {
+	// External and Premium are *bool, not bool: a response that omits
+	// either field must decode to nil (unknown), never the bool zero value
+	// false — see Versions()'s fail-closed noFile check above.
+	External *bool `json:"external"`
+	Premium  *bool `json:"premium"`
+	Icon     struct {
 		URL string `json:"url"`
 	} `json:"icon"`
 }
