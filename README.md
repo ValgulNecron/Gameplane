@@ -15,15 +15,40 @@ docs, and comparisons. Source lives in
 [`gameplane-website`](https://github.com/ValgulNecron/gameplane-website),
 mounted here as the `website/` submodule.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Dashboard showing fleet health: running/stopped/failed server counts, cluster CPU/memory/storage usage, node status, and recent activity](docs/img/dashboard.jpg) | ![Servers list with live status, CPU, memory, and node placement for every game server in the cluster](docs/img/servers-list.jpg) |
+| Dashboard — fleet health at a glance | Servers — every game server, one list |
+| ![Server detail Overview tab showing CPU, memory, and disk usage plus quick actions and connection info](docs/img/server-overview.jpg) | ![Mods tab registry browser showing a grid of Thunderstore mods for Valheim with download counts](docs/img/mods-registry-browse.jpg) |
+| Server detail — Overview | Mods — browsing a registry (Thunderstore) |
+| ![Live streaming console output for a Terraria server, showing world-save progress](docs/img/server-console.jpg) | ![Admin Settings Mod registries screen showing CurseForge and Steam Workshop configured, Nexus Mods not configured](docs/img/admin-mod-registries.jpg) |
+| Console — live output over WebSocket | Admin Settings — Mod registries |
+
 ## Beta status & known limitations
 
 Gameplane is in **beta**: the core workflows — deploy a game server, console,
 files, backups/restore, modules, RBAC — work end to end and are covered by
-unit, integration (envtest), and kind-based e2e suites. Before you rely on it,
-know that the following are **deferred past the first beta**:
+unit, integration (envtest), and kind-based e2e suites.
 
-- **Multi-cluster** — the control plane can register additional clusters, but the
-  dashboard has no cluster picker yet, so the UI targets one cluster.
+**Multi-cluster is wired end to end**: register additional clusters from the
+**Cluster** page, switch between them from the cluster selector in the
+top bar, and RBAC, audit, and e2e coverage all thread the cluster dimension.
+One caveat — WebSocket streams (console, logs) stay scoped to the
+locally-configured cluster; that's a documented follow-up.
+
+Before you rely on it, know that:
+
+- **Official module signing isn't active yet.** The keyed-cosign mechanism is
+  implemented and e2e-proven, and `ModuleSource.spec.verify` can already
+  require a valid signature — but the officially-published bundles aren't
+  signed until a maintainer provisions the signing key as a CI secret.
+- A handful of production-readiness items are still open: a documented
+  backup/restore drill against a real restic repository, upgrade testing
+  across minor versions, and pinning the shipped modules' floating `latest`
+  image tags. None of these are code gaps — see
+  [`docs/roadmap.md`](docs/roadmap.md) for the full, current list.
 
 [`docs/roadmap.md`](docs/roadmap.md) tracks everything that stands between beta
 and a v1 GA.
@@ -45,15 +70,52 @@ control plane handles both.
 
 ## Feature goals
 
-- **Lifecycle**: create, start, stop, restart, clone, delete game servers
+- **Lifecycle**: create, start, stop, restart, clone, delete game servers. Stop
+  and restart run the template's declared shutdown sequence first — over
+  Source RCON, telnet RCON, or (for pty-console games with no RCON) a
+  pod-attach to stdin — so a restart saves the world instead of just sending
+  SIGTERM.
 - **Console**: live stdout/stderr over WebSocket, RCON stdin
 - **Logs**: historical log viewer with filtering and download
 - **Files**: browse, edit, upload, download server files (Monaco editor in-browser)
 - **Players**: per-server player list with kick/ban where the game protocol supports it
 - **Backups**: scheduled + on-demand snapshots to S3-compatible storage (restic), with restore back into a server
-- **Modules**: versioned game templates distributed as OCI artifacts
+- **Modules**: versioned game templates distributed as OCI artifacts — 16
+  games shipped today, see [`modules/`](modules/)
+- **Mods**: install mods across 10 registries, gated by API key where the
+  registry requires one — see [Mods](#mods) below
 - **Users & RBAC**: local accounts + OIDC (Keycloak, Google, GitHub)
-- **Multi-cluster**: single dashboard can target multiple clusters (roadmap)
+- **Multi-cluster**: register and switch between clusters from one dashboard —
+  the cluster selector, RBAC, and audit log all carry the cluster dimension
+
+## Mods
+
+Gameplane's mod manager supports two install models, chosen per game template:
+
+- **File-drop** — the agent downloads the mod file straight into a per-loader
+  volume (Minecraft's `mods/`/`plugins/`, Valheim's BepInEx `plugins/`, and so
+  on). This is the model behind the Mods tab's "Install mod" registry browser.
+- **Mods-by-ID** — for games whose *server itself* downloads mods at launch
+  (ARK's CurseForge `-mods=` flag, Project Zomboid, Steam Workshop id lists),
+  the operator projects the selected mod IDs into a launch environment
+  variable instead of fetching anything itself.
+
+Ten registries are supported: Modrinth, CurseForge, Thunderstore, Hangar, the
+Factorio mod portal, Steam Workshop, SpigotMC, GitHub Releases, uMod, and
+Nexus Mods. Modrinth, Thunderstore, Hangar, Factorio, SpigotMC, GitHub, and
+uMod work with no configuration. CurseForge, Steam Workshop, and Nexus Mods
+need an API key — set one in **Settings → Mod registries** and the registry
+un-hides itself in the Mods browser; until then it's simply absent, not shown
+broken. Keys are stored in a Kubernetes Secret and the API never returns the
+raw value back, even to the admin who set it.
+
+Two caveats: **Nexus Mods is browse-only** — its download links are
+premium-account- and requester-IP-gated, so Gameplane can't complete a
+one-click install; you follow the mod page from there yourself. And
+**Factorio mod portal downloads need the user's own factorio.com
+username + token**, appended in the install form — the portal ties download
+links to the requesting account, so Gameplane can't hold or proxy that
+credential on your behalf.
 
 ## Architecture
 
@@ -101,6 +163,9 @@ control plane handles both.
 - **Backup** — a one-shot snapshot job
 - **BackupSchedule** — a cron-like recurring backup policy
 - **Restore** — a one-shot restore of a Backup snapshot into a GameServer's data volume
+- **Module** — an installed module bundle; the operator materializes and owns a GameTemplate from it
+- **ModuleSource** — a registered store (OCI, git, or http) Gameplane pulls module bundles from
+- **Cluster** — a registered remote Kubernetes cluster the control plane can target
 
 ## Repo layout
 
@@ -117,9 +182,7 @@ control plane handles both.
 ├── audit-syslog-bridge/  # optional HTTP-JSON → syslog relay
 ├── web/          # React dashboard
 ├── modules/      # git submodule → gameplane-module repo (OCI bundles)
-│   ├── minecraft-java/
-│   ├── valheim/
-│   ├── terraria/
+│   ├── minecraft-java/  valheim/  terraria/  rust/  ...  # 16 games total
 │   └── build.sh  # OCI bundle builder/pusher (uses oras)
 ├── website/      # git submodule → gameplane-website repo (public site)
 ├── charts/gameplane/       # Helm chart
@@ -159,7 +222,7 @@ cosign verify --key cosign.pub --insecure-ignore-tlog=true \
 
 ## Quickstart (local dev)
 
-Requires: Go 1.22+, Node 20+, Docker, kind, kubectl, helm,
+Requires: Go 1.25+, Node 20+, Docker, kind, kubectl, helm,
 [oras](https://oras.land/docs/installation) (>= 1.2.0).
 
 The game modules live in the separate `gameplane-module` repo, wired in here
@@ -188,8 +251,9 @@ The `make dev-up` target:
    OCI registry at `localhost:5001` (reachable from cluster pods as
    `kind-registry:5000`),
 2. loads locally-built operator/api/agent images,
-3. pushes every directory under `modules/` (minecraft-java, valheim,
-   terraria) to the local registry as an OCI module bundle,
+3. pushes every directory under `modules/` (16 games at last count — see
+   `modules/` for the current list) to the local registry as an OCI module
+   bundle,
 4. installs the Helm chart from `charts/gameplane/` with a default
    `ModuleSource` pointing at the local registry — the operator
    indexes it within seconds and the modules show up in the dashboard's
