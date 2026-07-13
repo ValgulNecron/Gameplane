@@ -65,10 +65,32 @@ export interface ModRegistryDecl {
   providers: ModProviderDecl[];
 }
 
+// The closed set of built-in registry engines (mirrors ModProvider.Provider's
+// +kubebuilder:validation:Enum server-side). curseforge, steam, and nexus
+// need an admin-configured API key and stay hidden from the Mods browser
+// until one is set (see RegistryProviderInfo.available); the rest are keyless.
+export type ModRegistryProvider =
+  | "modrinth"
+  | "thunderstore"
+  | "curseforge"
+  | "hangar"
+  | "factorio"
+  | "steam"
+  | "spigot"
+  | "github"
+  | "umod"
+  | "nexus";
+
 // One declared registry provider on a template.
 export interface ModProviderDecl {
-  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar" | "factorio";
+  provider: ModRegistryProvider;
   community?: string;
+  // Required (>0) when provider is "steam" — facets Workshop browse/search
+  // to this Steam app id. Ignored otherwise.
+  steamAppID?: number;
+  // Required when provider is "github" — the one repository whose Releases
+  // stand in for versions. Ignored otherwise.
+  github?: { owner: string; repo: string };
   modpacks?: ModpackDecl;
 }
 
@@ -207,7 +229,7 @@ export interface RegistryProject {
   iconUrl?: string;
   downloads?: number;
   pageUrl?: string;
-  provider: "modrinth" | "thunderstore" | "curseforge" | "hangar" | "factorio";
+  provider: ModRegistryProvider;
 }
 
 // A downloadable artifact of a RegistryVersion; downloadUrl is handed to
