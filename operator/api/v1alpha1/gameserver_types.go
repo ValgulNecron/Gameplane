@@ -117,6 +117,36 @@ type GameServerSpec struct {
 	// never reports Running).
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
+	// Mods pins the mods this server loads, for games whose server downloads
+	// its own mods by id (see GameTemplate capabilities.mods.idList). Ignored
+	// by file-drop games.
+	// +optional
+	Mods *GameServerModsSpec `json:"mods,omitempty"`
+}
+
+// GameServerModsSpec is the set of mods selected for a server whose game
+// installs mods by id (see GameTemplate capabilities.mods.idList).
+type GameServerModsSpec struct {
+	// IDs are the provider-native mod ids, in order.
+	// +kubebuilder:validation:MaxItems=200
+	// +optional
+	IDs []ModRef `json:"ids,omitempty"`
+}
+
+// ModRef is one provider-native mod id, optionally labeled for display.
+type ModRef struct {
+	// ID is the provider-native mod id (e.g. a CurseForge project id).
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._-]+$`
+	ID string `json:"id"`
+	// Name is a display label only. It is never projected into the game —
+	// it exists so the dashboard can render the list without a registry
+	// round-trip.
+	// +kubebuilder:validation:MaxLength=128
+	// +optional
+	Name string `json:"name,omitempty"`
 }
 
 // GameTemplateRef identifies a GameTemplate by name.

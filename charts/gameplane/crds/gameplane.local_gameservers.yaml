@@ -1203,6 +1203,38 @@ spec:
                   resolved from Version). Useful for pinning a specific build or
                   running a fork.
                 type: string
+              mods:
+                description: |-
+                  Mods pins the mods this server loads, for games whose server downloads
+                  its own mods by id (see GameTemplate capabilities.mods.idList). Ignored
+                  by file-drop games.
+                properties:
+                  ids:
+                    description: IDs are the provider-native mod ids, in order.
+                    items:
+                      description: ModRef is one provider-native mod id, optionally
+                        labeled for display.
+                      properties:
+                        id:
+                          description: ID is the provider-native mod id (e.g. a CurseForge
+                            project id).
+                          maxLength: 64
+                          minLength: 1
+                          pattern: ^[A-Za-z0-9._-]+$
+                          type: string
+                        name:
+                          description: |-
+                            Name is a display label only. It is never projected into the game —
+                            it exists so the dashboard can render the list without a registry
+                            round-trip.
+                          maxLength: 128
+                          type: string
+                      required:
+                      - id
+                      type: object
+                    maxItems: 200
+                    type: array
+                type: object
               networking:
                 description: Networking controls how the game is exposed outside the
                   cluster.
