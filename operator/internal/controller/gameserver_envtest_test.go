@@ -266,6 +266,99 @@ func TestGameServer_RCONProvisioning(t *testing.T) {
 	})
 }
 
+// TestGameServer_RCONPort — agent container receives --rcon-port argument
+// when RCON is enabled. Defaults to 25575 when spec.rcon.port is unset,
+// uses the declared port when set (e.g., 27015 for factorio).
+func TestGameServer_RCONPort(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	// Test 1: custom RCON port (e.g., factorio at 27015)
+	tmpl := buildGameTemplate(uniqueName("factorio"))
+	tmpl.Spec.RCON = &gameplanev1alpha1.RCONSpec{Protocol: "source", Port: 27015, PasswordFile: "config/rconpw"}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create factorio template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "factorio-srv", tmpl.Name)); err != nil {
+		t.Fatalf("create factorio gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "factorio-srv"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		var agent *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == "agent" {
+				agent = &ss.Spec.Template.Spec.Containers[i]
+				break
+			}
+		}
+		if agent == nil {
+			return false, "no agent container"
+		}
+		// Check for --rcon-port=27015
+		hasPort := false
+		for _, a := range agent.Args {
+			if a == "--rcon-port=27015" {
+				hasPort = true
+				break
+			}
+		}
+		if !hasPort {
+			return false, "agent missing --rcon-port=27015, got: " + strings.Join(agent.Args, " ")
+		}
+		return true, ""
+	})
+
+	// Test 2: default RCON port (25575) when spec.rcon.port is unset
+	tmpl2 := buildGameTemplate(uniqueName("minecraft"))
+	tmpl2.Spec.RCON = &gameplanev1alpha1.RCONSpec{Protocol: "source", PasswordEnv: "RCON_PASSWORD"}
+	// Note: Port is 0/unset, should default to 25575
+	if err := k8sClient.Create(context.Background(), tmpl2); err != nil {
+		t.Fatalf("create minecraft template: %v", err)
+	}
+	deleteCleanup(t, tmpl2)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "mc-srv", tmpl2.Name)); err != nil {
+		t.Fatalf("create minecraft gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "mc-srv"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		var agent *corev1.Container
+		for i := range ss.Spec.Template.Spec.Containers {
+			if ss.Spec.Template.Spec.Containers[i].Name == "agent" {
+				agent = &ss.Spec.Template.Spec.Containers[i]
+				break
+			}
+		}
+		if agent == nil {
+			return false, "no agent container"
+		}
+		// Check for --rcon-port=25575
+		hasPort := false
+		for _, a := range agent.Args {
+			if a == "--rcon-port=25575" {
+				hasPort = true
+				break
+			}
+		}
+		if !hasPort {
+			return false, "agent missing --rcon-port=25575, got: " + strings.Join(agent.Args, " ")
+		}
+		return true, ""
+	})
+}
+
 // TestGameServer_TemplateNotFound_PhaseFailed — referencing a missing
 // template flips Status.Phase to Failed with a reasonable message.
 func TestGameServer_TemplateNotFound_PhaseFailed(t *testing.T) {

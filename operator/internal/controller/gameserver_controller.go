@@ -854,6 +854,7 @@ func buildAgentContainer(
 		} else {
 			args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
 		}
+		args = append(args, "--rcon-port="+strconv.FormatInt(int64(rc.port), 10))
 	}
 	env := []corev1.EnvVar{
 		{Name: "GAMEPLANE_SERVER_NAME", Value: gs.Name},

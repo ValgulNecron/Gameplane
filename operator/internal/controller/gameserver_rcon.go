@@ -35,6 +35,7 @@ type resolvedRCON struct {
 	// passwordEnv is the game-container env var to inject the password
 	// into, "" when the template doesn't declare one or when using passwordFile.
 	passwordEnv string
+	port        int32
 }
 
 func resolveRCON(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate) resolvedRCON {
@@ -42,6 +43,12 @@ func resolveRCON(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameT
 		return resolvedRCON{}
 	}
 	r := resolvedRCON{enabled: true, passwordEnv: tmpl.Spec.RCON.PasswordEnv}
+	// Port defaults to 25575 when the template doesn't specify one.
+	if tmpl.Spec.RCON.Port != 0 {
+		r.port = tmpl.Spec.RCON.Port
+	} else {
+		r.port = 25575
+	}
 	// Precedence: PasswordSecretRef > PasswordFile > operator-generated Secret
 	if ref := tmpl.Spec.RCON.PasswordSecretRef; ref != nil {
 		r.secretName = ref.Name
