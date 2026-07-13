@@ -109,16 +109,45 @@ export interface RegistryProviderInfo {
   modpacks: boolean;
 }
 
+// spec.capabilities.mods.idList — declares that this game's server
+// downloads its own mods given a list of provider-native ids (ARK:
+// Survival Ascended's CurseForge ids appended to its launch string,
+// Project Zomboid's semicolon-separated MOD_IDS, generic Steam Workshop id
+// lists) rather than the agent dropping files into a mods directory. Its
+// presence on a template is the dashboard's signal to render the
+// id-managed mods editor instead of the file-based install/list UI.
+// Mirrors ModIDListSpec (operator/api/v1alpha1/gametemplate_types.go); the
+// dashboard only needs to know this exists, not env/separator/format/mode
+// (those drive the operator's projection, not the UI).
+export interface ModIDListDecl {
+  env: string;
+  separator?: string;
+  format?: string;
+  mode?: "replace" | "append";
+}
+
 // spec.capabilities.mods — declares the mod directory and (optionally)
 // the URL-install policy. A template uses either a single `path` (legacy)
 // or a per-loader `loaders` map keyed by GameVersion.loader; install is
 // offered only when `install` is set; `registry` enables in-app browse.
+// `idList` is mutually exclusive with path/loaders in practice — see
+// ModIDListDecl.
 export interface ModsCapability {
   path?: string;
   loaders?: Record<string, ModLoaderDecl>;
   extensions?: string[];
   install?: ModInstallPolicy;
   registry?: ModRegistryDecl;
+  idList?: ModIDListDecl;
+}
+
+// One provider-native mod id + display label — GameServer.spec.mods.ids,
+// GET/PUT /servers/{name}/mods/ids. Mirrors api/internal/handlers/
+// mod_ids.go's ModID DTO (and operator/api/v1alpha1/gameserver_types.go's
+// ModRef). `name` is a display label only, never projected into the game.
+export interface ModID {
+  id: string;
+  name?: string;
 }
 
 // spec.capabilities — only the surfaces the dashboard renders are typed;
@@ -378,6 +407,10 @@ export interface GameServer {
     tolerations?: Toleration[];
     affinity?: Record<string, unknown>;
     serviceAccountName?: string;
+    // Selected mods for a game whose server installs mods by id (see
+    // GameTemplate.spec.capabilities.mods.idList). Absent/undefined for
+    // file-drop games.
+    mods?: { ids?: ModID[] };
   };
   status?: {
     phase?: GameServerPhase;

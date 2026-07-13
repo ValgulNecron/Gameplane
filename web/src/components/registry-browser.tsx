@@ -33,7 +33,10 @@ const PROVIDER_LABELS: Record<string, string> = {
   nexus: "Nexus Mods",
 };
 
-function providerLabel(p: string): string {
+// providerLabel is exported so other mod surfaces (e.g. the id-managed
+// mods editor) can label a provider consistently without duplicating the
+// display-name table.
+export function providerLabel(p: string): string {
   return PROVIDER_LABELS[p] ?? p.charAt(0).toUpperCase() + p.slice(1);
 }
 

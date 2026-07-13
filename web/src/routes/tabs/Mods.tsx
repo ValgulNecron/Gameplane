@@ -1,11 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpCircle, Download, Package, Plus, RotateCw, Trash2, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpCircle,
+  Compass,
+  Download,
+  Info,
+  Package,
+  Plus,
+  RotateCcw,
+  RotateCw,
+  TriangleAlert,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 
 import type {
   GameServer,
   GameTemplate,
   InstalledMod,
+  ModID,
   ModMeta,
   ModUpdate,
   RegistryProject,
@@ -17,7 +32,7 @@ import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry-browser";
+import { RegistryBrowser, RegistryIcon, compactNum, providerLabel } from "@/components/registry-browser";
 import { cn, formatBytes, formatRelative } from "@/lib/utils";
 
 type Banner = { kind: "ok" | "err"; text: string };
@@ -27,11 +42,27 @@ type Banner = { kind: "ok" | "err"; text: string };
 // in-place upgrades (replaces swaps out the old file).
 type InstallBody = { url: string; name?: string; replaces?: string; meta?: ModMeta };
 
-// ModsTab is the generic mod/plugin manager. It's rendered only when the
-// template declares spec.capabilities.mods; everything game-specific
-// (the mods directory, what installs are allowed) lives server-side. The
-// dashboard just lists, installs by URL, and removes by name.
+// ModsTab is the Mods tab's entry point. It's rendered only when the
+// template declares spec.capabilities.mods (see serverHasMods). Games
+// split into two entirely different UIs here: a template that declares
+// idList (its server downloads its own mods given a list of ids — ARK's
+// CurseForge ids, Project Zomboid's MOD_IDS, Steam Workshop lists) gets
+// the id-managed batch editor; every other game keeps the existing
+// file-based list/install/upload flow untouched. The branch happens
+// before either side calls a hook, so switching modes cleanly unmounts
+// one component and mounts the other rather than reordering hooks within
+// one.
 export function ModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate; gs?: GameServer; ns?: string }) {
+  if (tmpl?.spec.capabilities?.mods?.idList) {
+    return <ModsByIdTab name={name} tmpl={tmpl} ns={ns} />;
+  }
+  return <FileModsTab name={name} tmpl={tmpl} gs={gs} ns={ns} />;
+}
+
+// FileModsTab is the generic file-based mod/plugin manager (the original
+// ModsTab, unchanged): lists, installs by URL, browses a registry, and
+// uploads files into the resolved mods directory.
+function FileModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTemplate; gs?: GameServer; ns?: string }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
   const canManage = can(me, "servers:write");
@@ -358,6 +389,370 @@ export function ModsTab({ name, tmpl, gs, ns }: { name: string; tmpl?: GameTempl
         busy={remove.isPending}
         onConfirm={() => confirmRemove && remove.mutate(confirmRemove.name)}
       />
+    </div>
+  );
+}
+
+// modIDPattern mirrors the API's modIDPattern (api/internal/handlers/
+// mod_ids.go) and the CRD's ModRef.ID validation — client-side so the Add
+// button/input give immediate feedback instead of round-tripping to a 400.
+const modIDPattern = /^[A-Za-z0-9._-]{1,64}$/;
+
+// A row's local, unsaved status relative to the last-saved list. "kept"
+// mirrors the server; "added" is a new selection not yet saved; "removed"
+// is marked for removal but still rendered (dimmed, with Undo) until Save.
+type ModIDRowState = "kept" | "added" | "removed";
+interface ModIDRow extends ModID {
+  state: ModIDRowState;
+}
+
+// ModsByIdTab is the mods editor for games whose server downloads its own
+// mods given a list of ids (spec.capabilities.mods.idList) — ARK: Survival
+// Ascended's CurseForge ids, Project Zomboid's MOD_IDS, generic Steam
+// Workshop lists. There is no mods directory and no per-mod file, so the
+// file-based list/install/upload UI (FileModsTab) is meaningless here.
+//
+// Saving changes the game container's env and restarts the server (see
+// GameTemplate.spec.capabilities.mods.idList and the operator's env
+// projection), so this is a batch-then-save editor: adds/removes are held
+// in local `rows` state and only reach the API as a single PUT — never a
+// per-row write, which would cost one restart per mod.
+function ModsByIdTab({
+  name,
+  tmpl,
+  ns,
+}: {
+  name: string;
+  tmpl?: GameTemplate;
+  ns?: string;
+}) {
+  const qc = useQueryClient();
+  const { data: me } = useMe();
+  const canManage = can(me, "servers:write");
+
+  const caps = tmpl?.spec.capabilities?.mods;
+  // A registry provider (e.g. ARK declares curseforge) enables in-app
+  // browse; the RegistryBrowser itself falls back to a message when the
+  // provider is declared but unavailable (e.g. no CurseForge API key) — in
+  // either case Add-by-ID below keeps working on its own.
+  const provider = caps?.registry?.providers?.[0]?.provider;
+  const canBrowse = !!caps?.registry;
+  const providerName = provider ? providerLabel(provider) : undefined;
+
+  const [browsing, setBrowsing] = useState(false);
+  const [rows, setRows] = useState<ModIDRow[]>([]);
+  const [idInput, setIdInput] = useState("");
+  const [banner, setBanner] = useState<Banner | null>(null);
+
+  // savedRef holds the last-known server truth (for Discard); lastSeenRef
+  // dedupes re-syncs to the same query result (mirrors the Settings tab's
+  // draft/baseline pattern for the same reason: a background refetch must
+  // not clobber edits in progress).
+  const savedRef = useRef<ModID[]>([]);
+  const lastSeenRef = useRef<ModID[] | undefined>(undefined);
+
+  const { data: saved, isFetching, isError, error: listError, refetch } = useQuery({
+    queryKey: ["mod-ids", name, ns],
+    queryFn: () => Servers.modIDs(name, ns),
+  });
+
+  const dirty = useMemo(() => rows.some((r) => r.state !== "kept"), [rows]);
+
+  useEffect(() => {
+    if (!saved || saved === lastSeenRef.current) return;
+    lastSeenRef.current = saved;
+    if (dirty) return; // local edits in flight — don't clobber
+    savedRef.current = saved;
+    setRows(saved.map((m) => ({ ...m, state: "kept" as const })));
+  }, [saved, dirty]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      Servers.setModIDs(
+        name,
+        rows
+          .filter((r) => r.state !== "removed")
+          .map(({ id, name: label }): ModID => (label ? { id, name: label } : { id })),
+        ns,
+      ),
+    onSuccess: (updated) => {
+      savedRef.current = updated;
+      lastSeenRef.current = updated;
+      setRows(updated.map((m) => ({ ...m, state: "kept" as const })));
+      setBanner({
+        kind: "ok",
+        text: `Saved — the server will restart to apply ${updated.length} mod${updated.length === 1 ? "" : "s"}.`,
+      });
+      return qc.invalidateQueries({ queryKey: ["mod-ids", name] });
+    },
+    onError: (err) => setBanner({ kind: "err", text: errMsg(err) }),
+  });
+
+  const discard = () => {
+    setRows(savedRef.current.map((m) => ({ ...m, state: "kept" as const })));
+    setBanner(null);
+  };
+
+  // addModID adds an id to the pending list. Re-adding an id that's
+  // currently marked for removal just undoes the removal (the intuitive
+  // outcome); adding an id already selected is a no-op.
+  const addModID = (id: string, label?: string) => {
+    const trimmed = id.trim();
+    if (!modIDPattern.test(trimmed)) return;
+    setRows((prev) => {
+      const existing = prev.find((r) => r.id === trimmed);
+      if (existing) {
+        if (existing.state === "removed") {
+          return prev.map((r) => (r.id === trimmed ? { ...r, state: "kept" as const } : r));
+        }
+        return prev;
+      }
+      return [...prev, { id: trimmed, name: label, state: "added" as const }];
+    });
+  };
+
+  // markRemoved drops a never-saved "added" row outright (nothing to
+  // undo — it never reached the server); a "kept" row is marked
+  // "removed" so it stays visible (dimmed, with Undo) until Save.
+  const markRemoved = (id: string) => {
+    setRows((prev) =>
+      prev.flatMap((r) => {
+        if (r.id !== id) return [r];
+        if (r.state === "added") return [];
+        return [{ ...r, state: "removed" as const }];
+      }),
+    );
+  };
+
+  const undoRemove = (id: string) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, state: "kept" as const } : r)));
+  };
+
+  // Every row renders (a "removed" row stays visible, dimmed, until Save
+  // actually drops it); the header count excludes rows marked for removal.
+  const selectedCount = rows.filter((r) => r.state !== "removed").length;
+
+  if (browsing) {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        <header className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setBrowsing(false)}
+            className="flex items-center gap-1 text-xs text-muted hover:text-fg"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Selected mods
+          </button>
+          <h2 className="text-base font-semibold">Browse {providerName ?? "registry"}</h2>
+        </header>
+        <div className="min-h-0 flex-1">
+          <RegistryBrowser
+            name={name}
+            type="mod"
+            renderItem={(p) => (
+              <IdModCard
+                project={p}
+                added={rows.some((r) => r.id === p.id && r.state !== "removed")}
+                onAdd={() => addModID(p.id, p.title)}
+              />
+            )}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      <header className="flex items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <h2 className="text-sm text-muted">{selectedCount} selected</h2>
+          <p className="text-[11px] text-muted">
+            {[tmpl?.spec.displayName, providerName ? `${providerName} mod IDs` : null].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} title="Refresh">
+          <RotateCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+        </Button>
+      </header>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border bg-surface/40 p-3 text-xs text-fg">
+        <Info className="h-4 w-4 shrink-0 text-muted" />
+        <p>
+          This game&rsquo;s server downloads its own mods. Select them here — Gameplane passes the list to the
+          server at launch.
+        </p>
+      </div>
+
+      {banner && (
+        <div
+          className={cn(
+            "rounded border px-3 py-2 text-sm",
+            banner.kind === "ok"
+              ? "border-border bg-surface/40 text-fg"
+              : "border-danger/40 bg-danger/10 text-danger",
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="font-mono break-all">{banner.text}</span>
+            <button onClick={() => setBanner(null)} className="shrink-0 text-xs text-muted hover:text-fg">
+              dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isError && !saved && (
+        <div className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          {errMsg(listError)} ·{" "}
+          <button onClick={() => refetch()} className="underline hover:no-underline">
+            retry
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {canBrowse && canManage && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setBrowsing(true)}>
+              <Compass className="h-4 w-4" /> Browse {providerName ?? "registry"}
+            </Button>
+            <div className="h-6 w-px bg-border" />
+          </>
+        )}
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder={`Paste a${providerName ? ` ${providerName}` : ""} mod ID…`}
+            value={idInput}
+            onChange={(e) => setIdInput(e.target.value)}
+            disabled={!canManage}
+            className="w-56"
+            spellCheck={false}
+          />
+          <Button
+            size="sm"
+            disabled={!canManage || !modIDPattern.test(idInput.trim())}
+            onClick={() => {
+              addModID(idInput.trim());
+              setIdInput("");
+            }}
+          >
+            <Plus className="h-4 w-4" /> Add
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Selected mods</h3>
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-12 text-center">
+            <Package className="h-6 w-6 text-muted" />
+            <p className="text-sm text-muted">No mods selected.</p>
+            {canManage && <p className="text-xs text-muted">Browse {providerName ?? "a registry"} or add a mod ID.</p>}
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {rows.map((r) => (
+              <li
+                key={r.id}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3.5 py-3.5",
+                  r.state === "removed" && "opacity-60",
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-surface">
+                    <Package className="h-4 w-4 text-muted" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className={cn("truncate text-sm font-semibold", r.state === "removed" && "line-through")}>
+                      {r.name || r.id}
+                    </div>
+                    {r.name && <div className="truncate text-xs text-muted">ID {r.id}</div>}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {r.state === "added" && <ModIDChip kind="added">Added</ModIDChip>}
+                  {r.state === "removed" && <ModIDChip kind="removed">Marked for removal</ModIDChip>}
+                  {canManage &&
+                    (r.state === "removed" ? (
+                      <Button variant="ghost" size="sm" onClick={() => undoRemove(r.id)}>
+                        <RotateCcw className="h-3 w-3" /> Undo
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => markRemoved(r.id)}>
+                        <X className="h-3 w-3" /> Remove
+                      </Button>
+                    ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="flex items-center gap-2 text-xs text-warning">
+          <TriangleAlert className="h-4 w-4" /> Saving restarts the server to apply the new mod list.
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={discard} disabled={!dirty || save.isPending}>
+            Discard
+          </Button>
+          <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending || !canManage}>
+            {save.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ModIDChip is the pending-state pill for a row: "Added" (success) for a
+// new not-yet-saved selection, "Marked for removal" (warning) for a kept
+// row queued for removal. Mirrors the existing update-available badge's
+// pill styling (rounded-full border + tinted bg/text) rather than
+// introducing a new one.
+function ModIDChip({ kind, children }: { kind: "added" | "removed"; children: ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        kind === "added" ? "border-success/40 bg-success/10 text-success" : "border-warning/40 bg-warning/10 text-warning",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+// IdModCard is one registry-browse result in id-managed mode: no
+// version/file picker (unlike FileModsTab's ModCard) — the operator only
+// ever needs the provider-native project id, not a specific downloadable
+// file, since the *game server itself* fetches the mod at launch.
+function IdModCard({
+  project,
+  added,
+  onAdd,
+}: {
+  project: RegistryProject;
+  added: boolean;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded border border-border bg-surface/30 p-2.5">
+      <RegistryIcon url={project.iconUrl} fallback={<Package className="h-9 w-9 shrink-0 rounded p-2 text-muted" />} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{project.title}</div>
+        <div className="truncate text-xs text-muted">
+          {[project.author, project.downloads != null ? `${compactNum(project.downloads)} downloads` : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      </div>
+      <Button size="sm" variant={added ? "outline" : "default"} disabled={added} onClick={onAdd}>
+        {added ? "Added" : "Add"}
+      </Button>
     </div>
   );
 }
