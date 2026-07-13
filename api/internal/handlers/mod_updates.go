@@ -62,6 +62,8 @@ const modUpdateCacheCap = 1024
 type modUpdateKey struct {
 	provider    string
 	community   string
+	githubOwner string
+	githubRepo  string
 	projectID   string
 	loader      string
 	gameVersion string
@@ -177,6 +179,8 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 		key := modUpdateKey{
 			provider:    ref.Provider,
 			community:   cfg.community,
+			githubOwner: cfg.githubOwner,
+			githubRepo:  cfg.githubRepo,
 			projectID:   ref.ProjectID,
 			loader:      ref.Loader,
 			gameVersion: ref.GameVersion,
@@ -258,7 +262,12 @@ func (h *modUpdatesHandler) latestFor(ctx context.Context, key modUpdateKey) (re
 	h.sem <- struct{}{}
 	defer func() { <-h.sem }()
 
-	p, ok := h.reg.For(ctx, registry.Config{Provider: key.provider, Community: key.community})
+	p, ok := h.reg.For(ctx, registry.Config{
+		Provider:    key.provider,
+		Community:   key.community,
+		GitHubOwner: key.githubOwner,
+		GitHubRepo:  key.githubRepo,
+	})
 	if !ok {
 		return registry.Version{}, errNoRegistry
 	}

@@ -1,6 +1,7 @@
 // Package registry implements read-only browse/search of external game-mod
 // registries (Modrinth, Thunderstore, CurseForge, Hangar, the Factorio mod
-// portal, the Steam Workshop, Nexus Mods) for the dashboard's mod manager.
+// portal, the Steam Workshop, Nexus Mods, SpigotMC via Spiget, GitHub
+// Releases, uMod) for the dashboard's mod manager.
 //
 // The engines here are generic: a GameTemplate's capabilities.mods.registry
 // block picks a provider and supplies its parameters, and the handler in
@@ -10,7 +11,8 @@
 // agent install path, which re-checks the host allowlist and SSRF guard.
 // Search itself only ever GETs fixed, admin-trusted hostnames
 // (api.modrinth.com, thunderstore.io, api.steampowered.com,
-// api.nexusmods.com), so it carries no per-request SSRF guard of its own.
+// api.nexusmods.com, api.spiget.org, api.github.com, umod.org), so it
+// carries no per-request SSRF guard of its own.
 //
 // Two providers (steam, nexus) never populate Version.Files: Steam Workshop
 // content is fetched by steamcmd running inside the game container (there is
@@ -132,6 +134,13 @@ type Config struct {
 	// SteamAppID facets Steam Workshop browse/search to one app. Required
 	// by the steam provider; ignored by others.
 	SteamAppID int32
+	// GitHubOwner and GitHubRepo bind the "github" provider to one
+	// repository's Releases — GitHub has no cross-repo mod search, so
+	// (unlike every keyless engine above) a template must pick exactly one
+	// repo, the way Thunderstore picks a Community. Both are required by
+	// the github provider; ignored by others.
+	GitHubOwner string
+	GitHubRepo  string
 }
 
 // Cache windows: a successful build is reused until the key hash changes or
@@ -156,17 +165,21 @@ type builtEntry struct {
 }
 
 // Set holds the constructed engines, sharing one HTTP client. Keyless engines
-// (modrinth, thunderstore, hangar, factorio) are built once and reused; the
-// Thunderstore engine caches its community package lists internally. Keyed
-// engines (curseforge, steam, nexus) are built lazily behind a TTL +
-// key-hash cache so a key can be changed at runtime without restarting. When
-// a key is empty, the provider reports unavailable (existing behavior).
+// (modrinth, thunderstore, hangar, factorio, spigot, github, umod) are built
+// once and reused; the Thunderstore engine caches its community package
+// lists internally. Keyed engines (curseforge, steam, nexus) are built
+// lazily behind a TTL + key-hash cache so a key can be changed at runtime
+// without restarting. When a key is empty, the provider reports unavailable
+// (existing behavior).
 type Set struct {
 	// immutable keyless engines
 	modrinth     *Modrinth
 	thunderstore *Thunderstore
 	hangar       *Hangar
 	factorio     *Factorio
+	spigot       *Spigot
+	github       *GitHub
+	umod         *Umod
 
 	// keyed engine cache, one entry per provider name
 	mu      sync.Mutex
@@ -191,6 +204,9 @@ func NewSet(version string, keyFunc KeyFunc) *Set {
 		thunderstore: newThunderstore(client, ua),
 		hangar:       newHangar(client, ua),
 		factorio:     newFactorio(client, ua),
+		spigot:       newSpigot(client, ua),
+		github:       newGitHub(client, ua),
+		umod:         newUmod(client, ua),
 		keyFunc:      keyFunc,
 		client:       client,
 		ua:           ua,
@@ -223,6 +239,15 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 		return s.hangar, true
 	case "factorio":
 		return s.factorio, true
+	case "spigot":
+		return s.spigot, true
+	case "github":
+		if cfg.GitHubOwner == "" || cfg.GitHubRepo == "" {
+			return nil, false
+		}
+		return &githubRepo{gh: s.github, owner: cfg.GitHubOwner, repo: cfg.GitHubRepo}, true
+	case "umod":
+		return s.umod, true
 	case "steam":
 		if cfg.SteamAppID <= 0 {
 			return nil, false
@@ -253,7 +278,7 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 // (SteamAppID/Community), which For validates.
 func (s *Set) Available(ctx context.Context, provider string) bool {
 	switch provider {
-	case "modrinth", "thunderstore", "hangar", "factorio":
+	case "modrinth", "thunderstore", "hangar", "factorio", "spigot", "github", "umod":
 		return true
 	case "curseforge":
 		cf, err := s.curseforgeLazy(ctx)
