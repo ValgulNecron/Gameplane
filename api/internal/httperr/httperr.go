@@ -21,14 +21,26 @@ import (
 // message. Use this when the handler has already classified the
 // condition itself — for example, surfacing a CRD finalizer's
 // in-use blocker as a 409.
+//
+// For a 4xx, err.Error() is echoed verbatim: by convention every existing
+// 4xx caller has already classified the condition and hand-built a message
+// safe to show the caller (e.g. "ref is required", "cluster already
+// exists"). For a >=500 status that contract does not hold — several
+// callers wrap a raw upstream error (e.g. a mod-registry GET failure) that
+// was never vetted for caller-safety, and a *url.Error embeds the full
+// request URL, query string included, which for a provider like Steam
+// carries an admin's API key. So >=500 never echoes err.Error(): the
+// generic http.StatusText for the code is written to the client, and the
+// real error is still logged in full server-side.
 func WriteCode(w http.ResponseWriter, req *http.Request, status int, err error) {
 	if status >= 500 {
 		slog.Error("handler error",
 			"method", req.Method, "path", req.URL.Path, "err", err)
-	} else {
-		slog.Debug("handler client error",
-			"method", req.Method, "path", req.URL.Path, "status", status, "err", err)
+		http.Error(w, http.StatusText(status), status)
+		return
 	}
+	slog.Debug("handler client error",
+		"method", req.Method, "path", req.URL.Path, "status", status, "err", err)
 	http.Error(w, err.Error(), status)
 }
 
