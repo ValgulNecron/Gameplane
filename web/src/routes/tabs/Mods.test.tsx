@@ -6,6 +6,7 @@ import type {
   GameServer,
   GameTemplate,
   InstalledMod,
+  ModID,
   ModUpdatesResponse,
   ModsCapability,
   RegistryProject,
@@ -529,5 +530,185 @@ describe("ModsTab", () => {
     const urlInput = await screen.findByLabelText<HTMLInputElement>(/download url/i);
     expect(urlInput.value).toBe("https://mods.factorio.com/download/flib/xyz");
     expect(screen.getByRole("button", { name: "From URL" })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+// ---------------------------------------------------------------------
+// Id-managed mods (spec.capabilities.mods.idList): games whose server
+// downloads its own mods given a list of ids (ARK's CurseForge ids,
+// Project Zomboid's MOD_IDS, Steam Workshop lists). The template's idList
+// declaration is the signal to render this editor instead of the
+// file-based list/install/upload flow exercised above.
+describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
+  function idTmpl(opts: { registry?: boolean } = {}): GameTemplate {
+    return {
+      metadata: { name: "ark-survival-ascended" },
+      spec: {
+        displayName: "ARK: Survival Ascended",
+        game: "ark-survival-ascended",
+        version: "1",
+        image: "img",
+        capabilities: {
+          mods: {
+            idList: { env: "ASA_START_PARAMS", separator: ",", format: " -mods={{ids}}", mode: "append" },
+            ...(opts.registry ? { registry: { providers: [{ provider: "curseforge" as const }] } } : {}),
+          },
+        },
+      },
+    };
+  }
+
+  function routeIds(opts: {
+    ids?: ModID[];
+    onPut?: (body: ModID[]) => void;
+    providers?: { provider: string; available: boolean; modpacks: boolean }[];
+    search?: RegistryProject[];
+  } = {}) {
+    const ids = opts.ids ?? [];
+    fetchMock.mockImplementation((url: string, o?: { method?: string; body?: string }) => {
+      const method = o?.method ?? "GET";
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({
+            id: 1,
+            username: "u",
+            displayName: "U",
+            email: "",
+            role: "operator",
+            permissions: { "*": ["servers:read", "servers:write"] },
+          }),
+        );
+      }
+      if (url.includes("/mods/registry/providers")) {
+        return Promise.resolve(
+          jsonRes(opts.providers ?? [{ provider: "curseforge", available: true, modpacks: false }]),
+        );
+      }
+      if (url.includes("/mods/registry/search")) {
+        return Promise.resolve(jsonRes(opts.search ?? []));
+      }
+      if (url.includes("/mods/ids") && method === "PUT") {
+        const body = JSON.parse(o?.body ?? "[]") as ModID[];
+        opts.onPut?.(body);
+        return Promise.resolve(jsonRes(body));
+      }
+      if (url.includes("/mods/ids")) {
+        return Promise.resolve(jsonRes(ids));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+  }
+
+  it("renders the id editor, not the file list, for an id-managed template", async () => {
+    routeIds({ ids: [{ id: "889745", name: "Structures Plus (S+)" }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    expect(await screen.findByText("Structures Plus (S+)")).toBeInTheDocument();
+    // The file-based UI never mounts: no "Install mod" button, no
+    // installed-file empty state, no per-mod file size/mtime line.
+    expect(screen.queryByRole("button", { name: /install mod/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("No mods installed.")).not.toBeInTheDocument();
+  });
+
+  it("adds a mod by id and saves exactly one PUT with the full list", async () => {
+    const puts: ModID[][] = [];
+    routeIds({ ids: [{ id: "889745", name: "Structures Plus (S+)" }], onPut: (b) => puts.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("Structures Plus (S+)");
+    fireEvent.change(screen.getByPlaceholderText(/paste a.*mod id/i), { target: { value: "895711" } });
+    const addBtn = screen.getByRole("button", { name: "Add" });
+    expect(addBtn).not.toBeDisabled();
+    fireEvent.click(addBtn);
+
+    // The new row shows the "Added" pending chip immediately, before Save.
+    expect(await screen.findByText("895711")).toBeInTheDocument();
+    expect(screen.getByText("Added")).toBeInTheDocument();
+
+    const saveBtn = screen.getByRole("button", { name: "Save changes" });
+    expect(saveBtn).not.toBeDisabled();
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]).toEqual([{ id: "889745", name: "Structures Plus (S+)" }, { id: "895711" }]);
+  });
+
+  it("marks a removal as pending and only applies it on save", async () => {
+    const puts: ModID[][] = [];
+    routeIds({ ids: [{ id: "889745", name: "Structures Plus (S+)" }], onPut: (b) => puts.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("Structures Plus (S+)");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    // Still listed (dimmed, with Undo) — not actually dropped until Save.
+    expect(await screen.findByText("Marked for removal")).toBeInTheDocument();
+    expect(screen.getByText("Structures Plus (S+)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(puts).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(puts).toEqual([[]]));
+  });
+
+  it("discard reverts pending edits without saving", async () => {
+    const puts: ModID[][] = [];
+    routeIds({ ids: [{ id: "889745", name: "Structures Plus (S+)" }], onPut: (b) => puts.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("Structures Plus (S+)");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(await screen.findByText("Marked for removal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(screen.queryByText("Marked for removal")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(puts).toHaveLength(0);
+  });
+
+  it("disables Save changes and Discard when there are no pending edits", async () => {
+    routeIds({ ids: [{ id: "889745", name: "Structures Plus (S+)" }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("Structures Plus (S+)");
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+  });
+
+  it("adds a mod from registry browse instead of installing a file", async () => {
+    routeIds({
+      ids: [],
+      search: [{ id: "889745", title: "Structures Plus (S+)", provider: "curseforge", author: "orionsun" }],
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl({ registry: true })} />);
+
+    await screen.findByText("0 selected");
+    fireEvent.click(await screen.findByRole("button", { name: /browse curseforge/i }));
+
+    // The card's Add button adds to the pending list; it never calls an
+    // install endpoint (there is none to call in id-managed mode).
+    const cardAdd = await screen.findByRole("button", { name: "Add" });
+    fireEvent.click(cardAdd);
+    expect(await screen.findByText("Added")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /selected mods/i }));
+    expect(await screen.findByText("Structures Plus (S+)")).toBeInTheDocument();
+    expect(screen.getByText("Added")).toBeInTheDocument();
+  });
+
+  it("still offers Add-by-ID when no registry provider is declared", async () => {
+    routeIds({ ids: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("0 selected");
+    expect(screen.queryByRole("button", { name: /browse/i })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/paste a mod id/i)).toBeInTheDocument();
+  });
+
+  it("still renders the file-based list for a template with no idList (no regression)", async () => {
+    route({ mods: [{ name: "sodium.jar", size: 1024 }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+    expect(await screen.findByText("sodium.jar")).toBeInTheDocument();
+    expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
   });
 });

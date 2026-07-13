@@ -17,6 +17,7 @@ import type {
   GameServer,
   GameTemplate,
   InstalledMod,
+  ModID,
   ModMeta,
   ModUpdatesResponse,
   List,
@@ -223,6 +224,16 @@ export const Servers = {
       withNS(`/servers/${name}/modpack` + (provider ? `?provider=${encodeURIComponent(provider)}` : ""), ns),
       { method: "POST", body },
     ),
+  // Mods-by-id (spec.capabilities.mods.idList): games whose server
+  // downloads its own mods given a list of ids (ARK CurseForge ids,
+  // Project Zomboid MOD_IDS, generic Steam Workshop lists) rather than the
+  // agent dropping files into a mods directory. PUT replaces the whole
+  // list in one write — every write restarts the server (it changes the
+  // game container's env), so the dashboard batches edits locally and
+  // saves once (see api/internal/handlers/mod_ids.go).
+  modIDs: (name: string, ns?: string) => api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns)),
+  setModIDs: (name: string, ids: ModID[], ns?: string) =>
+    api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns), { method: "PUT", body: ids }),
 };
 
 export const Templates = {

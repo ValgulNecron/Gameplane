@@ -67,11 +67,16 @@ export function resolveModVolume(
   return undefined;
 }
 
-// serverHasMods reports whether this server should show the Mods tab.
+// serverHasMods reports whether this server should show the Mods tab. An
+// idList template (see ModIDListDecl) has no mods directory at all — it
+// installs mods by id instead — so resolveModVolume returns undefined for
+// it; the tab still shows, rendering the id-managed editor instead of the
+// file list (see ModsTab).
 export function serverHasMods(
   tmpl: GameTemplate | undefined,
   gs: GameServer | undefined,
 ): boolean {
+  if (tmpl?.spec.capabilities?.mods?.idList) return true;
   return resolveModVolume(tmpl, gs) !== undefined;
 }
 
