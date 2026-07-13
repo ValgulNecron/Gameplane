@@ -1614,12 +1614,18 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 // gameContainerEnv fetches the reconciled StatefulSet's "game" container
 // env as a name->value map. Later duplicate names win in the kubelet, so
 // callers get the effective value the same way the game container would.
-func gameContainerEnv(t *testing.T, ns, name string) map[string]string {
+//
+// It returns an error instead of calling t.Fatal on a miss: callers poll
+// this from inside an eventually() condition, and eventually's cond runs
+// in the test's own goroutine — a t.Fatal in there would abort the whole
+// test on the very first (pre-reconcile) attempt instead of letting the
+// poll retry.
+func gameContainerEnv(t *testing.T, ns, name string) (map[string]string, error) {
 	t.Helper()
 	var ss appsv1.StatefulSet
 	if err := k8sClient.Get(context.Background(),
 		types.NamespacedName{Namespace: ns, Name: name}, &ss); err != nil {
-		t.Fatalf("get statefulset: %v", err)
+		return nil, fmt.Errorf("get statefulset: %w", err)
 	}
 	got := map[string]string{}
 	for _, c := range ss.Spec.Template.Spec.Containers {
@@ -1630,7 +1636,7 @@ func gameContainerEnv(t *testing.T, ns, name string) map[string]string {
 			got[e.Name] = e.Value
 		}
 	}
-	return got
+	return got, nil
 }
 
 // TestGameServer_ModIDList_ReplaceMode — a template declaring
@@ -1660,7 +1666,10 @@ func TestGameServer_ModIDList_ReplaceMode(t *testing.T) {
 	}
 
 	eventually(t, func() (bool, string) {
-		got := gameContainerEnv(t, ns, "zomboid")
+		got, err := gameContainerEnv(t, ns, "zomboid")
+		if err != nil {
+			return false, err.Error()
+		}
 		if v, ok := got["MOD_IDS"]; !ok || v != "111,222" {
 			return false, fmt.Sprintf("MOD_IDS = %q (present=%v), want \"111,222\"", v, ok)
 		}
@@ -1703,7 +1712,10 @@ func TestGameServer_ModIDList_AppendMode(t *testing.T) {
 
 	want := "TheIsland_WP?listen -mods=111,222"
 	eventually(t, func() (bool, string) {
-		got := gameContainerEnv(t, ns, "ark")
+		got, err := gameContainerEnv(t, ns, "ark")
+		if err != nil {
+			return false, err.Error()
+		}
 		if v, ok := got["ASA_START_PARAMS"]; !ok || v != want {
 			return false, fmt.Sprintf("ASA_START_PARAMS = %q (present=%v), want %q", v, ok, want)
 		}
@@ -1750,7 +1762,10 @@ func TestGameServer_ModIDList_NoIDsProjectsNothing(t *testing.T) {
 		return len(ss.Spec.Template.Spec.Containers) > 0, "statefulset not yet populated"
 	})
 
-	got := gameContainerEnv(t, ns, "noids")
+	got, err := gameContainerEnv(t, ns, "noids")
+	if err != nil {
+		t.Fatalf("get statefulset: %v", err)
+	}
 	if v, ok := got["MOD_IDS"]; ok {
 		t.Fatalf("MOD_IDS should not be projected with no selected ids, got %q", v)
 	}
@@ -1782,7 +1797,10 @@ func TestGameServer_ModIDList_CustomSeparator(t *testing.T) {
 	}
 
 	eventually(t, func() (bool, string) {
-		got := gameContainerEnv(t, ns, "sepzomboid")
+		got, err := gameContainerEnv(t, ns, "sepzomboid")
+		if err != nil {
+			return false, err.Error()
+		}
 		if v, ok := got["MOD_IDS"]; !ok || v != "111;222;333" {
 			return false, fmt.Sprintf("MOD_IDS = %q (present=%v), want \"111;222;333\"", v, ok)
 		}
