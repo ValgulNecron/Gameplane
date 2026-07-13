@@ -32,12 +32,15 @@ describe("AdminSettings mod registries", () => {
     seedRegistries({ registries: [{ provider: "curseforge", configRef: "gameplane-modreg-curseforge" }] });
     renderWithQuery(<AdminSettingsPage />);
     await gotoModRegistries();
-    expect(await screen.findByText("CurseForge")).toBeInTheDocument();
-    expect(screen.getByText("Configured")).toBeInTheDocument();
-    expect(screen.getByText(/Active in the Mods browser/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Replace/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Remove/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Set API key/i })).not.toBeInTheDocument();
+    // Scope to the CurseForge row: Steam and Nexus are legitimately
+    // unconfigured in this fixture and render their own "Set API key"
+    // buttons, so an unscoped query would see more than one.
+    const row = (await screen.findByText("CurseForge")).closest("li")!;
+    expect(within(row).getByText("Configured")).toBeInTheDocument();
+    expect(within(row).getByText(/Active in the Mods browser/i)).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /Replace/i })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /Remove/i })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /Set API key/i })).not.toBeInTheDocument();
   });
 
   it("shows unconfigured providers as Not configured, hidden from the Mods browser", async () => {
@@ -46,10 +49,15 @@ describe("AdminSettings mod registries", () => {
     await gotoModRegistries();
     expect(await screen.findByText("Steam Workshop")).toBeInTheDocument();
     expect(screen.getByText("Nexus Mods")).toBeInTheDocument();
-    const notConfigured = screen.getAllByText("Not configured");
+    // Scope to the registries list: the section's own subtitle copy
+    // ("...stay hidden from the Mods browser until a key is configured")
+    // also satisfies the /Hidden from the Mods browser/i regex, so an
+    // unscoped query over-counts by one.
+    const list = screen.getByRole("list");
+    const notConfigured = within(list).getAllByText("Not configured");
     expect(notConfigured).toHaveLength(3); // curseforge, steam, nexus
-    expect(screen.getAllByText(/Hidden from the Mods browser/i)).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: /Set API key/i })).toHaveLength(3);
+    expect(within(list).getAllByText(/Hidden from the Mods browser/i)).toHaveLength(3);
+    expect(within(list).getAllByRole("button", { name: /Set API key/i })).toHaveLength(3);
     expect(screen.getByText(
       /Always available: Modrinth, Thunderstore, Hangar, Factorio, Spigot, GitHub, uMod/i,
     )).toBeInTheDocument();
@@ -104,8 +112,12 @@ describe("AdminSettings mod registries", () => {
     await gotoModRegistries();
     await screen.findByText("Configured");
     await userEvent.click(screen.getByRole("button", { name: /Remove/i }));
-    expect(await screen.findAllByText("Not configured")).toHaveLength(3);
-    expect(screen.getAllByText(/Hidden from the Mods browser/i)).toHaveLength(3);
+    // Scope to the registries list — see the note in the "unconfigured
+    // providers" test above about the section subtitle colliding with the
+    // /Hidden from the Mods browser/i regex.
+    const list = screen.getByRole("list");
+    expect(await within(list).findAllByText("Not configured")).toHaveLength(3);
+    expect(within(list).getAllByText(/Hidden from the Mods browser/i)).toHaveLength(3);
     await waitFor(() => expect(deletedProvider).toBe("curseforge"));
   });
 
