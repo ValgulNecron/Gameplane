@@ -26,6 +26,25 @@ func TestSetFor(t *testing.T) {
 	if p, ok := s.For(ctx, Config{Provider: "factorio"}); !ok || p == nil {
 		t.Errorf("factorio: ok=%v p=%v", ok, p)
 	}
+	if p, ok := s.For(ctx, Config{Provider: "spigot"}); !ok || p == nil {
+		t.Errorf("spigot: ok=%v p=%v", ok, p)
+	}
+	if p, ok := s.For(ctx, Config{Provider: "umod"}); !ok || p == nil {
+		t.Errorf("umod: ok=%v p=%v", ok, p)
+	}
+	if p, ok := s.For(ctx, Config{Provider: "github", GitHubOwner: "someorg", GitHubRepo: "somemod"}); !ok || p == nil {
+		t.Errorf("github: ok=%v p=%v", ok, p)
+	}
+	// GitHub without both owner and repo is unusable → not selectable.
+	if _, ok := s.For(ctx, Config{Provider: "github"}); ok {
+		t.Error("github without owner/repo should not be selectable")
+	}
+	if _, ok := s.For(ctx, Config{Provider: "github", GitHubOwner: "someorg"}); ok {
+		t.Error("github without repo should not be selectable")
+	}
+	if _, ok := s.For(ctx, Config{Provider: "github", GitHubRepo: "somemod"}); ok {
+		t.Error("github without owner should not be selectable")
+	}
 	// CurseForge is key-gated: not selectable without a key.
 	if _, ok := s.For(ctx, Config{Provider: "curseforge"}); ok {
 		t.Error("curseforge without a key should not be selectable")
@@ -41,7 +60,7 @@ func TestSetFor(t *testing.T) {
 func TestSetAvailable(t *testing.T) {
 	ctx := context.Background()
 	noKey := NewSet("test", StaticKeys(map[string]string{}))
-	for _, p := range []string{"modrinth", "thunderstore", "hangar", "factorio"} {
+	for _, p := range []string{"modrinth", "thunderstore", "hangar", "factorio", "spigot", "github", "umod"} {
 		if !noKey.Available(ctx, p) {
 			t.Errorf("%s should be available", p)
 		}
