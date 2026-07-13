@@ -45,6 +45,16 @@ type Config struct {
 	Timeout    time.Duration
 }
 
+// Enabled reports whether c can actually reach an agent. A disabled
+// client (no mTLS material configured) silently no-ops every method, so
+// callers that need to pick a transport based on availability — rather
+// than just calling a method and accepting a no-op — must check this
+// instead of a nil-client check alone: agent.New never returns a nil
+// *Client, only a non-nil one with Disabled set.
+func (c *Client) Enabled() bool {
+	return !c.Disabled
+}
+
 // New builds an mTLS-configured Client. Empty cert paths produce a
 // disabled client (no-op methods).
 func New(cfg Config) (*Client, error) {

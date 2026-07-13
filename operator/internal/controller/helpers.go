@@ -92,3 +92,14 @@ func templateHasRCON(tmpl *gameplanev1alpha1.GameTemplate) bool {
 	return tmpl != nil && tmpl.Spec.RCON != nil &&
 		tmpl.Spec.RCON.Protocol != "" && tmpl.Spec.RCON.Protocol != "none"
 }
+
+// rconProtocol returns the wire protocol the agent should speak when
+// dialing RCON, defaulting to "source" for back-compat with templates
+// that predate this field (mirrors RCONSpec.Protocol's own kubebuilder
+// default). The agent ignores this value entirely when RCON is disabled.
+func rconProtocol(tmpl *gameplanev1alpha1.GameTemplate) string {
+	if tmpl != nil && tmpl.Spec.RCON != nil && tmpl.Spec.RCON.Protocol != "" {
+		return tmpl.Spec.RCON.Protocol
+	}
+	return "source"
+}

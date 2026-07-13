@@ -34,6 +34,13 @@ rules:
       - configmaps
       - secrets
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # softStop writes the module-declared stop sequence to a consoleMode:
+  # pty game's stdin via this subresource when it has no RCON to run the
+  # sequence over instead. Namespace-scoped only: game pods only ever
+  # exist here, and pods/attach create is exec-equivalent.
+  - apiGroups: [""]
+    resources: ["pods/attach"]
+    verbs: ["create"]
   # Per-GameServer agent identity: SA + heartbeat Role/RoleBinding
   # (resourceNames-scoped to one GameServer's status subresource).
   # Granting gameservers/status passes the RBAC escalation check because

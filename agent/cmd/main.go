@@ -44,6 +44,7 @@ func main() {
 		rconPort     int
 		rconPassFile string
 		rconEnabled  bool
+		rconProtocol string
 		gameLogPath  string
 		certFile     string
 		keyFile      string
@@ -62,6 +63,9 @@ func main() {
 	flag.StringVar(&rconPassFile, "rcon-password-file", "", "path to file holding the RCON password")
 	flag.BoolVar(&rconEnabled, "rcon-enabled", envOr("GAMEPLANE_RCON_ENABLED", "true") != "false",
 		"whether the game exposes RCON; when false, RCON-backed endpoints degrade instead of dialing")
+	flag.StringVar(&rconProtocol, "rcon-protocol", envOr("GAMEPLANE_RCON_PROTOCOL", "source"),
+		"RCON wire protocol: source (Valve/Minecraft packet framing) or telnet (line-based, e.g. 7 Days to Die). "+
+			"Unset or unrecognized falls back to source for back-compat with templates predating this flag.")
 	flag.StringVar(&gameLogPath, "game-log-path", "", "path to the game container's log file (for /logs/tail)")
 	flag.StringVar(&certFile, "tls-cert", "", "server TLS cert (PEM). Enables HTTPS + requires client cert")
 	flag.StringVar(&keyFile, "tls-key", "", "server TLS key (PEM)")
@@ -113,12 +117,18 @@ func main() {
 
 	var rconClient interface {
 		Exec(cmd string) (string, error)
-	} = rcon.New(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
-	if !rconEnabled {
+	}
+	switch {
+	case !rconEnabled:
 		// The game declares no RCON (e.g. consoleMode pty/none). Dialing
 		// 127.0.0.1:25575 would just fail on every request; the Disabled
 		// client makes that explicit so handlers degrade cleanly.
 		rconClient = rcon.Disabled{}
+	case strings.EqualFold(rconProtocol, "telnet"):
+		rconClient = rcon.NewTelnet(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
+	default:
+		// "source", empty, or anything unrecognized: back-compat default.
+		rconClient = rcon.New(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
 	}
 
 	r := chi.NewRouter()

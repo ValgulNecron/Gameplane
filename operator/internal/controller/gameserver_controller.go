@@ -63,12 +63,27 @@ type GameServerReconciler struct {
 	// during a soft stop. May be nil (or a disabled client) in dev clusters,
 	// in which case the operator falls back to a timed scale-to-zero.
 	AgentClient AgentStopper
+
+	// PodAttacher runs the module-declared stop sequence over a pod attach
+	// to the game container's stdin, for consoleMode: pty games that
+	// declare no RCON. May be nil (dev clusters, tests that don't wire
+	// it), in which case softStop treats a pty-only template the same as
+	// one with no usable transport at all.
+	PodAttacher PodStopAttacher
 }
 
 // AgentStopper issues the module-declared graceful stop sequence to a game's
 // agent. Satisfied by *operator/internal/agent.Client.
 type AgentStopper interface {
 	Stop(ctx context.Context, namespace, server string) error
+	// Enabled reports whether this stopper can actually reach an agent.
+	// agent.New returns a non-nil *Client with Disabled: true when no
+	// mTLS material is configured (dev clusters, tests) — its Stop is
+	// then a silent no-op, so selectStopTransport must check Enabled(),
+	// not just r.AgentClient == nil, or it picks stopTransportRCON for a
+	// client that will never actually stop anything and sits out the
+	// full grace period for nothing.
+	Enabled() bool
 }
 
 const (
@@ -88,6 +103,15 @@ const (
 // hand-managed Role bound in the games namespace(s) — see
 // operator/config/rbac/role_namespace.yaml and the Helm chart. This
 // keeps a compromised operator token from reading Secrets cluster-wide.
+//
+// pods/attach create (softStop's stdin pod-attach for consoleMode: pty
+// games, see gameserver_stop_attach.go) is likewise namespace-scoped
+// ONLY, not listed here: game pods only ever exist in the games
+// namespace, and pods/attach create is exec-equivalent — a cluster-wide
+// grant would let the operator attach to stdin of any pod in any
+// namespace. It's granted in operator/config/rbac/role_namespace.yaml
+// and the Helm chart's namespaced Role, matching every other write verb
+// in this list.
 //
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/status,verbs=get;update;patch
@@ -476,19 +500,82 @@ func (r *GameServerReconciler) desiredReplicas(
 	return replicas, requeue, err
 }
 
+// stopTransport identifies how softStop delivers the module-declared stop
+// sequence.
+type stopTransport int
+
+const (
+	// stopTransportNone means there's no usable way to run the sequence —
+	// either the template declares none, or it declares one but exposes
+	// neither RCON nor a pty console (or the corresponding client wasn't
+	// wired). softStop scales straight to zero in this case rather than
+	// waiting out the grace period for nothing.
+	stopTransportNone stopTransport = iota
+	// stopTransportRCON delivers the sequence over the agent's existing
+	// /lifecycle/stop call, which runs it over the game's RCON connection.
+	stopTransportRCON
+	// stopTransportPTY delivers the sequence over a pod attach to the game
+	// container's stdin (consoleMode: pty, no RCON).
+	stopTransportPTY
+)
+
+// String implements fmt.Stringer so stopTransport reads as a name (not a
+// bare int) wherever it's logged or formatted.
+func (t stopTransport) String() string {
+	switch t {
+	case stopTransportNone:
+		return "none"
+	case stopTransportRCON:
+		return "rcon"
+	case stopTransportPTY:
+		return "pty"
+	default:
+		return fmt.Sprintf("stopTransport(%d)", int(t))
+	}
+}
+
+// selectStopTransport decides how to run tmpl's declared stop sequence:
+// over RCON when the template exposes it, over a pod-attach to stdin when
+// it instead uses consoleMode: pty, or not at all when neither applies.
+func selectStopTransport(tmpl *gameplanev1alpha1.GameTemplate) stopTransport {
+	switch {
+	case templateHasRCON(tmpl):
+		return stopTransportRCON
+	case EffectiveConsoleMode(tmpl) == "pty":
+		return stopTransportPTY
+	default:
+		return stopTransportNone
+	}
+}
+
 // softStop computes the replica count while a server is being brought down —
 // via spec.suspend or a draining restart. It drives the module-declared
-// graceful stop over the agent and holds the pod up while the game saves, then
-// scales to zero once the game goes not-ready (or the grace deadline elapses).
-// Templates with no stop sequence scale straight to zero.
+// graceful stop over the transport the template supports (RCON or, for
+// consoleMode: pty games with no RCON, a stdin pod-attach) and holds the pod
+// up while the game saves, then scales to zero once the game goes not-ready
+// (or the grace deadline elapses). Templates with no stop sequence — or a
+// sequence but no usable transport — scale straight to zero.
 func (r *GameServerReconciler) softStop(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) (int32, time.Duration, error) {
 	declared := tmpl.Spec.Capabilities != nil &&
 		tmpl.Spec.Capabilities.Lifecycle != nil &&
 		len(tmpl.Spec.Capabilities.Lifecycle.Stop) > 0
-	if !declared || r.AgentClient == nil {
+	if !declared {
 		return 0, 0, nil // hard scale-down (no graceful stop available)
+	}
+
+	transport := selectStopTransport(tmpl)
+	if transport == stopTransportRCON && (r.AgentClient == nil || !r.AgentClient.Enabled()) {
+		transport = stopTransportNone
+	}
+	if transport == stopTransportPTY && r.PodAttacher == nil {
+		transport = stopTransportNone
+	}
+	if transport == stopTransportNone {
+		// A sequence is declared but there's nothing to run it over — don't
+		// sit through the full grace period for nothing.
+		return 0, 0, nil
 	}
 
 	// Is the game still up? If the StatefulSet is gone or has no ready
@@ -516,11 +603,7 @@ func (r *GameServerReconciler) softStop(
 		if err := r.setStopAnnotation(ctx, gs, time.Now().UTC().Format(time.RFC3339)); err != nil {
 			return 1, 0, err
 		}
-		if err := r.AgentClient.Stop(ctx, gs.Namespace, gs.Name); err != nil {
-			// Best-effort: a failed/unreachable agent must not wedge the stop.
-			// The grace deadline (and readiness) still scale us down.
-			log.FromContext(ctx).Info("soft stop: agent stop call failed; falling back to timed scale-down", "err", err)
-		}
+		r.issueStopSequence(ctx, gs, tmpl, transport)
 		return 1, grace, nil // keep running; requeue at the grace deadline
 	}
 
@@ -534,6 +617,28 @@ func (r *GameServerReconciler) softStop(
 		return 1, remaining, nil
 	}
 	return 0, 0, nil
+}
+
+// issueStopSequence runs tmpl's declared stop sequence over the selected
+// transport. Best-effort: a failed/unreachable transport must not wedge
+// the stop — softStop's readiness check and grace deadline remain the
+// authority on when the server actually scales down.
+func (r *GameServerReconciler) issueStopSequence(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, transport stopTransport,
+) {
+	var err error
+	switch transport {
+	case stopTransportRCON:
+		err = r.AgentClient.Stop(ctx, gs.Namespace, gs.Name)
+	case stopTransportPTY:
+		err = r.PodAttacher.Stop(ctx, gs.Namespace, gs.Name+"-0", gameContainerName, tmpl.Spec.Capabilities.Lifecycle.Stop)
+	case stopTransportNone:
+		return // unreachable: softStop already filtered this out
+	}
+	if err != nil {
+		log.FromContext(ctx).Info("soft stop: stop sequence call failed; falling back to timed scale-down",
+			"transport", transport, "err", err)
+	}
 }
 
 func (r *GameServerReconciler) setStopAnnotation(ctx context.Context, gs *gameplanev1alpha1.GameServer, val string) error {
@@ -864,6 +969,11 @@ func buildAgentContainer(
 		// agent dialing a console port that doesn't exist — players
 		// and moderation endpoints degrade instead.
 		{Name: "GAMEPLANE_RCON_ENABLED", Value: strconv.FormatBool(templateHasRCON(tmpl))},
+		// Selects which wire protocol the agent speaks when RCON is
+		// enabled above; ignored otherwise. Always set (not just when
+		// non-default) so the agent's own back-compat default and the
+		// operator's stay in one place instead of two.
+		{Name: "GAMEPLANE_RCON_PROTOCOL", Value: rconProtocol(tmpl)},
 		// The pod shares its PID namespace (ShareProcessNamespace), so the
 		// agent reports the GAME process's CPU/memory from /proc rather than
 		// its own per-container cgroup (which shows only the idle sidecar).
