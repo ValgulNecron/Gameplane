@@ -2,6 +2,8 @@ package registry
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -26,6 +28,25 @@ func TestSetFor(t *testing.T) {
 	if p, ok := s.For(ctx, Config{Provider: "factorio"}); !ok || p == nil {
 		t.Errorf("factorio: ok=%v p=%v", ok, p)
 	}
+	if p, ok := s.For(ctx, Config{Provider: "spigot"}); !ok || p == nil {
+		t.Errorf("spigot: ok=%v p=%v", ok, p)
+	}
+	if p, ok := s.For(ctx, Config{Provider: "umod"}); !ok || p == nil {
+		t.Errorf("umod: ok=%v p=%v", ok, p)
+	}
+	if p, ok := s.For(ctx, Config{Provider: "github", GitHubOwner: "someorg", GitHubRepo: "somemod"}); !ok || p == nil {
+		t.Errorf("github: ok=%v p=%v", ok, p)
+	}
+	// GitHub without both owner and repo is unusable → not selectable.
+	if _, ok := s.For(ctx, Config{Provider: "github"}); ok {
+		t.Error("github without owner/repo should not be selectable")
+	}
+	if _, ok := s.For(ctx, Config{Provider: "github", GitHubOwner: "someorg"}); ok {
+		t.Error("github without repo should not be selectable")
+	}
+	if _, ok := s.For(ctx, Config{Provider: "github", GitHubRepo: "somemod"}); ok {
+		t.Error("github without owner should not be selectable")
+	}
 	// CurseForge is key-gated: not selectable without a key.
 	if _, ok := s.For(ctx, Config{Provider: "curseforge"}); ok {
 		t.Error("curseforge without a key should not be selectable")
@@ -41,7 +62,7 @@ func TestSetFor(t *testing.T) {
 func TestSetAvailable(t *testing.T) {
 	ctx := context.Background()
 	noKey := NewSet("test", StaticKeys(map[string]string{}))
-	for _, p := range []string{"modrinth", "thunderstore", "hangar", "factorio"} {
+	for _, p := range []string{"modrinth", "thunderstore", "hangar", "factorio", "spigot", "github", "umod"} {
 		if !noKey.Available(ctx, p) {
 			t.Errorf("%s should be available", p)
 		}
@@ -129,6 +150,76 @@ func TestCurseforgeLazyBuilding(t *testing.T) {
 
 	if cf1 == cf3 {
 		t.Error("should rebuild after TTL expires")
+	}
+}
+
+// TestKeyedLazyCoalescesConcurrentKeyResolution is the B3 regression test:
+// keyedLazy must not call keyFunc once per caller — DBKeyFunc does a DB
+// read plus a live apiserver Secret GET, and a hot caller resolving the
+// same provider many times concurrently (e.g. mod_updates.go fans out one
+// goroutine per distinct installed-mod project) would otherwise hit the
+// DB/Secret once per goroutine. resolveKey's singleflight coalescing must
+// collapse at least some of a batch of concurrent overlapping calls into
+// shared keyFunc invocations, while still fully re-resolving on any call
+// that does NOT overlap an in-flight one — so key/Secret rotation still
+// takes effect immediately rather than waiting out a cache window (see
+// TestSet_AvailableTogglesWithSecret in keys_test.go for the invariant this
+// preserves).
+//
+// The synchronization here (and the "over 0 and less than n" bound, not
+// exactly 1) mirrors singleflight's own TestDoDupSuppress: reaching the
+// line just before Do doesn't guarantee every goroutine's Do call has
+// actually landed while the first is still in flight, so an exact count
+// isn't a reliable assertion even with careful synchronization.
+func TestKeyedLazyCoalescesConcurrentKeyResolution(t *testing.T) {
+	ctx := context.Background()
+	var calls atomic.Int64
+	const n = 10
+	var wg1, wg2 sync.WaitGroup
+	c := make(chan string, 1)
+	keyFunc := func(context.Context, string) string {
+		if calls.Add(1) == 1 {
+			wg1.Done() // first invocation is now blocked below
+		}
+		v := <-c
+		c <- v // pump; make available to any other invocation that still forms
+		// Give any goroutine that has reached the line just before
+		// curseforgeLazy, but not yet actually called Do, time to land as
+		// a follower of this still-in-flight call rather than a new
+		// leader — the same trick singleflight's own TestDoDupSuppress
+		// uses.
+		time.Sleep(10 * time.Millisecond)
+		return v
+	}
+	s := NewSet("test", keyFunc)
+
+	wg1.Add(1)
+	for range n {
+		wg1.Add(1)
+		wg2.Add(1)
+		go func() {
+			defer wg2.Done()
+			wg1.Done() // reached the line just before curseforgeLazy
+			if _, err := s.curseforgeLazy(ctx); err != nil {
+				t.Errorf("curseforgeLazy: %v", err)
+			}
+		}()
+	}
+	wg1.Wait() // at least one goroutine is in keyFunc; all have reached the call site
+	c <- "cf-key"
+	wg2.Wait()
+
+	if got := calls.Load(); got <= 0 || got >= n {
+		t.Errorf("keyFunc calls = %d, want over 0 and less than %d (some coalescing happened)", got, n)
+	}
+
+	// A later, non-overlapping call still fully re-resolves — no staleness.
+	before := calls.Load()
+	if _, err := s.curseforgeLazy(ctx); err != nil {
+		t.Fatalf("curseforgeLazy: %v", err)
+	}
+	if got := calls.Load(); got != before+1 {
+		t.Errorf("keyFunc calls = %d, want %d for the later, non-concurrent call", got, before+1)
 	}
 }
 

@@ -63,9 +63,10 @@ func TestSteamSearchFacetsByAppID(t *testing.T) {
 }
 
 func TestSteamSearchNoTermUsesTrendQueryType(t *testing.T) {
-	var gotQueryType, gotSearchText string
+	var gotQueryType, gotSearchText, gotDays string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotQueryType = r.URL.Query().Get("query_type")
+		gotDays = r.URL.Query().Get("days")
 		_, gotSearchTextSet := r.URL.Query()["search_text"]
 		if gotSearchTextSet {
 			gotSearchText = r.URL.Query().Get("search_text")
@@ -84,6 +85,11 @@ func TestSteamSearchNoTermUsesTrendQueryType(t *testing.T) {
 	if gotSearchText != "" {
 		t.Errorf("search_text = %q, want unset", gotSearchText)
 	}
+	// M2: RankedByTrend effectively requires "days" — omitting it can make
+	// browse return empty. Third-party clients use 7.
+	if gotDays != "7" {
+		t.Errorf("days = %q, want 7 (required by RankedByTrend)", gotDays)
+	}
 }
 
 func TestSteamSearchModpackUsesCollectionsFiletype(t *testing.T) {
@@ -98,8 +104,38 @@ func TestSteamSearchModpackUsesCollectionsFiletype(t *testing.T) {
 	if _, err := app.Search(context.Background(), SearchQuery{ProjectType: "modpack", Limit: 10}); err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	if gotFileType != "1" {
-		t.Errorf("filetype = %q, want 1 (collections) for a modpack query", gotFileType)
+	// M1: asserted against the literal Steamworks enum value (not the
+	// code's own constant) so a regression back to the wrong value (1,
+	// which is ItemsMtx — individual microtransaction items, not
+	// Collections) would actually fail this test.
+	// EPublishedFileInfoMatchingFileType: Items=0, ItemsMtx=1,
+	// ItemsReadyToUse=2, Collections=3, Artwork=4, ...
+	if gotFileType != "3" {
+		t.Errorf("filetype = %q, want 3 (collections) for a modpack query", gotFileType)
+	}
+}
+
+// TestSteamResolveByIDUsesDescriptionFallback is M3:
+// ISteamRemoteStorage/GetPublishedFileDetails (the resolve-by-id path used
+// by every digit-term Search and by Versions' existence check) returns the
+// blurb as "description", not "short_description"/"file_description" (the
+// QueryFiles field names) — so a resolved item must still surface a
+// description via that field.
+func TestSteamResolveByIDUsesDescriptionFallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
+			{"publishedfileid":"1","result":1,"title":"Wiremod","consumer_app_id":4000,"description":"A wiring mod"}
+		]}}`))
+	}))
+	defer srv.Close()
+
+	app := testSteamApp(srv.URL, 4000)
+	got, err := app.Search(context.Background(), SearchQuery{Term: "1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(got) != 1 || got[0].Description != "A wiring mod" {
+		t.Fatalf("got = %+v, want description from GetPublishedFileDetails' \"description\" field", got)
 	}
 }
 
@@ -184,10 +220,13 @@ func TestSteamSearchDigitTermNotFound(t *testing.T) {
 	}
 }
 
-// TestSteamVersionsAlwaysEmptyFiles is the headline behavior: Workshop
-// content has no HTTP download URL, so Versions must never fabricate one —
-// even when the upstream item resolves successfully.
-func TestSteamVersionsAlwaysEmptyFiles(t *testing.T) {
+// TestSteamVersionsAlwaysEmpty is the headline behavior: Workshop content
+// has no HTTP download URL, so Versions must report zero versions — not one
+// Version with an empty Files slice — even when the upstream item resolves
+// successfully. A lone Files-less Version would instead surface a
+// populated version dropdown next to a permanently-disabled Install
+// button; the dashboard's empty state is keyed on zero *versions*.
+func TestSteamVersionsAlwaysEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
 			{"publishedfileid":"555","result":1,"title":"Wiremod","consumer_app_id":4000}
@@ -200,14 +239,8 @@ func TestSteamVersionsAlwaysEmptyFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Versions: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("got %d versions, want 1", len(got))
-	}
-	if len(got[0].Files) != 0 {
-		t.Fatalf("Files = %+v, want empty — Workshop content has no HTTP download URL", got[0].Files)
-	}
-	if got[0].Name != "Wiremod" {
-		t.Errorf("Name = %q, want Wiremod", got[0].Name)
+	if len(got) != 0 {
+		t.Fatalf("got = %+v, want zero versions — Workshop content has no HTTP download URL", got)
 	}
 }
 
@@ -234,6 +267,32 @@ func TestSteamModpackDepsIsNoOp(t *testing.T) {
 	files, err := app.ModpackDeps(context.Background(), "1")
 	if err != nil || files != nil {
 		t.Fatalf("ModpackDeps = %v, %v; want nil, nil", files, err)
+	}
+}
+
+// TestSteamKeyNeverLeaksOnTransportError is the B1 regression test: Steam's
+// QueryFiles takes the API key as a query parameter, and Go's
+// *url.Error.Error() embeds the full request URL — query string included.
+// A transport-level failure (DNS blip, TLS failure, timeout, connection
+// refused — simulated here by closing the listener before the request)
+// must never let that key escape into the returned error, since the error
+// can reach an HTTP response body (httperr.WriteCode on a 5xx) or a log
+// line that flows to the audit/syslog/S3 sinks.
+func TestSteamKeyNeverLeaksOnTransportError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	closedURL := srv.URL
+	srv.Close() // listener now closed; any request to closedURL fails to connect.
+
+	s := newSteam(&http.Client{Timeout: 5 * time.Second}, "gameplane-test", "s3cret-steam-key")
+	s.baseURL = closedURL
+	app := &steamApp{steam: s, appID: 4000}
+
+	_, err := app.Search(context.Background(), SearchQuery{Term: "wire", Limit: 10})
+	if err == nil {
+		t.Fatal("expected a transport error against a closed listener")
+	}
+	if strings.Contains(err.Error(), "s3cret-steam-key") {
+		t.Fatalf("error leaks the API key: %v", err)
 	}
 }
 

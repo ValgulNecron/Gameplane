@@ -18,11 +18,19 @@ import (
 // Workshop content cannot be downloaded over HTTP: it is fetched by
 // steamcmd running INSIDE the game container using the app's own depot
 // credentials, a path this API server has no way to reach or mint a URL
-// for. So Versions() always returns items with empty Files — that is not
-// a stub, it deliberately makes Steam a title/thumbnail preview browser,
-// exactly like curseforge.go's files-with-no-DownloadURL rows, which the
-// dashboard already renders as "No compatible files." with no Install
-// button. Do NOT invent a DownloadURL here.
+// for. So Versions() always returns an EMPTY version slice (zero Files is
+// not enough — see below) — that is not a stub, it deliberately makes Steam
+// a title/thumbnail preview browser with no Install button. Do NOT invent a
+// DownloadURL here.
+//
+// Unlike curseforge.go — which drops each individual file-less File
+// row but still returns the surrounding Version when at least one other
+// file exists — every Steam item is file-less, always, so Versions()
+// returns no versions at all rather than one Version with an empty Files
+// slice. The dashboard's empty state is keyed on zero *versions*
+// (`list.length === 0`), not zero files inside a version; a lone
+// Files-less Version would instead render a populated version dropdown
+// next to a permanently-disabled Install button with no explanation.
 //
 // Two Steam Web API endpoints are used:
 //   - IPublishedFileService/QueryFiles (search/browse) requires a Steam
@@ -79,8 +87,18 @@ const (
 	steamQueryRankedByTrend      = 3  // browse (no search text): rank by recent popularity
 	steamQueryRankedByTextSearch = 12 // search: rank by text-match relevance
 
+	// steamTrendDays is the RankedByTrend lookback window. The Steamworks
+	// API effectively requires "days" whenever query_type is
+	// RankedByTrend — third-party clients send 7, and omitting it can make
+	// browse (the no-search-term case) return an empty result.
+	steamTrendDays = 7
+
+	// EPublishedFileInfoMatchingFileType: Items=0, ItemsMtx=1,
+	// ItemsReadyToUse=2, Collections=3, Artwork=4, ... — confirmed against
+	// the Steamworks partner docs enum, not just this file's own prior
+	// (incorrect) value.
 	steamFileTypeItems       = 0 // individual Workshop items (mods, maps, ...)
-	steamFileTypeCollections = 1 // Workshop Collections (bundles of items)
+	steamFileTypeCollections = 3 // Workshop Collections (bundles of items)
 )
 
 func (s *Steam) search(ctx context.Context, q SearchQuery, appID int32) ([]Project, error) {
@@ -121,6 +139,7 @@ func (s *Steam) queryFiles(ctx context.Context, q SearchQuery, term string, appI
 		params.Set("search_text", term)
 	} else {
 		params.Set("query_type", strconv.Itoa(steamQueryRankedByTrend))
+		params.Set("days", strconv.Itoa(steamTrendDays))
 	}
 
 	var resp steamQueryResponse
@@ -150,24 +169,23 @@ func (s *Steam) resolveByID(ctx context.Context, id string, appID int32) ([]Proj
 	return []Project{item.project()}, nil
 }
 
-// versions resolves projectID's current details and reports it as a single
-// synthetic version — Files is always nil. See the Steam doc comment above
-// for why Workshop content has no downloadable file.
-func (s *Steam) versions(ctx context.Context, projectID string, appID int32) ([]Version, error) {
-	item, found, err := s.getDetails(ctx, projectID)
+// versions resolves projectID's current details. It never has a
+// downloadable file to offer (Workshop content is fetched by steamcmd
+// inside the game container, not over HTTP — see the Steam doc comment
+// above), so it always reports zero versions rather than one Version with
+// an empty Files slice: that keeps the dashboard's empty state ("No
+// compatible files.", gated on zero *versions*) firing correctly instead
+// of showing a populated version dropdown next to a dead Install button.
+func (s *Steam) versions(ctx context.Context, projectID string, _ int32) ([]Version, error) {
+	_, _, err := s.getDetails(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	if !found || item.ConsumerAppID != appID {
-		return []Version{}, nil
-	}
-	return []Version{{
-		ID:   projectID,
-		Name: item.Title,
-		// Files intentionally empty: Workshop content is fetched by
-		// steamcmd inside the game container, not over HTTP.
-		Files: nil,
-	}}, nil
+	// A resolved item (matching appID or not) and an unknown id both land
+	// here: zero versions, since Workshop items never have a downloadable
+	// file (see above). The id lookup exists only to surface a genuine
+	// upstream failure as an error rather than a silent empty result.
+	return []Version{}, nil
 }
 
 // getDetails calls the keyless ISteamRemoteStorage/GetPublishedFileDetails
@@ -189,7 +207,12 @@ func (s *Steam) getDetails(ctx context.Context, id string) (steamWorkshopItem, b
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return steamWorkshopItem{}, false, fmt.Errorf("steam GET: %w", err)
+		// This endpoint is keyless (no query string at all today), but go
+		// through the same redaction as httpGetJSON anyway: a *url.Error's
+		// Error() embeds the full request URL, and this is exactly the kind
+		// of call site that would silently start leaking a secret if a key
+		// were ever added to it later without this guard in place.
+		return steamWorkshopItem{}, false, sanitizeUpstreamErr("steam GET", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -232,16 +255,24 @@ type steamWorkshopItem struct {
 	// Creator is the uploader's SteamID64, not a display name — resolving
 	// a display name needs a second call (ISteamUser/GetPlayerSummaries)
 	// this engine doesn't make, so Project.Author carries the raw id.
-	Creator         string `json:"creator"`
-	PreviewURL      string `json:"preview_url"`
-	Subscriptions   int64  `json:"subscriptions"`
-	ConsumerAppID   int32  `json:"consumer_app_id"`
+	Creator       string `json:"creator"`
+	PreviewURL    string `json:"preview_url"`
+	Subscriptions int64  `json:"subscriptions"`
+	ConsumerAppID int32  `json:"consumer_app_id"`
+	// ShortDesc is QueryFiles' blurb field (return_short_description=true).
+	// GetPublishedFileDetails — the resolve-by-id path used by every
+	// Versions() call and by a digit-term Search — never populates it;
+	// that endpoint's blurb comes back as Description instead.
 	ShortDesc       string `json:"short_description"`
+	Description     string `json:"description"`
 	FileDescription string `json:"file_description"`
 }
 
 func (it steamWorkshopItem) project() Project {
 	desc := it.ShortDesc
+	if desc == "" {
+		desc = it.Description
+	}
 	if desc == "" {
 		desc = truncate(it.FileDescription, tsMaxDescLen)
 	}

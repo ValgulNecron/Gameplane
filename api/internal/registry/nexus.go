@@ -19,15 +19,20 @@ import (
 // index (see nexusGame below).
 //
 // Nexus is browse-only, deliberately: Versions() never returns a
-// downloadable File. Nexus's real download links
-// (.../files/{id}/download_link.json) are premium-account-gated and are
-// minted for the caller's IP — that caller would be this API pod, but the
-// agent pod in the game namespace is what actually performs the download,
-// a different egress path the link is plausibly not valid for. The agent's
-// download path also does no content-type validation, so handing it
-// anything other than a genuine file URL (which is all a non-premium
-// caller could ever get here — a mod PAGE url, not a file) would silently
-// install an HTML document as if it were the mod file.
+// downloadable File — in fact it never returns any version at all (an
+// empty slice, not one Version with Files: nil), because the dashboard's
+// empty state ("No compatible files.", no Install button) is keyed on zero
+// *versions*, not zero files inside a version; a lone Files-less Version
+// would instead surface a populated version dropdown next to a
+// permanently-disabled button with no explanation. Nexus's real download
+// links (.../files/{id}/download_link.json) are premium-account-gated and
+// are minted for the caller's IP — that caller would be this API pod, but
+// the agent pod in the game namespace is what actually performs the
+// download, a different egress path the link is plausibly not valid for.
+// The agent's download path also does no content-type validation, so
+// handing it anything other than a genuine file URL (which is all a
+// non-premium caller could ever get here — a mod PAGE url, not a file)
+// would silently install an HTML document as if it were the mod file.
 //
 // This is why Nexus is NOT routed through File.RequiresAuth, the
 // "hand the user a from-URL form" escape hatch factorio.go uses for its
@@ -129,23 +134,15 @@ func (n *Nexus) search(ctx context.Context, q SearchQuery, domain string) ([]Pro
 	return out, nil
 }
 
-// versions resolves projectID's current details and reports it as a single
-// synthetic version — Files is always nil. See the Nexus doc comment above
-// for why one-click install is not offered.
+// versions resolves projectID to confirm it still exists, but always
+// reports zero versions — see the Nexus doc comment above for why one-click
+// install is never offered and why that means no versions, not one
+// Files-less version.
 func (n *Nexus) versions(ctx context.Context, projectID, domain string) ([]Version, error) {
-	m, found, err := n.getMod(ctx, domain, projectID)
-	if err != nil {
+	if _, _, err := n.getMod(ctx, domain, projectID); err != nil {
 		return nil, err
 	}
-	if !found {
-		return []Version{}, nil
-	}
-	return []Version{{
-		ID:            projectID,
-		VersionNumber: m.Version,
-		// Files intentionally empty: see the Nexus doc comment above.
-		Files: nil,
-	}}, nil
+	return []Version{}, nil
 }
 
 // trending fetches the game's trending-mods listing — the closest thing

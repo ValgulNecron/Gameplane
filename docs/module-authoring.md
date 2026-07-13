@@ -828,6 +828,12 @@ registry:
         refEnv: WORKSHOP_COLLECTION
     - provider: nexus               # Nexus Mods; needs an admin API key, browse-only
       community: skyrimspecialedition # required: the Nexus game domain slug
+    - provider: spigot              # SpigotMC plugins via the Spiget API (keyless)
+    - provider: github              # GitHub Releases; browses ONE repo (keyless, rate-limited)
+      github:
+        owner: someorg             # required: the repository owner
+        repo: somemod              # required: the repository name
+    - provider: umod                # uMod / Oxide plugins (keyless)
 ```
 
 - Up to 8 providers; the first is the dashboard's default and a switch
@@ -840,7 +846,8 @@ registry:
 - `thunderstore` requires `community`; `nexus` reuses the same field as
   its game domain slug (e.g. `stardewvalley`, `skyrimspecialedition` —
   see [Nexus's game list](https://nexusmods.com) for the exact slug);
-  `steam` requires `steamAppID` instead. The others ignore both.
+  `steam` requires `steamAppID` instead; `github` requires the `github`
+  block (`owner`/`repo`). The others ignore all of these.
 - **`factorio` is browse-only**: the portal's downloads require the
   player's own factorio.com credentials, which Gameplane never stores —
   files are flagged `requiresAuth` and the dashboard hands the user to
@@ -869,6 +876,32 @@ registry:
   never returns a file for Nexus, on purpose — there is no
   `requiresAuth`/from-URL fallback for it the way Factorio has, because
   Nexus has no self-service URL a user could complete themselves.
+- **`spigot`** browses SpigotMC's plugin catalog through the third-party
+  Spiget API (SpigotMC itself has no public REST API). Most resources
+  install one-click, but some are flagged "external" (hosted on the
+  author's own site, not on SpigotMC) or "premium" (a paid purchase Spiget
+  has no way to authorize) — those report zero files for every version, the
+  same "No compatible files." fallback as Steam/Nexus/Factorio-without-
+  credentials, rather than a broken or misleading download link. Keep
+  `api.spiget.org` **and** `cdn.spiget.org` in `allowedHosts` — search/
+  metadata calls hit the former, and a hosted download 302s to the latter.
+- **`github` browses exactly one repository's Releases**, bound by the
+  `github.owner`/`github.repo` fields — GitHub has no cross-repo mod
+  search, unlike every other provider here. Its "search" is a client-side
+  filter over that one repo's release list, not a ranked search. Anonymous
+  GitHub API calls are rate-limited to 60/hour per source IP, shared by
+  every module using this provider from the same cluster egress address.
+  Keep **both** `github.com` **and** `.githubusercontent.com` in
+  `allowedHosts` — a release asset's `browser_download_url` starts on
+  `github.com` but 302s to a `*.githubusercontent.com` host, and the agent
+  re-checks the allowlist on every redirect hop, so allowlisting only the
+  first host makes the download fail partway through.
+- **`umod`** (formerly Oxide) covers the Rust/Hurtworld/7 Days to Die
+  plugin ecosystem. Downloaded files are raw `.cs` C# source — Oxide/uMod
+  compiles them inside the game process at runtime, so a `.cs` file is the
+  normal, complete artifact, not a build step Gameplane skipped. Keep
+  `umod.org` in `allowedHosts`; downloads are served directly from that
+  host with no redirect.
 
 ##### Mod-portal credentials (Factorio)
 

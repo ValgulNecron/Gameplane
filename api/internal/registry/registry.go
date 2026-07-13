@@ -1,6 +1,7 @@
 // Package registry implements read-only browse/search of external game-mod
 // registries (Modrinth, Thunderstore, CurseForge, Hangar, the Factorio mod
-// portal, the Steam Workshop, Nexus Mods) for the dashboard's mod manager.
+// portal, the Steam Workshop, Nexus Mods, SpigotMC via Spiget, GitHub
+// Releases, uMod) for the dashboard's mod manager.
 //
 // The engines here are generic: a GameTemplate's capabilities.mods.registry
 // block picks a provider and supplies its parameters, and the handler in
@@ -10,7 +11,8 @@
 // agent install path, which re-checks the host allowlist and SSRF guard.
 // Search itself only ever GETs fixed, admin-trusted hostnames
 // (api.modrinth.com, thunderstore.io, api.steampowered.com,
-// api.nexusmods.com), so it carries no per-request SSRF guard of its own.
+// api.nexusmods.com, api.spiget.org, api.github.com, umod.org), so it
+// carries no per-request SSRF guard of its own.
 //
 // Two providers (steam, nexus) never populate Version.Files: Steam Workshop
 // content is fetched by steamcmd running inside the game container (there is
@@ -25,11 +27,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Project is one search hit, normalized across providers.
@@ -132,6 +138,13 @@ type Config struct {
 	// SteamAppID facets Steam Workshop browse/search to one app. Required
 	// by the steam provider; ignored by others.
 	SteamAppID int32
+	// GitHubOwner and GitHubRepo bind the "github" provider to one
+	// repository's Releases — GitHub has no cross-repo mod search, so
+	// (unlike every keyless engine above) a template must pick exactly one
+	// repo, the way Thunderstore picks a Community. Both are required by
+	// the github provider; ignored by others.
+	GitHubOwner string
+	GitHubRepo  string
 }
 
 // Cache windows: a successful build is reused until the key hash changes or
@@ -156,24 +169,29 @@ type builtEntry struct {
 }
 
 // Set holds the constructed engines, sharing one HTTP client. Keyless engines
-// (modrinth, thunderstore, hangar, factorio) are built once and reused; the
-// Thunderstore engine caches its community package lists internally. Keyed
-// engines (curseforge, steam, nexus) are built lazily behind a TTL +
-// key-hash cache so a key can be changed at runtime without restarting. When
-// a key is empty, the provider reports unavailable (existing behavior).
+// (modrinth, thunderstore, hangar, factorio, spigot, github, umod) are built
+// once and reused; the Thunderstore engine caches its community package
+// lists internally. Keyed engines (curseforge, steam, nexus) are built
+// lazily behind a TTL + key-hash cache so a key can be changed at runtime
+// without restarting. When a key is empty, the provider reports unavailable
+// (existing behavior).
 type Set struct {
 	// immutable keyless engines
 	modrinth     *Modrinth
 	thunderstore *Thunderstore
 	hangar       *Hangar
 	factorio     *Factorio
+	spigot       *Spigot
+	github       *GitHub
+	umod         *Umod
 
 	// keyed engine cache, one entry per provider name
-	mu      sync.Mutex
-	built   map[string]builtEntry
-	keyFunc KeyFunc
-	client  *http.Client
-	ua      string
+	mu       sync.Mutex
+	built    map[string]builtEntry
+	keyGroup singleflight.Group
+	keyFunc  KeyFunc
+	client   *http.Client
+	ua       string
 
 	// test seam
 	now func() time.Time
@@ -191,6 +209,9 @@ func NewSet(version string, keyFunc KeyFunc) *Set {
 		thunderstore: newThunderstore(client, ua),
 		hangar:       newHangar(client, ua),
 		factorio:     newFactorio(client, ua),
+		spigot:       newSpigot(client, ua),
+		github:       newGitHub(client, ua),
+		umod:         newUmod(client, ua),
 		keyFunc:      keyFunc,
 		client:       client,
 		ua:           ua,
@@ -223,6 +244,15 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 		return s.hangar, true
 	case "factorio":
 		return s.factorio, true
+	case "spigot":
+		return s.spigot, true
+	case "github":
+		if cfg.GitHubOwner == "" || cfg.GitHubRepo == "" {
+			return nil, false
+		}
+		return &githubRepo{gh: s.github, owner: cfg.GitHubOwner, repo: cfg.GitHubRepo}, true
+	case "umod":
+		return s.umod, true
 	case "steam":
 		if cfg.SteamAppID <= 0 {
 			return nil, false
@@ -253,7 +283,7 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 // (SteamAppID/Community), which For validates.
 func (s *Set) Available(ctx context.Context, provider string) bool {
 	switch provider {
-	case "modrinth", "thunderstore", "hangar", "factorio":
+	case "modrinth", "thunderstore", "hangar", "factorio", "spigot", "github", "umod":
 		return true
 	case "curseforge":
 		cf, err := s.curseforgeLazy(ctx)
@@ -302,15 +332,34 @@ func (s *Set) nexusLazy(ctx context.Context) (*Nexus, error) {
 	return e.(*Nexus), nil
 }
 
-// keyedLazy resolves provider's key via keyFunc and builds its engine
-// lazily via build, caching the result per-provider against the key hash
-// with a rebuild TTL. When the key is empty, returns (nil, nil) — the
-// provider is unconfigured, not an error. On build failure, the error is
-// cached briefly so repeated requests don't hammer the constructor (build
-// itself never fails for any engine today, but the cache shape supports it
-// for engines that later validate the key eagerly).
+// resolveKey returns provider's API key. Concurrent calls for the same
+// provider are collapsed into a single s.keyFunc invocation via
+// singleflight: DBKeyFunc does a DB read plus a live apiserver Secret GET,
+// and a hot caller that resolves the same provider many times in a single
+// burst (e.g. the Mods-tab update check, which fans out one goroutine per
+// distinct installed-mod project) would otherwise hit the DB/Secret once
+// per goroutine. Unlike a TTL cache, this adds no staleness for calls that
+// don't actually overlap in time — the very next call after an in-flight
+// one completes gets a fully fresh resolution, so an admin's key/Secret
+// change (or removal) still takes effect immediately, matching
+// TestSet_AvailableTogglesWithSecret's documented invariant.
+func (s *Set) resolveKey(ctx context.Context, provider string) string {
+	v, _, _ := s.keyGroup.Do(provider, func() (any, error) {
+		return s.keyFunc(ctx, provider), nil
+	})
+	return v.(string)
+}
+
+// keyedLazy resolves provider's key (via resolveKey, which coalesces
+// concurrent callers) and builds its engine lazily via build, caching the
+// result per-provider against the key hash with a rebuild TTL. When the key
+// is empty, returns (nil, nil) — the provider is unconfigured, not an
+// error. On build failure, the error is cached briefly so repeated requests
+// don't hammer the constructor (build itself never fails for any engine
+// today, but the cache shape supports it for engines that later validate
+// the key eagerly).
 func (s *Set) keyedLazy(ctx context.Context, provider string, build func(key string) any) (any, error) {
-	key := s.keyFunc(ctx, provider)
+	key := s.resolveKey(ctx, provider)
 	if key == "" {
 		return nil, nil
 	}
@@ -365,7 +414,7 @@ func httpGetJSON(ctx context.Context, client *http.Client, userAgent, rawURL str
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("registry GET: %w", err)
+		return sanitizeUpstreamErr("registry GET", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -375,6 +424,32 @@ func httpGetJSON(ctx context.Context, client *http.Client, userAgent, rawURL str
 		return fmt.Errorf("registry decode: %w", err)
 	}
 	return nil
+}
+
+// sanitizeUpstreamErr wraps a client.Do failure for safe logging/response
+// use. Some providers (Steam) take their API key as a query parameter, and
+// Go's *url.Error.Error() embeds the full request URL — query string
+// included — so a raw transport error (DNS blip, TLS failure, timeout,
+// connection refused) can otherwise carry an admin's API key straight into
+// an HTTP error response body (httperr.WriteCode) or a log line that flows
+// to the audit/syslog/S3 sinks. Redact the query/fragment before the error
+// is ever formatted into a string, while preserving the *url.Error type
+// (via a copy) so callers that type-assert it (e.g. for Timeout()) still
+// can.
+func sanitizeUpstreamErr(prefix string, err error) error {
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
+		redacted := *uerr
+		if u, parseErr := url.Parse(uerr.URL); parseErr == nil {
+			u.RawQuery = ""
+			u.Fragment = ""
+			redacted.URL = u.String()
+		} else {
+			redacted.URL = "[redacted]"
+		}
+		return fmt.Errorf("%s: %w", prefix, &redacted)
+	}
+	return fmt.Errorf("%s: %w", prefix, err)
 }
 
 // isDigits reports whether s is non-empty and every rune is an ASCII digit.

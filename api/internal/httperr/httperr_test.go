@@ -19,14 +19,38 @@ func newReq() *http.Request {
 	return httptest.NewRequest("GET", "/x", nil)
 }
 
-func TestWriteCode_5xxLogs(t *testing.T) {
+// TestWriteCode_5xxNeverEchoesErr is the B1 defence-in-depth regression
+// test: a >=500 WriteCode call must never put the supplied err's text in
+// the response body — several callers pass an unsanitized upstream error
+// (e.g. a mod-registry GET failure that could carry an API key in a
+// *url.Error's URL) straight through. The real error is still logged in
+// full server-side (not asserted here); the HTTP response only gets the
+// generic status text.
+func TestWriteCode_5xxNeverEchoesErr(t *testing.T) {
 	rr := httptest.NewRecorder()
 	WriteCode(rr, newReq(), http.StatusInternalServerError, errors.New("boom"))
 	if rr.Code != 500 {
 		t.Fatalf("code=%d", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "boom") {
-		t.Fatalf("body=%q", rr.Body.String())
+	if strings.Contains(rr.Body.String(), "boom") {
+		t.Fatalf("body leaks the raw error: %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Internal Server Error") {
+		t.Fatalf("body = %q, want the generic status text", rr.Body.String())
+	}
+}
+
+// TestWriteCode_502NeverEchoesErr mirrors the real B1 shape: registry.go's
+// handlers wrap upstream mod-registry errors as 502s.
+func TestWriteCode_502NeverEchoesErr(t *testing.T) {
+	rr := httptest.NewRecorder()
+	WriteCode(rr, newReq(), http.StatusBadGateway,
+		errors.New(`registry GET: Get "https://api.steampowered.com/x?key=s3cret-steam-key": dial tcp: connection refused`))
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("code=%d", rr.Code)
+	}
+	if strings.Contains(rr.Body.String(), "s3cret-steam-key") {
+		t.Fatalf("body leaks the API key: %q", rr.Body.String())
 	}
 }
 

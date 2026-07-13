@@ -123,11 +123,14 @@ func TestNexusSearchModpackReturnsEmptyWithoutRequest(t *testing.T) {
 	}
 }
 
-// TestNexusVersionsAlwaysEmptyFiles is the headline behavior: Nexus never
-// mints a download link server-side (premium-gated, IP-bound, and the
-// agent's download path does no content-type validation) — Versions must
-// never fabricate a File even when the mod resolves successfully.
-func TestNexusVersionsAlwaysEmptyFiles(t *testing.T) {
+// TestNexusVersionsAlwaysEmpty is the headline behavior: Nexus never mints
+// a download link server-side (premium-gated, IP-bound, and the agent's
+// download path does no content-type validation) — Versions must report
+// zero versions, not one Files-less Version, even when the mod resolves
+// successfully. A lone Files-less Version would instead surface a
+// populated version dropdown next to a permanently-disabled Install
+// button; the dashboard's empty state is keyed on zero *versions*.
+func TestNexusVersionsAlwaysEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"mod_id":42,"name":"SMAPI","version":"4.0.0"}`))
 	}))
@@ -138,14 +141,8 @@ func TestNexusVersionsAlwaysEmptyFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Versions: %v", err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("got %d versions, want 1", len(got))
-	}
-	if len(got[0].Files) != 0 {
-		t.Fatalf("Files = %+v, want empty — Nexus never mints a download link here", got[0].Files)
-	}
-	if got[0].VersionNumber != "4.0.0" {
-		t.Errorf("VersionNumber = %q, want 4.0.0", got[0].VersionNumber)
+	if len(got) != 0 {
+		t.Fatalf("got = %+v, want zero versions — Nexus never mints a download link here", got)
 	}
 }
 
