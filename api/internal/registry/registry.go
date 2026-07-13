@@ -15,10 +15,12 @@ package registry
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -90,6 +92,17 @@ type Filter struct {
 	GameVersion string
 }
 
+// KeyFunc returns the API key for a provider, or "" if unconfigured.
+type KeyFunc func(ctx context.Context, provider string) string
+
+// StaticKeys wraps a map of static API keys for use with NewSet. Useful for
+// command-line flag initialization where the keys don't change at runtime.
+func StaticKeys(keys map[string]string) KeyFunc {
+	return func(ctx context.Context, provider string) string {
+		return keys[provider]
+	}
+}
+
 // Provider is one registry engine bound to its configuration.
 type Provider interface {
 	Search(ctx context.Context, q SearchQuery) ([]Project, error)
@@ -108,42 +121,71 @@ type Config struct {
 	Community string
 }
 
-// Set holds the constructed engines, sharing one HTTP client. Build once
-// at startup and reuse; the Thunderstore engine caches its community
-// package lists internally. curseforge is nil when no API key is
-// configured (the provider is then reported unavailable).
+// Cache windows: a successful build is reused until the key hash changes or
+// the entry ages out; a failed build is remembered briefly so a missing key
+// can't hammer the engine constructor on every request.
+const (
+	rebuildTTL      = 10 * time.Minute
+	errorBackoffTTL = 30 * time.Second
+)
+
+type builtEntry struct {
+	provider *Curseforge
+	err      error
+	builtAt  time.Time
+	keyHash  [sha256.Size]byte
+}
+
+// Set holds the constructed engines, sharing one HTTP client. Keyless engines
+// (modrinth, thunderstore, hangar, factorio) are built once and reused; the
+// Thunderstore engine caches its community package lists internally. The keyed
+// engine (curseforge) is built lazily behind a TTL + key-hash cache so the
+// key can be changed at runtime without restarting. When a key is empty, the
+// provider reports unavailable (existing behavior).
 type Set struct {
+	// immutable keyless engines
 	modrinth     *Modrinth
 	thunderstore *Thunderstore
-	curseforge   *Curseforge
 	hangar       *Hangar
 	factorio     *Factorio
+
+	// keyed engine cache
+	mu      sync.Mutex
+	built   builtEntry
+	keyFunc KeyFunc
+	client  *http.Client
+	ua      string
+
+	// test seam
+	now func() time.Time
 }
 
 // NewSet builds the engine set. version tags the outbound User-Agent
-// (Modrinth asks callers to identify themselves). curseforgeKey enables the
-// CurseForge engine (its API requires an x-api-key); empty disables it.
-func NewSet(version, curseforgeKey string) *Set {
+// (Modrinth asks callers to identify themselves). keyFunc provides API keys
+// for providers that need them (currently only CurseForge, which requires an
+// x-api-key). Keys are resolved lazily per request and cached with a TTL.
+func NewSet(version string, keyFunc KeyFunc) *Set {
 	client := &http.Client{Timeout: 15 * time.Second}
 	ua := "gameplane/" + version + " (+https://github.com/ValgulNecron/gameplane)"
-	s := &Set{
+	return &Set{
 		modrinth:     newModrinth(client, ua),
 		thunderstore: newThunderstore(client, ua),
 		hangar:       newHangar(client, ua),
 		factorio:     newFactorio(client, ua),
+		keyFunc:      keyFunc,
+		client:       client,
+		ua:           ua,
+		now:          time.Now,
 	}
-	if curseforgeKey != "" {
-		s.curseforge = newCurseforge(client, ua, curseforgeKey)
-	}
-	return s
 }
 
 // For returns the provider for a module's registry config. ok is false
 // when the provider is unknown/unset, a required parameter is missing
 // (Thunderstore needs a community), or the engine isn't configured
 // (CurseForge without a key) — the handler maps that to 501 so the
-// dashboard hides the provider.
-func (s *Set) For(cfg Config) (Provider, bool) {
+// dashboard hides the provider. For CurseForge, the key is resolved lazily
+// via context and cached with a TTL.
+func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 	switch cfg.Provider {
 	case "modrinth":
 		return s.modrinth, true
@@ -153,10 +195,11 @@ func (s *Set) For(cfg Config) (Provider, bool) {
 		}
 		return &thunderstoreCommunity{ts: s.thunderstore, community: cfg.Community}, true
 	case "curseforge":
-		if s.curseforge == nil {
+		cf, err := s.curseforgeLazy(ctx)
+		if err != nil || cf == nil {
 			return nil, false
 		}
-		return s.curseforge, true
+		return cf, true
 	case "hangar":
 		return s.hangar, true
 	case "factorio":
@@ -168,16 +211,56 @@ func (s *Set) For(cfg Config) (Provider, bool) {
 
 // Available reports whether a provider's engine is usable independent of a
 // specific server — the providers listing uses it to mark the dashboard's
-// provider switch. CurseForge needs a configured API key.
-func (s *Set) Available(provider string) bool {
+// provider switch. CurseForge availability depends on whether an API key is
+// currently configured.
+func (s *Set) Available(ctx context.Context, provider string) bool {
 	switch provider {
 	case "modrinth", "thunderstore", "hangar", "factorio":
 		return true
 	case "curseforge":
-		return s.curseforge != nil
+		cf, err := s.curseforgeLazy(ctx)
+		return err == nil && cf != nil
 	default:
 		return false
 	}
+}
+
+// curseforgeLazy resolves the CurseForge key and builds the engine lazily,
+// caching the result against the key hash with a rebuild TTL. When the key
+// is empty, returns (nil, nil). On build failure, caches the error briefly
+// so repeated requests don't hammer the constructor.
+func (s *Set) curseforgeLazy(ctx context.Context) (*Curseforge, error) {
+	key := s.keyFunc(ctx, "curseforge")
+	if key == "" {
+		return nil, nil
+	}
+
+	keyHash := sha256.Sum256([]byte(key))
+
+	s.mu.Lock()
+	entry := s.built
+	s.mu.Unlock()
+
+	if entry.provider != nil || entry.err != nil {
+		if entry.keyHash == keyHash {
+			age := s.now().Sub(entry.builtAt)
+			if entry.err == nil && age < rebuildTTL {
+				return entry.provider, nil
+			}
+			if entry.err != nil && age < errorBackoffTTL {
+				return nil, entry.err
+			}
+		}
+	}
+
+	// Key is new or cache expired; build the engine
+	cf := newCurseforge(s.client, s.ua, key)
+
+	s.mu.Lock()
+	s.built = builtEntry{provider: cf, err: nil, builtAt: s.now(), keyHash: keyHash}
+	s.mu.Unlock()
+
+	return cf, nil
 }
 
 // Response-body caps. Modrinth search/version responses are small;

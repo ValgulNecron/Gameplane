@@ -170,7 +170,7 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 			resp.Errors = append(resp.Errors, modUpdateError{Name: m.Name, Error: "provider not declared by this game"})
 			continue
 		}
-		if !h.reg.Available(ref.Provider) {
+		if !h.reg.Available(req.Context(), ref.Provider) {
 			resp.Errors = append(resp.Errors, modUpdateError{Name: m.Name, Error: "provider not configured"})
 			continue
 		}
@@ -258,7 +258,7 @@ func (h *modUpdatesHandler) latestFor(ctx context.Context, key modUpdateKey) (re
 	h.sem <- struct{}{}
 	defer func() { <-h.sem }()
 
-	p, ok := h.reg.For(registry.Config{Provider: key.provider, Community: key.community})
+	p, ok := h.reg.For(ctx, registry.Config{Provider: key.provider, Community: key.community})
 	if !ok {
 		return registry.Version{}, errNoRegistry
 	}
