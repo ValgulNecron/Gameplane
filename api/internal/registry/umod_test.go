@@ -128,6 +128,53 @@ func TestUmodVersionsFallsBackToLatestWhenHistoryEmpty(t *testing.T) {
 	}
 }
 
+// TestUmodVersionsHistoryDropsFilelessEntries is B2: an entry with no
+// download_url must be dropped, not reported as a Version with an empty
+// Files slice (which would show a version dropdown next to a permanently
+// dead Install button instead of the dashboard's zero-versions empty
+// state).
+func TestUmodVersionsHistoryDropsFilelessEntries(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[
+			{"version":"2.1.4","version_formatted":"v2.1.4","download_url":"https://umod.org/plugins/Vanish.cs?version=2.1.4"},
+			{"version":"2.1.3","version_formatted":"v2.1.3","download_url":""}
+		]}`))
+	}))
+	defer srv.Close()
+
+	got, err := testUmod(srv.URL).Versions(context.Background(), "vanish", Filter{})
+	if err != nil {
+		t.Fatalf("Versions: %v", err)
+	}
+	if len(got) != 1 || got[0].VersionNumber != "2.1.4" {
+		t.Fatalf("got = %+v, want only the entry with a download_url", got)
+	}
+}
+
+// TestUmodVersionsFallbackDropsFilelessLatest covers the same drop for the
+// plugin-detail fallback path (empty version history).
+func TestUmodVersionsFallbackDropsFilelessLatest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/plugins/nofile/versions.json":
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/plugins/nofile.json":
+			_, _ = w.Write([]byte(`{"slug":"nofile","title":"No File","latest_release_version":"1.0.0"}`))
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	got, err := testUmod(srv.URL).Versions(context.Background(), "nofile", Filter{})
+	if err != nil {
+		t.Fatalf("Versions: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got = %+v, want zero versions when the plugin has no download_url", got)
+	}
+}
+
 func TestUmodVersionsUnknownSlugErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

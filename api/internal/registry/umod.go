@@ -109,13 +109,20 @@ func (u *Umod) Search(ctx context.Context, q SearchQuery) ([]Project, error) {
 // data, it falls back to reporting just the current latest release from
 // the plugin-detail endpoint (see the package doc comment above) — a
 // genuinely unknown slug still surfaces as an error via that fallback
-// call's own 404 handling.
+// call's own 404 handling. Either way, an entry with no DownloadURL is
+// dropped rather than reported as a Version with an empty Files slice —
+// like curseforge.go dropping a files-with-no-DownloadURL row — since the
+// dashboard's empty state is keyed on zero *versions*, not zero files
+// inside a version.
 func (u *Umod) Versions(ctx context.Context, projectID string, _ Filter) ([]Version, error) {
 	var resp umodVersionsResponse
 	reqURL := u.baseURL + "/plugins/" + url.PathEscape(projectID) + "/versions.json"
 	if err := httpGetJSON(ctx, u.client, u.userAgent, reqURL, &resp, defaultMaxRespBytes); err == nil && len(resp.Data) > 0 {
 		out := make([]Version, 0, len(resp.Data))
 		for _, v := range resp.Data {
+			if v.DownloadURL == "" {
+				continue
+			}
 			out = append(out, v.version())
 		}
 		return out, nil
@@ -124,6 +131,9 @@ func (u *Umod) Versions(ctx context.Context, projectID string, _ Filter) ([]Vers
 	p, err := u.getPlugin(ctx, projectID)
 	if err != nil {
 		return nil, err
+	}
+	if p.DownloadURL == "" {
+		return []Version{}, nil
 	}
 	return []Version{p.latestVersion()}, nil
 }
