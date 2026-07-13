@@ -338,6 +338,7 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 	defer ln.Close()
 
 	done := make(chan struct{})
+	stop := make(chan struct{})
 	go func() {
 		defer close(done)
 		conn, err := ln.Accept()
@@ -352,16 +353,46 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 		}
 		_, _ = conn.Write([]byte("Logon successful.\n"))
 
-		// The client caps its OWN read at maxTelnetReply and stops draining
-		// this connection well before the full 4 MiB below has been sent —
-		// that's the behavior under test. This blocking write loop relies
-		// on the client closing its side first (see the ordering note by
-		// c.Close() below) to unblock once it stops draining: a write
-		// against an already-closed peer fails immediately rather than
-		// waiting on kernel buffer space that's never going to free up on
-		// its own.
+		// Drain (and discard) anything the client sends for the rest of
+		// this connection's life. The client's Exec below writes "dump\n",
+		// which this fake server otherwise never reads back; left unread,
+		// those bytes would still be sitting in the server's receive
+		// buffer whenever the server closes — and closing a socket with
+		// unread inbound data makes the kernel send a RST instead of a
+		// clean FIN/EOF. That RST is indistinguishable from a genuine
+		// transport error to whatever the client happens to be reading at
+		// the time, which was part of what made this test flaky.
+		go func() { _, _ = io.Copy(io.Discard, conn) }()
+
+		// Forcibly close the connection once the test signals stop, to
+		// unblock a Write that's currently blocked (or about to block) —
+		// closing a net.Conn from another goroutine is the standard way
+		// to cancel an in-flight blocking call on it.
+		go func() {
+			<-stop
+			_ = conn.Close()
+		}()
+
+		// Keep writing until told to stop, rather than a fixed number of
+		// chunks. The client, by design, stops draining once it hits
+		// maxTelnetReply and returns from Exec well before anywhere near
+		// 4 MiB could be sent — so whether a *fixed*-size write loop ever
+		// finishes silently on its own (instead of blocking on a full send
+		// buffer) depends on kernel socket-buffer sizes. That
+		// nondeterminism was the actual source of the flake: it raced the
+		// server closing (whether cleanly, on loop completion, or via an
+		// unread-data RST) against the client's own in-flight read, which
+		// could observe "connection reset by peer" instead of returning
+		// cleanly at the buffer cap. Looping until stop is signaled means
+		// this server can only close AFTER the test does so explicitly —
+		// which it does only once Exec has already returned.
 		chunk := bytes.Repeat([]byte("x"), 65536)
-		for i := 0; i < 64; i++ { // 4 MiB total, well past the 1 MiB cap
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
 			if _, err := conn.Write(chunk); err != nil {
 				return
 			}
@@ -379,20 +410,18 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 	c.readQuiet = 2 * time.Second
 
 	out, err := c.Exec("dump")
-	// Close the client side now, BEFORE waiting on the server goroutine.
+	// Only now signal the fake server to stop, and close the client side.
 	// Both of TelnetClient's reads above (the auth response, then this
 	// Exec's reply) have already returned via the buffer cap under test by
-	// the time Exec returns, so this can't affect out/err. What it does do
-	// is unblock the fake server, which is still trying to blocking-write
-	// the remaining, never-to-be-read tail of its 4 MiB burst: a write
-	// against a peer that has already closed fails right away instead of
-	// stalling on kernel send-buffer space that only frees once someone
-	// reads — which nothing does anymore once Exec has returned.
+	// the time Exec returns, so neither can be affected by the server
+	// closing — that race is exactly what closing stop only here (after
+	// Exec has already returned) rules out.
+	close(stop)
 	_ = c.Close()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("fake server goroutine never returned after the client closed — its write loop is stuck")
+		t.Fatal("fake server goroutine never returned after being signaled to stop")
 	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
