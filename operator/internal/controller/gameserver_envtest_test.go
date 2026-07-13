@@ -1612,31 +1612,57 @@ func TestGameServer_ConfigChangeRollsPodTemplate(t *testing.T) {
 }
 
 // gameContainerEnv fetches the reconciled StatefulSet's "game" container
-// env as a name->value map. Later duplicate names win in the kubelet, so
-// callers get the effective value the same way the game container would.
+// env as the raw slice, in declaration order. Deliberately NOT collapsed
+// into a name->value map here: a map can't see a duplicate entry (the
+// mods-by-id projection once appended a shadow duplicate instead of
+// replacing in place — see modIDListEnv), so callers that care about
+// "exactly one entry" must use envCount/envValue below on this slice
+// instead of losing that information to a map.
 //
 // It returns an error instead of calling t.Fatal on a miss: callers poll
 // this from inside an eventually() condition, and eventually's cond runs
 // in the test's own goroutine — a t.Fatal in there would abort the whole
 // test on the very first (pre-reconcile) attempt instead of letting the
 // poll retry.
-func gameContainerEnv(t *testing.T, ns, name string) (map[string]string, error) {
+func gameContainerEnv(t *testing.T, ns, name string) ([]corev1.EnvVar, error) {
 	t.Helper()
 	var ss appsv1.StatefulSet
 	if err := k8sClient.Get(context.Background(),
 		types.NamespacedName{Namespace: ns, Name: name}, &ss); err != nil {
 		return nil, fmt.Errorf("get statefulset: %w", err)
 	}
-	got := map[string]string{}
 	for _, c := range ss.Spec.Template.Spec.Containers {
-		if c.Name != gameContainerName {
-			continue
-		}
-		for _, e := range c.Env {
-			got[e.Name] = e.Value
+		if c.Name == gameContainerName {
+			return c.Env, nil
 		}
 	}
-	return got, nil
+	return nil, nil
+}
+
+// envCount returns how many entries in env are named name — used to
+// assert "exactly one", a property a name->value map can't express since
+// it silently collapses duplicates.
+func envCount(env []corev1.EnvVar, name string) int {
+	n := 0
+	for _, e := range env {
+		if e.Name == name {
+			n++
+		}
+	}
+	return n
+}
+
+// envValue returns the value of the LAST entry named name in env — the
+// kubelet's own duplicate-resolution rule — and whether one was found.
+func envValue(env []corev1.EnvVar, name string) (string, bool) {
+	var val string
+	var ok bool
+	for _, e := range env {
+		if e.Name == name {
+			val, ok = e.Value, true
+		}
+	}
+	return val, ok
 }
 
 // TestGameServer_ModIDList_ReplaceMode — a template declaring
@@ -1670,8 +1696,14 @@ func TestGameServer_ModIDList_ReplaceMode(t *testing.T) {
 		if err != nil {
 			return false, err.Error()
 		}
-		if v, ok := got["MOD_IDS"]; !ok || v != "111,222" {
+		if v, ok := envValue(got, "MOD_IDS"); !ok || v != "111,222" {
 			return false, fmt.Sprintf("MOD_IDS = %q (present=%v), want \"111,222\"", v, ok)
+		}
+		// Guards the modIDListEnv duplicate-env regression: a stray
+		// shadow entry is invisible to a name->value map but must still
+		// fail this test.
+		if n := envCount(got, "MOD_IDS"); n != 1 {
+			return false, fmt.Sprintf("MOD_IDS appears %d times, want exactly 1", n)
 		}
 		return true, ""
 	})
@@ -1716,8 +1748,16 @@ func TestGameServer_ModIDList_AppendMode(t *testing.T) {
 		if err != nil {
 			return false, err.Error()
 		}
-		if v, ok := got["ASA_START_PARAMS"]; !ok || v != want {
+		if v, ok := envValue(got, "ASA_START_PARAMS"); !ok || v != want {
 			return false, fmt.Sprintf("ASA_START_PARAMS = %q (present=%v), want %q", v, ok, want)
+		}
+		// This is the exact shape of the live-cluster bug: the
+		// config-schema default and the mods-by-id projection share a
+		// name (ASA_START_PARAMS). modIDListEnv must merge them into one
+		// entry, not append a second one that only the kubelet's
+		// last-wins rule happens to paper over.
+		if n := envCount(got, "ASA_START_PARAMS"); n != 1 {
+			return false, fmt.Sprintf("ASA_START_PARAMS appears %d times, want exactly 1", n)
 		}
 		return true, ""
 	})
@@ -1766,7 +1806,7 @@ func TestGameServer_ModIDList_NoIDsProjectsNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get statefulset: %v", err)
 	}
-	if v, ok := got["MOD_IDS"]; ok {
+	if v, ok := envValue(got, "MOD_IDS"); ok {
 		t.Fatalf("MOD_IDS should not be projected with no selected ids, got %q", v)
 	}
 }
@@ -1801,8 +1841,11 @@ func TestGameServer_ModIDList_CustomSeparator(t *testing.T) {
 		if err != nil {
 			return false, err.Error()
 		}
-		if v, ok := got["MOD_IDS"]; !ok || v != "111;222;333" {
+		if v, ok := envValue(got, "MOD_IDS"); !ok || v != "111;222;333" {
 			return false, fmt.Sprintf("MOD_IDS = %q (present=%v), want \"111;222;333\"", v, ok)
+		}
+		if n := envCount(got, "MOD_IDS"); n != 1 {
+			return false, fmt.Sprintf("MOD_IDS appears %d times, want exactly 1", n)
 		}
 		return true, ""
 	})

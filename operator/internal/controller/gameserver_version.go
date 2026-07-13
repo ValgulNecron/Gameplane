@@ -228,15 +228,27 @@ func (r *GameServerReconciler) reconcileModPVC(
 //
 // env is the env slice built so far (template env, selected version's
 // env, and config-schema-resolved env, in that order — see
-// buildGameContainer). Mode "append" looks up the last entry named
-// idList.Env in that slice and concatenates the rendered ids onto its
-// existing plain Value, so a config-schema-provided launch string (e.g.
-// ARK's ASA_START_PARAMS) is preserved and just gains the mod flag; a
-// matching entry that carries its value via ValueFrom instead of Value
+// buildGameContainer). When an entry named idList.Env with a plain Value
+// (not ValueFrom) already exists, this MUTATES that entry in place —
+// concatenating onto it in "append" mode, overwriting it in "replace"
+// mode — and returns nil, so the container ends up with exactly one entry
+// for the name instead of a shadowing duplicate. Mutating in place keeps
+// the entry at its original (config-schema) slice position, which still
+// sits before spec.env is appended by buildGameContainer, so an explicit
+// spec.env override of the same name still wins exactly as the documented
+// precedence (template env < version env < config-schema env < mods-by-id
+// < spec.env < operator-managed RCON) requires.
+//
+// A matching entry that carries its value via ValueFrom instead of Value
 // (e.g. a password-type config field reusing the same env name, which
-// nothing in-tree does today) has no plain string to append onto, and
-// this deliberately does not fabricate one to avoid guessing at a secret
-// value.
+// nothing in-tree does today) is never clobbered — it has no plain string
+// to append onto or safely overwrite, so it's left untouched and this
+// returns a new *corev1.EnvVar for the caller to append instead. That
+// still produces two entries sharing the name, but the appended one is
+// later in the slice and so wins in the kubelet's last-one-wins
+// resolution, which is the same effective outcome replacing in place
+// gives everywhere else; it just can't be done in place because the
+// ValueFrom entry's real value isn't visible here to preserve or extend.
 //
 // Returns nil — projecting nothing — when the template declares no
 // idList or the server selects no ids. Projecting an empty rendered
@@ -275,12 +287,16 @@ func modIDListEnv(
 	// ModIDListSpec.Format's doc comment on why.
 	rendered := strings.ReplaceAll(format, "{{ids}}", strings.Join(ids, sep))
 
-	if idList.Mode == "append" {
-		for i := len(env) - 1; i >= 0; i-- {
-			if env[i].Name == idList.Env && env[i].ValueFrom == nil {
-				return &corev1.EnvVar{Name: idList.Env, Value: env[i].Value + rendered}
-			}
+	for i := len(env) - 1; i >= 0; i-- {
+		if env[i].Name != idList.Env || env[i].ValueFrom != nil {
+			continue
 		}
+		if idList.Mode == "append" {
+			env[i].Value += rendered
+		} else {
+			env[i].Value = rendered
+		}
+		return nil
 	}
 	return &corev1.EnvVar{Name: idList.Env, Value: rendered}
 }

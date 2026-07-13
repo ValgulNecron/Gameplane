@@ -883,7 +883,13 @@ func buildGameContainer(
 	// env above so append mode can extend a config-schema-provided value
 	// (e.g. ARK's ASA_START_PARAMS), but before spec.env so an explicit
 	// user override of the same env var still wins — same precedence
-	// spec.env already holds over everything else.
+	// spec.env already holds over everything else. modIDListEnv mutates an
+	// existing plain-Value entry named idList.Env in place (returning nil)
+	// when one is already present above, rather than appending a duplicate
+	// that would only be resolved by the kubelet's last-wins rule; it
+	// returns a new entry to append here only when there's nothing to
+	// merge into (or the only match is ValueFrom-based and must not be
+	// clobbered — see modIDListEnv's doc comment).
 	if e := modIDListEnv(tmpl, gs, env); e != nil {
 		env = append(env, *e)
 	}
