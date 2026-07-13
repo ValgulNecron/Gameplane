@@ -1,5 +1,6 @@
 import { APIError, api, csrfHeaders } from "@/lib/api";
 import { getCurrentCluster } from "@/lib/cluster";
+import type { KeyedRegistryProvider } from "@/lib/config";
 import type {
   AuditEvent,
   AuditVerifyResult,
@@ -544,6 +545,23 @@ export const Notifications = {
   // are refused server-side.
   deleteSecret: (name: string) =>
     api<void>(`/admin/notifications/sinks/${encodeURIComponent(name)}/secret`, {
+      method: "DELETE",
+    }),
+};
+
+// Managed apiKey Secrets behind keyed mod-registry providers (curseforge,
+// steam, nexus — Admin Settings → Mod registries). Mirrors the
+// notification-sink / auth-provider secret flow: PUT the value, reference
+// the returned name as the modRegistries row's configRef. The key is
+// write-only — the server never echoes it back, so there is no `get`.
+export const ModRegistries = {
+  putSecret: (provider: KeyedRegistryProvider, apiKey: string) =>
+    api<{ name: string; keys: string[] }>(
+      `/admin/registries/${encodeURIComponent(provider)}/secret`,
+      { method: "PUT", body: { apiKey } },
+    ),
+  deleteSecret: (provider: KeyedRegistryProvider) =>
+    api<void>(`/admin/registries/${encodeURIComponent(provider)}/secret`, {
       method: "DELETE",
     }),
 };

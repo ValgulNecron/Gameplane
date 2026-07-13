@@ -26,6 +26,11 @@ const PROVIDER_LABELS: Record<string, string> = {
   thunderstore: "Thunderstore",
   hangar: "Hangar",
   factorio: "Factorio Mod Portal",
+  steam: "Steam Workshop",
+  spigot: "SpigotMC",
+  github: "GitHub Releases",
+  umod: "uMod",
+  nexus: "Nexus Mods",
 };
 
 function providerLabel(p: string): string {

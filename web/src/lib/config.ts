@@ -78,6 +78,26 @@ export interface TelemetryCfg {
   sendMetrics: boolean;
 }
 
+// Mod-registry providers that take an admin-configured API key (mirrors
+// registry.KeyedProviders server-side) and stay hidden from the Mods
+// browser until one is set. The rest (modrinth, thunderstore, hangar,
+// factorio, spigot, github, umod) are keyless and always available.
+export type KeyedRegistryProvider = "curseforge" | "steam" | "nexus";
+
+// One admin-managed mod-registry provider row. It carries no secret
+// material — the apiKey lives in a labelled, write-only K8s Secret managed
+// via ModRegistries.putSecret/deleteSecret; configRef only records a
+// non-default Secret name override (registry.DefaultKeySecretName(provider)
+// is used when absent).
+export interface ModRegistryEntry {
+  provider: KeyedRegistryProvider;
+  configRef?: string;
+}
+
+export interface ModRegistriesCfg {
+  registries: ModRegistryEntry[];
+}
+
 // AllConfig is the shape of GET /admin/config — every section is optional
 // because the row only exists once it's been written. Defaults are
 // supplied by the section components, not by the API.
@@ -91,6 +111,7 @@ export interface AllConfig {
   auth?: AuthCfg;
   notifications?: NotificationsCfg;
   telemetry?: TelemetryCfg;
+  modRegistries?: ModRegistriesCfg;
 }
 
 const KEY = ["config"] as const;
