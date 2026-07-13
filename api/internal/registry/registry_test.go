@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -103,14 +104,18 @@ func TestCurseforgeLazyBuilding(t *testing.T) {
 		t.Error("same key should return cached engine")
 	}
 
-	// Test 2: engine rebuilt when key changes
+	// Test 2: engine rebuilt when key changes (once the key-resolve cache,
+	// which sits in front of keyFunc, has aged out — see keyResolveTTL).
 	s = NewSet("test", StaticKeys(map[string]string{"curseforge": "key1"}))
-	s.now = func() time.Time { return now }
+	mockTime2 := now
+	s.now = func() time.Time { return mockTime2 }
 
 	cf1, _ = s.curseforgeLazy(ctx)
 
-	// Change the key
+	// Change the key and advance past keyResolveTTL, or resolveKey would
+	// keep serving the cached "key1" resolution regardless of s.keyFunc.
 	s.keyFunc = StaticKeys(map[string]string{"curseforge": "key2"})
+	mockTime2 = now.Add(keyResolveTTL + time.Second)
 	cf3, err3 := s.curseforgeLazy(ctx)
 	if err3 != nil || cf3 == nil {
 		t.Fatalf("rebuild with new key: err=%v cf=%v", err3, cf3)
@@ -148,6 +153,43 @@ func TestCurseforgeLazyBuilding(t *testing.T) {
 
 	if cf1 == cf3 {
 		t.Error("should rebuild after TTL expires")
+	}
+}
+
+// TestKeyedLazyResolvesKeyOnceWithinTTL is the B3 regression test:
+// keyedLazy must not call keyFunc on every single lookup — DBKeyFunc does a
+// DB read plus a live apiserver Secret GET, and a hot caller resolving the
+// same provider many times in a burst (e.g. mod_updates.go fanning out once
+// per distinct installed-mod project) would otherwise hit the DB/Secret on
+// every one of those calls. resolveKey's own short TTL cache must collapse
+// a burst of calls within that window into a single keyFunc invocation.
+func TestKeyedLazyResolvesKeyOnceWithinTTL(t *testing.T) {
+	ctx := context.Background()
+	var calls atomic.Int64
+	keyFunc := func(context.Context, string) string {
+		calls.Add(1)
+		return "cf-key"
+	}
+	s := NewSet("test", keyFunc)
+	mockTime := time.Now()
+	s.now = func() time.Time { return mockTime }
+
+	for range 5 {
+		if _, err := s.curseforgeLazy(ctx); err != nil {
+			t.Fatalf("curseforgeLazy: %v", err)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Errorf("keyFunc calls = %d, want 1 (collapsed by the key-resolve TTL cache)", got)
+	}
+
+	// Past keyResolveTTL, the key is re-resolved.
+	mockTime = mockTime.Add(keyResolveTTL + time.Second)
+	if _, err := s.curseforgeLazy(ctx); err != nil {
+		t.Fatalf("curseforgeLazy: %v", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Errorf("keyFunc calls = %d, want 2 after the key-resolve TTL expired", got)
 	}
 }
 

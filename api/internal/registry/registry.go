@@ -27,9 +27,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -149,6 +151,19 @@ type Config struct {
 const (
 	rebuildTTL      = 10 * time.Minute
 	errorBackoffTTL = 30 * time.Second
+
+	// keyResolveTTL bounds how often keyFunc itself is actually invoked,
+	// independent of rebuildTTL above (which only governs how long a
+	// *built engine* is reused once a key is known — it still calls
+	// keyFunc, unconditionally, on every single lookup, before it ever
+	// consults that cache). DBKeyFunc's keyFunc does a DB read plus a live
+	// apiserver Secret GET; a hot caller that resolves the same provider
+	// many times in a burst (e.g. the Mods-tab update check, which fans out
+	// once per distinct installed-mod project) would otherwise hit the
+	// DB/Secret on every one of those calls. The tradeoff is that an
+	// admin's key/Secret change can take up to this long to take effect,
+	// instead of the very next request.
+	keyResolveTTL = 30 * time.Second
 )
 
 // builtEntry caches one keyed provider's most recently built engine. Its
@@ -162,6 +177,13 @@ type builtEntry struct {
 	err     error
 	builtAt time.Time
 	keyHash [sha256.Size]byte
+}
+
+// keyCacheEntry caches one provider's most recently resolved key — see
+// keyResolveTTL.
+type keyCacheEntry struct {
+	key        string
+	resolvedAt time.Time
 }
 
 // Set holds the constructed engines, sharing one HTTP client. Keyless engines
@@ -182,11 +204,12 @@ type Set struct {
 	umod         *Umod
 
 	// keyed engine cache, one entry per provider name
-	mu      sync.Mutex
-	built   map[string]builtEntry
-	keyFunc KeyFunc
-	client  *http.Client
-	ua      string
+	mu       sync.Mutex
+	built    map[string]builtEntry
+	keyCache map[string]keyCacheEntry
+	keyFunc  KeyFunc
+	client   *http.Client
+	ua       string
 
 	// test seam
 	now func() time.Time
@@ -327,15 +350,36 @@ func (s *Set) nexusLazy(ctx context.Context) (*Nexus, error) {
 	return e.(*Nexus), nil
 }
 
-// keyedLazy resolves provider's key via keyFunc and builds its engine
-// lazily via build, caching the result per-provider against the key hash
-// with a rebuild TTL. When the key is empty, returns (nil, nil) — the
-// provider is unconfigured, not an error. On build failure, the error is
-// cached briefly so repeated requests don't hammer the constructor (build
-// itself never fails for any engine today, but the cache shape supports it
-// for engines that later validate the key eagerly).
-func (s *Set) keyedLazy(ctx context.Context, provider string, build func(key string) any) (any, error) {
+// resolveKey returns provider's API key, consulting a short TTL cache
+// before ever calling s.keyFunc — see keyResolveTTL.
+func (s *Set) resolveKey(ctx context.Context, provider string) string {
+	s.mu.Lock()
+	if e, ok := s.keyCache[provider]; ok && s.now().Sub(e.resolvedAt) < keyResolveTTL {
+		s.mu.Unlock()
+		return e.key
+	}
+	s.mu.Unlock()
+
 	key := s.keyFunc(ctx, provider)
+
+	s.mu.Lock()
+	if s.keyCache == nil {
+		s.keyCache = make(map[string]keyCacheEntry)
+	}
+	s.keyCache[provider] = keyCacheEntry{key: key, resolvedAt: s.now()}
+	s.mu.Unlock()
+	return key
+}
+
+// keyedLazy resolves provider's key (via resolveKey, itself TTL-cached) and
+// builds its engine lazily via build, caching the result per-provider
+// against the key hash with a rebuild TTL. When the key is empty, returns
+// (nil, nil) — the provider is unconfigured, not an error. On build
+// failure, the error is cached briefly so repeated requests don't hammer
+// the constructor (build itself never fails for any engine today, but the
+// cache shape supports it for engines that later validate the key eagerly).
+func (s *Set) keyedLazy(ctx context.Context, provider string, build func(key string) any) (any, error) {
+	key := s.resolveKey(ctx, provider)
 	if key == "" {
 		return nil, nil
 	}
@@ -390,7 +434,7 @@ func httpGetJSON(ctx context.Context, client *http.Client, userAgent, rawURL str
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("registry GET: %w", err)
+		return sanitizeUpstreamErr("registry GET", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -400,6 +444,32 @@ func httpGetJSON(ctx context.Context, client *http.Client, userAgent, rawURL str
 		return fmt.Errorf("registry decode: %w", err)
 	}
 	return nil
+}
+
+// sanitizeUpstreamErr wraps a client.Do failure for safe logging/response
+// use. Some providers (Steam) take their API key as a query parameter, and
+// Go's *url.Error.Error() embeds the full request URL — query string
+// included — so a raw transport error (DNS blip, TLS failure, timeout,
+// connection refused) can otherwise carry an admin's API key straight into
+// an HTTP error response body (httperr.WriteCode) or a log line that flows
+// to the audit/syslog/S3 sinks. Redact the query/fragment before the error
+// is ever formatted into a string, while preserving the *url.Error type
+// (via a copy) so callers that type-assert it (e.g. for Timeout()) still
+// can.
+func sanitizeUpstreamErr(prefix string, err error) error {
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
+		redacted := *uerr
+		if u, parseErr := url.Parse(uerr.URL); parseErr == nil {
+			u.RawQuery = ""
+			u.Fragment = ""
+			redacted.URL = u.String()
+		} else {
+			redacted.URL = "[redacted]"
+		}
+		return fmt.Errorf("%s: %w", prefix, &redacted)
+	}
+	return fmt.Errorf("%s: %w", prefix, err)
 }
 
 // isDigits reports whether s is non-empty and every rune is an ASCII digit.
