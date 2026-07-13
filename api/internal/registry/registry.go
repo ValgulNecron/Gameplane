@@ -1,6 +1,6 @@
 // Package registry implements read-only browse/search of external game-mod
 // registries (Modrinth, Thunderstore, CurseForge, Hangar, the Factorio mod
-// portal) for the dashboard's mod manager.
+// portal, the Steam Workshop, Nexus Mods) for the dashboard's mod manager.
 //
 // The engines here are generic: a GameTemplate's capabilities.mods.registry
 // block picks a provider and supplies its parameters, and the handler in
@@ -9,8 +9,16 @@
 // here — the dashboard hands the returned File.DownloadURL to the existing
 // agent install path, which re-checks the host allowlist and SSRF guard.
 // Search itself only ever GETs fixed, admin-trusted hostnames
-// (api.modrinth.com, thunderstore.io), so it carries no per-request SSRF
-// guard of its own.
+// (api.modrinth.com, thunderstore.io, api.steampowered.com,
+// api.nexusmods.com), so it carries no per-request SSRF guard of its own.
+//
+// Two providers (steam, nexus) never populate Version.Files: Steam Workshop
+// content is fetched by steamcmd running inside the game container (there is
+// no HTTP download URL to hand back), and Nexus's real download links are
+// premium-account-gated and IP-bound to the caller that mints them, which
+// would be this API pod rather than the agent pod that actually downloads.
+// Both engines are deliberate title/thumbnail-only browsers, not stubs — see
+// their package doc comments for the full reasoning.
 package registry
 
 import (
@@ -117,8 +125,13 @@ type Provider interface {
 // Config is the per-game registry selection, mirroring the CRD's
 // capabilities.mods.registry block.
 type Config struct {
-	Provider  string
+	Provider string
+	// Community is the Thunderstore community slug or (reusing the same
+	// bounded-slug shape) the Nexus Mods game domain slug.
 	Community string
+	// SteamAppID facets Steam Workshop browse/search to one app. Required
+	// by the steam provider; ignored by others.
+	SteamAppID int32
 }
 
 // Cache windows: a successful build is reused until the key hash changes or
@@ -129,19 +142,25 @@ const (
 	errorBackoffTTL = 30 * time.Second
 )
 
+// builtEntry caches one keyed provider's most recently built engine. Its
+// engine field holds the bare *Curseforge/*Steam/*Nexus (none of which
+// implement Provider on their own — like *Thunderstore, they need a
+// per-config wrapper for that, built by For), so one cache shape works for
+// every keyed engine; the per-provider *Lazy methods below type-assert
+// back to the concrete type they know they stored.
 type builtEntry struct {
-	provider *Curseforge
-	err      error
-	builtAt  time.Time
-	keyHash  [sha256.Size]byte
+	engine  any
+	err     error
+	builtAt time.Time
+	keyHash [sha256.Size]byte
 }
 
 // Set holds the constructed engines, sharing one HTTP client. Keyless engines
 // (modrinth, thunderstore, hangar, factorio) are built once and reused; the
-// Thunderstore engine caches its community package lists internally. The keyed
-// engine (curseforge) is built lazily behind a TTL + key-hash cache so the
-// key can be changed at runtime without restarting. When a key is empty, the
-// provider reports unavailable (existing behavior).
+// Thunderstore engine caches its community package lists internally. Keyed
+// engines (curseforge, steam, nexus) are built lazily behind a TTL +
+// key-hash cache so a key can be changed at runtime without restarting. When
+// a key is empty, the provider reports unavailable (existing behavior).
 type Set struct {
 	// immutable keyless engines
 	modrinth     *Modrinth
@@ -149,9 +168,9 @@ type Set struct {
 	hangar       *Hangar
 	factorio     *Factorio
 
-	// keyed engine cache
+	// keyed engine cache, one entry per provider name
 	mu      sync.Mutex
-	built   builtEntry
+	built   map[string]builtEntry
 	keyFunc KeyFunc
 	client  *http.Client
 	ua      string
@@ -162,8 +181,8 @@ type Set struct {
 
 // NewSet builds the engine set. version tags the outbound User-Agent
 // (Modrinth asks callers to identify themselves). keyFunc provides API keys
-// for providers that need them (currently only CurseForge, which requires an
-// x-api-key). Keys are resolved lazily per request and cached with a TTL.
+// for providers that need them (curseforge, steam, nexus all require their
+// own key). Keys are resolved lazily per request and cached with a TTL.
 func NewSet(version string, keyFunc KeyFunc) *Set {
 	client := &http.Client{Timeout: 15 * time.Second}
 	ua := "gameplane/" + version + " (+https://github.com/ValgulNecron/gameplane)"
@@ -181,10 +200,10 @@ func NewSet(version string, keyFunc KeyFunc) *Set {
 
 // For returns the provider for a module's registry config. ok is false
 // when the provider is unknown/unset, a required parameter is missing
-// (Thunderstore needs a community), or the engine isn't configured
-// (CurseForge without a key) — the handler maps that to 501 so the
-// dashboard hides the provider. For CurseForge, the key is resolved lazily
-// via context and cached with a TTL.
+// (Thunderstore/Nexus need a community/domain, Steam needs an app id), or
+// the engine isn't configured (a keyed provider without a key) — the
+// handler maps that to 501 so the dashboard hides the provider. For keyed
+// providers, the key is resolved lazily via context and cached with a TTL.
 func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 	switch cfg.Provider {
 	case "modrinth":
@@ -204,6 +223,24 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 		return s.hangar, true
 	case "factorio":
 		return s.factorio, true
+	case "steam":
+		if cfg.SteamAppID <= 0 {
+			return nil, false
+		}
+		st, err := s.steamLazy(ctx)
+		if err != nil || st == nil {
+			return nil, false
+		}
+		return &steamApp{steam: st, appID: cfg.SteamAppID}, true
+	case "nexus":
+		if cfg.Community == "" {
+			return nil, false
+		}
+		nx, err := s.nexusLazy(ctx)
+		if err != nil || nx == nil {
+			return nil, false
+		}
+		return &nexusGame{nexus: nx, domain: cfg.Community}, true
 	default:
 		return nil, false
 	}
@@ -211,8 +248,9 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 
 // Available reports whether a provider's engine is usable independent of a
 // specific server — the providers listing uses it to mark the dashboard's
-// provider switch. CurseForge availability depends on whether an API key is
-// currently configured.
+// provider switch. Keyed providers' availability depends on whether an API
+// key is currently configured; it does not check per-server parameters
+// (SteamAppID/Community), which For validates.
 func (s *Set) Available(ctx context.Context, provider string) bool {
 	switch provider {
 	case "modrinth", "thunderstore", "hangar", "factorio":
@@ -220,17 +258,59 @@ func (s *Set) Available(ctx context.Context, provider string) bool {
 	case "curseforge":
 		cf, err := s.curseforgeLazy(ctx)
 		return err == nil && cf != nil
+	case "steam":
+		st, err := s.steamLazy(ctx)
+		return err == nil && st != nil
+	case "nexus":
+		nx, err := s.nexusLazy(ctx)
+		return err == nil && nx != nil
 	default:
 		return false
 	}
 }
 
-// curseforgeLazy resolves the CurseForge key and builds the engine lazily,
-// caching the result against the key hash with a rebuild TTL. When the key
-// is empty, returns (nil, nil). On build failure, caches the error briefly
-// so repeated requests don't hammer the constructor.
+// curseforgeLazy resolves and lazily builds the CurseForge engine.
 func (s *Set) curseforgeLazy(ctx context.Context) (*Curseforge, error) {
-	key := s.keyFunc(ctx, "curseforge")
+	e, err := s.keyedLazy(ctx, "curseforge", func(key string) any {
+		return newCurseforge(s.client, s.ua, key)
+	})
+	if e == nil || err != nil {
+		return nil, err
+	}
+	return e.(*Curseforge), nil
+}
+
+// steamLazy resolves and lazily builds the Steam engine.
+func (s *Set) steamLazy(ctx context.Context) (*Steam, error) {
+	e, err := s.keyedLazy(ctx, "steam", func(key string) any {
+		return newSteam(s.client, s.ua, key)
+	})
+	if e == nil || err != nil {
+		return nil, err
+	}
+	return e.(*Steam), nil
+}
+
+// nexusLazy resolves and lazily builds the Nexus engine.
+func (s *Set) nexusLazy(ctx context.Context) (*Nexus, error) {
+	e, err := s.keyedLazy(ctx, "nexus", func(key string) any {
+		return newNexus(s.client, s.ua, key)
+	})
+	if e == nil || err != nil {
+		return nil, err
+	}
+	return e.(*Nexus), nil
+}
+
+// keyedLazy resolves provider's key via keyFunc and builds its engine
+// lazily via build, caching the result per-provider against the key hash
+// with a rebuild TTL. When the key is empty, returns (nil, nil) — the
+// provider is unconfigured, not an error. On build failure, the error is
+// cached briefly so repeated requests don't hammer the constructor (build
+// itself never fails for any engine today, but the cache shape supports it
+// for engines that later validate the key eagerly).
+func (s *Set) keyedLazy(ctx context.Context, provider string, build func(key string) any) (any, error) {
+	key := s.keyFunc(ctx, provider)
 	if key == "" {
 		return nil, nil
 	}
@@ -238,29 +318,30 @@ func (s *Set) curseforgeLazy(ctx context.Context) (*Curseforge, error) {
 	keyHash := sha256.Sum256([]byte(key))
 
 	s.mu.Lock()
-	entry := s.built
+	entry, hasEntry := s.built[provider]
 	s.mu.Unlock()
 
-	if entry.provider != nil || entry.err != nil {
-		if entry.keyHash == keyHash {
-			age := s.now().Sub(entry.builtAt)
-			if entry.err == nil && age < rebuildTTL {
-				return entry.provider, nil
-			}
-			if entry.err != nil && age < errorBackoffTTL {
-				return nil, entry.err
-			}
+	if hasEntry && entry.keyHash == keyHash {
+		age := s.now().Sub(entry.builtAt)
+		if entry.err == nil && age < rebuildTTL {
+			return entry.engine, nil
+		}
+		if entry.err != nil && age < errorBackoffTTL {
+			return nil, entry.err
 		}
 	}
 
-	// Key is new or cache expired; build the engine
-	cf := newCurseforge(s.client, s.ua, key)
+	// Key is new or cache expired; build the engine.
+	built := build(key)
 
 	s.mu.Lock()
-	s.built = builtEntry{provider: cf, err: nil, builtAt: s.now(), keyHash: keyHash}
+	if s.built == nil {
+		s.built = make(map[string]builtEntry)
+	}
+	s.built[provider] = builtEntry{engine: built, builtAt: s.now(), keyHash: keyHash}
 	s.mu.Unlock()
 
-	return cf, nil
+	return built, nil
 }
 
 // Response-body caps. Modrinth search/version responses are small;
@@ -294,4 +375,19 @@ func httpGetJSON(ctx context.Context, client *http.Client, userAgent, rawURL str
 		return fmt.Errorf("registry decode: %w", err)
 	}
 	return nil
+}
+
+// isDigits reports whether s is non-empty and every rune is an ASCII digit.
+// Steam and Nexus both use it to route a numeric search term to their
+// resolve-by-id lookup instead of the provider's (keyed, fuzzy) text search.
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

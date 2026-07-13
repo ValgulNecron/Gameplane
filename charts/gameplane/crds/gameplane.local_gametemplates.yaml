@@ -417,8 +417,9 @@ spec:
                                 community:
                                   description: |-
                                     Community is the Thunderstore community slug whose package index to
-                                    search, e.g. "valheim". Required by the thunderstore provider;
-                                    ignored by others.
+                                    search, e.g. "valheim" (required by the thunderstore provider), or
+                                    the Nexus Mods game domain slug, e.g. "skyrimspecialedition"
+                                    (required by the nexus provider). Ignored by others.
                                   maxLength: 64
                                   type: string
                                 credentialsSecretRef:
@@ -436,13 +437,40 @@ spec:
                                   required:
                                   - name
                                   type: object
+                                github:
+                                  description: |-
+                                    GitHub binds this provider to one repository's Releases. GitHub has
+                                    no cross-repo mod search (unlike Thunderstore's per-community
+                                    index), so a template picks exactly one repo to browse. Required
+                                    when Provider is "github"; ignored otherwise.
+                                  properties:
+                                    owner:
+                                      description: Owner is the repository owner (user
+                                        or organization login).
+                                      maxLength: 39
+                                      minLength: 1
+                                      pattern: ^[A-Za-z0-9][A-Za-z0-9-]*$
+                                      type: string
+                                    repo:
+                                      description: Repo is the repository name.
+                                      maxLength: 100
+                                      minLength: 1
+                                      pattern: ^[A-Za-z0-9._-]+$
+                                      type: string
+                                  required:
+                                  - owner
+                                  - repo
+                                  type: object
                                 modpacks:
                                   description: |-
                                     Modpacks, when set, surfaces a Modpacks browser for this provider and
                                     declares how installing one is applied. A modpack is selected as a
                                     whole (not added to the mods dir like a single mod), so install
                                     either pins it via a game-image env (RefEnv) or resolves and installs
-                                    its dependency mods. Omit for providers without modpacks.
+                                    its dependency mods. Omit for providers without modpacks. Steam
+                                    Workshop collections are always env-mode: set RefEnv to the game
+                                    image's collection-id variable (e.g. "WORKSHOP_COLLECTION") since
+                                    steamcmd resolves a collection's members itself inside the container.
                                   properties:
                                     env:
                                       description: |-
@@ -630,20 +658,48 @@ spec:
                                     Provider names the built-in registry engine: "modrinth" (Minecraft
                                     mods/plugins, keyless), "thunderstore" (BepInEx games, keyless,
                                     per-community), "curseforge" (Minecraft mods/modpacks, needs an API
-                                    key), "hangar" (PaperMC plugins, keyless), or "factorio" (the official
+                                    key), "hangar" (PaperMC plugins, keyless), "factorio" (the official
                                     Factorio mod portal; browse is keyless, downloads need the player's
                                     own factorio.com credentials so installs hand off to the from-URL
-                                    form).
+                                    form), "steam" (Steam Workshop browse, needs a Steam Web API key;
+                                    see SteamAppID — Workshop content has no download URL, so it's a
+                                    preview-only browser wired to modpacks.refEnv for collection-based
+                                    games like Garry's Mod/CS2), or "nexus" (Nexus Mods, needs an API
+                                    key, browse-only for the same reason as steam — see Community for
+                                    its per-game domain slug). "spigot", "github", and "umod" are
+                                    reserved enum values for engines landing in a follow-up change;
+                                    setting one today is accepted by the schema but the provider is
+                                    always reported unavailable.
                                   enum:
                                   - modrinth
                                   - thunderstore
                                   - curseforge
                                   - hangar
                                   - factorio
+                                  - steam
+                                  - spigot
+                                  - github
+                                  - umod
+                                  - nexus
                                   type: string
+                                steamAppID:
+                                  description: |-
+                                    SteamAppID is the Steam application id this provider browses (e.g.
+                                    4000 for Garry's Mod, 730 for Counter-Strike 2) — it facets the
+                                    Workshop search to that app's items/collections. Required when
+                                    Provider is "steam"; ignored otherwise.
+                                  format: int32
+                                  minimum: 1
+                                  type: integer
                               required:
                               - provider
                               type: object
+                              x-kubernetes-validations:
+                              - message: steamAppID is required when provider is steam
+                                rule: self.provider != 'steam' || self.steamAppID
+                                  > 0
+                              - message: github is required when provider is github
+                                rule: self.provider != 'github' || has(self.github)
                             maxItems: 8
                             minItems: 1
                             type: array

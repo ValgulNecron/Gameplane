@@ -226,7 +226,7 @@ func (h *registryHandler) resolve(ctx context.Context, ns, name, providerName st
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
-	p, ok := h.reg.For(ctx, registry.Config{Provider: prov.provider, Community: prov.community})
+	p, ok := h.reg.For(ctx, registry.Config{Provider: prov.provider, Community: prov.community, SteamAppID: prov.steamAppID})
 	if !ok {
 		return nil, "", "", errNoRegistry
 	}
@@ -244,9 +244,10 @@ func (h *registryHandler) writeResolveErr(w http.ResponseWriter, req *http.Reque
 }
 
 type providerCfg struct {
-	provider  string
-	community string
-	modpacks  *modpackCfg
+	provider   string
+	community  string
+	steamAppID int32
+	modpacks   *modpackCfg
 }
 
 type modpackCfg struct {
@@ -275,6 +276,7 @@ func registryProviders(tmpl *unstructured.Unstructured) []providerCfg {
 		}
 		cfg := providerCfg{provider: name}
 		cfg.community, _ = m["community"].(string)
+		cfg.steamAppID = nestedInt32(m["steamAppID"])
 		if mp, ok := m["modpacks"].(map[string]any); ok {
 			mc := &modpackCfg{}
 			mc.refEnv, _ = mp["refEnv"].(string)
@@ -294,6 +296,29 @@ func registryProviders(tmpl *unstructured.Unstructured) []providerCfg {
 		out = append(out, cfg)
 	}
 	return out
+}
+
+// nestedInt32 reads a numeric field out of an unstructured map[string]any.
+// The dynamic client's JSON decode represents whole numbers as int64 or
+// json.Number depending on path, and a hand-built test fixture might use a
+// plain int/float64 — so every shape apimachinery is documented to produce
+// is handled rather than assuming one.
+func nestedInt32(v any) int32 {
+	switch n := v.(type) {
+	case int64:
+		return int32(n)
+	case int32:
+		return n
+	case int:
+		return int32(n)
+	case float64:
+		return int32(n)
+	case json.Number:
+		if i, err := n.Int64(); err == nil {
+			return int32(i)
+		}
+	}
+	return 0
 }
 
 // pickProvider returns the named provider's config, or the first declared

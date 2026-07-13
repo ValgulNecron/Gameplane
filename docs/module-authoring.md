@@ -822,18 +822,53 @@ registry:
       community: valheim            # required: the community slug
       modpacks: {}                  # deps-mode packs (no refEnv)
     - provider: factorio            # official Factorio mod portal
+    - provider: steam               # Steam Workshop; needs an admin API key
+      steamAppID: 4000              # required: the app to browse (4000 = Garry's Mod)
+      modpacks:                     # optional: browse Workshop Collections
+        refEnv: WORKSHOP_COLLECTION
+    - provider: nexus               # Nexus Mods; needs an admin API key, browse-only
+      community: skyrimspecialedition # required: the Nexus game domain slug
 ```
 
 - Up to 8 providers; the first is the dashboard's default and a switch
-  appears when there's more than one. A provider whose engine needs
-  unmet server config (CurseForge without `--curseforge-api-key`) is
-  hidden until configured.
-- `thunderstore` requires `community`; the others ignore it.
+  appears when there's more than one. A provider whose engine needs a
+  key (`curseforge`, `steam`, `nexus`) is hidden until an admin sets one
+  via the dashboard (`PUT /admin/registries/{provider}/secret`, backed by
+  a labelled Secret) — CurseForge alone also accepts the legacy
+  `--curseforge-api-key` startup flag as a fallback when no admin key is
+  set.
+- `thunderstore` requires `community`; `nexus` reuses the same field as
+  its game domain slug (e.g. `stardewvalley`, `skyrimspecialedition` —
+  see [Nexus's game list](https://nexusmods.com) for the exact slug);
+  `steam` requires `steamAppID` instead. The others ignore both.
 - **`factorio` is browse-only**: the portal's downloads require the
   player's own factorio.com credentials, which Gameplane never stores —
   files are flagged `requiresAuth` and the dashboard hands the user to
   the from-URL form to append `?username=…&token=…` themselves. Keep
   `mods.factorio.com` / `.factorio.com` in `allowedHosts`.
+- **`steam` is browse-only, for a different reason**: Steam Workshop
+  content has no HTTP download URL at all — it's fetched by `steamcmd`
+  running inside the game container, using the app's own depot
+  credentials. Browsing still works (titles, thumbnails, subscriber
+  counts via the Steam Web API), but `Versions` never returns an
+  installable file, so the Mods tab shows "No compatible files." for it.
+  The one place this becomes genuinely one-click: declare `modpacks` with
+  `refEnv` pointing at the game image's Workshop-collection-id variable
+  (`WORKSHOP_COLLECTION` on most `steamcmd`-based images,
+  `HOST_WORKSHOP_COLLECTION` on some, e.g. joedwards32/cs2's
+  `CS2_HOST_WORKSHOP_COLLECTION`) — the Modpacks tab then browses
+  Collections instead of individual items, and installing one just pins
+  its id into that env var exactly like any other env-mode modpack.
+- **`nexus` is browse-only too, and deliberately stays that way**: Nexus's
+  real download links are minted per-caller (this API pod) and are
+  premium-account-gated, but the *agent* pod in the game namespace is
+  what actually performs the download — a different egress path a link
+  minted for the API pod's IP is not reliably valid for. The agent's
+  download path also doesn't sniff content-type, so a non-premium page
+  URL would silently install as an HTML document. `Versions` therefore
+  never returns a file for Nexus, on purpose — there is no
+  `requiresAuth`/from-URL fallback for it the way Factorio has, because
+  Nexus has no self-service URL a user could complete themselves.
 
 ##### Mod-portal credentials (Factorio)
 
