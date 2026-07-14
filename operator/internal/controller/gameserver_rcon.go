@@ -107,6 +107,16 @@ func (r *GameServerReconciler) reconcileRCONSecret(
 // managed password file, the per-(version+loader) mod volume when the active
 // version selects one, and per-provider mod-portal credential mounts. The agent
 // must see the same mounted mod dir the game reads so the Mods tab operates on it.
+//
+// Deliberately NOT mounted here: spec.storage.extra volumes (see
+// gameserver_extravolumes.go). The agent's file browser (agent/internal/files)
+// is rooted at exactly one path — --data-root, i.e. this same dataMount — and
+// rejects any resolved path outside it; it has no notion of a second root. An
+// extra volume's whole reason to exist is an absolute MountPath with no safe
+// common parent with the data volume, so mounting it into the agent would add
+// an unreachable mount with no Files-tab benefit. If a future change wants
+// those directories visible in the Files tab, that requires teaching the agent
+// to serve multiple roots, not just adding a VolumeMount here.
 func agentVolumeMounts(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate, ver *gameplanev1alpha1.GameVersion, dataMount string) []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
 		{Name: "data", MountPath: dataMount},

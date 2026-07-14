@@ -1906,6 +1906,56 @@ spec:
                     - kind
                     - name
                     type: object
+                  extra:
+                    description: |-
+                      Extra declares additional persistent volumes beyond the primary data
+                      volume. Use it when a game's persistent state lives in several
+                      directories with no safe common parent — e.g. 7 Days to Die keeps its
+                      17GB install in serverfiles/ and its worlds in .local/share/, whose only
+                      shared parent also holds the entrypoint script, so mounting there would
+                      shadow it. This same field lives on GameServer.spec.storage (an alias
+                      of GameStorageSpec): a GameServer that sets a non-empty Extra replaces
+                      the template's list wholesale, mirroring how Size/StorageClassName
+                      already override the template on that field — it does not merge
+                      entry-by-entry.
+                    items:
+                      description: |-
+                        ExtraVolumeSpec declares one additional persistent volume beyond a
+                        GameTemplate's primary data volume (see GameStorageSpec.Extra). The
+                        operator provisions one PVC per entry using the same mechanism as the
+                        primary data PVC (create-if-absent, ReadWriteOnce, owned by the
+                        GameServer) under its own "<server>-extra-<name>" PVC name, and mounts it
+                        directly at MountPath on the game container — never nested under the
+                        primary Storage.MountPath, since these exist precisely for directories
+                        that share no safe common parent with it.
+                      properties:
+                        mountPath:
+                          description: MountPath is the absolute in-container path
+                            this volume is mounted at.
+                          maxLength: 255
+                          pattern: ^/.*
+                          type: string
+                        name:
+                          description: |-
+                            Name identifies the volume and forms part of its PVC name. Must be a
+                            DNS-1123 label.
+                          maxLength: 40
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                        size:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: Size is the requested capacity (e.g. "40Gi").
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                      required:
+                      - mountPath
+                      - name
+                      - size
+                      type: object
+                    maxItems: 4
+                    type: array
                   mountPath:
                     default: /data
                     description: |-
