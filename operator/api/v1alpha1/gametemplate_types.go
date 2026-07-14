@@ -156,6 +156,40 @@ type GameTemplateSpec struct {
 	// so they require rcon.protocol != none.
 	// +optional
 	Capabilities *CapabilitiesSpec `json:"capabilities,omitempty"`
+
+	// Security overrides the pod/container security settings for games whose
+	// image refuses to run as root or expects a specific uid (e.g. ARK's
+	// image requires uid 25000 and cannot initialise Proton as root).
+	// Omitted means today's behaviour: the image's own default user.
+	// +optional
+	Security *GameSecuritySpec `json:"security,omitempty"`
+}
+
+// GameSecuritySpec overrides the uid/gid the game container runs as and
+// the gid the kubelet chowns the mounted data volume to. Unlike the
+// agent sidecar (always distroless, always a fixed non-root uid), the
+// game container runs whatever image the module ships, so its user is
+// not something the operator can infer — a template opts in explicitly.
+type GameSecuritySpec struct {
+	// RunAsUser is the uid the GAME container runs as.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=4294967295
+	// +optional
+	RunAsUser *int64 `json:"runAsUser,omitempty"`
+
+	// RunAsGroup is the gid the GAME container runs as.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=4294967295
+	// +optional
+	RunAsGroup *int64 `json:"runAsGroup,omitempty"`
+
+	// FSGroup makes the kubelet chown the mounted volumes to this gid on
+	// start, so a non-root game user can write to its PVC. This is what
+	// replaces the chown init-container such images normally ship with.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=4294967295
+	// +optional
+	FSGroup *int64 `json:"fsGroup,omitempty"`
 }
 
 // GameVersion is one selectable entry in a template's version catalog.

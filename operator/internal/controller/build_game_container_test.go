@@ -63,3 +63,78 @@ func TestBuildGameContainer_NoServerProbes(t *testing.T) {
 		t.Errorf("LivenessProbe = %+v, want template (delay 7)", c.LivenessProbe)
 	}
 }
+
+// TestBuildGameContainer_SecurityContext_Unset guards the byte-identical-
+// when-omitted contract: a template with no Security block must render a
+// nil container SecurityContext, not an empty &corev1.SecurityContext{} —
+// the latter would still change the rendered pod spec (and roll every
+// existing game StatefulSet on upgrade) even though nothing was requested.
+func TestBuildGameContainer_SecurityContext_Unset(t *testing.T) {
+	tmpl := &gameplanev1alpha1.GameTemplate{}
+	tmpl.Name = "minecraft"
+	tmpl.Spec.Game = "minecraft"
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "alpha"
+
+	c := buildGameContainer(gs, tmpl, "busybox:1.36", nil, &materializedConfig{})
+	if c.SecurityContext != nil {
+		t.Errorf("SecurityContext = %+v, want nil when template sets no security block", c.SecurityContext)
+	}
+}
+
+// TestBuildGameContainer_SecurityContext_RunAsUserGroup proves the ARK
+// case: a template declaring security.runAsUser/runAsGroup projects both
+// onto the GAME container's SecurityContext (and nothing else — no
+// implicit readOnlyRootFilesystem/capabilities/seccomp that could break a
+// third-party image that doesn't expect them).
+func TestBuildGameContainer_SecurityContext_RunAsUserGroup(t *testing.T) {
+	uid := int64(25000)
+	gid := int64(25000)
+	tmpl := &gameplanev1alpha1.GameTemplate{}
+	tmpl.Name = "ark-survival-ascended"
+	tmpl.Spec.Game = "ark-survival-ascended"
+	tmpl.Spec.Security = &gameplanev1alpha1.GameSecuritySpec{
+		RunAsUser:  &uid,
+		RunAsGroup: &gid,
+	}
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "ark"
+
+	c := buildGameContainer(gs, tmpl, "mschnitzer/asa-linux-server:latest", nil, &materializedConfig{})
+	sc := c.SecurityContext
+	if sc == nil {
+		t.Fatal("SecurityContext nil, want RunAsUser/RunAsGroup set")
+	}
+	if sc.RunAsUser == nil || *sc.RunAsUser != uid {
+		t.Errorf("RunAsUser = %v, want %d", sc.RunAsUser, uid)
+	}
+	if sc.RunAsGroup == nil || *sc.RunAsGroup != gid {
+		t.Errorf("RunAsGroup = %v, want %d", sc.RunAsGroup, gid)
+	}
+	if sc.ReadOnlyRootFilesystem != nil || sc.Capabilities != nil || sc.SeccompProfile != nil {
+		t.Errorf("unexpected extra SecurityContext fields set: %+v", sc)
+	}
+}
+
+// TestGamePodSecurityContext proves fsGroup lands at the pod level (it's a
+// PodSecurityContext-only field, unlike runAsUser/runAsGroup which are
+// per-container) and that an unset security block renders no pod
+// SecurityContext at all.
+func TestGamePodSecurityContext(t *testing.T) {
+	t.Run("unset renders nil", func(t *testing.T) {
+		tmpl := &gameplanev1alpha1.GameTemplate{}
+		if got := gamePodSecurityContext(tmpl); got != nil {
+			t.Errorf("gamePodSecurityContext = %+v, want nil", got)
+		}
+	})
+
+	t.Run("fsGroup projects onto the pod", func(t *testing.T) {
+		gid := int64(25000)
+		tmpl := &gameplanev1alpha1.GameTemplate{}
+		tmpl.Spec.Security = &gameplanev1alpha1.GameSecuritySpec{FSGroup: &gid}
+		got := gamePodSecurityContext(tmpl)
+		if got == nil || got.FSGroup == nil || *got.FSGroup != gid {
+			t.Errorf("gamePodSecurityContext = %+v, want FSGroup=%d", got, gid)
+		}
+	})
+}

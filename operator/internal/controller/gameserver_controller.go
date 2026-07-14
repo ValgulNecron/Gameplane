@@ -767,6 +767,9 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		ss.Spec.Template.Spec.NodeSelector = gs.Spec.NodeSelector
 		ss.Spec.Template.Spec.Tolerations = gs.Spec.Tolerations
 		ss.Spec.Template.Spec.Affinity = gs.Spec.Affinity
+		// Same unconditional-assign reasoning: removing template.spec.security
+		// must clear a previously-set pod-level FSGroup, not leave it pinned.
+		ss.Spec.Template.Spec.SecurityContext = gamePodSecurityContext(tmpl)
 		// Default to the per-GameServer SA so the agent's heartbeat can
 		// patch gameservers/status (see reconcileAgentRBAC); an explicit
 		// spec.serviceAccountName still wins.
@@ -942,7 +945,41 @@ func buildGameContainer(
 		c.TTY = true
 		c.Stdin = true
 	}
+	c.SecurityContext = gameContainerSecurityContext(tmpl)
 	return c
+}
+
+// gameContainerSecurityContext returns the GAME container's
+// SecurityContext derived from the template's optional Security block, or
+// nil when the template sets neither RunAsUser nor RunAsGroup — so a
+// template that doesn't opt in renders a pod spec byte-identical to
+// before this field existed (no empty `securityContext: {}`). Unlike
+// buildAgentContainer's fixed distroless SecurityContext, this only sets
+// what the template asks for: most game images need nothing beyond the
+// uid/gid override to run non-root (e.g. ARK's uid 25000), and forcing
+// readOnlyRootFilesystem/capabilities drops on arbitrary third-party game
+// images would break ones that don't expect it.
+func gameContainerSecurityContext(tmpl *gameplanev1alpha1.GameTemplate) *corev1.SecurityContext {
+	sec := tmpl.Spec.Security
+	if sec == nil || (sec.RunAsUser == nil && sec.RunAsGroup == nil) {
+		return nil
+	}
+	return &corev1.SecurityContext{
+		RunAsUser:  sec.RunAsUser,
+		RunAsGroup: sec.RunAsGroup,
+	}
+}
+
+// gamePodSecurityContext returns the pod-level SecurityContext carrying
+// FSGroup, or nil when the template's Security block doesn't set one —
+// mirroring gameContainerSecurityContext's byte-identical-when-unset
+// behavior at the pod level.
+func gamePodSecurityContext(tmpl *gameplanev1alpha1.GameTemplate) *corev1.PodSecurityContext {
+	sec := tmpl.Spec.Security
+	if sec == nil || sec.FSGroup == nil {
+		return nil
+	}
+	return &corev1.PodSecurityContext{FSGroup: sec.FSGroup}
 }
 
 func buildAgentContainer(
