@@ -864,6 +864,44 @@ type GameStorageSpec struct {
 	// set on a GameTemplate (it is a per-server restore concern).
 	// +optional
 	DataSource *GameDataSource `json:"dataSource,omitempty"`
+
+	// Extra declares additional persistent volumes beyond the primary data
+	// volume. Use it when a game's persistent state lives in several
+	// directories with no safe common parent — e.g. 7 Days to Die keeps its
+	// 17GB install in serverfiles/ and its worlds in .local/share/, whose only
+	// shared parent also holds the entrypoint script, so mounting there would
+	// shadow it. This same field lives on GameServer.spec.storage (an alias
+	// of GameStorageSpec): a GameServer that sets a non-empty Extra replaces
+	// the template's list wholesale, mirroring how Size/StorageClassName
+	// already override the template on that field — it does not merge
+	// entry-by-entry.
+	// +kubebuilder:validation:MaxItems=4
+	// +optional
+	Extra []ExtraVolumeSpec `json:"extra,omitempty"`
+}
+
+// ExtraVolumeSpec declares one additional persistent volume beyond a
+// GameTemplate's primary data volume (see GameStorageSpec.Extra). The
+// operator provisions one PVC per entry using the same mechanism as the
+// primary data PVC (create-if-absent, ReadWriteOnce, owned by the
+// GameServer) under its own "<server>-extra-<name>" PVC name, and mounts it
+// directly at MountPath on the game container — never nested under the
+// primary Storage.MountPath, since these exist precisely for directories
+// that share no safe common parent with it.
+type ExtraVolumeSpec struct {
+	// Name identifies the volume and forms part of its PVC name. Must be a
+	// DNS-1123 label.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=40
+	Name string `json:"name"`
+
+	// MountPath is the absolute in-container path this volume is mounted at.
+	// +kubebuilder:validation:Pattern=`^/.*`
+	// +kubebuilder:validation:MaxLength=255
+	MountPath string `json:"mountPath"`
+
+	// Size is the requested capacity (e.g. "40Gi").
+	Size resource.Quantity `json:"size"`
 }
 
 // GameDataSource references a CSI VolumeSnapshot used to pre-populate a

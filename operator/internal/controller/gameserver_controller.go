@@ -184,6 +184,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile PVC")
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileExtraPVCs(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile extra PVCs")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileModPVC(ctx, &gs, &tmpl, ver); err != nil {
 		logger.Error(err, "reconcile mod PVC")
 		return ctrl.Result{}, err
@@ -843,6 +847,12 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 				},
 			},
 		}
+		// Extra volumes (spec.storage.extra / template's), one PVC each,
+		// mounted only on the game container (see buildGameContainer) — not
+		// nested under the data volume, and never on the agent (see
+		// agentVolumeMounts' doc comment for why). Assigned wholesale with
+		// the rest, so an empty/removed extra list is a no-op here.
+		volumes = append(volumes, extraVolumes(gs, tmpl)...)
 		// Mount the resolved RCON password (operator-generated or the
 		// template's referenced Secret) so the agent sidecar can read it
 		// via --rcon-password-file. Added only when the game exposes RCON
@@ -1040,6 +1050,7 @@ func buildGameContainer(
 	if m := modVolumeMount(tmpl, ver); m != nil {
 		mounts = append(mounts, *m)
 	}
+	mounts = append(mounts, extraVolumeMounts(gs, tmpl)...)
 
 	c := corev1.Container{
 		Name:         gameContainerName,

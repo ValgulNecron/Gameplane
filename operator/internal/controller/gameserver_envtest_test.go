@@ -709,6 +709,164 @@ func TestGameServer_StorageOverride(t *testing.T) {
 	})
 }
 
+// TestGameServer_ExtraVolumesProvisionedAndMounted — a template declaring
+// two spec.storage.extra entries (modeling 7 Days to Die's serverfiles/
+// install and .local/share/ world-saves directories, which share no safe
+// common parent) gets one PVC per entry and both mounted on the GAME
+// container at their own absolute MountPath — never nested under the
+// primary data mount. The primary "data" PVC/mount must behave exactly as
+// before, and (per the deliberate agent-container decision in
+// gameserver_rcon.go's agentVolumeMounts doc comment) neither extra volume
+// should be mounted into the agent sidecar.
+func TestGameServer_ExtraVolumesProvisionedAndMounted(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("sdtd"))
+	installSize := resource.MustParse("15Gi")
+	savesSize := resource.MustParse("2Gi")
+	tmpl.Spec.Storage.Extra = []gameplanev1alpha1.ExtraVolumeSpec{
+		{Name: "install", MountPath: "/home/sdtdserver/serverfiles", Size: installSize},
+		{Name: "saves", MountPath: "/home/sdtdserver/.local/share/7DaysToDie", Size: savesSize},
+	}
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		game := containerByName(ss.Spec.Template.Spec.Containers, gameContainerName)
+		if game == nil {
+			return false, "no game container"
+		}
+		if got := mountPathOf(game, "extra-install"); got != "/home/sdtdserver/serverfiles" {
+			return false, "game install mount=" + got
+		}
+		if got := mountPathOf(game, "extra-saves"); got != "/home/sdtdserver/.local/share/7DaysToDie" {
+			return false, "game saves mount=" + got
+		}
+		// The primary data mount is untouched by the extra volumes.
+		if got := mountPathOf(game, "data"); got != "/data" {
+			return false, "game data mount=" + got
+		}
+		agent := containerByName(ss.Spec.Template.Spec.Containers, "agent")
+		if agent == nil {
+			return false, "no agent sidecar container"
+		}
+		if got := mountPathOf(agent, "extra-install"); got != "" {
+			return false, "agent must not mount extra-install, got " + got
+		}
+		if got := mountPathOf(agent, "extra-saves"); got != "" {
+			return false, "agent must not mount extra-saves, got " + got
+		}
+		// Pod volumes reference the per-extra PVCs.
+		wantVols := map[string]string{
+			"extra-install": "smp-extra-install",
+			"extra-saves":   "smp-extra-saves",
+		}
+		for volName, claim := range wantVols {
+			found := false
+			for _, v := range ss.Spec.Template.Spec.Volumes {
+				if v.Name == volName && v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == claim {
+					found = true
+				}
+			}
+			if !found {
+				return false, "pod volume " + volName + " -> " + claim + " missing"
+			}
+		}
+		return true, ""
+	})
+
+	// Both extra PVCs exist, sized from their ExtraVolumeSpec entry, and
+	// the primary data PVC still behaves exactly as before (default size).
+	eventually(t, func() (bool, string) {
+		var install corev1.PersistentVolumeClaim
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-extra-install"}, &install); err != nil {
+			return false, "install pvc: " + err.Error()
+		}
+		if got := install.Spec.Resources.Requests[corev1.ResourceStorage]; got.Cmp(installSize) != 0 {
+			return false, "install pvc size = " + got.String() + ", want " + installSize.String()
+		}
+		var saves corev1.PersistentVolumeClaim
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-extra-saves"}, &saves); err != nil {
+			return false, "saves pvc: " + err.Error()
+		}
+		if got := saves.Spec.Resources.Requests[corev1.ResourceStorage]; got.Cmp(savesSize) != 0 {
+			return false, "saves pvc size = " + got.String() + ", want " + savesSize.String()
+		}
+		var data corev1.PersistentVolumeClaim
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-data"}, &data); err != nil {
+			return false, "data pvc: " + err.Error()
+		}
+		wantData := resource.MustParse("10Gi")
+		if got := data.Spec.Resources.Requests[corev1.ResourceStorage]; got.Cmp(wantData) != 0 {
+			return false, "data pvc size = " + got.String() + ", want " + wantData.String()
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_NoExtraVolumesByteIdentical is the regression guard: a
+// template declaring no spec.storage.extra must render a pod spec
+// byte-identical to today's — exactly 2 pod volumes (data, agent-tls) and
+// exactly 1 game-container VolumeMount (data) for a template with no RCON,
+// no per-loader mods, and no configFiles.
+func TestGameServer_NoExtraVolumesByteIdentical(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var ss appsv1.StatefulSet
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+			return false, "statefulset: " + err.Error()
+		}
+		if len(ss.Spec.Template.Spec.Volumes) != 2 {
+			return false, fmt.Sprintf("pod volumes = %v, want exactly [data agent-tls]", sprintArgs(volumeNames(ss.Spec.Template.Spec.Volumes)))
+		}
+		game := containerByName(ss.Spec.Template.Spec.Containers, gameContainerName)
+		if game == nil {
+			return false, "no game container"
+		}
+		if len(game.VolumeMounts) != 1 || game.VolumeMounts[0].Name != "data" {
+			return false, fmt.Sprintf("game VolumeMounts = %v, want exactly [data]", game.VolumeMounts)
+		}
+		return true, ""
+	})
+}
+
+// volumeNames extracts pod Volume names for assertion messages.
+func volumeNames(vols []corev1.Volume) []string {
+	out := make([]string, 0, len(vols))
+	for _, v := range vols {
+		out = append(out, v.Name)
+	}
+	return out
+}
+
 // TestGameServer_AgentDataRootMatchesMountPath guards against the agent
 // silently rooting all its file ops (Files tab, Mods tab, disk-usage stats)
 // at its own /data default when the template mounts the data volume
