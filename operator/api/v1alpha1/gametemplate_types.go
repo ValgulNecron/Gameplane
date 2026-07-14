@@ -830,9 +830,15 @@ type GamePort struct {
 	// Advertise controls whether this port is exposed to users via
 	// GameServer.Spec.Networking. RCON and query ports are typically
 	// not advertised publicly.
+	//
+	// No `omitempty`: the CRD default is true, so an `omitempty` tag would
+	// let the typed client silently drop an explicit `false` on the wire
+	// (Go's zero value for bool), and the apiserver would re-apply the
+	// `true` default — putting RCON/query ports back on the Service and
+	// the game-ingress NetworkPolicy. Do not add it back.
 	// +kubebuilder:default=true
 	// +optional
-	Advertise bool `json:"advertise,omitempty"`
+	Advertise bool `json:"advertise"`
 }
 
 // GameStorageSpec describes the persistent storage layout for a game.
