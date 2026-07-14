@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -65,8 +66,8 @@ func TestFSFetcher_IndexDiscoversModules(t *testing.T) {
 	if mc.DisplayName != "MC" || mc.Game != "mc" {
 		t.Errorf("mc metadata = %+v", mc)
 	}
-	if mc.Category != "Sandbox" {
-		t.Errorf("mc category = %q, want Sandbox", mc.Category)
+	if !reflect.DeepEqual(mc.Categories, []string{"Sandbox"}) {
+		t.Errorf("mc categories = %v, want [Sandbox]", mc.Categories)
 	}
 }
 

@@ -21,14 +21,20 @@ type GameTemplateSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	Game string `json:"game"`
 
-	// Category groups this game in the dashboard's catalog and Create
-	// Server picker (e.g. "Survival", "Sandbox", "Shooter"). The dashboard
-	// builds its category filter from the distinct values present across
-	// installed templates, so a module introduces a new category simply by
-	// naming it here — no frontend change. Empty falls back to "Other".
-	// +kubebuilder:validation:MaxLength=32
+	// Categories group this game in the dashboard's catalog and Create
+	// Server picker (e.g. ["Survival", "Sandbox"]). A game may belong to
+	// several at once — Minecraft is reasonably Sandbox, Survival and
+	// Creative. The dashboard builds its category filter from the distinct
+	// values present across installed templates, so a module introduces a
+	// new category simply by naming it here — no frontend change. Empty
+	// falls back to a heuristic on the game slug, and finally to "Other".
+	// docs/module-authoring.md publishes the canonical vocabulary the
+	// official modules use.
+	// +kubebuilder:validation:MaxItems=8
+	// +kubebuilder:validation:items:MaxLength=32
+	// +kubebuilder:validation:items:MinLength=1
 	// +optional
-	Category string `json:"category,omitempty"`
+	Categories []string `json:"categories,omitempty"`
 
 	// Version is the template revision (e.g. "1.0.0"). Bump when changing
 	// defaults in ways that existing GameServers should opt into.

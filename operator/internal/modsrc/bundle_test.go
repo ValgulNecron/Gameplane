@@ -1,6 +1,7 @@
 package modsrc
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -113,5 +114,93 @@ func TestFromFiles_Errors(t *testing.T) {
 				t.Fatalf("err = %v, want substring %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestMetadataCategoriesList(t *testing.T) {
+	meta := []byte(`
+apiVersion: gameplane.local/module/v1
+name: mc
+displayName: Minecraft
+version: 1.0.0
+game: minecraft-java
+categories: [Sandbox, Survival, Building]
+`)
+	b, err := FromFiles("sha256:test", map[string][]byte{
+		FileMetadata: meta,
+		FileTemplate: []byte(fixtureTemplateYAML),
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	want := []string{"Sandbox", "Survival", "Building"}
+	if !reflect.DeepEqual(b.Metadata.Categories, want) {
+		t.Errorf("Categories = %v, want %v", b.Metadata.Categories, want)
+	}
+}
+
+func TestMetadataLegacyScalarCategory(t *testing.T) {
+	meta := []byte(`
+apiVersion: gameplane.local/module/v1
+name: mc
+displayName: Minecraft
+version: 1.0.0
+game: minecraft-java
+category: Sandbox
+`)
+	b, err := FromFiles("sha256:test", map[string][]byte{
+		FileMetadata: meta,
+		FileTemplate: []byte(fixtureTemplateYAML),
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !reflect.DeepEqual(b.Metadata.Categories, []string{"Sandbox"}) {
+		t.Errorf("Categories = %v, want [Sandbox]", b.Metadata.Categories)
+	}
+	if b.Metadata.Category != "" {
+		t.Errorf("legacy Category = %q, want cleared after normalization", b.Metadata.Category)
+	}
+}
+
+func TestMetadataListWinsOverLegacyScalar(t *testing.T) {
+	meta := []byte(`
+apiVersion: gameplane.local/module/v1
+name: mc
+displayName: Minecraft
+version: 1.0.0
+game: minecraft-java
+category: Ignored
+categories: [Sandbox, Survival]
+`)
+	b, err := FromFiles("sha256:test", map[string][]byte{
+		FileMetadata: meta,
+		FileTemplate: []byte(fixtureTemplateYAML),
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !reflect.DeepEqual(b.Metadata.Categories, []string{"Sandbox", "Survival"}) {
+		t.Errorf("Categories = %v, want [Sandbox Survival]", b.Metadata.Categories)
+	}
+}
+
+func TestMetadataNoCategory(t *testing.T) {
+	meta := []byte(`
+apiVersion: gameplane.local/module/v1
+name: mc
+displayName: Minecraft
+version: 1.0.0
+game: minecraft-java
+`)
+	b, err := FromFiles("sha256:test", map[string][]byte{
+		FileMetadata: meta,
+		FileTemplate: []byte(fixtureTemplateYAML),
+	})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(b.Metadata.Categories) != 0 {
+		t.Errorf("Categories = %v, want empty", b.Metadata.Categories)
 	}
 }

@@ -377,12 +377,19 @@ spec:
                     operator fills these from each module's module.yaml (+ tag list for
                     oci sources).
                   properties:
-                    category:
+                    categories:
                       description: |-
-                        Category is the catalog grouping from module.yaml (e.g. "Survival",
-                        "Sandbox"). Surfaced so the dashboard can build its module-catalog
-                        filter from author-declared values instead of a hardcoded heuristic.
-                      type: string
+                        Categories are the catalog groupings from module.yaml (e.g.
+                        ["Survival", "Sandbox"]). Surfaced so the dashboard can build its
+                        module-catalog filter from author-declared values instead of a
+                        hardcoded heuristic. A bundle that declares the legacy scalar
+                        `category:` is normalized into a one-element list on parse.
+                      items:
+                        maxLength: 32
+                        minLength: 1
+                        type: string
+                      maxItems: 8
+                      type: array
                     digest:
                       description: |-
                         Digest identifies the exact content backing LatestVersion: the

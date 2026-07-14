@@ -247,11 +247,16 @@ type ModuleEntry struct {
 	// +optional
 	Game string `json:"game,omitempty"`
 
-	// Category is the catalog grouping from module.yaml (e.g. "Survival",
-	// "Sandbox"). Surfaced so the dashboard can build its module-catalog
-	// filter from author-declared values instead of a hardcoded heuristic.
+	// Categories are the catalog groupings from module.yaml (e.g.
+	// ["Survival", "Sandbox"]). Surfaced so the dashboard can build its
+	// module-catalog filter from author-declared values instead of a
+	// hardcoded heuristic. A bundle that declares the legacy scalar
+	// `category:` is normalized into a one-element list on parse.
+	// +kubebuilder:validation:MaxItems=8
+	// +kubebuilder:validation:items:MaxLength=32
+	// +kubebuilder:validation:items:MinLength=1
 	// +optional
-	Category string `json:"category,omitempty"`
+	Categories []string `json:"categories,omitempty"`
 
 	// Icon is either a relative filename (resolved against the bundle)
 	// or a URL/data URI passed straight through to the UI.

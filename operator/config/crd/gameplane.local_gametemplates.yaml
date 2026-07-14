@@ -929,15 +929,23 @@ spec:
                         type: array
                     type: object
                 type: object
-              category:
+              categories:
                 description: |-
-                  Category groups this game in the dashboard's catalog and Create
-                  Server picker (e.g. "Survival", "Sandbox", "Shooter"). The dashboard
-                  builds its category filter from the distinct values present across
-                  installed templates, so a module introduces a new category simply by
-                  naming it here — no frontend change. Empty falls back to "Other".
-                maxLength: 32
-                type: string
+                  Categories group this game in the dashboard's catalog and Create
+                  Server picker (e.g. ["Survival", "Sandbox"]). A game may belong to
+                  several at once — Minecraft is reasonably Sandbox, Survival and
+                  Creative. The dashboard builds its category filter from the distinct
+                  values present across installed templates, so a module introduces a
+                  new category simply by naming it here — no frontend change. Empty
+                  falls back to a heuristic on the game slug, and finally to "Other".
+                  docs/module-authoring.md publishes the canonical vocabulary the
+                  official modules use.
+                items:
+                  maxLength: 32
+                  minLength: 1
+                  type: string
+                maxItems: 8
+                type: array
               command:
                 description: Command / Args override the container image entrypoint
                   when set.
