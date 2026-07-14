@@ -131,6 +131,21 @@ When `networkPolicies.enabled=true` (default) the chart applies:
   control-plane namespace) to reach every game pod's agent on TCP port 8090.
   The API proxies console/files/logs/players; the operator calls `/quiesce`
   before backups.
+- `<gameserver-name>-game-ingress` — created by the **operator** for each
+  GameServer, allows external traffic to reach only the advertised ports
+  declared in the GameTemplate. Selects traffic from `networkPolicies.gameIngress.fromCIDRs`
+  (default `0.0.0.0/0`, the internet) to only the container ports marked
+  `Advertise: true` at their declared protocol (UDP preserved). This policy
+  does not itself open RCON or the agent's port 8090; however, those ports
+  remain reachable from `kubeletCIDRs` via the `allow-kubelet-probes` policy
+  (see below), which has no port restrictions by default. To close that hole,
+  narrow `networkPolicies.probePorts` — previously unsafe to do, but now
+  safe since this policy protects advertised player traffic separately.
+  Operators may also narrow `fromCIDRs` to a private range (e.g. a LAN, a VPN
+  CIDR) to gate player access. If a template declares no advertised ports or
+  `networkPolicies.gameIngress.enabled: false`, the operator ensures this
+  policy does not exist. The policy is owned by the GameServer and cascade-deletes
+  with it.
 - `allow-kubelet-probes` — allows kubelet to reach game pods for
   liveness/readiness probes. By default targets RFC1918 + link-local ranges,
   or customizable via `networkPolicies.kubeletCIDRs`; probe ports via

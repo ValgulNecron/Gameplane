@@ -211,8 +211,10 @@ networkPolicies:
   # Probe ports vary per game module (e.g. the Minecraft game port, Valheim's
   # status port, Terraria's game port), so the default is empty, which allows
   # the kubelet (already scoped to kubeletCIDRs) to reach ANY port on a game
-  # pod. Restrict to specific ports only if your modules use a known fixed set,
-  # e.g. [{ protocol: TCP, port: 8090 }].
+  # pod. Player traffic no longer rides along on this: it's admitted by the
+  # operator-managed per-server ingress policy below (gameIngress), so it's
+  # safe to restrict this to a known fixed set once your modules settle on
+  # one, e.g. [{ protocol: TCP, port: 8090 }].
   probePorts: []
   # CIDRs that hold the kube-apiserver endpoint(s) the agent sidecar
   # patches its status heartbeat through. Same fallback semantics as
@@ -238,6 +240,24 @@ networkPolicies:
       - 172.16.0.0/12
       - 192.168.0.0/16
       - 169.254.0.0/16
+  # Ingress allowance for the game port(s) themselves. The operator
+  # reconciles one NetworkPolicy per GameServer, opening only that game's
+  # `Advertise: true` container ports (read from its GameTemplate) — this
+  # policy itself does not open RCON or the agent's own port. However,
+  # those ports remain reachable from kubeletCIDRs via the separate
+  # allow-kubelet-probes policy until probePorts (above) is narrowed from
+  # its default of []; this policy now makes that safe to do.
+  # 0.0.0.0/0 is the default because game servers exist to be reached by
+  # players, wherever they connect from. Narrow fromCIDRs to restrict who
+  # can reach the game port, e.g. to a LAN range for a homelab install.
+  # fromCIDRs must not be set to an empty list to "close" ingress — the
+  # operator falls back to 0.0.0.0/0 when it can't tell an empty list from
+  # an unset flag, so an empty list would fail open. Set enabled: false
+  # instead if you want no per-server ingress policy at all.
+  gameIngress:
+    enabled: true
+    fromCIDRs:
+      - 0.0.0.0/0
 
 # Credential-minting cluster operations surfaced in the dashboard's
 # Cluster page (Add node = create a bootstrap token; Download kubeconfig =

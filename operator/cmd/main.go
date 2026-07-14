@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -26,6 +28,21 @@ import (
 )
 
 var scheme = runtime.NewScheme()
+
+// cidrListFlag implements flag.Value for a repeatable
+// --game-ingress-from-cidr flag: each occurrence appends a CIDR to the
+// list, rather than the stdlib flag package's default last-one-wins
+// behavior for a flag registered more than once.
+type cidrListFlag []string
+
+func (f *cidrListFlag) String() string {
+	return strings.Join(*f, ",")
+}
+
+func (f *cidrListFlag) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
 
 // Version is the operator build version, overridden at build time via
 // -ldflags. Compared against a module bundle's gameplaneMinVersion to refuse
@@ -58,6 +75,8 @@ func main() {
 		moduleNamespace        string
 		moduleLocalRoot        string
 		controlPlaneNamespace  string
+		gameIngressPolicy      bool
+		gameIngressFromCIDR    cidrListFlag
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the probe endpoint binds to.")
@@ -93,6 +112,13 @@ func main() {
 	}
 	flag.StringVar(&controlPlaneNamespace, "control-plane-namespace", controlPlaneNamespaceDefault,
 		"Namespace where the operator runs and where cluster kubeconfig Secrets are stored.")
+	flag.BoolVar(&gameIngressPolicy, "game-ingress-policy", true,
+		"Reconcile a per-GameServer ingress NetworkPolicy admitting player traffic to the template's "+
+			"advertised ports. When false, the operator ensures the policy is absent instead of merely "+
+			"skipping it, so toggling this off converges existing GameServers.")
+	flag.Var(&gameIngressFromCIDR, "game-ingress-from-cidr",
+		"Source CIDR admitted to advertised game ports by the ingress NetworkPolicy. Repeatable. "+
+			"Defaults to 0.0.0.0/0 (games are meant to be publicly reachable) when not supplied.")
 
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
@@ -100,6 +126,26 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog := ctrl.Log.WithName("setup")
+
+	// Games are meant to be publicly reachable, so an unset
+	// --game-ingress-from-cidr defaults to wide-open rather than an empty
+	// (and therefore permission-less) list.
+	if len(gameIngressFromCIDR) == 0 {
+		gameIngressFromCIDR = cidrListFlag{"0.0.0.0/0"}
+	}
+	for i, cidr := range gameIngressFromCIDR {
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			setupLog.Error(err, "invalid --game-ingress-from-cidr value", "cidr", cidr)
+			os.Exit(1)
+		}
+		// ParseCIDR succeeds even when the address has host bits set (e.g.
+		// "10.0.0.1/8"), returning the parsed network alongside it — use
+		// that canonical form (e.g. "10.0.0.0/8") rather than the raw flag
+		// value, so IPBlock.CIDR never carries host bits the apiserver
+		// might reject or interpret surprisingly.
+		gameIngressFromCIDR[i] = ipnet.String()
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -144,6 +190,8 @@ func main() {
 			Config:    mgr.GetConfig(),
 			Clientset: kubernetes.NewForConfigOrDie(mgr.GetConfig()),
 		},
+		GameIngressPolicyEnabled: gameIngressPolicy,
+		GameIngressFromCIDRs:     gameIngressFromCIDR,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameServer")
 		os.Exit(1)
