@@ -407,28 +407,31 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2">
         <Input
-          className="min-w-[160px] flex-1"
+          className="min-w-[160px]"
           placeholder="Search…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search templates"
         />
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
-          {templateCategories.map((c: string) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
-              )}
-              aria-pressed={activeCat === c}
-            >
-              {c === "all" ? "All" : c}
-            </button>
-          ))}
+        <div className="relative">
+          <div className="flex gap-1 overflow-x-auto rounded-md border border-border bg-surface/40 p-1 scrollbar-thin">
+            {templateCategories.map((c: string) => (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                className={cn(
+                  "shrink-0 rounded px-3 py-1 text-xs font-medium",
+                  activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+                )}
+                aria-pressed={activeCat === c}
+              >
+                {c === "all" ? "All" : c}
+              </button>
+            ))}
+          </div>
+          <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-r from-transparent to-card pointer-events-none rounded-md" />
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

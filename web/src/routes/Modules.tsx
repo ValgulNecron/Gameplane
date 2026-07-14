@@ -155,22 +155,25 @@ export function ModulesPage() {
             </button>
           ))}
         </div>
-        <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
-          {catChips.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCatFilter(c)}
-              className={cn(
-                "rounded px-3 py-1.5 text-xs transition-colors",
-                activeCat === c
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
-              aria-pressed={activeCat === c}
-            >
-              {c === "all" ? "All categories" : c}
-            </button>
-          ))}
+        <div className="relative min-w-0">
+          <div className="flex gap-1 overflow-x-auto rounded-md border border-border bg-card p-1 scrollbar-thin">
+            {catChips.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCatFilter(c)}
+                className={cn(
+                  "shrink-0 rounded px-3 py-1.5 text-xs transition-colors",
+                  activeCat === c
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted hover:text-fg",
+                )}
+                aria-pressed={activeCat === c}
+              >
+                {c === "all" ? "All categories" : c}
+              </button>
+            ))}
+          </div>
+          <div className="absolute inset-y-0 right-0 w-14 bg-gradient-to-r from-transparent to-card pointer-events-none rounded-md" />
         </div>
         <div className="relative ml-auto w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
