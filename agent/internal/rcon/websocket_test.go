@@ -632,9 +632,17 @@ func TestWebSocketPasswordFunctionError(t *testing.T) {
 }
 
 func TestWebSocketReconnectAfterError(t *testing.T) {
-	// Test that after an error drops the connection, the next Exec re-dials.
-	// The server starts by rejecting one command, then succeeds on the next.
-	var requestCount int
+	// A connection that dies AFTER it has served a frame must be transparently
+	// re-dialed by the next Exec.
+	//
+	// The "after a frame" part is load-bearing. WebRcon gives no positive auth
+	// signal, so a close that arrives before this connection has yielded ANY
+	// frame is indistinguishable from a rejected password — classifyExecErrLocked
+	// deliberately treats it as ErrAuth and starts the dial cooldown. Dropping on
+	// the first request would therefore exercise the auth path, not the reconnect
+	// path. So the server replies first, marking the connection authenticated,
+	// and only then kills it.
+	var conns int
 	var mu sync.Mutex
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -642,69 +650,63 @@ func TestWebSocketReconnectAfterError(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close(websocket.StatusNormalClosure, "")
-
-		ctx := context.Background()
-		var req WebSocketMessage
-		if err := readJSON(ctx, conn, &req); err != nil {
-			t.Logf("failed to read request: %v", err)
-			return
-		}
-
 		mu.Lock()
-		requestCount++
-		isFirstRequest := requestCount == 1
+		conns++
+		first := conns == 1
 		mu.Unlock()
 
-		if isFirstRequest {
-			// First request: drop connection to simulate an error
-			conn.CloseNow()
-		} else {
-			// Second request: respond normally
-			resp := WebSocketMessage{
+		ctx := context.Background()
+		for {
+			var req WebSocketMessage
+			if err := readJSON(ctx, conn, &req); err != nil {
+				return
+			}
+			if err := writeJSON(ctx, conn, WebSocketMessage{
 				Identifier: req.Identifier,
 				Message:    "ok",
 				Type:       3,
+			}); err != nil {
+				return
 			}
-			_ = writeJSON(ctx, conn, resp)
+			if first {
+				// Served one frame, then the transport dies mid-session.
+				conn.CloseNow()
+				return
+			}
 		}
 	}))
 	defer server.Close()
 
 	host, port := parseHostPort(t, server.URL)
 	client := NewWebSocket(host, port, func() (string, error) { return "pass", nil })
-	defer client.Close()
+	client.execDeadline = 2 * time.Second
+	defer func() { _ = client.Close() }()
 
-	// First Exec fails because server drops the connection
-	_, err1 := client.Exec("cmd1")
-	if err1 == nil {
-		t.Fatal("first Exec should fail when server drops connection")
+	// Establishes the connection and confirms auth.
+	if _, err := client.Exec("first"); err != nil {
+		t.Fatalf("first Exec should succeed: %v", err)
+	}
+
+	// The server has since killed that connection. This Exec may fail on the
+	// dead socket — that is fine and expected — but it must NOT be mistaken for
+	// an auth failure, or the cooldown would block the reconnect below.
+	if _, err := client.Exec("second"); err != nil && errors.Is(err, ErrAuth) {
+		t.Fatalf("a transport failure after a successful exchange must not be reported as ErrAuth: %v", err)
+	}
+
+	// Whatever happened above, the client must recover by re-dialing.
+	got, err := client.Exec("third")
+	if err != nil {
+		t.Fatalf("Exec should succeed after re-dial: %v", err)
+	}
+	if got != "ok" {
+		t.Errorf("Exec = %q, want %q", got, "ok")
 	}
 
 	mu.Lock()
-	countAfterFirst := requestCount
-	mu.Unlock()
-
-	if countAfterFirst != 1 {
-		t.Errorf("expected 1 request attempt, got %d", countAfterFirst)
-	}
-
-	// Second Exec should re-dial and succeed
-	result, err2 := client.Exec("cmd2")
-	if err2 != nil {
-		t.Fatalf("second Exec should succeed after re-dial, got: %v", err2)
-	}
-
-	if result != "ok" {
-		t.Errorf("expected result 'ok', got %q", result)
-	}
-
-	mu.Lock()
-	countAfterSecond := requestCount
-	mu.Unlock()
-
-	if countAfterSecond != 2 {
-		t.Errorf("expected 2 request attempts (re-dial), got %d", countAfterSecond)
+	defer mu.Unlock()
+	if conns < 2 {
+		t.Errorf("server saw %d connections, want >= 2 (the client never re-dialed)", conns)
 	}
 }
 
