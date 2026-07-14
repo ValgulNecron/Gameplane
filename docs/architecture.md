@@ -35,6 +35,7 @@ short-lived per-pod agent sidecar.
 │    GameServer   → StatefulSet+Service+PVC  │
 │    Backup       → Job (restic)             │
 │    BackupSchedule → Backups + retention    │
+│    Restore      → Job (restic restore)     │
 │    GameTemplate → inUseCount bookkeeping   │
 └────────────────────────────────────────────┘
 ```
@@ -77,7 +78,7 @@ manage Gameplane with `kubectl apply` — the operator is authoritative.
 ### Tail logs
 
 1. Dashboard opens WS `/ws/servers/foo/logs`
-2. API verifies session, RBAC → dials `wss://foo-0.foo.gameplane-games:8090/logs/tail` using mTLS
+2. API verifies session, RBAC → dials `wss://foo-agent.gameplane-games.svc.cluster.local:8090/logs/tail` using mTLS
 3. Agent tails the game container's log file and streams each line as a text WS frame
 4. API proxies frames back to the browser; xterm.js renders them
 
@@ -106,6 +107,31 @@ Before going terminal it always releases the game world: a Backup with
 unquiesce, and a `Failed` Backup is never reconciled again — so the unquiesce
 runs first, and while the agent is unreachable the operator requeues rather
 than failing.
+
+### Restore from backup
+
+1. Dashboard → `POST /restores` with inline `spec` (Backup reference, target GameServer)
+2. API creates the Restore CRD
+3. Operator waits for source Backup.status.snapshotID to exist, then pins
+   it into Restore.status
+4. For restic-snapshot backups: Operator suspends the target GameServer,
+   creates a restic-restore Job, and resumes on completion
+5. For volume-snapshot backups: Operator provisions a new GameServer seeded
+   from the CSI snapshot (no suspend/resume needed)
+
+A Restore to an existing server (restic-snapshot strategy) requires the target
+suspended for the Job's duration — the PVC cannot be overwritten while the game
+is live. Volume-snapshot Restores skip the existing server and provision a fresh
+one from a snapshot instead, preserving the original server's spec.
+
+The operator pins the source Backup's `snapshotID` into `Restore.status` the
+first time it observes it, so retention deleting the snapshot mid-restore
+cannot pull the rug out from under the Job. Before the pin, a source Backup
+that is missing, or already `Failed`, fails the Restore with a clear message;
+a Backup that simply hasn't produced a `snapshotID` yet leaves the Restore
+`Pending`, requeued every 15s until it does. After the pin the Backup's
+`snapshotID` is never re-read — but a source Backup that disappears outright
+still fails the Restore on the next pass.
 
 ## Module system
 
