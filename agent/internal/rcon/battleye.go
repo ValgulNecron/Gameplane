@@ -35,8 +35,10 @@
 //
 // Keepalive: BE also drops a client that sends no command packets for more
 // than 45 seconds. An empty command packet (0x01 + sequence, no command
-// text) counts, so this client ticks one from a background goroutine
-// roughly every 30s whenever no real command has been sent more recently.
+// text) counts, so this client ticks one from a background goroutine on a
+// fixed ~30s timer, unconditionally — the ticker is never reset by Exec,
+// so a keepalive can fire shortly after a real command too. Harmless on
+// the wire; BE only cares that the 45s silence window is never exceeded.
 //
 // # Architecture
 //
@@ -93,6 +95,12 @@ const (
 	// the spec's 45-second drop window.
 	defaultBattlEyeKeepalive = 30 * time.Second
 
+	// defaultBattlEyeAuthFailureCooldown bounds how long ensureLocked
+	// refuses to re-dial after an explicit 0x00 login rejection. Mirrors
+	// websocket.go's defaultWebSocketAuthFailureCooldown — same value,
+	// same rationale (see ensureLocked).
+	defaultBattlEyeAuthFailureCooldown = 15 * time.Second
+
 	// beReadBufSize bounds one UDP read. BE payloads are small ASCII
 	// text, but a datagram can legally be up to ~65KB.
 	beReadBufSize = 65535
@@ -137,6 +145,17 @@ type BattlEye struct {
 	execDeadline      time.Duration
 	keepaliveInterval time.Duration
 
+	// authFailureCooldown/lastAuthFailure implement the same auth-failure
+	// backoff as websocket.go's identically-named fields: without it, a
+	// GameServer configured with a wrong RCon password would have every
+	// poller tick (heartbeat, players, ...) open a new UDP socket and
+	// resend the same known-bad password forever. Both are only touched
+	// from ensureLocked and the auth-reject branch of the login-reply
+	// handling in ensureLocked, which always run with mu held — so, like
+	// conn, they're guarded by mu rather than ioMu.
+	authFailureCooldown time.Duration
+	lastAuthFailure     time.Time
+
 	// mu serializes Exec/ensureLocked/Close — the same "one operation at
 	// a time" contract every client in this package makes. It is held
 	// for the full duration of an Exec call, including the blocking wait
@@ -169,12 +188,13 @@ func NewBattlEye(host string, port int, pass PassFn) *BattlEye {
 		port = defaultBattlEyePort
 	}
 	return &BattlEye{
-		addr:              net.JoinHostPort(host, fmt.Sprint(port)),
-		passFn:            pass,
-		dialTimeout:       defaultBattlEyeDialTimeout,
-		ackTimeout:        defaultBattlEyeAckTimeout,
-		execDeadline:      defaultBattlEyeExecDeadline,
-		keepaliveInterval: defaultBattlEyeKeepalive,
+		addr:                net.JoinHostPort(host, fmt.Sprint(port)),
+		passFn:              pass,
+		dialTimeout:         defaultBattlEyeDialTimeout,
+		ackTimeout:          defaultBattlEyeAckTimeout,
+		execDeadline:        defaultBattlEyeExecDeadline,
+		keepaliveInterval:   defaultBattlEyeKeepalive,
+		authFailureCooldown: defaultBattlEyeAuthFailureCooldown,
 	}
 }
 
@@ -218,6 +238,14 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 	select {
 	case r := <-ch:
 		if r.err != nil {
+			// r.err only ever comes from failAll, which only ever runs
+			// from readLoop right before it returns because conn.Read
+			// failed — so this socket has no reader left. Drop it now
+			// rather than leaving c.conn set: the next Exec would
+			// otherwise write successfully into a socket nobody reads
+			// from and stall for the full execDeadline before finally
+			// redialing (see DEFECT 1 in the review that added this).
+			c.dropLocked()
 			return "", fmt.Errorf("battleye rcon exec %q: %w", cmd, r.err)
 		}
 		return r.body, nil
@@ -242,6 +270,9 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 		select {
 		case r := <-ch:
 			if r.err != nil {
+				// Same reasoning as the r.err branch above: failAll
+				// firing means readLoop is gone and this conn is dead.
+				c.dropLocked()
 				return "", fmt.Errorf("battleye rcon exec %q: %w", cmd, r.err)
 			}
 			return r.body, nil
@@ -266,7 +297,28 @@ func (c *BattlEye) Close() error {
 
 func (c *BattlEye) ensureLocked() error {
 	if c.conn != nil {
-		return nil
+		select {
+		case <-c.readDone:
+			// readLoop only ever exits (closing readDone) when conn.Read
+			// failed, which means this socket has no reader left even
+			// though c.conn is still set — e.g. the transport died while
+			// idle, with no Exec in flight for failAll to notify (see
+			// DEFECT 1 in the review). Tear it down so we redial below
+			// instead of handing the caller a socket nobody reads from.
+			c.dropLocked()
+		default:
+			return nil
+		}
+	}
+
+	// Back off after a recent explicit auth rejection instead of
+	// re-dialing (and resending the same known-bad password) on every
+	// call. Callers like the heartbeat and players pollers call Exec on
+	// a fixed timer — mirrors websocket.go's identical guard for the
+	// identical reason. The cooldown expires on its own so a corrected
+	// password is picked back up without a process restart.
+	if cooldown := c.authFailureCooldown; !c.lastAuthFailure.IsZero() && cooldown > 0 && time.Since(c.lastAuthFailure) < cooldown {
+		return fmt.Errorf("battleye rcon: %w (cached, retrying dial after cooldown)", ErrAuth)
 	}
 
 	pw, err := c.passFn()
@@ -314,6 +366,7 @@ func (c *BattlEye) ensureLocked() error {
 		}
 		if !res.ok {
 			c.dropLocked()
+			c.lastAuthFailure = time.Now()
 			return fmt.Errorf("battleye rcon: %w", ErrAuth)
 		}
 	case <-time.After(dialTimeout):
@@ -442,51 +495,20 @@ func (c *BattlEye) handleCommandReply(payload []byte) {
 
 	// The fragmentation header only exists on multi-packet responses; a
 	// single-packet reply's body is plain ASCII text, which never starts
-	// with the 0x00 the header requires as its first byte.
+	// with the 0x00 the header requires as its first byte. A header is
+	// only trusted when total/idx are self-consistent (total >= 2 — a
+	// "fragmented" reply of one page makes no sense — and idx < total);
+	// anything else, including a plain body that happens to start with a
+	// literal 0x00 byte, is treated as a plain non-fragmented body rather
+	// than wedging Exec on an accumulator that can never complete (see
+	// DEFECT 3 in the adversarial review that added this check).
 	if len(rest) >= 3 && rest[0] == 0x00 {
 		total := int(rest[1])
 		idx := int(rest[2])
-		chunk := string(rest[3:])
-
-		c.ioMu.Lock()
-		frag := c.partial[seq]
-		if frag == nil {
-			frag = &battlEyeFragments{total: total, chunks: make(map[int]string)}
-			c.partial[seq] = frag
-		}
-		frag.chunks[idx] = chunk
-
-		complete := frag.total > 0 && len(frag.chunks) >= frag.total
-		if complete {
-			for i := 0; i < frag.total; i++ {
-				if _, ok := frag.chunks[i]; !ok {
-					complete = false
-					break
-				}
-			}
-		}
-		var full string
-		if complete {
-			var b strings.Builder
-			for i := 0; i < frag.total; i++ {
-				b.WriteString(frag.chunks[i])
-			}
-			full = b.String()
-			delete(c.partial, seq)
-		}
-		ch := c.waiters[seq]
-		c.ioMu.Unlock()
-
-		if !complete {
+		if total >= 2 && idx < total {
+			c.deliverFragment(seq, total, idx, string(rest[3:]))
 			return
 		}
-		if ch != nil {
-			select {
-			case ch <- battlEyeReply{body: full}:
-			default:
-			}
-		}
-		return
 	}
 
 	body := string(rest)
@@ -496,6 +518,71 @@ func (c *BattlEye) handleCommandReply(payload []byte) {
 	if ch != nil {
 		select {
 		case ch <- battlEyeReply{body: body}:
+		default:
+		}
+	}
+}
+
+// deliverFragment accumulates one page of a multi-packet command reply
+// and, once every page 0..total-1 has arrived, delivers the reassembled
+// body to the Exec call waiting on seq.
+//
+// Pages are only accumulated while a waiter is registered for seq.
+// Otherwise — a keepalive's sequence, or a fragment that outlives its
+// Exec call (e.g. after execDeadline already returned to the caller) —
+// the packet is dropped instead of being left in c.partial, where
+// nothing but the next failAll would ever clear it, letting it poison a
+// later Exec call that reuses the same sequence number.
+//
+// If an arriving page's total disagrees with the in-progress
+// accumulator's total, the accumulator is reset and restarts with this
+// page. A mismatched total means this page belongs to a retransmit whose
+// reply has a different page count than the original attempt's reply
+// (e.g. the player list changed length between attempts); without this
+// reset, pages from both attempts land in the same accumulator and a
+// "complete" reassembly can silently splice a stale page from the first
+// attempt onto the end of the second attempt's reply.
+func (c *BattlEye) deliverFragment(seq byte, total, idx int, chunk string) {
+	c.ioMu.Lock()
+	if _, hasWaiter := c.waiters[seq]; !hasWaiter {
+		c.ioMu.Unlock()
+		return
+	}
+
+	frag := c.partial[seq]
+	if frag == nil || frag.total != total {
+		frag = &battlEyeFragments{total: total, chunks: make(map[int]string)}
+		c.partial[seq] = frag
+	}
+	frag.chunks[idx] = chunk
+
+	complete := len(frag.chunks) >= frag.total
+	if complete {
+		for i := 0; i < frag.total; i++ {
+			if _, ok := frag.chunks[i]; !ok {
+				complete = false
+				break
+			}
+		}
+	}
+	var full string
+	if complete {
+		var b strings.Builder
+		for i := 0; i < frag.total; i++ {
+			b.WriteString(frag.chunks[i])
+		}
+		full = b.String()
+		delete(c.partial, seq)
+	}
+	ch := c.waiters[seq]
+	c.ioMu.Unlock()
+
+	if !complete {
+		return
+	}
+	if ch != nil {
+		select {
+		case ch <- battlEyeReply{body: full}:
 		default:
 		}
 	}
