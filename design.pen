@@ -73631,1072 +73631,6 @@
     },
     {
       "type": "frame",
-      "id": "VjSZ1",
-      "x": 30200,
-      "y": -8600,
-      "name": "Reference/Dialogs",
-      "theme": {
-        "c:Mode": "Dark"
-      },
-      "fill": "$c:--background",
-      "layout": "vertical",
-      "gap": 32,
-      "padding": 48,
-      "children": [
-        {
-          "type": "text",
-          "id": "p28kQ",
-          "fill": "$c:--muted-foreground",
-          "content": "Dialogs — bodies on the Gameplane/Modal + Confirm Dialog shells",
-          "fontFamily": "$c:--font-primary",
-          "fontSize": 14,
-          "fontWeight": "500"
-        },
-        {
-          "type": "frame",
-          "id": "S4wuu",
-          "name": "row1",
-          "gap": 32,
-          "children": [
-            {
-              "id": "T1LzpU",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Clone Server",
-              "width": 440,
-              "descendants": {
-                "E7Whx": {
-                  "content": "Clone server"
-                },
-                "qzcst": {
-                  "content": "Creates a new server with the same configuration. World data is not copied."
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "ifgdA",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "Cf4ta",
-                      "fill": "$c:--muted-foreground",
-                      "content": "New name",
-                      "fontFamily": "$c:--font-secondary",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "YGgpf",
-                      "type": "ref",
-                      "ref": "D0cDM",
-                      "name": "Input",
-                      "width": "fill_container",
-                      "descendants": {
-                        "PJERm": {
-                          "content": "mc-survival-copy",
-                          "fill": "#F5F5F5"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "rdlrx",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Transfer Ownership",
-              "width": 440,
-              "descendants": {
-                "E7Whx": {
-                  "content": "Transfer mc-survival"
-                },
-                "qzcst": {
-                  "content": "Current owner: admin."
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "iRGgb",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 12,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "id": "L1rJx",
-                      "type": "ref",
-                      "ref": "AT7ya",
-                      "name": "Select",
-                      "width": "fill_container",
-                      "descendants": {
-                        "cFsFk": {
-                          "content": "Select a user…"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "KrREo",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Install Module",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Install Minecraft (Java Edition)"
-                },
-                "qzcst": {
-                  "content": "Pulls the bundle and materializes its GameTemplate."
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "iCAJg",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 16,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "W8CEd",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "XUqGf",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Source",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "R8gRZF",
-                          "type": "ref",
-                          "ref": "AT7ya",
-                          "name": "Select",
-                          "width": "fill_container",
-                          "descendants": {
-                            "cFsFk": {
-                              "content": "default (git)"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "WAXyK",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "VoXvd",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Version",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "ua5SI",
-                          "type": "ref",
-                          "ref": "AT7ya",
-                          "name": "Select",
-                          "width": "fill_container",
-                          "descendants": {
-                            "cFsFk": {
-                              "content": "v2.7.0"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "VXmoO",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "rFgk7",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Install as",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "Db5Xg",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "minecraft-java",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "sgMvw",
-          "name": "row2",
-          "gap": 32,
-          "children": [
-            {
-              "id": "BX0XM",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Upload Module",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Upload module"
-                },
-                "qzcst": {
-                  "content": "Push a bundle straight into an upload-type source."
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "C1vScd",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 16,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "g6aTa",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "fM5I5",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Upload to",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "ZZ2S0",
-                          "type": "ref",
-                          "ref": "AT7ya",
-                          "name": "Select",
-                          "width": "fill_container",
-                          "descendants": {
-                            "cFsFk": {
-                              "content": "uploads"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "U2aLKM",
-                      "name": "dropzone",
-                      "width": "fill_container",
-                      "height": 88,
-                      "cornerRadius": 6,
-                      "stroke": "$c:--border",
-                      "strokeWidth": 1,
-                      "strokeAlignment": "inner",
-                      "gap": 8,
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "Jbz6Q",
-                          "width": 16,
-                          "height": 16,
-                          "icon": "upload",
-                          "library": "lucide",
-                          "fill": "$c:--muted-foreground"
-                        },
-                        {
-                          "type": "text",
-                          "id": "Jg1RH",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Choose a .tar.gz bundle…",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 14,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "DMnEi",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Add Module Source",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Add module source"
-                },
-                "qzcst": {
-                  "content": "Equivalent to applying a ModuleSource resource directly."
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "e8g6GR",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 16,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "Dy7HC",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "KgxT0",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Name",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "jV8Vg",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "community",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        },
-                        {
-                          "type": "text",
-                          "id": "oafU1",
-                          "fill": "$c:--muted-foreground",
-                          "content": "DNS label identifying this source.",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 11,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "johlb",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "NNDZs",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Type",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "JRooL",
-                          "type": "ref",
-                          "ref": "AT7ya",
-                          "name": "Select",
-                          "width": "fill_container",
-                          "descendants": {
-                            "cFsFk": {
-                              "content": "oci"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "u6it9",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "K2Lrm",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Registry URL",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "SLiFX",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "ghcr.io/valgulnecron/gameplane-modules",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "E9EEv0",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Restore Backup",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Restore backup"
-                },
-                "qzcst": {
-                  "content": "Restore into a brand-new server, or overwrite an existing one."
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "Q2QDV",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 16,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "Lvs4o",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "MIgc1",
-                          "fill": "$c:--muted-foreground",
-                          "content": "Source backup",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "mazee",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "mc-survival-nightly-0713",
-                              "fill": "#949494"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "jP975",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "eN292",
-                          "fill": "$c:--muted-foreground",
-                          "content": "New server name",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "id": "z7yI8Y",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "my-restored-server",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "p6m5aQ",
-          "name": "row3",
-          "gap": 32,
-          "children": [
-            {
-              "id": "NLDDv",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Invite User",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Invite user"
-                },
-                "qzcst": {
-                  "enabled": false
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "HjYI5",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 12,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "FwLgA",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "Muw8N",
-                          "fill": "$c:--foreground",
-                          "content": "Username",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "zOSAo",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "alice",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "YabEg",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "gVmsd",
-                          "fill": "$c:--foreground",
-                          "content": "Display name",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "uuH6W",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "Alice Operator",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "EjExB",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "xQVjN",
-                          "fill": "$c:--foreground",
-                          "content": "Email",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "M9fknd",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "alice@example.com",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "moict",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "PLrMu",
-                          "fill": "$c:--foreground",
-                          "content": "Initial password",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "bayQn",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "At least 12 characters",
-                              "fill": "#5C5C5C"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "t3IY3u",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Edit User",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Edit user"
-                },
-                "qzcst": {
-                  "enabled": false
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "Kpqa4",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 12,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "LOCNS",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "QTLgc",
-                          "fill": "$c:--foreground",
-                          "content": "Display name",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "t3NhbD",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "Smoke Collaborator",
-                              "fill": "#F5F5F5"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "HzjxM",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "MmWht",
-                          "fill": "$c:--foreground",
-                          "content": "Email",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "u76vDz",
-                          "type": "ref",
-                          "ref": "D0cDM",
-                          "name": "Input",
-                          "width": "fill_container",
-                          "descendants": {
-                            "PJERm": {
-                              "content": "smoke@example.com",
-                              "fill": "#F5F5F5"
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "XijpL",
-                      "width": "fill_container",
-                      "layout": "vertical",
-                      "gap": 6,
-                      "children": [
-                        {
-                          "type": "text",
-                          "id": "PhLYl",
-                          "fill": "$c:--foreground",
-                          "content": "Primary role (cluster-wide)",
-                          "fontFamily": "$c:--font-secondary",
-                          "fontSize": 12,
-                          "fontWeight": "500"
-                        },
-                        {
-                          "id": "I2Shpp",
-                          "type": "ref",
-                          "ref": "AT7ya",
-                          "name": "Select",
-                          "width": "fill_container",
-                          "descendants": {
-                            "cFsFk": {
-                              "content": "viewer"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "MaoHP",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/Reset Password",
-              "descendants": {
-                "E7Whx": {
-                  "content": "Reset password for smoke-collab"
-                },
-                "qzcst": {
-                  "enabled": false
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "vOz2K",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "OeHkP",
-                      "fill": "$c:--foreground",
-                      "content": "New password",
-                      "fontFamily": "$c:--font-secondary",
-                      "fontSize": 12,
-                      "fontWeight": "500"
-                    },
-                    {
-                      "id": "YgQBa",
-                      "type": "ref",
-                      "ref": "D0cDM",
-                      "name": "Input",
-                      "width": "fill_container",
-                      "descendants": {
-                        "PJERm": {
-                          "content": "At least 12 characters",
-                          "fill": "#5C5C5C"
-                        }
-                      }
-                    },
-                    {
-                      "type": "text",
-                      "id": "LRY0M",
-                      "fill": "#DC2626",
-                      "content": "Must be at least 12 characters.",
-                      "fontFamily": "$c:--font-secondary",
-                      "fontSize": 11,
-                      "fontWeight": "normal"
-                    }
-                  ]
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "Z5lgwo",
-          "name": "row4",
-          "gap": 32,
-          "children": [
-            {
-              "id": "I9W8z",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/New Folder",
-              "width": 440,
-              "descendants": {
-                "E7Whx": {
-                  "content": "New folder"
-                },
-                "qzcst": {
-                  "enabled": false
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "x3AuAa",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "R8mKla",
-                      "fill": "$c:--muted-foreground",
-                      "content": "Folder name",
-                      "fontFamily": "$c:--font-secondary",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "delHG",
-                      "type": "ref",
-                      "ref": "D0cDM",
-                      "name": "Input",
-                      "width": "fill_container",
-                      "descendants": {
-                        "PJERm": {
-                          "content": "my-folder",
-                          "fill": "#5C5C5C"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "JLaGB",
-              "type": "ref",
-              "reusable": true,
-              "ref": "x3beP",
-              "name": "Gameplane/Dialog/New File",
-              "width": 440,
-              "descendants": {
-                "E7Whx": {
-                  "content": "New file"
-                },
-                "qzcst": {
-                  "enabled": false
-                },
-                "Nht52": {
-                  "type": "frame",
-                  "id": "q9QPFd",
-                  "name": "mBody",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "padding": [
-                    16,
-                    0,
-                    0,
-                    0
-                  ],
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "OE13L",
-                      "fill": "$c:--muted-foreground",
-                      "content": "File name",
-                      "fontFamily": "$c:--font-secondary",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "pTLGH",
-                      "type": "ref",
-                      "ref": "D0cDM",
-                      "name": "Input",
-                      "width": "fill_container",
-                      "descendants": {
-                        "PJERm": {
-                          "content": "config.yaml",
-                          "fill": "#5C5C5C"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            {
-              "id": "t9irnv",
-              "type": "ref",
-              "reusable": true,
-              "ref": "WwNlX",
-              "name": "Gameplane/Dialog/Wipe World",
-              "descendants": {
-                "w08wp": {
-                  "content": "Wipe mc-survival's world data?"
-                },
-                "Hsj40": {
-                  "content": "Deletes the world save from the persistent volume. The server keeps its configuration and starts fresh on next boot. This cannot be undone."
-                },
-                "Rl5xE": {
-                  "content": "mc-survival"
-                },
-                "Xg5LE": {
-                  "content": "Wipe world data"
-                }
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
       "id": "Wj0V4",
       "x": 46218,
       "y": 2863,
@@ -76469,6 +75403,1039 @@
           ]
         }
       ]
+    },
+    {
+      "id": "T1LzpU",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Clone Server",
+      "width": 440,
+      "x": 23880,
+      "y": -6020,
+      "descendants": {
+        "E7Whx": {
+          "content": "Clone server"
+        },
+        "qzcst": {
+          "content": "Creates a new server with the same configuration. World data is not copied."
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "ifgdA",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "Cf4ta",
+              "fill": "$c:--muted-foreground",
+              "content": "New name",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "id": "YGgpf",
+              "type": "ref",
+              "ref": "D0cDM",
+              "name": "Input",
+              "width": "fill_container",
+              "descendants": {
+                "PJERm": {
+                  "content": "mc-survival-copy",
+                  "fill": "#F5F5F5"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rdlrx",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Transfer Ownership",
+      "width": 440,
+      "x": 24500,
+      "y": -6020,
+      "descendants": {
+        "E7Whx": {
+          "content": "Transfer mc-survival"
+        },
+        "qzcst": {
+          "content": "Current owner: admin."
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "iRGgb",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "id": "L1rJx",
+              "type": "ref",
+              "ref": "AT7ya",
+              "name": "Select",
+              "width": "fill_container",
+              "descendants": {
+                "cFsFk": {
+                  "content": "Select a user…"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "KrREo",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Install Module",
+      "x": 25120,
+      "y": -6020,
+      "descendants": {
+        "E7Whx": {
+          "content": "Install Minecraft (Java Edition)"
+        },
+        "qzcst": {
+          "content": "Pulls the bundle and materializes its GameTemplate."
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "iCAJg",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "W8CEd",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "XUqGf",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Source",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "R8gRZF",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Select",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "default (git)"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WAXyK",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "VoXvd",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Version",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "ua5SI",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Select",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "v2.7.0"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "VXmoO",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "rFgk7",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Install as",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "Db5Xg",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "minecraft-java",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BX0XM",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Upload Module",
+      "x": 25740,
+      "y": -6020,
+      "descendants": {
+        "E7Whx": {
+          "content": "Upload module"
+        },
+        "qzcst": {
+          "content": "Push a bundle straight into an upload-type source."
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "C1vScd",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "g6aTa",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "fM5I5",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Upload to",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "ZZ2S0",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Select",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "uploads"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "U2aLKM",
+              "name": "dropzone",
+              "width": "fill_container",
+              "height": 88,
+              "cornerRadius": 6,
+              "stroke": "$c:--border",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "gap": 8,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Jbz6Q",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "upload",
+                  "library": "lucide",
+                  "fill": "$c:--muted-foreground"
+                },
+                {
+                  "type": "text",
+                  "id": "Jg1RH",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Choose a .tar.gz bundle…",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "DMnEi",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Add Module Source",
+      "x": 23880,
+      "y": -5320,
+      "descendants": {
+        "E7Whx": {
+          "content": "Add module source"
+        },
+        "qzcst": {
+          "content": "Equivalent to applying a ModuleSource resource directly."
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "e8g6GR",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "Dy7HC",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KgxT0",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Name",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "jV8Vg",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "community",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "oafU1",
+                  "fill": "$c:--muted-foreground",
+                  "content": "DNS label identifying this source.",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "johlb",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "NNDZs",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Type",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "JRooL",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Select",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "oci"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "u6it9",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "K2Lrm",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Registry URL",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "SLiFX",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "ghcr.io/valgulnecron/gameplane-modules",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "E9EEv0",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Restore Backup",
+      "x": 24500,
+      "y": -5320,
+      "descendants": {
+        "E7Whx": {
+          "content": "Restore backup"
+        },
+        "qzcst": {
+          "content": "Restore into a brand-new server, or overwrite an existing one."
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "Q2QDV",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "Lvs4o",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MIgc1",
+                  "fill": "$c:--muted-foreground",
+                  "content": "Source backup",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "mazee",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "mc-survival-nightly-0713",
+                      "fill": "#949494"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jP975",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "eN292",
+                  "fill": "$c:--muted-foreground",
+                  "content": "New server name",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "z7yI8Y",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "my-restored-server",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "NLDDv",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Invite User",
+      "x": 25120,
+      "y": -5320,
+      "descendants": {
+        "E7Whx": {
+          "content": "Invite user"
+        },
+        "qzcst": {
+          "enabled": false
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "HjYI5",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "FwLgA",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Muw8N",
+                  "fill": "$c:--foreground",
+                  "content": "Username",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "zOSAo",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "alice",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "YabEg",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "gVmsd",
+                  "fill": "$c:--foreground",
+                  "content": "Display name",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "uuH6W",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "Alice Operator",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "EjExB",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "xQVjN",
+                  "fill": "$c:--foreground",
+                  "content": "Email",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "M9fknd",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "alice@example.com",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "moict",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "PLrMu",
+                  "fill": "$c:--foreground",
+                  "content": "Initial password",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "bayQn",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "At least 12 characters",
+                      "fill": "#5C5C5C"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "t3IY3u",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Edit User",
+      "x": 25740,
+      "y": -5320,
+      "descendants": {
+        "E7Whx": {
+          "content": "Edit user"
+        },
+        "qzcst": {
+          "enabled": false
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "Kpqa4",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "LOCNS",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QTLgc",
+                  "fill": "$c:--foreground",
+                  "content": "Display name",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "t3NhbD",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "Smoke Collaborator",
+                      "fill": "#F5F5F5"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "HzjxM",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MmWht",
+                  "fill": "$c:--foreground",
+                  "content": "Email",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "u76vDz",
+                  "type": "ref",
+                  "ref": "D0cDM",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "descendants": {
+                    "PJERm": {
+                      "content": "smoke@example.com",
+                      "fill": "#F5F5F5"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XijpL",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "PhLYl",
+                  "fill": "$c:--foreground",
+                  "content": "Primary role (cluster-wide)",
+                  "fontFamily": "$c:--font-secondary",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "id": "I2Shpp",
+                  "type": "ref",
+                  "ref": "AT7ya",
+                  "name": "Select",
+                  "width": "fill_container",
+                  "descendants": {
+                    "cFsFk": {
+                      "content": "viewer"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "MaoHP",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/Reset Password",
+      "x": 23880,
+      "y": -4620,
+      "descendants": {
+        "E7Whx": {
+          "content": "Reset password for smoke-collab"
+        },
+        "qzcst": {
+          "enabled": false
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "vOz2K",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "OeHkP",
+              "fill": "$c:--foreground",
+              "content": "New password",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "id": "YgQBa",
+              "type": "ref",
+              "ref": "D0cDM",
+              "name": "Input",
+              "width": "fill_container",
+              "descendants": {
+                "PJERm": {
+                  "content": "At least 12 characters",
+                  "fill": "#5C5C5C"
+                }
+              }
+            },
+            {
+              "type": "text",
+              "id": "LRY0M",
+              "fill": "#DC2626",
+              "content": "Must be at least 12 characters.",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "I9W8z",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/New Folder",
+      "width": 440,
+      "x": 24500,
+      "y": -4620,
+      "descendants": {
+        "E7Whx": {
+          "content": "New folder"
+        },
+        "qzcst": {
+          "enabled": false
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "x3AuAa",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "R8mKla",
+              "fill": "$c:--muted-foreground",
+              "content": "Folder name",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "id": "delHG",
+              "type": "ref",
+              "ref": "D0cDM",
+              "name": "Input",
+              "width": "fill_container",
+              "descendants": {
+                "PJERm": {
+                  "content": "my-folder",
+                  "fill": "#5C5C5C"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "JLaGB",
+      "type": "ref",
+      "reusable": true,
+      "ref": "x3beP",
+      "name": "Gameplane/Dialog/New File",
+      "width": 440,
+      "x": 25120,
+      "y": -4620,
+      "descendants": {
+        "E7Whx": {
+          "content": "New file"
+        },
+        "qzcst": {
+          "enabled": false
+        },
+        "Nht52": {
+          "type": "frame",
+          "id": "q9QPFd",
+          "name": "mBody",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 6,
+          "padding": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "OE13L",
+              "fill": "$c:--muted-foreground",
+              "content": "File name",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "id": "pTLGH",
+              "type": "ref",
+              "ref": "D0cDM",
+              "name": "Input",
+              "width": "fill_container",
+              "descendants": {
+                "PJERm": {
+                  "content": "config.yaml",
+                  "fill": "#5C5C5C"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "t9irnv",
+      "type": "ref",
+      "reusable": true,
+      "ref": "WwNlX",
+      "name": "Gameplane/Dialog/Wipe World",
+      "x": 25740,
+      "y": -4620,
+      "descendants": {
+        "w08wp": {
+          "content": "Wipe mc-survival's world data?"
+        },
+        "Hsj40": {
+          "content": "Deletes the world save from the persistent volume. The server keeps its configuration and starts fresh on next boot. This cannot be undone."
+        },
+        "Rl5xE": {
+          "content": "mc-survival"
+        },
+        "Xg5LE": {
+          "content": "Wipe world data"
+        }
+      }
     }
   ],
   "imports": {
