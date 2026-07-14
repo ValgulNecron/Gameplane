@@ -18,7 +18,7 @@ import {
 } from "@/lib/validation";
 import { parseCpuQuantity, cpuCores, parseMemQuantity, memBytes } from "@/lib/quantity";
 import { cn } from "@/lib/utils";
-import { resolveCategory, categoryFilters } from "@/lib/games";
+import { resolveCategories, categoryFilters } from "@/lib/games";
 import type { GameTemplate, PortOverride } from "@/types";
 
 // Wizard steps are derived per-template: the "version" step only appears when
@@ -386,7 +386,8 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
   const [cat, setCat] = useState<string>("all");
 
   const templateCategories = useMemo(
-    () => categoryFilters((data?.items ?? []).map((t) => resolveCategory(t.spec.category, t.spec.game))),
+    () =>
+      categoryFilters((data?.items ?? []).map((t) => resolveCategories(t.spec.categories, t.spec.game))),
     [data],
   );
   // The chips come from the data, so a selected category can disappear when the
@@ -396,7 +397,11 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
 
   const needle = q.trim().toLowerCase();
   const filtered = (data?.items ?? []).filter((t) => {
-    if (activeCat !== "all" && resolveCategory(t.spec.category, t.spec.game) !== activeCat) return false;
+    if (
+      activeCat !== "all" &&
+      !resolveCategories(t.spec.categories, t.spec.game).includes(activeCat)
+    )
+      return false;
     if (needle) {
       const hay = `${t.spec.displayName} ${t.spec.game} ${t.spec.description ?? ""}`.toLowerCase();
       if (!hay.includes(needle)) return false;

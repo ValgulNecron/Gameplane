@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { verifyForEntry } from "@/lib/verify";
-import { resolveCategory, categoryFilters } from "@/lib/games";
+import { resolveCategories, categoryFilters } from "@/lib/games";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ export function ModulesPage() {
   }, [items]);
 
   const catChips = useMemo(
-    () => categoryFilters((data?.items ?? []).map((e) => resolveCategory(e.category, e.game ?? ""))),
+    () => categoryFilters((data?.items ?? []).map((e) => resolveCategories(e.categories, e.game ?? ""))),
     [data],
   );
   // Chips are derived from the data, so the selected one can disappear when the
@@ -68,7 +68,8 @@ export function ModulesPage() {
 
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
-    if (activeCat !== "all" && resolveCategory(e.category, e.game ?? "") !== activeCat) return false;
+    if (activeCat !== "all" && !resolveCategories(e.categories, e.game ?? "").includes(activeCat))
+      return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }

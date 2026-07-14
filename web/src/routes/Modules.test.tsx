@@ -119,8 +119,8 @@ describe("ModulesPage", () => {
   });
 
   it("filters the catalog by game category", async () => {
-    const minecraftEntry = { ...MINECRAFT, category: "Sandbox" };
-    const valheimEntry = { ...VALHEIM_INSTALLED, game: "valheim", category: "Survival" };
+    const minecraftEntry = { ...MINECRAFT, categories: ["Sandbox", "Survival"] };
+    const valheimEntry = { ...VALHEIM_INSTALLED, game: "valheim", categories: ["Survival"] };
     catalog.mockResolvedValue({
       items: [minecraftEntry, valheimEntry],
     });
@@ -134,6 +134,25 @@ describe("ModulesPage", () => {
     await userEvent.click(sandboxBtn);
     expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
     expect(screen.queryByText("Valheim")).toBeNull();
+  });
+
+  it("shows a multi-category module under each of its categories", async () => {
+    const minecraftEntry = { ...MINECRAFT, categories: ["Sandbox", "Survival"] };
+    const valheimEntry = { ...VALHEIM_INSTALLED, game: "valheim", categories: ["Survival"] };
+    catalog.mockResolvedValue({
+      items: [minecraftEntry, valheimEntry],
+    });
+    renderPage();
+    expect(await screen.findByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    expect(screen.getByText(/Minecraft/)).toBeInTheDocument();
+    expect(screen.queryByText(/Valheim/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Survival" }));
+    expect(screen.getByText(/Minecraft/)).toBeInTheDocument();
+    expect(screen.getByText(/Valheim/)).toBeInTheDocument();
   });
 
   it("opens the install dialog and POSTs /modules with the chosen version", async () => {
