@@ -75,9 +75,30 @@ WebSocket), so the Rust client adds no new Go dependency.
 
 **Naming.** The third client is `satisfactory`, not `http`. It is not a generic HTTP
 console — it is a function-call API with a bespoke login handshake, and no other game
-shares its shape. Naming it `http` would promise a genericity we do not have. `Exec` maps
-onto it by treating a command line as `FunctionName {json-args}`, so an action can declare
-`command: 'SaveGame {"SaveName":"{{.Params.name}}"}'` inside the existing schema.
+shares its shape. Naming it `http` would promise a genericity we do not have.
+
+**Correction (2026-07-14, after protocol research).** This spec originally assumed
+Satisfactory's API exposed no arbitrary-console-command endpoint, and proposed mapping
+`Exec` onto it by treating a command line as `FunctionName {json-args}`. That was wrong.
+The API **does** expose `RunCommand`, which takes a free-text console command and returns
+its output:
+
+```
+POST /api/v1   Authorization: Bearer <token>
+{"function": "RunCommand", "data": {"command": "<cmd>"}}
+  → {"data": {"CommandResult": "<output>"}}
+```
+
+So `Exec(cmd)` maps onto `RunCommand` directly, with exactly the same semantics as the
+other four protocols, and the `FunctionName {json-args}` hack is dropped. The named
+functions (`SaveGame`, `Shutdown`, `QueryServerState`, …) remain available and are the
+right choice where one exists, but the console path is now honest.
+
+**Known limitation:** Satisfactory's API cannot enumerate players. `QueryServerState`
+returns `NumConnectedPlayers` (a count) and there is no documented endpoint for names or
+IDs. So satisfactory gets a console and quick actions, but **not** the
+`capabilities.players` list — its template must leave that unset rather than ship a
+players tab that cannot populate.
 
 The CRD doc comment on `RCONSpec.Protocol` currently states there is no generic HTTP-console
 implementation; it is rewritten to describe the five protocols.

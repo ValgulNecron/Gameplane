@@ -929,14 +929,14 @@ type GameDataSource struct {
 // RCONSpec describes the remote-console protocol used by the game.
 type RCONSpec struct {
 	// Protocol is the wire protocol the agent speaks to the game's console
-	// port. Two are implemented: "source" is the Valve/Minecraft packet-
-	// framed RCON protocol; "telnet" is a raw line-based TCP console (e.g.
-	// 7 Days to Die) — send a line, get a line back, no framing. "none"
-	// means the game has no usable remote console (see consoleMode: pty
-	// for stdin-driven games instead). Only these three are supported;
-	// there is no generic HTTP-console implementation.
+	// port. Multiple protocols are supported: "source" is the Valve/Minecraft
+	// packet-framed RCON protocol; "telnet" is a raw line-based TCP console
+	// (e.g. 7 Days to Die) — send a line, get a line back, no framing;
+	// "websocket" is the Rust WebRcon protocol (requires +rcon.web 1). "none"
+	// means the game has no usable remote console (see consoleMode: pty for
+	// stdin-driven games instead).
 	// +kubebuilder:default=source
-	// +kubebuilder:validation:Enum=source;telnet;none
+	// +kubebuilder:validation:Enum=source;telnet;websocket;none
 	// +optional
 	Protocol string `json:"protocol,omitempty"`
 

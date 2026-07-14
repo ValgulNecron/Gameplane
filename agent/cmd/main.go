@@ -64,8 +64,8 @@ func main() {
 	flag.BoolVar(&rconEnabled, "rcon-enabled", envOr("GAMEPLANE_RCON_ENABLED", "true") != "false",
 		"whether the game exposes RCON; when false, RCON-backed endpoints degrade instead of dialing")
 	flag.StringVar(&rconProtocol, "rcon-protocol", envOr("GAMEPLANE_RCON_PROTOCOL", "source"),
-		"RCON wire protocol: source (Valve/Minecraft packet framing) or telnet (line-based, e.g. 7 Days to Die). "+
-			"Unset or unrecognized falls back to source for back-compat with templates predating this flag.")
+		"RCON wire protocol: source (Valve/Minecraft packet framing), telnet (line-based, e.g. 7 Days to Die), "+
+			"or websocket (Rust WebRcon). Unset or unrecognized falls back to source for back-compat.")
 	flag.StringVar(&gameLogPath, "game-log-path", "", "path to the game container's log file (for /logs/tail)")
 	flag.StringVar(&certFile, "tls-cert", "", "server TLS cert (PEM). Enables HTTPS + requires client cert")
 	flag.StringVar(&keyFile, "tls-key", "", "server TLS key (PEM)")
@@ -126,6 +126,8 @@ func main() {
 		rconClient = rcon.Disabled{}
 	case strings.EqualFold(rconProtocol, "telnet"):
 		rconClient = rcon.NewTelnet(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
+	case strings.EqualFold(rconProtocol, "websocket"):
+		rconClient = rcon.NewWebSocket(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
 	default:
 		// "source", empty, or anything unrecognized: back-compat default.
 		rconClient = rcon.New(rconHost, rconPort, rcon.PasswordFromFile(rconPassFile))
