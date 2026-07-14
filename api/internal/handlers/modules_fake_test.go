@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -176,7 +177,7 @@ func TestMountModules_Catalog(t *testing.T) {
 				"name":          "minecraft",
 				"displayName":   "Minecraft",
 				"summary":       "vanilla",
-				"category":      "Sandbox",
+				"categories":    []any{"Sandbox"},
 				"latestVersion": "1.21",
 				"versions":      []any{"1.21", "1.20"},
 			},
@@ -208,8 +209,8 @@ func TestMountModules_Catalog(t *testing.T) {
 	// The rollback/digest status fields must pass through verbatim from
 	// Module.status so the dashboard can surface the pin and rollback target.
 	got := resp.Items[0]
-	if got.Category != "Sandbox" {
-		t.Errorf("category = %q, want Sandbox (author-declared, from module.yaml)", got.Category)
+	if !reflect.DeepEqual(got.Categories, []string{"Sandbox"}) {
+		t.Errorf("categories = %v, want [Sandbox] (author-declared, from module.yaml)", got.Categories)
 	}
 	if got.AppliedDigest != "sha256:aaa" {
 		t.Errorf("appliedDigest = %q, want sha256:aaa", got.AppliedDigest)

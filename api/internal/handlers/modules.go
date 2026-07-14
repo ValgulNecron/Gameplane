@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,7 +70,7 @@ type CatalogEntry struct {
 	DisplayName      string      `json:"displayName,omitempty"`
 	Summary          string      `json:"summary,omitempty"`
 	Game             string      `json:"game,omitempty"`
-	Category         string      `json:"category,omitempty"`
+	Categories       []string    `json:"categories,omitempty"`
 	Icon             string      `json:"icon,omitempty"`
 	Sources          []SourceRef `json:"sources"`
 	Versions         []string    `json:"versions,omitempty"`
@@ -317,9 +318,8 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 			if g, _ := m["game"].(string); g != "" && e.Game == "" {
 				e.Game = g
 			}
-			if c, _ := m["category"].(string); c != "" && e.Category == "" {
-				e.Category = c
-			}
+			cats, _, _ := unstructured.NestedStringSlice(m, "categories")
+			e.Categories = mergeCategories(e.Categories, cats)
 			if ic, _ := m["icon"].(string); ic != "" && e.Icon == "" {
 				e.Icon = ic
 			}
@@ -400,5 +400,29 @@ func mergeVersions(a, b []string) []string {
 		out = append(out, v)
 	}
 	sort.Slice(out, func(i, j int) bool { return semverDescending(out[i], out[j]) })
+	return out
+}
+
+// mergeCategories unions a module's categories across the ModuleSources
+// serving it. Dedupe is case-insensitive so "Survival" and "survival" do
+// not become two chips; the first spelling seen wins, and input order is
+// preserved so the dashboard's chip list is stable across reloads.
+func mergeCategories(dst, src []string) []string {
+	seen := make(map[string]struct{}, len(dst)+len(src))
+	out := make([]string, 0, len(dst)+len(src))
+	for _, list := range [][]string{dst, src} {
+		for _, c := range list {
+			c = strings.TrimSpace(c)
+			if c == "" {
+				continue
+			}
+			k := strings.ToLower(c)
+			if _, dup := seen[k]; dup {
+				continue
+			}
+			seen[k] = struct{}{}
+			out = append(out, c)
+		}
+	}
 	return out
 }

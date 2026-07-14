@@ -42,3 +42,20 @@ func TestMergeVersions_Empty(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestMergeCategoriesUnionsAcrossSources(t *testing.T) {
+	got := mergeCategories([]string{"Survival", "Sandbox"}, []string{"sandbox", "Co-op"})
+	want := []string{"Survival", "Sandbox", "Co-op"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("mergeCategories = %v, want %v (case-insensitive dedupe, first spelling wins, order stable)", got, want)
+	}
+}
+
+func TestMergeCategoriesEmptyInputs(t *testing.T) {
+	if got := mergeCategories(nil, nil); len(got) != 0 {
+		t.Errorf("mergeCategories(nil, nil) = %v, want empty", got)
+	}
+	if got := mergeCategories(nil, []string{"PvP"}); !reflect.DeepEqual(got, []string{"PvP"}) {
+		t.Errorf("mergeCategories(nil, [PvP]) = %v, want [PvP]", got)
+	}
+}
