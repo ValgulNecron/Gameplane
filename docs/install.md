@@ -111,12 +111,39 @@ Top-level knobs (see `values.yaml` for the full list):
   or restart needed; see [security](security.md#dashboard-managed-providers).
   Per-IdP walkthroughs (Keycloak, Authentik, Google) live in [oidc.md](oidc.md)
 - `ingress.host` — dashboard hostname
+- `gamesNamespace` — namespace where GameServers are created (default `gameplane-games`)
 - `networkPolicies.enabled` — default-deny in games namespace (recommended on)
+  - `networkPolicies.kubeletCIDRs` — CIDRs for kubelet liveness/readiness probes (defaults to RFC1918 + link-local)
+  - `networkPolicies.probePorts` — specific ports to allow on game pods for kubelet probes (empty = any port)
+  - `networkPolicies.apiServerCIDRs` — CIDRs for agent heartbeat to kube-apiserver (defaults to RFC1918 + link-local on 443/6443)
+  - `networkPolicies.gameEgress` — control public-internet egress for game pods (downloads, mod registries)
+    - `gameEgress.enabled` — toggle public-egress allowance (default `true`)
+    - `gameEgress.ports` — TCP ports for downloads (default 80, 443)
+    - `gameEgress.privateCIDRs` — exclude private ranges from public-egress (anti-SSRF)
+- `clusterOps.enabled` — credential-minting cluster operations (Add node, Download kubeconfig) in the dashboard's Cluster page (default off; grants powerful kube-system + CSR-approval RBAC)
+- `mcpServer.enabled` — optional strictly read-only MCP (Model Context Protocol) server for AI assistants to read cluster state and propose fixes (default off); see [mcp-server/README.md](../mcp-server/README.md)
+  - `mcpServer.replicas` — MCP server replicas (default 1)
+- `updates.channel` — informational release-channel label (e.g., `stable`, `edge`) shown read-only in the dashboard's Admin Settings → Updates section; purely informational (Gameplane upgrades via Helm, not auto-update)
 - `podSecurity.enforceRestricted` — label games namespace for Pod Security Standards
-- `defaultModuleSource.*` — the official game catalog shipped by default;
-  `type: git` (default) indexes the public `gameplane-module` repo directly, or
-  `type: oci` pulls signed bundles from a registry (`defaultModuleSource.oci.*`)
+- `defaultModuleSource.*` — the official game catalog shipped with the chart (enabled by default)
+  - `defaultModuleSource.enabled` — whether to create the default `ModuleSource` (default `true`; disable when managing sources via GitOps)
+  - `defaultModuleSource.name` — name of the `ModuleSource` resource (default `default`)
+  - `defaultModuleSource.refreshInterval` — how often the catalog is re-indexed (default `1h`)
+  - `defaultModuleSource.type` — source type: `git` (default, indexes the public `gameplane-module` repo) or `oci` (pull pre-built bundles from a registry)
+  - `defaultModuleSource.git.*` — git configuration (when `type: git`)
+    - `git.url` — repository URL (default `https://github.com/ValgulNecron/gameplane-module.git`)
+    - `git.ref` — git branch/tag (default `main`)
+    - `git.subPath` — module subdirectory within the repository (default `""`, empty means root)
+  - `defaultModuleSource.oci.*` — OCI registry configuration (when `type: oci`)
+    - `oci.url` — OCI registry URL (e.g., `ghcr.io/valgulnecron/gameplane-modules`)
+    - `oci.insecure` — skip TLS verification for plain-HTTP registries (e.g., local development)
+    - `oci.modules` — which modules to pull from the registry
+    - `oci.pullSecretName` — optional kubernetes.io/dockerconfigjson Secret for private registries
+    - `oci.verify.enabled` — enable cosign signature verification for official bundles (default off)
+    - `oci.verify.cosignPublicKey` — cosign public key for verification (official key shipped in values.yaml)
 - `uploadModuleSource.enabled` — the `uploads` source backing dashboard bundle uploads (default on)
+  - `uploadModuleSource.name` — name of the upload `ModuleSource` (default `uploads`)
+  - `uploadModuleSource.refreshInterval` — re-index interval for uploaded modules (default `1h`)
 - `operator.localModules.{enabled,hostPath,existingClaim,mountPath}` — mount a
   directory of module bundles into the operator for `local`-type sources
 - `serviceMonitors.enabled` / `prometheusRules.enabled` / `grafanaDashboards.enabled`
@@ -278,13 +305,15 @@ destination configured (the default), the reporter never runs.
 
 ## Installing a module
 
-The chart ships two `ModuleSource`s: `default` (the official OCI
-registry catalog) and `uploads` (dashboard bundle uploads). Install
-games from the dashboard's **Modules** page, or add more sources —
-git repositories, http archives, a local directory — under
-**Modules → Manage sources** (admin) or by applying `ModuleSource`
-CRs. See `docs/module-authoring.md` for the source types and the
-bundle format.
+The chart ships two `ModuleSource`s: `default` (indexed from the public
+`gameplane-module` git repository) and `uploads` (dashboard bundle uploads).
+The default uses `type: git` for zero-configuration access to the official
+catalog; `type: oci` is available to pull pre-built, optionally signed bundles
+from a registry (used by local dev and for mirroring). Install games from the
+dashboard's **Modules** page, or add more sources — git repositories, http
+archives, a local directory — under **Modules → Manage sources** (admin) or by
+applying `ModuleSource` CRs. See `docs/module-authoring.md` for the source types
+and the bundle format.
 
 ## Registering an additional cluster
 

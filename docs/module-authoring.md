@@ -337,7 +337,10 @@ env-mode modpacks), **valheim** (channel catalog, extract-mode BepInEx
 mods, deps-mode Thunderstore packs), **terraria** (tag catalog, pty
 console, configFiles), **factorio** (tag catalog, pty console,
 wizard-managed server-settings.json, portal registry), **palworld**
-(wrapper channels, RCON via a shared admin env, pak mods).
+(wrapper channels, RCON via a shared admin env, pak mods). The full
+catalog also includes 7-days-to-die, ark-survival-ascended, cs2, dayz,
+dont-starve-together, enshrouded, garrys-mod, project-zomboid, rust,
+satisfactory, and v-rising.
 
 ### Branding
 
@@ -425,7 +428,74 @@ configSchema:
   - name: SERVER_PASS
     displayName: Password
     type: password
+  - name: MAX_MEMORY
+    displayName: JVM max heap
+    type: string
+    default: ""
+    autoFromMemoryLimit:
+      percent: 75
 ```
+
+#### Automatic computation from memory limit (`autoFromMemoryLimit`)
+
+When a field's value is not supplied by the user or a default, `autoFromMemoryLimit`
+computes it from the game container's effective memory limit:
+
+```
+floor(limit × percent / 100), rendered as whole mebibytes with an "M" suffix
+```
+
+This is useful for game memory settings (JVM heap, engine config) that should
+scale with whatever resources the server was given:
+
+```yaml
+configSchema:
+  - name: MAX_MEMORY
+    displayName: JVM max heap
+    description: Leave empty to size it automatically to 75% of the container memory limit.
+    type: string
+    autoFromMemoryLimit:
+      percent: 75
+  - name: INIT_MEMORY
+    displayName: JVM initial heap
+    type: string
+    autoFromMemoryLimit:
+      percent: 75
+```
+
+With `limits.memory: 4Gi` and `percent: 75`, both fields compute to `3072M`
+(75% of 4096 MiB). Resizing the server's memory updates the computed values
+on the next restart.
+
+**Rules:**
+
+- `autoFromMemoryLimit` is used only when neither `spec.config[field]` nor
+  `default` provides a value — explicit values always win.
+- When the template has no memory limit, the field is left unset (no default
+  applied).
+- The rendered value is a whole number of mebibytes with an `M` suffix
+  (e.g., `3072M`).
+
+Real-world example: Minecraft (Java Edition) sizes the JVM heap to avoid
+OOM kills. The heap should leave headroom for non-heap JVM memory (metadata,
+stacks, etc.), so 75% of the container limit is a safe heuristic:
+
+```yaml
+resources:
+  limits:
+    memory: 4Gi    # 4096 MiB
+
+configSchema:
+  - name: MAX_MEMORY
+    displayName: JVM max heap
+    type: string
+    autoFromMemoryLimit:
+      percent: 75  # → 3072M
+```
+
+| Field | Type | Min | Max | Notes |
+|-------|------|-----|-----|-------|
+| `percent` | int32 | 1 | 100 | percentage of memory limit |
 
 Materialization rules:
 
@@ -604,6 +674,44 @@ on suspend/restart/stop instead of waiting out
 game's own logfile. Omit it for games that log only to stdout; the Logs
 tab's "Container output" source covers those.
 
+### Security context
+
+Some game images refuse to run as root or require a specific uid. Use
+`spec.security` to override the pod/container security settings:
+
+```yaml
+security:
+  runAsUser: 25000        # uid the game container runs as
+  runAsGroup: 25000       # gid the game container runs as
+  fsGroup: 25000          # gid the kubelet chowns the data volume to
+```
+
+All three fields are optional. When set, the operator applies these
+values to the game container's `securityContext`; `fsGroup` is set on
+the pod spec so the kubelet chowns mounted volumes on startup, letting
+a non-root game user write to the PVC without additional init
+containers.
+
+Real-world example: ARK: Survival Ascended's image (mschnitzer/asa-linux-server)
+runs the server as uid 25000 and cannot initialise Proton (the Windows
+compatibility layer) as root — it fails with "Parent directory does not
+exist" and the server never reaches readiness. Setting `runAsUser: 25000`,
+`runAsGroup: 25000`, and `fsGroup: 25000` works around this:
+
+```yaml
+spec:
+  security:
+    runAsUser: 25000
+    runAsGroup: 25000
+    fsGroup: 25000
+```
+
+| Field | Type | Default | Min | Max | Notes |
+|-------|------|---------|-----|-----|-------|
+| `runAsUser` | int64 | omitted (image default) | 0 | 4294967295 | uid the game container runs as |
+| `runAsGroup` | int64 | omitted (image default) | 0 | 4294967295 | gid the game container runs as |
+| `fsGroup` | int64 | omitted (no chown) | 0 | 4294967295 | gid the kubelet chowns volumes to |
+
 ### Capabilities (moderation + backup quiesce)
 
 `spec.capabilities` declares the console commands behind agent
@@ -644,6 +752,35 @@ capabilities:
   `remove` are `.Player` templates and `listRegex` extracts the
   comma-separated tail of the `list` command's output via the named
   group `names`.
+- `list` lets games with no moderation capability still report the
+  online player list. `command` is the console command that prints the
+  players (e.g., `/players online` on Factorio, `ShowPlayers` on Palworld).
+  `entryRegex` optionally extracts one player name per match (first
+  capture group, or whole match if no group); multiline mode (`^` / `$`
+  per line). When omitted, a built-in parser is used. This is useful for
+  games that have no player-management RCON but do report online players
+  — the Players tab then shows who is connected, without kick/ban/whitelist
+  actions.
+
+  From `modules/factorio/template.yaml`:
+
+  ```yaml
+  capabilities:
+    players:
+      list:
+        command: "/players online"
+        entryRegex: "^\\s+(.+?) \\(online\\)$"
+  ```
+
+  From `modules/palworld/template.yaml`:
+
+  ```yaml
+  capabilities:
+    players:
+      list:
+        command: "ShowPlayers"
+        entryRegex: "^([^,]+),[0-9]+,"
+  ```
 - The quiesce sequence runs in order; any command error — or output
   matching `failurePattern` (case-insensitive) — aborts the backup and
   best-effort runs `unquiesce` so the game is never left paused.
@@ -733,13 +870,82 @@ endpoint returns nothing and the dashboard omits the panel.
 
 #### Mods
 
-`capabilities.mods` declares where this game's mods/plugins live and how
-the dashboard may install new ones. Mods are plain files (or, for
-extract-mode loaders, folders) on a volume; the dashboard lists,
-installs, uploads, updates, and removes them generically by calling the
-agent — no RCON required.
+`capabilities.mods` declares how the dashboard manages this game's
+mods/plugins. Most games store mods in a directory on the data volume;
+the dashboard lists, installs, uploads, updates, and removes them
+generically by calling the agent — no RCON required. Some games, however,
+download their own mods by ID (a Steam Workshop id, a CurseForge project id,
+etc.) passed via a command-line flag or environment variable; for those,
+use `idList` instead. The three layouts are mutually exclusive by convention
+— the schema requires at least one but does not reject a template that sets several:
 
-Two layouts, mutually exclusive:
+##### File-based mods (Path or Loaders) vs ID-based mods (IDList)
+
+**File-based mods** (the default):
+
+```yaml
+# Per-loader map (use with spec.versions):
+mods:
+  loaders:
+    paper:  { displayName: Plugins (Paper), path: plugins, extensions: [".jar"] }
+# Or a single shared directory:
+mods:
+  path: mods
+  extensions: [".jar"]
+```
+
+**ID-based mods** (games that download by id):
+
+```yaml
+mods:
+  idList:
+    env: ASA_START_PARAMS           # env var the id list is projected into
+    separator: ","                  # joins ids; default ","
+    format: " -mods={{ids}}"        # token "{{ids}}" is replaced; default "{{ids}}"
+    mode: append                    # "replace" (default) or "append" this env
+  registry:
+    providers: [...]                # optional; curated registry browsing
+  # Note: install/allowedHosts are omitted for idList games — the
+  # operator projects ids, the server downloads them itself
+```
+
+**When to use each:**
+
+- **File-based**: the agent manages the mods directory, downloads files,
+  and handles installs/removal. Games like Minecraft (Forge/Fabric plugins),
+  Valheim (BepInEx), and Palworld (.pak files).
+- **ID-based**: the game server downloads its own mods given a list of ids.
+  The operator renders the id list into an env var or flag; the agent never
+  downloads anything. The dashboard can still browse a curated registry
+  (e.g., CurseForge for ARK) to help users find mods, but the install is
+  just projecting ids, not file transfers. Useful when the game has no
+  accessible mods directory but does accept id lists.
+
+Real-world example: ARK: Survival Ascended's image downloads mods via
+CurseForge ids appended to its launch parameters. The operator renders
+the user's selected ids into the `ASA_START_PARAMS` env var (append
+mode, so user-supplied params survive):
+
+```yaml
+mods:
+  idList:
+    env: ASA_START_PARAMS
+    format: " -mods={{ids}}"
+    separator: ","
+    mode: append
+  registry:
+    providers:
+      - provider: curseforge
+```
+
+| Field | Type | Default | Max | Notes |
+|-------|------|---------|-----|-------|
+| `env` | string | required | 64 chars | env var the rendered id list is projected into |
+| `separator` | string | `,` | 4 chars | string joining ids, e.g. `,` or `;` |
+| `format` | string | `{{ids}}` | 128 chars | plain string replacement of the literal token `{{ids}}` — not a Go template |
+| `mode` | enum | `replace` | — | `replace` (set env to format result) or `append` (concatenate onto existing env) |
+
+File-based layouts support two patterns:
 
 ```yaml
 capabilities:

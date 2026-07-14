@@ -14,7 +14,7 @@ point. Assume:
 
 Two modes, configurable independently:
 
-- **Local accounts** — argon2id (64 MiB, t=3, p=4) password hashing.
+- **Local accounts** — argon2id (64 MiB, t=3, p=2) password hashing.
   Session cookies are HttpOnly, Secure, SameSite=Lax. CSRF protection
   via a double-submit `X-Gameplane-CSRF` header on mutating requests.
 - **OIDC** — Keycloak, Google, GitHub, any RFC-7519 compliant IdP.
@@ -114,13 +114,42 @@ intended for local `kind` development where mTLS is overkill.
 
 When `networkPolicies.enabled=true` (default) the chart applies:
 
-- `default-deny-ingress` in the games namespace
-- `allow-api-to-agent` — API pod can reach agent:8090
-- `allow-kubelet-probes` — kubelet can hit probes
+- `default-deny-ingress` — denies all ingress to all pods in the games
+  namespace. A Kubernetes Service does not create any NetworkPolicy
+  allowance; ingress traffic is fully isolated unless an allow-policy
+  explicitly permits it.
+- `default-deny-egress` — denies all egress from all pods in the games
+  namespace except DNS (UDP/TCP port 53 to `kube-system`). This is the
+  most restrictive policy; outbound downloads (binaries, assets, mods) are
+  gated by the `allow-game-public-egress` policy below, and apiserver
+  access by `allow-agent-to-apiserver`.
+- `allow-agent-to-apiserver` — allows game pods to reach the kube-apiserver
+  for status heartbeat (GameServer status patches). Permits TCP 443 and 6443
+  to apiserver endpoints; by default targets RFC1918 + link-local ranges, or
+  customizable via `networkPolicies.apiServerCIDRs`.
+- `allow-api-to-agent` — allows the API and operator pods (in the
+  control-plane namespace) to reach every game pod's agent on TCP port 8090.
+  The API proxies console/files/logs/players; the operator calls `/quiesce`
+  before backups.
+- `allow-kubelet-probes` — allows kubelet to reach game pods for
+  liveness/readiness probes. By default targets RFC1918 + link-local ranges,
+  or customizable via `networkPolicies.kubeletCIDRs`; probe ports via
+  `networkPolicies.probePorts`.
+- `allow-game-public-egress` — (enabled by default, gated by
+  `networkPolicies.gameEgress.enabled`) allows game pods to reach the public
+  internet for binary/asset/mod downloads. Set `networkPolicies.gameEgress.enabled: false`
+  to withhold public egress. Permits egress to 0.0.0.0/0 except private ranges
+  defined in `networkPolicies.gameEgress.privateCIDRs` (by default: 10.0.0.0/8,
+  172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 to block in-cluster and
+  cloud-metadata access). Ports customizable via `networkPolicies.gameEgress.ports`.
 
-Game clients connecting from outside the cluster use the per-GameServer
-Service (ClusterIP/NodePort/LoadBalancer). Each Service adds an
-allowIngress implicitly.
+**Note:** `default-deny-egress` applies to all pods in the games namespace
+(`podSelector: {}`), while `allow-agent-to-apiserver` and
+`allow-game-public-egress` only select game pods labelled
+`app.kubernetes.io/name: gameplane-game`. Any pod in the games namespace
+without that label receives DNS-only egress (connecting to kube-dns on port
+53). Do not place helper or debug pods in the games namespace expecting them
+to route traffic—place them in a different namespace instead.
 
 ## Pod security
 

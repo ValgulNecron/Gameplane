@@ -19,7 +19,9 @@ Backend/operator/API changes do not need a Pencil pass.
 
 ## Code style
 
-- **Go**: `gofmt`, `go vet`, `golangci-lint`. Errors are wrapped with `%w`.
+- **Indentation**: tabs in Go, 2 spaces elsewhere (YAML, JSON, TypeScript, Markdown). LF line endings everywhere.
+- **Go**: `gofmt`, `go vet`, `golangci-lint`. Errors are wrapped with `%w` to preserve the cause chain.
+- **Linting**: Fix the underlying issue; do not add inline suppression directives (`//nolint:`, `// eslint-disable`). A few centralized exemptions exist in `.golangci.yml` (e.g., `_test.go` files skip errcheck/gosec/unparam, and controller builders skip revive's exported rule) — contributors should not add new inline exemptions on top of these.
 - **TypeScript**: strict mode on. ESLint + Prettier. No `any` without a justification comment.
 - **Comments**: default to writing none — let naming carry the weight. Add one only when the *why* is non-obvious (hidden invariant, workaround, or constraint a reader would ask about).
 
@@ -39,6 +41,8 @@ cd operator && go test ./...
 cd api      && go test ./...
 cd agent    && go test ./...
 cd audit-syslog-bridge && go test ./...
+cd telemetry-receiver && go test ./...
+cd mcp-server && go test ./...
 cd web      && npm test
 ```
 
