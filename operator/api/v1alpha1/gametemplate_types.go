@@ -932,15 +932,18 @@ type RCONSpec struct {
 	// port. Multiple protocols are supported: "source" is the Valve/Minecraft
 	// packet-framed RCON protocol; "telnet" is a raw line-based TCP console
 	// (e.g. 7 Days to Die) — send a line, get a line back, no framing;
-	// "websocket" is the Rust WebRcon protocol (requires +rcon.web 1). "none"
-	// means the game has no usable remote console (see consoleMode: pty for
-	// stdin-driven games instead).
+	// "websocket" is the Rust WebRcon protocol (requires +rcon.web 1);
+	// "battleye" is the BattlEye RCon protocol used by DayZ and Arma — UDP,
+	// with checksum-framed packets and a mandatory client-side keepalive.
+	// "none" means the game has no usable remote console (see
+	// consoleMode: pty for stdin-driven games instead).
 	// +kubebuilder:default=source
-	// +kubebuilder:validation:Enum=source;telnet;websocket;none
+	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;none
 	// +optional
 	Protocol string `json:"protocol,omitempty"`
 
-	// Port is the TCP port RCON listens on inside the pod.
+	// Port is the port RCON listens on inside the pod (TCP for source,
+	// telnet, and websocket; UDP for battleye).
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
