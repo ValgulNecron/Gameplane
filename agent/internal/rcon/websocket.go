@@ -11,8 +11,18 @@
 //	Response frame: {"Identifier": 42, "Message": "…output…", "Type": 3, "Stacktrace": ""}
 //
 // The server pushes unsolicited frames (console spam, chat, player join/leave)
-// with different Identifiers. We assign a unique positive Identifier per request
-// and discard non-matching frames until we match or deadline expires.
+// down the same socket, so a reply cannot simply be "the next frame that
+// arrives". Facepunch's own client (github.com/Facepunch/webrcon, gh-pages
+// branch, js/rconService.js) settles the convention: it starts its request
+// counter at 1001 and routes any frame with Identifier > 1000 back to the
+// matching request, treating everything <= 1000 as generic console output
+// (its fire-and-forget Command() sends -1).
+//
+// We follow the same numbering — a unique Identifier per request, starting at
+// 1001 — but match strictly: read frames and discard every one whose Identifier
+// isn't the one we sent, until we match or the deadline expires. That is a
+// superset of Facepunch's >1000 rule and stays correct even if a future server
+// build changes what unsolicited frames carry.
 //
 // WebRcon has no positive auth acknowledgement: the server accepts the
 // WebSocket handshake unconditionally regardless of password, and a bad
