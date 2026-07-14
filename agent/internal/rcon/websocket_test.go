@@ -3,6 +3,7 @@ package rcon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/coder/websocket"
 )
-
 
 func TestWebSocketHappyPath(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +51,56 @@ func TestWebSocketHappyPath(t *testing.T) {
 	}
 	if result != "save completed" {
 		t.Errorf("expected 'save completed', got %q", result)
+	}
+}
+
+// TestWebSocketQuietHealthyServer proves the actual regression that broke
+// this client: a correctly-authenticated Rust server with an idle console
+// sends NOTHING after accepting the handshake — WebRcon has no positive
+// auth signal — and Exec must not misread that silence as a bad password.
+// The old ensureLocked used to do a 1s post-dial "auth probe" read that
+// always hit exactly this silence and reported a healthy server as a
+// rejected password, so the server here stays silent noticeably longer
+// than that old window before ever sending a byte.
+func TestWebSocketQuietHealthyServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		// Deliberately silent — no banner, no unsolicited frame, nothing
+		// — for longer than the old probe's 1s window, then behave
+		// normally once a command actually arrives.
+		time.Sleep(1200 * time.Millisecond)
+
+		ctx := context.Background()
+		var req WebSocketMessage
+		if err := readJSON(ctx, conn, &req); err != nil {
+			t.Logf("failed to read request: %v", err)
+			return
+		}
+
+		resp := WebSocketMessage{
+			Identifier: req.Identifier,
+			Message:    "ok",
+			Type:       3,
+		}
+		_ = writeJSON(ctx, conn, resp)
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) { return "correctpass", nil })
+	defer client.Close()
+
+	result, err := client.Exec("status")
+	if err != nil {
+		t.Fatalf("Exec failed against a quiet, healthy server: %v", err)
+	}
+	if result != "ok" {
+		t.Errorf("expected %q, got %q", "ok", result)
 	}
 }
 
@@ -110,10 +160,18 @@ func TestWebSocketInterleavedUnsolicited(t *testing.T) {
 }
 
 func TestWebSocketPasswordInPath(t *testing.T) {
+	// "/", "#", "?" and a space — all reserved/unsafe in a URL and all
+	// need percent-escaping to survive as ONE path segment. Without
+	// url.PathEscape, "/" would split the path into extra segments, "#"
+	// would start a fragment, "?" would start a query, and the raw space
+	// is simply invalid — so removing PathEscape breaks this in several
+	// different ways, not just one.
+	const testPassword = "s3/cr#t? p"
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify the password is in the path, URL-escaped
-		if r.URL.Path != "/s3cret" {
-			t.Errorf("expected path /s3cret, got %s", r.URL.Path)
+		// Verify the server sees the correctly percent-decoded password.
+		if r.URL.Path != "/"+testPassword {
+			t.Errorf("expected path %q, got %q", "/"+testPassword, r.URL.Path)
 		}
 
 		conn, err := websocket.Accept(w, r, nil)
@@ -138,7 +196,7 @@ func TestWebSocketPasswordInPath(t *testing.T) {
 	defer server.Close()
 
 	host, port := parseHostPort(t, server.URL)
-	client := NewWebSocket(host, port, func() (string, error) { return "s3cret", nil })
+	client := NewWebSocket(host, port, func() (string, error) { return testPassword, nil })
 	defer client.Close()
 
 	_, err := client.Exec("test")
@@ -153,9 +211,18 @@ func TestWebSocketAuthFailure(t *testing.T) {
 		if err != nil {
 			return
 		}
-		// Close immediately — auth failure is signaled by the server
-		// closing the connection after accepting the handshake.
-		conn.Close(websocket.StatusCode(1006), "")
+		// Simulate the real Rust behavior: accept the request but never
+		// answer it, then abort the raw TCP connection with NO close
+		// frame at all — CloseNow skips the close handshake entirely,
+		// unlike Close(code, reason). A close frame IS handled (see
+		// TestWebSocketInterleavedUnsolicited's server using a normal
+		// Close), but this is the other, close-frame-less way Rust
+		// signals a bad password, and the two must both be classified as
+		// ErrAuth without resorting to matching on error text.
+		ctx := context.Background()
+		var req WebSocketMessage
+		_ = readJSON(ctx, conn, &req)
+		_ = conn.CloseNow()
 	}))
 	defer server.Close()
 
@@ -164,11 +231,8 @@ func TestWebSocketAuthFailure(t *testing.T) {
 	defer client.Close()
 
 	_, err := client.Exec("test")
-	if err == nil {
-		t.Fatal("expected an error for early close, got nil")
-	}
-	if !strings.Contains(err.Error(), "auth") {
-		t.Logf("warning: error message doesn't mention auth: %v", err)
+	if !errors.Is(err, ErrAuth) {
+		t.Errorf("expected errors.Is(err, ErrAuth), got %v", err)
 	}
 }
 
@@ -184,16 +248,18 @@ func TestWebSocketTimeout(t *testing.T) {
 		ctx := context.Background()
 		var req WebSocketMessage
 		_ = readJSON(ctx, conn, &req)
-		// Hang forever — the client should timeout
-		select {}
+		// Hang until the client (or test) goes away — the client's own
+		// execDeadline below is what must bound this test's runtime, not
+		// this handler.
+		<-r.Context().Done()
 	}))
 	defer server.Close()
 
 	host, port := parseHostPort(t, server.URL)
 
-	// Inject a very short timeout for testing
+	// Inject a very short deadline so this test cannot hang CI.
 	client := NewWebSocket(host, port, func() (string, error) { return "pass", nil })
-	client.execDeadline = 100 * time.Millisecond // Short deadline for test
+	client.execDeadline = 100 * time.Millisecond
 	defer client.Close()
 
 	start := time.Now()
@@ -202,6 +268,9 @@ func TestWebSocketTimeout(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected a timeout error, got nil")
+	}
+	if errors.Is(err, ErrAuth) {
+		t.Errorf("a deadline expiry must never be classified as ErrAuth, got: %v", err)
 	}
 	if elapsed > 500*time.Millisecond {
 		t.Errorf("timeout took too long: %v (should respect execDeadline)", elapsed)
