@@ -71,6 +71,18 @@ rules:
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: [volumesnapshots, volumesnapshotcontents]
     verbs: [get, list, watch]
+  # The GameServer controller registers Owns(&networkingv1.NetworkPolicy{})
+  # unconditionally (regardless of networkPolicies.enabled), and the
+  # manager's cache is cluster-scoped (no Cache/DefaultNamespaces option
+  # in operator/cmd/main.go), so that Owns() informer issues a
+  # cluster-wide LIST/WATCH on networkpolicies. Without this rule the
+  # informer's initial list is denied and the cache never syncs, so the
+  # manager exits after CacheSyncTimeout and crash-loops — taking down
+  # ALL reconciliation, not just game-ingress. Writes stay namespace-scoped
+  # in the manage Role below.
+  - apiGroups: ["networking.k8s.io"]
+    resources: [networkpolicies]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -142,6 +154,12 @@ rules:
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: [volumesnapshots]
     verbs: [get, list, watch, create, update, patch, delete]
+  # The game-ingress controller reconciles one NetworkPolicy per GameServer
+  # (<gameserver-name>-game-ingress), opening only that game's advertised
+  # ports to networkPolicies.gameIngress.fromCIDRs.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -235,6 +253,17 @@ spec:
             {{- end }}
             {{- if .Values.operator.agentLogLevel }}
             - --agent-log-level={{ .Values.operator.agentLogLevel }}
+            {{- end }}
+            {{- if and .Values.networkPolicies.enabled .Values.networkPolicies.gameIngress.enabled }}
+            {{- if not .Values.networkPolicies.gameIngress.fromCIDRs }}
+            {{- fail "networkPolicies.gameIngress.fromCIDRs is empty: the operator cannot distinguish an explicit empty list from an unset flag and falls back to its own default (0.0.0.0/0), which OPENS player ingress to the whole internet instead of restricting it. An empty fromCIDRs is not a way to disable player ingress — set networkPolicies.gameIngress.enabled: false for that, or provide at least one CIDR to restrict access to." }}
+            {{- end }}
+            - --game-ingress-policy=true
+            {{- range .Values.networkPolicies.gameIngress.fromCIDRs }}
+            - --game-ingress-from-cidr={{ . }}
+            {{- end }}
+            {{- else }}
+            - --game-ingress-policy=false
             {{- end }}
           env:
             - name: POD_NAMESPACE

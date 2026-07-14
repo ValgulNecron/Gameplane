@@ -13,6 +13,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -70,6 +71,22 @@ type GameServerReconciler struct {
 	// it), in which case softStop treats a pty-only template the same as
 	// one with no usable transport at all.
 	PodAttacher PodStopAttacher
+
+	// GameIngressPolicyEnabled controls whether the operator reconciles a
+	// per-GameServer ingress NetworkPolicy admitting player traffic to the
+	// template's advertised ports (see reconcileNetworkPolicy). Set from
+	// the operator's --game-ingress-policy flag, default true. When false,
+	// reconcileNetworkPolicy ensures the policy is absent rather than
+	// merely skipping, so toggling the flag off converges existing
+	// GameServers instead of only affecting new ones.
+	GameIngressPolicyEnabled bool
+
+	// GameIngressFromCIDRs are the source CIDRs admitted to advertised
+	// game ports by the ingress NetworkPolicy. Set from the operator's
+	// repeatable --game-ingress-from-cidr flag, which defaults to
+	// ["0.0.0.0/0"] (games are meant to be publicly reachable) when not
+	// supplied. Each entry is validated as a CIDR at operator startup.
+	GameIngressFromCIDRs []string
 }
 
 // AgentStopper issues the module-declared graceful stop sequence to a game's
@@ -123,6 +140,7 @@ const (
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -176,6 +194,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	if err := r.reconcileAgentService(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile agent Service")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileNetworkPolicy(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile ingress NetworkPolicy")
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileAgentTLS(ctx, &gs); err != nil {
@@ -240,6 +262,7 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
+		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&gameplanev1alpha1.BackupSchedule{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ServiceAccount{}).
@@ -419,6 +442,114 @@ func (r *GameServerReconciler) reconcileAgentService(
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
+}
+
+// gameIngressPolicyName is the name of the per-GameServer ingress
+// NetworkPolicy admitting player traffic (see reconcileNetworkPolicy).
+func gameIngressPolicyName(gs *gameplanev1alpha1.GameServer) string {
+	return gs.Name + "-game-ingress"
+}
+
+// reconcileNetworkPolicy maintains a per-GameServer ingress NetworkPolicy
+// (`<gs>-game-ingress`) admitting player traffic to the template's
+// advertised ports. The chart ships a default-deny-ingress NetworkPolicy
+// with podSelector: {} across the games namespace, and today the only thing
+// letting players through is allow-kubelet-probes defaulting probePorts to
+// [] (= all ports) with a broad source CIDR — narrowing probePorts would
+// silently cut players off. This gives player traffic its own precise,
+// per-server rule instead of relying on that side effect.
+//
+// The PodSelector matches this GameServer's pods only (name+instance
+// labels, same pair used by the Service and StatefulSet), so the policy
+// never widens to select another server's pods. Ports are read from the
+// GameTemplate's advertised ports at their ContainerPort/Protocol —
+// GameServer.Spec.Networking.PortOverrides can only remap the *Service*
+// port, never the container port a NetworkPolicy actually matches against,
+// so overrides are deliberately not consulted here (mirrors
+// svcPortsFromTemplate's advertised-port filter, applied to the container
+// side instead of the Service side).
+//
+// CRITICAL: a Kubernetes NetworkPolicy ingress rule with a From but an
+// empty/absent Ports list allows ALL ports, not none. So a template with
+// zero advertised ports must never get a rule with an empty Ports list —
+// that would fling every port, including the agent's 8090 and any
+// non-advertised port (e.g. RCON), open to the configured source CIDRs. In
+// that case (and whenever the feature is disabled via
+// --game-ingress-policy=false) the policy is deleted instead, so toggling
+// the flag off — or a template that advertises nothing — converges to no
+// policy rather than an accidentally-permissive one.
+func (r *GameServerReconciler) reconcileNetworkPolicy(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+) error {
+	np := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: gameIngressPolicyName(gs), Namespace: gs.Namespace},
+	}
+
+	ports := networkPolicyPortsFromTemplate(tmpl)
+	if !r.GameIngressPolicyEnabled || len(ports) == 0 {
+		// Get (served from the informer cache) instead of an unconditional
+		// Delete (always a live apiserver write): the agent's heartbeat
+		// patches gameservers/status, which retriggers Reconcile, so an
+		// unconditional Delete would fire a DELETE -> 404 for every server
+		// on every heartbeat whenever the feature is disabled or the
+		// template advertises no ports. Only delete when the policy exists
+		// and we actually own it — never remove one a human or another
+		// controller created out-of-band.
+		var existing networkingv1.NetworkPolicy
+		if err := r.Get(ctx, client.ObjectKeyFromObject(np), &existing); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		if !metav1.IsControlledBy(&existing, gs) {
+			return nil
+		}
+		return client.IgnoreNotFound(r.Delete(ctx, &existing))
+	}
+
+	from := make([]networkingv1.NetworkPolicyPeer, 0, len(r.GameIngressFromCIDRs))
+	for _, cidr := range r.GameIngressFromCIDRs {
+		from = append(from, networkingv1.NetworkPolicyPeer{
+			IPBlock: &networkingv1.IPBlock{CIDR: cidr},
+		})
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, np, func() error {
+		np.Spec.PodSelector = metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app.kubernetes.io/name":     "gameplane-game",
+				"app.kubernetes.io/instance": gs.Name,
+			},
+		}
+		np.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
+		np.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{{
+			From:  from,
+			Ports: ports,
+		}}
+		return controllerutil.SetControllerReference(gs, np, r.Scheme)
+	})
+	return err
+}
+
+// networkPolicyPortsFromTemplate returns one NetworkPolicyPort per
+// advertised template port, at its ContainerPort/Protocol (defaulting to
+// TCP when unset, mirroring svcPortsFromTemplate). Non-advertised ports
+// (e.g. RCON, query) are skipped, same as the Service.
+func networkPolicyPortsFromTemplate(tmpl *gameplanev1alpha1.GameTemplate) []networkingv1.NetworkPolicyPort {
+	out := make([]networkingv1.NetworkPolicyPort, 0, len(tmpl.Spec.Ports))
+	for _, p := range tmpl.Spec.Ports {
+		if !p.Advertise {
+			continue
+		}
+		proto := p.Protocol
+		if proto == "" {
+			proto = corev1.ProtocolTCP
+		}
+		port := intstr.FromInt32(p.ContainerPort)
+		out = append(out, networkingv1.NetworkPolicyPort{
+			Protocol: &proto,
+			Port:     &port,
+		})
+	}
+	return out
 }
 
 func svcPortsFromTemplate(

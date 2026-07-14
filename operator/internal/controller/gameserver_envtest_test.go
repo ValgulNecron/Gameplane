@@ -11,6 +11,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -2055,4 +2056,364 @@ func TestGameServer_ModIDList_CustomSeparator(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// ---------------------------------------------------------------------
+// reconcileNetworkPolicy — per-GameServer ingress NetworkPolicy
+//
+// These tests call r.reconcileNetworkPolicy directly against the envtest
+// client instead of going through startMgr/Reconcile (the same direct-call
+// style TestGameServer_StatusPatchPreservesAgentHeartbeat uses above): the
+// method takes *GameTemplate as a plain argument rather than fetching it
+// itself, and GameIngressPolicyEnabled/GameIngressFromCIDRs need to vary
+// per test, which the shared withGameServerReconciler helper (fixed fields,
+// used by every other GameServer envtest) doesn't support. The GameTemplate
+// in every test below is deliberately NOT persisted via k8sClient.Create:
+// reconcileNetworkPolicy never fetches it from the API server (the
+// Reconcile loop does that once and passes the result in), so an in-memory
+// struct is sufficient — and for the Protocol-defaulting test it's
+// required, since the GameTemplate CRD carries +kubebuilder:default=TCP on
+// spec.ports[].protocol and the real apiserver would fill an empty
+// Protocol in on admission, masking the controller's own fallback.
+// ---------------------------------------------------------------------
+
+// npPortKey is a comparable (protocol, port) pair used to assert on a
+// NetworkPolicy's Ports list as a set, independent of slice order.
+type npPortKey struct {
+	proto corev1.Protocol
+	port  int32
+}
+
+func npPortKeySet(ports []networkingv1.NetworkPolicyPort) map[npPortKey]bool {
+	out := make(map[npPortKey]bool, len(ports))
+	for _, p := range ports {
+		if p.Protocol == nil || p.Port == nil {
+			continue
+		}
+		out[npPortKey{proto: *p.Protocol, port: p.Port.IntVal}] = true
+	}
+	return out
+}
+
+// TestGameServer_NetworkPolicyAdvertisedPortsOnly proves reconcileNetworkPolicy's
+// core shape: a template mixing an advertised TCP port, an advertised UDP
+// port, and a non-advertised RCON port produces a NetworkPolicy whose Ports
+// list contains exactly the two advertised ports (UDP preserved, RCON
+// absent), scoped to this GameServer's pods only (podSelector name+instance
+// labels), and owned by it via a controller ownerRef.
+func TestGameServer_NetworkPolicyAdvertisedPortsOnly(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	tmpl := buildGameTemplate(uniqueName("mixedports"))
+	tmpl.Spec.Ports = []gameplanev1alpha1.GamePort{
+		{Name: "game", ContainerPort: 25565, Protocol: corev1.ProtocolTCP, Advertise: true},
+		{Name: "voice", ContainerPort: 24454, Protocol: corev1.ProtocolUDP, Advertise: true},
+		{Name: "rcon", ContainerPort: 25575, Protocol: corev1.ProtocolTCP, Advertise: false},
+	}
+
+	if err := k8sClient.Create(ctx, buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	var gs gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "smp"}, &gs); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+
+	r := &GameServerReconciler{
+		Client:                   k8sClient,
+		Scheme:                   scheme,
+		GameIngressPolicyEnabled: true,
+		GameIngressFromCIDRs:     []string{"10.0.0.0/8", "192.168.1.0/24"},
+	}
+	if err := r.reconcileNetworkPolicy(ctx, &gs, tmpl); err != nil {
+		t.Fatalf("reconcileNetworkPolicy: %v", err)
+	}
+
+	var np networkingv1.NetworkPolicy
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "smp-game-ingress"}, &np); err != nil {
+		t.Fatalf("get networkpolicy: %v", err)
+	}
+
+	sel := np.Spec.PodSelector.MatchLabels
+	if len(sel) != 2 || sel["app.kubernetes.io/name"] != "gameplane-game" || sel["app.kubernetes.io/instance"] != "smp" {
+		t.Fatalf("podSelector.matchLabels = %+v, want name=gameplane-game instance=smp", sel)
+	}
+	if len(np.Spec.PolicyTypes) != 1 || np.Spec.PolicyTypes[0] != networkingv1.PolicyTypeIngress {
+		t.Fatalf("policyTypes = %v, want [Ingress]", np.Spec.PolicyTypes)
+	}
+	if len(np.Spec.Ingress) != 1 {
+		t.Fatalf("ingress rules = %d, want 1", len(np.Spec.Ingress))
+	}
+	rule := np.Spec.Ingress[0]
+
+	if len(rule.From) != 2 {
+		t.Fatalf("From has %d peers, want 2: %+v", len(rule.From), rule.From)
+	}
+	for i, wantCIDR := range []string{"10.0.0.0/8", "192.168.1.0/24"} {
+		if rule.From[i].IPBlock == nil || rule.From[i].IPBlock.CIDR != wantCIDR {
+			t.Fatalf("From[%d] = %+v, want IPBlock CIDR %q", i, rule.From[i], wantCIDR)
+		}
+	}
+
+	got := npPortKeySet(rule.Ports)
+	if len(rule.Ports) != 2 || len(got) != 2 {
+		t.Fatalf("ports = %+v, want exactly 2 entries", rule.Ports)
+	}
+	if !got[npPortKey{corev1.ProtocolTCP, 25565}] {
+		t.Fatalf("ports missing advertised TCP game port 25565: %+v", rule.Ports)
+	}
+	if !got[npPortKey{corev1.ProtocolUDP, 24454}] {
+		t.Fatalf("ports missing advertised UDP port 24454: %+v", rule.Ports)
+	}
+	if got[npPortKey{corev1.ProtocolTCP, 25575}] {
+		t.Fatalf("non-advertised RCON port 25575 leaked into policy: %+v", rule.Ports)
+	}
+
+	if len(np.OwnerReferences) != 1 {
+		t.Fatalf("ownerReferences = %+v, want exactly 1", np.OwnerReferences)
+	}
+	owner := np.OwnerReferences[0]
+	if owner.Kind != "GameServer" || owner.Name != "smp" || owner.UID != gs.UID {
+		t.Fatalf("owner = %+v, want Kind=GameServer Name=smp UID=%s", owner, gs.UID)
+	}
+	if owner.Controller == nil || !*owner.Controller {
+		t.Fatalf("owner.Controller = %v, want true (cascade delete)", owner.Controller)
+	}
+}
+
+// TestGameServer_NetworkPolicyPortProtocolDefaultsToTCP proves a template
+// port with an unset Protocol renders as TCP in the policy. The
+// GameTemplate is intentionally never persisted (see file-header comment
+// above) so the field really does reach networkPolicyPortsFromTemplate
+// empty, exercising the controller's own fallback rather than the CRD's
+// admission-time default.
+func TestGameServer_NetworkPolicyPortProtocolDefaultsToTCP(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	tmpl := buildGameTemplate(uniqueName("noproto"))
+	tmpl.Spec.Ports = []gameplanev1alpha1.GamePort{
+		{Name: "game", ContainerPort: 7777, Advertise: true}, // Protocol left "" on purpose.
+	}
+
+	if err := k8sClient.Create(ctx, buildGameServer(ns, "defproto", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	var gs gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "defproto"}, &gs); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+
+	r := &GameServerReconciler{
+		Client:                   k8sClient,
+		Scheme:                   scheme,
+		GameIngressPolicyEnabled: true,
+		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
+	}
+	if err := r.reconcileNetworkPolicy(ctx, &gs, tmpl); err != nil {
+		t.Fatalf("reconcileNetworkPolicy: %v", err)
+	}
+
+	var np networkingv1.NetworkPolicy
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "defproto-game-ingress"}, &np); err != nil {
+		t.Fatalf("get networkpolicy: %v", err)
+	}
+	if len(np.Spec.Ingress) != 1 || len(np.Spec.Ingress[0].Ports) != 1 {
+		t.Fatalf("ingress = %+v, want exactly 1 rule with 1 port", np.Spec.Ingress)
+	}
+	p := np.Spec.Ingress[0].Ports[0]
+	if p.Protocol == nil || *p.Protocol != corev1.ProtocolTCP {
+		t.Fatalf("protocol = %v, want TCP (default)", p.Protocol)
+	}
+	if p.Port == nil || p.Port.IntVal != 7777 {
+		t.Fatalf("port = %v, want 7777", p.Port)
+	}
+}
+
+// TestGameServer_NetworkPolicyZeroAdvertisedPortsNoPolicy pins the critical
+// security case documented on reconcileNetworkPolicy: a Kubernetes
+// NetworkPolicy ingress rule with a From but an empty/absent Ports list
+// means "all ports open", not "no ports". A template that advertises
+// nothing (e.g. only RCON/query) must therefore produce NO NetworkPolicy
+// at all, never one with an empty Ports slice.
+func TestGameServer_NetworkPolicyZeroAdvertisedPortsNoPolicy(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	tmpl := buildGameTemplate(uniqueName("hiddenports"))
+	tmpl.Spec.Ports = []gameplanev1alpha1.GamePort{
+		{Name: "rcon", ContainerPort: 25575, Protocol: corev1.ProtocolTCP, Advertise: false},
+		{Name: "query", ContainerPort: 25566, Protocol: corev1.ProtocolUDP, Advertise: false},
+	}
+
+	if err := k8sClient.Create(ctx, buildGameServer(ns, "noadvertise", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	var gs gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "noadvertise"}, &gs); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+
+	r := &GameServerReconciler{
+		Client:                   k8sClient,
+		Scheme:                   scheme,
+		GameIngressPolicyEnabled: true,
+		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
+	}
+	if err := r.reconcileNetworkPolicy(ctx, &gs, tmpl); err != nil {
+		t.Fatalf("reconcileNetworkPolicy: %v", err)
+	}
+
+	var np networkingv1.NetworkPolicy
+	err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "noadvertise-game-ingress"}, &np)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected NotFound for a template with zero advertised ports, got err=%v np=%+v", err, np)
+	}
+}
+
+// TestGameServer_NetworkPolicyDisabledRemovesExisting proves toggling
+// GameIngressPolicyEnabled off converges an existing GameServer to no
+// policy — not just skips creating new ones. Same GameServer/GameTemplate,
+// reconciled once with the feature enabled (policy created) and once with
+// it disabled (policy deleted).
+func TestGameServer_NetworkPolicyDisabledRemovesExisting(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	tmpl := buildGameTemplate(uniqueName("toggleports"))
+	tmpl.Spec.Ports = []gameplanev1alpha1.GamePort{
+		{Name: "game", ContainerPort: 25565, Protocol: corev1.ProtocolTCP, Advertise: true},
+	}
+
+	if err := k8sClient.Create(ctx, buildGameServer(ns, "toggle", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	var gs gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "toggle"}, &gs); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+
+	npKey := types.NamespacedName{Namespace: ns, Name: "toggle-game-ingress"}
+
+	enabled := &GameServerReconciler{
+		Client:                   k8sClient,
+		Scheme:                   scheme,
+		GameIngressPolicyEnabled: true,
+		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
+	}
+	if err := enabled.reconcileNetworkPolicy(ctx, &gs, tmpl); err != nil {
+		t.Fatalf("reconcileNetworkPolicy (enabled): %v", err)
+	}
+	var np networkingv1.NetworkPolicy
+	if err := k8sClient.Get(ctx, npKey, &np); err != nil {
+		t.Fatalf("policy should exist after an enabled reconcile: %v", err)
+	}
+
+	disabled := &GameServerReconciler{
+		Client:                   k8sClient,
+		Scheme:                   scheme,
+		GameIngressPolicyEnabled: false,
+		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
+	}
+	if err := disabled.reconcileNetworkPolicy(ctx, &gs, tmpl); err != nil {
+		t.Fatalf("reconcileNetworkPolicy (disabled): %v", err)
+	}
+
+	err := k8sClient.Get(ctx, npKey, &np)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected policy deleted after disabling the feature, got err=%v np=%+v", err, np)
+	}
+}
+
+// TestGameServer_TemplateAdvertiseFalseSurvivesTypedRoundTrip guards against
+// the inverse mistake to the rest of this section: unlike the tests above,
+// which deliberately keep the GameTemplate in memory because
+// reconcileNetworkPolicy never re-fetches it, this test's whole point is to
+// force the template through k8sClient.Create — the exact typed-client
+// marshal path module_controller.go uses when it persists a bundle's
+// template.yaml (see gametemplate_types.go's GamePort.Advertise doc comment).
+//
+// GamePort.Advertise carries `+kubebuilder:default=true`. If its json tag
+// ever regains `omitempty`, a Go `false` marshals to no key at all, the
+// apiserver re-applies the `true` default on admission, and this test's
+// first assertion (the read-back Advertise) fails before reconciliation
+// even starts. With the tag fixed (no omitempty), `false` is sent
+// explicitly and round-trips correctly, and the RCON port then never
+// reaches networkPolicyPortsFromTemplate.
+func TestGameServer_TemplateAdvertiseFalseSurvivesTypedRoundTrip(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	tmpl := buildGameTemplate(uniqueName("typedadvertise"))
+	tmpl.Spec.Ports = []gameplanev1alpha1.GamePort{
+		{Name: "game", ContainerPort: 25565, Protocol: corev1.ProtocolTCP, Advertise: true},
+		{Name: "rcon", ContainerPort: 25575, Protocol: corev1.ProtocolTCP, Advertise: false},
+	}
+
+	// The typed Create is the step the rest of this file's tests skip.
+	// This is precisely where omitempty would drop "advertise" for the
+	// rcon port and let CRD defaulting flip it back to true.
+	if err := k8sClient.Create(ctx, tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	// Read the template back through the same typed client a reconciler
+	// would use, rather than trusting the in-memory struct above.
+	var persisted gameplanev1alpha1.GameTemplate
+	if err := k8sClient.Get(ctx, types.NamespacedName{Name: tmpl.Name}, &persisted); err != nil {
+		t.Fatalf("get template: %v", err)
+	}
+	var rconPort *gameplanev1alpha1.GamePort
+	for i := range persisted.Spec.Ports {
+		if persisted.Spec.Ports[i].Name == "rcon" {
+			rconPort = &persisted.Spec.Ports[i]
+		}
+	}
+	if rconPort == nil {
+		t.Fatalf("persisted template lost its rcon port entirely: %+v", persisted.Spec.Ports)
+	}
+	if rconPort.Advertise {
+		t.Fatalf("rcon port read back Advertise=true, want false (CRD defaulting flipped a typed-client-omitted field)")
+	}
+
+	if err := k8sClient.Create(ctx, buildGameServer(ns, "typedadv", tmpl.Name)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	var gs gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "typedadv"}, &gs); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+
+	r := &GameServerReconciler{
+		Client:                   k8sClient,
+		Scheme:                   scheme,
+		GameIngressPolicyEnabled: true,
+		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
+	}
+	// Reconcile against the persisted (round-tripped) template, not the
+	// original in-memory one — that's the object a real reconcile loop
+	// would have fetched.
+	if err := r.reconcileNetworkPolicy(ctx, &gs, &persisted); err != nil {
+		t.Fatalf("reconcileNetworkPolicy: %v", err)
+	}
+
+	var np networkingv1.NetworkPolicy
+	if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "typedadv-game-ingress"}, &np); err != nil {
+		t.Fatalf("get networkpolicy: %v", err)
+	}
+	if len(np.Spec.Ingress) != 1 {
+		t.Fatalf("ingress rules = %d, want 1", len(np.Spec.Ingress))
+	}
+	got := npPortKeySet(np.Spec.Ingress[0].Ports)
+	if len(np.Spec.Ingress[0].Ports) != 1 || len(got) != 1 {
+		t.Fatalf("ports = %+v, want exactly 1 entry (game only)", np.Spec.Ingress[0].Ports)
+	}
+	if !got[npPortKey{corev1.ProtocolTCP, 25565}] {
+		t.Fatalf("ports missing advertised TCP game port 25565: %+v", np.Spec.Ingress[0].Ports)
+	}
+	if got[npPortKey{corev1.ProtocolTCP, 25575}] {
+		t.Fatalf("non-advertised RCON port 25575 leaked into policy after a typed-client round trip: %+v", np.Spec.Ingress[0].Ports)
+	}
 }
