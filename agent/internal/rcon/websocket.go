@@ -213,8 +213,13 @@ func (c *WebSocket) Exec(cmd string) (string, error) {
 // connection as a side effect since neither a Write nor a Read failure
 // leaves it usable.
 func (c *WebSocket) classifyExecErrLocked(cmd string, err error) error {
+	// Read authConfirmed BEFORE dropping: dropLocked resets it, so testing it
+	// afterwards would make the guard vacuously true and report EVERY close —
+	// including a mid-session server restart on a long-authenticated
+	// connection — as a rejected password.
+	confirmed := c.authConfirmed
 	c.dropLocked()
-	if !c.authConfirmed && isAuthCloseSignal(err) {
+	if !confirmed && isAuthCloseSignal(err) {
 		c.lastAuthFailure = time.Now()
 		return fmt.Errorf("websocket rcon exec %q: %w: %w", cmd, ErrAuth, err)
 	}
