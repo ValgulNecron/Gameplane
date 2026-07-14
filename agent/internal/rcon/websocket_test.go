@@ -406,6 +406,334 @@ func writeJSON(ctx context.Context, conn *websocket.Conn, v interface{}) error {
 	return conn.Write(ctx, websocket.MessageText, data)
 }
 
+func TestWebSocketCloseNeverConnected(t *testing.T) {
+	// Test that Close() on a never-connected client does not panic and returns nil.
+	client := NewWebSocket("localhost", 9999, func() (string, error) { return "pass", nil })
+
+	err := client.Close()
+	if err != nil {
+		t.Errorf("Close() on never-connected client returned error: %v", err)
+	}
+}
+
+func TestWebSocketCloseMultipleTimes(t *testing.T) {
+	// Test that Close() can be safely called multiple times.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		ctx := context.Background()
+		var req WebSocketMessage
+		if err := readJSON(ctx, conn, &req); err != nil {
+			t.Logf("failed to read request: %v", err)
+			return
+		}
+
+		resp := WebSocketMessage{
+			Identifier: req.Identifier,
+			Message:    "ok",
+			Type:       3,
+		}
+		_ = writeJSON(ctx, conn, resp)
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) { return "pass", nil })
+
+	// Force a connection to be established
+	_, _ = client.Exec("test")
+
+	// Call Close multiple times
+	err1 := client.Close()
+	err2 := client.Close()
+	err3 := client.Close()
+
+	if err1 != nil {
+		t.Errorf("first Close() returned error: %v", err1)
+	}
+	if err2 != nil {
+		t.Errorf("second Close() returned error: %v", err2)
+	}
+	if err3 != nil {
+		t.Errorf("third Close() returned error: %v", err3)
+	}
+}
+
+func TestWebSocketAuthFailureCooldown(t *testing.T) {
+	// Test that after an auth failure, the cooldown logic blocks re-dialing
+	// within the cooldown window and prevents dial storms on the server.
+	var connectionCount int
+	var mu sync.Mutex
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		connectionCount++
+		mu.Unlock()
+
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		// Reject the password by closing immediately without responding
+		conn.CloseNow()
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) { return "wrongpass", nil })
+	// Inject a very short cooldown so the test runs fast
+	client.authFailureCooldown = 50 * time.Millisecond
+	defer client.Close()
+
+	// First Exec fails with auth error
+	_, err1 := client.Exec("cmd1")
+	if !errors.Is(err1, ErrAuth) {
+		t.Errorf("first Exec expected ErrAuth, got %v", err1)
+	}
+
+	mu.Lock()
+	countAfterFirstExec := connectionCount
+	mu.Unlock()
+
+	if countAfterFirstExec != 1 {
+		t.Errorf("expected 1 connection after first Exec, got %d", countAfterFirstExec)
+	}
+
+	// Second Exec within the cooldown must NOT re-dial and must return ErrAuth
+	// without incrementing the connection count
+	_, err2 := client.Exec("cmd2")
+	if !errors.Is(err2, ErrAuth) {
+		t.Errorf("second Exec expected ErrAuth, got %v", err2)
+	}
+
+	mu.Lock()
+	countAfterSecondExec := connectionCount
+	mu.Unlock()
+
+	if countAfterSecondExec != 1 {
+		t.Errorf("expected 1 connection (cooldown should block re-dial), got %d", countAfterSecondExec)
+	}
+
+	// Wait for cooldown to expire
+	time.Sleep(60 * time.Millisecond)
+
+	// Third Exec after cooldown expiration must attempt to re-dial
+	// (and will fail again with auth error, but that's expected)
+	_, err3 := client.Exec("cmd3")
+	if !errors.Is(err3, ErrAuth) {
+		t.Errorf("third Exec expected ErrAuth, got %v", err3)
+	}
+
+	mu.Lock()
+	countAfterThirdExec := connectionCount
+	mu.Unlock()
+
+	if countAfterThirdExec != 2 {
+		t.Errorf("expected 2 connections (cooldown expired, should re-dial), got %d", countAfterThirdExec)
+	}
+}
+
+func TestWebSocketDialFailure(t *testing.T) {
+	// Test that a dial failure (unreachable host) is NOT classified as auth error.
+	// Point to a port that's definitely not listening.
+	client := NewWebSocket("127.0.0.1", 1, func() (string, error) { return "pass", nil })
+	client.dialTimeout = 100 * time.Millisecond
+	defer client.Close()
+
+	_, err := client.Exec("test")
+	if err == nil {
+		t.Fatal("Exec to unreachable port should fail")
+	}
+
+	// Must not be classified as auth error
+	if errors.Is(err, ErrAuth) {
+		t.Errorf("dial failure must not be classified as ErrAuth, got: %v", err)
+	}
+
+	// Should mention "dial" or "connection" in the error message
+	errMsg := fmt.Sprintf("%v", err)
+	if !strings.Contains(errMsg, "dial") && !strings.Contains(errMsg, "connection refused") {
+		t.Logf("warning: dial error message doesn't mention dial/connection: %v", err)
+	}
+}
+
+func TestWebSocketMalformedJSON(t *testing.T) {
+	// Test that when the server sends non-JSON text, Exec errors
+	// rather than panicking, and connection is dropped.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		ctx := context.Background()
+		var req WebSocketMessage
+		if err := readJSON(ctx, conn, &req); err != nil {
+			t.Logf("failed to read request: %v", err)
+			return
+		}
+
+		// Send malformed JSON (just plain text, not a JSON object)
+		_ = conn.Write(ctx, websocket.MessageText, []byte("not json at all"))
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) { return "pass", nil })
+	defer client.Close()
+
+	_, err := client.Exec("test")
+	if err == nil {
+		t.Fatal("Exec with malformed JSON response should fail")
+	}
+
+	// Should mention "unmarshal"
+	errMsg := fmt.Sprintf("%v", err)
+	if !strings.Contains(errMsg, "unmarshal") {
+		t.Errorf("expected 'unmarshal' in error message, got: %v", err)
+	}
+}
+
+func TestWebSocketPasswordFunctionError(t *testing.T) {
+	// Test that if the password function fails, Exec propagates the error.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) {
+		return "", fmt.Errorf("password retrieval failed")
+	})
+	defer client.Close()
+
+	_, err := client.Exec("test")
+	if err == nil {
+		t.Fatal("Exec should fail when password function fails")
+	}
+
+	// Should mention "password" and "retrieval"
+	errMsg := fmt.Sprintf("%v", err)
+	if !strings.Contains(errMsg, "password") {
+		t.Errorf("expected 'password' in error message, got: %v", err)
+	}
+	if !strings.Contains(errMsg, "retrieval") {
+		t.Errorf("expected 'retrieval' in error message, got: %v", err)
+	}
+}
+
+func TestWebSocketReconnectAfterError(t *testing.T) {
+	// Test that after an error drops the connection, the next Exec re-dials.
+	// The server starts by rejecting one command, then succeeds on the next.
+	var requestCount int
+	var mu sync.Mutex
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		ctx := context.Background()
+		var req WebSocketMessage
+		if err := readJSON(ctx, conn, &req); err != nil {
+			t.Logf("failed to read request: %v", err)
+			return
+		}
+
+		mu.Lock()
+		requestCount++
+		isFirstRequest := requestCount == 1
+		mu.Unlock()
+
+		if isFirstRequest {
+			// First request: drop connection to simulate an error
+			conn.CloseNow()
+		} else {
+			// Second request: respond normally
+			resp := WebSocketMessage{
+				Identifier: req.Identifier,
+				Message:    "ok",
+				Type:       3,
+			}
+			_ = writeJSON(ctx, conn, resp)
+		}
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) { return "pass", nil })
+	defer client.Close()
+
+	// First Exec fails because server drops the connection
+	_, err1 := client.Exec("cmd1")
+	if err1 == nil {
+		t.Fatal("first Exec should fail when server drops connection")
+	}
+
+	mu.Lock()
+	countAfterFirst := requestCount
+	mu.Unlock()
+
+	if countAfterFirst != 1 {
+		t.Errorf("expected 1 request attempt, got %d", countAfterFirst)
+	}
+
+	// Second Exec should re-dial and succeed
+	result, err2 := client.Exec("cmd2")
+	if err2 != nil {
+		t.Fatalf("second Exec should succeed after re-dial, got: %v", err2)
+	}
+
+	if result != "ok" {
+		t.Errorf("expected result 'ok', got %q", result)
+	}
+
+	mu.Lock()
+	countAfterSecond := requestCount
+	mu.Unlock()
+
+	if countAfterSecond != 2 {
+		t.Errorf("expected 2 request attempts (re-dial), got %d", countAfterSecond)
+	}
+}
+
+func TestWebSocketWriteFailure(t *testing.T) {
+	// Test that a write failure (e.g., connection closed by server during write)
+	// is handled correctly and doesn't cause a panic. This exercises the
+	// classifyExecErrLocked path for a Write error.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		// Close immediately after accepting, so Write fails
+		conn.CloseNow()
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewWebSocket(host, port, func() (string, error) { return "pass", nil })
+	defer client.Close()
+
+	_, err := client.Exec("test")
+	if err == nil {
+		t.Fatal("Exec should fail when server closes during write")
+	}
+}
+
+// Helper functions
+
 func parseHostPort(t *testing.T, serverURL string) (string, int) {
 	// serverURL is like "http://127.0.0.1:12345"
 	parts := strings.Split(serverURL, "://")
