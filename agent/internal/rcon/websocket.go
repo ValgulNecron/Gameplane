@@ -69,10 +69,13 @@ const (
 	webSocketReadLimit = 1 << 20 // 1 MiB
 )
 
-// ErrAuth reports a rejected RCON password. Rust accepts the WebSocket
-// handshake and only then closes, so auth failure surfaces as an early
-// close rather than an HTTP 401.
-var ErrAuth = errors.New("websocket rcon: authentication failed")
+// ErrAuth reports a rejected RCON password. Shared across every client in
+// this package (not just WebSocket) — each protocol has its own way of
+// signaling the rejection and wraps ErrAuth with that context: WebSocket
+// (Rust) accepts the WebSocket handshake and only then closes, so auth
+// failure surfaces as an early close rather than an HTTP 401; BattlEye
+// (battleye.go) has an explicit login-reply byte (0x00 = rejected).
+var ErrAuth = errors.New("rcon: authentication failed")
 
 // WebSocketMessage is the wire format for Rust WebRcon protocol.
 type WebSocketMessage struct {
