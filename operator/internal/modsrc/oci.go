@@ -88,7 +88,7 @@ func (f *ociFetcher) indexModule(ctx context.Context, name, ref string) (gamepla
 	entry.DisplayName = bundle.Metadata.DisplayName
 	entry.Summary = bundle.Metadata.Summary
 	entry.Game = bundle.Metadata.Game
-	entry.Category = bundle.Metadata.Category
+	entry.Categories = bundle.Metadata.Categories
 	entry.Icon = bundle.Metadata.Icon
 	// Record the latest bundle's digest so the module controller can detect
 	// content drift behind a reused tag/version (dir and upload sources do

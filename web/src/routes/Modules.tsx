@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { verifyForEntry } from "@/lib/verify";
-import { resolveCategory, categoryFilters } from "@/lib/games";
+import { resolveCategories, categoryFilters, matchesCategory } from "@/lib/games";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ export function ModulesPage() {
   }, [items]);
 
   const catChips = useMemo(
-    () => categoryFilters((data?.items ?? []).map((e) => resolveCategory(e.category, e.game ?? ""))),
+    () => categoryFilters((data?.items ?? []).map((e) => resolveCategories(e.categories, e.game ?? ""))),
     [data],
   );
   // Chips are derived from the data, so the selected one can disappear when the
@@ -68,7 +68,7 @@ export function ModulesPage() {
 
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
-    if (activeCat !== "all" && resolveCategory(e.category, e.game ?? "") !== activeCat) return false;
+    if (!matchesCategory(e.categories, e.game ?? "", activeCat)) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }
@@ -155,22 +155,25 @@ export function ModulesPage() {
             </button>
           ))}
         </div>
-        <div className="inline-flex gap-1 rounded-md border border-border bg-card p-1">
-          {catChips.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCatFilter(c)}
-              className={cn(
-                "rounded px-3 py-1.5 text-xs transition-colors",
-                activeCat === c
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted hover:text-fg",
-              )}
-              aria-pressed={activeCat === c}
-            >
-              {c === "all" ? "All categories" : c}
-            </button>
-          ))}
+        <div className="relative min-w-0">
+          <div className="flex gap-1 overflow-x-auto rounded-md border border-border bg-card p-1 scrollbar-thin">
+            {catChips.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCatFilter(c)}
+                className={cn(
+                  "shrink-0 rounded px-3 py-1.5 text-xs transition-colors",
+                  activeCat === c
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted hover:text-fg",
+                )}
+                aria-pressed={activeCat === c}
+              >
+                {c === "all" ? "All categories" : c}
+              </button>
+            ))}
+          </div>
+          <div className="absolute inset-y-0 right-0 w-14 bg-gradient-to-r from-transparent to-card pointer-events-none rounded-md" />
         </div>
         <div className="relative ml-auto w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />

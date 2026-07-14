@@ -27,17 +27,21 @@ const (
 // Metadata mirrors the on-disk module.yaml schema documented in
 // docs/module-authoring.md. Fields not listed here are ignored.
 type Metadata struct {
-	APIVersion        string `yaml:"apiVersion" json:"apiVersion"`
-	Name              string `yaml:"name" json:"name"`
-	DisplayName       string `yaml:"displayName" json:"displayName"`
-	Version           string `yaml:"version" json:"version"`
-	Game              string `yaml:"game" json:"game"`
-	Category          string `yaml:"category,omitempty" json:"category,omitempty"`
-	Summary           string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Homepage          string `yaml:"homepage,omitempty" json:"homepage,omitempty"`
-	License           string `yaml:"license,omitempty" json:"license,omitempty"`
+	APIVersion  string   `yaml:"apiVersion" json:"apiVersion"`
+	Name        string   `yaml:"name" json:"name"`
+	DisplayName string   `yaml:"displayName" json:"displayName"`
+	Version     string   `yaml:"version" json:"version"`
+	Game        string   `yaml:"game" json:"game"`
+	Categories  []string `yaml:"categories,omitempty" json:"categories,omitempty"`
+	// Category is the legacy singular form, accepted for back-compat with
+	// bundles authored before categories became a list. normalizeCategories
+	// folds it into Categories and clears it; nothing else reads it.
+	Category            string `yaml:"category,omitempty" json:"category,omitempty"`
+	Summary             string `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Homepage            string `yaml:"homepage,omitempty" json:"homepage,omitempty"`
+	License             string `yaml:"license,omitempty" json:"license,omitempty"`
 	GameplaneMinVersion string `yaml:"gameplaneMinVersion,omitempty" json:"gameplaneMinVersion,omitempty"`
-	Icon              string `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Icon                string `yaml:"icon,omitempty" json:"icon,omitempty"`
 }
 
 // Bundle is the parsed contents of one module, addressed by a digest
@@ -79,6 +83,7 @@ func FromFiles(digest string, files map[string][]byte) (*Bundle, error) {
 	if err := yaml.Unmarshal(meta, &b.Metadata); err != nil {
 		return nil, fmt.Errorf("parse module.yaml: %w", err)
 	}
+	b.Metadata.normalizeCategories()
 	if b.Metadata.Name == "" {
 		return nil, errors.New("module.yaml missing required field: name")
 	}
@@ -90,4 +95,14 @@ func FromFiles(digest string, files map[string][]byte) (*Bundle, error) {
 	b.Readme = files[FileReadme]
 	b.Icon = files[FileIcon]
 	return b, nil
+}
+
+// normalizeCategories folds the legacy scalar `category:` into Categories.
+// An explicit `categories:` list always wins; the scalar is cleared either
+// way so no caller can read a stale value.
+func (m *Metadata) normalizeCategories() {
+	if len(m.Categories) == 0 && m.Category != "" {
+		m.Categories = []string{m.Category}
+	}
+	m.Category = ""
 }

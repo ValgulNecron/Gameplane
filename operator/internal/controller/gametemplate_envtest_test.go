@@ -4,8 +4,14 @@ package controller
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestTemplate_InUseCountTracksServers — InUseCount reflects the
@@ -97,4 +103,40 @@ func getTemplateResourceVersion(t *testing.T, name string) string {
 	t.Helper()
 	tmpl := getTemplateByName(t, name)
 	return tmpl.ResourceVersion
+}
+
+func TestGameTemplateCategoriesRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	tmpl := buildGameTemplate("cat-roundtrip")
+	tmpl.Spec.Categories = []string{"Sandbox", "Survival", "Building", "Modded", "Creative"}
+
+	if err := k8sClient.Create(ctx, tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, tmpl) })
+
+	var got gameplanev1alpha1.GameTemplate
+	key := client.ObjectKeyFromObject(tmpl)
+	if err := k8sClient.Get(ctx, key, &got); err != nil {
+		t.Fatalf("get template: %v", err)
+	}
+	want := []string{"Sandbox", "Survival", "Building", "Modded", "Creative"}
+	if !reflect.DeepEqual(got.Spec.Categories, want) {
+		t.Errorf("categories = %v, want %v", got.Spec.Categories, want)
+	}
+}
+
+func TestGameTemplateCategoriesRejectsTooMany(t *testing.T) {
+	ctx := context.Background()
+	tmpl := buildGameTemplate("cat-toomany")
+	tmpl.Spec.Categories = []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"} // 9 > MaxItems=8
+
+	err := k8sClient.Create(ctx, tmpl)
+	if err == nil {
+		_ = k8sClient.Delete(ctx, tmpl)
+		t.Fatal("create with 9 categories succeeded, want apiserver rejection")
+	}
+	if !apierrors.IsInvalid(err) {
+		t.Errorf("err = %v, want Invalid", err)
+	}
 }

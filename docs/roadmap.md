@@ -90,16 +90,6 @@ as CI secrets. See
 
 ## Wanted for v1, not blocking
 
-### Module-authored categories for the official modules
-
-`GameTemplate.spec.category` and the module-catalog `category` field exist, and
-the dashboard builds its filter chips from the distinct values actually present.
-The five official modules in the
-[`gameplane-module`](https://github.com/ValgulNecron/gameplane-module) repo don't
-declare a `category` yet, so they currently group via the frontend's heuristic
-fallback. Declaring `category:` in each `module.yaml` + `template.yaml` (and
-bumping the submodule pointer) makes the grouping author-owned end to end.
-
 ### Production-readiness hardening
 
 - A documented backup/restore drill, and restore-path coverage against a real

@@ -253,7 +253,7 @@ describe("CreateServerWizard", () => {
       spec: {
         displayName: "Minecraft Java",
         game: "minecraft",
-        category: "Sandbox",
+        categories: ["Sandbox"],
         version: "1.21",
         image: "itzg/minecraft-server",
       },
@@ -263,7 +263,7 @@ describe("CreateServerWizard", () => {
       spec: {
         displayName: "Valheim",
         game: "valheim",
-        category: "Survival",
+        categories: ["Survival"],
         version: "1.0",
         image: "x",
       },

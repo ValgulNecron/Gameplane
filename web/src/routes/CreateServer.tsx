@@ -18,7 +18,7 @@ import {
 } from "@/lib/validation";
 import { parseCpuQuantity, cpuCores, parseMemQuantity, memBytes } from "@/lib/quantity";
 import { cn } from "@/lib/utils";
-import { resolveCategory, categoryFilters } from "@/lib/games";
+import { resolveCategories, categoryFilters, matchesCategory } from "@/lib/games";
 import type { GameTemplate, PortOverride } from "@/types";
 
 // Wizard steps are derived per-template: the "version" step only appears when
@@ -386,7 +386,8 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
   const [cat, setCat] = useState<string>("all");
 
   const templateCategories = useMemo(
-    () => categoryFilters((data?.items ?? []).map((t) => resolveCategory(t.spec.category, t.spec.game))),
+    () =>
+      categoryFilters((data?.items ?? []).map((t) => resolveCategories(t.spec.categories, t.spec.game))),
     [data],
   );
   // The chips come from the data, so a selected category can disappear when the
@@ -396,7 +397,7 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
 
   const needle = q.trim().toLowerCase();
   const filtered = (data?.items ?? []).filter((t) => {
-    if (activeCat !== "all" && resolveCategory(t.spec.category, t.spec.game) !== activeCat) return false;
+    if (!matchesCategory(t.spec.categories, t.spec.game, activeCat)) return false;
     if (needle) {
       const hay = `${t.spec.displayName} ${t.spec.game} ${t.spec.description ?? ""}`.toLowerCase();
       if (!hay.includes(needle)) return false;
@@ -406,28 +407,31 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2">
         <Input
-          className="min-w-[160px] flex-1"
+          className="min-w-[160px]"
           placeholder="Search…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search templates"
         />
-        <div className="flex gap-1 rounded-md border border-border bg-surface/40 p-1">
-          {templateCategories.map((c: string) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              className={cn(
-                "rounded px-3 py-1 text-xs font-medium",
-                activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
-              )}
-              aria-pressed={activeCat === c}
-            >
-              {c === "all" ? "All" : c}
-            </button>
-          ))}
+        <div className="relative">
+          <div className="flex gap-1 overflow-x-auto rounded-md border border-border bg-surface/40 p-1 scrollbar-thin">
+            {templateCategories.map((c: string) => (
+              <button
+                key={c}
+                onClick={() => setCat(c)}
+                className={cn(
+                  "shrink-0 rounded px-3 py-1 text-xs font-medium",
+                  activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+                )}
+                aria-pressed={activeCat === c}
+              >
+                {c === "all" ? "All" : c}
+              </button>
+            ))}
+          </div>
+          <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-r from-transparent to-card pointer-events-none rounded-md" />
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
