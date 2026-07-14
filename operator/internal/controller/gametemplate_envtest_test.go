@@ -10,7 +10,8 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	gameplanev1alpha1 "gameplane.local/operator/api/v1alpha1"
+
+	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
 // TestTemplate_InUseCountTracksServers — InUseCount reflects the

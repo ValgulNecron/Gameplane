@@ -27,21 +27,21 @@ const (
 // Metadata mirrors the on-disk module.yaml schema documented in
 // docs/module-authoring.md. Fields not listed here are ignored.
 type Metadata struct {
-	APIVersion        string `yaml:"apiVersion" json:"apiVersion"`
-	Name              string `yaml:"name" json:"name"`
-	DisplayName       string `yaml:"displayName" json:"displayName"`
-	Version           string `yaml:"version" json:"version"`
-	Game              string `yaml:"game" json:"game"`
-	Categories        []string `yaml:"categories,omitempty" json:"categories,omitempty"`
+	APIVersion  string   `yaml:"apiVersion" json:"apiVersion"`
+	Name        string   `yaml:"name" json:"name"`
+	DisplayName string   `yaml:"displayName" json:"displayName"`
+	Version     string   `yaml:"version" json:"version"`
+	Game        string   `yaml:"game" json:"game"`
+	Categories  []string `yaml:"categories,omitempty" json:"categories,omitempty"`
 	// Category is the legacy singular form, accepted for back-compat with
 	// bundles authored before categories became a list. normalizeCategories
 	// folds it into Categories and clears it; nothing else reads it.
-	Category          string `yaml:"category,omitempty" json:"category,omitempty"`
-	Summary           string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Homepage          string `yaml:"homepage,omitempty" json:"homepage,omitempty"`
-	License           string `yaml:"license,omitempty" json:"license,omitempty"`
+	Category            string `yaml:"category,omitempty" json:"category,omitempty"`
+	Summary             string `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Homepage            string `yaml:"homepage,omitempty" json:"homepage,omitempty"`
+	License             string `yaml:"license,omitempty" json:"license,omitempty"`
 	GameplaneMinVersion string `yaml:"gameplaneMinVersion,omitempty" json:"gameplaneMinVersion,omitempty"`
-	Icon              string `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Icon                string `yaml:"icon,omitempty" json:"icon,omitempty"`
 }
 
 // Bundle is the parsed contents of one module, addressed by a digest

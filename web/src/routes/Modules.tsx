@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { verifyForEntry } from "@/lib/verify";
-import { resolveCategories, categoryFilters } from "@/lib/games";
+import { resolveCategories, categoryFilters, matchesCategory } from "@/lib/games";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -68,8 +68,7 @@ export function ModulesPage() {
 
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
-    if (activeCat !== "all" && !resolveCategories(e.categories, e.game ?? "").includes(activeCat))
-      return false;
+    if (!matchesCategory(e.categories, e.game ?? "", activeCat)) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }

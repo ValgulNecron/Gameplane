@@ -25,6 +25,21 @@ export function resolveCategories(explicit: string[] | undefined, game: string):
   return declared.length > 0 ? declared : [gameCategory(game)];
 }
 
+// matchesCategory decides whether a module belongs under a given filter chip.
+// Comparison is case-insensitive to agree with categoryFilters, which collapses
+// "Survival" and "survival" into a single chip — a case-sensitive match here
+// would hide every module that spelled its category differently from the first
+// one seen.
+export function matchesCategory(
+  explicit: string[] | undefined,
+  game: string,
+  chip: string,
+): boolean {
+  if (chip === "all") return true;
+  const want = chip.toLowerCase();
+  return resolveCategories(explicit, game).some((c) => c.toLowerCase() === want);
+}
+
 // categoryFilters builds the ordered chip list from the resolved categories
 // of every item in the catalog — one string[] per module. "all" first, then
 // the distinct named categories sorted alphabetically, then "Other" last
@@ -40,7 +55,10 @@ export function categoryFilters(categories: string[][]): string[] {
     }
   }
   const present = [...bySlug.values()];
-  const named = present.filter((c) => c !== OTHER_CATEGORY).sort((a, b) => a.localeCompare(b));
-  const tail = present.includes(OTHER_CATEGORY) ? [OTHER_CATEGORY] : [];
+  const otherLower = OTHER_CATEGORY.toLowerCase();
+  const named = present
+    .filter((c) => c.toLowerCase() !== otherLower)
+    .sort((a, b) => a.localeCompare(b));
+  const tail = present.some((c) => c.toLowerCase() === otherLower) ? [OTHER_CATEGORY] : [];
   return ["all", ...named, ...tail];
 }

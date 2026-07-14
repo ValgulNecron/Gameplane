@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OTHER_CATEGORY, categoryFilters, gameCategory, resolveCategories } from "./games";
+import { OTHER_CATEGORY, categoryFilters, gameCategory, resolveCategories, matchesCategory } from "./games";
 
 describe("resolveCategories", () => {
   it("returns the declared categories", () => {
@@ -49,6 +49,11 @@ describe("categoryFilters", () => {
   it("dedupes case-insensitively, keeping the first spelling", () => {
     expect(categoryFilters([["Survival"], ["survival"]])).toEqual(["all", "Survival"]);
   });
+
+  it("handles Other case-insensitively, pinning it last", () => {
+    expect(categoryFilters([["Sandbox"], ["other"]])).toEqual(["all", "Sandbox", OTHER_CATEGORY]);
+    expect(categoryFilters([["Sandbox"], ["OTHER"]])).toEqual(["all", "Sandbox", OTHER_CATEGORY]);
+  });
 });
 
 describe("gameCategory", () => {
@@ -57,5 +62,38 @@ describe("gameCategory", () => {
     expect(gameCategory("minecraft-java")).toBe("Sandbox");
     expect(gameCategory("cs2")).toBe("Shooter");
     expect(gameCategory("nothing-like-this")).toBe(OTHER_CATEGORY);
+  });
+});
+
+describe("matchesCategory", () => {
+  it("matches the all chip", () => {
+    expect(matchesCategory(["Survival"], "x", "all")).toBe(true);
+    expect(matchesCategory(undefined, "x", "all")).toBe(true);
+  });
+
+  it("matches categories case-insensitively", () => {
+    expect(matchesCategory(["survival"], "x", "Survival")).toBe(true);
+    expect(matchesCategory(["Survival"], "x", "survival")).toBe(true);
+    expect(matchesCategory(["SURVIVAL"], "x", "survival")).toBe(true);
+  });
+
+  it("returns false for non-matching categories", () => {
+    expect(matchesCategory(["Sandbox"], "x", "Survival")).toBe(false);
+  });
+
+  it("falls back to game heuristic when categories are undefined", () => {
+    expect(matchesCategory(undefined, "valheim", "Survival")).toBe(true);
+    expect(matchesCategory(undefined, "minecraft-java", "Sandbox")).toBe(true);
+  });
+
+  it("matches heuristic categories case-insensitively", () => {
+    expect(matchesCategory(undefined, "valheim", "survival")).toBe(true);
+    expect(matchesCategory(undefined, "minecraft-java", "sandbox")).toBe(true);
+  });
+
+  it("handles multiple categories", () => {
+    expect(matchesCategory(["Sandbox", "Survival"], "x", "Survival")).toBe(true);
+    expect(matchesCategory(["Sandbox", "Survival"], "x", "survival")).toBe(true);
+    expect(matchesCategory(["Sandbox", "Survival"], "x", "Shooter")).toBe(false);
   });
 });

@@ -26,6 +26,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   change:** `GameTemplate.spec.rcon.protocol` narrows from
   `source;telnet;http;none` to `source;telnet;none` — `http` never had an
   implementation.
+- **modules:** categories are now plural — declare `categories:` as a list
+  (a module appears in every category's filter chip), with legacy `category:`
+  accepted and normalized. All 16 official modules declare categories explicitly
+  instead of the game-slug regex fallback.
 
 ### Added
 

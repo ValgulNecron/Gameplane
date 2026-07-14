@@ -188,6 +188,21 @@ func (r *ModuleReconciler) applyTemplate(ctx context.Context, mod *gameplanev1al
 	if err := yaml.Unmarshal(bundle.TemplateYAML, parsed); err != nil {
 		return fmt.Errorf("parse template.yaml: %w", err)
 	}
+
+	// Legacy bundles declare a singular spec.category; the typed GameTemplate
+	// no longer has that field, so recover it here and fold it into Categories.
+	// Mirrors modsrc.Metadata.normalizeCategories for module.yaml.
+	var legacy struct {
+		Spec struct {
+			Category string `json:"category"`
+		} `json:"spec"`
+	}
+	if err := yaml.Unmarshal(bundle.TemplateYAML, &legacy); err == nil {
+		if len(parsed.Spec.Categories) == 0 && legacy.Spec.Category != "" {
+			parsed.Spec.Categories = []string{legacy.Spec.Category}
+		}
+	}
+
 	desired := &gameplanev1alpha1.GameTemplate{}
 	desired.Name = mod.Name
 	desired.Spec = parsed.Spec
