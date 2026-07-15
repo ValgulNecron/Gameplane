@@ -35,12 +35,14 @@ type handler struct {
 	actions map[string]*compiled
 }
 
-// compiled is one action whose command template parsed successfully at
-// mount time. A malformed template drops just that action (logged) so
-// one bad declaration can't take down the whole action surface.
+// compiled is one action whose command template(s) parsed successfully at
+// mount time. cmds holds the sequence in run order — a single-element
+// slice for the common Command case, or one entry per Commands step. A
+// malformed template in ANY step drops the whole action (logged) so one
+// bad declaration can't take down the whole action surface.
 type compiled struct {
 	spec caps.ServerAction
-	cmd  *gameaction.Command
+	cmds []*gameaction.Command
 }
 
 // Mount registers POST /actions/run. specs is the module's declared
@@ -53,16 +55,35 @@ func Mount(r chi.Router, rc Rcon, game string, specs []caps.ServerAction) {
 func compile(specs []caps.ServerAction) map[string]*compiled {
 	out := make(map[string]*compiled, len(specs))
 	for _, s := range specs {
-		if s.ID == "" || s.Command == "" {
+		if s.ID == "" {
 			continue
 		}
-		cmd, err := gameaction.Compile(s.ID, s.Command)
-		if err != nil {
-			slog.Warn("invalid action command template; action disabled",
-				"action", s.ID, "err", err)
+		var raw []string
+		switch {
+		case len(s.Commands) > 0:
+			raw = s.Commands
+		case s.Command != "":
+			raw = []string{s.Command}
+		default:
 			continue
 		}
-		out[s.ID] = &compiled{spec: s, cmd: cmd}
+
+		cmds := make([]*gameaction.Command, 0, len(raw))
+		bad := false
+		for i, c := range raw {
+			cmd, err := gameaction.Compile(fmt.Sprintf("%s[%d]", s.ID, i), c)
+			if err != nil {
+				slog.Warn("invalid action command template; action disabled",
+					"action", s.ID, "err", err)
+				bad = true
+				break
+			}
+			cmds = append(cmds, cmd)
+		}
+		if bad {
+			continue
+		}
+		out[s.ID] = &compiled{spec: s, cmds: cmds}
 	}
 	return out
 }
@@ -113,30 +134,35 @@ func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	cmd, err := act.cmd.Render(params)
-	if err != nil {
-		slog.Warn("render action command", "action", act.spec.ID, "err", err)
-		writeErr(w, http.StatusBadRequest, "could not render action command")
-		return
-	}
-	if cmd == "" {
-		writeErr(w, http.StatusUnprocessableEntity, "action produced an empty command")
-		return
-	}
+	outputs := make([]string, 0, len(act.cmds))
+	for _, c := range act.cmds {
+		cmd, err := c.Render(params)
+		if err != nil {
+			slog.Warn("render action command", "action", act.spec.ID, "err", err)
+			writeErr(w, http.StatusBadRequest, "could not render action command")
+			return
+		}
+		if cmd == "" {
+			writeErr(w, http.StatusUnprocessableEntity, "action produced an empty command")
+			return
+		}
 
-	raw, err := h.rc.Exec(cmd)
-	if errors.Is(err, rcon.ErrDisabled) {
-		writeErr(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
-		return
+		raw, err := h.rc.Exec(cmd)
+		if errors.Is(err, rcon.ErrDisabled) {
+			writeErr(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
+			return
+		}
+		if err != nil {
+			// RCON errors can echo addresses/passwords from buggy server
+			// mods — never reflect them to the client. A mid-sequence
+			// failure aborts the remaining steps.
+			slog.Warn("action rcon", "action", act.spec.ID, "err", err)
+			writeErr(w, http.StatusBadGateway, "upstream unavailable")
+			return
+		}
+		outputs = append(outputs, strings.TrimSpace(raw))
 	}
-	if err != nil {
-		// RCON errors can echo addresses/passwords from buggy server
-		// mods — never reflect them to the client.
-		slog.Warn("action rcon", "action", act.spec.ID, "err", err)
-		writeErr(w, http.StatusBadGateway, "upstream unavailable")
-		return
-	}
-	writeJSON(w, http.StatusOK, runResp{OK: true, Raw: strings.TrimSpace(raw)})
+	writeJSON(w, http.StatusOK, runResp{OK: true, Raw: strings.Join(outputs, "\n")})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -37,6 +37,9 @@ type ServerAction struct {
 	Description string        `json:"description,omitempty"`
 	Icon        string        `json:"icon,omitempty"`
 	Command     string        `json:"command"`
+	Commands    []string      `json:"commands,omitempty"`
+	Transport   string        `json:"transport,omitempty"`
+	Group       string        `json:"group,omitempty"`
 	Params      []ActionParam `json:"params,omitempty"`
 	Confirm     bool          `json:"confirm,omitempty"`
 	Danger      bool          `json:"danger,omitempty"`

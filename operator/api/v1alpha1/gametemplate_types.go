@@ -588,6 +588,7 @@ type ModInstallSpec struct {
 // on the server detail page. Running it renders Command (a Go
 // text/template) with the collected parameters and sends the result over
 // the template's RCON connection.
+// +kubebuilder:validation:XValidation:rule="has(self.command) != (has(self.commands) && size(self.commands) > 0)",message="set exactly one of command or commands"
 type ServerActionSpec struct {
 	// ID is a stable identifier, unique within the template's actions.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
@@ -611,7 +612,28 @@ type ServerActionSpec struct {
 	// e.g. "say {{.Params.message}}". Parameter values are sanitized for
 	// console-injection before rendering.
 	// +kubebuilder:validation:MinLength=1
-	Command string `json:"command"`
+	// +optional
+	Command string `json:"command,omitempty"`
+
+	// Commands runs several console commands in order (mutually exclusive
+	// with Command). Mirrors capabilities.quiesce / lifecycle.stop, which
+	// already express sequences as a plain []string. Each is a Go template
+	// rendered with .Params, same as Command.
+	// +kubebuilder:validation:MaxItems=16
+	// +optional
+	Commands []string `json:"commands,omitempty"`
+
+	// Transport selects how the commands reach the game. Empty resolves to
+	// rcon when rcon.protocol != none, else stdin (pod-attach) — so a
+	// pty-console game like Terraria can carry actions too.
+	// +kubebuilder:validation:Enum=rcon;stdin
+	// +optional
+	Transport string `json:"transport,omitempty"`
+
+	// Group labels a section on the server detail page (e.g. "World").
+	// +kubebuilder:validation:MaxLength=24
+	// +optional
+	Group string `json:"group,omitempty"`
 
 	// Params declares inputs collected from the user before running.
 	// +kubebuilder:validation:MaxItems=16
