@@ -6,34 +6,38 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
-// TestWriteStdinLines_BadConfigErrors covers the "build stdin attach
-// executor" failure branch: a rest.Config whose TLS material fails to
-// parse makes remotecommand.NewSPDYExecutor error before any network I/O,
-// so this is deterministic and doesn't need a real pod or apiserver — the
-// same shape the operator's equivalent (gameserver_stop_attach.go) is
-// exercised at, since neither has a unit test that opens a real SPDY
-// connection.
-func TestWriteStdinLines_BadConfigErrors(t *testing.T) {
-	c := &Client{
-		Typed: fake.NewSimpleClientset(),
-		Config: &rest.Config{
-			Host: "https://127.0.0.1:6443",
-			TLSClientConfig: rest.TLSClientConfig{
-				CAData: []byte("not a valid PEM certificate"),
-			},
-		},
+// TestWriteStdinLines_UnreachableErrors covers the attach-failure branch
+// deterministically without a cluster: a VALID rest.Config pointing at a dead
+// port builds the clientset and the SPDY executor fine, then StreamWithContext
+// dials, gets connection-refused, and WriteStdinLines wraps it. This proves
+// the error is surfaced (wrapped, not a panic) and — with the drain goroutine
+// in play — that a fast transport error still returns promptly.
+//
+// The clientset MUST be built from a real rest.Config: fake.NewSimpleClientset's
+// CoreV1().RESTClient() is nil, so .Post() on it panics before the URL is even
+// built. And the CA must be valid PEM / Insecure, else kubernetes.NewForConfig
+// itself fails on the TLS material before we reach WriteStdinLines.
+func TestWriteStdinLines_UnreachableErrors(t *testing.T) {
+	cfg := &rest.Config{
+		Host:            "https://127.0.0.1:1", // nothing listens on port 1
+		TLSClientConfig: rest.TLSClientConfig{Insecure: true},
 	}
+	typed, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		t.Fatalf("build clientset: %v", err)
+	}
+	c := &Client{Typed: typed, Config: cfg}
 
-	err := c.WriteStdinLines(context.Background(), "gameplane-games", "alpha-0", "game", []string{"say hi"})
+	err = c.WriteStdinLines(context.Background(), "gameplane-games", "alpha-0", "game", []string{"say hi"})
 	if err == nil {
-		t.Fatal("expected an error from a bad TLS config, got nil")
+		t.Fatal("expected an error attaching to an unreachable apiserver, got nil")
 	}
-	if !strings.Contains(err.Error(), "build stdin attach executor") {
-		t.Fatalf("err = %q, want it to mention the executor build step", err.Error())
+	if !strings.Contains(err.Error(), "pod gameplane-games/alpha-0") {
+		t.Fatalf("err = %q, want it to name the target pod", err.Error())
 	}
 }
 
