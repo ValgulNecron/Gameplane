@@ -177,6 +177,8 @@ func TestSatisfactoryTokenReused(t *testing.T) {
 func TestSatisfactory401TriggersOneRelogin(t *testing.T) {
 	var loginCount int32
 	var cmdCount int32
+	var mu sync.Mutex
+	var retryAuthHeader string
 
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req := decodeSatisfactoryRequest(t, r)
@@ -190,6 +192,9 @@ func TestSatisfactory401TriggersOneRelogin(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
+			mu.Lock()
+			retryAuthHeader = r.Header.Get("Authorization")
+			mu.Unlock()
 			_, _ = w.Write([]byte(`{"data":{"commandResult":"ok"}}`))
 		}
 	}))
@@ -211,6 +216,48 @@ func TestSatisfactory401TriggersOneRelogin(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&cmdCount); got != 2 {
 		t.Errorf("RunCommand count = %d, want exactly 2 (initial + one retry)", got)
+	}
+	// The retry must carry the FRESH token (tok-2), not the stale one that
+	// was just rejected — otherwise the re-login bought nothing.
+	mu.Lock()
+	defer mu.Unlock()
+	if retryAuthHeader != "Bearer tok-2" {
+		t.Errorf("retry Authorization = %q, want %q", retryAuthHeader, "Bearer tok-2")
+	}
+}
+
+func TestSatisfactoryServerErrorWithEnvelopeIsNotAuth(t *testing.T) {
+	// A 5xx that happens to carry an error envelope is a server problem, not
+	// a rejected password. It must surface as a plain error — never ErrAuth —
+	// and must NOT arm the auth cooldown, or a transient outage would freeze
+	// the pollers and read as a bad credential.
+	var reqCount int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&reqCount, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"errorCode":"server_busy","errorMessage":"try later"}`))
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewSatisfactory(host, port, func() (string, error) { return "pw", nil })
+	client.authFailureCooldown = time.Hour // would block the 2nd Exec if armed
+	defer func() { _ = client.Close() }()
+
+	_, err := client.Exec("status")
+	if err == nil {
+		t.Fatal("expected an error from a 503 response")
+	}
+	if errors.Is(err, ErrAuth) {
+		t.Errorf("a 5xx must not be reported as an auth failure: %v", err)
+	}
+
+	// The cooldown must NOT have been armed: a second Exec must still reach
+	// the server rather than short-circuiting on a phantom auth failure.
+	before := atomic.LoadInt32(&reqCount)
+	_, _ = client.Exec("status")
+	if atomic.LoadInt32(&reqCount) == before {
+		t.Error("second Exec issued no request — the cooldown was wrongly armed by a 5xx")
 	}
 }
 

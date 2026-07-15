@@ -261,6 +261,12 @@ func (c *Satisfactory) Exec(cmd string) (string, error) {
 			return "", err
 		}
 		if status == http.StatusUnauthorized || status == http.StatusForbidden {
+			// Drop the freshly-rejected token too: leaving it cached would
+			// let the next Exec skip the login-cooldown gate and fire one
+			// wasted RunCommand (which 401s) before backing off. Clearing it
+			// makes the cooldown airtight — the next tick short-circuits at
+			// the login step with zero requests.
+			c.token = ""
 			c.lastAuthFailure = time.Now()
 			return "", fmt.Errorf("satisfactory rcon exec %q: %w (rejected again after re-login)", cmd, ErrAuth)
 		}
@@ -304,13 +310,16 @@ func (c *Satisfactory) loginLocked() error {
 		}
 	}
 
-	// A rejected password/insufficient privilege is the only documented
-	// failure mode for PasswordLogin, so any error envelope or 401/403
-	// here is treated as ErrAuth and starts the cooldown. A non-2xx
-	// status WITHOUT an error envelope (e.g. a bare 500) is a server
-	// problem, not proof the password is wrong, so it's reported as a
-	// plain error and deliberately does NOT arm the cooldown.
-	if status == http.StatusUnauthorized || status == http.StatusForbidden || env.ErrorCode != "" {
+	// Treat this as a rejected password (ErrAuth + cooldown) ONLY when the
+	// status is one where auth is the plausible cause: a 401/403, or a 2xx
+	// that nonetheless carries an error envelope (the spec allows a 200 to
+	// carry an errorCode). A 5xx — even one carrying an error envelope — is a
+	// server problem, not proof the password is wrong, so it must NOT arm the
+	// cooldown or masquerade as ErrAuth; otherwise a transient outage would be
+	// reported to the operator as a bad credential and freeze the pollers.
+	authFailure := status == http.StatusUnauthorized || status == http.StatusForbidden ||
+		(status >= 200 && status < 300 && env.ErrorCode != "")
+	if authFailure {
 		c.lastAuthFailure = time.Now()
 		if env.ErrorCode != "" {
 			return fmt.Errorf("satisfactory rcon: login: %w: %s: %s", ErrAuth, env.ErrorCode, env.ErrorMessage)
@@ -318,6 +327,9 @@ func (c *Satisfactory) loginLocked() error {
 		return fmt.Errorf("satisfactory rcon: login: %w (http %d)", ErrAuth, status)
 	}
 	if status < 200 || status >= 300 {
+		if env.ErrorCode != "" {
+			return fmt.Errorf("satisfactory rcon: login: unexpected status %d: %s: %s", status, env.ErrorCode, env.ErrorMessage)
+		}
 		return fmt.Errorf("satisfactory rcon: login: unexpected status %d", status)
 	}
 	if env.Data == nil || env.Data.AuthenticationToken == "" {
