@@ -35,9 +35,18 @@ func TestResolve_RequiredMissing(t *testing.T) {
 
 func TestResolve_RejectsControlChars(t *testing.T) {
 	decls := []Param{{Name: "message", Type: "string"}}
-	_, err := Resolve(decls, map[string]string{"message": "hi\nstop"})
-	if err == nil {
-		t.Fatal("Resolve: want error for control character in string param")
+	// The guard's whole job is to stop a param value chaining a second
+	// console command, so pin every control-char vector it must reject —
+	// not just LF. CR and NUL are command-chaining/injection vectors; DEL
+	// (0x7f) is the upper end of the r < 0x20 || r == 0x7f range.
+	for _, bad := range []string{"hi\nstop", "hi\rstop", "hi\x00stop", "hi\x1bstop", "hi\x7fstop"} {
+		if _, err := Resolve(decls, map[string]string{"message": bad}); err == nil {
+			t.Errorf("Resolve(%q): want error for control character", bad)
+		}
+	}
+	// A plain space is NOT a control char and must pass.
+	if _, err := Resolve(decls, map[string]string{"message": "hello world"}); err != nil {
+		t.Errorf("Resolve(%q): want no error, got %v", "hello world", err)
 	}
 }
 
