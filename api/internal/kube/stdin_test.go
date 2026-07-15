@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 
@@ -33,5 +34,39 @@ func TestWriteStdinLines_BadConfigErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "build stdin attach executor") {
 		t.Fatalf("err = %q, want it to mention the executor build step", err.Error())
+	}
+}
+
+// TestNotifyOnEOF verifies the drain signal that lets WriteStdinLines tear
+// the attach session down promptly: drained closes exactly once, the first
+// time the wrapped reader reports EOF, and the bytes pass through unchanged.
+func TestNotifyOnEOF(t *testing.T) {
+	drained := make(chan struct{})
+	n := &notifyOnEOF{r: strings.NewReader("say hi\n"), drained: drained}
+
+	// Before EOF, drained must stay open.
+	buf := make([]byte, 3)
+	if _, err := n.Read(buf); err != nil {
+		t.Fatalf("first read: %v", err)
+	}
+	select {
+	case <-drained:
+		t.Fatal("drained closed before the reader hit EOF")
+	default:
+	}
+
+	// Drain the rest until EOF; drained must then be closed.
+	if _, err := io.ReadAll(n); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	select {
+	case <-drained:
+	default:
+		t.Fatal("drained not closed after EOF")
+	}
+
+	// A read after EOF must not double-close (that would panic).
+	if _, err := n.Read(buf); err != io.EOF {
+		t.Fatalf("post-EOF read err = %v, want io.EOF", err)
 	}
 }
