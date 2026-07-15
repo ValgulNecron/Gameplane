@@ -934,16 +934,20 @@ type RCONSpec struct {
 	// (e.g. 7 Days to Die) — send a line, get a line back, no framing;
 	// "websocket" is the Rust WebRcon protocol (requires +rcon.web 1);
 	// "battleye" is the BattlEye RCon protocol used by DayZ and Arma — UDP,
-	// with checksum-framed packets and a mandatory client-side keepalive.
-	// "none" means the game has no usable remote console (see
-	// consoleMode: pty for stdin-driven games instead).
+	// with checksum-framed packets and a mandatory client-side keepalive;
+	// "satisfactory" is Satisfactory Dedicated Server's HTTPS function-call
+	// API (POST /api/v1 with a JSON "function" body, bearer-token auth
+	// after a PasswordLogin call) — not a socket protocol at all, so Port
+	// here is a TCP port carrying HTTPS, not a raw console stream. "none"
+	// means the game has no usable remote console (see consoleMode: pty
+	// for stdin-driven games instead).
 	// +kubebuilder:default=source
-	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;none
+	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;none
 	// +optional
 	Protocol string `json:"protocol,omitempty"`
 
 	// Port is the port RCON listens on inside the pod (TCP for source,
-	// telnet, and websocket; UDP for battleye).
+	// telnet, websocket, and satisfactory; UDP for battleye).
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
