@@ -8,6 +8,13 @@ require github.com/ValgulNecron/gameplane/netguard v0.0.0
 // both inside the go.work workspace and for standalone `go build ./api/...`.
 replace github.com/ValgulNecron/gameplane/netguard => ../netguard
 
+require github.com/ValgulNecron/gameplane/gameaction v0.0.0
+
+// gameaction is an in-repo module (no published version); resolve it
+// locally both inside the go.work workspace and for standalone
+// `go build ./api/...`.
+replace github.com/ValgulNecron/gameplane/gameaction => ../gameaction
+
 require (
 	github.com/coder/websocket v1.8.12
 	github.com/coreos/go-oidc/v3 v3.11.0
