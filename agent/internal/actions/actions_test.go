@@ -249,6 +249,53 @@ func TestCompile_DropsBadTemplate(t *testing.T) {
 	}
 }
 
+func TestRun_Sequence(t *testing.T) {
+	rc := &fakeRcon{}
+	srv := newSrv(t, rc, []caps.ServerAction{
+		{ID: "save-cycle", Commands: []string{"save-off", "save-all"}},
+	})
+	status, body := run(t, srv, runReq{ID: "save-cycle"})
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%s", status, body)
+	}
+	rc.mu.Lock()
+	calls := append([]string(nil), rc.calls...)
+	rc.mu.Unlock()
+	if want := []string{"save-off", "save-all"}; len(calls) != len(want) || calls[0] != want[0] || calls[1] != want[1] {
+		t.Fatalf("rcon calls = %v, want %v", calls, want)
+	}
+
+	var resp runResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if want := "ok\nok"; resp.Raw != want {
+		t.Errorf("raw = %q, want %q", resp.Raw, want)
+	}
+}
+
+func TestRun_SequenceAbortsOnError(t *testing.T) {
+	rc := &fakeRcon{respond: func(cmd string) (string, error) {
+		if cmd == "second" {
+			return "", errors.New("dial 127.0.0.1:25575: connection refused")
+		}
+		return "ok", nil
+	}}
+	srv := newSrv(t, rc, []caps.ServerAction{
+		{ID: "three-step", Commands: []string{"first", "second", "third"}},
+	})
+	status, _ := run(t, srv, runReq{ID: "three-step"})
+	if status != http.StatusBadGateway {
+		t.Fatalf("status=%d, want 502", status)
+	}
+	rc.mu.Lock()
+	calls := append([]string(nil), rc.calls...)
+	rc.mu.Unlock()
+	if want := []string{"first", "second"}; len(calls) != len(want) || calls[0] != want[0] || calls[1] != want[1] {
+		t.Fatalf("rcon calls = %v, want %v (third must never run)", calls, want)
+	}
+}
+
 func TestCompile_SkipsIncomplete(t *testing.T) {
 	// Missing id or command are skipped at compile.
 	got := compile([]caps.ServerAction{

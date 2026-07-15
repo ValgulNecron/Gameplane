@@ -140,3 +140,78 @@ func TestGameTemplateCategoriesRejectsTooMany(t *testing.T) {
 		t.Errorf("err = %v, want Invalid", err)
 	}
 }
+
+// TestGameTemplateActionCommandsOnlyApplies — an action using Commands
+// (a sequence) with no Command set is accepted by the apiserver.
+func TestGameTemplateActionCommandsOnlyApplies(t *testing.T) {
+	ctx := context.Background()
+	tmpl := buildGameTemplate(uniqueName("act-commands"))
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Actions: []gameplanev1alpha1.ServerActionSpec{{
+			ID:          "save-cycle",
+			DisplayName: "Save Cycle",
+			Commands:    []string{"a", "b"},
+		}},
+	}
+
+	if err := k8sClient.Create(ctx, tmpl); err != nil {
+		t.Fatalf("create template with commands-only action: %v", err)
+	}
+	t.Cleanup(func() { _ = k8sClient.Delete(ctx, tmpl) })
+
+	var got gameplanev1alpha1.GameTemplate
+	if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(tmpl), &got); err != nil {
+		t.Fatalf("get template: %v", err)
+	}
+	want := []string{"a", "b"}
+	if len(got.Spec.Capabilities.Actions) != 1 || !reflect.DeepEqual(got.Spec.Capabilities.Actions[0].Commands, want) {
+		t.Errorf("actions[0].commands = %v, want %v", got.Spec.Capabilities.Actions, want)
+	}
+}
+
+// TestGameTemplateActionRejectsBothCommandAndCommands — an action
+// declaring BOTH command and commands violates the struct's xor
+// XValidation rule and is rejected.
+func TestGameTemplateActionRejectsBothCommandAndCommands(t *testing.T) {
+	ctx := context.Background()
+	tmpl := buildGameTemplate(uniqueName("act-both"))
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Actions: []gameplanev1alpha1.ServerActionSpec{{
+			ID:          "save-cycle",
+			DisplayName: "Save Cycle",
+			Command:     "save-all",
+			Commands:    []string{"a", "b"},
+		}},
+	}
+
+	err := k8sClient.Create(ctx, tmpl)
+	if err == nil {
+		_ = k8sClient.Delete(ctx, tmpl)
+		t.Fatal("create with both command and commands succeeded, want apiserver rejection")
+	}
+	if !apierrors.IsInvalid(err) {
+		t.Errorf("err = %v, want Invalid", err)
+	}
+}
+
+// TestGameTemplateActionRejectsNeitherCommandNorCommands — an action
+// declaring NEITHER command nor commands also violates the xor rule.
+func TestGameTemplateActionRejectsNeitherCommandNorCommands(t *testing.T) {
+	ctx := context.Background()
+	tmpl := buildGameTemplate(uniqueName("act-neither"))
+	tmpl.Spec.Capabilities = &gameplanev1alpha1.CapabilitiesSpec{
+		Actions: []gameplanev1alpha1.ServerActionSpec{{
+			ID:          "save-cycle",
+			DisplayName: "Save Cycle",
+		}},
+	}
+
+	err := k8sClient.Create(ctx, tmpl)
+	if err == nil {
+		_ = k8sClient.Delete(ctx, tmpl)
+		t.Fatal("create with neither command nor commands succeeded, want apiserver rejection")
+	}
+	if !apierrors.IsInvalid(err) {
+		t.Errorf("err = %v, want Invalid", err)
+	}
+}

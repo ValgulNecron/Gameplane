@@ -171,6 +171,16 @@ spec:
                             console-injection before rendering.
                           minLength: 1
                           type: string
+                        commands:
+                          description: |-
+                            Commands runs several console commands in order (mutually exclusive
+                            with Command). Mirrors capabilities.quiesce / lifecycle.stop, which
+                            already express sequences as a plain []string. Each is a Go template
+                            rendered with .Params, same as Command.
+                          items:
+                            type: string
+                          maxItems: 16
+                          type: array
                         confirm:
                           description: |-
                             Confirm, when true, makes the dashboard require explicit
@@ -188,6 +198,11 @@ spec:
                         displayName:
                           description: DisplayName is the button label.
                           minLength: 1
+                          type: string
+                        group:
+                          description: Group labels a section on the server detail
+                            page (e.g. "World").
+                          maxLength: 24
                           type: string
                         icon:
                           description: Icon is an optional lucide-react icon name
@@ -247,11 +262,23 @@ spec:
                             type: object
                           maxItems: 16
                           type: array
+                        transport:
+                          description: |-
+                            Transport selects how the commands reach the game. Empty resolves to
+                            rcon when rcon.protocol != none, else stdin (pod-attach) — so a
+                            pty-console game like Terraria can carry actions too.
+                          enum:
+                          - rcon
+                          - stdin
+                          type: string
                       required:
-                      - command
                       - displayName
                       - id
                       type: object
+                      x-kubernetes-validations:
+                      - message: set exactly one of command or commands
+                        rule: has(self.command) != (has(self.commands) && size(self.commands)
+                          > 0)
                     maxItems: 32
                     type: array
                   lifecycle:
