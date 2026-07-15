@@ -114,4 +114,88 @@ describe("ServerActionsCard", () => {
     // The /users/me query resolves to viewer; the button stays disabled.
     await waitFor(() => expect(btn).toBeDisabled());
   });
+
+  it("renders action groups with labeled sections", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          { id: "a1", displayName: "World action", group: "WORLD" },
+          { id: "a2", displayName: "Server action", group: "SERVER" },
+          { id: "a3", displayName: "Another world", group: "WORLD" },
+        ])}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByText("WORLD")).toBeInTheDocument();
+      expect(screen.getByText("SERVER")).toBeInTheDocument();
+    });
+    // Verify buttons are present
+    expect(await screen.findByRole("button", { name: /World action/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Server action/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Another world/i })).toBeInTheDocument();
+  });
+
+  it("shows a sent chip for actions with no output", async () => {
+    const runs: RunCall[] = [];
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        runs.push(JSON.parse(opts?.body ?? "{}") as RunCall);
+        // Return no raw output (stdin style)
+        return Promise.resolve(jsonRes({ ok: true }));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([{ id: "send-msg", displayName: "Send message" }])}
+      />,
+    );
+    const btn = await screen.findByRole("button", { name: /Send message/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    // Should show "Send message sent" in the result
+    await waitFor(() =>
+      expect(screen.getByText("Send message sent")).toBeInTheDocument(),
+    );
+  });
+
+  it("shows output box for actions with output", async () => {
+    const runs: RunCall[] = [];
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        runs.push(JSON.parse(opts?.body ?? "{}") as RunCall);
+        // Return some output (rcon style)
+        return Promise.resolve(jsonRes({ ok: true, raw: "world saved" }));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([{ id: "save", displayName: "Save world" }])}
+      />,
+    );
+    const btn = await screen.findByRole("button", { name: /Save world/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    // Should show the raw output in mono font
+    const output = await screen.findByText("world saved");
+    expect(output).toBeInTheDocument();
+    expect(output).toHaveClass("font-mono");
+  });
 });

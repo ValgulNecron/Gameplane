@@ -37,7 +37,7 @@ function actionIcon(name?: string): LucideIcon {
   return (name && iconMap[name]) || Zap;
 }
 
-type RunStatus = { kind: "ok" | "err"; text: string };
+type RunStatus = { kind: "ok" | "err"; text: string; type?: "output" | "sent" };
 
 // ServerActionsCard renders the module-declared operator actions
 // (spec.capabilities.actions) as buttons. Actions with parameters or a
@@ -61,9 +61,11 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
     mutationFn: (vars) => Servers.runAction(name, { id: vars.action.id, params: vars.params }),
     onSuccess: (resp, vars) => {
       setActive(null);
+      const hasSentType = !resp.raw;
       setStatus({
         kind: "ok",
-        text: resp.raw ? truncate(resp.raw, 200) : `${vars.action.displayName} ran`,
+        type: hasSentType ? "sent" : "output",
+        text: resp.raw ? truncate(resp.raw, 200) : `${vars.action.displayName} sent`,
       });
       return qc.invalidateQueries({ queryKey: ["server-status", name] });
     },
@@ -74,6 +76,53 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
   });
 
   if (actions.length === 0) return null;
+
+  // Group actions: separate grouped and ungrouped, preserving group order
+  const grouped = new Map<string, ServerActionDecl[]>();
+  const ungrouped: ServerActionDecl[] = [];
+  const groupOrder: string[] = [];
+
+  for (const action of actions) {
+    if (action.group) {
+      if (!grouped.has(action.group)) {
+        grouped.set(action.group, []);
+        groupOrder.push(action.group);
+      }
+      grouped.get(action.group)!.push(action);
+    } else {
+      ungrouped.push(action);
+    }
+  }
+
+  // Render action button
+  const renderActionButton = (a: ServerActionDecl) => {
+    const Icon = actionIcon(a.icon);
+    const needsDialog = (a.params?.length ?? 0) > 0 || a.confirm;
+    const disabled = !canRun || !hasRcon || run.isPending;
+    return (
+      <button
+        key={a.id}
+        disabled={disabled}
+        title={!canRun ? "Requires operator role" : a.description}
+        onClick={() =>
+          needsDialog ? setActive(a) : run.mutate({ action: a })
+        }
+        className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className={a.danger ? "text-danger" : "text-muted"}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="flex-1">
+          <div className={a.danger ? "text-sm text-danger" : "text-sm text-fg"}>
+            {a.displayName}
+          </div>
+          {a.description && (
+            <div className="pt-0.5 text-[11px] text-muted">{a.description}</div>
+          )}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <Card>
@@ -89,51 +138,59 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
         {status && (
           <div
             className={cn(
-              "mb-2 rounded border px-3 py-2 text-sm",
-              status.kind === "ok"
-                ? "border-border bg-surface/40 text-fg"
-                : "border-danger/40 bg-danger/10 text-danger",
+              "mb-2 rounded border px-3 py-2",
+              status.kind === "ok" && status.type === "sent"
+                ? "inline-flex items-center gap-3 border-success/40 bg-success/10 text-success text-xs"
+                : status.kind === "ok"
+                  ? "border-border bg-surface/40 text-fg text-sm"
+                  : "border-danger/40 bg-danger/10 text-danger text-sm",
             )}
           >
-            <div className="flex items-start justify-between gap-3">
-              <span className="font-mono break-all">{status.text}</span>
+            <div className="flex items-start justify-between gap-3 w-full">
+              <span
+                className={cn(
+                  "break-all",
+                  status.kind === "ok" && status.type === "output" && "font-mono",
+                )}
+              >
+                {status.text}
+              </span>
               <button
                 onClick={() => setStatus(null)}
-                className="shrink-0 text-xs text-muted hover:text-fg"
+                className={cn(
+                  "shrink-0",
+                  status.kind === "ok" && status.type === "sent"
+                    ? "text-xs text-success hover:text-success/80"
+                    : "text-xs text-muted hover:text-fg",
+                )}
               >
                 dismiss
               </button>
             </div>
           </div>
         )}
-        {actions.map((a) => {
-          const Icon = actionIcon(a.icon);
-          const needsDialog = (a.params?.length ?? 0) > 0 || a.confirm;
-          const disabled = !canRun || !hasRcon || run.isPending;
-          return (
-            <button
-              key={a.id}
-              disabled={disabled}
-              title={!canRun ? "Requires operator role" : a.description}
-              onClick={() =>
-                needsDialog ? setActive(a) : run.mutate({ action: a })
-              }
-              className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className={a.danger ? "text-danger" : "text-muted"}>
-                <Icon className="h-4 w-4" />
-              </span>
-              <div className="flex-1">
-                <div className={a.danger ? "text-sm text-danger" : "text-sm text-fg"}>
-                  {a.displayName}
+        {groupOrder.length > 0 ? (
+          <>
+            {groupOrder.map((groupName) => (
+              <div key={groupName}>
+                <div className="text-xs uppercase tracking-wide text-muted px-2 py-2">
+                  {groupName}
                 </div>
-                {a.description && (
-                  <div className="pt-0.5 text-[11px] text-muted">{a.description}</div>
-                )}
+                {grouped.get(groupName)!.map(renderActionButton)}
               </div>
-            </button>
-          );
-        })}
+            ))}
+            {ungrouped.length > 0 && (
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted px-2 py-2">
+                  Actions
+                </div>
+                {ungrouped.map(renderActionButton)}
+              </div>
+            )}
+          </>
+        ) : (
+          ungrouped.map(renderActionButton)
+        )}
       </CardContent>
 
       {active && (

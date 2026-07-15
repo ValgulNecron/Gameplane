@@ -32,6 +32,9 @@ export interface ServerActionDecl {
   params?: ActionParamDecl[];
   confirm?: boolean;
   danger?: boolean;
+  commands?: string[];
+  transport?: "rcon" | "stdin";
+  group?: string;
 }
 
 // A module-declared live metric (spec.capabilities.status.metrics[]).
