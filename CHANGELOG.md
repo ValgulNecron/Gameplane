@@ -22,10 +22,10 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   `updates` DB row is ignored.
 - **operator:** module-declared stop sequences (`capabilities.lifecycle.stop`)
   now run over telnet RCON and over pod-attach to stdin (for `consoleMode:
-  pty` games with no RCON), in addition to Source RCON. **Breaking CRD
-  change:** `GameTemplate.spec.rcon.protocol` narrows from
-  `source;telnet;http;none` to `source;telnet;none` — `http` never had an
-  implementation.
+  pty` games with no RCON), in addition to Source RCON. **CRD change:**
+  `GameTemplate.spec.rcon.protocol` first dropped the never-implemented `http`
+  value, then re-widened as real clients landed — it is now
+  `source;telnet;websocket;battleye;satisfactory;none` (see Added).
 - **modules:** categories are now plural — declare `categories:` as a list
   (a module appears in every category's filter chip), with legacy `category:`
   accepted and normalized. All 16 official modules declare categories explicitly
@@ -33,6 +33,23 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
+- **agent:** three new remote-console protocols behind the agent's existing
+  `Exec` interface, so console / players / quiesce / lifecycle / actions all
+  work over them: `websocket` (Rust's Facepunch WebRcon), `battleye` (BattlEye
+  RCon — DayZ), and `satisfactory` (Satisfactory's HTTPS function API). The
+  `rcon.protocol` enum is now `source;telnet;websocket;battleye;satisfactory;none`.
+  Modules adopted them: Rust, DayZ, and Satisfactory each gain a console (plus
+  a players list where the protocol exposes one). Satisfactory's admin password
+  isn't a server-config value the operator can inject — it needs a one-time
+  in-game claim, documented in the module.
+- **actions:** quick actions gain `commands` (a sequence run in order,
+  mutually exclusive with `command`), `transport` (`rcon` | `stdin`), and
+  `group` (labelled sections on the server detail page). Stdin actions run
+  over pod-attach from the API, so a `consoleMode: pty` game (Terraria, Don't
+  Starve Together) can carry actions — fire-and-forget, the dashboard shows
+  "sent". Param validation (the console-injection guard) moved into a shared
+  `gameaction` module imported by both the agent and the API, so neither
+  transport is trusted blind.
 - **mcp-server:** new optional component — a strictly read-only Model
   Context Protocol (MCP) server for Gameplane clusters. Lets an AI assistant
   list/get the 7 Gameplane CRDs, Pods, and Events, fetch pod logs, and get a

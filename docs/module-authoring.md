@@ -848,12 +848,38 @@ capabilities:
     - id: save-world
       displayName: Save world
       command: "save-all"           # no params is fine
+    - id: announce-restart
+      displayName: Announce restart
+      group: Server                 # buttons are grouped by this label
+      danger: true
+      commands:                     # a sequence, run in order
+        - 'say "Server restarting in 60s"'
+        - "save-all"
+        - "stop"
 ```
 
+- **`command` vs `commands`** — set exactly one. `command` is a single
+  console command; `commands` is a sequence run in order (each a Go
+  template rendered with the same `.Params`), mirroring how
+  `capabilities.lifecycle.stop` and `capabilities.quiesce` express
+  sequences. A mid-sequence failure aborts the remaining steps.
+- **`group`** (optional) labels a section on the server detail page, so a
+  game with many actions reads as World / Server / Players groups rather
+  than one flat list. Ungrouped actions fall under a trailing "Actions"
+  section; if no action declares a group the card stays a flat list.
+- **`transport`** (optional, `rcon` | `stdin`) selects how the commands
+  reach the game. Empty resolves to `rcon` when `rcon.protocol` isn't
+  `none`, else `stdin`. Stdin actions are written to the game container's
+  stdin via pod-attach — this is what lets a `consoleMode: pty` game
+  (Terraria, Don't Starve Together) carry actions at all. Stdin is
+  **fire-and-forget**: no output is returned inline (it appears in the
+  Console tab), so the dashboard shows "sent" rather than command output.
 - Parameter values are validated by `type` and sanitized before
   rendering: CR/LF and other control characters are rejected so a value
-  can never chain a second RCON command. `int`/`bool`/`enum` values must
-  parse/match; missing optional params fall back to `default`.
+  can never chain a second console command. `int`/`bool`/`enum` values
+  must parse/match; missing optional params fall back to `default`. The
+  same validation runs on both transports and on both the API and the
+  agent — the shared `gameaction` module — so neither is trusted blind.
 - A command template that fails to parse disables only that one action
   (logged), never the whole panel.
 
