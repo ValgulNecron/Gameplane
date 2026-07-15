@@ -14,14 +14,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
+	"github.com/ValgulNecron/gameplane/gameaction"
 )
 
 // Rcon is the slice of *rcon.Client we use. An interface so tests can
@@ -41,7 +40,7 @@ type handler struct {
 // one bad declaration can't take down the whole action surface.
 type compiled struct {
 	spec caps.ServerAction
-	tmpl *template.Template
+	cmd  *gameaction.Command
 }
 
 // Mount registers POST /actions/run. specs is the module's declared
@@ -57,13 +56,31 @@ func compile(specs []caps.ServerAction) map[string]*compiled {
 		if s.ID == "" || s.Command == "" {
 			continue
 		}
-		t, err := template.New(s.ID).Option("missingkey=error").Parse(s.Command)
+		cmd, err := gameaction.Compile(s.ID, s.Command)
 		if err != nil {
 			slog.Warn("invalid action command template; action disabled",
 				"action", s.ID, "err", err)
 			continue
 		}
-		out[s.ID] = &compiled{spec: s, tmpl: t}
+		out[s.ID] = &compiled{spec: s, cmd: cmd}
+	}
+	return out
+}
+
+// toGameactionParams adapts the agent's caps.ActionParam declarations to
+// gameaction.Param, the shared shape Resolve validates against.
+func toGameactionParams(ps []caps.ActionParam) []gameaction.Param {
+	out := make([]gameaction.Param, len(ps))
+	for i, p := range ps {
+		out[i] = gameaction.Param{
+			Name:        p.Name,
+			DisplayName: p.DisplayName,
+			Description: p.Description,
+			Type:        p.Type,
+			Default:     p.Default,
+			Enum:        p.Enum,
+			Required:    p.Required,
+		}
 	}
 	return out
 }
@@ -90,19 +107,18 @@ func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	params, err := resolveParams(act.spec.Params, body.Params)
+	params, err := gameaction.Resolve(toGameactionParams(act.spec.Params), body.Params)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	var sb strings.Builder
-	if err := act.tmpl.Execute(&sb, struct{ Params map[string]string }{params}); err != nil {
+	cmd, err := act.cmd.Render(params)
+	if err != nil {
 		slog.Warn("render action command", "action", act.spec.ID, "err", err)
 		writeErr(w, http.StatusBadRequest, "could not render action command")
 		return
 	}
-	cmd := strings.TrimSpace(sb.String())
 	if cmd == "" {
 		writeErr(w, http.StatusUnprocessableEntity, "action produced an empty command")
 		return
@@ -121,77 +137,6 @@ func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, runResp{OK: true, Raw: strings.TrimSpace(raw)})
-}
-
-// resolveParams validates each declared parameter against the request,
-// applying defaults and rejecting console-injection. The returned map
-// holds every declared parameter (so missingkey=error only fires on a
-// command template that references an undeclared name). Undeclared keys
-// in the request are ignored.
-func resolveParams(decls []caps.ActionParam, got map[string]string) (map[string]string, error) {
-	out := make(map[string]string, len(decls))
-	for _, p := range decls {
-		val, ok := got[p.Name]
-		if !ok || val == "" {
-			val = p.Default
-		}
-		if p.Required && strings.TrimSpace(val) == "" {
-			return nil, fmt.Errorf("parameter %q is required", p.Name)
-		}
-		if val == "" {
-			out[p.Name] = ""
-			continue
-		}
-		clean, err := validateParam(p, val)
-		if err != nil {
-			return nil, err
-		}
-		out[p.Name] = clean
-	}
-	return out, nil
-}
-
-func validateParam(p caps.ActionParam, val string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(p.Type)) {
-	case "int":
-		if _, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64); err != nil {
-			return "", fmt.Errorf("parameter %q must be an integer", p.Name)
-		}
-		return strings.TrimSpace(val), nil
-	case "bool":
-		switch strings.ToLower(strings.TrimSpace(val)) {
-		case "true", "false":
-			return strings.ToLower(strings.TrimSpace(val)), nil
-		}
-		return "", fmt.Errorf("parameter %q must be true or false", p.Name)
-	case "enum":
-		for _, e := range p.Enum {
-			if val == e {
-				return val, nil
-			}
-		}
-		return "", fmt.Errorf("parameter %q must be one of the declared options", p.Name)
-	default: // string
-		if hasControl(val) {
-			return "", fmt.Errorf("parameter %q must not contain control characters", p.Name)
-		}
-		if len(val) > 512 {
-			return "", fmt.Errorf("parameter %q is too long (max 512)", p.Name)
-		}
-		return val, nil
-	}
-}
-
-// hasControl reports whether s contains an ASCII control character.
-// Rejecting these (notably CR/LF) stops a parameter value from chaining a
-// second RCON command into the rendered line.
-func hasControl(s string) bool {
-	for _, r := range s {
-		if r < 0x20 || r == 0x7f {
-			return true
-		}
-	}
-	return false
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

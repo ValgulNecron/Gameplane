@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard operator api agent audit-syslog-bridge telemetry-receiver mcp-server
+GO_MODULES     := netguard gameaction operator api agent audit-syslog-bridge telemetry-receiver mcp-server
 GO_INTEGRATION_MODULES := operator api
 GO_BUILDFLAGS  ?= -trimpath
 
