@@ -208,32 +208,12 @@ func (h *registryHandler) installModpack(w http.ResponseWriter, req *http.Reques
 // loadServerTemplate fetches a GameServer and its GameTemplate, treating a
 // missing templateRef as errNoRegistry (no capability without a template).
 func (h *registryHandler) loadServerTemplate(ctx context.Context, ns, name string) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
-	gs, tmpl, err := loadServerAndTemplate(ctx, h.k, ns, name)
+	gs, tmpl, err := h.k.LoadServerAndTemplate(ctx, ns, name)
 	if err != nil {
 		return gs, tmpl, err
 	}
 	if tmpl == nil {
 		return gs, nil, errNoRegistry
-	}
-	return gs, tmpl, nil
-}
-
-// loadServerAndTemplate fetches a GameServer and its GameTemplate. A server
-// with no templateRef returns (gs, nil, nil) — what that means (unsupported
-// capability, 501, etc.) is left to the caller, since different mod
-// surfaces (registry browse, id-list) fail closed differently.
-func loadServerAndTemplate(ctx context.Context, k *kube.Client, ns, name string) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
-	gs, err := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil, nil, err
-	}
-	tmplName, _, _ := unstructured.NestedString(gs.Object, "spec", "templateRef", "name")
-	if tmplName == "" {
-		return gs, nil, nil
-	}
-	tmpl, err := k.Dynamic.Resource(kube.GVRs["templates"]).Get(ctx, tmplName, metav1.GetOptions{})
-	if err != nil {
-		return gs, nil, err
 	}
 	return gs, tmpl, nil
 }

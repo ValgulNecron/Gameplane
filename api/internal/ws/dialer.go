@@ -34,7 +34,7 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 		Transport: &http.Transport{TLSClientConfig: tlsCfg},
 	}
 
-	p := &proxy{k: k, tls: tlsCfg, http: client}
+	p := &proxy{k: k, tls: tlsCfg, http: client, stdin: k}
 	r.Get("/ws/servers/{name}/console", p.wsProxy("/console"))
 	r.Get("/ws/servers/{name}/logs", p.wsProxy("/logs/tail"))
 	r.Get("/servers/{name}/logs/download", p.httpProxy("/logs/download"))
@@ -68,8 +68,11 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	// Module-declared operator actions and live status metrics. RBAC
 	// (api/internal/rbac) gates these by the same method+segment rules as
 	// the rest of /servers: the action run is a POST → operator+, while
-	// the status read is a GET → viewer+.
-	r.Post("/servers/{name}/actions/run", p.httpProxy("/actions/run"))
+	// the status read is a GET → viewer+. Unlike every other route here,
+	// actions/run is not a pure proxy: it fetches the template, resolves
+	// the action's transport, and either proxies to the agent (rcon) or
+	// executes here via pods/attach (stdin) — see actions.go.
+	r.Post("/servers/{name}/actions/run", p.runAction)
 	r.Get("/servers/{name}/status", p.httpProxy("/status"))
 	// Mod/plugin management. Listing is a GET → viewer+; install (POST)
 	// and remove (DELETE) are mutations → operator+, by the same rbac
@@ -86,6 +89,10 @@ type proxy struct {
 	k    *kube.Client
 	tls  *tls.Config
 	http *http.Client
+	// stdin executes the stdin-transport branch of runAction. Defaults to
+	// k (see Mount) but is a separate interface field so tests can inject
+	// a fake that records writes instead of attaching to a real pod.
+	stdin stdinWriter
 }
 
 // agentHost returns the in-cluster DNS + port of the agent sidecar.

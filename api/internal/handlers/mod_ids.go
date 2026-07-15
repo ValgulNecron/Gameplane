@@ -74,7 +74,7 @@ func (h *modIDsHandler) get(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
-	gs, tmpl, err := loadServerAndTemplate(req.Context(), h.k, ns, chi.URLParam(req, "name"))
+	gs, tmpl, err := h.k.LoadServerAndTemplate(req.Context(), ns, chi.URLParam(req, "name"))
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
@@ -91,7 +91,7 @@ func (h *modIDsHandler) put(w http.ResponseWriter, req *http.Request) {
 	if !ok {
 		return
 	}
-	gs, tmpl, err := loadServerAndTemplate(req.Context(), h.k, ns, chi.URLParam(req, "name"))
+	gs, tmpl, err := h.k.LoadServerAndTemplate(req.Context(), ns, chi.URLParam(req, "name"))
 	if err != nil {
 		httperr.Write(w, req, err)
 		return
