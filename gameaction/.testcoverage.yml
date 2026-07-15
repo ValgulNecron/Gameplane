@@ -1,0 +1,8 @@
+# Coverage threshold gate for the shared gameaction module — the console-
+# injection guard and template renderer shared by the agent and API.
+profile: coverage/unit.out
+github-action-output: false
+threshold:
+  file: 0
+  package: 0
+  total: 91
