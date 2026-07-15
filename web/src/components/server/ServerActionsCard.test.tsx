@@ -131,10 +131,14 @@ describe("ServerActionsCard", () => {
       expect(screen.getByText("WORLD")).toBeInTheDocument();
       expect(screen.getByText("SERVER")).toBeInTheDocument();
     });
-    // Verify buttons are present
+    // Buttons present…
     expect(await screen.findByRole("button", { name: /World action/i })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Server action/i })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Another world/i })).toBeInTheDocument();
+    // …and group headers render in DECLARATION order (WORLD first, since it
+    // was the first group seen), not alphabetical or scrambled.
+    const headers = screen.getAllByText(/^(WORLD|SERVER)$/).map((el) => el.textContent);
+    expect(headers).toEqual(["WORLD", "SERVER"]);
   });
 
   it("shows a sent chip for actions with no output", async () => {
@@ -156,7 +160,9 @@ describe("ServerActionsCard", () => {
     renderWithQuery(
       <ServerActionsCard
         name="s1"
-        tmpl={tmpl([{ id: "send-msg", displayName: "Send message" }])}
+        // transport: stdin makes this fire-and-forget regardless of the
+        // empty body — that's what drives the "sent" chip, not the raw.
+        tmpl={tmpl([{ id: "send-msg", displayName: "Send message", transport: "stdin" }])}
       />,
     );
     const btn = await screen.findByRole("button", { name: /Send message/i });
@@ -166,6 +172,33 @@ describe("ServerActionsCard", () => {
     await waitFor(() =>
       expect(screen.getByText("Send message sent")).toBeInTheDocument(),
     );
+  });
+
+  it("shows 'ran', not 'sent', for an rcon action that returns empty output", async () => {
+    // The regression the transport-based result state fixes: an rcon command
+    // (cs2 `say`, project-zomboid `servermsg`) legitimately returns nothing,
+    // and that must read as "ran", not the fire-and-forget "sent" chip.
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return Promise.resolve(jsonRes({ ok: true })); // empty rcon reply
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      // No transport + rcon protocol present → resolves to rcon.
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "broadcast", displayName: "Broadcast" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Broadcast/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    await waitFor(() => expect(screen.getByText("Broadcast ran")).toBeInTheDocument());
+    expect(screen.queryByText("Broadcast sent")).not.toBeInTheDocument();
   });
 
   it("shows output box for actions with output", async () => {

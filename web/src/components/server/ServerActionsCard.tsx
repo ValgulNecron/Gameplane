@@ -33,6 +33,15 @@ const iconMap: Record<string, LucideIcon> = {
   save: Save,
 };
 
+// resolveTransport mirrors the API's transport resolution so the UI can tell
+// a fire-and-forget stdin action (shows "sent") from an rcon one (shows
+// output): the action's explicit transport wins, else rcon when the game has
+// a live console, else stdin.
+function resolveTransport(action: ServerActionDecl, hasRcon: boolean): "rcon" | "stdin" {
+  if (action.transport) return action.transport;
+  return hasRcon ? "rcon" : "stdin";
+}
+
 function actionIcon(name?: string): LucideIcon {
   return (name && iconMap[name]) || Zap;
 }
@@ -61,12 +70,21 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
     mutationFn: (vars) => Servers.runAction(name, { id: vars.action.id, params: vars.params }),
     onSuccess: (resp, vars) => {
       setActive(null);
-      const hasSentType = !resp.raw;
-      setStatus({
-        kind: "ok",
-        type: hasSentType ? "sent" : "output",
-        text: resp.raw ? truncate(resp.raw, 200) : `${vars.action.displayName} sent`,
-      });
+      // Base sent-vs-output on the action's TRANSPORT, not on whether the
+      // response body is empty: an rcon command legitimately returns no
+      // output (cs2's `say`, project-zomboid's `servermsg`), and that must
+      // still read as "ran", not the fire-and-forget "sent" chip. Only a
+      // stdin action truly returns nothing because the output goes to the
+      // Console stream.
+      if (resolveTransport(vars.action, hasRcon) === "stdin") {
+        setStatus({ kind: "ok", type: "sent", text: `${vars.action.displayName} sent` });
+      } else {
+        setStatus({
+          kind: "ok",
+          type: "output",
+          text: resp.raw ? truncate(resp.raw, 200) : `${vars.action.displayName} ran`,
+        });
+      }
       return qc.invalidateQueries({ queryKey: ["server-status", name] });
     },
     onError: (err) => {
@@ -150,7 +168,10 @@ export function ServerActionsCard({ name, tmpl }: { name: string; tmpl?: GameTem
               <span
                 className={cn(
                   "break-all",
-                  status.kind === "ok" && status.type === "output" && "font-mono",
+                  // Mono for anything carrying raw server text — command
+                  // output AND error bodies — but not the friendly "sent" chip.
+                  ((status.kind === "ok" && status.type === "output") || status.kind === "err") &&
+                    "font-mono",
                 )}
               >
                 {status.text}
