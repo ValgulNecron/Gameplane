@@ -33,6 +33,16 @@ rules:
   - apiGroups: [""]
     resources: [nodes, events]
     verbs: [get, list, watch]
+  # Live node CPU/memory for the dashboard's cluster meters
+  # (fetchNodeUsage in api/internal/handlers/cluster.go reads the
+  # metrics-server aggregated API). Optional by design: without
+  # metrics-server — or without this rule — the read fails and the API
+  # omits "used", so the dashboard shows "—" instead of a fake 0%. That
+  # graceful fallback is exactly why a missing rule here is silent, so
+  # this must stay in step with that handler.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: [nodes]
+    verbs: [get, list]
   # Cluster storage stats (api/internal/handlers/cluster.go) sum
   # PersistentVolume capacity (cluster-scoped) for the dashboard.
   - apiGroups: [""]
