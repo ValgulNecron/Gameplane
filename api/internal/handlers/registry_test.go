@@ -194,6 +194,41 @@ func TestRegistrySearch_ThreadsSteamAppID(t *testing.T) {
 	}
 }
 
+// TestRegistrySearch_ThreadsCurseForgeGameID is the handler-level regression
+// guard for the "ARK's mod browser shows Minecraft mods" bug:
+// registryProviders() must read a template's declared curseforgeGameID and
+// thread it through to registry.Config, never a hardcoded Minecraft id —
+// mirrors TestRegistrySearch_ThreadsSteamAppID above.
+func TestRegistrySearch_ThreadsCurseForgeGameID(t *testing.T) {
+	versions := []any{map[string]any{"id": "v", "loader": "", "gameVersion": "", "default": true}}
+	for _, tc := range []struct {
+		name    string
+		gameID  any // matches whatever type an unstructured numeric field may decode as
+		wantVal int32
+	}{
+		{"int64", int64(83374), 83374},
+		{"float64", float64(83374), 83374},
+		{"json.Number", json.Number("83374"), 83374},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			k := fakeKubeClient(
+				newTemplateObj("ark", map[string]any{"provider": "curseforge", "curseforgeGameID": tc.gameID}, versions),
+				serverWithVersion("gameplane-games", "alpha", "ark", ""),
+			)
+			var gotCfg registry.Config
+			r := mountRegistryRouter(k, fakeSet{p: &fakeProvider{}, cfgOut: &gotCfg})
+
+			rr := do(t, r, "GET", "/servers/alpha/mods/registry/search?q=ark-mod", nil)
+			if rr.Code != 200 {
+				t.Fatalf("got %d %s", rr.Code, rr.Body)
+			}
+			if gotCfg.Provider != "curseforge" || gotCfg.CurseForgeGameID != tc.wantVal {
+				t.Errorf("cfg = %+v, want provider=curseforge curseforgeGameID=%d (not the hardcoded Minecraft 432)", gotCfg, tc.wantVal)
+			}
+		})
+	}
+}
+
 // TestNestedInt32 covers every numeric shape nestedInt32 accepts, including
 // the bare int case (a defensive branch for a hand-built test fixture; a
 // real unstructured decode never produces it) that TestRegistrySearch_

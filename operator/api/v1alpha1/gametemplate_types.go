@@ -432,23 +432,24 @@ type ModRegistrySpec struct {
 //
 // +kubebuilder:validation:XValidation:rule="self.provider != 'steam' || (has(self.steamAppID) && self.steamAppID > 0)",message="steamAppID is required when provider is steam"
 // +kubebuilder:validation:XValidation:rule="self.provider != 'github' || has(self.github)",message="github is required when provider is github"
+// +kubebuilder:validation:XValidation:rule="self.provider != 'curseforge' || (has(self.curseforgeGameID) && self.curseforgeGameID > 0)",message="curseforgeGameID is required when provider is curseforge"
 type ModProvider struct {
 	// Provider names the built-in registry engine: "modrinth" (Minecraft
 	// mods/plugins, keyless), "thunderstore" (BepInEx games, keyless,
-	// per-community), "curseforge" (Minecraft mods/modpacks, needs an API
-	// key), "hangar" (PaperMC plugins, keyless), "factorio" (the official
-	// Factorio mod portal; browse is keyless, downloads need the player's
-	// own factorio.com credentials so installs hand off to the from-URL
-	// form), "steam" (Steam Workshop browse, needs a Steam Web API key;
-	// see SteamAppID — Workshop content has no download URL, so it's a
-	// preview-only browser wired to modpacks.refEnv for collection-based
-	// games like Garry's Mod/CS2), "nexus" (Nexus Mods, needs an API key,
-	// browse-only for the same reason as steam — see Community for its
-	// per-game domain slug), "spigot" (SpigotMC plugins via the Spiget API,
-	// keyless), "github" (one repository's Releases stand in for
-	// versions, keyless but rate-limited — see GitHub), or "umod"
-	// (Rust/Hurtworld/7 Days to Die's Oxide/uMod plugin ecosystem,
-	// keyless).
+	// per-community), "curseforge" (mods/modpacks for the game identified
+	// by CurseForgeGameID, needs an API key), "hangar" (PaperMC plugins,
+	// keyless), "factorio" (the official Factorio mod portal; browse is
+	// keyless, downloads need the player's own factorio.com credentials so
+	// installs hand off to the from-URL form), "steam" (Steam Workshop
+	// browse, needs a Steam Web API key; see SteamAppID — Workshop content
+	// has no download URL, so it's a preview-only browser wired to
+	// modpacks.refEnv for collection-based games like Garry's Mod/CS2),
+	// "nexus" (Nexus Mods, needs an API key, browse-only for the same
+	// reason as steam — see Community for its per-game domain slug),
+	// "spigot" (SpigotMC plugins via the Spiget API, keyless), "github"
+	// (one repository's Releases stand in for versions, keyless but
+	// rate-limited — see GitHub), or "umod" (Rust/Hurtworld/7 Days to
+	// Die's Oxide/uMod plugin ecosystem, keyless).
 	// +kubebuilder:validation:Enum=modrinth;thunderstore;curseforge;hangar;factorio;steam;spigot;github;umod;nexus
 	Provider string `json:"provider"`
 
@@ -467,6 +468,14 @@ type ModProvider struct {
 	// +kubebuilder:validation:Minimum=1
 	// +optional
 	SteamAppID int32 `json:"steamAppID,omitempty"`
+
+	// CurseForgeGameID is the numeric CurseForge game the browser searches
+	// (Minecraft is 432; ARK: Survival Ascended is 83374 — from CurseForge's
+	// own /v1/games). Required when provider is curseforge: the API has no
+	// safe default, and guessing one is how ARK's browser ended up listing
+	// Minecraft mods.
+	// +optional
+	CurseForgeGameID *int32 `json:"curseforgeGameID,omitempty"`
 
 	// GitHub binds this provider to one repository's Releases. GitHub has
 	// no cross-repo mod search (unlike Thunderstore's per-community

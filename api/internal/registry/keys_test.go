@@ -169,7 +169,7 @@ func TestSet_AvailableTogglesWithSecret(t *testing.T) {
 	if !set.Available(ctx, "curseforge") {
 		t.Fatal("expected curseforge available once the key secret exists")
 	}
-	if _, ok := set.For(ctx, Config{Provider: "curseforge"}); !ok {
+	if _, ok := set.For(ctx, Config{Provider: "curseforge", CurseForgeGameID: 432}); !ok {
 		t.Fatal("expected For to resolve curseforge once the key secret exists")
 	}
 

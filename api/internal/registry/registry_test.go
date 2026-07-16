@@ -48,7 +48,7 @@ func TestSetFor(t *testing.T) {
 		t.Error("github without owner should not be selectable")
 	}
 	// CurseForge is key-gated: not selectable without a key.
-	if _, ok := s.For(ctx, Config{Provider: "curseforge"}); ok {
+	if _, ok := s.For(ctx, Config{Provider: "curseforge", CurseForgeGameID: 432}); ok {
 		t.Error("curseforge without a key should not be selectable")
 	}
 	if _, ok := s.For(ctx, Config{Provider: "nope"}); ok {
@@ -78,8 +78,13 @@ func TestSetAvailable(t *testing.T) {
 	if !withKey.Available(ctx, "curseforge") {
 		t.Error("curseforge should be available with a key")
 	}
-	if p, ok := withKey.For(ctx, Config{Provider: "curseforge"}); !ok || p == nil {
-		t.Errorf("curseforge with key: ok=%v p=%v", ok, p)
+	if p, ok := withKey.For(ctx, Config{Provider: "curseforge", CurseForgeGameID: 432}); !ok || p == nil {
+		t.Errorf("curseforge with key and gameID: ok=%v p=%v", ok, p)
+	}
+	// CurseForge is also gameID-gated: a key alone isn't enough, the same
+	// way Steam needs both a key and an appID.
+	if _, ok := withKey.For(ctx, Config{Provider: "curseforge"}); ok {
+		t.Error("curseforge without a curseforgeGameID should not be selectable")
 	}
 }
 

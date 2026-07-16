@@ -231,11 +231,12 @@ func (h *registryHandler) resolve(ctx context.Context, ns, name, providerName st
 		return nil, "", "", errNoRegistry
 	}
 	p, ok := h.reg.For(ctx, registry.Config{
-		Provider:    prov.provider,
-		Community:   prov.community,
-		SteamAppID:  prov.steamAppID,
-		GitHubOwner: prov.githubOwner,
-		GitHubRepo:  prov.githubRepo,
+		Provider:         prov.provider,
+		Community:        prov.community,
+		SteamAppID:       prov.steamAppID,
+		CurseForgeGameID: prov.curseforgeGameID,
+		GitHubOwner:      prov.githubOwner,
+		GitHubRepo:       prov.githubRepo,
 	})
 	if !ok {
 		return nil, "", "", errNoRegistry
@@ -254,12 +255,13 @@ func (h *registryHandler) writeResolveErr(w http.ResponseWriter, req *http.Reque
 }
 
 type providerCfg struct {
-	provider    string
-	community   string
-	steamAppID  int32
-	githubOwner string
-	githubRepo  string
-	modpacks    *modpackCfg
+	provider         string
+	community        string
+	steamAppID       int32
+	curseforgeGameID int32
+	githubOwner      string
+	githubRepo       string
+	modpacks         *modpackCfg
 }
 
 type modpackCfg struct {
@@ -289,6 +291,7 @@ func registryProviders(tmpl *unstructured.Unstructured) []providerCfg {
 		cfg := providerCfg{provider: name}
 		cfg.community, _ = m["community"].(string)
 		cfg.steamAppID = nestedInt32(m["steamAppID"])
+		cfg.curseforgeGameID = nestedInt32(m["curseforgeGameID"])
 		if gh, ok := m["github"].(map[string]any); ok {
 			cfg.githubOwner, _ = gh["owner"].(string)
 			cfg.githubRepo, _ = gh["repo"].(string)

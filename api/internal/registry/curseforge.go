@@ -11,9 +11,12 @@ import (
 )
 
 // Curseforge searches the CurseForge v1 API (api.curseforge.com), which
-// requires an x-api-key. Suits Minecraft mods + modpacks. Loader filtering
-// maps Gameplane loader ids to CurseForge's numeric modLoaderType; the clean
-// game-version token is the gameVersion filter.
+// requires an x-api-key. CurseForge hosts mods for many games, not just
+// Minecraft — Search must be faceted to exactly one numeric CurseForge game
+// id (see curseforgeGame below — a template picks the game the way
+// Thunderstore picks a community or Steam picks an app id). Loader
+// filtering maps Gameplane loader ids to CurseForge's numeric
+// modLoaderType; the clean game-version token is the gameVersion filter.
 type Curseforge struct {
 	client    *http.Client
 	userAgent string
@@ -25,7 +28,32 @@ func newCurseforge(client *http.Client, userAgent, apiKey string) *Curseforge {
 	return &Curseforge{client: client, userAgent: userAgent, apiKey: apiKey, baseURL: "https://api.curseforge.com/v1"}
 }
 
+// curseforgeGame binds the CurseForge engine to one template's numeric
+// CurseForge game id, mirroring steamApp's per-config wrapper. CurseForge
+// has no single "browse everything" search — a template must declare
+// curseforgeGameID the same way it declares steamAppID.
+type curseforgeGame struct {
+	cf     *Curseforge
+	gameID int32
+}
+
+func (g *curseforgeGame) Search(ctx context.Context, q SearchQuery) ([]Project, error) {
+	return g.cf.search(ctx, q, g.gameID)
+}
+
+func (g *curseforgeGame) Versions(ctx context.Context, projectID string, f Filter) ([]Version, error) {
+	return g.cf.Versions(ctx, projectID, f)
+}
+
+// ModpackDeps is a no-op: the games wired to CurseForge install content as
+// single mods (or via idList), not via dependency resolution.
+func (g *curseforgeGame) ModpackDeps(ctx context.Context, projectID string) ([]File, error) {
+	return g.cf.ModpackDeps(ctx, projectID)
+}
+
 // CurseForge numeric constants (stable, from the official API schema).
+// cfGameMinecraft also marks the one game whose classId taxonomy this
+// package knows — see classID below.
 const (
 	cfGameMinecraft = 432
 	cfClassMods     = 6
@@ -64,18 +92,32 @@ func cfSortField(sort string) int {
 	}
 }
 
-func (c *Curseforge) classID(q SearchQuery) int {
+// classID returns the CurseForge classId to filter results by, or 0 for "no
+// class filter". CurseForge's class ids are per-game — 6 (mods) and 4471
+// (modpacks) are Minecraft's ids specifically, not a general CurseForge
+// concept. Sending them for a different game would filter by classes that
+// don't exist there and silently return zero results, so that split is
+// kept ONLY for gameId 432 (Minecraft); every other game gets no classId
+// filter, i.e. its search isn't narrowed to mods vs. modpacks.
+func (c *Curseforge) classID(q SearchQuery, gameID int32) int {
+	if gameID != cfGameMinecraft {
+		return 0
+	}
 	if q.modpack() {
 		return cfClassModpacks
 	}
 	return cfClassMods
 }
 
-// Search runs a CurseForge mod/modpack search scoped to Minecraft.
-func (c *Curseforge) Search(ctx context.Context, q SearchQuery) ([]Project, error) {
+// search runs a CurseForge mod/modpack search scoped to gameID (see
+// curseforgeGame — the exported Provider surface is that per-config
+// wrapper, not this method).
+func (c *Curseforge) search(ctx context.Context, q SearchQuery, gameID int32) ([]Project, error) {
 	params := url.Values{}
-	params.Set("gameId", strconv.Itoa(cfGameMinecraft))
-	params.Set("classId", strconv.Itoa(c.classID(q)))
+	params.Set("gameId", strconv.Itoa(int(gameID)))
+	if classID := c.classID(q, gameID); classID != 0 {
+		params.Set("classId", strconv.Itoa(classID))
+	}
 	if q.Term != "" {
 		params.Set("searchFilter", q.Term)
 	}
@@ -194,8 +236,10 @@ type cfFile struct {
 	GameVersions []string `json:"gameVersions"`
 }
 
-// ModpackDeps is a no-op: the Minecraft modules install CurseForge content
-// as single mods, not via dependency resolution.
+// ModpackDeps is a no-op: the games wired to CurseForge install content as
+// single mods (or via idList), not via dependency resolution — see
+// curseforgeGame.ModpackDeps, the Provider surface that actually gets
+// called.
 func (c *Curseforge) ModpackDeps(_ context.Context, _ string) ([]File, error) {
 	return nil, nil
 }

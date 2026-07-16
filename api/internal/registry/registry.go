@@ -138,6 +138,10 @@ type Config struct {
 	// SteamAppID facets Steam Workshop browse/search to one app. Required
 	// by the steam provider; ignored by others.
 	SteamAppID int32
+	// CurseForgeGameID facets CurseForge browse/search to one numeric
+	// CurseForge game (e.g. 432 for Minecraft, 83374 for ARK: Survival
+	// Ascended). Required by the curseforge provider; ignored by others.
+	CurseForgeGameID int32
 	// GitHubOwner and GitHubRepo bind the "github" provider to one
 	// repository's Releases — GitHub has no cross-repo mod search, so
 	// (unlike every keyless engine above) a template must pick exactly one
@@ -221,10 +225,11 @@ func NewSet(version string, keyFunc KeyFunc) *Set {
 
 // For returns the provider for a module's registry config. ok is false
 // when the provider is unknown/unset, a required parameter is missing
-// (Thunderstore/Nexus need a community/domain, Steam needs an app id), or
-// the engine isn't configured (a keyed provider without a key) — the
-// handler maps that to 501 so the dashboard hides the provider. For keyed
-// providers, the key is resolved lazily via context and cached with a TTL.
+// (Thunderstore/Nexus need a community/domain, Steam needs an app id,
+// CurseForge needs a game id), or the engine isn't configured (a keyed
+// provider without a key) — the handler maps that to 501 so the dashboard
+// hides the provider. For keyed providers, the key is resolved lazily via
+// context and cached with a TTL.
 func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 	switch cfg.Provider {
 	case "modrinth":
@@ -235,11 +240,14 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 		}
 		return &thunderstoreCommunity{ts: s.thunderstore, community: cfg.Community}, true
 	case "curseforge":
+		if cfg.CurseForgeGameID <= 0 {
+			return nil, false
+		}
 		cf, err := s.curseforgeLazy(ctx)
 		if err != nil || cf == nil {
 			return nil, false
 		}
-		return cf, true
+		return &curseforgeGame{cf: cf, gameID: cfg.CurseForgeGameID}, true
 	case "hangar":
 		return s.hangar, true
 	case "factorio":
@@ -280,7 +288,7 @@ func (s *Set) For(ctx context.Context, cfg Config) (Provider, bool) {
 // specific server — the providers listing uses it to mark the dashboard's
 // provider switch. Keyed providers' availability depends on whether an API
 // key is currently configured; it does not check per-server parameters
-// (SteamAppID/Community), which For validates.
+// (SteamAppID/CurseForgeGameID/Community), which For validates.
 func (s *Set) Available(ctx context.Context, provider string) bool {
 	switch provider {
 	case "modrinth", "thunderstore", "hangar", "factorio", "spigot", "github", "umod":
