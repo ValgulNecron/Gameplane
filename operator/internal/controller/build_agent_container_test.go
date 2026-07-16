@@ -19,7 +19,7 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
 		tmpl.Name = "minecraft"
 		tmpl.Spec.Game = "minecraft"
-		c := buildAgentContainer(gs, tmpl, nil, "ghcr.io/agent:fallback", "")
+		c := buildAgentContainer(gs, tmpl, nil, "ghcr.io/agent:fallback", "", "")
 		if c.Image != "ghcr.io/agent:fallback" {
 			t.Fatalf("Image=%q", c.Image)
 		}
@@ -38,7 +38,7 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 				Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")},
 			},
 		}
-		c := buildAgentContainer(gs, tmpl, nil, "ghcr.io/agent:fallback", "")
+		c := buildAgentContainer(gs, tmpl, nil, "ghcr.io/agent:fallback", "", "")
 		if c.Image != "ghcr.io/agent:custom" {
 			t.Fatalf("Image=%q", c.Image)
 		}
@@ -50,7 +50,7 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 	t.Run("template Storage.MountPath overrides /data", func(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
 		tmpl.Spec.Storage.MountPath = "/srv"
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		if c.VolumeMounts[0].MountPath != "/srv" {
 			t.Fatalf("MountPath=%q", c.VolumeMounts[0].MountPath)
 		}
@@ -58,7 +58,7 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 
 	t.Run("security context locks down the sidecar", func(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		sc := c.SecurityContext
 		if sc == nil || sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
 			t.Fatalf("RunAsNonRoot not set: %+v", sc)
@@ -75,7 +75,7 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
 		tmpl.Name = "minecraft"
 		tmpl.Spec.Game = "minecraft-java"
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		envs := map[string]string{}
 		for _, e := range c.Env {
 			envs[e.Name] = e.Value
@@ -93,7 +93,7 @@ func TestBuildAgentContainer_DefaultsAndOverrides(t *testing.T) {
 
 	t.Run("port 8090 advertised by agent", func(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		if len(c.Ports) != 1 || c.Ports[0].ContainerPort != 8090 {
 			t.Fatalf("Ports=%+v", c.Ports)
 		}
@@ -117,14 +117,14 @@ func TestBuildAgentContainer_RconEnabledEnv(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
 			RCON: &gameplanev1alpha1.RCONSpec{Protocol: "source"},
 		}}
-		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", ""))["GAMEPLANE_RCON_ENABLED"]; got != "true" {
+		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", "", ""))["GAMEPLANE_RCON_ENABLED"]; got != "true" {
 			t.Fatalf("GAMEPLANE_RCON_ENABLED=%q, want true", got)
 		}
 	})
 
 	t.Run("no rcon block disables", func(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
-		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", ""))["GAMEPLANE_RCON_ENABLED"]; got != "false" {
+		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", "", ""))["GAMEPLANE_RCON_ENABLED"]; got != "false" {
 			t.Fatalf("GAMEPLANE_RCON_ENABLED=%q, want false", got)
 		}
 	})
@@ -133,7 +133,7 @@ func TestBuildAgentContainer_RconEnabledEnv(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
 			RCON: &gameplanev1alpha1.RCONSpec{Protocol: "none"},
 		}}
-		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", ""))["GAMEPLANE_RCON_ENABLED"]; got != "false" {
+		if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", "", ""))["GAMEPLANE_RCON_ENABLED"]; got != "false" {
 			t.Fatalf("GAMEPLANE_RCON_ENABLED=%q, want false", got)
 		}
 	})
@@ -156,12 +156,12 @@ func TestBuildAgentContainer_GameLogPathArg(t *testing.T) {
 	tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
 		LogPath: "/data/logs/latest.log",
 	}}
-	if !hasArg(buildAgentContainer(gs, tmpl, nil, "fb", ""), "--game-log-path=/data/logs/latest.log") {
+	if !hasArg(buildAgentContainer(gs, tmpl, nil, "fb", "", ""), "--game-log-path=/data/logs/latest.log") {
 		t.Fatal("expected --game-log-path arg when template declares logPath")
 	}
 
 	bare := &gameplanev1alpha1.GameTemplate{}
-	for _, a := range buildAgentContainer(gs, bare, nil, "fb", "").Args {
+	for _, a := range buildAgentContainer(gs, bare, nil, "fb", "", "").Args {
 		if strings.HasPrefix(a, "--game-log-path") {
 			t.Fatalf("unexpected log-path arg without template logPath: %s", a)
 		}
@@ -189,7 +189,7 @@ func TestBuildAgentContainer_RconPasswordFile(t *testing.T) {
 				PasswordFile: "config/rconpw",
 			},
 		}}
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		if !hasArg(c, "--rcon-password-file=/data/config/rconpw") {
 			t.Fatalf("expected --rcon-password-file=/data/config/rconpw in args: %v", c.Args)
 		}
@@ -209,7 +209,7 @@ func TestBuildAgentContainer_RconPasswordFile(t *testing.T) {
 				PasswordFile: "config/rconpw",
 			},
 		}}
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		if !hasArg(c, "--rcon-password-file=/srv/config/rconpw") {
 			t.Fatalf("expected --rcon-password-file=/srv/config/rconpw in args: %v", c.Args)
 		}
@@ -252,7 +252,7 @@ func TestBuildAgentContainer_DataRootArg(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{Spec: gameplanev1alpha1.GameTemplateSpec{
 			Storage: gameplanev1alpha1.GameStorageSpec{MountPath: "/steamcmd/rust"},
 		}}
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		got, ok := dataRootArg(c)
 		if !ok || got != "/steamcmd/rust" {
 			t.Fatalf("--data-root=%q, ok=%v, want /steamcmd/rust", got, ok)
@@ -268,7 +268,7 @@ func TestBuildAgentContainer_DataRootArg(t *testing.T) {
 
 	t.Run("mountPath omitted defaults to /data", func(t *testing.T) {
 		tmpl := &gameplanev1alpha1.GameTemplate{}
-		c := buildAgentContainer(gs, tmpl, nil, "fb", "")
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
 		got, ok := dataRootArg(c)
 		if !ok || got != "/data" {
 			t.Fatalf("--data-root=%q, ok=%v, want /data", got, ok)
@@ -308,7 +308,7 @@ func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
 			},
 		},
 	}}
-	got, ok := envValue(buildAgentContainer(gs, tmpl, nil, "fb", ""), "GAMEPLANE_CAPABILITIES")
+	got, ok := envValue(buildAgentContainer(gs, tmpl, nil, "fb", "", ""), "GAMEPLANE_CAPABILITIES")
 	if !ok {
 		t.Fatal("expected GAMEPLANE_CAPABILITIES env when template declares capabilities")
 	}
@@ -324,7 +324,7 @@ func TestBuildAgentContainer_CapabilitiesEnv(t *testing.T) {
 	}
 
 	bare := &gameplanev1alpha1.GameTemplate{}
-	if _, ok := envValue(buildAgentContainer(gs, bare, nil, "fb", ""), "GAMEPLANE_CAPABILITIES"); ok {
+	if _, ok := envValue(buildAgentContainer(gs, bare, nil, "fb", "", ""), "GAMEPLANE_CAPABILITIES"); ok {
 		t.Fatal("unexpected GAMEPLANE_CAPABILITIES env without declared capabilities")
 	}
 }
@@ -341,12 +341,41 @@ func TestBuildAgentContainer_LogLevel(t *testing.T) {
 		return out
 	}
 
-	if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", "debug"))["GAMEPLANE_LOG_LEVEL"]; got != "debug" {
+	if got := envOf(buildAgentContainer(gs, tmpl, nil, "fb", "debug", ""))["GAMEPLANE_LOG_LEVEL"]; got != "debug" {
 		t.Errorf("GAMEPLANE_LOG_LEVEL = %q, want debug", got)
 	}
 	// Unset must inject nothing: the env var's mere presence would differ
 	// from pre-flag pod specs and roll every game StatefulSet on upgrade.
-	if v, ok := envOf(buildAgentContainer(gs, tmpl, nil, "fb", ""))["GAMEPLANE_LOG_LEVEL"]; ok {
+	if v, ok := envOf(buildAgentContainer(gs, tmpl, nil, "fb", "", ""))["GAMEPLANE_LOG_LEVEL"]; ok {
 		t.Errorf("GAMEPLANE_LOG_LEVEL unexpectedly injected: %q", v)
 	}
+}
+
+// TestBuildAgentContainer_ImagePullPolicy guards the fix for stale cached
+// agents on floating tags (e.g. :edge): Kubernetes only defaults
+// ImagePullPolicy to Always for a ":latest" tag, so without an explicit
+// policy a node reuses whatever agent image it already cached and new agent
+// features never reach existing (or even newly scheduled, same-node) game
+// pods. buildAgentContainer must carry the configured policy through
+// verbatim, and must leave the field unset (not merely "") when no policy
+// is configured, so pre-flag pod specs — and the CreateOrUpdate diff against
+// them — don't change.
+func TestBuildAgentContainer_ImagePullPolicy(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "smp"
+	tmpl := &gameplanev1alpha1.GameTemplate{}
+
+	t.Run("configured policy is set verbatim", func(t *testing.T) {
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "Always")
+		if c.ImagePullPolicy != corev1.PullAlways {
+			t.Fatalf("ImagePullPolicy = %q, want %q", c.ImagePullPolicy, corev1.PullAlways)
+		}
+	})
+
+	t.Run("empty policy leaves the field unset", func(t *testing.T) {
+		c := buildAgentContainer(gs, tmpl, nil, "fb", "", "")
+		if c.ImagePullPolicy != "" {
+			t.Fatalf("ImagePullPolicy = %q, want unset", c.ImagePullPolicy)
+		}
+	})
 }
