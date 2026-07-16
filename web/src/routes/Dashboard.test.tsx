@@ -109,6 +109,41 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("node-7")).toBeInTheDocument();
   });
 
+  // Regression: nodes with no `used` reading (no metrics-server) used to
+  // sum to a false 0%, indistinguishable from a genuinely idle cluster.
+  it("shows unknown (—) cluster CPU/memory meters when no node reports `used`", async () => {
+    server.use(
+      http.get("/cluster", () =>
+        HttpResponse.json(
+          makeClusterView({
+            ready: 1,
+            total: 1,
+            nodes: [{ name: "no-metrics-node", status: "Ready", cpu: { capacity: 8 }, memory: { capacity: 16_000_000_000 } }],
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("Cluster resources");
+    await screen.findByText("no-metrics-node");
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  // Regression: usedStorageBytes/totalStorageBytes are provisioned-vs-physical,
+  // not used-vs-total — a networked-storage cluster can legitimately read
+  // >100%, which must present as an explicit overcommit state, not a broken
+  // meter.
+  it("flags storage as overcommitted when provisioned exceeds physical capacity", async () => {
+    server.use(
+      http.get("/cluster/stats", () =>
+        HttpResponse.json(makeClusterStats({ usedStorageBytes: 102_000_000_000, totalStorageBytes: 86_000_000_000 })),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("Storage provisioned");
+    expect(await screen.findAllByText(/overcommitted/i)).not.toHaveLength(0);
+  });
+
   it("lists recent backups with their phase", async () => {
     server.use(
       http.get("/backups", () =>

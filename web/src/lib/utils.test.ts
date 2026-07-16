@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   cn,
+  describeStorageProvisioned,
   formatBytes,
+  formatCores,
   formatRelative,
   formatRelativeFuture,
   formatUptime,
@@ -117,6 +119,45 @@ describe("parseQuantityToBytes", () => {
   });
   it("returns 0 for an unknown unit", () => {
     expect(parseQuantityToBytes("5X")).toBe(0);
+  });
+});
+
+describe("formatCores", () => {
+  it("renders whole numbers without decimals", () => {
+    expect(formatCores(4)).toBe("4");
+    expect(formatCores(0)).toBe("0");
+  });
+  it("renders fractional cores to 2 decimals", () => {
+    expect(formatCores(0.646)).toBe("0.65");
+  });
+  it("trims floating-point noise from summed sub-core readings", () => {
+    // 0.646 + 0.646 in IEEE754 is 1.2919999999999998, not 1.292.
+    expect(formatCores(0.646 + 0.646)).toBe("1.29");
+  });
+});
+
+describe("describeStorageProvisioned", () => {
+  it("reports provisioned-of-physical when under capacity", () => {
+    const r = describeStorageProvisioned(250_000_000_000, 1_000_000_000_000);
+    expect(r.overcommitted).toBe(false);
+    expect(r.subText).toContain("physical");
+    expect(r.subText).not.toContain("overcommitted");
+  });
+  it("flags overcommit when provisioned exceeds physical capacity", () => {
+    // The reported bug: 102 GB provisioned vs 86 GB physical (networked
+    // storage doesn't come off node disk).
+    const r = describeStorageProvisioned(102_000_000_000, 86_000_000_000);
+    expect(r.overcommitted).toBe(true);
+    expect(r.subText).toContain("overcommitted");
+  });
+  it("omits subText when total is unknown", () => {
+    const r = describeStorageProvisioned(5_000, undefined);
+    expect(r.subText).toBeUndefined();
+    expect(r.overcommitted).toBe(false);
+  });
+  it("defaults used to 0 when undefined", () => {
+    const r = describeStorageProvisioned(undefined, 1_000_000_000);
+    expect(r.valueText).toBe(formatBytes(0));
   });
 });
 

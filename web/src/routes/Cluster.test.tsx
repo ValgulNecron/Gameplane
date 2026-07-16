@@ -25,6 +25,32 @@ describe("ClusterPage", () => {
     });
   });
 
+  // Regression: a node whose `used` is absent (no metrics-server) used to
+  // render as a 0% bar, indistinguishable from a genuinely idle node.
+  it("shows unknown (—) for CPU/memory when a node has no `used` reading", async () => {
+    server.use(
+      http.get("/cluster", () =>
+        HttpResponse.json(
+          makeClusterView({
+            nodes: [
+              {
+                name: "no-metrics-node",
+                status: "Ready",
+                cpu: { capacity: 8 },
+                memory: { capacity: 16_000_000_000 },
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ClusterPage />);
+    await screen.findByText("no-metrics-node");
+    // Two meters (CPU, Memory) both read unknown.
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+
   it("falls back gracefully on API error", async () => {
     server.use(http.get("/cluster", () => HttpResponse.error()));
     renderWithQuery(<ClusterPage />);

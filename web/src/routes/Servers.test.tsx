@@ -53,6 +53,21 @@ describe("ServersPage", () => {
     expect(screen.getByText("beta")).toBeInTheDocument();
   });
 
+  // Regression: usedStorageBytes/totalStorageBytes are provisioned-vs-physical,
+  // not used-vs-total, so networked storage can legitimately read >100% — that
+  // must present as an explicit overcommit state, not a silently broken meter.
+  it("flags storage as overcommitted when provisioned exceeds physical capacity", async () => {
+    server.use(
+      http.get("/servers", () => HttpResponse.json({ items: [] })),
+      http.get("/cluster/stats", () =>
+        HttpResponse.json(makeClusterStats({ usedStorageBytes: 102_000_000_000, totalStorageBytes: 86_000_000_000 })),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    await screen.findByText("Storage provisioned");
+    expect(await screen.findAllByText(/overcommitted/i)).not.toHaveLength(0);
+  });
+
   it("filters by name via the search box", async () => {
     server.use(
       http.get("/servers", () =>

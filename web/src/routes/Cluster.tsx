@@ -160,6 +160,8 @@ export function ClusterPage() {
 }
 
 function NodeCard({ node }: { node: ClusterNode }) {
+  const cpuKnown = node.cpu?.used !== undefined;
+  const memKnown = node.memory?.used !== undefined;
   const cpuPct = pct(node.cpu?.used, node.cpu?.capacity);
   const memPct = pct(node.memory?.used, node.memory?.capacity);
   const ready = node.status === "Ready";
@@ -195,13 +197,16 @@ function NodeCard({ node }: { node: ClusterNode }) {
       </div>
 
       <div className="space-y-2">
-        <Meter label="CPU" pct={cpuPct} accent="primary" />
+        <Meter label="CPU" pct={cpuPct} unknown={!cpuKnown} accent="primary" />
         <Meter
           label="Memory"
           pct={memPct}
+          unknown={!memKnown}
           sub={
             node.memory?.capacity
-              ? `${formatBytes(node.memory.used ?? 0)} / ${formatBytes(node.memory.capacity)}`
+              ? memKnown
+                ? `${formatBytes(node.memory.used ?? 0)} / ${formatBytes(node.memory.capacity)}`
+                : `of ${formatBytes(node.memory.capacity)}`
               : undefined
           }
           accent="violet"
@@ -231,6 +236,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function pct(u?: number, cap?: number): number {
-  if (!u || !cap) return 0;
+  if (u === undefined || !cap) return 0;
   return (u / cap) * 100;
 }
