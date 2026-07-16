@@ -360,8 +360,12 @@ func (c *Palworld) do(method, path string, payload any) (string, error) {
 	return "", nil
 }
 
-// splitPalworldCommand splits cmd into its first whitespace-delimited token
-// and the (trimmed) remainder of the line. Used twice per multi-argument
+// splitPalworldCommand splits cmd at its first SPACE, returning that leading
+// token and the (trimmed) remainder of the line. Space specifically, not any
+// whitespace: the remainder becomes a free-text message that must keep its
+// own spacing byte-for-byte (the deprecated RCON truncated at the first
+// space — not repeating that is this client's whole point). Used twice per
+// multi-argument
 // command: once to split the verb from its arguments, and again — for
 // shutdown/kick/ban — to split the first argument (waittime/userid) from
 // the trailing free-text message, so the message keeps any internal

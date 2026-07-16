@@ -514,3 +514,48 @@ func TestPalworldDefaultPort(t *testing.T) {
 		t.Errorf("baseURL = %q, want %q", client.baseURL, want)
 	}
 }
+
+// TestPalworldCooldownClearsOnSuccess pins the other half of the auth
+// cooldown: a 401 arms it, but a later success must CLEAR it — otherwise a
+// password that gets fixed (or a server that comes back) would keep being
+// throttled by a stale failure long after the cause is gone.
+func TestPalworldCooldownClearsOnSuccess(t *testing.T) {
+	var reject atomic.Bool
+	reject.Store(true)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if reject.Load() {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	host, port := parseHostPort(t, server.URL)
+	client := NewPalworld(host, port, func() (string, error) { return "pw", nil })
+	client.authFailureCooldown = 10 * time.Millisecond
+	defer func() { _ = client.Close() }()
+
+	// A 401 arms the cooldown.
+	if _, err := client.Exec("save"); !errors.Is(err, ErrAuth) {
+		t.Fatalf("first Exec err = %v, want ErrAuth", err)
+	}
+	client.mu.Lock()
+	armed := !client.lastAuthFailure.IsZero()
+	client.mu.Unlock()
+	if !armed {
+		t.Fatal("a 401 must arm the cooldown")
+	}
+
+	// Let it lapse, then let the server accept: the success must clear it.
+	time.Sleep(15 * time.Millisecond)
+	reject.Store(false)
+	if _, err := client.Exec("save"); err != nil {
+		t.Fatalf("Exec after the cooldown lapsed should succeed: %v", err)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if !client.lastAuthFailure.IsZero() {
+		t.Error("a successful call must clear the auth cooldown, not leave it armed")
+	}
+}
