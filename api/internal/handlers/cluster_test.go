@@ -12,7 +12,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	fakediscovery "k8s.io/client-go/discovery/fake"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
@@ -215,5 +217,137 @@ func TestCluster_Info_ReportsClusterOpsAndChannel(t *testing.T) {
 	}
 	if info.UpdateChannel != "edge" {
 		t.Fatalf("updateChannel = %q, want edge", info.UpdateChannel)
+	}
+}
+
+// mockAPIServer stands up a real HTTP server serving just enough of the
+// Kubernetes API surface (node list, plus metrics.k8s.io when metrics is
+// non-nil) for a real *kubernetes.Clientset built from its URL to exercise
+// fetchNodeUsage's production REST path end to end.
+//
+// fake.NewSimpleClientset can't do this: its CoreV1().RESTClient() returns a
+// nil *rest.RESTClient wrapped in a non-nil rest.Interface, which panics on
+// first field access inside Get() before a request is even built (see
+// TestFetchNodeUsage_FakeClientDoesNotPanic and internal/kube/stdin_test.go).
+func mockAPIServer(t *testing.T, nodes []corev1.Node, metrics http.HandlerFunc) *kube.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		list := corev1.NodeList{
+			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "NodeList"},
+			Items:    nodes,
+		}
+		if err := json.NewEncoder(w).Encode(list); err != nil {
+			t.Fatalf("encode node list: %v", err)
+		}
+	})
+	if metrics != nil {
+		mux.HandleFunc("/apis/metrics.k8s.io/v1beta1/nodes", metrics)
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	typed, err := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+	if err != nil {
+		t.Fatalf("build clientset: %v", err)
+	}
+	return &kube.Client{Typed: typed}
+}
+
+// Regression: the API used to omit `used` unconditionally with a comment
+// saying it had "no metrics-server dependency" — even on clusters that DO
+// run metrics-server, which rendered CPU/memory as a permanent 0%. Fetch
+// the real metrics.k8s.io/v1beta1 payload and populate Used, in the same
+// unit (cores, bytes) Capacity already uses.
+func TestCluster_View_MetricsAvailable(t *testing.T) {
+	k := mockAPIServer(t, []corev1.Node{*readyNode("cp-0", true, "4", "8Gi")},
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// Shape observed on a live cluster: nanocore CPU, Ki memory.
+			_, _ = w.Write([]byte(`{"items":[{"metadata":{"name":"cp-0"},"usage":{"cpu":"645424538n","memory":"2717804Ki"}}]}`))
+		})
+
+	r := chi.NewRouter()
+	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
+	}
+	var view clusterView
+	if err := json.Unmarshal(rr.Body.Bytes(), &view); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(view.Nodes) != 1 {
+		t.Fatalf("nodes = %d, want 1", len(view.Nodes))
+	}
+	n := view.Nodes[0]
+	if n.CPU == nil || n.CPU.Used == nil {
+		t.Fatalf("cpu used not populated: %+v", n.CPU)
+	}
+	// ceil(645424538 nanocores * 1000 / 1e9) = ceil(645.424538) = 646 millicores.
+	if *n.CPU.Used != 0.646 {
+		t.Fatalf("cpu used = %v, want 0.646 cores", *n.CPU.Used)
+	}
+	if n.CPU.Capacity != 4 {
+		t.Fatalf("cpu capacity = %v, want 4 cores (unit must match used)", n.CPU.Capacity)
+	}
+	if n.Memory == nil || n.Memory.Used == nil {
+		t.Fatalf("memory used not populated: %+v", n.Memory)
+	}
+	const wantMemBytes = 2717804 * 1024
+	if *n.Memory.Used != wantMemBytes {
+		t.Fatalf("memory used = %v, want %v", *n.Memory.Used, float64(wantMemBytes))
+	}
+}
+
+// Graceful degradation: a cluster with no metrics-server installed (or any
+// other failure reaching/parsing metrics.k8s.io) must keep serving node
+// capacity data with `used` omitted, not fail the request.
+func TestCluster_View_MetricsAbsent(t *testing.T) {
+	k := mockAPIServer(t, []corev1.Node{*readyNode("cp-0", true, "4", "8Gi")},
+		func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r) // metrics.k8s.io not registered — the common case
+		})
+
+	r := chi.NewRouter()
+	MountCluster(r, k, nil, "v9.9.9-test", false, "")
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
+	}
+	var view clusterView
+	if err := json.Unmarshal(rr.Body.Bytes(), &view); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(view.Nodes) != 1 {
+		t.Fatalf("nodes = %d, want 1", len(view.Nodes))
+	}
+	n := view.Nodes[0]
+	if n.CPU == nil || n.CPU.Used != nil {
+		t.Fatalf("cpu used = %+v, want nil (no metrics-server)", n.CPU)
+	}
+	if n.CPU.Capacity != 4 {
+		t.Fatalf("cpu capacity = %v, want 4 (capacity must still work without metrics)", n.CPU.Capacity)
+	}
+	if n.Memory == nil || n.Memory.Used != nil {
+		t.Fatalf("memory used = %+v, want nil (no metrics-server)", n.Memory)
+	}
+}
+
+// fetchNodeUsage must not panic against a fake clientset (used throughout
+// this file's other tests): CoreV1().RESTClient() on a fake returns a nil
+// *rest.RESTClient wrapped in a non-nil interface, which would otherwise
+// panic on first use inside Get().
+func TestFetchNodeUsage_FakeClientDoesNotPanic(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	h := &clusterHandler{k: &kube.Client{Typed: cs}}
+	usage := h.fetchNodeUsage(t.Context())
+	if usage != nil {
+		t.Fatalf("usage = %+v, want nil against a fake clientset", usage)
 	}
 }

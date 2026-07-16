@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
-import { cn, formatBytes } from "@/lib/utils";
+import { cn, describeStorageProvisioned, formatBytes } from "@/lib/utils";
 import { useMediaQuery } from "@/lib/media";
 import type { ClusterStats, ClusterView, GameServer, GameServerPhase } from "@/types";
 import { Cluster, Servers, type LifecycleVerb } from "@/lib/endpoints";
@@ -98,6 +98,7 @@ export function ServersPage() {
   }, [servers, myServers?.items]);
   const counts = useMemo(() => countByState(servers), [servers]);
   const vcpus = (clusterView?.nodes ?? []).reduce((s, n) => s + (n.cpu?.capacity ?? 0), 0);
+  const storage = describeStorageProvisioned(cluster?.usedStorageBytes, cluster?.totalStorageBytes);
 
   // Derive distinct games and namespaces from servers
   const distinctGames = useMemo(() => {
@@ -209,15 +210,11 @@ export function ServersPage() {
           accent="warning"
         />
         <StatCard
-          label="Storage"
+          label="Storage provisioned"
           icon={<HardDrive className="h-4 w-4" />}
-          value={formatBytes(cluster?.usedStorageBytes ?? 0)}
-          sub={
-            cluster?.totalStorageBytes
-              ? `of ${formatBytes(cluster.totalStorageBytes)}`
-              : "—"
-          }
-          accent="violet"
+          value={storage.valueText}
+          sub={storage.subText ?? "—"}
+          accent={storage.overcommitted ? "warning" : "violet"}
         />
         <StatCard
           label="Cluster size"

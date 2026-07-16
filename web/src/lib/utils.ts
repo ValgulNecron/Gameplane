@@ -66,6 +66,43 @@ export function parseQuantityToBytes(s?: string): number {
   return (factors[unit] ?? 0) * n;
 }
 
+// formatCores renders a CPU core quantity, trimming the floating-point
+// noise that shows up when summing metrics-server's sub-core readings
+// across nodes (e.g. 0.646 + 0.646 -> 1.2919999999999998).
+export function formatCores(n: number): string {
+  return Number.isInteger(n) ? `${n}` : n.toFixed(2);
+}
+
+export interface StorageReading {
+  valueText: string;
+  // subText is undefined when totalBytes is unknown (0/undefined) — callers
+  // fall back to their own placeholder ("—").
+  subText?: string;
+  overcommitted: boolean;
+}
+
+// describeStorageProvisioned turns the cluster stats' {usedStorageBytes,
+// totalStorageBytes} pair into copy that's honest about what they measure:
+// usedStorageBytes is PersistentVolume capacity *provisioned* to workloads,
+// not disk usage, and totalStorageBytes is node *physical* disk — with
+// networked storage (Ceph, EBS, …) provisioned can legitimately exceed
+// physical. Flags that case as `overcommitted` so callers can present it as
+// an explicit state rather than a >100% bar.
+export function describeStorageProvisioned(
+  usedBytes?: number,
+  totalBytes?: number,
+): StorageReading {
+  const used = usedBytes ?? 0;
+  const total = totalBytes ?? 0;
+  const overcommitted = total > 0 && used > total;
+  const valueText = formatBytes(used);
+  if (!total) return { valueText, overcommitted: false };
+  const subText = overcommitted
+    ? `of ${formatBytes(total)} physical — overcommitted`
+    : `of ${formatBytes(total)} physical`;
+  return { valueText, subText, overcommitted };
+}
+
 export function formatUptime(startedAt?: string): string {
   if (!startedAt) return "—";
   const t = new Date(startedAt).getTime();

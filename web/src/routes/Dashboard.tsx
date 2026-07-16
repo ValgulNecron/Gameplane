@@ -26,7 +26,14 @@ import { PhaseBadge } from "@/components/ui/badge";
 import { Meter } from "@/components/ui/meter";
 import { GameIcon } from "@/components/ui/game-icon";
 import { PageHeader } from "@/components/PageHeader";
-import { cn, formatBytes, formatRelative } from "@/lib/utils";
+import {
+  cn,
+  describeStorageProvisioned,
+  formatBytes,
+  formatCores,
+  formatRelative,
+  type StorageReading,
+} from "@/lib/utils";
 import { useMe, can } from "@/lib/auth";
 import { Audit, Backups, Cluster, Servers } from "@/lib/endpoints";
 import { countByState, phaseGroups, type PhaseGroups } from "@/lib/servers";
@@ -85,6 +92,7 @@ export function DashboardPage() {
   const cpu = sumUsage(nodes, "cpu");
   const mem = sumUsage(nodes, "memory");
   const vcpus = nodes.reduce((sum, n) => sum + (n.cpu?.capacity ?? 0), 0);
+  const storage = describeStorageProvisioned(stats?.usedStorageBytes, stats?.totalStorageBytes);
   const storagePct = stats?.totalStorageBytes
     ? ((stats.usedStorageBytes ?? 0) / stats.totalStorageBytes) * 100
     : 0;
@@ -124,11 +132,11 @@ export function DashboardPage() {
           accent="warning"
         />
         <StatCard
-          label="Storage"
+          label="Storage provisioned"
           icon={<HardDrive className="h-4 w-4" />}
-          value={formatBytes(stats?.usedStorageBytes ?? 0)}
-          sub={stats?.totalStorageBytes ? `of ${formatBytes(stats.totalStorageBytes)}` : "—"}
-          accent="violet"
+          value={storage.valueText}
+          sub={storage.subText ?? "—"}
+          accent={storage.overcommitted ? "warning" : "violet"}
         />
         <StatCard
           label="Nodes ready"
@@ -144,6 +152,7 @@ export function DashboardPage() {
         <ClusterResourcesCard
           cpu={cpu}
           mem={mem}
+          storage={storage}
           storagePct={storagePct}
           nodes={nodes}
           nodesReady={nodesReady}
@@ -231,11 +240,15 @@ function AttentionRow({ gs }: { gs: GameServer }) {
 interface Usage {
   pct: number;
   sub?: string;
+  // known is false when no node reported a `used` reading (no
+  // metrics-server) — the meter must show "—", not a false 0%.
+  known: boolean;
 }
 
 function ClusterResourcesCard({
   cpu,
   mem,
+  storage,
   storagePct,
   nodes,
   nodesReady,
@@ -244,6 +257,7 @@ function ClusterResourcesCard({
 }: {
   cpu: Usage;
   mem: Usage;
+  storage: StorageReading;
   storagePct: number;
   nodes: ClusterNode[];
   nodesReady: number;
@@ -266,9 +280,14 @@ function ClusterResourcesCard({
       </div>
 
       <div className="space-y-3">
-        <Meter label="CPU" pct={cpu.pct} sub={cpu.sub} accent="primary" />
-        <Meter label="Memory" pct={mem.pct} sub={mem.sub} accent="violet" />
-        <Meter label="Storage" pct={storagePct} accent="success" />
+        <Meter label="CPU" pct={cpu.pct} sub={cpu.sub} unknown={!cpu.known} accent="primary" />
+        <Meter label="Memory" pct={mem.pct} sub={mem.sub} unknown={!mem.known} accent="violet" />
+        <Meter
+          label="Storage"
+          pct={storagePct}
+          sub={storage.subText}
+          accent={storage.overcommitted ? "warning" : "success"}
+        />
       </div>
 
       {nodes.length > 0 && (
@@ -283,10 +302,11 @@ function ClusterResourcesCard({
 
 function NodeRow({ node }: { node: ClusterNode }) {
   const ready = node.status === "Ready";
+  const cpuKnown = node.cpu?.used !== undefined;
   const cpuPct = pctOf(node.cpu?.used, node.cpu?.capacity);
   const meta = [
     node.pods ? `${node.pods.used ?? 0} pods` : null,
-    node.cpu?.capacity ? `cpu ${Math.round(cpuPct)}%` : null,
+    cpuKnown && node.cpu?.capacity ? `cpu ${Math.round(cpuPct)}%` : null,
   ].filter(Boolean).join(" · ");
   return (
     <div className="flex items-center gap-2 text-xs">
@@ -382,22 +402,31 @@ function LegendDot({ cls, label }: { cls: string; label: string }) {
 }
 
 // sumUsage aggregates a resource across nodes into a percentage and a
-// human-readable "used / capacity" subtitle (bytes for memory, cores for CPU).
+// human-readable "used / capacity" subtitle (bytes for memory, cores for
+// CPU). `known` is false when not a single node reported a `used` reading
+// (no metrics-server anywhere in the cluster) — callers must render that as
+// "—", not a 0% bar that implies a measured idle cluster.
 function sumUsage(nodes: ClusterNode[], key: "cpu" | "memory"): Usage {
   let used = 0;
   let cap = 0;
+  let known = false;
   for (const n of nodes) {
-    used += n[key]?.used ?? 0;
+    const u = n[key]?.used;
+    if (u !== undefined) known = true;
+    used += u ?? 0;
     cap += n[key]?.capacity ?? 0;
   }
-  const pct = cap > 0 ? (used / cap) * 100 : 0;
-  if (cap === 0) return { pct };
-  const sub = key === "memory" ? `${formatBytes(used)} / ${formatBytes(cap)}` : `${used} / ${cap} cores`;
-  return { pct, sub };
+  if (!known || cap === 0) return { pct: 0, known: false };
+  const pct = (used / cap) * 100;
+  const sub =
+    key === "memory"
+      ? `${formatBytes(used)} / ${formatBytes(cap)}`
+      : `${formatCores(used)} / ${formatCores(cap)} cores`;
+  return { pct, sub, known: true };
 }
 
 function pctOf(used?: number, cap?: number): number {
-  if (!used || !cap) return 0;
+  if (used === undefined || !cap) return 0;
   return (used / cap) * 100;
 }
 
