@@ -960,16 +960,21 @@ type RCONSpec struct {
 	// "satisfactory" is Satisfactory Dedicated Server's HTTPS function-call
 	// API (POST /api/v1 with a JSON "function" body, bearer-token auth
 	// after a PasswordLogin call) — not a socket protocol at all, so Port
-	// here is a TCP port carrying HTTPS, not a raw console stream. "none"
-	// means the game has no usable remote console (see consoleMode: pty
-	// for stdin-driven games instead).
+	// here is a TCP port carrying HTTPS, not a raw console stream.
+	// "palworld" is Palworld Dedicated Server's REST admin API (plain HTTP,
+	// not HTTPS — GET/POST under /v1/api/..., HTTP Basic auth with
+	// username "admin" sent on every request, no token or session) — the
+	// official replacement for Palworld's now-deprecated source RCON, and
+	// likewise not a socket protocol, so Port is a TCP port carrying HTTP.
+	// "none" means the game has no usable remote console (see consoleMode:
+	// pty for stdin-driven games instead).
 	// +kubebuilder:default=source
-	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;none
+	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;palworld;none
 	// +optional
 	Protocol string `json:"protocol,omitempty"`
 
 	// Port is the port RCON listens on inside the pod (TCP for source,
-	// telnet, websocket, and satisfactory; UDP for battleye).
+	// telnet, websocket, satisfactory, and palworld; UDP for battleye).
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
