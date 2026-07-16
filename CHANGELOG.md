@@ -7,6 +7,8 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0-beta.6] — 2026-07-17
+
 ### Changed
 
 - **modules:** official Factorio template now uses RCON (via the operator's
@@ -25,7 +27,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   pty` games with no RCON), in addition to Source RCON. **CRD change:**
   `GameTemplate.spec.rcon.protocol` first dropped the never-implemented `http`
   value, then re-widened as real clients landed — it is now
-  `source;telnet;websocket;battleye;satisfactory;none` (see Added).
+  `source;telnet;websocket;battleye;satisfactory;palworld;none` (see Added).
 - **modules:** categories are now plural — declare `categories:` as a list
   (a module appears in every category's filter chip), with legacy `category:`
   accepted and normalized. All 16 official modules declare categories explicitly
@@ -33,15 +35,31 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ### Added
 
-- **agent:** three new remote-console protocols behind the agent's existing
+- **agent:** four new remote-console protocols behind the agent's existing
   `Exec` interface, so console / players / quiesce / lifecycle / actions all
   work over them: `websocket` (Rust's Facepunch WebRcon), `battleye` (BattlEye
-  RCon — DayZ), and `satisfactory` (Satisfactory's HTTPS function API). The
-  `rcon.protocol` enum is now `source;telnet;websocket;battleye;satisfactory;none`.
-  Modules adopted them: Rust, DayZ, and Satisfactory each gain a console (plus
-  a players list where the protocol exposes one). Satisfactory's admin password
-  isn't a server-config value the operator can inject — it needs a one-time
-  in-game claim, documented in the module.
+  RCon — DayZ), `satisfactory` (its HTTPS function API), and `palworld` (its
+  REST admin API). The `rcon.protocol` enum is now
+  `source;telnet;websocket;battleye;satisfactory;palworld;none`. Rust, DayZ and
+  Satisfactory each gain a console (plus a players list where the protocol
+  exposes one). Satisfactory's admin password isn't a server-config value the
+  operator can inject — it needs a one-time in-game claim, documented in the
+  module.
+- **modules:** **Palworld migrates off RCON, which upstream deprecated**
+  ("scheduled to stop functioning in an upcoming update"). It now speaks the
+  REST admin API (`protocol: palworld`, port 8212, Basic auth against the same
+  `AdminPassword`), which is strictly better than the RCON it replaces: a real
+  players list, and an announce that keeps its spaces — RCON's `Broadcast`
+  truncated at the first space. Kick/ban are deliberately not offered: the REST
+  API moderates by `userId` while the list yields display names.
+- **modules:** rich, docs-verified quick actions for ten games, including the
+  first ever for Terraria and Don't Starve Together (over the new stdin
+  transport) and Rust (over websocket RCON). Minecraft gains an
+  `announce-restart` sequence and drops its whitelist actions — the Players tab
+  already owns whitelist. Five games get none, each with the reason recorded in
+  its template: Valheim's dedicated server has no stdin command input at all,
+  DayZ's BattlEye is too restricted to verify, 7DTD and Garry's Mod images
+  can't wire a console password, and Enshrouded has no remote console.
 - **actions:** quick actions gain `commands` (a sequence run in order,
   mutually exclusive with `command`), `transport` (`rcon` | `stdin`), and
   `group` (labelled sections on the server detail page). Stdin actions run
@@ -163,42 +181,6 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   through the dashboard. The cryptic "Name (DNS label)" help text is gone
   too.
 
-### Fixed
-
-- **web:** file browser (list/read/write/upload/delete) now works for servers
-  shared from a non-default namespace — the namespace query param was being
-  inserted mid-URL, producing 400s and a silently-empty file tree.
-- **web:** servers shared from other namespaces are now **navigable** —
-  the detail route and namespace-aware API calls (lifecycle, console, files,
-  players, and mods) carry the server's namespace through search params and
-  query strings, while backups and schedules remain cluster-scoped. Player
-  counts no longer render `"-1 online"` when the maximum is unknown (agent
-  metric unavailable); they show just the online count instead.
-- **api/web:** the Cluster page no longer presents **"Add node" and
-  "Download kubeconfig" as click-to-error dead-ends** on installs where
-  cluster operations are off (the default). `GET /cluster/info` now reports
-  the `clusterOps` flag, and the dashboard disables both buttons with a hint
-  pointing at `clusterOps.enabled` in the Helm values.
-- **api/web:** the Authentication admin section can no longer save a config
-  with **zero enabled identity providers** — a state that would have locked
-  everyone out at their next logout. The API rejects such saves (422,
-  "at least one identity provider must stay enabled") and the dashboard
-  disables the toggle on the last enabled provider with an explanatory hint.
-- **web:** the Create Server wizard no longer produces **unschedulable
-  servers**. It set only resource *limits*, so Kubernetes defaulted
-  requests to match — a 4-core limit then needed a fully-empty node and sat
-  `Pending` forever on any partially-used cluster. The wizard now caps CPU /
-  memory at the largest single node's capacity (shown as a hint, enforced on
-  the field and the step), and sets an explicit modest CPU **request** below
-  the limit (memory is still guaranteed at the limit), so a new server
-  schedules onto a node with room. Defaults lowered to 2 cores / 4 GiB /
-  20 GiB.
-- **web:** raw byte counts in Kubernetes event messages (e.g. "Image size:
-  333546371 bytes") are now shown human-readable ("318 MB") on the server
-  Overview.
-
-### Added
-
 - **mods:** direct **file upload** — a third "Upload file" mode on the Mods
   install page sends a local mod straight to the server (multipart to the
   agent, drop zone + progress in the dialog). The agent applies the same
@@ -271,6 +253,61 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   (`netguard.IsAllowed`), delivery is best-effort with bounded retry, and
   outcomes are counted at `/metrics` as `gameplane_notify_deliveries_total`.
   See [`docs/notifications.md`](docs/notifications.md).
+
+### Fixed
+
+- **operator/chart:** game pods ran a **stale agent** on a floating image tag.
+  The operator injects `--agent-image=…:edge` but never set a pull policy, so
+  Kubernetes defaulted the agent container to `IfNotPresent` and every game pod
+  reused whatever the node had cached — one live pod was running an agent 12
+  days old. New agent features (the four protocols above) could never reach a
+  game pod, and an unknown protocol silently fell back to Source RCON. The
+  agent now inherits the chart's `image.pullPolicy`.
+- **chart:** the default module catalog is now **OCI, not git**. A git source is
+  single-version by construction (one ref = one `module.yaml` = one version), so
+  bumping a module *replaced* its version and every install pinned to the old one
+  went `VersionUnavailable`. OCI lists tags, so each release *adds* a version and
+  the catalog keeps a real history you can pin and roll back to.
+- **api/web:** the cluster meters told two lies — CPU/memory always read **0%**
+  because the API never asked metrics-server (it now does, via the aggregated
+  API, degrading to "—" where none is installed), and storage read **>100%** on a
+  healthy cluster because it divided PV *provisioned* capacity by node
+  *ephemeral-storage*. Storage is now presented as provisioned-of-physical with
+  overcommit as an explicit state.
+- **chart:** Admin → Updates showed `stable` on an `:edge` install; the channel
+  now derives from `image.tag` unless set explicitly.
+
+- **web:** file browser (list/read/write/upload/delete) now works for servers
+  shared from a non-default namespace — the namespace query param was being
+  inserted mid-URL, producing 400s and a silently-empty file tree.
+- **web:** servers shared from other namespaces are now **navigable** —
+  the detail route and namespace-aware API calls (lifecycle, console, files,
+  players, and mods) carry the server's namespace through search params and
+  query strings, while backups and schedules remain cluster-scoped. Player
+  counts no longer render `"-1 online"` when the maximum is unknown (agent
+  metric unavailable); they show just the online count instead.
+- **api/web:** the Cluster page no longer presents **"Add node" and
+  "Download kubeconfig" as click-to-error dead-ends** on installs where
+  cluster operations are off (the default). `GET /cluster/info` now reports
+  the `clusterOps` flag, and the dashboard disables both buttons with a hint
+  pointing at `clusterOps.enabled` in the Helm values.
+- **api/web:** the Authentication admin section can no longer save a config
+  with **zero enabled identity providers** — a state that would have locked
+  everyone out at their next logout. The API rejects such saves (422,
+  "at least one identity provider must stay enabled") and the dashboard
+  disables the toggle on the last enabled provider with an explanatory hint.
+- **web:** the Create Server wizard no longer produces **unschedulable
+  servers**. It set only resource *limits*, so Kubernetes defaulted
+  requests to match — a 4-core limit then needed a fully-empty node and sat
+  `Pending` forever on any partially-used cluster. The wizard now caps CPU /
+  memory at the largest single node's capacity (shown as a hint, enforced on
+  the field and the step), and sets an explicit modest CPU **request** below
+  the limit (memory is still guaranteed at the limit), so a new server
+  schedules onto a node with room. Defaults lowered to 2 cores / 4 GiB /
+  20 GiB.
+- **web:** raw byte counts in Kubernetes event messages (e.g. "Image size:
+  333546371 bytes") are now shown human-readable ("318 MB") on the server
+  Overview.
 
 ## [0.2.0-beta.5] — 2026-07-03
 
