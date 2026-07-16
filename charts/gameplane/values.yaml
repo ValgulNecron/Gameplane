@@ -323,13 +323,18 @@ defaultModuleSource:
   name: default
   refreshInterval: 1h
   # Where the official catalog comes from:
-  #   git — index the gameplane-module repository directly (default). Works out
-  #         of the box with nothing to publish: the official games show up in
-  #         the Modules page from the public repo below.
-  #   oci — pull pre-built, optionally cosign-signed bundles from a registry.
-  #         Used by local dev (the kind registry) and for mirroring the signed
-  #         official bundles.
-  type: git
+  #   oci — pull pre-built, cosign-signed bundles from a registry (default).
+  #         Each published tag is a version, so the catalog offers a real
+  #         version history: you can pin, roll back, and a new release ADDS a
+  #         version rather than replacing one. The official bundles are pushed
+  #         and signed by the release workflow.
+  #   git — index the gameplane-module repository directly. Simpler (nothing to
+  #         publish), but SINGLE-VERSION by construction: a git ref has exactly
+  #         one module.yaml, so it offers exactly one version. Bumping a module
+  #         REPLACES the old version rather than adding to it, and any Module
+  #         pinned to the old one goes VersionUnavailable/Failed. Use it to
+  #         track an unreleased branch, not for a stable install.
+  type: oci
   git:
     url: https://github.com/ValgulNecron/gameplane-module.git
     # Pinned to the module-repo tag validated against this chart's backend
@@ -346,10 +351,25 @@ defaultModuleSource:
   oci:
     url: ghcr.io/valgulnecron/gameplane-modules
     insecure: false       # set true for plain-HTTP local registries
+    # The official catalog. Each name is an OCI repo under url/ above; the
+    # operator discovers that module's versions from its tags.
     modules:
+      - 7-days-to-die
+      - ark-survival-ascended
+      - cs2
+      - dayz
+      - dont-starve-together
+      - enshrouded
+      - factorio
+      - garrys-mod
       - minecraft-java
-      - valheim
+      - palworld
+      - project-zomboid
+      - rust
+      - satisfactory
       - terraria
+      - valheim
+      - v-rising
     # Reference to a kubernetes.io/dockerconfigjson Secret in the operator
     # namespace for private registries. Leave empty for public registries.
     pullSecretName: ""
