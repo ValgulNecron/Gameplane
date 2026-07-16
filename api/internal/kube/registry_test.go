@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -130,6 +131,16 @@ func TestRegistryGetServer_RegisteredCluster(t *testing.T) {
 	}
 }
 
+// TestRegistryConcurrency hammers the registry from many goroutines to prove
+// its locking holds (run this with -race for the real signal).
+//
+// Each goroutine MUST own a unique cluster id. An earlier version keyed on
+// idx%26, so with 50 goroutines two of them shared every id — each Set its own
+// *Client, then asserted Get returned *its* pointer. That is not true under its
+// own concurrency: the sibling's Set legitimately wins, and its Remove can make
+// a Get return ok=false. The test only passed when the scheduler happened to
+// interleave kindly, and flaked otherwise. Unique ids make every assertion here
+// deterministic while still exercising concurrent access to the shared map.
 func TestRegistryConcurrency(t *testing.T) {
 	r := NewRegistry("local")
 	var wg sync.WaitGroup
@@ -139,7 +150,7 @@ func TestRegistryConcurrency(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			clusterID := "cluster-" + string(rune('a'+idx%26))
+			clusterID := fmt.Sprintf("cluster-%d", idx)
 			c := &Client{}
 
 			r.Set(clusterID, c)
