@@ -164,7 +164,15 @@ func TestGameServer_AgentImagePullPolicy(t *testing.T) {
 		})
 	})
 
-	t.Run("unset policy leaves the field unset", func(t *testing.T) {
+	// Leaving the policy unset does NOT leave the field empty: the apiserver
+	// defaults it to IfNotPresent for any tag that isn't :latest. That default
+	// IS the bug this flag exists to fix — with a floating tag like :edge it
+	// pins every game pod to whatever agent the node already cached (we found
+	// one running a 12-day-old build). This asserts the default we're
+	// overriding, so if Kubernetes ever changes it, we hear about it here.
+	// The truly-unset case is covered pre-apiserver by the buildAgentContainer
+	// unit test, which is the only place "unset" is observable.
+	t.Run("unset policy falls back to the apiserver default", func(t *testing.T) {
 		ns := newNamespace(t)
 		startMgr(t, ns, withGameServerReconciler(t, ns))
 
@@ -188,8 +196,9 @@ func TestGameServer_AgentImagePullPolicy(t *testing.T) {
 			if agent == nil {
 				return false, "no agent sidecar container"
 			}
-			if agent.ImagePullPolicy != "" {
-				return false, "agent ImagePullPolicy = " + string(agent.ImagePullPolicy) + ", want unset"
+			if agent.ImagePullPolicy != corev1.PullIfNotPresent {
+				return false, "agent ImagePullPolicy = " + string(agent.ImagePullPolicy) +
+					", want the apiserver default IfNotPresent"
 			}
 			return true, ""
 		})
