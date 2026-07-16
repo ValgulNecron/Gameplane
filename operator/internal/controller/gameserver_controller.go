@@ -41,6 +41,19 @@ type GameServerReconciler struct {
 	// deployer can pin the agent version independently of the game.
 	AgentImage string
 
+	// AgentImagePullPolicy, when non-empty, is set on the agent sidecar
+	// container. Set from the --agent-image-pull-policy operator flag.
+	// Empty leaves ImagePullPolicy unset, so Kubernetes applies its usual
+	// default (Always for a ":latest" tag, IfNotPresent otherwise) —
+	// preserving pre-flag behavior. That default is exactly the footgun
+	// this exists to let deployers override: a floating tag like ":edge"
+	// defaults to IfNotPresent, so a node reuses whatever agent image it
+	// already cached and game pods silently run a stale agent forever.
+	// The chart sets this to the same policy it uses for its own images
+	// (image.pullPolicy), so "Always" for :edge installs also rolls the
+	// agent sidecar.
+	AgentImagePullPolicy string
+
 	// AgentLogLevel, when non-empty, is injected into every agent sidecar
 	// as GAMEPLANE_LOG_LEVEL. Empty injects nothing — the agent defaults
 	// to info and existing StatefulSets don't roll on operator upgrade.
@@ -825,7 +838,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		ss.Spec.Template.ObjectMeta.Annotations = ann
 		ss.Spec.Template.Spec.Containers = []corev1.Container{
 			buildGameContainer(gs, tmpl, image, ver, mc),
-			buildAgentContainer(gs, tmpl, ver, r.AgentImage, r.AgentLogLevel),
+			buildAgentContainer(gs, tmpl, ver, r.AgentImage, r.AgentLogLevel, r.AgentImagePullPolicy),
 		}
 		volumes := []corev1.Volume{
 			{
@@ -1126,7 +1139,7 @@ func gamePodSecurityContext(tmpl *gameplanev1alpha1.GameTemplate) *corev1.PodSec
 
 func buildAgentContainer(
 	gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
-	ver *gameplanev1alpha1.GameVersion, fallbackImage, logLevel string,
+	ver *gameplanev1alpha1.GameVersion, fallbackImage, logLevel, pullPolicy string,
 ) corev1.Container {
 	image := fallbackImage
 	res := corev1.ResourceRequirements{}
@@ -1211,7 +1224,7 @@ func buildAgentContainer(
 			env = append(env, corev1.EnvVar{Name: "GAMEPLANE_CAPABILITIES", Value: string(b)})
 		}
 	}
-	return corev1.Container{
+	c := corev1.Container{
 		Name:         "agent",
 		Image:        image,
 		Args:         args,
@@ -1228,6 +1241,14 @@ func buildAgentContainer(
 			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 		},
 	}
+	// Only when explicitly configured — an empty value leaves
+	// ImagePullPolicy unset so Kubernetes applies its own default, matching
+	// pre-flag pod specs and avoiding a surprise rollout on operator
+	// upgrade for deployers who haven't set the chart's image.pullPolicy.
+	if pullPolicy != "" {
+		c.ImagePullPolicy = corev1.PullPolicy(pullPolicy)
+	}
+	return c
 }
 
 func (r *GameServerReconciler) reconcileBackupSchedule(

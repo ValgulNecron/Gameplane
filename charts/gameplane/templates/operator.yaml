@@ -235,6 +235,14 @@ spec:
             - --leader-elect
             {{- end }}
             - --agent-image={{ include "gameplane.agentImage" . }}
+            # A floating tag (e.g. :edge) defaults to ImagePullPolicy
+            # IfNotPresent under plain Kubernetes rules (only ":latest"
+            # defaults to Always), so a node reuses whatever agent image it
+            # already cached and game pods run a stale agent indefinitely.
+            # Inherit the same policy the chart uses for its own images
+            # (Always for :edge installs, IfNotPresent for pinned tags) so
+            # the agent sidecar rolls in step with the rest of Gameplane.
+            - --agent-image-pull-policy={{ .Values.image.pullPolicy }}
             {{- if .Values.operator.configInitImage }}
             - --config-init-image={{ .Values.operator.configInitImage }}
             {{- end }}

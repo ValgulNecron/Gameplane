@@ -64,6 +64,7 @@ func main() {
 		probeAddr              string
 		enableLeaderElection   bool
 		agentImage             string
+		agentImagePullPolicy   string
 		configInitImage        string
 		resticImage            string
 		agentLogLevel          string
@@ -83,6 +84,13 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election.")
 	flag.StringVar(&agentImage, "agent-image", "ghcr.io/valgulnecron/gameplane/agent:dev",
 		"Image to use for the Gameplane agent sidecar injected into game pods.")
+	flag.StringVar(&agentImagePullPolicy, "agent-image-pull-policy", "",
+		"ImagePullPolicy for the agent sidecar container (Always, IfNotPresent, or Never). "+
+			"Empty (default) leaves it unset so Kubernetes applies its usual default, preserving "+
+			"today's behavior. Set explicitly when --agent-image tracks a floating tag (e.g. :edge): "+
+			"Kubernetes defaults ImagePullPolicy to IfNotPresent for any non-\":latest\" tag, so without "+
+			"this flag a node reuses whatever agent image it already cached and game pods run a stale "+
+			"agent indefinitely.")
 	flag.StringVar(&configInitImage, "config-init-image", controller.DefaultConfigInitImage,
 		"Image for the init container that copies rendered config files onto the data volume. "+
 			"Point at a private registry mirror for air-gapped installs.")
@@ -181,6 +189,7 @@ func main() {
 		Client:                 mgr.GetClient(),
 		Scheme:                 mgr.GetScheme(),
 		AgentImage:             agentImage,
+		AgentImagePullPolicy:   agentImagePullPolicy,
 		ConfigInitImage:        configInitImage,
 		AgentLogLevel:          agentLogLevel,
 		AgentCASecretName:      agentCASecretName,

@@ -258,9 +258,24 @@ spec:
             {{- if $telemetryURL }}
             - --telemetry-endpoint={{ $telemetryURL }}
             {{- end }}
-            {{- if .Values.updates.channel }}
-            - --update-channel={{ .Values.updates.channel }}
+            {{- /*
+            An explicit updates.channel always wins. Otherwise derive it so
+            the dashboard doesn't lie: "edge" when the images actually
+            deployed track the rolling :edge build (image.tag=edge, or —
+            when image.tag is left empty so it falls back to the chart's
+            appVersion — an appVersion carrying the "edge" marker), "stable"
+            for everything else, including versioned pre-releases (e.g.
+            "0.2.0-beta.5") that went through the signed release pipeline.
+            */}}
+            {{- $channel := .Values.updates.channel }}
+            {{- if not $channel }}
+            {{- if or (eq .Values.image.tag "edge") (and (not .Values.image.tag) (contains "edge" .Chart.AppVersion)) }}
+            {{- $channel = "edge" }}
+            {{- else }}
+            {{- $channel = "stable" }}
             {{- end }}
+            {{- end }}
+            - --update-channel={{ $channel }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:

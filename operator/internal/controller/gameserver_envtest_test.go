@@ -126,6 +126,76 @@ func TestGameServer_AgentSidecarInjected(t *testing.T) {
 	})
 }
 
+// TestGameServer_AgentImagePullPolicy proves the --agent-image-pull-policy
+// operator flag reaches the agent sidecar's ImagePullPolicy end to end
+// (main.go -> GameServerReconciler.AgentImagePullPolicy -> buildAgentContainer),
+// and that leaving it unset (today's default) leaves the field unset on the
+// pod spec rather than forcing a default policy — the fix for game pods
+// silently running a stale agent forever on a floating tag like :edge.
+func TestGameServer_AgentImagePullPolicy(t *testing.T) {
+	t.Run("configured policy lands on the agent container", func(t *testing.T) {
+		ns := newNamespace(t)
+		startMgr(t, ns, withGameServerReconcilerAgentPullPolicy(t, ns, "Always"))
+
+		tmpl := buildGameTemplate(uniqueName("valheim"))
+		if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+			t.Fatalf("create template: %v", err)
+		}
+		deleteCleanup(t, tmpl)
+
+		if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+			t.Fatalf("create gameserver: %v", err)
+		}
+
+		eventually(t, func() (bool, string) {
+			var ss appsv1.StatefulSet
+			if err := k8sClient.Get(context.Background(),
+				types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+				return false, err.Error()
+			}
+			agent := containerByName(ss.Spec.Template.Spec.Containers, "agent")
+			if agent == nil {
+				return false, "no agent sidecar container"
+			}
+			if agent.ImagePullPolicy != corev1.PullAlways {
+				return false, "agent ImagePullPolicy = " + string(agent.ImagePullPolicy) + ", want Always"
+			}
+			return true, ""
+		})
+	})
+
+	t.Run("unset policy leaves the field unset", func(t *testing.T) {
+		ns := newNamespace(t)
+		startMgr(t, ns, withGameServerReconciler(t, ns))
+
+		tmpl := buildGameTemplate(uniqueName("valheim"))
+		if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+			t.Fatalf("create template: %v", err)
+		}
+		deleteCleanup(t, tmpl)
+
+		if err := k8sClient.Create(context.Background(), buildGameServer(ns, "smp", tmpl.Name)); err != nil {
+			t.Fatalf("create gameserver: %v", err)
+		}
+
+		eventually(t, func() (bool, string) {
+			var ss appsv1.StatefulSet
+			if err := k8sClient.Get(context.Background(),
+				types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
+				return false, err.Error()
+			}
+			agent := containerByName(ss.Spec.Template.Spec.Containers, "agent")
+			if agent == nil {
+				return false, "no agent sidecar container"
+			}
+			if agent.ImagePullPolicy != "" {
+				return false, "agent ImagePullPolicy = " + string(agent.ImagePullPolicy) + ", want unset"
+			}
+			return true, ""
+		})
+	})
+}
+
 // TestGameServer_SecurityContextAppliedToGameContainerAndPod proves the
 // full reconcile wiring for GameTemplate.spec.security (added for games
 // like ARK: Survival Ascended, whose image requires uid 25000 and can't

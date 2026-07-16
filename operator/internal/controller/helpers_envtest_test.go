@@ -97,6 +97,26 @@ func withGameServerReconciler(t *testing.T, ns string) setupReconciler {
 	}
 }
 
+// withGameServerReconcilerAgentPullPolicy is withGameServerReconciler with
+// AgentImagePullPolicy also set, proving the operator's
+// --agent-image-pull-policy flag (wired through main.go into
+// GameServerReconciler.AgentImagePullPolicy) reaches the agent sidecar
+// container's ImagePullPolicy end to end.
+func withGameServerReconcilerAgentPullPolicy(t *testing.T, ns, policy string) setupReconciler {
+	t.Helper()
+	seedAgentCA(t, ns, "agent-ca")
+	return func(mgr manager.Manager) error {
+		return (&GameServerReconciler{
+			Client:                 mgr.GetClient(),
+			Scheme:                 mgr.GetScheme(),
+			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
+			AgentImagePullPolicy:   policy,
+			AgentCASecretName:      "agent-ca",
+			AgentCASecretNamespace: ns,
+		}).SetupWithManager(mgr)
+	}
+}
+
 func withGameTemplateReconciler() setupReconciler {
 	return func(mgr manager.Manager) error {
 		return (&GameTemplateReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}).SetupWithManager(mgr)
