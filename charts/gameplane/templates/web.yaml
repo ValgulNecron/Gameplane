@@ -47,11 +47,17 @@ spec:
             readOnlyRootFilesystem: true
             capabilities: { drop: [ALL] }
           volumeMounts:
-            # nginx-unprivileged writes its pid + temp bodies under these
-            # paths; readOnlyRootFilesystem needs them backed by emptyDir.
+            # With readOnlyRootFilesystem, every path nginx writes at start
+            # must be an emptyDir: the entrypoint renders the config into
+            # conf.d (envsubst), nginx-unprivileged writes its pid to /tmp,
+            # and proxy/temp bodies go under /var/cache/nginx and /var/run.
+            - { name: conf, mountPath: /etc/nginx/conf.d }
+            - { name: tmp, mountPath: /tmp }
             - { name: cache, mountPath: /var/cache/nginx }
             - { name: run, mountPath: /var/run }
       volumes:
+        - { name: conf, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
         - { name: cache, emptyDir: {} }
         - { name: run, emptyDir: {} }
       {{- with .Values.image.pullSecrets }}

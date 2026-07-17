@@ -1,11 +1,21 @@
 # nginx config for the Gameplane dashboard pod.
 #
 # This is a *.template: the nginxinc/nginx-unprivileged image runs envsubst
-# over /etc/nginx/templates/*.template at boot, so ${API_UPSTREAM} below is
-# substituted from the env the Helm chart sets (the in-cluster API service,
-# e.g. http://gameplane-api.gameplane-system.svc.cluster.local). Only that
-# one variable is substituted — every real nginx variable is written $$var
-# so envsubst leaves it alone.
+# over /etc/nginx/templates/*.template at boot, so ${API_UPSTREAM} and
+# ${NGINX_RESOLVER} below are substituted from the environment (API_UPSTREAM
+# is set by the Helm chart to the in-cluster API service; NGINX_RESOLVER is
+# derived from the pod's /etc/resolv.conf by docker-entrypoint.d/15-resolver.envsh,
+# which is sourced before the envsubst step). Only those two are substituted —
+# every real nginx variable is written $var so envsubst leaves it alone.
+#
+# Resolution is deferred to request time on purpose. A literal hostname in
+# proxy_pass is resolved when nginx PARSES the config, and nginx refuses to
+# start ("host not found in upstream") if the API Service DNS isn't up yet —
+# which races a fresh `helm install`. Using a `resolver` plus a variable
+# ($upstream) in proxy_pass makes nginx resolve per request (cached for
+# valid=), so the web pod comes up cleanly and also survives the API Service
+# IP changing without a restart.
+resolver ${NGINX_RESOLVER} valid=30s ipv6=off;
 #
 # WHY the Accept-header split (not an ingress path list):
 #   The SPA calls the API at *unprefixed* paths — fetch("/servers"),
@@ -19,14 +29,14 @@
 #   / WebSocket / SSE) is proxied to the API. New API routes need no change
 #   here — a fetch is never Accept: text/html, so it always proxies through.
 
-map $$http_upgrade $$connection_upgrade {
+map $http_upgrade $connection_upgrade {
     default upgrade;
     ''      close;
 }
 
-# $$is_html is 1 for top-level document navigations (the browser sends
+# $is_html is 1 for top-level document navigations (the browser sends
 # "text/html" in Accept), 0 for fetch/XHR/asset requests.
-map $$http_accept $$is_html {
+map $http_accept $is_html {
     default          0;
     "~*text/html"    1;
 }
@@ -42,7 +52,7 @@ server {
     # Never cache the shell; hashed assets under /assets are content-addressed
     # and safe to cache hard.
     location /assets/ {
-        try_files $$uri =404;
+        try_files $uri =404;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -61,28 +71,32 @@ server {
         # 1) Real file on disk (index.html, favicon, manifest, …) → serve it.
         # 2) Otherwise fall through to the @backend named location, which
         #    decides SPA-shell vs API by Accept header.
-        try_files $$uri @backend;
+        try_files $uri @backend;
     }
 
     location @backend {
         # HTML navigation for a path with no matching file → the SPA shell.
         # (This is the deep-link / hard-refresh case, e.g. GET /servers/foo
         # from the address bar.)
-        if ($$is_html) {
+        if ($is_html) {
             rewrite ^ /index.html last;
         }
-        # Everything else — fetch/XHR/WebSocket/SSE — is the API.
-        proxy_pass ${API_UPSTREAM};
+        # Everything else — fetch/XHR/WebSocket/SSE — is the API. The upstream
+        # is a variable (not a literal) so nginx resolves it via the resolver
+        # above at request time; with a variable proxy_pass the request URI is
+        # not appended automatically, so $request_uri is explicit.
+        set $upstream ${API_UPSTREAM};
+        proxy_pass $upstream$request_uri;
 
         proxy_http_version 1.1;
-        proxy_set_header Host              $$host;
-        proxy_set_header X-Real-IP         $$remote_addr;
-        proxy_set_header X-Forwarded-For   $$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $$scheme;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
 
         # WebSocket upgrade (console/logs/players streams under /servers/.../ws).
-        proxy_set_header Upgrade    $$http_upgrade;
-        proxy_set_header Connection $$connection_upgrade;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
 
         # Server-Sent Events (/events): don't buffer or the stream stalls,
         # and don't time the long-lived connection out early.

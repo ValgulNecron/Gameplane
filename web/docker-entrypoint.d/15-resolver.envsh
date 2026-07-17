@@ -1,0 +1,12 @@
+# Sourced by the nginx image entrypoint (files ending .envsh are sourced,
+# before 20-envsubst-on-templates.sh runs), so the export below is visible to
+# envsubst and lands as ${NGINX_RESOLVER} in nginx.conf.template.
+#
+# The DNS server to hand nginx's `resolver` directive is the cluster DNS the
+# pod already uses — the first nameserver in /etc/resolv.conf (CoreDNS/kube-dns
+# in-cluster). We can't hardcode it (it's per-cluster) and nginx's `resolver`
+# needs an IP, so we read it from the pod at start. Fall back to the common
+# kube-dns ClusterIP if resolv.conf has no nameserver line (shouldn't happen
+# in-cluster).
+NGINX_RESOLVER="$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)"
+export NGINX_RESOLVER="${NGINX_RESOLVER:-10.96.0.10}"

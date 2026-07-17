@@ -31,6 +31,10 @@ ENV API_UPSTREAM=http://gameplane-api.gameplane-system.svc.cluster.local
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY web/nginx.conf.template /etc/nginx/templates/gameplane.conf.template
 
+# Sourced at start (before envsubst) to export NGINX_RESOLVER from the pod's
+# /etc/resolv.conf — see the file and nginx.conf.template for why.
+COPY web/docker-entrypoint.d/15-resolver.envsh /docker-entrypoint.d/15-resolver.envsh
+
 # Static assets.
 COPY --from=build /src/web/dist /usr/share/nginx/html
 
