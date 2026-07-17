@@ -192,6 +192,11 @@ jobs:
           grep -q 'kind: Deployment' /tmp/rendered.yaml
           grep -q 'kind: ClusterRole' /tmp/rendered.yaml
           grep -q 'kind: NetworkPolicy' /tmp/rendered.yaml
+      - name: crd-manifests in sync with crds
+        # The CRD-apply hook serves CRDs from crd-manifests/ (crds/ isn't
+        # readable by Helm .Files). make manifests keeps both in sync; guard
+        # against a drift that would apply stale CRDs on upgrade.
+        run: diff -r charts/gameplane/crds charts/gameplane/crd-manifests
 
   # ---------------------------------------------------------------------
   # kind e2e — one job per suite, each with its own throwaway cluster on
