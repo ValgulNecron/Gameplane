@@ -1,0 +1,133 @@
+{{- if .Values.crds.autoApply.enabled }}
+{{- /*
+Helm installs the files under crds/ only on the FIRST install and never
+updates them on `helm upgrade` — a documented Helm limitation. This hook
+closes that gap for every environment (not just this repo's `make dev-install`):
+a Job runs `kubectl apply --server-side` over the CRDs on pre-UPGRADE, so a
+plain `helm upgrade` always brings the CRD schema up to date.
+
+Deliberately pre-upgrade ONLY, not pre-install: a fresh install already gets
+the CRDs from Helm's native crds/ install, which needs no pod — so gating the
+hook to upgrades keeps first installs (air-gapped, or the kind e2e) working
+with zero dependency on pulling the kubectl image, and only reaches for it on
+the upgrades that actually need it.
+
+Why a Job and not templates/: the CRDs can't live in templates/ (their
+descriptions contain Go-template syntax like `{{"{{"}}.Params.message{{"}}"}}`
+that Helm would try to evaluate), and the large gametemplates CRD needs
+server-side apply to avoid the client-side last-applied-annotation size
+limit. So the CRDs are shipped in crd-manifests/ (readable by .Files, unlike
+the special crds/ dir), mounted into the Job via a ConfigMap.
+
+All resources are hook-scoped and cleaned up after a successful run; only
+the CRDs they apply persist (CRDs are never owned or deleted by Helm here,
+so `helm uninstall` never wipes your GameServers).
+*/}}
+{{- $hookAnnotations := dict
+  "helm.sh/hook" "pre-upgrade"
+  "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-crd-apply
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hookAnnotations) | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  # Cluster-scoped: namespace-qualified so the same release name in two
+  # namespaces doesn't collide on this name.
+  name: {{ .Release.Name }}-{{ .Release.Namespace }}-crd-apply
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hookAnnotations) | nindent 4 }}
+rules:
+  # Scoped to CRDs only. get/create for first apply, patch for server-side
+  # apply of an existing CRD (list lets kubectl resolve the resource).
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-{{ .Release.Namespace }}-crd-apply
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hookAnnotations) | nindent 4 }}
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ .Release.Name }}-{{ .Release.Namespace }}-crd-apply }
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-crd-apply
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-crd-manifests
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hookAnnotations) | nindent 4 }}
+data:
+  # .AsConfig embeds each CRD file verbatim (filename: content). .Files.Get
+  # does not re-template the content, so the {{"{{"}} … {{"}}"}} in CRD
+  # descriptions is preserved literally.
+{{ (.Files.Glob "crd-manifests/*.yaml").AsConfig | indent 2 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-crd-apply
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "0") $hookAnnotations) | nindent 4 }}
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gameplane-crd-apply
+        {{- include "gameplane.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-crd-apply
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: kubectl
+          image: {{ .Values.crds.autoApply.image | quote }}
+          imagePullPolicy: {{ .Values.crds.autoApply.pullPolicy }}
+          command: ["kubectl", "apply", "--server-side", "--force-conflicts", "-f", "/crds"]
+          env:
+            # kubectl caches API discovery under $HOME/.kube; point it at the
+            # writable emptyDir so readOnlyRootFilesystem holds.
+            - { name: HOME, value: /tmp }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: crds, mountPath: /crds, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: crds
+          configMap:
+            name: {{ .Release.Name }}-crd-manifests
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

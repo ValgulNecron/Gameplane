@@ -222,7 +222,7 @@ Commit the regenerated files in the same change:
 - `operator/config/rbac/*.yaml`
 - `charts/gameplane/crds/*.yaml` (synced automatically by `make manifests`)
 
-Note: Helm only installs `crds/` on first install — `helm upgrade` never updates CRDs. `make dev-install` works around this by running `kubectl apply --server-side -f charts/gameplane/crds/` before the upgrade, so CRD schema changes land in-place on a dev cluster without a full `dev-down`/`dev-up`. A raw `helm upgrade` (or an e2e cluster brought up some other way) still won't update CRDs.
+Note: Helm's own `crds/` install runs only on first install and `helm upgrade` never updates it — so the chart ships a **pre-upgrade hook** (`crds.autoApply`, in `charts/gameplane/templates/crd-apply-hook.yaml`) that runs `kubectl apply --server-side` over the CRDs on every `helm upgrade`, in any environment (not just `make dev-install`). It's pre-upgrade *only*: a fresh install already gets the CRDs from Helm's native `crds/` (no pod), so first installs — air-gapped ones and the kind e2e — never depend on pulling the hook's kubectl image. The CRDs it applies are shipped in `charts/gameplane/crd-manifests/` (a `.Files`-readable copy of `crds/`, since Helm hides the special `crds/` dir from `.Files`); `make manifests` keeps both copies in sync. CRDs are still never owned/deleted by Helm, so `helm uninstall` leaves GameServers intact.
 
 ### 8. Do NOT run the test or lint suites locally — CI is the source of truth
 

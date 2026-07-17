@@ -266,6 +266,10 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 		output:crd:artifacts:config=config/crd \
 		output:rbac:artifacts:config=config/rbac
 	cp operator/config/crd/gameplane.local_*.yaml charts/gameplane/crds/
+	# crd-manifests/ ships the same CRDs where Helm's .Files can read them (it
+	# can't read the special crds/ dir), so the chart's pre-install/pre-upgrade
+	# hook can apply them on every upgrade. Keep both copies in sync.
+	cp operator/config/crd/gameplane.local_*.yaml charts/gameplane/crd-manifests/
 
 module-schema: ## Regenerate the editor JSON Schema for module template.yaml from the CRD
 	python3 hack/gen-module-schema.py
@@ -300,11 +304,10 @@ dev-push: ## Push operator/api/web/agent images to REGISTRY (remote clusters)
 	docker push $(REGISTRY)/agent:$(TAG)
 
 dev-install: ## Install Gameplane Helm chart into the selected cluster
-	# Helm only installs crds/ on first install — `helm upgrade` never updates
-	# them. Apply them explicitly first so CRD schema changes land in-place on a
-	# dev cluster without a full dev-down/dev-up (server-side apply avoids the
-	# last-applied-annotation size limit on large CRDs).
-	$(KUBECONFIG_ENV) kubectl apply --server-side -f $(CHART_DIR)/crds/
+	# CRD schema changes land in-place on upgrade via the chart's
+	# pre-install/pre-upgrade hook (crds.autoApply), which runs
+	# `kubectl apply --server-side` — no manual apply needed here anymore, and
+	# it works for any `helm upgrade`, not just this target.
 	$(KUBECONFIG_ENV) helm upgrade --install $(CHART_RELEASE) $(CHART_DIR) \
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
