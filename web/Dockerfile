@@ -38,11 +38,11 @@ COPY web/nginx.conf.template /etc/nginx/templates/gameplane.conf.template
 
 # Sourced at start (before envsubst) to export NGINX_RESOLVER from the pod's
 # /etc/resolv.conf — see the file and nginx.conf.template for why. The nginx
-# entrypoint sources *.envsh ONLY if it's executable, so force the bit here:
-# a mode-losing checkout (Windows, some CI) would otherwise silently skip it
-# and leave ${NGINX_RESOLVER} unsubstituted, crash-looping the pod.
+# entrypoint sources *.envsh ONLY if it's executable; the file is committed
+# mode 0755 and COPY preserves it, so no chmod is needed. (A RUN chmod fails
+# here: the base image runs as the non-root nginx user, which can't chmod a
+# root-owned COPY — that broke the first build.)
 COPY web/docker-entrypoint.d/15-resolver.envsh /docker-entrypoint.d/15-resolver.envsh
-RUN chmod 0755 /docker-entrypoint.d/15-resolver.envsh
 
 # Static assets.
 COPY --from=build /src/web/dist /usr/share/nginx/html
