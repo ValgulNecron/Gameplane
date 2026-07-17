@@ -28,6 +28,19 @@ modules/<name>/
 submodule mounts the `gameplane-module` repo root at `modules/`, so the paths
 below still resolve.
 
+### Editor schemas
+
+Both YAML files carry a first-line `# yaml-language-server: $schema=…` modeline
+pointing at JSON Schemas under `modules/.schema/`, so editors (VS Code's
+`redhat.vscode-yaml`) validate and autocomplete them instead of guessing an
+unrelated schema. `module.schema.json` is hand-maintained; `gametemplate.schema.json`
+is **generated from the GameTemplate CRD** — after changing CRD spec fields,
+regenerate and commit it (in the submodule):
+
+```sh
+make module-schema      # hack/gen-module-schema.py → modules/.schema/gametemplate.schema.json
+```
+
 `template.yaml` is the same `GameTemplate` you would write today, with one
 difference: omit `metadata.name`. The name is set on install from
 `module.yaml#name`, so a single bundle can be installed under different

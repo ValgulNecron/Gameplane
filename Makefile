@@ -251,7 +251,7 @@ image-mcp-server: ## Build mcp-server image
 	docker build -t $(REGISTRY)/mcp-server:$(TAG) -f mcp-server/Dockerfile .
 
 # -------- codegen --------
-.PHONY: generate manifests
+.PHONY: generate manifests module-schema
 generate: ## Run controller-gen deepcopy generators
 	cd operator && go run sigs.k8s.io/controller-tools/cmd/controller-gen object paths=./api/...
 
@@ -263,6 +263,10 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 		output:crd:artifacts:config=config/crd \
 		output:rbac:artifacts:config=config/rbac
 	cp operator/config/crd/gameplane.local_*.yaml charts/gameplane/crds/
+
+module-schema: ## Regenerate the editor JSON Schema for module template.yaml from the CRD
+	python3 hack/gen-module-schema.py
+	@echo "commit modules/.schema/gametemplate.schema.json in the gameplane-module repo + bump the submodule pointer"
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-push dev-install
