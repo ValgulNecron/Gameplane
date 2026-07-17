@@ -41,6 +41,30 @@ map $http_accept $is_html {
     "~*text/html"    1;
 }
 
+# $force_proxy is 1 for API endpoints the browser reaches by NAVIGATION,
+# not fetch — so the Accept heuristic alone would wrongly serve them the SPA
+# shell. These must ALWAYS proxy to the API even for an Accept: text/html
+# request. They are API-only paths (no client-side route collides), so
+# unconditional proxying is safe:
+#   /auth/…               OIDC start + the IdP's callback redirect (both are
+#                         full-page navigations — Login.tsx location.assign
+#                         and the external IdP), so SSO breaks without this.
+#   …/files|logs/download the file/log download links navigate the browser
+#                         straight at the API (Files.tsx / Logs.tsx).
+map $uri $force_proxy {
+    default                                        0;
+    "~^/auth/"                                     1;
+    "~^/servers/[^/]+/(files|logs)/download"       1;
+}
+
+# Serve the SPA shell only for a genuine client-route navigation: an HTML
+# navigation that is NOT one of the force-proxy API paths. Everything else
+# (fetch/XHR/WebSocket/SSE, and navigations to API-only paths) proxies.
+map "$is_html:$force_proxy" $serve_shell {
+    default   0;
+    "1:0"     1;
+}
+
 server {
     listen       8080;
     listen       [::]:8080;
@@ -75,10 +99,11 @@ server {
     }
 
     location @backend {
-        # HTML navigation for a path with no matching file → the SPA shell.
-        # (This is the deep-link / hard-refresh case, e.g. GET /servers/foo
-        # from the address bar.)
-        if ($is_html) {
+        # Client-route navigation for a path with no matching file → the SPA
+        # shell. (Deep-link / hard-refresh, e.g. GET /servers/foo from the
+        # address bar.) $serve_shell excludes API-only paths reached by
+        # navigation — OIDC redirects and download links — so those proxy.
+        if ($serve_shell) {
             rewrite ^ /index.html last;
         }
         # Everything else — fetch/XHR/WebSocket/SSE — is the API. The upstream
