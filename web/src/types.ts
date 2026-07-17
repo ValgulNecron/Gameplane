@@ -91,6 +91,10 @@ export interface ModProviderDecl {
   // Required (>0) when provider is "steam" — facets Workshop browse/search
   // to this Steam app id. Ignored otherwise.
   steamAppID?: number;
+  // Required (>0) when provider is "curseforge" — the numeric CurseForge
+  // game this provider searches (e.g. 432 for Minecraft, 83374 for ARK:
+  // Survival Ascended). Ignored otherwise.
+  curseforgeGameID?: number;
   // Required when provider is "github" — the one repository whose Releases
   // stand in for versions. Ignored otherwise.
   github?: { owner: string; repo: string };

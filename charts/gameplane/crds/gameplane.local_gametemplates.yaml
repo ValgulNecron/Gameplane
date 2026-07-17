@@ -510,6 +510,15 @@ spec:
                                   required:
                                   - name
                                   type: object
+                                curseforgeGameID:
+                                  description: |-
+                                    CurseForgeGameID is the numeric CurseForge game the browser searches
+                                    (Minecraft is 432; ARK: Survival Ascended is 83374 — from CurseForge's
+                                    own /v1/games). Required when provider is curseforge: the API has no
+                                    safe default, and guessing one is how ARK's browser ended up listing
+                                    Minecraft mods.
+                                  format: int32
+                                  type: integer
                                 github:
                                   description: |-
                                     GitHub binds this provider to one repository's Releases. GitHub has
@@ -733,20 +742,20 @@ spec:
                                   description: |-
                                     Provider names the built-in registry engine: "modrinth" (Minecraft
                                     mods/plugins, keyless), "thunderstore" (BepInEx games, keyless,
-                                    per-community), "curseforge" (Minecraft mods/modpacks, needs an API
-                                    key), "hangar" (PaperMC plugins, keyless), "factorio" (the official
-                                    Factorio mod portal; browse is keyless, downloads need the player's
-                                    own factorio.com credentials so installs hand off to the from-URL
-                                    form), "steam" (Steam Workshop browse, needs a Steam Web API key;
-                                    see SteamAppID — Workshop content has no download URL, so it's a
-                                    preview-only browser wired to modpacks.refEnv for collection-based
-                                    games like Garry's Mod/CS2), "nexus" (Nexus Mods, needs an API key,
-                                    browse-only for the same reason as steam — see Community for its
-                                    per-game domain slug), "spigot" (SpigotMC plugins via the Spiget API,
-                                    keyless), "github" (one repository's Releases stand in for
-                                    versions, keyless but rate-limited — see GitHub), or "umod"
-                                    (Rust/Hurtworld/7 Days to Die's Oxide/uMod plugin ecosystem,
-                                    keyless).
+                                    per-community), "curseforge" (mods/modpacks for the game identified
+                                    by CurseForgeGameID, needs an API key), "hangar" (PaperMC plugins,
+                                    keyless), "factorio" (the official Factorio mod portal; browse is
+                                    keyless, downloads need the player's own factorio.com credentials so
+                                    installs hand off to the from-URL form), "steam" (Steam Workshop
+                                    browse, needs a Steam Web API key; see SteamAppID — Workshop content
+                                    has no download URL, so it's a preview-only browser wired to
+                                    modpacks.refEnv for collection-based games like Garry's Mod/CS2),
+                                    "nexus" (Nexus Mods, needs an API key, browse-only for the same
+                                    reason as steam — see Community for its per-game domain slug),
+                                    "spigot" (SpigotMC plugins via the Spiget API, keyless), "github"
+                                    (one repository's Releases stand in for versions, keyless but
+                                    rate-limited — see GitHub), or "umod" (Rust/Hurtworld/7 Days to
+                                    Die's Oxide/uMod plugin ecosystem, keyless).
                                   enum:
                                   - modrinth
                                   - thunderstore
@@ -777,6 +786,10 @@ spec:
                                   && self.steamAppID > 0)
                               - message: github is required when provider is github
                                 rule: self.provider != 'github' || has(self.github)
+                              - message: curseforgeGameID is required when provider
+                                  is curseforge
+                                rule: self.provider != 'curseforge' || (has(self.curseforgeGameID)
+                                  && self.curseforgeGameID > 0)
                             maxItems: 8
                             minItems: 1
                             type: array

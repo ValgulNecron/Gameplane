@@ -14,13 +14,21 @@ func testCurseforge(url string) *Curseforge {
 	return c
 }
 
+// testCurseforgeGame wraps testCurseforge with a configured game id,
+// mirroring testSteamApp — the way tests exercise the Provider surface a
+// template's registry config actually resolves to.
+func testCurseforgeGame(url string, gameID int32) *curseforgeGame {
+	return &curseforgeGame{cf: testCurseforge(url), gameID: gameID}
+}
+
 func TestCurseforgeSearch(t *testing.T) {
-	var gotKey, gotClass, gotLoader, gotSort, gotFilter, gotIndex, gotGV string
+	var gotKey, gotGameID, gotClass, gotLoader, gotSort, gotFilter, gotIndex, gotGV string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/mods/search" {
 			t.Errorf("path = %q, want /mods/search", r.URL.Path)
 		}
 		gotKey = r.Header.Get("x-api-key")
+		gotGameID = r.URL.Query().Get("gameId")
 		gotClass = r.URL.Query().Get("classId")
 		gotLoader = r.URL.Query().Get("modLoaderType")
 		gotSort = r.URL.Query().Get("sortField")
@@ -33,7 +41,7 @@ func TestCurseforgeSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := testCurseforge(srv.URL).Search(context.Background(), SearchQuery{
+	got, err := testCurseforgeGame(srv.URL, cfGameMinecraft).Search(context.Background(), SearchQuery{
 		Term: "jei", Loader: "fabric", GameVersion: "1.21.4", Sort: "downloads", Offset: 50, Limit: 20,
 	})
 	if err != nil {
@@ -41,6 +49,9 @@ func TestCurseforgeSearch(t *testing.T) {
 	}
 	if gotKey != "secret-key" {
 		t.Errorf("x-api-key = %q", gotKey)
+	}
+	if gotGameID != "432" {
+		t.Errorf("gameId = %q, want 432 (minecraft)", gotGameID)
 	}
 	if gotClass != "6" {
 		t.Errorf("classId = %q, want 6 (mods)", gotClass)
@@ -70,11 +81,39 @@ func TestCurseforgeModpackClass(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	}))
 	defer srv.Close()
-	if _, err := testCurseforge(srv.URL).Search(context.Background(), SearchQuery{ProjectType: "modpack", Limit: 20}); err != nil {
+	if _, err := testCurseforgeGame(srv.URL, cfGameMinecraft).Search(context.Background(), SearchQuery{ProjectType: "modpack", Limit: 20}); err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	if gotClass != "4471" {
 		t.Errorf("classId = %q, want 4471 (modpacks)", gotClass)
+	}
+}
+
+// TestCurseforgeSearchUsesConfiguredGameID is the regression guard for the
+// "ARK's mod browser shows Minecraft mods" bug: the game id sent upstream
+// must be the one configured on the template's provider (curseforgeGameID),
+// never the hardcoded Minecraft id. It also proves a non-Minecraft game
+// gets no classId filter, since CurseForge's mod/modpack class ids (6,
+// 4471) are Minecraft-specific and would silently zero out another game's
+// results.
+func TestCurseforgeSearchUsesConfiguredGameID(t *testing.T) {
+	const arkGameID = 83374 // ARK: Survival Ascended, from CurseForge's /v1/games.
+	var gotGameID, gotClass string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotGameID = r.URL.Query().Get("gameId")
+		gotClass = r.URL.Query().Get("classId")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	if _, err := testCurseforgeGame(srv.URL, arkGameID).Search(context.Background(), SearchQuery{Term: "s+"}); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if gotGameID != "83374" {
+		t.Errorf("gameId = %q, want 83374 (ARK: Survival Ascended), not the hardcoded Minecraft id", gotGameID)
+	}
+	if gotClass != "" {
+		t.Errorf("classId = %q, want unset for a non-Minecraft game", gotClass)
 	}
 }
 
@@ -109,12 +148,33 @@ func TestCurseforgeModpackDepsNil(t *testing.T) {
 	}
 }
 
+// TestCurseforgeGameDelegates proves curseforgeGame's Versions and
+// ModpackDeps just forward to the underlying engine (game-agnostic, unlike
+// Search) — mirroring steamApp's equivalent wrapper-delegation coverage.
+func TestCurseforgeGameDelegates(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mods/238222/files" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	game := testCurseforgeGame(srv.URL, 83374)
+	if _, err := game.Versions(context.Background(), "238222", Filter{}); err != nil {
+		t.Fatalf("Versions: %v", err)
+	}
+	if files, err := game.ModpackDeps(context.Background(), "238222"); err != nil || files != nil {
+		t.Fatalf("ModpackDeps = %v, %v; want nil, nil", files, err)
+	}
+}
+
 func TestCurseforgeUpstreamError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
 	defer srv.Close()
-	if _, err := testCurseforge(srv.URL).Search(context.Background(), SearchQuery{Term: "x"}); err == nil {
+	if _, err := testCurseforgeGame(srv.URL, cfGameMinecraft).Search(context.Background(), SearchQuery{Term: "x"}); err == nil {
 		t.Fatal("expected error on 403")
 	}
 }
