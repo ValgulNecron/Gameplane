@@ -82,11 +82,15 @@ EOF
     # registry the e2e cluster can't reach, so `--wait` would block on it
     # (kstatus reports the never-indexed source as InProgress) until timeout.
     # The module e2e tests provision their own in-cluster registry + source.
+    # Disable the web front end: the suite drives the API directly via
+    # port-forward (never the browser), so building/loading the nginx image
+    # would only add minutes, and `--wait` would block on an unloaded image.
     helm upgrade --install gameplane "${CHART_DIR}" \
         --namespace gameplane-system --create-namespace \
         --set "image.registry=gameplane-test" \
         --set "image.tag=${TAG}" \
         --set "ingress.enabled=false" \
+        --set "web.enabled=false" \
         --set "operator.agentImage=gameplane-test/agent:${TAG}" \
         --set "api.resources.limits.memory=1Gi" \
         --set "operator.leaderElect=false" \

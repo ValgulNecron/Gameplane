@@ -17,6 +17,7 @@ on:
     paths:
       - "operator/**"
       - "api/**"
+      - "web/**"
       - "agent/**"
       - "netguard/**"
       - "audit-syslog-bridge/**"
@@ -44,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server]
+        component: [operator, api, web, agent, audit-syslog-bridge, telemetry-receiver, mcp-server]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

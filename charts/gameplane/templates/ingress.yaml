@@ -13,11 +13,15 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
+          # All traffic enters the web pod, which serves the SPA and proxies
+          # API/WS/SSE to gameplane-api (see web/nginx.conf.template). If the
+          # web front end is disabled, fall back to the API directly — it
+          # serves the API surface, just not the dashboard at /.
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: gameplane-api
+                name: {{ if .Values.web.enabled }}gameplane-web{{ else }}gameplane-api{{ end }}
                 port: { name: http }
   {{- if .Values.ingress.tls }}
   tls:

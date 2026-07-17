@@ -1,0 +1,15 @@
+# BuildKit reads this in place of the context-root .dockerignore when the
+# build names web/Dockerfile (`-f web/Dockerfile`, as the publish/release
+# workflows and `make image-web` do). Paths are relative to the build
+# context, which is the repo root.
+#
+# The context is the whole repo, but this image only needs web/. Keeping it
+# tight makes the context small and the build reproducible: node_modules is
+# reinstalled from the lockfile and dist is rebuilt inside the image, so the
+# local copies must never leak in.
+*
+!web
+web/node_modules
+web/dist
+web/.vite
+web/coverage
