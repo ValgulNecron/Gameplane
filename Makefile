@@ -230,13 +230,16 @@ lint-web: ## Run web linters
 
 # -------- images --------
 .PHONY: images
-images: image-operator image-api image-agent image-audit-syslog image-telemetry-receiver image-mcp-server ## Build all container images
+images: image-operator image-api image-web image-agent image-audit-syslog image-telemetry-receiver image-mcp-server ## Build all container images
 
 image-operator: ## Build operator image
 	docker build -t $(REGISTRY)/operator:$(TAG) -f operator/Dockerfile .
 
 image-api: ## Build API image
 	docker build -t $(REGISTRY)/api:$(TAG) -f api/Dockerfile .
+
+image-web: ## Build web (dashboard) image
+	docker build -t $(REGISTRY)/web:$(TAG) -f web/Dockerfile .
 
 image-agent: ## Build agent image
 	docker build -t $(REGISTRY)/agent:$(TAG) -f agent/Dockerfile .
@@ -283,11 +286,13 @@ endif
 dev-load: ## Load local images into kind cluster (kind only)
 	kind load docker-image $(REGISTRY)/operator:$(TAG) --name $(KIND_CLUSTER)
 	kind load docker-image $(REGISTRY)/api:$(TAG)      --name $(KIND_CLUSTER)
+	kind load docker-image $(REGISTRY)/web:$(TAG)      --name $(KIND_CLUSTER)
 	kind load docker-image $(REGISTRY)/agent:$(TAG)    --name $(KIND_CLUSTER)
 
-dev-push: ## Push operator/api/agent images to REGISTRY (remote clusters)
+dev-push: ## Push operator/api/web/agent images to REGISTRY (remote clusters)
 	docker push $(REGISTRY)/operator:$(TAG)
 	docker push $(REGISTRY)/api:$(TAG)
+	docker push $(REGISTRY)/web:$(TAG)
 	docker push $(REGISTRY)/agent:$(TAG)
 
 dev-install: ## Install Gameplane Helm chart into the selected cluster
