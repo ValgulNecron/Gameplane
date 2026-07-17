@@ -179,6 +179,18 @@ api:
     clientCertRef:   { name: gameplane-agent-client, key: tls.crt }
     clientKeyRef:    { name: gameplane-agent-client, key: tls.key }
 
+# The dashboard front end: an nginx pod that serves the built SPA and proxies
+# API/WebSocket/SSE traffic to the API. The ingress points at this service, so
+# `helm install` yields a working dashboard with no external build step.
+# Disable only for a headless/API-only install — the ingress then falls back
+# to the API directly and there is no UI at /.
+web:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits:   { cpu: 200m, memory: 128Mi }
+
 ingress:
   enabled: true
   className: nginx

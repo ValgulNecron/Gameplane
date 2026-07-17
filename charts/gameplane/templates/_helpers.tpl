@@ -16,6 +16,10 @@ track a rolling channel.
 {{- printf "%s/api:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
 {{- end -}}
 
+{{- define "gameplane.webImage" -}}
+{{- printf "%s/web:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+
 {{- define "gameplane.agentImage" -}}
 {{- if .Values.operator.agentImage -}}
 {{- .Values.operator.agentImage -}}
