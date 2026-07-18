@@ -57,6 +57,13 @@ func (r *BackupScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// only when something actually changed (avoids reconcile churn).
 	before := sched.Status.DeepCopy()
 
+	// Owns(&Backup{}) re-triggers this Reconcile on every owned Backup
+	// status transition, so this runs (and can advance the high-water
+	// mark) even while the schedule itself is suspended.
+	if err := r.updateLastSuccessfulTime(ctx, &sched); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if sched.Spec.Suspend {
 		sched.Status.NextScheduleTime = nil
 		return ctrl.Result{}, r.persistStatus(ctx, before, &sched)
@@ -206,6 +213,37 @@ func (r *BackupScheduleReconciler) inFlightBackups(
 	return active, nil
 }
 
+// updateLastSuccessfulTime advances Status.LastSuccessfulTime to the
+// completion time of the newest Succeeded Backup this schedule owns.
+// It only ever moves forward: retention trimming (or manual cleanup) can
+// delete the Backup that produced the current high-water mark, and
+// re-deriving from whichever succeeded Backups remain must never rewind
+// the recorded time.
+func (r *BackupScheduleReconciler) updateLastSuccessfulTime(
+	ctx context.Context, sched *gameplanev1alpha1.BackupSchedule,
+) error {
+	var list gameplanev1alpha1.BackupList
+	if err := r.List(ctx, &list,
+		client.InNamespace(sched.Namespace),
+		client.MatchingLabels{"gameplane.local/backup-schedule": sched.Name}); err != nil {
+		return err
+	}
+	var newest *metav1.Time
+	for i := range list.Items {
+		b := &list.Items[i]
+		if b.Status.Phase != gameplanev1alpha1.BackupPhaseSucceeded || b.Status.CompletionTime == nil {
+			continue
+		}
+		if newest == nil || b.Status.CompletionTime.After(newest.Time) {
+			newest = b.Status.CompletionTime
+		}
+	}
+	if newest != nil && (sched.Status.LastSuccessfulTime == nil || newest.After(sched.Status.LastSuccessfulTime.Time)) {
+		sched.Status.LastSuccessfulTime = newest
+	}
+	return nil
+}
+
 // shouldFire decides whether a due schedule creates a Backup now, applying
 // startingDeadlineSeconds (occurrences later than the deadline are skipped) and
 // concurrencyPolicy: Forbid skips while a previous backup is still in flight,
@@ -281,6 +319,7 @@ func (r *BackupScheduleReconciler) persistStatus(
 // the fields this controller manages.
 func scheduleStatusEqual(a, b *gameplanev1alpha1.BackupScheduleStatus) bool {
 	return metav1TimeEqual(a.LastScheduleTime, b.LastScheduleTime) &&
+		metav1TimeEqual(a.LastSuccessfulTime, b.LastSuccessfulTime) &&
 		metav1TimeEqual(a.NextScheduleTime, b.NextScheduleTime) &&
 		sameConditions(a.Conditions, b.Conditions) &&
 		activeRefsEqual(a.Active, b.Active)

@@ -537,6 +537,82 @@ func TestSchedule_InvalidCronSetsCondition(t *testing.T) {
 	})
 }
 
+// TestSchedule_LastSuccessfulTimeAdvancesAndNeverRewinds — a schedule's
+// Status.LastSuccessfulTime tracks the CompletionTime of the newest
+// Succeeded Backup it owns, and must never move backwards even after that
+// Backup is deleted (e.g. by retention trimming) and only an older
+// Succeeded Backup remains.
+func TestSchedule_LastSuccessfulTimeAdvancesAndNeverRewinds(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withScheduleReconciler())
+
+	if err := k8sClient.Create(context.Background(), buildResticRepoSecret(ns, "repo")); err != nil {
+		t.Fatalf("create secret: %v", err)
+	}
+
+	// Daily-midnight cron, frozen dormant so the scheduler itself doesn't
+	// fire an extra Backup that would confuse "newest".
+	sched := buildBackupSchedule(ns, "smp-sched", "smp", "repo", "0 0 * * *", nil)
+	if err := k8sClient.Create(context.Background(), sched); err != nil {
+		t.Fatalf("create schedule: %v", err)
+	}
+	freezeSchedule(t, ns, sched.Name)
+
+	older := buildBackup(ns, "smp-sched-older", "smp", "repo")
+	older.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
+	if err := k8sClient.Create(context.Background(), older); err != nil {
+		t.Fatalf("create older backup: %v", err)
+	}
+	t1 := metav1.NewTime(time.Now().Add(-time.Hour))
+	older.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
+	older.Status.CompletionTime = &t1
+	if err := k8sClient.Status().Update(context.Background(), older); err != nil {
+		t.Fatalf("status update older backup: %v", err)
+	}
+
+	newer := buildBackup(ns, "smp-sched-newer", "smp", "repo")
+	newer.Labels = map[string]string{"gameplane.local/backup-schedule": "smp-sched"}
+	if err := k8sClient.Create(context.Background(), newer); err != nil {
+		t.Fatalf("create newer backup: %v", err)
+	}
+	t2 := metav1.NewTime(time.Now())
+	newer.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
+	newer.Status.CompletionTime = &t2
+	if err := k8sClient.Status().Update(context.Background(), newer); err != nil {
+		t.Fatalf("status update newer backup: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		s := getSchedule(t, ns, "smp-sched")
+		if s.Status.LastSuccessfulTime == nil {
+			return false, "LastSuccessfulTime not yet set"
+		}
+		if !s.Status.LastSuccessfulTime.Time.Equal(t2.Time) {
+			return false, "LastSuccessfulTime = " + s.Status.LastSuccessfulTime.String() + ", want " + t2.String()
+		}
+		return true, ""
+	})
+
+	// Delete the newer Backup — simulating retention trimming it away —
+	// leaving only the older Succeeded Backup. The recorded high-water
+	// mark must not rewind to it.
+	if err := k8sClient.Delete(context.Background(), newer); err != nil {
+		t.Fatalf("delete newer backup: %v", err)
+	}
+
+	consistently(t, time.Second, func() (bool, string) {
+		s := getSchedule(t, ns, "smp-sched")
+		got := "nil"
+		if s.Status.LastSuccessfulTime != nil {
+			got = s.Status.LastSuccessfulTime.String()
+		}
+		if s.Status.LastSuccessfulTime == nil || !s.Status.LastSuccessfulTime.Time.Equal(t2.Time) {
+			return false, "LastSuccessfulTime rewound to " + got + ", want to stay " + t2.String()
+		}
+		return true, ""
+	})
+}
+
 // ---------- helpers used only by this file ----------
 
 func listBackupsForSchedule(t *testing.T, ns, schedName string) []gameplanev1alpha1.Backup {
