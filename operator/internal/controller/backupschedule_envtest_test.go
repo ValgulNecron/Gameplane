@@ -563,7 +563,10 @@ func TestSchedule_LastSuccessfulTimeAdvancesAndNeverRewinds(t *testing.T) {
 	if err := k8sClient.Create(context.Background(), older); err != nil {
 		t.Fatalf("create older backup: %v", err)
 	}
-	t1 := metav1.NewTime(time.Now().Add(-time.Hour))
+	// Truncate to seconds: metav1.Time marshals through the apiserver at
+	// RFC3339 (1s) resolution, so a sub-second/monotonic in-memory value would
+	// never .Equal() the round-tripped status we read back.
+	t1 := metav1.NewTime(time.Now().Add(-time.Hour).Truncate(time.Second))
 	older.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 	older.Status.CompletionTime = &t1
 	if err := k8sClient.Status().Update(context.Background(), older); err != nil {
@@ -575,7 +578,7 @@ func TestSchedule_LastSuccessfulTimeAdvancesAndNeverRewinds(t *testing.T) {
 	if err := k8sClient.Create(context.Background(), newer); err != nil {
 		t.Fatalf("create newer backup: %v", err)
 	}
-	t2 := metav1.NewTime(time.Now())
+	t2 := metav1.NewTime(time.Now().Truncate(time.Second))
 	newer.Status.Phase = gameplanev1alpha1.BackupPhaseSucceeded
 	newer.Status.CompletionTime = &t2
 	if err := k8sClient.Status().Update(context.Background(), newer); err != nil {
