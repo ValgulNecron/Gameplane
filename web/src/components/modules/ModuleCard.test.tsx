@@ -81,6 +81,33 @@ describe("ModuleCard", () => {
     expect(screen.getByText(/image-pull-backoff/)).toBeInTheDocument();
   });
 
+  it("VersionUnavailable Failed offers an Update instead of a dead error", async () => {
+    const onUpgrade = vi.fn();
+    render(
+      <ModuleCard
+        entry={makeCatalog({
+          installed: true,
+          phase: "Failed",
+          reason: "VersionUnavailable",
+          pinnedVersion: "2.0.2",
+          latestVersion: "2.0.4",
+          lastError: 'version "2.0.2" not in catalog for "7dtd" (available: [2.0.4])',
+          moduleName: "seven-days-to-die",
+        })}
+        {...handlers}
+        onUpgrade={onUpgrade}
+      />,
+    );
+    // Actionable "update" pill, not a red "failed", and no raw error dump.
+    expect(screen.getByText("update")).toBeInTheDocument();
+    expect(screen.queryByText("failed")).not.toBeInTheDocument();
+    expect(screen.queryByText(/not in catalog/)).not.toBeInTheDocument();
+    // Explains the situation and offers the available version.
+    expect(screen.getByText(/no longer in the catalog/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Update to v2\.0\.4/i }));
+    expect(onUpgrade).toHaveBeenCalled();
+  });
+
   it("in-flight (phase != Ready) disables Uninstall", () => {
     render(
       <ModuleCard

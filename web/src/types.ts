@@ -838,4 +838,10 @@ export interface CatalogEntry {
   appliedDigest?: string;    // digest of the installed bundle
   previousVersion?: string;  // rollback target (operator-owned)
   previousDigest?: string;
+  // pinnedVersion is the Module's desired spec.version (what it's pinned to);
+  // differs from installedVersion when a pin failed to apply. Empty = latest.
+  pinnedVersion?: string;
+  // reason is the Ready-condition reason (e.g. "VersionUnavailable") so the
+  // UI can act on WHY a module failed.
+  reason?: string;
 }

@@ -17,6 +17,25 @@ func TestJoinNames(t *testing.T) {
 	}
 }
 
+func TestReadyConditionReason(t *testing.T) {
+	if got := readyConditionReason(map[string]any{}); got != "" {
+		t.Errorf("no status: got %q, want empty", got)
+	}
+	obj := map[string]any{"status": map[string]any{"conditions": []any{
+		map[string]any{"type": "Pulling", "reason": "InProgress"},
+		map[string]any{"type": "Ready", "reason": "VersionUnavailable"},
+	}}}
+	if got := readyConditionReason(obj); got != "VersionUnavailable" {
+		t.Errorf("ready reason: got %q, want VersionUnavailable", got)
+	}
+	noReady := map[string]any{"status": map[string]any{"conditions": []any{
+		map[string]any{"type": "Pulling", "reason": "InProgress"},
+	}}}
+	if got := readyConditionReason(noReady); got != "" {
+		t.Errorf("no Ready condition: got %q, want empty", got)
+	}
+}
+
 func TestAppendUniqueSource(t *testing.T) {
 	a, b := SourceRef{Name: "a", Type: "oci"}, SourceRef{Name: "b", Type: "git"}
 	got := appendUniqueSource([]SourceRef{a, b}, SourceRef{Name: "c", Type: "upload"})

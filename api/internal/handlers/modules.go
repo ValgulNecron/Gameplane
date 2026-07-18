@@ -82,6 +82,14 @@ type CatalogEntry struct {
 	ModuleName       string      `json:"moduleName,omitempty"`    // Module CR name (= template name)
 	Phase            string      `json:"phase,omitempty"`
 	LastError        string      `json:"lastError,omitempty"`
+	// PinnedVersion is the Module's desired spec.version (what it's pinned
+	// to), which can differ from InstalledVersion when a pin fails to
+	// apply. Empty means "track latest".
+	PinnedVersion string `json:"pinnedVersion,omitempty"`
+	// Reason is the machine-readable Ready-condition reason (e.g.
+	// "VersionUnavailable", "PullFailed"). Lets the UI act on WHY a module
+	// failed — e.g. offer an update when the pinned version left the catalog.
+	Reason string `json:"reason,omitempty"`
 	// AppliedDigest is the bundle digest backing the installed version,
 	// for auditability. Mirrors Module.status.appliedDigest.
 	AppliedDigest string `json:"appliedDigest,omitempty"`
@@ -272,6 +280,26 @@ func joinNames(in []string) string {
 
 // catalog merges:
 //   - every ModuleSource's status.modules (catalog)
+// readyConditionReason returns the machine-readable reason of the Module's
+// Ready condition (e.g. "VersionUnavailable"), or "" if absent.
+func readyConditionReason(obj map[string]any) string {
+	conds, found, _ := unstructured.NestedSlice(obj, "status", "conditions")
+	if !found {
+		return ""
+	}
+	for _, c := range conds {
+		cm, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		if t, _ := cm["type"].(string); t == "Ready" {
+			r, _ := cm["reason"].(string)
+			return r
+		}
+	}
+	return ""
+}
+
 //   - every Module CR (installed state)
 //
 // into a single per-name aggregate.
@@ -347,6 +375,8 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 		appliedDigest, _, _ := unstructured.NestedString(mod.Object, "status", "appliedDigest")
 		previousVersion, _, _ := unstructured.NestedString(mod.Object, "status", "previousVersion")
 		previousDigest, _, _ := unstructured.NestedString(mod.Object, "status", "previousDigest")
+		pinnedVersion, _, _ := unstructured.NestedString(mod.Object, "spec", "version")
+		reason := readyConditionReason(mod.Object)
 
 		e, ok := merged[modName]
 		if !ok {
@@ -365,6 +395,8 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 		e.AppliedDigest = appliedDigest
 		e.PreviousVersion = previousVersion
 		e.PreviousDigest = previousDigest
+		e.PinnedVersion = pinnedVersion
+		e.Reason = reason
 	}
 
 	out := catalogResponse{Items: make([]CatalogEntry, 0, len(merged))}
