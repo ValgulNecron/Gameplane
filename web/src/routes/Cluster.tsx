@@ -145,8 +145,7 @@ export function ClusterPage() {
           <div>
             <div className="font-medium">No node data yet.</div>
             <div className="pt-1 text-sm text-muted">
-              Hook up the <code className="font-mono text-xs">/cluster</code> endpoint to
-              populate nodes here.
+              No nodes are reporting yet — check the API and operator connection.
             </div>
           </div>
         </Card>
@@ -192,7 +191,7 @@ function NodeCard({ node }: { node: ClusterNode }) {
 
       <div className="grid grid-cols-3 gap-3 text-xs">
         <Stat label="Uptime" value={uptime} />
-        <Stat label="Pods" value={node.pods ? `${node.pods.used ?? 0}/${node.pods.capacity ?? 0}` : "—"} />
+        <Stat label="Pods" value={node.pods?.used !== undefined ? `${node.pods.used}/${node.pods.capacity ?? 0}` : node.pods?.capacity ? `of ${node.pods.capacity}` : "—"} />
         <Stat label="CPU" value={node.cpu?.capacity ? `${node.cpu.capacity} cores` : "—"} />
       </div>
 
