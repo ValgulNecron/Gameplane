@@ -304,9 +304,17 @@ func validateName(name string) error {
 	return nil
 }
 
+// sanitizeReason rejects control characters in a ban/kick reason before it
+// gets folded into an RCON command. This mirrors gameaction.hasControl (the
+// shared console-injection guard in the gameaction package, used by the
+// actions handler) rather than only checking CR/LF: a NUL byte, for
+// instance, truncates the null-terminated command a Source RCON server
+// parses server-side, silently dropping everything after it.
 func sanitizeReason(reason string) (string, error) {
-	if strings.ContainsAny(reason, "\r\n") {
-		return "", errors.New("reason must not contain newlines")
+	for _, r := range reason {
+		if r < 0x20 || r == 0x7f {
+			return "", errors.New("reason must not contain control characters")
+		}
 	}
 	if len(reason) > 256 {
 		reason = reason[:256]
