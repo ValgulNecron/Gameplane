@@ -648,7 +648,7 @@ Rust's Facepunch WebRcon protocol (requires `+rcon.web 1` on the game server):
 ```yaml
 rcon:
   protocol: websocket
-  port: 28015
+  port: 28016
   passwordEnv: RCON_PASSWORD
 ```
 
@@ -674,13 +674,16 @@ call):
 rcon:
   protocol: satisfactory
   port: 7777
-  passwordEnv: ADMIN_PASSWORD
+  # NOT env-injected: the admin claims the password in-game once, then writes
+  # it here (path is relative to the game's /config data mount).
+  passwordFile: gameplane/rcon-admin-password
 ```
 
 **Caveat:** Satisfactory's admin password cannot be injected by the operator
 at startup — it must be set once **in-game** by the admin before the API
-becomes available. See the Satisfactory module's README for the manual
-one-time claim procedure.
+becomes available, which is why this is the one console that uses
+`passwordFile` rather than `passwordEnv`. See the Satisfactory module's
+README for the manual one-time claim procedure.
 
 #### Palworld (REST admin API)
 
