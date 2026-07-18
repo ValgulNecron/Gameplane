@@ -331,6 +331,17 @@ func (r *ModuleReconciler) markPending(ctx context.Context, mod *gameplanev1alph
 		Message:            err.Error(),
 		ObservedGeneration: mod.Generation,
 	})
+	// Same rationale as markFailed: a pulling reconcile can be interrupted
+	// (e.g. the catalog drops the module/version) and land here instead,
+	// so clear any stale Pulling=True left over from that attempt —
+	// otherwise Phase=Pending could coexist with a Pulling condition
+	// stuck True forever.
+	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
+		Type:               gameplanev1alpha1.ModuleConditionPulling,
+		Status:             metav1.ConditionFalse,
+		Reason:             reason,
+		ObservedGeneration: mod.Generation,
+	})
 	if uerr := r.Status().Update(ctx, mod); uerr != nil {
 		return ctrl.Result{}, uerr
 	}
