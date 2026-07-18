@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+#
+# pre-push: auto-bump git submodule pointers that track a branch
+# (branch=<b> in .gitmodules) up to origin/<b> before pushing the superproject.
+#
+# Safe by construction:
+#   - fast-forward advances only (origin/<b> must be a descendant of the pin);
+#   - only submodules with no uncommitted TRACKED changes;
+#   - only submodules sitting at the recorded pin or already at the new tip
+#     (so active feature work inside a submodule is never yanked).
+# When it bumps, it makes ONE dedicated commit and STOPS the push -- git cannot
+# add a just-created commit to an in-flight push -- so run your push again to
+# send it. That second push finds nothing stale and proceeds normally.
+#
+# Escape hatches: `git push --no-verify`, or GAMEPLANE_SUBBUMP_SKIP=1.
+# Report only, no changes: GAMEPLANE_SUBBUMP_DRYRUN=1.
+
+[ -n "${GAMEPLANE_SUBBUMP_SKIP:-}" ] && exit 0
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 0
+[ -f .gitmodules ] || exit 0
+
+dry=${GAMEPLANE_SUBBUMP_DRYRUN:-}
+
+names=$(git config -f .gitmodules --get-regexp '^submodule\..*\.branch$' 2>/dev/null \
+        | sed -E 's/^submodule\.(.+)\.branch .*/\1/')
+[ -z "$names" ] && exit 0
+
+bump_paths=()
+bump_desc=()
+
+while IFS= read -r name; do
+  [ -n "$name" ] || continue
+  path=$(git config -f .gitmodules --get "submodule.$name.path" 2>/dev/null) || continue
+  branch=$(git config -f .gitmodules --get "submodule.$name.branch" 2>/dev/null) || continue
+  [ -n "$path" ] && [ -e "$path/.git" ] || continue
+
+  recorded=$(git ls-tree HEAD "$path" 2>/dev/null | awk '{print $3}')
+  [ -n "$recorded" ] || continue
+
+  if [ -n "$(git -C "$path" status --porcelain -uno 2>/dev/null)" ]; then
+    echo "submodule-autobump: '$path' has uncommitted tracked changes -- skipping." >&2
+    continue
+  fi
+
+  git -C "$path" fetch -q origin "$branch" 2>/dev/null || {
+    echo "submodule-autobump: fetch of '$path' origin/$branch failed -- skipping." >&2
+    continue
+  }
+  tip=$(git -C "$path" rev-parse "origin/$branch" 2>/dev/null) || continue
+  head=$(git -C "$path" rev-parse HEAD 2>/dev/null) || continue
+
+  [ "$tip" = "$recorded" ] && continue
+
+  if ! git -C "$path" merge-base --is-ancestor "$recorded" "$tip" 2>/dev/null; then
+    echo "submodule-autobump: origin/$branch is not a fast-forward of the pinned commit in '$path' -- skipping (review manually)." >&2
+    continue
+  fi
+  if [ "$head" != "$recorded" ] && [ "$head" != "$tip" ]; then
+    echo "submodule-autobump: '$path' is on local work (HEAD is neither the pin nor origin/$branch) -- skipping." >&2
+    continue
+  fi
+
+  bump_paths+=("$path")
+  bump_desc+=("$path ${recorded:0:8} -> ${tip:0:8} (origin/$branch)")
+  if [ -z "$dry" ] && [ "$head" != "$tip" ]; then
+    git -C "$path" checkout -q --detach "$tip"
+  fi
+done <<< "$names"
+
+[ ${#bump_paths[@]} -eq 0 ] && exit 0
+
+if [ -n "$dry" ]; then
+  echo "submodule-autobump (dry run): would bump ${#bump_paths[@]} submodule(s):" >&2
+  printf '  - %s\n' "${bump_desc[@]}" >&2
+  exit 0
+fi
+
+msg_list=$(printf '%s, ' "${bump_paths[@]}" | sed 's/, $//')
+git -c commit.gpgsign=false commit -s -q \
+  -m "chore(submodule): bump ${msg_list} to tracked branch" \
+  -- "${bump_paths[@]}"
+
+{
+  echo ""
+  echo "submodule-autobump: advanced submodule pointer(s):"
+  printf '  - %s\n' "${bump_desc[@]}"
+  echo "Created commit $(git rev-parse --short HEAD 2>/dev/null). This push was stopped so"
+  echo "the bump is included -- run your 'git push' again."
+} >&2
+exit 1
