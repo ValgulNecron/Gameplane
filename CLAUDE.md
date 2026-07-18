@@ -4,7 +4,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 
 **Project**: Gameplane — a Kubernetes-native game server control panel. Open-source alternative to CubeCoders AMP, built on K8s primitives so the same operational model works on a single-node k3s homelab and a multi-node production cluster.
 
-> **Status:** beta (`v0.2.0-beta.6`). CRDs, operator, API, agent, and dashboard are feature-complete for the v1 scope and stabilized for external testing; not yet recommended for unattended production. See README "Beta status & known limitations".
+> **Status:** beta (`v0.2.0-beta.7`). CRDs, operator, API, agent, and dashboard are feature-complete for the v1 scope and stabilized for external testing; not yet recommended for unattended production. See README "Beta status & known limitations".
 
 > **AI tooling provenance:** the project was started with Claude Code on Claude Opus 4.8 (`claude-opus-4-8`); since June 2026 development continues on Claude Fable 5 (`claude-fable-5`). This is informational only — nothing in this file is model-specific.
 
@@ -279,7 +279,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`netguard/`** — shared Go package: the SSRF dial-guard used by both the operator (`IsAllowed`, permissive — ModuleSource `git`/`http` fetches, since self-hosted registries legitimately live on private/loopback addresses) and the agent (`IsPublic`, strict — `capabilities.mods.install` downloads, which are less trusted). Enforcement happens at dial time via a `net.Dialer.Control` hook, defeating DNS rebinding past a name-based allowlist. See the package doc comment for why the two policies must stay separately selectable.
 
-**`operator/`** — controller-runtime. Reconciles 7 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
+**`operator/`** — controller-runtime. Reconciles 8 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, Cluster. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
 
 **`api/`** — chi router; REST + WebSocket. Entry: `api/cmd/main.go`, with subcommands `serve` and `bootstrap-admin`. Layout:
 
@@ -303,7 +303,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`modules/`** — a **git submodule** (the standalone `gameplane-module` repo) holding the official game template bundles distributed as OCI artifacts. Each has `module.yaml`, `template.yaml`, `README.md`, optional `icon.png`. Built and pushed via `modules/build.sh` (uses `oras ≥ 1.2.0`). Format spec: `docs/module-authoring.md`. Run `git submodule update --init` after clone to populate it.
 
-**Database tables** (managed by `api/internal/db/migrations/`): `users`, `sessions`, `oidc_links`, `audit_events`, `api_tokens`, `config`. Migrations are append-only and applied at startup.
+**Database tables** (managed by `api/internal/db/migrations/`): `users`, `sessions`, `oidc_links`, `audit_events`, `api_tokens`, `config`, `roles`, `role_permissions`, `user_role_bindings`. Migrations are append-only and applied at startup.
 
 ---
 
@@ -314,7 +314,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 | Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server share `go.work`) |
 | K8s libs | `controller-runtime` v0.19.0, `client-go` v0.35.0, envtest 1.31 |
 | HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 |
-| Persistence | `modernc.org/sqlite` **or** `pgx/v5` (driver-selectable at runtime) |
+| Persistence | `modernc.org/sqlite` (production, tested) or `pgx/v5` (experimental, work-in-progress; selected at build time via the `postgres` build tag) |
 | Auth | `argon2id` (local), `coreos/go-oidc/v3` (OIDC) |
 | OCI | `oras-go/v2` for the operator pull side; `oras` CLI ≥ 1.2.0 for build/push |
 | Supply chain | `sigstore/cosign` — keyed/offline (no Rekor) signing of published images and official module bundles; verify with the repo-root `cosign.pub` |
@@ -323,7 +323,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 | Frontend libs | TanStack Router, TanStack Query, Radix + shadcn/ui, Tailwind 3.4, lucide-react, Monaco editor, xterm.js |
 | Frontend tests | Vitest 2.1, `@testing-library/react`, `msw` |
 | Kubernetes target | 1.28+; Helm 3.13+ |
-| CRDs | `gameplane.local/v1alpha1` — GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource |
+| CRDs | `gameplane.local/v1alpha1` — GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, Cluster |
 | License | AGPL-3.0-or-later |
 
 ---
@@ -334,7 +334,7 @@ A short cookbook for recurring tasks. Each entry lists the exact files to touch.
 
 ### Add a field to a CRD
 
-1. Edit the type in `operator/api/v1alpha1/<kind>_types.go` — files are `gameserver_types.go`, `gametemplate_types.go`, `backup_types.go`, `backupschedule_types.go`, `restore_types.go`, `module_types.go`, `modulesource_types.go`.
+1. Edit the type in `operator/api/v1alpha1/<kind>_types.go` — files are `gameserver_types.go`, `gametemplate_types.go`, `backup_types.go`, `backupschedule_types.go`, `restore_types.go`, `module_types.go`, `modulesource_types.go`, `cluster_types.go`.
 2. `make generate && make manifests`.
 3. Update the reconciler in `operator/internal/controller/<kind>_controller.go` to honor the new field.
 4. If the field is exposed in the dashboard, mirror it in `web/src/types.ts` and update the relevant `web/src/routes/*.tsx`.

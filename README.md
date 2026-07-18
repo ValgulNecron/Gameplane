@@ -5,7 +5,7 @@ A Kubernetes-native game server control panel. Open-source alternative to
 Docker — scales from a single-node k3s homelab to multi-node production
 clusters without changing the operational model.
 
-> Status: **beta** (`v0.2.0-beta.5`). The operator, API, agent, and dashboard
+> Status: **beta** (`v0.2.0-beta.7`). The operator, API, agent, and dashboard
 > are feature-complete for the v1 scope and stabilized for external testing.
 > See [Beta status & known limitations](#beta-status--known-limitations) before
 > running it for anything you can't afford to lose.
@@ -151,6 +151,8 @@ credential on your behalf.
 | `api/`       | Go       | Front-end-facing REST + WebSocket gateway. chi, coder/websocket. |
 | `agent/`     | Go       | Sidecar running in each game pod. RCON, file ops, PTY console.   |
 | `audit-syslog-bridge/` | Go | Optional HTTP-JSON → syslog relay behind the audit webhook sink. |
+| `telemetry-receiver/` | Go | Optional collector for the API's anonymous daily usage report. |
+| `mcp-server/` | Go | Optional strictly read-only MCP server for AI assistants (stdio, no writes). |
 | `web/`       | TS+React | Dashboard UI. Vite, TanStack Query, xterm.js, Monaco.             |
 | `modules/`   | YAML     | Per-game `GameTemplate` bundles (Minecraft, Valheim, …).          |
 | `charts/`    | Helm     | `gameplane` install chart for operator + API + optional ingress.    |
@@ -164,7 +166,7 @@ credential on your behalf.
 - **BackupSchedule** — a cron-like recurring backup policy
 - **Restore** — a one-shot restore of a Backup snapshot into a GameServer's data volume
 - **Module** — an installed module bundle; the operator materializes and owns a GameTemplate from it
-- **ModuleSource** — a registered store (OCI, git, or http) Gameplane pulls module bundles from
+- **ModuleSource** — a registered store (OCI, git, http, local, or upload) Gameplane pulls module bundles from
 - **Cluster** — a registered remote Kubernetes cluster the control plane can target
 
 ## Repo layout

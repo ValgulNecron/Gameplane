@@ -103,7 +103,7 @@ Top-level knobs (see `values.yaml` for the full list):
   upstream pins; retag them to a private registry mirror for air-gapped clusters
   where Docker Hub is unreachable. They map to the operator's
   `--config-init-image` / `--restic-image` flags, mirroring `operator.agentImage`
-- `api.db.driver` — `sqlite` (default) or `postgres`
+- `api.db.driver` — `sqlite` (default, production-tested) or `postgres` (experimental, work-in-progress)
 - `api.db.dsn` — connection string; SQLite default persists to a PVC
 - `api.oidc.enabled` + `issuer` / `clientID` / `clientSecretRef` — wire OIDC login
   from Helm (shows up as the read-only `helm` provider). Providers can also be
@@ -132,7 +132,7 @@ Top-level knobs (see `values.yaml` for the full list):
   - `defaultModuleSource.enabled` — whether to create the default `ModuleSource` (default `true`; disable when managing sources via GitOps)
   - `defaultModuleSource.name` — name of the `ModuleSource` resource (default `default`)
   - `defaultModuleSource.refreshInterval` — how often the catalog is re-indexed (default `1h`)
-  - `defaultModuleSource.type` — source type: `git` (default, indexes the public `gameplane-module` repo) or `oci` (pull pre-built bundles from a registry)
+  - `defaultModuleSource.type` — source type: `oci` (default, pulls pre-built bundles from a registry) or `git` (index the public `gameplane-module` repo)
   - `defaultModuleSource.git.*` — git configuration (when `type: git`)
     - `git.url` — repository URL (default `https://github.com/ValgulNecron/gameplane-module.git`)
     - `git.ref` — git branch/tag (default `main`)
@@ -308,15 +308,14 @@ destination configured (the default), the reporter never runs.
 
 ## Installing a module
 
-The chart ships two `ModuleSource`s: `default` (indexed from the public
-`gameplane-module` git repository) and `uploads` (dashboard bundle uploads).
-The default uses `type: git` for zero-configuration access to the official
-catalog; `type: oci` is available to pull pre-built, optionally signed bundles
-from a registry (used by local dev and for mirroring). Install games from the
-dashboard's **Modules** page, or add more sources — git repositories, http
-archives, a local directory — under **Modules → Manage sources** (admin) or by
-applying `ModuleSource` CRs. See `docs/module-authoring.md` for the source types
-and the bundle format.
+The chart ships two `ModuleSource`s: `default` (pulls pre-built bundles from the
+official registry) and `uploads` (dashboard bundle uploads). The default uses
+`type: oci` for zero-configuration access to versioned, optionally signed bundles;
+`type: git` is available to track an unreleased branch directly from the
+`gameplane-module` repository. Install games from the dashboard's **Modules** page,
+or add more sources — git repositories, http archives, a local directory — under
+**Modules → Manage sources** (admin) or by applying `ModuleSource` CRs. See
+`docs/module-authoring.md` for the source types and the bundle format.
 
 ## Registering an additional cluster
 
@@ -471,6 +470,6 @@ upgrade strategy: the old pod is fully terminated before the new one starts.
 This ensures no two API processes try to write the same SQLite database file
 (which is a single-writer store on a ReadWriteOnce PVC). As a result,
 SQLite-backed installs experience a few seconds of dashboard downtime during
-an upgrade — this is expected and deliberate. Postgres-backed installs use
-rolling updates with no downtime, since the database is external and
-shared.
+an upgrade — this is expected and deliberate. Postgres-backed installs (experimental)
+would use rolling updates with no downtime, since the database is external and
+shared, but full Postgres support remains a work-in-progress.
