@@ -90,6 +90,7 @@ describe("ModuleCard", () => {
           phase: "Failed",
           reason: "VersionUnavailable",
           pinnedVersion: "2.0.2",
+          versions: ["2.0.4"],
           latestVersion: "2.0.4",
           lastError: 'version "2.0.2" not in catalog for "7dtd" (available: [2.0.4])',
           moduleName: "seven-days-to-die",
@@ -106,6 +107,48 @@ describe("ModuleCard", () => {
     expect(screen.getByText(/no longer in the catalog/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Update to v2\.0\.4/i }));
     expect(onUpgrade).toHaveBeenCalled();
+  });
+
+  it("does not flash a stale error mid-re-pin (spec.version now available, status still Failed)", () => {
+    // Right after clicking Update: spec.version=2.0.4 (available) but the CR
+    // status hasn't caught up (still Failed with the old error). Neither the
+    // raw error nor the update affordance should show.
+    render(
+      <ModuleCard
+        entry={makeCatalog({
+          installed: true,
+          phase: "Failed",
+          reason: "VersionUnavailable",
+          pinnedVersion: "2.0.4",
+          versions: ["2.0.4"],
+          latestVersion: "2.0.4",
+          lastError: 'version "2.0.2" not in catalog for "7dtd" (available: [2.0.4])',
+          moduleName: "seven-days-to-die",
+        })}
+        {...handlers}
+      />,
+    );
+    expect(screen.queryByText(/not in catalog/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no longer in the catalog/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Update to/i })).not.toBeInTheDocument();
+  });
+
+  it("Pulling with a leftover lastError does not show the stale error", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({
+          installed: true,
+          phase: "Pulling",
+          reason: "VersionUnavailable",
+          pinnedVersion: "2.0.4",
+          versions: ["2.0.4"],
+          latestVersion: "2.0.4",
+          lastError: 'version "2.0.2" not in catalog for "7dtd" (available: [2.0.4])',
+        })}
+        {...handlers}
+      />,
+    );
+    expect(screen.queryByText(/not in catalog/)).not.toBeInTheDocument();
   });
 
   it("in-flight (phase != Ready) disables Uninstall", () => {

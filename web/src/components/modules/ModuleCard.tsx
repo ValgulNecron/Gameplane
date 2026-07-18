@@ -53,6 +53,14 @@ export function ModuleCard({
     entry.latestVersion &&
     entry.latestVersion !== entry.installedVersion;
 
+  // Whether the currently PINNED version is one the catalog actually serves.
+  // Right after clicking Update the CR status is briefly stale (still Failed,
+  // old error) while the operator reconciles — but spec.version already points
+  // at an available version, so this guards against re-showing the "update"
+  // affordance (or a stale error) for a version that's really fine now.
+  const pinnedInCatalog =
+    !entry.pinnedVersion || (entry.versions ?? []).includes(entry.pinnedVersion);
+
   // The pinned version left the catalog (e.g. a git-era version the OCI
   // source never carried). This is a Failed state, but an actionable one:
   // the catalog still has a version, so offer to update rather than dead-end
@@ -62,6 +70,7 @@ export function ModuleCard({
     entry.installed &&
     entry.phase === "Failed" &&
     entry.reason === "VersionUnavailable" &&
+    !pinnedInCatalog &&
     !!entry.latestVersion;
 
   const inFlight = entry.phase && entry.phase !== "Ready" && entry.installed;
@@ -113,7 +122,14 @@ export function ModuleCard({
           Pinned to v{entry.pinnedVersion} — no longer in the catalog. Update to v
           {entry.latestVersion}.
         </div>
-      ) : entry.lastError ? (
+      ) : entry.phase === "Failed" &&
+        entry.reason !== "VersionUnavailable" &&
+        entry.lastError ? (
+        // Only surface the raw error for a genuine, current failure. Gating on
+        // phase===Failed hides a stale error while the operator is Pulling a
+        // new version; excluding VersionUnavailable keeps the actionable
+        // "update" banner (above) the sole treatment for that reason and
+        // suppresses its leftover error during a re-pin transition.
         <div className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] text-danger">
           {entry.lastError}
         </div>
@@ -235,8 +251,14 @@ function StatusPill({ entry }: { entry: CatalogEntry }) {
     if (entry.phase === "Ready") {
       label = "installed";
       cls = "bg-success/15 text-success";
-    } else if (entry.phase === "Failed" && entry.reason === "VersionUnavailable") {
+    } else if (
+      entry.phase === "Failed" &&
+      entry.reason === "VersionUnavailable" &&
+      !!entry.pinnedVersion &&
+      !(entry.versions ?? []).includes(entry.pinnedVersion)
+    ) {
       // Failed, but recoverable via an update — read as actionable, not broken.
+      // Guarded on the pin genuinely being gone (not a stale status mid-re-pin).
       label = "update";
       cls = "bg-primary/15 text-primary";
     } else if (entry.phase === "Failed") {
