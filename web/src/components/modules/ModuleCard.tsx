@@ -31,10 +31,13 @@ interface ModuleCardProps {
 
 // ModuleCard is the catalog grid tile. The right-hand action depends
 // on installation state:
-//   - not installed     → "Install"
-//   - installed, current → "Deploy" (navigate to /servers/new)
-//   - upgrade available → "Upgrade"
-//   - phase != Ready    → render the phase + spinner (no actions)
+//   - not installed      → "Install"
+//   - installed, current  → "Deploy" (navigate to /servers/new)
+//   - upgrade available  → "Upgrade" (healthy: a newer version is out)
+//   - VersionUnavailable → "Update to vX" (Failed but recoverable: the
+//                          pinned version left the catalog, so offer the
+//                          available one instead of a dead red error)
+//   - other phase != Ready → render the phase + spinner (no actions)
 export function ModuleCard({
   entry,
   verify,
@@ -49,6 +52,17 @@ export function ModuleCard({
     entry.installedVersion &&
     entry.latestVersion &&
     entry.latestVersion !== entry.installedVersion;
+
+  // The pinned version left the catalog (e.g. a git-era version the OCI
+  // source never carried). This is a Failed state, but an actionable one:
+  // the catalog still has a version, so offer to update rather than dead-end
+  // on a red error. Distinct from upgradeAvailable, which is the healthy
+  // (Ready) "newer version out" case.
+  const versionUnavailable =
+    entry.installed &&
+    entry.phase === "Failed" &&
+    entry.reason === "VersionUnavailable" &&
+    !!entry.latestVersion;
 
   const inFlight = entry.phase && entry.phase !== "Ready" && entry.installed;
 
@@ -94,11 +108,16 @@ export function ModuleCard({
       <p className="line-clamp-3 flex-1 text-xs text-muted">
         {entry.summary ?? "No summary."}
       </p>
-      {entry.lastError && (
+      {versionUnavailable ? (
+        <div className="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-[11px] text-primary">
+          Pinned to v{entry.pinnedVersion} — no longer in the catalog. Update to v
+          {entry.latestVersion}.
+        </div>
+      ) : entry.lastError ? (
         <div className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] text-danger">
           {entry.lastError}
         </div>
-      )}
+      ) : null}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
         <span className="font-mono">
           {entry.sources.length === 1
@@ -120,6 +139,12 @@ export function ModuleCard({
             <Button size="sm" onClick={() => onUpgrade(entry)} disabled={busy}>
               <ArrowUpCircle className="h-3.5 w-3.5" />
               Upgrade
+            </Button>
+          )}
+          {versionUnavailable && (
+            <Button size="sm" onClick={() => onUpgrade(entry)} disabled={busy}>
+              <ArrowUpCircle className="h-3.5 w-3.5" />
+              Update to v{entry.latestVersion}
             </Button>
           )}
           {!entry.installed && (
@@ -210,6 +235,10 @@ function StatusPill({ entry }: { entry: CatalogEntry }) {
     if (entry.phase === "Ready") {
       label = "installed";
       cls = "bg-success/15 text-success";
+    } else if (entry.phase === "Failed" && entry.reason === "VersionUnavailable") {
+      // Failed, but recoverable via an update — read as actionable, not broken.
+      label = "update";
+      cls = "bg-primary/15 text-primary";
     } else if (entry.phase === "Failed") {
       label = "failed";
       cls = "bg-danger/15 text-danger";
