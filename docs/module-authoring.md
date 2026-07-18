@@ -362,7 +362,7 @@ env-mode modpacks), **valheim** (channel catalog, extract-mode BepInEx
 mods, deps-mode Thunderstore packs), **terraria** (tag catalog, pty
 console, configFiles), **factorio** (tag catalog, pty console,
 wizard-managed server-settings.json, portal registry), **palworld**
-(wrapper channels, RCON via a shared admin env, pak mods). The full
+(wrapper channels, REST admin API console, pak mods). The full
 catalog also includes 7-days-to-die, ark-survival-ascended, cs2, dayz,
 dont-starve-together, enshrouded, garrys-mod, project-zomboid, rust,
 satisfactory, and v-rising.
@@ -608,10 +608,13 @@ Rules and semantics:
 
 ### RCON
 
-Two wire protocols are actually implemented — `rcon.protocol` accepts only
-`source`, `telnet`, or `none`; there is no generic HTTP-console support.
+The console protocol is selected via `rcon.protocol`. Seven protocols are
+supported: `source`, `telnet`, `websocket`, `battleye`, `satisfactory`,
+`palworld`, and `none`. Each game's template declares the one(s) it uses.
 
-For Source-protocol games (Minecraft, Valve engine titles) set:
+#### Source (Valve / Minecraft)
+
+Source-protocol games (Minecraft, CS2, other Valve engine titles):
 
 ```yaml
 rcon:
@@ -620,10 +623,11 @@ rcon:
   passwordEnv: RCON_PASSWORD   # env the game image reads the password from
 ```
 
-For games whose remote console is a raw line-based TCP/telnet session
-instead (7 Days to Die is the reference implementation: connect, send the
-password as a line, send a command as a line, read back whatever the
-server prints), set:
+#### Telnet (raw line-based TCP)
+
+Games whose remote console is a raw line-based TCP/telnet session (7 Days
+to Die is the reference implementation: connect, send the password as a
+line, send a command as a line, read back whatever the server prints):
 
 ```yaml
 rcon:
@@ -637,11 +641,79 @@ The agent's telnet client has no message framing to work with — it infers
 length prefix or terminator, so a command that prints nothing at all
 still returns (empty output) rather than hanging.
 
+#### WebSocket (Rust WebRcon)
+
+Rust's Facepunch WebRcon protocol (requires `+rcon.web 1` on the game server):
+
+```yaml
+rcon:
+  protocol: websocket
+  port: 28015
+  passwordEnv: RCON_PASSWORD
+```
+
+#### BattlEye (UDP with checksums)
+
+BattlEye RCon protocol used by DayZ and Arma-family engines (UDP, with
+checksum-framed packets and a mandatory client-side keepalive):
+
+```yaml
+rcon:
+  protocol: battleye
+  port: 2305
+  passwordEnv: BATTLEYE_PASSWORD
+```
+
+#### Satisfactory (HTTPS function-call API)
+
+Satisfactory Dedicated Server's HTTPS function-call API (POST `/api/v1`
+with a JSON `"function"` body, bearer-token auth after a `PasswordLogin`
+call):
+
+```yaml
+rcon:
+  protocol: satisfactory
+  port: 7777
+  passwordEnv: ADMIN_PASSWORD
+```
+
+**Caveat:** Satisfactory's admin password cannot be injected by the operator
+at startup — it must be set once **in-game** by the admin before the API
+becomes available. See the Satisfactory module's README for the manual
+one-time claim procedure.
+
+#### Palworld (REST admin API)
+
+Palworld Dedicated Server's REST admin API (plain HTTP, not HTTPS; GET/POST
+under `/v1/api/...`, HTTP Basic auth with username `admin` on every request).
+Palworld's upstream deprecated its source RCON protocol in favor of this
+REST API, which supports a real players list and preserves formatting in
+announcements:
+
+```yaml
+rcon:
+  protocol: palworld
+  port: 8212
+  passwordEnv: ADMIN_PASSWORD
+```
+
+#### No console
+
+For games with no usable remote console, set `protocol: none`. See
+`consoleMode: pty` below for stdin-driven games that accept console
+commands over standard input.
+
+```yaml
+rcon:
+  protocol: none
+```
+
+#### Password handling
+
 The operator mints a password secret per GameServer, injects it into the
 game container via `passwordEnv`, and mounts the same value for the agent
 — the dashboard's console tab (and every RCON-backed capability) then
-works automatically. Some images reuse one env for RCON and in-game admin
-(Palworld's `ADMIN_PASSWORD`); that's fine — name it here.
+works automatically.
 
 #### Password source precedence
 
@@ -800,15 +872,9 @@ capabilities:
         entryRegex: "^\\s+(.+?) \\(online\\)$"
   ```
 
-  From `modules/palworld/template.yaml`:
-
-  ```yaml
-  capabilities:
-    players:
-      list:
-        command: "ShowPlayers"
-        entryRegex: "^([^,]+),[0-9]+,"
-  ```
+  From `modules/palworld/template.yaml` (note: Palworld uses the REST
+  admin API `protocol: palworld`, not RCON, so the players list is
+  fetched via the REST endpoint, not a console command).
 - The quiesce sequence runs in order; any command error — or output
   matching `failurePattern` (case-insensitive) — aborts the backup and
   best-effort runs `unquiesce` so the game is never left paused.
