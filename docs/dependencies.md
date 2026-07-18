@@ -23,7 +23,7 @@ to find call sites (or `go mod why -m <path>` from inside the module). For
 Toolchain versions come from `Makefile`, `.github/workflows/*.yaml`, and
 `.devcontainer/post-create.sh`.
 
-Accurate as of **2026-07-16**, repo state `v0.2.0-beta.7`.
+Accurate as of **2026-07-18**, repo state `v0.2.0-beta.7`.
 
 ## At a glance
 

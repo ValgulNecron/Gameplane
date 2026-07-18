@@ -520,7 +520,7 @@ the docs ahead of wider external testing. Highlights below.
 
 - **Renamed the project from Kestrel to Gameplane.** This is a breaking rebrand
   that spans every layer:
-  - **CRD API group** `kestrel.gg` → `gameplane.gg` (all seven CRDs). Existing
+  - **CRD API group** `kestrel.gg` → `gameplane.local` (all seven CRDs). Existing
     clusters must be **recreated** — Helm never upgrades CRDs across a group
     change, and there is no in-place migration for `v1alpha1` objects.
   - **OCI module bundles** — media types `application/vnd.kestrel.*` →
