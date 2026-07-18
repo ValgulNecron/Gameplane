@@ -70,6 +70,9 @@ type modIDsHandler struct {
 }
 
 func (h *modIDsHandler) get(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return
@@ -87,6 +90,9 @@ func (h *modIDsHandler) get(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *modIDsHandler) put(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	ns, ok := resolveNS(w, req)
 	if !ok {
 		return

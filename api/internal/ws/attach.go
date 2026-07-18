@@ -40,7 +40,10 @@ import (
 // separate stream.
 func mountAttach(r chi.Router, k *kube.Client) {
 	a := &attachProxy{k: k}
-	r.Get("/ws/servers/{name}/console-pty", a.handle)
+	// rejectRemoteCluster: this attaches via the API's own in-cluster
+	// kubeconfig, so it can only ever reach the LOCAL cluster — see its
+	// doc comment in dialer.go for why a non-local `?cluster=` must 404.
+	r.Get("/ws/servers/{name}/console-pty", rejectRemoteCluster(a.handle))
 }
 
 type attachProxy struct {

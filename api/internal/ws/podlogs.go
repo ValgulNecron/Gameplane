@@ -42,7 +42,10 @@ const podLogPollInterval = time.Second
 // identically.
 func mountPodLogs(r chi.Router, k *kube.Client) {
 	h := &podLogProxy{k: k}
-	r.Get("/ws/servers/{name}/logs/pod", h.handle)
+	// rejectRemoteCluster: this reads pod logs via the API's own in-cluster
+	// kubeconfig, so it can only ever reach the LOCAL cluster — see its
+	// doc comment in dialer.go for why a non-local `?cluster=` must 404.
+	r.Get("/ws/servers/{name}/logs/pod", rejectRemoteCluster(h.handle))
 }
 
 type podLogProxy struct {
