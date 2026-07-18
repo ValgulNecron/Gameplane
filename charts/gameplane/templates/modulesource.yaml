@@ -1,6 +1,6 @@
 {{- if .Values.defaultModuleSource.enabled }}
 {{- $src := .Values.defaultModuleSource }}
-{{- $type := $src.type | default "git" }}
+{{- $type := $src.type | default "oci" }}
 apiVersion: gameplane.local/v1alpha1
 kind: ModuleSource
 metadata:
