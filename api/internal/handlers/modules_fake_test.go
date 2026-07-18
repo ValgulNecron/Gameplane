@@ -222,3 +222,40 @@ func TestMountModules_Catalog(t *testing.T) {
 		t.Errorf("previousDigest = %q, want sha256:bbb", got.PreviousDigest)
 	}
 }
+
+// TestMountModules_Catalog_InstalledOnlyHasEmptySourcesNotNull covers the
+// installed-but-uncatalogued branch: a Module CR whose name isn't (yet) in
+// any ModuleSource's catalog. Its CatalogEntry is built without ever
+// touching Sources, so the field must still serialize as "[]", never
+// "null" — the web client types it as a required array and iterates it
+// unguarded, so a null there crashes the Modules page.
+func TestMountModules_Catalog_InstalledOnlyHasEmptySourcesNotNull(t *testing.T) {
+	k := fakeKubeClient(
+		newModuleWithStatus("orphan", map[string]any{
+			"source":  map[string]any{"name": "gone"},
+			"name":    "orphan",
+			"version": "1.0",
+		}, map[string]any{
+			"phase":          "Ready",
+			"appliedVersion": "1.0",
+		}),
+	)
+	r := mountModulesRouter(k)
+	rr := do(t, r, "GET", "/modules/catalog", nil)
+	if rr.Code != 200 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+	if strings.Contains(rr.Body.String(), `"sources":null`) {
+		t.Fatalf("body = %s, sources must never serialize as null", rr.Body)
+	}
+	var resp catalogResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Name != "orphan" {
+		t.Fatalf("got %+v", resp.Items)
+	}
+	if resp.Items[0].Sources == nil || len(resp.Items[0].Sources) != 0 {
+		t.Errorf("sources = %#v, want a non-nil empty slice", resp.Items[0].Sources)
+	}
+}

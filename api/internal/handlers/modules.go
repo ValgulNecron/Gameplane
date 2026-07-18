@@ -66,12 +66,16 @@ type SourceRef struct {
 
 // CatalogEntry is one row in the merged catalog response.
 type CatalogEntry struct {
-	Name             string      `json:"name"`
-	DisplayName      string      `json:"displayName,omitempty"`
-	Summary          string      `json:"summary,omitempty"`
-	Game             string      `json:"game,omitempty"`
-	Categories       []string    `json:"categories,omitempty"`
-	Icon             string      `json:"icon,omitempty"`
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName,omitempty"`
+	Summary     string   `json:"summary,omitempty"`
+	Game        string   `json:"game,omitempty"`
+	Categories  []string `json:"categories,omitempty"`
+	Icon        string   `json:"icon,omitempty"`
+	// Sources has no omitempty — the web client types it as a required
+	// array and iterates it unguarded — so every construction site must
+	// initialize it to []SourceRef{}, never leave it nil, or it marshals
+	// as "sources": null and crashes the Modules page.
 	Sources          []SourceRef `json:"sources"`
 	Versions         []string    `json:"versions,omitempty"`
 	LatestVersion    string      `json:"latestVersion,omitempty"`
@@ -382,8 +386,11 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 		if !ok {
 			// Installed but not (yet) in any catalog. Surface anyway so
 			// the UI doesn't lose track of pending installs while the
-			// source is mid-index.
-			e = &CatalogEntry{Name: modName}
+			// source is mid-index. Sources must start non-nil — the field
+			// has no `omitempty` (web/ types it as a required array), so a
+			// nil slice here would marshal as "sources": null and crash
+			// the Modules page.
+			e = &CatalogEntry{Name: modName, Sources: []SourceRef{}}
 			merged[modName] = e
 		}
 		e.Installed = true
@@ -401,6 +408,11 @@ func (h modulesHandler) catalog(w http.ResponseWriter, req *http.Request) {
 
 	out := catalogResponse{Items: make([]CatalogEntry, 0, len(merged))}
 	for _, e := range merged {
+		// Belt-and-suspenders: whatever path built e, Sources must never
+		// serialize as null (see the CatalogEntry doc comment on Sources).
+		if e.Sources == nil {
+			e.Sources = []SourceRef{}
+		}
 		out.Items = append(out.Items, *e)
 	}
 	sort.Slice(out.Items, func(i, j int) bool {
