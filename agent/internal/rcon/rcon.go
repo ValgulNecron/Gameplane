@@ -62,9 +62,24 @@ type Client struct {
 	// execDeadline bounds a single command exchange (see Exec).
 	execDeadline time.Duration
 
+	// authFailureCooldown bounds how long ensureLocked refuses to re-dial
+	// after an explicit AUTH_RESPONSE rejection (id=-1). A struct field
+	// (not a package const) so tests can shrink it — mirrors
+	// websocket.go's/battleye.go's identically-named field. Without this,
+	// pollers that call Exec on a fixed timer (heartbeat, players) would
+	// re-dial and resend a known-bad password every tick, which on
+	// Source-engine games risks tripping sv_rcon_maxfailures and getting
+	// the agent temporarily banned from RCON.
+	authFailureCooldown time.Duration
+
 	mu     sync.Mutex
 	conn   net.Conn
 	nextID uint32
+
+	// lastAuthFailure records when ensureLocked last saw an explicit auth
+	// rejection, so a later call can back off instead of re-dialing with a
+	// password it already knows is wrong.
+	lastAuthFailure time.Time
 }
 
 // defaultExecDeadline bounds a command's request/response exchange.
@@ -73,6 +88,12 @@ type Client struct {
 // holding c.mu — stalling every caller that shares the client
 // (heartbeat, players, quiesce, console).
 const defaultExecDeadline = 30 * time.Second
+
+// defaultAuthFailureCooldown bounds how long ensureLocked backs off after
+// an explicit auth rejection before it will dial again. Mirrors
+// websocket.go's defaultWebSocketAuthFailureCooldown — same value, same
+// rationale (see ensureLocked).
+const defaultAuthFailureCooldown = 15 * time.Second
 
 // responseGrace bounds how long Exec waits for additional reply fragments
 // after the first one arrives. Source servers split large replies across
@@ -84,9 +105,10 @@ const responseGrace = 400 * time.Millisecond
 
 func New(host string, port int, pw PassFn) *Client {
 	return &Client{
-		addr:         net.JoinHostPort(host, fmt.Sprint(port)),
-		password:     pw,
-		execDeadline: defaultExecDeadline,
+		addr:                net.JoinHostPort(host, fmt.Sprint(port)),
+		password:            pw,
+		execDeadline:        defaultExecDeadline,
+		authFailureCooldown: defaultAuthFailureCooldown,
 	}
 }
 
@@ -179,6 +201,17 @@ func (c *Client) ensureLocked() error {
 	if c.conn != nil {
 		return nil
 	}
+
+	// Back off after a recent explicit auth rejection instead of
+	// re-dialing (and resending the same known-bad password) on every
+	// call. Callers like the heartbeat and players pollers call Exec on a
+	// fixed timer — mirrors websocket.go's/battleye.go's identical guard
+	// for the identical reason. The cooldown expires on its own so a
+	// corrected password is picked back up without a process restart.
+	if cooldown := c.authFailureCooldown; !c.lastAuthFailure.IsZero() && cooldown > 0 && time.Since(c.lastAuthFailure) < cooldown {
+		return fmt.Errorf("rcon: %w (cached, retrying dial after cooldown)", ErrAuth)
+	}
+
 	pw, err := c.password()
 	if err != nil {
 		return err
@@ -205,9 +238,11 @@ func (c *Client) ensureLocked() error {
 		if kind == typeAuthResponse {
 			if id != authID {
 				c.dropLocked()
-				return errors.New("rcon auth failed")
+				c.lastAuthFailure = time.Now()
+				return fmt.Errorf("rcon: %w", ErrAuth)
 			}
 			_ = conn.SetDeadline(time.Time{})
+			c.lastAuthFailure = time.Time{}
 			return nil
 		}
 	}

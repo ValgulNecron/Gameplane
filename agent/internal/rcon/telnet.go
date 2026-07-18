@@ -60,6 +60,12 @@ const (
 	// for as long as the read stays alive, which — combined with an
 	// unbounded read — is how a chatty telnet console OOMs the sidecar.
 	maxTelnetReply = 1 << 20 // 1 MiB
+
+	// defaultTelnetAuthFailureCooldown bounds how long ensureLocked
+	// refuses to re-dial after a rejected password. Mirrors
+	// websocket.go's defaultWebSocketAuthFailureCooldown — same value,
+	// same rationale (see ensureLocked).
+	defaultTelnetAuthFailureCooldown = 15 * time.Second
 )
 
 // TelnetClient is a lazy, auto-reconnecting client for line-based telnet
@@ -78,20 +84,34 @@ type TelnetClient struct {
 	readQuiet         time.Duration
 	bannerDrainBudget time.Duration
 
+	// authFailureCooldown bounds how long ensureLocked refuses to re-dial
+	// after a rejected password. A struct field so tests can shrink it —
+	// mirrors websocket.go's/battleye.go's identically-named field.
+	// Without this, pollers that call Exec on a fixed timer (heartbeat,
+	// players) would resend a known-bad password every tick.
+	authFailureCooldown time.Duration
+
 	mu   sync.Mutex
 	conn net.Conn
+
+	// lastAuthFailure records when ensureLocked last classified the
+	// server's response (or hangup) as a rejected password, so a later
+	// call can back off instead of resending a password it already knows
+	// is wrong.
+	lastAuthFailure time.Time
 }
 
 // NewTelnet builds a telnet RCON client. The connection is dialed lazily
 // on the first Exec.
 func NewTelnet(host string, port int, pw PassFn) *TelnetClient {
 	return &TelnetClient{
-		addr:              net.JoinHostPort(host, fmt.Sprint(port)),
-		password:          pw,
-		connectTimeout:    defaultTelnetConnectTimeout,
-		responseDeadline:  defaultTelnetResponseDeadline,
-		readQuiet:         defaultTelnetReadQuiet,
-		bannerDrainBudget: defaultTelnetBannerDrain,
+		addr:                net.JoinHostPort(host, fmt.Sprint(port)),
+		password:            pw,
+		connectTimeout:      defaultTelnetConnectTimeout,
+		responseDeadline:    defaultTelnetResponseDeadline,
+		readQuiet:           defaultTelnetReadQuiet,
+		bannerDrainBudget:   defaultTelnetBannerDrain,
+		authFailureCooldown: defaultTelnetAuthFailureCooldown,
 	}
 }
 
@@ -141,6 +161,17 @@ func (c *TelnetClient) ensureLocked() error {
 	if c.conn != nil {
 		return nil
 	}
+
+	// Back off after a recently rejected password instead of re-dialing
+	// (and resending it) on every call. Callers like the heartbeat and
+	// players pollers call Exec on a fixed timer — mirrors
+	// websocket.go's/battleye.go's identical guard for the identical
+	// reason. The cooldown expires on its own so a corrected password is
+	// picked back up without a process restart.
+	if cooldown := c.authFailureCooldown; !c.lastAuthFailure.IsZero() && cooldown > 0 && time.Since(c.lastAuthFailure) < cooldown {
+		return fmt.Errorf("telnet rcon: %w (cached, retrying dial after cooldown)", ErrAuth)
+	}
+
 	pw, err := c.password()
 	if err != nil {
 		return fmt.Errorf("telnet rcon: resolve password: %w", err)
@@ -189,16 +220,19 @@ func (c *TelnetClient) ensureLocked() error {
 		// keep the EOF visible via %w rather than discarding it, so this
 		// remains distinguishable from a real "authentication failed" line
 		// for anyone inspecting the cause.
+		c.lastAuthFailure = time.Now()
 		if isTelnetAuthFailure(resp) {
-			return fmt.Errorf("telnet rcon: authentication failed: %w", err)
+			return fmt.Errorf("telnet rcon: authentication failed: %w: %w", ErrAuth, err)
 		}
-		return fmt.Errorf("telnet rcon: authentication failed (connection closed after password write): %w", err)
+		return fmt.Errorf("telnet rcon: authentication failed (connection closed after password write): %w: %w", ErrAuth, err)
 	}
 	if isTelnetAuthFailure(resp) {
 		c.dropLocked()
-		return errors.New("telnet rcon: authentication failed")
+		c.lastAuthFailure = time.Now()
+		return fmt.Errorf("telnet rcon: authentication failed: %w", ErrAuth)
 	}
 	_ = conn.SetDeadline(time.Time{})
+	c.lastAuthFailure = time.Time{}
 	return nil
 }
 
