@@ -352,7 +352,9 @@ kind: Service
 metadata:
   name: gameplane-api
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: gameplane-api
+    {{- include "gameplane.labels" . | nindent 4 }}
 spec:
   selector: { app.kubernetes.io/name: gameplane-api }
   ports:
