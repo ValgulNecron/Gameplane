@@ -15,7 +15,7 @@ short-lived per-pod agent sidecar.
 │  API (api/)                                           │
 │    REST + WebSocket gateway                           │
 │    Local + OIDC auth · RBAC · audit log               │
-│    SQLite (default) or Postgres for user store        │
+│    SQLite (production) or Postgres (experimental) for user store │
 │    mTLS to agent                                      │
 └───────────────────────────────────────────────────────┘
                     │
@@ -37,6 +37,9 @@ short-lived per-pod agent sidecar.
 │    BackupSchedule → Backups + retention    │
 │    Restore      → Job (restic restore)     │
 │    GameTemplate → inUseCount bookkeeping   │
+│    Module       → materializes GameTemplate│
+│    ModuleSource → indexes bundle registry  │
+│    Cluster      → remote cluster registry  │
 └────────────────────────────────────────────┘
 ```
 

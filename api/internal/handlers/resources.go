@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -79,6 +80,26 @@ func resolveCluster(w http.ResponseWriter, req *http.Request, reg *kube.Registry
 		return nil, false
 	}
 	return c, true
+}
+
+// rejectRemoteCluster 404s a request carrying a non-local `?cluster=`
+// selector, for handlers that hold a bare *kube.Client (the LOCAL/home
+// cluster only) instead of a cluster-dispatch *kube.Registry — MountModIDs
+// and MountModUpdates. rbac.Middleware (api/internal/rbac/rbac.go)
+// authorizes namespaced permissions against whatever `?cluster=` the caller
+// supplies; without this guard, a user bound only to a registered REMOTE
+// cluster could pass `?cluster=<remote>` to satisfy that check while still
+// reaching the LOCAL cluster's same-named GameServer here. A non-local
+// selector 404s (not 400/403): these handlers have no notion of "that
+// cluster" to even be forbidden from. See ws.rejectRemoteCluster for the
+// WS-side twin of this guard. Returns true if the request was rejected
+// (caller must stop processing).
+func rejectRemoteCluster(w http.ResponseWriter, req *http.Request) bool {
+	if c := strings.TrimSpace(req.URL.Query().Get("cluster")); c != "" && c != scope.DefaultCluster {
+		http.NotFound(w, req)
+		return true
+	}
+	return false
 }
 
 func listHandler(reg *kube.Registry, gvr schema.GroupVersionResource) http.HandlerFunc {

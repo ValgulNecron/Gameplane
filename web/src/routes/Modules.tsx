@@ -144,6 +144,7 @@ export function ModulesPage() {
             <button
               key={s}
               onClick={() => setSourceFilter(s)}
+              aria-pressed={sourceFilter === s}
               className={cn(
                 "rounded px-3 py-1.5 text-xs transition-colors",
                 sourceFilter === s
@@ -180,6 +181,7 @@ export function ModulesPage() {
           <Input
             className="pl-9"
             placeholder="Search modules…"
+            aria-label="Search modules"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />

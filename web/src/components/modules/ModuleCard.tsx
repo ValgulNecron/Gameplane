@@ -53,27 +53,29 @@ export function ModuleCard({
     entry.latestVersion &&
     entry.latestVersion !== entry.installedVersion;
 
-  // Whether the currently PINNED version is one the catalog actually serves.
-  // Right after clicking Update the CR status is briefly stale (still Failed,
-  // old error) while the operator reconciles — but spec.version already points
-  // at an available version, so this guards against re-showing the "update"
-  // affordance (or a stale error) for a version that's really fine now.
-  const pinnedInCatalog =
-    !entry.pinnedVersion || (entry.versions ?? []).includes(entry.pinnedVersion);
-
   // The pinned version left the catalog (e.g. a git-era version the OCI
   // source never carried). This is a Failed state, but an actionable one:
   // the catalog still has a version, so offer to update rather than dead-end
   // on a red error. Distinct from upgradeAvailable, which is the healthy
   // (Ready) "newer version out" case.
-  const versionUnavailable =
-    entry.installed &&
-    entry.phase === "Failed" &&
-    entry.reason === "VersionUnavailable" &&
-    !pinnedInCatalog &&
-    !!entry.latestVersion;
+  const isVersionUnavailable = (e: CatalogEntry): boolean => {
+    const pinnedInCatalog =
+      !e.pinnedVersion || (e.versions ?? []).includes(e.pinnedVersion);
+    return (
+      e.installed &&
+      e.phase === "Failed" &&
+      e.reason === "VersionUnavailable" &&
+      !pinnedInCatalog &&
+      !!e.latestVersion
+    );
+  };
 
-  const inFlight = entry.phase && entry.phase !== "Ready" && entry.installed;
+  const versionUnavailable = isVersionUnavailable(entry);
+
+  // A module is in-flight if it's installed and the phase is actively
+  // changing (neither Ready nor a terminal failure state). Failed is terminal
+  // and must allow Uninstall.
+  const inFlight = entry.installed && !!entry.phase && entry.phase !== "Ready" && entry.phase !== "Failed";
 
   const versionLabel = entry.installed
     ? `v${entry.installedVersion ?? "?"} installed${
@@ -252,13 +254,16 @@ function StatusPill({ entry }: { entry: CatalogEntry }) {
       label = "installed";
       cls = "bg-success/15 text-success";
     } else if (
+      entry.installed &&
       entry.phase === "Failed" &&
       entry.reason === "VersionUnavailable" &&
       !!entry.pinnedVersion &&
-      !(entry.versions ?? []).includes(entry.pinnedVersion)
+      !(entry.versions ?? []).includes(entry.pinnedVersion) &&
+      !!entry.latestVersion
     ) {
       // Failed, but recoverable via an update — read as actionable, not broken.
-      // Guarded on the pin genuinely being gone (not a stale status mid-re-pin).
+      // Guarded on the pin genuinely being gone (not a stale status mid-re-pin)
+      // and that a newer version is available.
       label = "update";
       cls = "bg-primary/15 text-primary";
     } else if (entry.phase === "Failed") {

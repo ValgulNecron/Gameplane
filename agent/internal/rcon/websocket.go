@@ -74,7 +74,10 @@ const (
 // signaling the rejection and wraps ErrAuth with that context: WebSocket
 // (Rust) accepts the WebSocket handshake and only then closes, so auth
 // failure surfaces as an early close rather than an HTTP 401; BattlEye
-// (battleye.go) has an explicit login-reply byte (0x00 = rejected).
+// (battleye.go) has an explicit login-reply byte (0x00 = rejected); Source
+// RCON (rcon.go) echoes id=-1 in the AUTH_RESPONSE packet; the line-based
+// telnet protocol (telnet.go) either prints a rejection line, hangs up, or
+// both.
 var ErrAuth = errors.New("rcon: authentication failed")
 
 // WebSocketMessage is the wire format for Rust WebRcon protocol.

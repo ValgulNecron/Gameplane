@@ -113,7 +113,7 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		Type:               gameplanev1alpha1.ModuleSourceConditionSynced,
 		Status:             metav1.ConditionTrue,
 		Reason:             "Indexed",
-		Message:            fmt.Sprintf("indexed %d of %d module(s)", len(entries)-len(warnings), len(entries)),
+		Message:            indexedMessage(len(entries), len(warnings)),
 		ObservedGeneration: src.Generation,
 	})
 	src.Status.Conditions = upsertCondition(src.Status.Conditions, metav1.Condition{
@@ -127,6 +127,19 @@ func (r *ModuleSourceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: refreshInterval(&src)}, nil
+}
+
+// indexedMessage summarizes a successful index pass. entries is always the
+// real indexed catalog size and warnings the real warning count, but the
+// two aren't related the same way across fetchers: the OCI fetcher appends
+// a stub entry per failure (so entries includes failures, and successes ==
+// entries-warnings), while fsFetcher (git/http/local) and uploadFetcher
+// keep warnings disjoint from entries (entries is successes only). A ratio
+// like "indexed X of Y" only holds under the first convention — under the
+// second it undercounts successes, and with more failures than successes
+// it goes negative. Reporting both counts plainly is correct under both.
+func indexedMessage(entries, warnings int) string {
+	return fmt.Sprintf("indexed %d module(s), %d warning(s)", entries, warnings)
 }
 
 func (r *ModuleSourceReconciler) fail(ctx context.Context, src *gameplanev1alpha1.ModuleSource, err error) (ctrl.Result, error) {

@@ -1019,7 +1019,11 @@ func buildGameContainer(
 	ports := make([]corev1.ContainerPort, 0, len(tmpl.Spec.Ports))
 	for _, p := range tmpl.Spec.Ports {
 		cp := corev1.ContainerPort{Name: p.Name, ContainerPort: p.ContainerPort, Protocol: p.Protocol}
-		if hostPort {
+		// Only bind advertised ports on the node — non-advertised admin
+		// ports (RCON, query, telnet) must stay pod-local, mirroring the
+		// Advertise filter svcPortsFromTemplate/networkPolicyPortsFromTemplate
+		// already apply.
+		if hostPort && p.Advertise {
 			cp.HostPort = p.ContainerPort
 		}
 		ports = append(ports, cp)
@@ -1286,10 +1290,11 @@ func (r *GameServerReconciler) setPhase(
 	base := gs.DeepCopy()
 	gs.Status.Phase = phase
 	gs.Status.Conditions = upsertCondition(gs.Status.Conditions, metav1.Condition{
-		Type:    "Ready",
-		Status:  metav1.ConditionFalse,
-		Reason:  string(phase),
-		Message: msg,
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		Reason:             string(phase),
+		Message:            msg,
+		ObservedGeneration: gs.Generation,
 	})
 	return r.Status().Patch(ctx, gs, client.MergeFrom(base))
 }

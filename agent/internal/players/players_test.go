@@ -182,6 +182,24 @@ func TestSanitizeReason(t *testing.T) {
 	if _, err := sanitizeReason("multi\nline"); err == nil {
 		t.Errorf("expected newline rejection")
 	}
+	if _, err := sanitizeReason("carriage\rreturn"); err == nil {
+		t.Errorf("expected carriage-return rejection")
+	}
+	// The full control range must be rejected, not just CR/LF — a NUL byte
+	// would otherwise truncate the null-terminated command a Source RCON
+	// server parses server-side (see the doc comment on sanitizeReason).
+	if _, err := sanitizeReason("nul\x00byte"); err == nil {
+		t.Errorf("expected NUL rejection")
+	}
+	if _, err := sanitizeReason("esc\x1bape"); err == nil {
+		t.Errorf("expected ESC rejection")
+	}
+	if _, err := sanitizeReason("tab\ttab"); err == nil {
+		t.Errorf("expected TAB rejection")
+	}
+	if _, err := sanitizeReason("del\x7flete"); err == nil {
+		t.Errorf("expected DEL (0x7f) rejection")
+	}
 	long := strings.Repeat("x", 300)
 	got, err := sanitizeReason(long)
 	if err != nil {

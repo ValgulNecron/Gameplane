@@ -23,7 +23,7 @@ to find call sites (or `go mod why -m <path>` from inside the module). For
 Toolchain versions come from `Makefile`, `.github/workflows/*.yaml`, and
 `.devcontainer/post-create.sh`.
 
-Accurate as of **2026-07-16**, repo state `v0.2.0-beta.5`.
+Accurate as of **2026-07-16**, repo state `v0.2.0-beta.7`.
 
 ## At a glance
 
@@ -31,7 +31,7 @@ Accurate as of **2026-07-16**, repo state `v0.2.0-beta.5`.
 |---|---|---|---|
 | `netguard/` | Go | 0 (stdlib only) | Shared SSRF dial-guard used by the operator and agent |
 | `gameaction/` | Go | 0 (stdlib only) | Shared console-injection guard + command-template renderer used by the agent and API |
-| `operator/` | Go | 19 | controller-runtime reconciler for the 7 CRDs; module OCI pull/verify, git/OCI fetch, restic-backup scheduling |
+| `operator/` | Go | 19 | controller-runtime reconciler for the 8 CRDs; module OCI pull/verify, git/OCI fetch, restic-backup scheduling |
 | `api/` | Go | 17 | chi REST + WebSocket gateway: auth (local + OIDC), RBAC, K8s client, SQLite/Postgres persistence, notifications |
 | `agent/` | Go | 6 | In-pod sidecar: RCON/WebRcon console, chi HTTP surface, heartbeat status patch, disk usage stats |
 | `audit-syslog-bridge/` | Go | 0 (stdlib only) | Standalone HTTP-JSON → syslog relay for the audit webhook sink |
@@ -221,7 +221,7 @@ on that guarantee; it's purely the protocol transport.
 ### web
 
 React 18 + TypeScript strict + Vite dashboard (`web/package.json` version
-`0.2.0-beta.5`, tracking the repo's own beta version):
+`0.2.0-beta.7`, matching the repo version):
 
 **Framework / core**
 - `react` `^18.3.1`, `react-dom` `^18.3.1` — base UI framework, rendered via `createRoot` in `src/main.tsx`, used throughout every component.

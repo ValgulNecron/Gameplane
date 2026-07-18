@@ -116,6 +116,50 @@ func TestBuildGameContainer_SecurityContext_RunAsUserGroup(t *testing.T) {
 	}
 }
 
+// TestBuildGameContainer_HostportOnlyBindsAdvertisedPorts proves expose:
+// Hostport only binds advertised ports on the node, mirroring the Advertise
+// filter already applied by svcPortsFromTemplate/networkPolicyPortsFromTemplate.
+// A non-advertised admin port (RCON, query) must never get a HostPort — that
+// would bind it on the node IP even though it's not meant to be reachable
+// off-pod.
+func TestBuildGameContainer_HostportOnlyBindsAdvertisedPorts(t *testing.T) {
+	tmpl := &gameplanev1alpha1.GameTemplate{}
+	tmpl.Name = "minecraft"
+	tmpl.Spec.Game = "minecraft"
+	tmpl.Spec.Ports = []gameplanev1alpha1.GamePort{
+		{Name: "game", ContainerPort: 25565, Protocol: corev1.ProtocolTCP, Advertise: true},
+		{Name: "rcon", ContainerPort: 25575, Protocol: corev1.ProtocolTCP, Advertise: false},
+	}
+
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Name = "alpha"
+	gs.Spec.Networking = gameplanev1alpha1.GameServerNetworking{Expose: "Hostport"}
+
+	c := buildGameContainer(gs, tmpl, "busybox:1.36", nil, &materializedConfig{})
+
+	var game, rcon *corev1.ContainerPort
+	for i := range c.Ports {
+		switch c.Ports[i].Name {
+		case "game":
+			game = &c.Ports[i]
+		case "rcon":
+			rcon = &c.Ports[i]
+		}
+	}
+	if game == nil {
+		t.Fatal("game port missing from rendered container")
+	}
+	if game.HostPort != game.ContainerPort {
+		t.Errorf("advertised port HostPort = %d, want %d (ContainerPort)", game.HostPort, game.ContainerPort)
+	}
+	if rcon == nil {
+		t.Fatal("rcon port missing from rendered container")
+	}
+	if rcon.HostPort != 0 {
+		t.Errorf("non-advertised port HostPort = %d, want 0 (unset)", rcon.HostPort)
+	}
+}
+
 // TestGamePodSecurityContext proves fsGroup lands at the pod level (it's a
 // PodSecurityContext-only field, unlike runAsUser/runAsGroup which are
 // per-container) and that an unset security block renders no pod

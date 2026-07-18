@@ -637,7 +637,7 @@ export interface NodeJoinInfo {
 export interface ClusterRegistry {
   name: string;
   displayName: string;
-  phase: "Healthy" | "Unhealthy" | "Unknown";
+  phase: "Healthy" | "Unhealthy" | "Unknown" | "";
   message?: string;
   serverVersion?: string;
   lastCheckTime?: string;

@@ -1,6 +1,6 @@
 # Roadmap to v1
 
-Gameplane is currently **`v0.2.0-beta.5`**. The CRDs, operator, API, agent, and
+Gameplane is currently **`v0.2.0-beta.7`**. The CRDs, operator, API, agent, and
 dashboard are feature-complete for the v1 scope and stabilized for external
 testing, but the project is not yet recommended for unattended production. This
 page tracks what stands between beta and a v1 GA release.
@@ -107,6 +107,14 @@ as CI secrets. See
   "latest" entry only in `spec.versions` where drift is the user's explicit,
   labelled choice. Changes live in the `gameplane-module` repo with a submodule
   pointer bump here.
+
+### Postgres driver: make the store fully driver-portable
+
+SQLite is the only production-tested driver. Postgres support (via build tag
+`-tags postgres`) is work-in-progress: the SQL written in migrations lacks
+portable placeholder rebinding (`?` → `$n`), and timestamp defaults are SQLite-specific.
+Making it production-ready requires: portable SQL migration syntax, adding Postgres
+to the CI coverage matrix, and e2e testing against a real Postgres instance.
 
 ---
 

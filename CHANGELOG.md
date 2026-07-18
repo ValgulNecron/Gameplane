@@ -7,6 +7,70 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0-beta.7] — 2026-07-18
+
+A stabilization release: a full audit of code, the live dashboard, the API, and
+the docs ahead of wider external testing. Highlights below.
+
+### Security
+
+- **api:** the WebSocket console/logs/files/players/actions/status/mods routes
+  and the mod-id / mod-update handlers now **reject a `?cluster=` selector that
+  isn't the local cluster** (404). These handlers only ever act on the control
+  plane's own cluster, but RBAC authorized the namespaced permission against the
+  caller-supplied `?cluster=` — so a user bound only to a *registered remote*
+  cluster could pass `?cluster=<remote>` to satisfy RBAC and reach same-named
+  **local** servers (RCON/PTY console, mod writes, log/file reads).
+  Single-cluster installs were unaffected.
+- **operator:** `Expose: Hostport` now binds only *advertised* template ports to
+  the node — non-advertised admin ports (RCON/query/telnet consoles) are no
+  longer exposed on the node IP, matching the Service and NetworkPolicy filters.
+
+### Fixed
+
+- **api:** the long-lived SSE `/events` stream and the WebSocket routes are no
+  longer force-closed after 60 s by the global request-timeout middleware (which
+  also spammed `superfluous response.WriteHeader` into the API log every
+  minute). The 60 s deadline still applies to every normal request/response
+  route.
+- **api:** `/modules/catalog` never emits `"sources": null` for an
+  installed-but-uncatalogued module (it serializes `[]`), which previously
+  crashed the entire Modules page at render.
+- **web:** a `Failed` module can now be uninstalled — its Uninstall button was
+  disabled, trapping the user with a broken install and no way to remove it.
+- **agent:** the Source-RCON and telnet console clients gained the auth-failure
+  cooldown the other protocol clients already had — a wrong RCON password is no
+  longer re-sent on every poller tick (which could self-inflict a Source-engine
+  `sv_rcon_maxfailures` ban). Both now wrap the shared `ErrAuth` sentinel, and
+  ban/kick reasons reject all control characters, not just CR/LF.
+- **operator:** `BackupSchedule.status.lastSuccessfulTime` is now populated from
+  the newest successful backup (the dashboard "Last run" and `kubectl` "Last"
+  columns were always blank); the `Module` Pending path clears a stale `Pulling`
+  condition; `GameServer` `setPhase` stamps `observedGeneration`; and the
+  ModuleSource "indexed N of M" status message no longer goes negative for
+  git/http/local/upload sources.
+- **chart:** the operator (and API) metrics `ServiceMonitor`s now select a
+  Service that actually exists **and** carries the matching
+  `app.kubernetes.io/name` label — operator metrics, the PrometheusRule alerts,
+  and the Grafana dashboard were never scraped before.
+- **web:** per-node pod counts show `—` instead of a fake `0/<cap>` when the
+  count is unavailable (matching CPU/memory), plus assorted accessibility labels
+  and a fix to the cluster page's developer-facing empty-state copy.
+
+### Changed
+
+- **chart:** the `defaultModuleSource` template fallback is now `oci` (matching
+  the shipped `values.yaml` default) rather than `git`.
+
+### Docs
+
+- Refreshed stale references: the current version, the 8th (`Cluster`) CRD, the
+  RBAC database tables, the OCI default module source, the `telemetry-receiver`
+  and `mcp-server` components, the full `ModuleSource` type list, the
+  architecture diagram's reconcilers, and the changelog link footer. Clarified
+  that SQLite is the production-tested database driver and Postgres is
+  experimental (build-tag-gated, work-in-progress).
+
 ## [0.2.0-beta.6] — 2026-07-17
 
 ### Changed
@@ -518,7 +582,10 @@ testing. Not yet recommended for unattended production workloads — see
   runner (retry + longer readiness window), eliminating a cascade of flaky
   API e2e failures.
 
-[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.4...HEAD
+[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.7...HEAD
+[0.2.0-beta.7]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.6...v0.2.0-beta.7
+[0.2.0-beta.6]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.5...v0.2.0-beta.6
+[0.2.0-beta.5]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.4...v0.2.0-beta.5
 [0.2.0-beta.4]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.3...v0.2.0-beta.4
 [0.2.0-beta.3]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.2...v0.2.0-beta.3
 [0.2.0-beta.2]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.1...v0.2.0-beta.2

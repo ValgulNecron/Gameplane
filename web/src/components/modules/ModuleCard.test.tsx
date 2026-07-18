@@ -133,6 +133,26 @@ describe("ModuleCard", () => {
     expect(screen.queryByRole("button", { name: /Update to/i })).not.toBeInTheDocument();
   });
 
+  it("VersionUnavailable with no latestVersion does not show update pill", () => {
+    render(
+      <ModuleCard
+        entry={makeCatalog({
+          installed: true,
+          phase: "Failed",
+          reason: "VersionUnavailable",
+          pinnedVersion: "2.0.2",
+          versions: ["2.0.4"],
+          latestVersion: undefined, // Explicitly no latest version available
+          lastError: 'version "2.0.2" not in catalog',
+        })}
+        {...handlers}
+      />,
+    );
+    // Should show "failed" pill, not "update"
+    expect(screen.getByText("failed")).toBeInTheDocument();
+    expect(screen.queryByText("update")).not.toBeInTheDocument();
+  });
+
   it("Pulling with a leftover lastError does not show the stale error", () => {
     render(
       <ModuleCard
@@ -162,6 +182,25 @@ describe("ModuleCard", () => {
       />,
     );
     expect(screen.getByRole("button", { name: /Uninstall/i })).toBeDisabled();
+  });
+
+  it("Failed module (terminal state) enables Uninstall", async () => {
+    const onUninstall = vi.fn();
+    render(
+      <ModuleCard
+        entry={makeCatalog({
+          installed: true,
+          phase: "Failed",
+          lastError: "pull-error",
+        })}
+        {...handlers}
+        onUninstall={onUninstall}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: /Uninstall/i });
+    expect(btn).toBeEnabled();
+    await userEvent.click(btn);
+    expect(onUninstall).toHaveBeenCalled();
   });
 
   it("multiple sources renders 'N sources'", () => {

@@ -167,7 +167,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, middleware.RealIP)
 	r.Use(secureHeaders)
-	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(requestTimeout(60 * time.Second))
 	r.Use(bodyLimit(1 << 20)) // 1 MiB default; upload proxy raises its own ceiling
 	r.Use(audit.Middleware(auditor))
 
@@ -482,4 +482,44 @@ func mutationRateLimit(next http.Handler) http.Handler {
 			next.ServeHTTP(w, req)
 		}
 	})
+}
+
+// requestTimeout wraps chi's middleware.Timeout(d) but exempts streaming
+// requests from the deadline. chi.Timeout races the handler against a
+// timer and, on expiry, unconditionally calls w.WriteHeader(504) in a
+// deferred func — fine for a normal request/response route (real DoS
+// protection), but wrong for a connection that's *supposed* to stay open
+// past d: the WebSocket routes (ws.Mount) and the /events SSE feed
+// (handlers.MountEvents) both stream off req.Context() indefinitely, so
+// chi.Timeout would force-close every one of them at d regardless of
+// whether they're still actively serving data, and then log a
+// "superfluous response.WriteHeader call" once the real handler's next
+// write lands after the deadline already fired. nginx in front of this
+// already gives SSE/WS a much longer read timeout, so the app-layer cap
+// is simply the wrong layer for these routes — they get no deadline here
+// at all, same as before chi.Timeout was ever wired in.
+func requestTimeout(d time.Duration) func(http.Handler) http.Handler {
+	timeoutMW := middleware.Timeout(d)
+	return func(next http.Handler) http.Handler {
+		timedNext := timeoutMW(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if isStreamingRequest(req) {
+				next.ServeHTTP(w, req)
+				return
+			}
+			timedNext.ServeHTTP(w, req)
+		})
+	}
+}
+
+// isStreamingRequest reports whether req is a long-lived stream that must
+// not be cut off by the app-wide request timeout: a WebSocket upgrade
+// (every route under ws.Mount, plus the PTY console-pty and pod-log
+// routes) or the SSE /events feed (handlers.MountEvents mounts it at
+// exactly this GET path).
+func isStreamingRequest(req *http.Request) bool {
+	if strings.EqualFold(req.Header.Get("Upgrade"), "websocket") {
+		return true
+	}
+	return req.Method == http.MethodGet && req.URL.Path == "/events"
 }

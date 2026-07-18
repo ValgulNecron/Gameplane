@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
@@ -35,9 +36,9 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	}
 
 	p := &proxy{k: k, tls: tlsCfg, http: client, stdin: k}
-	r.Get("/ws/servers/{name}/console", p.wsProxy("/console"))
-	r.Get("/ws/servers/{name}/logs", p.wsProxy("/logs/tail"))
-	r.Get("/servers/{name}/logs/download", p.httpProxy("/logs/download"))
+	r.Get("/ws/servers/{name}/console", rejectRemoteCluster(p.wsProxy("/console")))
+	r.Get("/ws/servers/{name}/logs", rejectRemoteCluster(p.wsProxy("/logs/tail")))
+	r.Get("/servers/{name}/logs/download", rejectRemoteCluster(p.httpProxy("/logs/download")))
 	// PTY console attaches via the Kubernetes API (not the agent), so it
 	// doesn't need mTLS material — it uses the API's existing in-cluster
 	// kubeconfig. Mounted unconditionally.
@@ -47,23 +48,23 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	// before the game's own log file exists. Mounted unconditionally.
 	mountPodLogs(r, k)
 	r.Route("/servers/{name}/files", func(r chi.Router) {
-		r.Get("/list", p.httpProxy("/files/list"))
-		r.Get("/read", p.httpProxy("/files/read"))
-		r.Get("/download", p.httpProxy("/files/download"))
-		r.Post("/write", p.httpProxy("/files/write"))
-		r.Post("/upload", p.httpProxy("/files/upload"))
-		r.Post("/mkdir", p.httpProxy("/files/mkdir"))
-		r.Delete("/delete", p.httpProxy("/files/delete"))
+		r.Get("/list", rejectRemoteCluster(p.httpProxy("/files/list")))
+		r.Get("/read", rejectRemoteCluster(p.httpProxy("/files/read")))
+		r.Get("/download", rejectRemoteCluster(p.httpProxy("/files/download")))
+		r.Post("/write", rejectRemoteCluster(p.httpProxy("/files/write")))
+		r.Post("/upload", rejectRemoteCluster(p.httpProxy("/files/upload")))
+		r.Post("/mkdir", rejectRemoteCluster(p.httpProxy("/files/mkdir")))
+		r.Delete("/delete", rejectRemoteCluster(p.httpProxy("/files/delete")))
 	})
 	r.Route("/servers/{name}/players", func(r chi.Router) {
-		r.Get("/", p.httpProxy("/players"))
-		r.Get("/banned", p.httpProxy("/players/banned"))
-		r.Post("/kick", p.httpProxy("/players/kick"))
-		r.Post("/ban", p.httpProxy("/players/ban"))
-		r.Post("/unban", p.httpProxy("/players/unban"))
-		r.Get("/whitelist", p.httpProxy("/players/whitelist"))
-		r.Post("/whitelist/add", p.httpProxy("/players/whitelist/add"))
-		r.Post("/whitelist/remove", p.httpProxy("/players/whitelist/remove"))
+		r.Get("/", rejectRemoteCluster(p.httpProxy("/players")))
+		r.Get("/banned", rejectRemoteCluster(p.httpProxy("/players/banned")))
+		r.Post("/kick", rejectRemoteCluster(p.httpProxy("/players/kick")))
+		r.Post("/ban", rejectRemoteCluster(p.httpProxy("/players/ban")))
+		r.Post("/unban", rejectRemoteCluster(p.httpProxy("/players/unban")))
+		r.Get("/whitelist", rejectRemoteCluster(p.httpProxy("/players/whitelist")))
+		r.Post("/whitelist/add", rejectRemoteCluster(p.httpProxy("/players/whitelist/add")))
+		r.Post("/whitelist/remove", rejectRemoteCluster(p.httpProxy("/players/whitelist/remove")))
 	})
 	// Module-declared operator actions and live status metrics. RBAC
 	// (api/internal/rbac) gates these by the same method+segment rules as
@@ -72,17 +73,45 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	// actions/run is not a pure proxy: it fetches the template, resolves
 	// the action's transport, and either proxies to the agent (rcon) or
 	// executes here via pods/attach (stdin) — see actions.go.
-	r.Post("/servers/{name}/actions/run", p.runAction)
-	r.Get("/servers/{name}/status", p.httpProxy("/status"))
+	r.Post("/servers/{name}/actions/run", rejectRemoteCluster(p.runAction))
+	r.Get("/servers/{name}/status", rejectRemoteCluster(p.httpProxy("/status")))
 	// Mod/plugin management. Listing is a GET → viewer+; install (POST)
 	// and remove (DELETE) are mutations → operator+, by the same rbac
 	// method+segment rules as the rest of /servers. Upload gets its own
 	// body cap matching the largest module install policy (the agent still
 	// enforces the module's real per-file limit).
-	r.Get("/servers/{name}/mods", p.httpProxy("/mods"))
-	r.Post("/servers/{name}/mods/install", p.httpProxy("/mods/install"))
-	r.Post("/servers/{name}/mods/upload", p.httpProxyLimit("/mods/upload", 512<<20))
-	r.Delete("/servers/{name}/mods", p.httpProxy("/mods"))
+	r.Get("/servers/{name}/mods", rejectRemoteCluster(p.httpProxy("/mods")))
+	r.Post("/servers/{name}/mods/install", rejectRemoteCluster(p.httpProxy("/mods/install")))
+	r.Post("/servers/{name}/mods/upload", rejectRemoteCluster(p.httpProxyLimit("/mods/upload", 512<<20)))
+	r.Delete("/servers/{name}/mods", rejectRemoteCluster(p.httpProxy("/mods")))
+}
+
+// rejectRemoteCluster wraps a handler that can only ever act on the LOCAL
+// cluster. Every route in this package either proxies straight to the
+// agent sidecar (mTLS material is provisioned only for the home cluster)
+// or drives pod-attach/pod-log reads through the API's own in-cluster
+// kubeconfig (mountAttach, mountPodLogs) — neither path ever consults the
+// multi-cluster registry, unlike the cluster-dispatch-aware handlers in
+// api/internal/handlers (Resources, PodEvents, Lifecycle, …).
+//
+// rbac.Middleware (api/internal/rbac/rbac.go), by contrast, authorizes
+// namespaced permissions against whatever `?cluster=` the caller supplies
+// (api/internal/scope.ResolveCluster). Without this guard, a user bound
+// only to a registered REMOTE cluster could pass `?cluster=<remote>` to
+// satisfy that check while still reaching the LOCAL cluster's same-named
+// GameServer here — RCON/PTY console, file, and mod access on a server
+// they have no rights to. A non-local selector 404s instead: these routes
+// have no notion of "that cluster" to even be forbidden from, so 404 (not
+// 400/403) is the honest answer. See handlers.rejectRemoteCluster for the
+// REST-side twin of this guard.
+func rejectRemoteCluster(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if c := strings.TrimSpace(req.URL.Query().Get("cluster")); c != "" && c != scope.DefaultCluster {
+			http.NotFound(w, req)
+			return
+		}
+		next(w, req)
+	}
 }
 
 type proxy struct {

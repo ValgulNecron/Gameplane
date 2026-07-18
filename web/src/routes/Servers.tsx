@@ -241,6 +241,7 @@ export function ServersPage() {
             <Input
               className="pl-9"
               placeholder="Search servers…"
+              aria-label="Search servers"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />

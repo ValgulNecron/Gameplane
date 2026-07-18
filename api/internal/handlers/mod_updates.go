@@ -116,6 +116,9 @@ type modUpdatesResponse struct {
 }
 
 func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
+	if rejectRemoteCluster(w, req) {
+		return
+	}
 	if h.agent == nil {
 		http.Error(w, "agent mTLS not configured", http.StatusServiceUnavailable)
 		return

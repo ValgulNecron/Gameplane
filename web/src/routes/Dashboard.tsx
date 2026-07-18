@@ -305,7 +305,7 @@ function NodeRow({ node }: { node: ClusterNode }) {
   const cpuKnown = node.cpu?.used !== undefined;
   const cpuPct = pctOf(node.cpu?.used, node.cpu?.capacity);
   const meta = [
-    node.pods ? `${node.pods.used ?? 0} pods` : null,
+    node.pods?.used !== undefined ? `${node.pods.used} pods` : null,
     cpuKnown && node.cpu?.capacity ? `cpu ${Math.round(cpuPct)}%` : null,
   ].filter(Boolean).join(" · ");
   return (
