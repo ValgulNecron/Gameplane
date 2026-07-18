@@ -369,6 +369,11 @@ func (r *ModuleReconciler) markPullingTransition(ctx context.Context, mod *gamep
 		return nil
 	}
 	mod.Status.Phase = gameplanev1alpha1.ModulePhasePulling
+	// Starting a fresh pull supersedes any prior failure — clear the stale
+	// error so the status doesn't report a "Pulling" phase alongside a
+	// leftover LastError (e.g. a re-pin away from an unavailable version would
+	// otherwise keep showing "version X not in catalog" until Ready).
+	mod.Status.LastError = ""
 	mod.Status.Conditions = upsertCondition(mod.Status.Conditions, metav1.Condition{
 		Type:               gameplanev1alpha1.ModuleConditionPulling,
 		Status:             metav1.ConditionTrue,
