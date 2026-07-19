@@ -247,8 +247,11 @@ export function CreateServerWizard() {
     : ({ ok: false } as const);
 
   return (
-    <div className="grid min-h-full place-items-center bg-background p-6">
-      <div className="w-full max-w-[960px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+    <div className="flex min-h-full flex-col items-center bg-background p-6">
+      {/* my-auto centers the card when it fits and top-aligns it (keeping it
+          fully scrollable) when its content is taller than the viewport —
+          grid place-items-center would clip and strand the top instead. */}
+      <div className="my-auto w-full max-w-[960px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
         <div className="flex items-start justify-between border-b border-border px-6 py-4">
           <div>
             <div className="text-lg font-semibold">New game server</div>
@@ -779,7 +782,7 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
       {Object.keys(state.config).length > 0 && (
         <div className="pt-1">
           <div className="pb-1 text-xs uppercase text-muted">Template config</div>
-          <pre className="rounded bg-surface p-3 font-mono text-xs">
+          <pre className="max-h-64 overflow-auto rounded bg-surface p-3 font-mono text-xs scrollbar-thin">
             {JSON.stringify(state.config, null, 2)}
           </pre>
         </div>
