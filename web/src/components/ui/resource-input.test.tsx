@@ -68,7 +68,7 @@ describe("ResourceInput", () => {
     it("respects default CPU limits when min/max omitted", () => {
       render(<ResourceInput kind="cpu" value="1" onChange={() => {}} />);
       const slider = screen.getByRole("slider") as HTMLInputElement;
-      expect(Number(slider.min)).toBe(0.5);
+      expect(Number(slider.min)).toBe(0.1);
       expect(Number(slider.max)).toBe(16);
     });
   });
@@ -133,7 +133,7 @@ describe("ResourceInput", () => {
     it("respects default memory limits when min/max omitted", () => {
       render(<ResourceInput kind="memory" value="1Gi" onChange={() => {}} />);
       const slider = screen.getByRole("slider") as HTMLInputElement;
-      expect(Number(slider.min)).toBe(0.5);
+      expect(Number(slider.min)).toBe(0.25);
       expect(Number(slider.max)).toBe(64);
     });
 
@@ -204,8 +204,8 @@ describe("ResourceInput", () => {
       // Editing the buffer alone doesn't emit (we commit on blur).
       expect(fn).not.toHaveBeenCalled();
       fireEvent.blur(input);
-      // Empty on blur snaps to the min (0.5 cores → "500m").
-      expect(fn).toHaveBeenCalledWith("500m");
+      // Empty on blur snaps to the min (0.1 cores → "100m").
+      expect(fn).toHaveBeenCalledWith("100m");
     });
 
     it("passes the step through to the slider", () => {
