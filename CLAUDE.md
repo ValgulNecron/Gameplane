@@ -15,6 +15,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ```
 .
 ├── netguard/                 # shared SSRF dial-guard package (Go) — used by operator + agent
+├── gameaction/               # shared console-injection guard + command-template renderer (Go) — used by api + agent
 ├── operator/                 # controller-runtime operator (Go)
 │   ├── api/v1alpha1/         # CRD Go types — edit here, then `make generate manifests`
 │   │   └── zz_generated.deepcopy.go    # GENERATED — do not hand-edit
@@ -42,11 +43,11 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
 ├── design.pen                # Pencil design source — encrypted, MCP only
 ├── cosign.pub                # public key for verifying signed images + module bundles
-├── go.work                   # Go workspace linking netguard/operator/api/agent/audit-syslog-bridge/telemetry-receiver/mcp-server/test/e2e
+├── go.work                   # Go workspace linking netguard/gameaction/operator/api/agent/audit-syslog-bridge/telemetry-receiver/mcp-server/test/e2e
 └── Makefile                  # canonical entry point for every command
 ```
 
-The Go modules `netguard`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, `mcp-server`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
+The Go modules `netguard`, `gameaction`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, `mcp-server`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
 
 `modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
 
@@ -74,7 +75,7 @@ make dev-install   # re-run helm upgrade against the local cluster
 
 ```sh
 make build                       # all components (Go + web)
-make build-go                    # compiles every Go module: netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
+make build-go                    # compiles every Go module: netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
 make build-web                   # web/dist via `npm ci && npm run build`
 make images                      # docker images: operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
 make image-operator              # one image; same for image-api, image-agent, image-audit-syslog
@@ -84,7 +85,7 @@ make image-operator              # one image; same for image-api, image-agent, i
 
 ```sh
 make test                # everything (≈ seconds)
-make test-go             # Go unit tests across netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
+make test-go             # Go unit tests across netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
 make test-web            # vitest for web
 
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
@@ -123,7 +124,7 @@ make cover           # full coverage with threshold gates (CI-equivalent)
 make cover-ratchet   # measured-vs-threshold delta per module
 ```
 
-Coverage gates: `netguard/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `mcp-server/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
+Coverage gates: `netguard/.testcoverage.yml` (91%), `gameaction/.testcoverage.yml` (91%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `mcp-server/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
 
 ### Codegen — mandatory after CRD type edits
 
@@ -279,6 +280,8 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`netguard/`** — shared Go package: the SSRF dial-guard used by both the operator (`IsAllowed`, permissive — ModuleSource `git`/`http` fetches, since self-hosted registries legitimately live on private/loopback addresses) and the agent (`IsPublic`, strict — `capabilities.mods.install` downloads, which are less trusted). Enforcement happens at dial time via a `net.Dialer.Control` hook, defeating DNS rebinding past a name-based allowlist. See the package doc comment for why the two policies must stay separately selectable.
 
+**`gameaction/`** — shared Go package: the console-injection guard and command-template renderer used by both the API (stdin pod-attach) and the agent (RCON) to run module-declared actions. `Resolve` validates raw action inputs against the declared params — rejecting control characters, enforcing types/enums, a 512-char cap, and required-ness — before the command template is rendered. Both importers call it independently; each is its own trust boundary, so validation is never skipped because "the other side already checked."
+
 **`operator/`** — controller-runtime. Reconciles 8 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, Cluster. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
 
 **`api/`** — chi router; REST + WebSocket. Entry: `api/cmd/main.go`, with subcommands `serve` and `bootstrap-admin`. Layout:
@@ -311,7 +314,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 | Layer | What's used |
 |---|---|
-| Go runtime | 1.25 (netguard, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server share `go.work`) |
+| Go runtime | 1.25 (netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server share `go.work`) |
 | K8s libs | `controller-runtime` v0.19.0, `client-go` v0.35.0, envtest 1.31 |
 | HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 |
 | Persistence | `modernc.org/sqlite` (production, tested) or `pgx/v5` (experimental, work-in-progress; selected at build time via the `postgres` build tag) |
