@@ -5,6 +5,7 @@ import {
   resolveConsoleMode,
   resolveModVolume,
   serverHasMods,
+  serverHasModpacks,
 } from "./capabilities";
 import type { GameServer, GameTemplate } from "@/types";
 
@@ -96,5 +97,40 @@ describe("serverHasMods", () => {
     expect(serverHasMods(t, gsWith("1.21.4-paper"))).toBe(true);
     expect(serverHasMods(t, gsWith("1.21.4-vanilla"))).toBe(false);
     expect(serverHasMods(tmpl({}), gsWith())).toBe(false);
+  });
+});
+
+// Per-loader template that offers modpacks on one provider (like Minecraft).
+const modpackMods = {
+  loaders: { paper: { path: "plugins" }, forge: { path: "mods" } },
+  registry: {
+    providers: [
+      { provider: "modrinth" as const, modpacks: { refEnv: "MODRINTH_MODPACK" } },
+      { provider: "curseforge" as const, curseforgeGameID: 432 },
+    ],
+  },
+};
+
+describe("serverHasModpacks", () => {
+  it("is false when no provider offers modpacks", () => {
+    const noModpacks = { loaders: { forge: { path: "mods" } }, registry: { providers: [{ provider: "modrinth" as const }] } };
+    expect(serverHasModpacks(tmpl({ versions, capabilities: { mods: noModpacks } }), gsWith("1.21.4-forge"))).toBe(false);
+    expect(serverHasModpacks(tmpl({}), gsWith())).toBe(false);
+  });
+
+  it("shows for a modded loader (forge)", () => {
+    const t = tmpl({ versions, capabilities: { mods: modpackMods } });
+    expect(serverHasModpacks(t, gsWith("1.21.4-forge"))).toBe(true);
+  });
+
+  it("hides for vanilla and plugin loaders (paper)", () => {
+    const t = tmpl({ versions, capabilities: { mods: modpackMods } });
+    expect(serverHasModpacks(t, gsWith("1.21.4-paper"))).toBe(false);
+    expect(serverHasModpacks(t, gsWith("1.21.4-vanilla"))).toBe(false);
+  });
+
+  it("keeps template-level behavior when there is no per-loader model", () => {
+    const flat = { path: "mods", registry: { providers: [{ provider: "modrinth" as const, modpacks: {} }] } };
+    expect(serverHasModpacks(tmpl({ capabilities: { mods: flat } }), gsWith())).toBe(true);
   });
 });

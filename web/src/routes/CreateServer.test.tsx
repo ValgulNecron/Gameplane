@@ -422,6 +422,30 @@ describe("CreateServerWizard review", () => {
     expect(screen.getByPlaceholderText("mc-hardcore")).toBeInTheDocument();
   });
 
+  it("bounds the Template-config preview so it can't escape the wizard", async () => {
+    const t = template({
+      configSchema: [{ name: "MOTD", displayName: "Server MOTD", type: "string", default: "hi" }],
+    });
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [t] }));
+    const { container } = render(withClient(<CreateServerWizard />));
+    await pickTemplate(t);
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    // Editing a field is what populates state.config (defaults alone stay out),
+    // which is what makes the Template-config <pre> render on the review step.
+    fireEvent.change(screen.getByLabelText("Server MOTD"), { target: { value: "a long custom motd" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+
+    const configPre = Array.from(container.querySelectorAll("pre")).find((p) =>
+      p.textContent?.includes('"MOTD"'),
+    );
+    expect(configPre).toBeTruthy();
+    // Bounded height + own scroll → it stays inside the card instead of
+    // overflowing the wizard and becoming unreachable.
+    expect(configPre?.className).toContain("overflow-auto");
+    expect(configPre?.className).toMatch(/max-h-/);
+  });
+
   it("shows Cancel on step 1 and closes the wizard", async () => {
     fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
     render(withClient(<CreateServerWizard />));

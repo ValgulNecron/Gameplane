@@ -28,8 +28,12 @@ export interface ResourceInputProps {
   id?: string;
 }
 
-const CPU_DEFAULTS = { min: 0.5, max: 16, step: 0.5 };
-const MEM_DEFAULTS = { min: 0.5, max: 64, step: 0.5 };
+// Sliders step in the base unit (cores / GiB). Fine floors + steps so the
+// slider can reach small, realistic sizes — 100m CPU (0.1 core) in 50m
+// increments, 256Mi memory (0.25 GiB) in 256Mi increments — instead of
+// snapping everything up to half a core / half a GiB.
+const CPU_DEFAULTS = { min: 0.1, max: 16, step: 0.05 };
+const MEM_DEFAULTS = { min: 0.25, max: 64, step: 0.25 };
 
 const CPU_UNIT_OPTIONS: SelectOption[] = [
   { value: "cores", label: "cores" },

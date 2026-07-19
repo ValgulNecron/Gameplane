@@ -112,8 +112,10 @@ export function ServerDetailPage() {
   // template declares the capability AND (for the per-loader model) the
   // active version's loader maps to one. Hidden for e.g. vanilla servers.
   const modsAvailable = serverHasMods(tmpl, gs);
-  // Modpacks appears when the template declares a modpacks registry block.
-  const modpacksAvailable = serverHasModpacks(tmpl);
+  // Modpacks appears when the template offers modpacks AND the active
+  // version's loader can run one — hidden for vanilla and plugin loaders
+  // (e.g. Paper), which can't load a Modrinth/Forge modpack.
+  const modpacksAvailable = serverHasModpacks(tmpl, gs);
   const visibleTabs = tabs.filter((t) => {
     if (t.key === "console") return consoleAvailable;
     if (t.key === "mods") return modsAvailable;
