@@ -42,11 +42,108 @@ permissions:
 # its own kind cluster, so the slowest suite — not the sum of all of
 # them — sets the wall-clock time.
 jobs:
+  # Path-filter gate. Computes which parts of the tree a change touches so the
+  # heavy jobs below can skip when they can't be affected (a web-only PR drops
+  # from ~22 jobs to a handful). Any shared/CI-config path (this workflow, the
+  # composite actions, the Makefile, go.work, buckets.sh) forces EVERYTHING on
+  # via the `ci` fail-safe, and dorny/paths-filter fails open on an unknown push
+  # base, so nothing is skipped by accident.
+  changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      go: ${{ steps.combine.outputs.go }}
+      web: ${{ steps.combine.outputs.web }}
+      charts: ${{ steps.combine.outputs.charts }}
+      e2e: ${{ steps.combine.outputs.e2e }}
+      weblive: ${{ steps.combine.outputs.weblive }}
+      images: ${{ steps.combine.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'netguard/**'
+              - 'gameaction/**'
+              - 'operator/**'
+              - 'api/**'
+              - 'agent/**'
+              - 'audit-syslog-bridge/**'
+              - 'telemetry-receiver/**'
+              - 'mcp-server/**'
+              - 'go.work'
+              - 'go.work.sum'
+              - '**/go.mod'
+              - '**/go.sum'
+              - '**/Dockerfile'
+            web:
+              - 'web/**'
+            charts:
+              - 'charts/**'
+            e2etree:
+              - 'test/e2e/**'
+              - 'deploy/kind/**'
+              - 'docker-bake.hcl'
+            ci:
+              - '.github/workflows/ci.yaml'
+              - '.github/actions/**'
+              - 'Makefile'
+              - 'go.work'
+              - 'go.work.sum'
+              - 'test/e2e/buckets.sh'
+      - id: combine
+        # Fold the raw filters into single-token booleans so every downstream
+        # `if:` is one expression (fewer chances to get wrong when the only way
+        # to test is to push). `ci` forces all of them true. e2e-affecting =
+        # go|charts|e2etree|ci; images/weblive are needed by the kind e2e jobs
+        # and the live-web job, so they = e2e|web|ci.
+        env:
+          GO: ${{ steps.filter.outputs.go }}
+          WEB: ${{ steps.filter.outputs.web }}
+          CHARTS: ${{ steps.filter.outputs.charts }}
+          E2ETREE: ${{ steps.filter.outputs.e2etree }}
+          CI: ${{ steps.filter.outputs.ci }}
+        run: |
+          gov=false;  { [ "$GO" = true ]     || [ "$CI" = true ]; } && gov=true
+          webv=false; { [ "$WEB" = true ]    || [ "$CI" = true ]; } && webv=true
+          chv=false;  { [ "$CHARTS" = true ] || [ "$CI" = true ]; } && chv=true
+          e2ev=false; { [ "$GO" = true ] || [ "$CHARTS" = true ] || [ "$E2ETREE" = true ] || [ "$CI" = true ]; } && e2ev=true
+          wlv=false;  { [ "$e2ev" = true ] || [ "$WEB" = true ] || [ "$CI" = true ]; } && wlv=true
+          {
+            echo "go=$gov"
+            echo "web=$webv"
+            echo "charts=$chv"
+            echo "e2e=$e2ev"
+            echo "weblive=$wlv"
+            echo "images=$wlv"
+          } >> "$GITHUB_OUTPUT"
+
+  # Build the operator/api/agent (+ gameprobe) images ONCE and publish them as
+  # an artifact, so the 9 heavy e2e jobs load a tar instead of each recompiling
+  # the same three Go binaries. Gated on `images` so a run that needs no e2e
+  # image skips the build entirely.
+  build-images:
+    name: build e2e images
+    needs: [changes]
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-e2e-images
+
   # Unit tests, envtest integration (operator/api), and the coverage
   # gate run in ONE job per module: the gate reads the profiles it just
   # produced, with no cross-job artifact hand-off.
   go:
     name: go (${{ matrix.module }})
+    needs: [changes]
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -84,6 +181,12 @@ jobs:
           mkdir -p coverage
           go test -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/unit.out ./...
+      - name: setup-envtest binary cache
+        if: matrix.module == 'operator' || matrix.module == 'api'
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/setup-envtest
+          key: setup-envtest-bin-release-0.19-${{ runner.os }}
       - name: envtest assets cache
         if: matrix.module == 'operator' || matrix.module == 'api'
         uses: actions/cache@v4
@@ -94,7 +197,7 @@ jobs:
         if: matrix.module == 'operator' || matrix.module == 'api'
         working-directory: ${{ matrix.module }}
         run: |
-          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
+          [ -x "$HOME/go/bin/setup-envtest" ] || go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
           export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.31.0 -p path)
           go test -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
@@ -104,6 +207,8 @@ jobs:
 
   web:
     name: web
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults: { run: { working-directory: web } }
@@ -143,6 +248,8 @@ jobs:
 
   web-e2e-mock:
     name: web e2e (mock)
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: web } }
     timeout-minutes: 20
@@ -172,6 +279,8 @@ jobs:
 
   helm:
     name: helm lint
+    needs: [changes]
+    if: needs.changes.outputs.charts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -181,6 +290,8 @@ jobs:
 
   chart-template:
     name: chart render
+    needs: [changes]
+    if: needs.changes.outputs.charts == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -209,6 +320,8 @@ jobs:
   # ---------------------------------------------------------------------
   e2e-buckets:
     name: e2e bucket coverage
+    needs: [changes]
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -218,6 +331,8 @@ jobs:
 
   e2e-go:
     name: e2e ${{ matrix.bucket }} (kind)
+    needs: [changes, build-images]
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.job_timeout }}
     strategy:
@@ -275,7 +390,7 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: build images
+      - name: load images
         uses: ./.github/actions/e2e-images
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
@@ -315,6 +430,8 @@ jobs:
   # its own job rather than complicating the single-cluster matrix above.
   e2e-multicluster:
     name: e2e multicluster (kind x2)
+    needs: [changes, build-images]
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -340,7 +457,7 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: build images
+      - name: load images
         uses: ./.github/actions/e2e-images
       - name: bring up cluster A + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
@@ -373,6 +490,8 @@ jobs:
 
   e2e-web-live:
     name: e2e web live (kind)
+    needs: [changes, build-images]
+    if: needs.changes.outputs.weblive == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -398,13 +517,8 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: build images
+      - name: load images
         uses: ./.github/actions/e2e-images
-        with:
-          # Exactly one e2e job writes the shared layer cache back; the
-          # others only read it. This is the shortest job, so it absorbs
-          # the export upload without touching the critical path.
-          export-cache: "true"
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: bootstrap admin
@@ -447,6 +561,8 @@ jobs:
 
   e2e-game-bot:
     name: e2e game bot (kind)
+    needs: [changes, build-images]
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     # Two serial real-game boots (Minecraft, then Terraria — deliberately
     # not parallel: two game servers booting at once OOM-starve the node).
@@ -472,12 +588,8 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
-      - name: build images
+      - name: load images
         uses: ./.github/actions/e2e-images
-      - name: build game-bot probe image
-        # Only this job needs the probe, so it lives outside the "e2e" bake
-        # group. deploy/kind/e2e.sh side-loads it into the cluster when present.
-        run: docker buildx bake -f docker-bake.hcl --load e2e-gameprobe
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (game bot)
