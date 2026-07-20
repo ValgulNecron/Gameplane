@@ -1,0 +1,54 @@
+name: build e2e images
+description: >
+  Build the operator/api/agent (+ gameprobe) images the kind e2e suites load
+  into the cluster, tagged gameplane-test/<component>:e2e exactly like
+  make e2e-images, via buildx bake — then `docker save` all four into a single
+  tar uploaded as an artifact (e2e-images-<arch>). The heavy e2e jobs load that
+  tar instead of each recompiling the same binaries. This is the ONLY builder,
+  so it always writes the layer cache back (the old single-writer export dance
+  is gone).
+inputs:
+  arch:
+    description: Architecture label for the artifact name (amd64 or arm64).
+    required: false
+    default: amd64
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+    - name: bake e2e images (operator/api/agent)
+      uses: docker/bake-action@v6
+      with:
+        files: docker-bake.hcl
+        targets: e2e
+        load: true
+        set: |
+          e2e-operator.cache-from=type=gha,scope=e2e-operator
+          e2e-api.cache-from=type=gha,scope=e2e-api
+          e2e-agent.cache-from=type=gha,scope=e2e-agent
+          e2e-operator.cache-to=type=gha,mode=max,scope=e2e-operator
+          e2e-api.cache-to=type=gha,mode=max,scope=e2e-api
+          e2e-agent.cache-to=type=gha,mode=max,scope=e2e-agent
+    - name: bake gameprobe image
+      uses: docker/bake-action@v6
+      with:
+        files: docker-bake.hcl
+        targets: e2e-gameprobe
+        load: true
+        set: |
+          e2e-gameprobe.cache-from=type=gha,scope=e2e-gameprobe
+          e2e-gameprobe.cache-to=type=gha,mode=max,scope=e2e-gameprobe
+    - name: save images to a single tar
+      shell: bash
+      run: |
+        docker save \
+          gameplane-test/operator:e2e \
+          gameplane-test/api:e2e \
+          gameplane-test/agent:e2e \
+          gameplane-test/gameprobe:e2e \
+          -o "$RUNNER_TEMP/e2e-images.tar"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: e2e-images-${{ inputs.arch }}
+        path: ${{ runner.temp }}/e2e-images.tar
+        retention-days: 1
