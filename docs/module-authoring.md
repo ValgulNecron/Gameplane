@@ -1138,6 +1138,10 @@ the dashboard searches the registry filtered to the active version's
 the same allowlisted download path (so keep the registry's CDN hosts in
 `allowedHosts`).
 
+The block below shows every supported provider's declaration shape for
+reference — a single `providers` list may hold **at most 8**, so declare only
+the ones your module actually needs.
+
 ```yaml
 registry:
   providers:
@@ -1145,7 +1149,8 @@ registry:
       modpacks:                     # optional Modpacks tab — see below
         refEnv: MODRINTH_MODPACK
         env: [{ name: TYPE, value: MODRINTH }]
-    - provider: curseforge          # Minecraft; needs an admin API key
+    - provider: curseforge          # needs an admin API key + curseforgeGameID
+      curseforgeGameID: 432         # required for curseforge (Minecraft 432, ARK 83374)
     - provider: hangar              # PaperMC plugins (keyless)
     - provider: thunderstore        # BepInEx games (keyless)
       community: valheim            # required: the community slug

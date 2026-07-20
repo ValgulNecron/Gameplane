@@ -11,7 +11,7 @@
 
 The chart and its images are published to the GitHub Container Registry (GHCR)
 as OCI artifacts — no `helm repo add` needed. Install a tagged release straight
-from the registry (replace `<version>` with a release, e.g. `0.2.0-beta.5`):
+from the registry (replace `<version>` with a release, e.g. `0.2.0-beta.7`):
 
 ```sh
 helm upgrade --install gameplane oci://ghcr.io/valgulnecron/charts/gameplane \

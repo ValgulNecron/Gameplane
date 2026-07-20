@@ -6,7 +6,7 @@ a day when the admin has enabled **Admin Settings → Telemetry → Send
 anonymous usage metrics**:
 
 ```json
-{ "version": "0.2.0-beta.5", "servers": 3, "templates": 7 }
+{ "version": "0.2.0-beta.7", "servers": 3, "templates": 7 }
 ```
 
 No names, namespaces, hostnames, or identifiers of any kind — the
@@ -25,7 +25,7 @@ are never stored.
 Metrics:
 
 ```
-gameplane_telemetry_reports_total{version="0.2.0-beta.5"}  # reports by reported version
+gameplane_telemetry_reports_total{version="0.2.0-beta.7"}  # reports by reported version
 gameplane_telemetry_servers                                 # histogram of GameServer counts
 gameplane_telemetry_templates                               # histogram of GameTemplate counts
 ```

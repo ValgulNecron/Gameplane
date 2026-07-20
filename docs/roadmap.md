@@ -26,12 +26,12 @@ switch. WebSocket streams remain local-cluster-scoped — a documented follow-up
 A real `kind ×2` e2e test (multicluster bucket) asserting `?cluster=` dispatch
 lands a GameServer on cluster B and that a viewer scoped to cluster A cannot see it.
 
-### Audit log integrity (tamper evidence) (PR #103, dashboard banner in feat/audit-integrity-banner)
+### Audit log integrity (tamper evidence) (PR #103, dashboard banner PR #108)
 
-Backend half shipped: migration `005_audit_chain.sql`, `Auditor.insertChained`/`Auditor.Verify`,
-and `GET /admin/audit/verify`. Dashboard integrity banner — surfacing a verification break
-to the admin on the audit page — lands in feat/audit-integrity-banner. Once that merges,
-audit integrity is complete end-to-end.
+Complete end-to-end. Backend: migration `005_audit_chain.sql`,
+`Auditor.insertChained`/`Auditor.Verify`, and `GET /admin/audit/verify`. The
+dashboard integrity banner — surfacing a verification break to the admin on the
+audit page — shipped in PR #108.
 
 **Design (as implemented):**
 
@@ -71,20 +71,22 @@ A new optional component (distroless Docker image, Helm toggle) exposing only
 "Propose a fix" returns suggested YAML or `kubectl` invocations as text — no
 create/update/delete/patch tool exists. See [`mcp-server/README.md`](../mcp-server/README.md).
 
+### Module signing: active for official bundles
+
+The keyed-cosign signing mechanism is implemented and e2e-proven, and
+`ModuleSource.spec.verify` can require a valid signature. It is now **active**
+for the official bundles: `cosign.pub` is committed at the repo root (and baked
+into the chart for module verification), and the `release` and
+`republish-modules` workflows sign every published image and module bundle by
+digest with the provisioned `COSIGN_PRIVATE_KEY`. See
+[Signing official bundles](module-authoring.md#signing-official-bundles).
+
 ---
 
 ## Blocking v1
 
-The sole outstanding v1 blocker:
-
-### Module signing: activate for official bundles
-
-The keyed-cosign signing mechanism is implemented and e2e-proven, and
-`ModuleSource.spec.verify` can already require a valid signature. It is not
-*active* for the official bundles: a maintainer still has to generate the key
-pair, commit `cosign.pub`, and provision `COSIGN_PRIVATE_KEY` / `COSIGN_PASSWORD`
-as CI secrets. See
-[Signing official bundles](module-authoring.md#signing-official-bundles).
+Nothing hard-blocks v1 anymore. What stands between beta and a v1 GA is the
+production-readiness hardening below — tracked items, not code gaps.
 
 ---
 

@@ -40,10 +40,6 @@ locally-configured cluster; that's a documented follow-up.
 
 Before you rely on it, know that:
 
-- **Official module signing isn't active yet.** The keyed-cosign mechanism is
-  implemented and e2e-proven, and `ModuleSource.spec.verify` can already
-  require a valid signature — but the officially-published bundles aren't
-  signed until a maintainer provisions the signing key as a CI secret.
 - A handful of production-readiness items are still open: a documented
   backup/restore drill against a real restic repository, upgrade testing
   across minor versions, and pinning the shipped modules' floating `latest`

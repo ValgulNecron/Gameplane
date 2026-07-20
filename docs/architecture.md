@@ -228,6 +228,13 @@ for the registration flow.
   (`netguard/`) refuses cloud-metadata and other unroutable-for-the-caller
   addresses — permissive for the operator's admin-configured ModuleSource
   fetches, strict for the agent's user-triggered mod-install downloads.
+- **Agent/API → game console (module actions)**: a shared console-injection
+  guard and command-template renderer (`gameaction/`) validates every
+  module-declared action's inputs before rendering — rejecting control
+  characters and enforcing types, enum membership, a length cap, and
+  required-ness. Both importers (the agent's RCON path and the API's stdin
+  pod-attach) call it independently; each is its own trust boundary, so
+  validation is never skipped because the other side already checked.
 - **API → audit-syslog-bridge (optional)**: plaintext or TLS syslog forward
   for the audit trail, enabled via `api.audit.webhook.syslogBridge.enabled`.
 - **API → telemetry-receiver (optional)**: the anonymous daily usage report
