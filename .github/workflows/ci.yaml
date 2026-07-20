@@ -141,15 +141,19 @@ jobs:
   # gate run in ONE job per module: the gate reads the profiles it just
   # produced, with no cross-job artifact hand-off.
   go:
-    name: go (${{ matrix.module }})
+    name: go (${{ matrix.module }} / ${{ matrix.arch }})
     needs: [changes]
     if: needs.changes.outputs.go == 'true'
-    runs-on: ubuntu-latest
+    # amd64 on the standard hosted runner; arm64 on the free public-repo
+    # arm runner. Unit + envtest run on both arches every PR — this is where
+    # real arch bugs (build tags, sqlite codepaths, struct alignment) surface.
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         module: [netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server]
+        arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -163,9 +167,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ matrix.module }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ matrix.module }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-${{ matrix.module }}-
+            go-${{ runner.os }}-${{ runner.arch }}-${{ matrix.module }}-
       - name: go mod download
         working-directory: ${{ matrix.module }}
         run: go mod download
@@ -186,13 +190,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin/setup-envtest
-          key: setup-envtest-bin-release-0.19-${{ runner.os }}
+          key: setup-envtest-bin-release-0.19-${{ runner.os }}-${{ runner.arch }}
       - name: envtest assets cache
         if: matrix.module == 'operator' || matrix.module == 'api'
         uses: actions/cache@v4
         with:
           path: ~/.local/share/kubebuilder-envtest
-          key: envtest-1.31.0-${{ runner.os }}
+          key: envtest-1.31.0-${{ runner.os }}-${{ runner.arch }}
       - name: integration (envtest) test + coverage
         if: matrix.module == 'operator' || matrix.module == 'api'
         working-directory: ${{ matrix.module }}
@@ -262,7 +266,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
       - name: install chromium
         # Skips the browser download on a cache hit; still apt-installs deps.
         run: npx playwright install --with-deps chromium
@@ -382,9 +386,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
@@ -449,9 +453,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
@@ -507,9 +511,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: actions/setup-node@v4
         with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
       - uses: azure/setup-helm@v4
@@ -534,7 +538,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
       - name: install playwright browser
         run: |
           cd web && npm ci && npx playwright install --with-deps chromium
@@ -580,9 +584,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
