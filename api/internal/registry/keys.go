@@ -29,11 +29,10 @@ const registryKeySecretPrefix = "gameplane-modreg-"
 const ConfigSectionModRegistries = "modRegistries"
 
 // KeyedProviders is the closed set of mod-registry providers that take an
-// API key. curseforge is wired into a Set today; steam and nexus are
-// reserved so their config/secret plumbing (this file, plus the
-// /admin/registries/{provider}/secret endpoint) can land ahead of the
-// engines themselves. Unknown providers are rejected rather than silently
-// getting a Secret nobody will ever read.
+// API key. curseforge, steam, and nexus all have engines wired into a Set;
+// each stays hidden in the Mods browser until its key is configured (via the
+// /admin/registries/{provider}/secret endpoint). Unknown providers are
+// rejected rather than silently getting a Secret nobody will ever read.
 var KeyedProviders = map[string]bool{
 	"curseforge": true,
 	"steam":      true,
