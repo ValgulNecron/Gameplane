@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GameIcon } from "@/components/ui/game-icon";
 import { cn } from "@/lib/utils";
+import { resolveCategories } from "@/lib/games";
 import type { EntryVerify } from "@/lib/verify";
 import type { CatalogEntry } from "@/types";
 
@@ -116,6 +117,18 @@ export function ModuleCard({
           </div>
         )}
       </div>
+      {resolveCategories(entry.categories, entry.game ?? entry.name).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {resolveCategories(entry.categories, entry.game ?? entry.name).map((c) => (
+            <span
+              key={c}
+              className="rounded bg-muted/10 px-2 py-0.5 text-[11px] text-muted"
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="line-clamp-3 flex-1 text-xs text-muted">
         {entry.summary ?? "No summary."}
       </p>

@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Modules, ModuleSources } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { verifyForEntry } from "@/lib/verify";
-import { resolveCategories, categoryFilters, matchesCategory } from "@/lib/games";
+import { resolveCategories, categoryFilters, matchesAnyCategory } from "@/lib/games";
 import type { CatalogEntry } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +35,7 @@ export function ModulesPage() {
 
   const [q, setQ] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [catFilter, setCatFilter] = useState<string>("all");
+  const [catFilter, setCatFilter] = useState<Set<string>>(new Set());
   const [installTarget, setInstallTarget] = useState<CatalogEntry | null>(null);
   const [uninstallTarget, setUninstallTarget] = useState<CatalogEntry | null>(null);
   const [removeUploadTarget, setRemoveUploadTarget] = useState<CatalogEntry | null>(null);
@@ -61,14 +61,24 @@ export function ModulesPage() {
     () => categoryFilters((data?.items ?? []).map((e) => resolveCategories(e.categories, e.game ?? ""))),
     [data],
   );
-  // Chips are derived from the data, so the selected one can disappear when the
-  // catalog changes. Fall back to "all" rather than filtering to an empty grid
-  // with no chip highlighted.
-  const activeCat = catChips.includes(catFilter) ? catFilter : "all";
+
+  const catActive = (c: string) => (c === "all" ? catFilter.size === 0 : catFilter.has(c));
+  const toggleCat = (c: string) => {
+    if (c === "all") {
+      setCatFilter(new Set());
+      return;
+    }
+    setCatFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
+  };
 
   const visible = items.filter((e) => {
     if (sourceFilter !== "all" && !e.sources.some((s) => s.name === sourceFilter)) return false;
-    if (!matchesCategory(e.categories, e.game ?? "", activeCat)) return false;
+    if (!matchesAnyCategory(e.categories, e.game ?? "", catFilter)) return false;
     if (q && !(e.displayName ?? e.name).toLowerCase().includes(q.toLowerCase())) {
       return false;
     }
@@ -161,14 +171,14 @@ export function ModulesPage() {
             {catChips.map((c) => (
               <button
                 key={c}
-                onClick={() => setCatFilter(c)}
+                onClick={() => toggleCat(c)}
                 className={cn(
                   "shrink-0 rounded px-3 py-1.5 text-xs transition-colors",
-                  activeCat === c
+                  catActive(c)
                     ? "bg-primary/15 text-primary"
                     : "text-muted hover:text-fg",
                 )}
-                aria-pressed={activeCat === c}
+                aria-pressed={catActive(c)}
               >
                 {c === "all" ? "All categories" : c}
               </button>

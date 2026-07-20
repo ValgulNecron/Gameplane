@@ -118,7 +118,7 @@ describe("ModulesPage", () => {
     expect(screen.getByText(/v1\.0\.0 installed.*v1\.1\.0 available/)).toBeInTheDocument();
   });
 
-  it("filters the catalog by game category", async () => {
+  it("filters the catalog by game category (multi-select)", async () => {
     const minecraftEntry = { ...MINECRAFT, categories: ["Sandbox", "Survival"] };
     const valheimEntry = { ...VALHEIM_INSTALLED, game: "valheim", categories: ["Survival"] };
     catalog.mockResolvedValue({
@@ -134,25 +134,49 @@ describe("ModulesPage", () => {
     await userEvent.click(sandboxBtn);
     expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
     expect(screen.queryByText("Valheim")).toBeNull();
+
+    // Click Survival to show modules in either Sandbox or Survival
+    const survivalBtn = screen.getByRole("button", { name: "Survival" });
+    await userEvent.click(survivalBtn);
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
   });
 
-  it("shows a multi-category module under each of its categories", async () => {
+  it("shows modules matching any of the selected categories (multi-select)", async () => {
     const minecraftEntry = { ...MINECRAFT, categories: ["Sandbox", "Survival"] };
     const valheimEntry = { ...VALHEIM_INSTALLED, game: "valheim", categories: ["Survival"] };
+    const terraria = { ...TERRARIA_UPGRADE, game: "terraria", categories: ["Sandbox"] };
     catalog.mockResolvedValue({
-      items: [minecraftEntry, valheimEntry],
+      items: [minecraftEntry, valheimEntry, terraria],
     });
     renderPage();
     expect(await screen.findByText("Minecraft (Java)")).toBeInTheDocument();
     expect(screen.getByText("Valheim")).toBeInTheDocument();
+    expect(screen.getByText("Terraria")).toBeInTheDocument();
 
+    // Click Sandbox: shows Minecraft and Terraria
     await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
-    expect(screen.getByText(/Minecraft/)).toBeInTheDocument();
-    expect(screen.queryByText(/Valheim/)).not.toBeInTheDocument();
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.queryByText("Valheim")).not.toBeInTheDocument();
+    expect(screen.getByText("Terraria")).toBeInTheDocument();
 
+    // Click Survival: now shows all three (Sandbox OR Survival)
     await userEvent.click(screen.getByRole("button", { name: "Survival" }));
-    expect(screen.getByText(/Minecraft/)).toBeInTheDocument();
-    expect(screen.getByText(/Valheim/)).toBeInTheDocument();
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+    expect(screen.getByText("Terraria")).toBeInTheDocument();
+
+    // Click Survival again to deselect it: shows only Sandbox (Minecraft and Terraria)
+    await userEvent.click(screen.getByRole("button", { name: "Survival" }));
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.queryByText("Valheim")).not.toBeInTheDocument();
+    expect(screen.getByText("Terraria")).toBeInTheDocument();
+
+    // Click Sandbox to deselect it: shows all (no filters)
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+    expect(screen.getByText("Terraria")).toBeInTheDocument();
   });
 
   it("opens the install dialog and POSTs /modules with the chosen version", async () => {

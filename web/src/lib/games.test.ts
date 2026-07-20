@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OTHER_CATEGORY, categoryFilters, gameCategory, resolveCategories, matchesCategory } from "./games";
+import { OTHER_CATEGORY, categoryFilters, gameCategory, resolveCategories, matchesCategory, matchesAnyCategory } from "./games";
 
 describe("resolveCategories", () => {
   it("returns the declared categories", () => {
@@ -95,5 +95,46 @@ describe("matchesCategory", () => {
     expect(matchesCategory(["Sandbox", "Survival"], "x", "Survival")).toBe(true);
     expect(matchesCategory(["Sandbox", "Survival"], "x", "survival")).toBe(true);
     expect(matchesCategory(["Sandbox", "Survival"], "x", "Shooter")).toBe(false);
+  });
+});
+
+describe("matchesAnyCategory", () => {
+  it("returns true for empty selection (show everything)", () => {
+    expect(matchesAnyCategory(["Survival"], "x", new Set())).toBe(true);
+    expect(matchesAnyCategory(["Sandbox"], "x", new Set())).toBe(true);
+    expect(matchesAnyCategory(undefined, "x", new Set())).toBe(true);
+  });
+
+  it("returns true when selection has one matching category", () => {
+    expect(matchesAnyCategory(["Survival"], "x", new Set(["Survival"]))).toBe(true);
+    expect(matchesAnyCategory(["Sandbox", "Survival"], "x", new Set(["Survival"]))).toBe(true);
+  });
+
+  it("returns false when selection has no matching categories", () => {
+    expect(matchesAnyCategory(["Survival"], "x", new Set(["Sandbox"]))).toBe(false);
+    expect(matchesAnyCategory(["Sandbox"], "x", new Set(["Survival", "Shooter"]))).toBe(false);
+  });
+
+  it("returns true when selection has one of multiple matching categories", () => {
+    expect(matchesAnyCategory(["Sandbox", "Survival", "Co-op"], "x", new Set(["Survival"]))).toBe(
+      true
+    );
+    expect(matchesAnyCategory(["Sandbox", "Survival", "Co-op"], "x", new Set(["Co-op", "Other"]))).toBe(
+      true
+    );
+  });
+
+  it("matches case-insensitively", () => {
+    expect(matchesAnyCategory(["Survival"], "x", new Set(["survival"]))).toBe(true);
+    expect(matchesAnyCategory(["survival"], "x", new Set(["Survival"]))).toBe(true);
+    expect(matchesAnyCategory(["SANDBOX", "survival"], "x", new Set(["sandbox", "SURVIVAL"]))).toBe(
+      true
+    );
+  });
+
+  it("uses game heuristic when categories are undefined", () => {
+    expect(matchesAnyCategory(undefined, "valheim", new Set(["Survival"]))).toBe(true);
+    expect(matchesAnyCategory(undefined, "minecraft-java", new Set(["Sandbox"]))).toBe(true);
+    expect(matchesAnyCategory(undefined, "valheim", new Set(["Sandbox"]))).toBe(false);
   });
 });
