@@ -137,19 +137,37 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/build-e2e-images
 
+  # Same as build-images but on an arm64 runner, producing the e2e-images-arm64
+  # artifact the arm64 e2e legs load. Native arm build, no QEMU.
+  build-images-arm64:
+    name: build e2e images (arm64)
+    needs: [changes]
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-e2e-images
+        with:
+          arch: arm64
+
   # Unit tests, envtest integration (operator/api), and the coverage
   # gate run in ONE job per module: the gate reads the profiles it just
   # produced, with no cross-job artifact hand-off.
   go:
-    name: go (${{ matrix.module }})
+    name: go (${{ matrix.module }} / ${{ matrix.arch }})
     needs: [changes]
     if: needs.changes.outputs.go == 'true'
-    runs-on: ubuntu-latest
+    # amd64 on the standard hosted runner; arm64 on the free public-repo
+    # arm runner. Unit + envtest run on both arches every PR — this is where
+    # real arch bugs (build tags, sqlite codepaths, struct alignment) surface.
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         module: [netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server]
+        arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -163,9 +181,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ matrix.module }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ matrix.module }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-${{ matrix.module }}-
+            go-${{ runner.os }}-${{ runner.arch }}-${{ matrix.module }}-
       - name: go mod download
         working-directory: ${{ matrix.module }}
         run: go mod download
@@ -186,13 +204,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin/setup-envtest
-          key: setup-envtest-bin-release-0.19-${{ runner.os }}
+          key: setup-envtest-bin-release-0.19-${{ runner.os }}-${{ runner.arch }}
       - name: envtest assets cache
         if: matrix.module == 'operator' || matrix.module == 'api'
         uses: actions/cache@v4
         with:
           path: ~/.local/share/kubebuilder-envtest
-          key: envtest-1.31.0-${{ runner.os }}
+          key: envtest-1.31.0-${{ runner.os }}-${{ runner.arch }}
       - name: integration (envtest) test + coverage
         if: matrix.module == 'operator' || matrix.module == 'api'
         working-directory: ${{ matrix.module }}
@@ -262,7 +280,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
       - name: install chromium
         # Skips the browser download on a cache hit; still apt-installs deps.
         run: npx playwright install --with-deps chromium
@@ -330,10 +348,10 @@ jobs:
         run: ./test/e2e/buckets.sh verify
 
   e2e-go:
-    name: e2e ${{ matrix.bucket }} (kind)
-    needs: [changes, build-images]
+    name: e2e ${{ matrix.bucket }} / ${{ matrix.arch }} (kind)
+    needs: [changes, build-images, build-images-arm64]
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: ${{ matrix.job_timeout }}
     strategy:
       fail-fast: false
@@ -343,6 +361,10 @@ jobs:
         # t.Parallel(); `parallel` bounds in-flight tests per bucket
         # (operator does zero logins and is wait-dominated, so it runs
         # wide; the api buckets stay within the login limiter's budget).
+        # Each bucket runs on amd64 and arm64; the include entries attach the
+        # per-bucket config to both arch combinations.
+        bucket: [operator, api-auth, api-roles, api-rbac, api-agent, api-mods]
+        arch: [amd64, arm64]
         include:
           - bucket: operator
             parallel: 8
@@ -382,9 +404,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
@@ -392,6 +414,8 @@ jobs:
           install_only: true
       - name: load images
         uses: ./.github/actions/e2e-images
+        with:
+          arch: ${{ matrix.arch }}
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: run go e2e (${{ matrix.bucket }})
@@ -429,11 +453,15 @@ jobs:
   # cluster (registered as a remote target via POST /clusters), so it gets
   # its own job rather than complicating the single-cluster matrix above.
   e2e-multicluster:
-    name: e2e multicluster (kind x2)
-    needs: [changes, build-images]
+    name: e2e multicluster / ${{ matrix.arch }} (kind x2)
+    needs: [changes, build-images, build-images-arm64]
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     env:
       CLUSTER: gameplane-e2e
       CLUSTER_B: gameplane-e2e-b
@@ -449,9 +477,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
@@ -459,6 +487,8 @@ jobs:
           install_only: true
       - name: load images
         uses: ./.github/actions/e2e-images
+        with:
+          arch: ${{ matrix.arch }}
       - name: bring up cluster A + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: bring up cluster B + helm install
@@ -489,11 +519,15 @@ jobs:
           kubectl --context "$CTX_B" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
 
   e2e-web-live:
-    name: e2e web live (kind)
-    needs: [changes, build-images]
+    name: e2e web live / ${{ matrix.arch }} (kind)
+    needs: [changes, build-images, build-images-arm64]
     if: needs.changes.outputs.weblive == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
     env:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
@@ -507,9 +541,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: actions/setup-node@v4
         with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
       - uses: azure/setup-helm@v4
@@ -519,6 +553,8 @@ jobs:
           install_only: true
       - name: load images
         uses: ./.github/actions/e2e-images
+        with:
+          arch: ${{ matrix.arch }}
       - name: bring up cluster + helm install
         run: ./deploy/kind/e2e.sh up "$CLUSTER" e2e
       - name: bootstrap admin
@@ -534,7 +570,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
       - name: install playwright browser
         run: |
           cd web && npm ci && npx playwright install --with-deps chromium
@@ -563,6 +599,10 @@ jobs:
     name: e2e game bot (kind)
     needs: [changes, build-images]
     if: needs.changes.outputs.e2e == 'true'
+    # amd64 only: this boots the external itzg/minecraft-server (multi-arch) AND
+    # passivelemon/terraria-docker, whose arm64 support is unverified upstream —
+    # so an arm64 leg would fail on the Terraria pull. Add an arch axis here once
+    # an arm-capable Terraria image is confirmed/pinned.
     runs-on: ubuntu-latest
     # Two serial real-game boots (Minecraft, then Terraria — deliberately
     # not parallel: two game servers booting at once OOM-starve the node).
@@ -580,9 +620,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-e2e-
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: azure/setup-helm@v4
       - name: install kind
         uses: helm/kind-action@v1
