@@ -157,16 +157,26 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	waitPVCBound(t, ns, gs+"-data", 2*time.Minute)
 	waitGameContainerReady(t, ns, gs+"-0", 4*time.Minute)
 
-	out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0", "cat", "/data/marker.txt")
-	if err != nil {
-		listing, _ := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0", "sh", "-c", "ls -laR /data 2>&1 || true")
-		t.Fatalf("read marker after upgrade: %v\nstdout: %s\nlisting of /data:\n%s", err, out, listing)
-	}
-	// kubectl mixes its "Defaulted container ..." stderr preamble into
-	// CombinedOutput, so check for the marker as a substring.
-	if !strings.Contains(out, marker) {
-		t.Errorf("marker after upgrade body=%q, want it to contain %q", out, marker)
-	}
+	// Retry the read rather than exec'ing once. An upgrade re-renders the
+	// StatefulSet, so the pod keeps its name but is legitimately replaced —
+	// a Ready observation can be of the outgoing pod, and the exec then
+	// lands mid-restart ("container not found", "no running task found").
+	// That is the workload behaving correctly, not a regression, so the
+	// assertion tolerates the churn and waits for the volume to be readable.
+	// What is being proven is that the bytes survived, not that they were
+	// readable at one exact instant.
+	envInstance.Eventually(t, 3*time.Minute, func() (bool, string) {
+		out, err := envInstance.KubectlExec(t, ns, "pod/"+gs+"-0", "cat", "/data/marker.txt")
+		if err != nil {
+			return false, "exec: " + err.Error() + " out=" + out
+		}
+		// kubectl mixes its "Defaulted container ..." stderr preamble into
+		// CombinedOutput, so check for the marker as a substring.
+		if !strings.Contains(out, marker) {
+			return false, "marker not in output yet: " + out
+		}
+		return true, ""
+	})
 
 	// ---- 6. the database and its migrations survived ---------------------
 
