@@ -138,13 +138,23 @@ TestMultiCluster_ClusterDispatchAndScopedRBAC
 EOF
 }
 
+# Needs a cluster seeded with the PREVIOUS RELEASE's published chart and GHCR
+# images (deploy/kind/upgrade.sh), which no other bucket's job provides — they
+# all install the working-tree chart. The test then helm-upgrades that release
+# to the working tree, so it also cannot share a cluster with anything else.
+# Its own dedicated CI job (e2e-upgrade) sets this up.
+bucket_upgrade() { cat <<'EOF'
+TestUpgrade_FromPreviousRelease
+EOF
+}
+
 # Tests that exist in the suite but deliberately run in NO bucket. Every
 # entry needs a reason; `verify` fails on any unlisted stray so additions
 # here are a conscious, reviewed act. Currently empty.
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot multicluster
+	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot multicluster upgrade
 }
 
 list_bucket() {
@@ -158,6 +168,7 @@ list_bucket() {
 	ratelimit) bucket_ratelimit ;;
 	bot) bucket_bot ;;
 	multicluster) bucket_multicluster ;;
+	upgrade) bucket_upgrade ;;
 	*)
 		echo "unknown bucket: $1 (known: $(bucket_names | tr '\n' ' '))" >&2
 		exit 2

@@ -61,6 +61,30 @@ remaining gap and is a candidate future hardening, not yet implemented.
 
 Threat-model context lives in [`security.md`](security.md#audit-log-integrity).
 
+### Upgrade testing (`e2e upgrade` bucket)
+
+`helm upgrade` was the most dangerous operation a user performs and the only
+one CI never exercised. It now runs on every PR, on both amd64 and arm64:
+`deploy/kind/upgrade.sh` installs the **previous release's published chart and
+published GHCR images**, `TestUpgrade_FromPreviousRelease` seeds a running
+GameServer with data plus an admin user, upgrades to the working-tree chart,
+and asserts the CRD schema was updated, the server and its volume bytes
+survived, and the pre-upgrade admin can still log in (proving migrations ran
+against a populated SQLite volume).
+
+The CRD assertion is self-calibrating: it computes which schema properties the
+working tree declares that the installed release lacks, then requires the
+pre-upgrade hook to have added exactly those — so it cannot rot into a vacuous
+pass as the schema evolves.
+
+This closes the CRD-upgrade caveat as a *tested* path rather than a documented
+one. Note the caveat's own docs were stale and are corrected: the chart's
+`crds.autoApply` pre-upgrade hook has been applying CRDs automatically for a
+while, but [`install.md`](install.md#helm-crd-caveat) still told users to run
+`kubectl apply` by hand.
+
+Not yet covered: upgrades skipping several releases at once, and Postgres.
+
 ### Read-only MCP server (PR #105)
 
 An [MCP](https://modelcontextprotocol.io) server letting an AI assistant read
@@ -96,9 +120,6 @@ production-readiness hardening below — tracked items, not code gaps.
 
 - A documented backup/restore drill, and restore-path coverage against a real
   restic repository.
-- Upgrade testing across at least one minor version, including the CRD-upgrade
-  caveat (Helm never updates CRDs on `helm upgrade`; see
-  [Helm CRD caveat](install.md#helm-crd-caveat)).
 - Resource-limit guidance sized from real workloads rather than defaults.
 - Hermetic module images: the shipped game modules pin floating upstream tags
   (`terraria-latest`, `tmodloader-latest`), meaning a server binary can change
