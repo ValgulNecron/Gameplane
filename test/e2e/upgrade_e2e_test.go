@@ -177,15 +177,15 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	client := envInstance.APIClient(t, adminUser, adminPass)
 	defer client.Close()
 
-	resp, body, err := client.Get("/api/v1/servers?namespace=" + ns)
+	resp, body, err := client.Get("/servers/" + gs + "?namespace=" + ns)
 	if err != nil {
-		t.Fatalf("list servers through the upgraded API: %v", err)
+		t.Fatalf("read the pre-upgrade server through the upgraded API: %v", err)
 	}
 	if resp.StatusCode != 200 {
-		t.Fatalf("list servers after upgrade: status %d body %s", resp.StatusCode, body)
+		t.Fatalf("GET /servers/%s after upgrade: status %d body %s", gs, resp.StatusCode, body)
 	}
 	if !strings.Contains(string(body), gs) {
-		t.Errorf("upgraded API does not list the pre-upgrade GameServer %q; body=%s", gs, body)
+		t.Errorf("upgraded API does not return the pre-upgrade GameServer %q; body=%s", gs, body)
 	}
 }
 
