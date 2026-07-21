@@ -197,6 +197,19 @@ spec:
   # risking corruption. Recreate ensures the old pod is fully gone first.
   strategy:
     type: Recreate
+    # Explicit null, not omission. Releases before this stanza existed
+    # (<= 0.2.0-beta.5) shipped no strategy at all, so the apiserver
+    # defaulted them to RollingUpdate and materialized a
+    # spec.strategy.rollingUpdate block on the live object. Merely
+    # omitting the field here leaves that block in place, and the
+    # apiserver then rejects the whole Deployment --
+    #   spec.strategy.rollingUpdate: Forbidden: may not be specified
+    #   when strategy `type` is 'Recreate'
+    # -- which fails the entire `helm upgrade`. An explicit null is the
+    # instruction to REMOVE the stale field, under both server-side
+    # apply and Helm's three-way merge. Caught by the e2e upgrade test;
+    # do not "tidy" this away.
+    rollingUpdate: null
   {{- end }}
   template:
     metadata:
