@@ -183,7 +183,7 @@ func TestGameServer_IdleSleepsAndWakes(t *testing.T) {
 // forever, no matter how long it has been "empty". Unknown is not zero.
 func TestGameServer_IdleNeverSleepsWithoutAPlayerCount(t *testing.T) {
 	ns := newNamespace(t)
-	startMgr(t, ns)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
 
 	tmpl := buildGameTemplate(uniqueName("valheim"))
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
