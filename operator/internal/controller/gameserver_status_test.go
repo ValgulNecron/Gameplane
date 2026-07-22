@@ -30,7 +30,7 @@ func TestDerivePhase(t *testing.T) {
 			gs := &gameplanev1alpha1.GameServer{
 				Spec: gameplanev1alpha1.GameServerSpec{Suspend: tc.suspend},
 			}
-			got := derivePhase(gs, tc.ssExists, tc.ssReady, tc.hbFresh)
+			got := derivePhase(gs, tc.ssExists, tc.ssReady, tc.hbFresh, idleAwake)
 			if got != tc.want {
 				t.Errorf("want %q, got %q", tc.want, got)
 			}
