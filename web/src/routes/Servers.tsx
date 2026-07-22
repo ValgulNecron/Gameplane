@@ -14,6 +14,7 @@ import {
   Server as ServerIcon,
   Share2,
   Square,
+  Sunrise,
   Users as UsersIcon,
 } from "lucide-react";
 
@@ -398,6 +399,7 @@ export function ServersPage() {
 // formatting.
 function serverRowData(gs: GameServer) {
   const phase = gs.status?.phase;
+  const asleep = gs.status?.idle?.asleep === true;
   const agent = gs.status?.agent;
   const players = agent?.playersOnline;
   const maxPlayers = agent?.playersMax;
@@ -437,7 +439,7 @@ function serverRowData(gs: GameServer) {
         : `${players}`
       : "—";
 
-  return { phase, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel };
+  return { phase, asleep, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel };
 }
 
 // ServerLifecycleActions is the Start/Stop/Restart/menu cluster shared by
@@ -445,10 +447,12 @@ function serverRowData(gs: GameServer) {
 function ServerLifecycleActions({
   gs,
   phase,
+  asleep,
   onAct,
 }: {
   gs: GameServer;
   phase?: GameServerPhase;
+  asleep?: boolean;
   onAct: (args: { name: string; verb: LifecycleVerb }) => void;
 }) {
   const qc = useQueryClient();
@@ -458,13 +462,22 @@ function ServerLifecycleActions({
   };
   return (
     <div className="inline-flex items-center">
-      <ActionButton
-        title="Start"
-        disabled={phase === "Running" || phase === "Starting"}
-        onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
-      >
-        <Play className="h-4 w-4" />
-      </ActionButton>
+      {asleep ? (
+        <ActionButton
+          title="Wake"
+          onClick={() => onAct({ name: gs.metadata.name, verb: "wake" })}
+        >
+          <Sunrise className="h-4 w-4" />
+        </ActionButton>
+      ) : (
+        <ActionButton
+          title="Start"
+          disabled={phase === "Running" || phase === "Starting"}
+          onClick={() => onAct({ name: gs.metadata.name, verb: "start" })}
+        >
+          <Play className="h-4 w-4" />
+        </ActionButton>
+      )}
       <ActionButton
         title="Stop"
         disabled={phase === "Stopped" || phase === "Suspended"}
@@ -490,7 +503,7 @@ function ServerRow({
   gs: GameServer;
   onAct: (args: { name: string; verb: LifecycleVerb }) => void;
 }) {
-  const { phase, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
+  const { phase, asleep, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
 
   return (
     <tr className="hover:bg-surface/40">
@@ -513,13 +526,13 @@ function ServerRow({
         </div>
       </td>
       <td className="px-4 py-3 text-muted">{gs.spec.templateRef.name}</td>
-      <td className="px-4 py-3"><PhaseBadge phase={phase} /></td>
+      <td className="px-4 py-3"><PhaseBadge phase={phase} asleep={asleep} /></td>
       <td className="px-4 py-3 font-mono">{cpuLabel}</td>
       <td className="px-4 py-3 font-mono">{memLabel}</td>
       <td className="px-4 py-3 font-mono">{playersLabel}</td>
       <td className="px-4 py-3 font-mono text-muted">{node ?? "—"}</td>
       <td className="px-4 py-3 text-right">
-        {!isSharedNonDefault && <ServerLifecycleActions gs={gs} phase={phase} onAct={onAct} />}
+        {!isSharedNonDefault && <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={onAct} />}
       </td>
     </tr>
   );
@@ -534,7 +547,7 @@ function ServerCard({
   gs: GameServer;
   onAct: (args: { name: string; verb: LifecycleVerb }) => void;
 }) {
-  const { phase, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
+  const { phase, asleep, node, isSharedNonDefault, cpuLabel, memLabel, playersLabel } = serverRowData(gs);
 
   return (
     <Card className="p-4">
@@ -555,7 +568,7 @@ function ServerCard({
             </div>
           </div>
         </div>
-        <PhaseBadge phase={phase} />
+        <PhaseBadge phase={phase} asleep={asleep} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -567,7 +580,7 @@ function ServerCard({
 
       {!isSharedNonDefault && (
         <div className="mt-3 flex items-center justify-end border-t border-border pt-3">
-          <ServerLifecycleActions gs={gs} phase={phase} onAct={onAct} />
+          <ServerLifecycleActions gs={gs} phase={phase} asleep={asleep} onAct={onAct} />
         </div>
       )}
     </Card>

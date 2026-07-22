@@ -67,6 +67,51 @@ describe("ServerDetailPage lifecycle buttons", () => {
     expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Stop$/i })).toBeDisabled();
   });
+
+  it("when asleep: Wake button shown, Start hidden", async () => {
+    server.use(
+      http.get(
+        "/servers/alpha",
+        () =>
+          HttpResponse.json(
+            makeServer({
+              status: {
+                phase: "Suspended",
+                idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+              },
+            }),
+          ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const wake = await screen.findByRole("button", { name: /^Wake$/i });
+    expect(wake).not.toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
+  });
+
+  it("calls wake endpoint when Wake button clicked", async () => {
+    const wakeHandler = vi.fn(() => new HttpResponse(null, { status: 202 }));
+    server.use(
+      http.get(
+        "/servers/alpha",
+        () =>
+          HttpResponse.json(
+            makeServer({
+              status: {
+                phase: "Suspended",
+                idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+              },
+            }),
+          ),
+      ),
+      http.post(/\/servers\/[^/]+:wake$/, wakeHandler),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<ServerDetailPage />);
+    const wake = await screen.findByRole("button", { name: /^Wake$/i });
+    await user.click(wake);
+    await waitFor(() => expect(wakeHandler).toHaveBeenCalled());
+  });
 });
 
 describe("ServerDetailPage", () => {
