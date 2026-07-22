@@ -27,6 +27,7 @@ const heartbeatFreshness = 60 * time.Second
 // pure computation — no child objects are mutated here.
 func (r *GameServerReconciler) reconcileStatus(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
+	idle idleState, idleStatus *gameplanev1alpha1.IdleStatus,
 ) (time.Duration, error) {
 	// base captures the object as fetched so we can issue a JSON merge
 	// patch of only the fields this reconciler owns. The agent sidecar
@@ -52,7 +53,7 @@ func (r *GameServerReconciler) reconcileStatus(
 	}
 	svcExists := svcErr == nil
 
-	phase := derivePhase(gs, ssExists, ss.Status.ReadyReplicas > 0, heartbeatFresh(gs))
+	phase := derivePhase(gs, ssExists, ss.Status.ReadyReplicas > 0, heartbeatFresh(gs), idle)
 
 	// While Starting, read the pod's container states to either explain
 	// *why* it isn't Running yet (pulling the image, creating the
@@ -86,7 +87,12 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
-	gs.Status.Conditions = computeConditions(gs, phase, prov)
+	gs.Status.Conditions = computeConditions(gs, phase, prov, idle)
+	// Folded into this one status patch rather than written by reconcileIdle
+	// itself: the agent concurrently patches status.agent, and a second writer
+	// here would be a second thing to race. A nil block clears status.idle,
+	// which is how disabling the feature drops its stale read model.
+	gs.Status.Idle = idleStatus
 	if svcExists {
 		gs.Status.Endpoints = endpointsFromService(&svc)
 	}
@@ -112,9 +118,13 @@ func (r *GameServerReconciler) reconcileStatus(
 }
 
 func derivePhase(
-	gs *gameplanev1alpha1.GameServer, ssExists, ssReady, hbFresh bool,
+	gs *gameplanev1alpha1.GameServer, ssExists, ssReady, hbFresh bool, idle idleState,
 ) gameplanev1alpha1.GameServerPhase {
-	if gs.Spec.Suspend {
+	// An idle sleep reports the same phase as an explicit stop. Without this
+	// arm a sleeping server would read as Starting — the StatefulSet exists but
+	// has no ready replica — and look permanently stuck. The two are told apart
+	// by the IdleAsleep condition reason and status.idle, not by the phase.
+	if gs.Spec.Suspend || idle == idleAsleep {
 		if ssExists && ssReady {
 			return gameplanev1alpha1.GameServerPhaseStopping
 		}
@@ -146,6 +156,7 @@ func computeConditions(
 	gs *gameplanev1alpha1.GameServer,
 	phase gameplanev1alpha1.GameServerPhase,
 	prov *provisioningInfo,
+	idle idleState,
 ) []metav1.Condition {
 	conds := gs.Status.Conditions
 
@@ -193,6 +204,15 @@ func computeConditions(
 		progressing.Reason = "Suspended"
 		healthy.Status = metav1.ConditionFalse
 		healthy.Reason = "Suspended"
+		// The phase is shared with an explicit stop, so the reason is the only
+		// machine-readable way to tell "the operator parked this because it was
+		// empty" from "a human turned it off".
+		if idle == idleAsleep {
+			ready.Reason = "IdleAsleep"
+			ready.Message = "asleep: no players online"
+			progressing.Reason = "IdleAsleep"
+			healthy.Reason = "IdleAsleep"
+		}
 	case gameplanev1alpha1.GameServerPhaseFailed:
 		ready.Status = metav1.ConditionFalse
 		ready.Reason = "Failed"

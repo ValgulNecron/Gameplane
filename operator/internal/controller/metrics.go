@@ -45,6 +45,18 @@ var backupsDesc = prometheus.NewDesc(
 	[]string{"phase"}, nil,
 )
 
+// idleStates are the two states an idle-enabled GameServer can be in. Servers
+// with idle disabled are counted in neither, so asleep/(asleep+awake) is the
+// share of opted-in servers currently parked.
+var idleStates = []string{"asleep", "awake"}
+
+var gameServersIdleDesc = prometheus.NewDesc(
+	"gameplane_gameservers_idle",
+	"Number of idle-enabled GameServers currently asleep vs awake, as observed by the operator. "+
+		"Servers with spec.idle.enabled false are not counted.",
+	[]string{"state"}, nil,
+)
+
 // phaseStrings converts a slice of string-kind phase constants to their bare
 // string label values.
 func phaseStrings[T ~string](in []T) []string {
@@ -127,6 +139,43 @@ func NewGameServerCollector(reader client.Reader) prometheus.Collector {
 			out := make([]string, len(list.Items))
 			for i := range list.Items {
 				out[i] = string(list.Items[i].Status.Phase)
+			}
+			return out, nil
+		},
+	}
+}
+
+// NewGameServerIdleCollector builds the idle-sleep fleet collector: how many
+// opted-in GameServers are currently parked. It reuses phaseCollector because
+// the shape is identical — count live objects into a fixed label set, emitting
+// every label on each scrape so the series never blinks out of existence.
+//
+// This is the metric that answers "is idle sleep actually saving me anything",
+// which is the whole reason the feature exists.
+func NewGameServerIdleCollector(reader client.Reader) prometheus.Collector {
+	return &phaseCollector{
+		desc:        gameServersIdleDesc,
+		logName:     "gameserver idle metric",
+		knownPhases: idleStates,
+		// Unreachable: the mapper below never returns "". phaseCollector
+		// attributes an empty label here, and "awake" is the honest default.
+		emptyPhase: "awake",
+		phases: func(ctx context.Context) ([]string, error) {
+			var list gameplanev1alpha1.GameServerList
+			if err := reader.List(ctx, &list); err != nil {
+				return nil, err
+			}
+			out := make([]string, 0, len(list.Items))
+			for i := range list.Items {
+				gs := &list.Items[i]
+				if gs.Spec.Idle == nil || !gs.Spec.Idle.Enabled {
+					continue // not opted in — belongs to neither series
+				}
+				if gs.Status.Idle != nil && gs.Status.Idle.Asleep {
+					out = append(out, "asleep")
+				} else {
+					out = append(out, "awake")
+				}
 			}
 			return out, nil
 		},

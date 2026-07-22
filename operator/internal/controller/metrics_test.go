@@ -36,10 +36,10 @@ func backupWithPhase(name string, phase gameplanev1alpha1.BackupPhase) *gameplan
 }
 
 // collectPhaseCounts registers the collector with a throwaway registry, gathers
-// once, and returns the named metric's value keyed by its phase label. Going
+// once, and returns the named metric's value keyed by the given label. Going
 // through a real Gather exercises Describe/Collect end to end without pulling in
 // the testutil package (and its extra module deps).
-func collectPhaseCounts(t *testing.T, c prometheus.Collector, metricName string) map[string]float64 {
+func collectPhaseCounts(t *testing.T, c prometheus.Collector, metricName, label string) map[string]float64 {
 	t.Helper()
 	reg := prometheus.NewRegistry()
 	if err := reg.Register(c); err != nil {
@@ -55,13 +55,13 @@ func collectPhaseCounts(t *testing.T, c prometheus.Collector, metricName string)
 			continue
 		}
 		for _, m := range mf.GetMetric() {
-			phase := ""
+			key := ""
 			for _, l := range m.GetLabel() {
-				if l.GetName() == "phase" {
-					phase = l.GetValue()
+				if l.GetName() == label {
+					key = l.GetValue()
 				}
 			}
-			out[phase] = m.GetGauge().GetValue()
+			out[key] = m.GetGauge().GetValue()
 		}
 	}
 	return out
@@ -78,7 +78,7 @@ func TestGameServerCollector(t *testing.T) {
 		gsWithPhase("f", ""),
 	).Build()
 
-	got := collectPhaseCounts(t, NewGameServerCollector(cl), "gameplane_gameservers")
+	got := collectPhaseCounts(t, NewGameServerCollector(cl), "gameplane_gameservers", "phase")
 
 	// Every phase reports a sample (0 when empty), and the counts sum to the
 	// fleet size (6): 3 Running, 1 Failed, 2 Pending (one explicit + the
@@ -100,7 +100,7 @@ func TestGameServerCollector(t *testing.T) {
 func TestGameServerCollectorEmptyFleet(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(metricsScheme(t)).Build()
 
-	got := collectPhaseCounts(t, NewGameServerCollector(cl), "gameplane_gameservers")
+	got := collectPhaseCounts(t, NewGameServerCollector(cl), "gameplane_gameservers", "phase")
 
 	// An empty fleet still reports one zero-valued series per known phase, so
 	// the dashboard shows a flat 0 line rather than a gap.
@@ -114,6 +114,57 @@ func TestGameServerCollectorEmptyFleet(t *testing.T) {
 	}
 }
 
+func gsWithIdle(name string, enabled, asleep bool) *gameplanev1alpha1.GameServer {
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "gameplane-games"},
+	}
+	if enabled {
+		gs.Spec.Idle = &gameplanev1alpha1.IdleSpec{Enabled: true}
+	}
+	gs.Status.Idle = &gameplanev1alpha1.IdleStatus{Asleep: asleep}
+	return gs
+}
+
+func TestGameServerIdleCollector(t *testing.T) {
+	cl := fake.NewClientBuilder().WithScheme(metricsScheme(t)).WithObjects(
+		gsWithIdle("a", true, true),
+		gsWithIdle("b", true, true),
+		gsWithIdle("c", true, false),
+		// Opted out — must land in neither series, so asleep/(asleep+awake)
+		// stays the share of servers that actually opted in.
+		gsWithIdle("d", false, false),
+		// Never reconciled, so no status.idle at all: awake, not a panic.
+		&gameplanev1alpha1.GameServer{
+			ObjectMeta: metav1.ObjectMeta{Name: "e", Namespace: "gameplane-games"},
+			Spec: gameplanev1alpha1.GameServerSpec{
+				Idle: &gameplanev1alpha1.IdleSpec{Enabled: true},
+			},
+		},
+	).Build()
+
+	got := collectPhaseCounts(t, NewGameServerIdleCollector(cl), "gameplane_gameservers_idle", "state")
+
+	want := map[string]float64{"asleep": 2, "awake": 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("idle counts:\n got %v\nwant %v", got, want)
+	}
+}
+
+func TestGameServerIdleCollectorNoneOptedIn(t *testing.T) {
+	cl := fake.NewClientBuilder().WithScheme(metricsScheme(t)).WithObjects(
+		gsWithIdle("a", false, false),
+	).Build()
+
+	got := collectPhaseCounts(t, NewGameServerIdleCollector(cl), "gameplane_gameservers_idle", "state")
+
+	// Both series still report zero rather than vanishing, so a dashboard
+	// shows a flat line instead of a gap when nobody has enabled the feature.
+	want := map[string]float64{"asleep": 0, "awake": 0}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("idle counts:\n got %v\nwant %v", got, want)
+	}
+}
+
 func TestBackupCollector(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(metricsScheme(t)).WithObjects(
 		backupWithPhase("a", gameplanev1alpha1.BackupPhaseSucceeded),
@@ -124,7 +175,7 @@ func TestBackupCollector(t *testing.T) {
 		backupWithPhase("e", ""),
 	).Build()
 
-	got := collectPhaseCounts(t, NewBackupCollector(cl), "gameplane_backups")
+	got := collectPhaseCounts(t, NewBackupCollector(cl), "gameplane_backups", "phase")
 
 	want := map[string]float64{
 		"Pending":   1,

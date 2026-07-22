@@ -61,6 +61,36 @@ remaining gap and is a candidate future hardening, not yet implemented.
 
 Threat-model context lives in [`security.md`](security.md#audit-log-integrity).
 
+### Idle auto-sleep (PR #180)
+
+Opt-in per server (`spec.idle`): the operator scales a GameServer to zero once
+it has reported no online players for `afterMinutes`, and brings it back on a
+`wakeWindows` cron tick or an explicit `POST /servers/{name}:wake`. On a
+single-node homelab the overnight reservation of several idle servers is the
+dominant cost; this releases it without touching the data volume.
+
+**Design (as implemented):**
+
+- Sleeping drives the existing `softStop` path, so the module-declared stop
+  sequence runs and the world saves before the pod goes away.
+- The sleep marker is an operator-owned annotation, **not** `spec.suspend`.
+  That field is the user's own power switch (the `:start`/`:stop` verbs patch
+  it), so overloading it would make an automatic sleep indistinguishable from a
+  deliberate stop — and a wake window would then resurrect a server its owner
+  had turned off. Wake uses a request/ack token pair like the restart primitive.
+- Phase reuses `Suspended`; the `IdleAsleep` condition reason, `status.idle`,
+  and an `-o wide` print column distinguish it from a manual stop.
+- A stale heartbeat or an absent player count both freeze the idle clock rather
+  than reading as empty — unknown is not zero. Each refusal records a reason on
+  `status.idle`, so a server that can never sleep explains itself.
+- `gameplane_gameservers_idle{state=asleep|awake}` reports the saving.
+
+**Known gap:** no wake-on-connect. Waking needs the dashboard, the API, or a
+wake window; a player cannot start a sleeping server by trying to join. Closing
+it means a per-protocol listener holding the Service port while the pod is down,
+across all four expose modes — a substantially larger piece of work, tracked
+below rather than in this one.
+
 ### Read-only MCP server (PR #105)
 
 An [MCP](https://modelcontextprotocol.io) server letting an AI assistant read
@@ -109,6 +139,19 @@ production-readiness hardening below — tracked items, not code gaps.
   "latest" entry only in `spec.versions` where drift is the user's explicit,
   labelled choice. Changes live in the `gameplane-module` repo with a submodule
   pointer bump here.
+
+### Wake-on-connect for idle auto-sleep
+
+Idle auto-sleep ships without it, so a player who finds a server asleep cannot
+start it by trying to join. The fix is a listener that holds the Service port
+while the pod is down, recognizes a genuine connection attempt, flips the wake
+request, and either holds or replays the handshake until the game is ready —
+the `lazytainer` / "sleeping server starter" pattern.
+
+It is a real component, not a tweak: it needs enough per-game protocol
+awareness not to corrupt handshakes, and parity across all four `expose` modes
+(ClusterIP, NodePort, LoadBalancer, Hostport). Until it exists, cron wake
+windows are the answer for predictable play times.
 
 ### Postgres driver: make the store fully driver-portable
 

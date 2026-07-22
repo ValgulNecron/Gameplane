@@ -29,6 +29,10 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .status.idle.asleep
+      name: Asleep
+      priority: 1
+      type: boolean
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -1197,6 +1201,49 @@ spec:
                   - name
                   type: object
                 type: array
+              idle:
+                description: Idle configures automatic sleep while nobody is playing.
+                  Opt-in.
+                properties:
+                  afterMinutes:
+                    default: 30
+                    description: |-
+                      AfterMinutes is how long the server must continuously report zero
+                      online players before it is put to sleep. The floor of 5 minutes keeps
+                      a server from flapping between the last player leaving and the next
+                      arriving.
+                    format: int32
+                    maximum: 1440
+                    minimum: 5
+                    type: integer
+                  enabled:
+                    default: false
+                    description: Enabled turns idle auto-sleep on for this server.
+                    type: boolean
+                  wakeWindows:
+                    description: |-
+                      WakeWindows are cron expressions, in the cluster's timezone, at which a
+                      sleeping server is woken back up — the scheduled counterpart to the
+                      dashboard's Wake button, so a server can be up before players arrive
+                      without anyone holding write access.
+
+                      Same five-field form and structural guard as BackupScheduleSpec.Schedule;
+                      the controller parses with robfig/cron/v3 and reports an unparseable
+                      entry as a failed condition. A window never wakes a server the user
+                      suspended by hand.
+
+                      Bounded (and each entry length-capped) deliberately: an unbounded list
+                      carrying a per-item rule blows the apiserver's CEL cost budget and gets
+                      the whole CRD rejected at install time.
+                    items:
+                      maxLength: 64
+                      minLength: 9
+                      pattern: ^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$
+                      type: string
+                    maxItems: 8
+                    type: array
+                    x-kubernetes-list-type: atomic
+                type: object
               image:
                 description: |-
                   Image, when set, overrides GameTemplate.Spec.Image (and any image
@@ -2103,7 +2150,12 @@ spec:
                   playersOnline:
                     description: |-
                       PlayersOnline is the count reported by the game protocol (RCON /
-                      server query). -1 means "unknown / not supported by this game".
+                      server query). Null (absent) means "unknown" — the game exposes no
+                      player source, or the query failed. Consumers must not treat unknown
+                      as zero: idle auto-sleep depends on exactly that distinction, and the
+                      dashboard sums this field across servers, which is why the agent
+                      patches null rather than a -1 sentinel (see
+                      agent/internal/heartbeat.sendOnce).
                     format: int32
                     type: integer
                   version:
@@ -2194,6 +2246,40 @@ spec:
                   - port
                   type: object
                 type: array
+              idle:
+                description: Idle reports the observed state of idle auto-sleep (spec.idle).
+                properties:
+                  asleep:
+                    description: |-
+                      Asleep reports whether the operator has scaled this server down for
+                      idleness. While true the phase reads Suspended with reason IdleAsleep;
+                      it is distinct from spec.suspend, which is the user's own stop.
+                    type: boolean
+                  asleepSince:
+                    description: AsleepSince is when the server was put to sleep.
+                    format: date-time
+                    type: string
+                  emptySince:
+                    description: |-
+                      EmptySince is when the server first reported a *fresh* zero player
+                      count. It is cleared the moment a player appears or the count goes
+                      unknown, so the elapsed time since it is the true continuous-empty
+                      duration. Nil while the server is not accumulating idle time.
+                    format: date-time
+                    type: string
+                  lastWakeTime:
+                    description: |-
+                      LastWakeTime is when it was last woken, by a wake window or an
+                      explicit request.
+                    format: date-time
+                    type: string
+                  reason:
+                    description: |-
+                      Reason explains the current idle state in one short phrase — why the
+                      server is not accumulating idle time, or what woke it.
+                    maxLength: 256
+                    type: string
+                type: object
               lastBackupTime:
                 description: |-
                   LastBackupTime is the completion time of the most recent
