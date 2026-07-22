@@ -518,6 +518,72 @@ jobs:
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
           kubectl --context "$CTX_B" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
 
+  # helm upgrade from the last published release to this tree
+  # (test/e2e/upgrade_e2e_test.go). Split out from e2e-go for the same reason
+  # as multicluster: its cluster is set up differently. Every other job
+  # installs the working-tree chart; this one installs the PUBLISHED chart and
+  # PUBLISHED GHCR images of the previous release, then upgrades onto the tree
+  # — so it cannot share a cluster with anything, and needs network access to
+  # ghcr.io that the other kind jobs do not.
+  e2e-upgrade:
+    name: e2e upgrade / ${{ matrix.arch }} (kind)
+    needs: [changes, build-images, build-images-arm64]
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      CLUSTER: gameplane-upgrade
+      CTX: kind-gameplane-upgrade
+      # The release to upgrade FROM. Bump at release time to the previous
+      # published version. deploy/kind/upgrade.sh carries the same default and
+      # documents why it is beta.5 rather than beta.6 (beta.6 was tagged but
+      # never published — its chart and images 404 on GHCR).
+      GAMEPLANE_UPGRADE_FROM: 0.2.0-beta.5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25", cache: false }
+      - name: go module + build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-
+      - uses: azure/setup-helm@v4
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: load images
+        uses: ./.github/actions/e2e-images
+        with:
+          arch: ${{ matrix.arch }}
+      - name: bring up cluster on the PREVIOUS release
+        run: ./deploy/kind/upgrade.sh up "$CLUSTER" e2e
+      - name: run go e2e (upgrade)
+        run: |
+          RUN_REGEX="$(./test/e2e/buckets.sh regex upgrade)"
+          cd test/e2e && \
+            GAMEPLANE_E2E_REUSE_CLUSTER=1 \
+            GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
+            go test -tags=e2e -timeout 25m -v -run "$RUN_REGEX" ./...
+      - name: dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl --context "$CTX" get all -A || true
+          helm --kube-context "$CTX" history gameplane -n gameplane-system || true
+          kubectl --context "$CTX" describe pods -n gameplane-system || true
+          kubectl --context "$CTX" get jobs -n gameplane-system || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+
   e2e-web-live:
     name: e2e web live / ${{ matrix.arch }} (kind)
     needs: [changes, build-images, build-images-arm64]

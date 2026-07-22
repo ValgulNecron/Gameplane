@@ -197,6 +197,20 @@ spec:
   # risking corruption. Recreate ensures the old pod is fully gone first.
   strategy:
     type: Recreate
+    # Explicit null, not omission: it states that this Deployment has no
+    # rolling-update config, so nothing can merge one back in.
+    #
+    # It is NOT sufficient on its own to fix an upgrade from a release
+    # that predates this stanza (<= 0.2.0-beta.5). Those shipped no
+    # strategy at all, so the apiserver defaulted them to RollingUpdate
+    # and materialized spec.strategy.rollingUpdate on the live object;
+    # under server-side apply Helm does not own that field, so a null
+    # here does not remove it and the apiserver rejects the Deployment
+    # -- failing the entire `helm upgrade`. Clearing it is done by the
+    # migrate-api-strategy initContainer in crd-apply-hook.yaml, which
+    # runs pre-upgrade. Both halves are load-bearing; the e2e upgrade
+    # test covers them.
+    rollingUpdate: null
   {{- end }}
   template:
     metadata:

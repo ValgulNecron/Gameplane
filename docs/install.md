@@ -416,15 +416,29 @@ logged.
 
 ### Helm CRD caveat
 
-The `Cluster` CRD is installed by Helm on first deploy. **`helm upgrade`
-never updates CRDs** — if you upgrade the chart and the CRD schema has
-changed, manually apply the updated CRD:
+**`helm upgrade` never updates CRDs.** That is a documented Helm limitation,
+not a Gameplane one: files under a chart's `crds/` directory are installed on
+first install and ignored on every upgrade thereafter.
+
+The chart works around this for you. `crds.autoApply` (enabled by default)
+ships a **pre-upgrade hook** that runs `kubectl apply --server-side` over the
+current CRDs on every `helm upgrade`, so the `Cluster` CRD — and every other
+Gameplane CRD — stays in step with the chart automatically. **No manual
+`kubectl apply` step is needed.**
+
+You only need to apply CRDs by hand if you have deliberately disabled the
+hook:
 
 ```sh
-kubectl apply -f charts/gameplane/crds/gameplane.local_clusters.yaml
+# only when crds.autoApply.enabled=false
+kubectl apply --server-side -f charts/gameplane/crds/
 ```
 
-After that, you can proceed with your `helm upgrade`.
+The hook is pre-upgrade *only*. A fresh install gets its CRDs from Helm's
+native `crds/` handling, which needs no pod — so first installs, including
+air-gapped ones, never depend on pulling the hook's `kubectl` image. CRDs are
+never owned or deleted by Helm here, so `helm uninstall` leaves your
+GameServers intact.
 
 ### RBAC and permissions
 
@@ -439,10 +453,39 @@ supports the same RBAC model.
 ## Upgrading
 
 ```sh
-helm upgrade gameplane ./charts/gameplane \
+helm upgrade gameplane oci://ghcr.io/valgulnecron/charts/gameplane \
+  --version <new-version> \
   --namespace gameplane-system \
   --reuse-values
 ```
+
+CRDs are brought up to date automatically by the chart's pre-upgrade hook —
+see [Helm CRD caveat](#helm-crd-caveat).
+
+**A caution on `--reuse-values`:** it replays your previous values *and skips
+the new chart's defaults*, so any value key introduced since your last upgrade
+arrives unset rather than defaulted. If an upgrade fails with a nil/missing
+value, re-run it with `--reset-then-reuse-values`, or pass your values file
+explicitly with `-f`. Keeping a values file under version control and using
+`-f` is the sturdier habit.
+
+### What upgrades are tested
+
+CI runs an end-to-end upgrade on every PR (`e2e upgrade`, on both amd64 and
+arm64): it installs the **previous release's published chart and published
+GHCR images** into a fresh cluster, seeds a running GameServer with data on
+its PVC and an admin user in the database, then upgrades to the chart under
+test and asserts that
+
+- the CRD schema was actually updated by the pre-upgrade hook,
+- the GameServer survives and the bytes on its volume are unchanged,
+- the pre-upgrade admin can still log in — i.e. the new binary's database
+  migrations ran against the populated SQLite volume without data loss.
+
+See `test/e2e/upgrade_e2e_test.go`. What this does **not** yet cover: upgrades
+that skip several releases at once, and Postgres (still an experimental
+driver — see [`roadmap.md`](roadmap.md)). Take a backup before upgrading
+production either way.
 
 CRDs are installed once by Helm and not updated on upgrade (by design).
 For CRD schema changes, run:

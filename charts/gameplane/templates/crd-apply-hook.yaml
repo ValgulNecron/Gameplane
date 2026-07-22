@@ -63,6 +63,55 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Release.Name }}-crd-apply
     namespace: {{ .Release.Namespace }}
+{{- if eq .Values.api.db.driver "sqlite" }}
+---
+# One-time workload migration, riding along with this hook because it needs
+# exactly the same thing: a kubectl that runs BEFORE Helm applies the release.
+#
+# Releases <= 0.2.0-beta.5 shipped no `strategy` on the api Deployment, so the
+# apiserver defaulted it to RollingUpdate and materialized a
+# spec.strategy.rollingUpdate block. The chart now sets `type: Recreate` (the
+# SQLite store is single-writer on an RWO volume), and the apiserver rejects
+# the two together:
+#
+#   spec.strategy.rollingUpdate: Forbidden: may not be specified when
+#   strategy `type` is 'Recreate'
+#
+# Helm cannot clear the stale field itself: under server-side apply it does
+# not own it, so an explicit null is not enough, and the whole `helm upgrade`
+# fails -- not just the Deployment. Hence a patch that runs first.
+#
+# Namespaced Role, not an addition to the CRD ClusterRole above: this touches
+# one Deployment in the release namespace and should not be able to reach
+# anything else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-strategy-migrate
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hookAnnotations) | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["{{ .Release.Name }}-api"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-strategy-migrate
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml (merge (dict "helm.sh/hook-weight" "-5") $hookAnnotations) | nindent 4 }}
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: {{ .Release.Name }}-strategy-migrate }
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-crd-apply
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -102,6 +151,44 @@ spec:
         runAsUser: 65532
         fsGroup: 65532
         seccompProfile: { type: RuntimeDefault }
+      {{- if eq .Values.api.db.driver "sqlite" }}
+      initContainers:
+        # Clear the stale spec.strategy.rollingUpdate left by releases that
+        # predate the Recreate strategy — see the Role above for why Helm
+        # cannot do this itself. An initContainer rather than a second command
+        # on the container below because the kubectl image is distroless and
+        # has no shell to chain with.
+        #
+        # A strategic-merge patch, not a JSON `remove`: it sets type and
+        # clears rollingUpdate atomically (clearing it while the live type is
+        # still RollingUpdate would just get defaulted straight back), a null
+        # deletes the key rather than erroring when it is already absent, and
+        # re-running it on an already-migrated Deployment is a no-op. So this
+        # stays safe on every subsequent upgrade, not just the one that needs
+        # it.
+        - name: migrate-api-strategy
+          image: {{ .Values.crds.autoApply.image | quote }}
+          imagePullPolicy: {{ .Values.crds.autoApply.pullPolicy }}
+          command:
+            - kubectl
+            - patch
+            - deployment
+            - {{ .Release.Name }}-api
+            - --type=merge
+            - -p
+            - '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+          env:
+            - { name: HOME, value: /tmp }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      {{- end }}
       containers:
         - name: kubectl
           image: {{ .Values.crds.autoApply.image | quote }}
