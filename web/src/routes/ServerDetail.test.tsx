@@ -109,8 +109,9 @@ describe("ServerDetailPage lifecycle buttons", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    await screen.findByRole("heading", { level: 1, name: "alpha" });
-    expect(screen.getByText("Stopping")).toBeInTheDocument();
+    // The heading renders from the route param before the server loads, so
+    // the badge has to be awaited rather than read off the first paint.
+    expect(await screen.findByText("Stopping")).toBeInTheDocument();
     expect(screen.queryByText("Asleep")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Wake$/i })).not.toBeInTheDocument();
   });

@@ -308,4 +308,21 @@ describe("LifecycleSection", () => {
     );
     expect(screen.queryByText(/five-field cron expression/i)).not.toBeInTheDocument();
   });
+
+  // Both caveats describe behaviour a user cannot discover from the controls:
+  // that a game with no player source never triggers, and that a wake window
+  // will not undo their own Stop.
+  it("states the two idle caveats once enabled", () => {
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: [] } },
+    };
+    render(<LifecycleSection draft={draftWithIdle} onChange={() => {}} />);
+    expect(
+      screen.getByText("A game that reports no player count will never sleep."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("A wake window never restarts a server you stopped by hand."),
+    ).toBeInTheDocument();
+  });
 });

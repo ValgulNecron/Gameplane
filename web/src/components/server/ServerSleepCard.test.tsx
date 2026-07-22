@@ -192,7 +192,7 @@ describe("ServerSleepCard", () => {
     expect(screen.getByText("Not configured")).toBeInTheDocument();
   });
 
-  it("displays configured caveats", () => {
+  it("says so when no wake windows are configured", () => {
     const gs = makeServer({
       spec: {
         templateRef: { name: "minecraft-vanilla" },
@@ -200,7 +200,6 @@ describe("ServerSleepCard", () => {
       },
     });
     render(<ServerSleepCard gs={gs} />);
-    expect(screen.getByText("A game that reports no player count will never sleep.")).toBeInTheDocument();
-    expect(screen.getByText("A wake window never restarts a server you stopped by hand.")).toBeInTheDocument();
+    expect(screen.getByText("Not configured")).toBeInTheDocument();
   });
 });
