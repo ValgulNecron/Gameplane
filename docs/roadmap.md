@@ -124,8 +124,12 @@ production-readiness hardening below — tracked items, not code gaps.
 
 ### Production-readiness hardening
 
-- A documented backup/restore drill, and restore-path coverage against a real
-  restic repository.
+- A documented backup/restore **drill** — a runbook an operator can follow.
+  The *coverage* half of this item is already done and was stale here:
+  `TestRestore_RoundTrip` (`test/e2e/restore_e2e_test.go`) writes a marker into
+  a server's PVC, backs it up, wipes it, restores, and asserts the bytes came
+  back — against the real in-cluster restic-server that `ensureResticRepo`
+  provisions. What is missing is the human-facing runbook, not the test.
 - Upgrade testing across at least one minor version, including the CRD-upgrade
   caveat (Helm never updates CRDs on `helm upgrade`; see
   [Helm CRD caveat](install.md#helm-crd-caveat)).
