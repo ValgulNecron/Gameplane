@@ -26,16 +26,21 @@ const wipeRequestedAnnotation = "gameplane.local/wipe-data-requested"
 // string is duplicated here deliberately).
 const restartRequestedAnnotation = "gameplane.local/restart-requested"
 
-// MountLifecycle wires start/stop/restart/clone verbs on GameServers.
+// idleWakeRequestedAnnotation matches the operator's
+// controller.IdleWakeRequestedAnnotation (duplicated for the same reason).
+const idleWakeRequestedAnnotation = "gameplane.local/idle-wake-requested"
+
+// MountLifecycle wires start/stop/restart/wake/clone verbs on GameServers.
 //
 // start/stop are expressed as patches to spec.suspend (the operator
-// reconciles the rest). Restart is a single stamped annotation the operator
-// acks: it owns the whole stop→recycle→start cycle, so the request can't be
+// reconciles the rest). Restart and wake are single stamped annotations the
+// operator acks: it owns the whole transition, so the request can't be
 // lost the way a client-issued suspend/resume patch pair can (rule 10).
 func MountLifecycle(r chi.Router, reg *kube.Registry) {
 	r.Post("/servers/{name}:start", patchSuspend(reg, false))
 	r.Post("/servers/{name}:stop", patchSuspend(reg, true))
 	r.Post("/servers/{name}:restart", restartHandler(reg))
+	r.Post("/servers/{name}:wake", wakeHandler(reg))
 	r.Post("/servers/{name}:clone", cloneHandler(reg))
 	r.Post("/servers/{name}:wipe-data", wipeDataHandler(reg))
 }
@@ -129,6 +134,43 @@ func restartHandler(reg *kube.Registry) http.HandlerFunc {
 		patch, _ := json.Marshal(map[string]any{
 			"metadata": map[string]any{
 				"annotations": map[string]any{restartRequestedAnnotation: token},
+			},
+		})
+		if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+			Namespace(ns).
+			Patch(req.Context(), name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+// wakeHandler stamps a wake-request annotation on a server the idle policy put
+// to sleep. The operator owns the transition — it clears its own sleep marker,
+// hands the server a full fresh idle period so it doesn't immediately sleep
+// again, and acks the token.
+//
+// Deliberately not a patch of spec.suspend: that field is the user's own power
+// switch and the operator never writes it, so clearing it here would both lie
+// about intent and fail to touch the marker that actually keeps the server
+// down. Waking a server that isn't asleep is a harmless no-op, so this needs no
+// precondition check and can't race the operator putting it to sleep.
+func wakeHandler(reg *kube.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		k, ok := resolveCluster(w, req, reg)
+		if !ok {
+			return
+		}
+		name := chi.URLParam(req, "name")
+		ns, ok := resolveNS(w, req)
+		if !ok {
+			return
+		}
+		token := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
+		patch, _ := json.Marshal(map[string]any{
+			"metadata": map[string]any{
+				"annotations": map[string]any{idleWakeRequestedAnnotation: token},
 			},
 		})
 		if _, err := k.Dynamic.Resource(kube.GVRs["servers"]).

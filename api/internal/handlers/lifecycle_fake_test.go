@@ -68,6 +68,30 @@ func TestLifecycle_Restart(t *testing.T) {
 	}
 }
 
+func TestLifecycle_Wake(t *testing.T) {
+	k := fakeKubeClient(newServerObj("gameplane-games", "alpha"))
+	r := mountLifecycleRouter(k)
+	rr := do(t, r, "POST", "/servers/alpha:wake", nil)
+	if rr.Code != 202 {
+		t.Fatalf("got %d %s", rr.Code, rr.Body)
+	}
+
+	obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+		Namespace("gameplane-games").Get(t.Context(), "alpha", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if obj.GetAnnotations()[idleWakeRequestedAnnotation] == "" {
+		t.Errorf("expected idle-wake-requested annotation, got %v", obj.GetAnnotations())
+	}
+	// The operator owns the sleep marker and spec.suspend belongs to the user.
+	// Waking must stamp a request and nothing else — clearing suspend here
+	// would resume a server its owner had deliberately stopped.
+	if suspend, found, _ := unstructured.NestedBool(obj.Object, "spec", "suspend"); found && suspend {
+		t.Error("wake must not touch spec.suspend")
+	}
+}
+
 func TestLifecycle_StartUnknown(t *testing.T) {
 	k := fakeKubeClient()
 	r := mountLifecycleRouter(k)
