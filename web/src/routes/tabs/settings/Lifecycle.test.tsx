@@ -121,4 +121,106 @@ describe("LifecycleSection", () => {
     // readiness + startup are absent from the template → two notices.
     expect(screen.getAllByText(/not\s+defined by the template/i)).toHaveLength(2);
   });
+
+  it("enables idle auto-sleep via switch", async () => {
+    const onChange = vi.fn();
+    render(
+      <LifecycleSection draft={baseDraft} onChange={onChange} />,
+    );
+    const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
+    await userEvent.click(sw);
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.enabled).toBe(true);
+    expect(lastCall.spec.idle?.afterMinutes).toBe(30);
+    expect(lastCall.spec.idle?.wakeWindows).toEqual([]);
+  });
+
+  it("disables idle auto-sleep clears the spec", async () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 60, wakeWindows: [] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
+    await userEvent.click(sw);
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle).toBeUndefined();
+  });
+
+  it("changes sleep-after minutes", () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: [] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    const inputs = screen.getAllByPlaceholderText("30");
+    const sleepAfter = inputs[0];
+    fireEvent.change(sleepAfter, { target: { value: "60" } });
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.afterMinutes).toBe(60);
+  });
+
+  it("adds a wake window", async () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: [] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    const addBtn = screen.getByRole("button", { name: /Add wake window/i });
+    await userEvent.click(addBtn);
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.wakeWindows).toHaveLength(1);
+  });
+
+  it("disables add-window button at 8 entries", () => {
+    const windows = Array.from({ length: 8 }, (_, i) => `0 ${9 + i} * * *`);
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: windows } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={() => {}} />,
+    );
+    const addBtn = screen.getByRole("button", { name: /Add wake window/i });
+    expect(addBtn).toBeDisabled();
+  });
+
+  it("removes a wake window", async () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: ["0 9 * * *"] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    const removeBtn = screen.getByRole("button", { name: /Remove/i });
+    await userEvent.click(removeBtn);
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.wakeWindows).toHaveLength(0);
+  });
+
+  it("edits a wake window cron", () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: ["0 9 * * *"] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    const cronInput = screen.getByPlaceholderText("0 9 * * 1-5") as HTMLInputElement;
+    fireEvent.change(cronInput, { target: { value: "0 12 * * *" } });
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.wakeWindows[0]).toBe("0 12 * * *");
+  });
 });

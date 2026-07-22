@@ -1,7 +1,7 @@
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { Probe, ProbeKind, ProbeSet } from "@/types";
+import type { IdleSpec, Probe, ProbeKind, ProbeSet } from "@/types";
 import { Field } from "./Field";
 import { GRACE_PERIOD_ANNOTATION, type SectionProps } from "./types";
 
@@ -74,6 +74,72 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
         ...draft.metadata,
         annotations: Object.keys(nextAnnotations).length ? nextAnnotations : undefined,
       },
+    });
+  };
+
+  const setIdle = (idle?: IdleSpec) => {
+    const spec = { ...draft.spec };
+    if (!idle || !idle.enabled) {
+      delete spec.idle;
+    } else {
+      spec.idle = idle;
+    }
+    onChange({
+      ...draft,
+      spec,
+    });
+  };
+
+  const addWakeWindow = () => {
+    const idle = draft.spec.idle ?? { enabled: true };
+    const windows = idle.wakeWindows ?? [];
+    if (windows.length < 8) {
+      setIdle({
+        ...idle,
+        wakeWindows: [...windows, ""],
+      });
+    }
+  };
+
+  const removeWakeWindow = (index: number) => {
+    const idle = draft.spec.idle ?? { enabled: true };
+    const windows = idle.wakeWindows ?? [];
+    setIdle({
+      ...idle,
+      wakeWindows: windows.filter((_, i) => i !== index),
+    });
+  };
+
+  const setWakeWindow = (index: number, value: string) => {
+    const idle = draft.spec.idle ?? { enabled: true };
+    // Copy before writing: `windows` aliases the draft's own array, and
+    // mutating it in place would edit state React never sees change.
+    const windows = [...(idle.wakeWindows ?? [])];
+    windows[index] = value;
+    setIdle({
+      ...idle,
+      wakeWindows: windows,
+    });
+  };
+
+  const setIdleEnabled = (enabled: boolean) => {
+    if (!enabled) {
+      setIdle(undefined);
+    } else {
+      setIdle({
+        enabled: true,
+        afterMinutes: 30,
+        wakeWindows: [],
+      });
+    }
+  };
+
+  const setIdleAfterMinutes = (value: string) => {
+    const idle = draft.spec.idle ?? { enabled: true };
+    const minutes = value === "" ? undefined : Number(value);
+    setIdle({
+      ...idle,
+      afterMinutes: minutes,
     });
   };
 
@@ -174,6 +240,87 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
               </div>
             );
           })}
+        </div>
+      </Field>
+
+      <Field
+        label="Idle auto-sleep"
+        hint="When enabled, scales the server to zero after it reports zero players for the configured duration. A wake window cron or an explicit :wake brings it back."
+      >
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 pt-1">
+            <Switch
+              checked={draft.spec.idle?.enabled ?? false}
+              onCheckedChange={setIdleEnabled}
+              aria-label="Enable idle auto-sleep"
+            />
+            <span className="text-sm text-muted">
+              {draft.spec.idle?.enabled ? "Idle auto-sleep enabled" : "Disabled"}
+            </span>
+          </div>
+
+          {draft.spec.idle?.enabled && (
+            <div className="space-y-3 rounded border border-border p-3">
+              <div>
+                <label className="text-xs font-medium text-muted">
+                  Sleep after
+                  <Input
+                    value={String(draft.spec.idle?.afterMinutes ?? 30)}
+                    onChange={(e) =>
+                      setIdleAfterMinutes(e.target.value.replace(/[^0-9]/g, ""))
+                    }
+                    placeholder="30"
+                    inputMode="numeric"
+                    className="mt-0.5"
+                  />
+                </label>
+                <span className="text-xs text-muted">minutes of zero players (5–1440)</span>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted">Wake windows</label>
+                  <Button
+                    variant="ghost"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={addWakeWindow}
+                    disabled={(draft.spec.idle?.wakeWindows?.length ?? 0) >= 8}
+                  >
+                    Add wake window
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {(draft.spec.idle?.wakeWindows ?? []).map((window, i) => (
+                    <div key={i} className="flex gap-2">
+                      <Input
+                        value={window}
+                        onChange={(e) => setWakeWindow(i, e.target.value)}
+                        placeholder="0 9 * * 1-5"
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        variant="ghost"
+                        className="h-8 px-2 text-[11px]"
+                        onClick={() => removeWakeWindow(i)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <span className="text-xs text-muted">Standard five-field cron. Max 8 entries.</span>
+              </div>
+
+              <div className="space-y-1 rounded bg-surface/40 p-2">
+                <div className="text-xs text-muted">
+                  A game that reports no player count will never sleep.
+                </div>
+                <div className="text-xs text-muted">
+                  A wake window never restarts a server you stopped by hand.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </Field>
     </div>
