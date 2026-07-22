@@ -533,6 +533,58 @@ describe("ServersPage", () => {
     expect(screen.queryByText("mc-stopped")).not.toBeInTheDocument();
     expect(screen.queryByText("val-running")).not.toBeInTheDocument();
   });
+
+  // The asleep flag threads through serverRowData -> ServerRow ->
+  // ServerLifecycleActions untested before this — cover the Wake/Start
+  // swap and the :wake call the same way ServerDetail.test.tsx does.
+  it("shows Wake (not Start) on an asleep row and calls the :wake endpoint when clicked", async () => {
+    const wakeHandler = vi.fn(() => new HttpResponse(null, { status: 202 }));
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "sleepy", namespace: "gameplane-games" },
+              status: {
+                phase: "Suspended",
+                idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+              },
+            }),
+          ],
+        }),
+      ),
+      http.post(/\/servers\/[^/]+:wake$/, wakeHandler),
+    );
+    renderWithQuery(<ServersPage />);
+    const row = (await screen.findByText("sleepy")).closest("tr") as HTMLElement;
+    expect(within(row).getByTitle("Wake")).toBeInTheDocument();
+    expect(within(row).queryByTitle("Start")).not.toBeInTheDocument();
+    await userEvent.click(within(row).getByTitle("Wake"));
+    await waitFor(() => expect(wakeHandler).toHaveBeenCalled());
+  });
+
+  // C1: an asleep server is phase Suspended, but :stop is still a real
+  // action (it patches spec.suspend=true) — Stop must not be dead here.
+  it("keeps Stop enabled for an asleep server", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({
+              metadata: { name: "sleepy", namespace: "gameplane-games" },
+              status: {
+                phase: "Suspended",
+                idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+              },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<ServersPage />);
+    const row = (await screen.findByText("sleepy")).closest("tr") as HTMLElement;
+    expect(within(row).getByTitle("Stop")).not.toBeDisabled();
+  });
 });
 
 // The page renders either a <table> (desktop) or a stacked card list

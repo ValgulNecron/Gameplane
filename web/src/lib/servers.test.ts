@@ -56,4 +56,15 @@ describe("phaseGroups", () => {
     const names = g.attention.map((s) => s.metadata.name).sort();
     expect(names).toEqual(["broken", "stale"]);
   });
+
+  it("does not flag a stopped/asleep server's stale agent — no replicas means no heartbeat by design", () => {
+    const g = phaseGroups([
+      makeServer({ metadata: { name: "stopped" }, status: { phase: "Stopped", agent: { stale: true } } }),
+      makeServer({
+        metadata: { name: "asleep" },
+        status: { phase: "Suspended", agent: { stale: true }, idle: { asleep: true } },
+      }),
+    ]);
+    expect(g.attention).toHaveLength(0);
+  });
 });

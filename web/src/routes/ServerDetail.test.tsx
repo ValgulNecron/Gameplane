@@ -89,6 +89,32 @@ describe("ServerDetailPage lifecycle buttons", () => {
     expect(screen.queryByRole("button", { name: /^Start$/i })).not.toBeInTheDocument();
   });
 
+  // C2: derivePhase reports Stopping (not Suspended) for the whole
+  // graceful-drain window even after status.idle.asleep flips true —
+  // players may still be connected. The badge must stay honest and Wake
+  // must not appear on a server that is mid-shutdown, not actually asleep.
+  it("while draining (Stopping) with idle.asleep already true: badge reads Stopping, no Wake button", async () => {
+    server.use(
+      http.get(
+        "/servers/alpha",
+        () =>
+          HttpResponse.json(
+            makeServer({
+              status: {
+                phase: "Stopping",
+                idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+              },
+            }),
+          ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    expect(screen.getByText("Stopping")).toBeInTheDocument();
+    expect(screen.queryByText("Asleep")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Wake$/i })).not.toBeInTheDocument();
+  });
+
   it("calls wake endpoint when Wake button clicked", async () => {
     const wakeHandler = vi.fn(() => new HttpResponse(null, { status: 202 }));
     server.use(

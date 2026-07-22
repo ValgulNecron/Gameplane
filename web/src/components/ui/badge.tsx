@@ -40,27 +40,12 @@ const phaseClass: Record<string, string> = {
 export function PhaseBadge({ phase, asleep }: { phase?: string; asleep?: boolean }) {
   // Asleep is not a real CRD phase (the CRD says Suspended); it's a derived
   // display state layered on top by checking status.idle.asleep.
-  if (asleep) {
-    return (
-      <span
-        className={cn(
-          "inline-flex h-5 items-center rounded px-2 text-xs font-mono",
-          "bg-violet/20 text-violet",
-        )}
-      >
-        Asleep
-      </span>
-    );
-  }
   const p = phase ?? "Pending";
+  const label = asleep ? "Asleep" : p;
+  const tone = asleep ? "bg-violet/20 text-violet" : (phaseClass[p] ?? "bg-muted/20 text-muted");
   return (
-    <span
-      className={cn(
-        "inline-flex h-5 items-center rounded px-2 text-xs font-mono",
-        phaseClass[p] ?? "bg-muted/20 text-muted",
-      )}
-    >
-      {p}
+    <span className={cn("inline-flex h-5 items-center rounded px-2 text-xs font-mono", tone)}>
+      {label}
     </span>
   );
 }

@@ -399,7 +399,11 @@ export function ServersPage() {
 // formatting.
 function serverRowData(gs: GameServer) {
   const phase = gs.status?.phase;
-  const asleep = gs.status?.idle?.asleep === true;
+  // The operator reports Stopping (not Suspended) for the whole graceful-
+  // drain window even after status.idle.asleep flips true — players may
+  // still be connected. Excluding Stopping keeps a draining server's badge
+  // honest and keeps Wake from appearing while it's still shutting down.
+  const asleep = gs.status?.idle?.asleep === true && phase !== "Stopping";
   const agent = gs.status?.agent;
   const players = agent?.playersOnline;
   const maxPlayers = agent?.playersMax;
@@ -480,7 +484,11 @@ function ServerLifecycleActions({
       )}
       <ActionButton
         title="Stop"
-        disabled={phase === "Stopped" || phase === "Suspended"}
+        // An asleep server is phase Suspended, but :stop is still a real
+        // action there — it patches spec.suspend=true, which the operator
+        // honors immediately, distinct from an idle sleep a wake window
+        // would otherwise resurrect.
+        disabled={!asleep && (phase === "Stopped" || phase === "Suspended")}
         onClick={() => onAct({ name: gs.metadata.name, verb: "stop" })}
       >
         <Square className="h-4 w-4" />

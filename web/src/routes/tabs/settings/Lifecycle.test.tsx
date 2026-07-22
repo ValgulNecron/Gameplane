@@ -135,11 +135,18 @@ describe("LifecycleSection", () => {
     expect(lastCall.spec.idle?.wakeWindows).toEqual([]);
   });
 
-  it("disables idle auto-sleep clears the spec", async () => {
+  it("disabling idle auto-sleep keeps the configuration and only flips enabled off", async () => {
+    // Regression: this used to delete spec.idle entirely on disable, losing
+    // the user's afterMinutes/wakeWindows with no undo (re-enabling started
+    // from scratch). `enabled: false` is exactly what the operator reads as
+    // disabled, so the config must survive the round trip.
     const onChange = vi.fn();
     const draftWithIdle = {
       ...baseDraft,
-      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 60, wakeWindows: [] } },
+      spec: {
+        ...baseDraft.spec,
+        idle: { enabled: true, afterMinutes: 60, wakeWindows: ["0 9 * * 1-5"] },
+      },
     };
     render(
       <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
@@ -147,7 +154,29 @@ describe("LifecycleSection", () => {
     const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
     await userEvent.click(sw);
     const lastCall = onChange.mock.calls.at(-1)![0];
-    expect(lastCall.spec.idle).toBeUndefined();
+    expect(lastCall.spec.idle?.enabled).toBe(false);
+    expect(lastCall.spec.idle?.afterMinutes).toBe(60);
+    expect(lastCall.spec.idle?.wakeWindows).toEqual(["0 9 * * 1-5"]);
+  });
+
+  it("re-enabling idle auto-sleep restores the prior configuration instead of resetting it", async () => {
+    const onChange = vi.fn();
+    const draftDisabled = {
+      ...baseDraft,
+      spec: {
+        ...baseDraft.spec,
+        idle: { enabled: false, afterMinutes: 90, wakeWindows: ["0 8 * * *"] },
+      },
+    };
+    render(
+      <LifecycleSection draft={draftDisabled} onChange={onChange} />,
+    );
+    const sw = screen.getByRole("switch", { name: /Enable idle auto-sleep/i });
+    await userEvent.click(sw);
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.enabled).toBe(true);
+    expect(lastCall.spec.idle?.afterMinutes).toBe(90);
+    expect(lastCall.spec.idle?.wakeWindows).toEqual(["0 8 * * *"]);
   });
 
   it("changes sleep-after minutes", () => {
@@ -159,11 +188,42 @@ describe("LifecycleSection", () => {
     render(
       <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
     );
-    const inputs = screen.getAllByPlaceholderText("30");
-    const sleepAfter = inputs[0];
+    const sleepAfter = screen.getByLabelText("Idle sleep after");
     fireEvent.change(sleepAfter, { target: { value: "60" } });
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.idle?.afterMinutes).toBe(60);
+  });
+
+  it("clearing sleep-after minutes leaves the field empty instead of snapping back to the default", () => {
+    // Regression: value={String(afterMinutes ?? 30)} fought the field being
+    // cleared — the moment afterMinutes went undefined the display fell back
+    // to "30", so a user could never actually empty the box.
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: [] } },
+    };
+    const { rerender } = render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    const sleepAfter = screen.getByLabelText("Idle sleep after") as HTMLInputElement;
+    fireEvent.change(sleepAfter, { target: { value: "" } });
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    expect(lastCall.spec.idle?.afterMinutes).toBeUndefined();
+
+    rerender(<LifecycleSection draft={lastCall} onChange={onChange} />);
+    expect((screen.getByLabelText("Idle sleep after") as HTMLInputElement).value).toBe("");
+  });
+
+  it("flags an out-of-range idle afterMinutes", () => {
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 2, wakeWindows: [] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={() => {}} />,
+    );
+    expect(screen.getByText(/between 5 and 1440/i)).toBeInTheDocument();
   });
 
   it("adds a wake window", async () => {
@@ -218,9 +278,34 @@ describe("LifecycleSection", () => {
     render(
       <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
     );
-    const cronInput = screen.getByPlaceholderText("0 9 * * 1-5") as HTMLInputElement;
+    const cronInput = screen.getByLabelText("Wake window 1") as HTMLInputElement;
     fireEvent.change(cronInput, { target: { value: "0 12 * * *" } });
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.idle?.wakeWindows[0]).toBe("0 12 * * *");
+  });
+
+  it("flags a blank wake window inline instead of silently dropping it", () => {
+    // A freshly-added row is "" — MinLength=9 at the apiserver, so it must be
+    // visibly invalid rather than filtered out (filtering would delete the
+    // row a user is mid-typing).
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: [""] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={() => {}} />,
+    );
+    expect(screen.getByText(/five-field cron expression/i)).toBeInTheDocument();
+  });
+
+  it("clears the invalid flag once a wake window becomes well-formed", () => {
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: ["0 9 * * 1-5"] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={() => {}} />,
+    );
+    expect(screen.queryByText(/five-field cron expression/i)).not.toBeInTheDocument();
   });
 });

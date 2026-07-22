@@ -217,7 +217,8 @@ function FleetStatusCard({ groups }: { groups: PhaseGroups }) {
 function AttentionRow({ gs }: { gs: GameServer }) {
   const phase = gs.status?.phase;
   // phaseGroups.attention only ever holds Failed-phase or stale-agent
-  // servers, so the reason is one of exactly these two.
+  // (excluding expected-down) servers, so the reason is one of exactly
+  // these two.
   const reason = phase === "Failed" ? "Failed — check logs" : "Agent heartbeat stale";
   return (
     <Link
@@ -232,7 +233,7 @@ function AttentionRow({ gs }: { gs: GameServer }) {
         </div>
         <div className="truncate text-[11px] text-muted">{reason}</div>
       </div>
-      <PhaseBadge phase={phase} />
+      <PhaseBadge phase={phase} asleep={gs.status?.idle?.asleep === true} />
     </Link>
   );
 }

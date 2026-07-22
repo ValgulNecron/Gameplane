@@ -78,7 +78,12 @@ export function ServerDetailPage() {
   });
 
   const phase = gs?.status?.phase;
-  const asleep = gs?.status?.idle?.asleep === true;
+  // The operator's derivePhase reports Stopping (not Suspended) for the
+  // whole graceful-drain window even after status.idle.asleep flips true —
+  // players may still be connected. Excluding Stopping keeps the badge
+  // honest and keeps the Wake button from appearing on a server that is
+  // still shutting down, not actually asleep yet.
+  const asleep = gs?.status?.idle?.asleep === true && phase !== "Stopping";
   const running = phase === "Running";
   // While provisioning, the operator refines the Progressing condition
   // with what the pod is doing (pulling image, installing server files,
@@ -196,7 +201,12 @@ export function ServerDetailPage() {
             <Button
               variant="outline"
               onClick={() => act.mutate("stop")}
-              disabled={!running || act.isPending}
+              // An asleep server is phase Suspended, not Running, but :stop
+              // is still a real action on it — it patches spec.suspend=true,
+              // which the operator honors immediately and records as
+              // "stopped by user", distinct from an automatic sleep a wake
+              // window would otherwise resurrect.
+              disabled={(!running && !asleep) || act.isPending}
             >
               <Square className="h-4 w-4" /> Stop
             </Button>

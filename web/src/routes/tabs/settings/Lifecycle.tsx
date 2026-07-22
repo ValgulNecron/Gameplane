@@ -2,8 +2,19 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { IdleSpec, Probe, ProbeKind, ProbeSet } from "@/types";
+import { cn } from "@/lib/utils";
 import { Field } from "./Field";
 import { GRACE_PERIOD_ANNOTATION, type SectionProps } from "./types";
+
+// Mirrors the CRD's structural guard on IdleSpec.WakeWindows: a five (or six,
+// with seconds) whitespace-separated field cron expression, at least 9
+// characters. A blank or malformed entry is flagged inline rather than
+// filtered out — filtering would delete the row out from under a user still
+// mid-typing it.
+const WAKE_WINDOW_PATTERN = /^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$/;
+function isValidWakeWindow(w: string): boolean {
+  return w.length >= 9 && WAKE_WINDOW_PATTERN.test(w);
+}
 
 const PROBE_FIELDS: { key: keyof Probe; label: string }[] = [
   { key: "initialDelaySeconds", label: "Initial delay" },
@@ -123,15 +134,18 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
   };
 
   const setIdleEnabled = (enabled: boolean) => {
+    const idle = draft.spec.idle;
     if (!enabled) {
-      setIdle(undefined);
-    } else {
-      setIdle({
-        enabled: true,
-        afterMinutes: 30,
-        wakeWindows: [],
+      // Keep the user's windows/threshold — `enabled: false` is exactly
+      // what the operator reads as disabled (idleDecide's first branch),
+      // and re-enabling must not start the user back from scratch.
+      onChange({
+        ...draft,
+        spec: { ...draft.spec, idle: idle ? { ...idle, enabled: false } : undefined },
       });
+      return;
     }
+    setIdle({ enabled: true, afterMinutes: idle?.afterMinutes ?? 30, wakeWindows: idle?.wakeWindows ?? [] });
   };
 
   const setIdleAfterMinutes = (value: string) => {
@@ -147,6 +161,16 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
   const graceInvalid =
     grace !== "" &&
     (!Number.isFinite(graceNumber) || graceNumber < 0 || graceNumber > 600 || !Number.isInteger(graceNumber));
+
+  // Mirrors graceInvalid: the CRD enforces 5–1440 at admission, so a value
+  // outside it here would otherwise sail past Save and fail the whole PUT,
+  // discarding every other edit in the draft.
+  const idleMinutes = draft.spec.idle?.afterMinutes;
+  const idleMinutesText = idleMinutes !== undefined ? String(idleMinutes) : "";
+  const idleInvalid =
+    draft.spec.idle?.enabled === true &&
+    idleMinutes !== undefined &&
+    (!Number.isInteger(idleMinutes) || idleMinutes < 5 || idleMinutes > 1440);
 
   return (
     <div className="space-y-6">
@@ -265,16 +289,22 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                 <label className="text-xs font-medium text-muted">
                   Sleep after
                   <Input
-                    value={String(draft.spec.idle?.afterMinutes ?? 30)}
+                    value={idleMinutesText}
                     onChange={(e) =>
                       setIdleAfterMinutes(e.target.value.replace(/[^0-9]/g, ""))
                     }
                     placeholder="30"
                     inputMode="numeric"
-                    className="mt-0.5"
+                    aria-label="Idle sleep after"
+                    className={cn("mt-0.5", idleInvalid && "border-danger focus:ring-danger")}
                   />
                 </label>
                 <span className="text-xs text-muted">minutes of zero players (5–1440)</span>
+                {idleInvalid && (
+                  <div className="pt-1 text-xs text-danger">
+                    Must be an integer between 5 and 1440.
+                  </div>
+                )}
               </div>
 
               <div>
@@ -290,23 +320,34 @@ export function LifecycleSection({ draft, onChange, template }: SectionProps) {
                   </Button>
                 </div>
                 <div className="space-y-2">
-                  {(draft.spec.idle?.wakeWindows ?? []).map((window, i) => (
-                    <div key={i} className="flex gap-2">
-                      <Input
-                        value={window}
-                        onChange={(e) => setWakeWindow(i, e.target.value)}
-                        placeholder="0 9 * * 1-5"
-                        className="font-mono text-xs"
-                      />
-                      <Button
-                        variant="ghost"
-                        className="h-8 px-2 text-[11px]"
-                        onClick={() => removeWakeWindow(i)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
+                  {(draft.spec.idle?.wakeWindows ?? []).map((cron, i) => {
+                    const invalid = !isValidWakeWindow(cron);
+                    return (
+                      <div key={i} className="space-y-1">
+                        <div className="flex gap-2">
+                          <Input
+                            value={cron}
+                            onChange={(e) => setWakeWindow(i, e.target.value)}
+                            placeholder="0 9 * * 1-5"
+                            aria-label={`Wake window ${i + 1}`}
+                            className={cn("font-mono text-xs", invalid && "border-danger focus:ring-danger")}
+                          />
+                          <Button
+                            variant="ghost"
+                            className="h-8 px-2 text-[11px]"
+                            onClick={() => removeWakeWindow(i)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                        {invalid && (
+                          <div className="text-xs text-danger">
+                            Must be a five-field cron expression (e.g. 0 9 * * 1-5).
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <span className="text-xs text-muted">Standard five-field cron. Max 8 entries.</span>
               </div>

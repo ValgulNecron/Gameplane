@@ -114,8 +114,12 @@ dominant cost; this releases it without touching the data volume.
   `false`, so the Start button the phase used to offer patched a field to the
   value it already held — a silent no-op that never woke anything. Only
   `:wake` clears the operator's marker.
-- The server's Overview reports `status.idle.reason` verbatim, so a server
-  that will never sleep says why instead of looking broken.
+- The server's Overview surfaces `status.idle.reason` (capitalized) as the
+  sleep card's own state line — including while still asleep, if a wake
+  window failed to parse — so a server that isn't accumulating idle time
+  says why instead of looking broken. The one reason meaning the trigger can
+  never fire ("this game reports no player count") gets a plainer "Will
+  never sleep" label instead, with the operator's reason underneath it.
 
 **Follow-up:** `status.idle.nextWakeTime`. The dashboard lists the configured
 wake windows as raw cron strings, because the operator computes the next tick
