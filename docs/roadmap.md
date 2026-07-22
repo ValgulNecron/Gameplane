@@ -111,6 +111,21 @@ into the chart for module verification), and the `release` and
 digest with the provisioned `COSIGN_PRIVATE_KEY`. See
 [Signing official bundles](module-authoring.md#signing-official-bundles).
 
+### Hermetic module images (gameplane-module#35, docs in #178)
+
+Every shipped module's default image is now pinned by digest, so a server
+binary can no longer change underneath a user on pod restart with no version
+bump or changelog. This was not hypothetical: `terraria-latest` moved from
+Terraria 1.4.4.9 to 1.4.5.6, changing the network protocol version and
+breaking the e2e Terraria bot.
+
+Eight games also gained a real `spec.versions` list, so a floating tag now
+survives only where drift is the user's explicit, labelled choice. The
+module repo's `validate.py` enforces the rule (`spec.image` and any
+`default: true` entry are an error if unpinned, with a `# gameplane:floating`
+opt-out), and a monthly workflow refreshes the pins. Authoring rules live in
+[Pinning images by digest](module-authoring.md#pinning-images-by-digest).
+
 ---
 
 ## Blocking v1
@@ -134,15 +149,6 @@ production-readiness hardening below — tracked items, not code gaps.
   caveat (Helm never updates CRDs on `helm upgrade`; see
   [Helm CRD caveat](install.md#helm-crd-caveat)).
 - Resource-limit guidance sized from real workloads rather than defaults.
-- Hermetic module images: the shipped game modules pin floating upstream tags
-  (`terraria-latest`, `tmodloader-latest`), meaning a server binary can change
-  underneath a user on pod restart with no version bump or changelog. This is not
-  hypothetical: `terraria-latest` moved from Terraria 1.4.4.9 to 1.4.5.6,
-  changing the network protocol version and breaking the e2e Terraria bot. The
-  fix is to pin explicit image tags for the default image, and keep a floating
-  "latest" entry only in `spec.versions` where drift is the user's explicit,
-  labelled choice. Changes live in the `gameplane-module` repo with a submodule
-  pointer bump here.
 
 ### Wake-on-connect for idle auto-sleep
 

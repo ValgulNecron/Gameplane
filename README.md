@@ -49,10 +49,9 @@ server says so on its Overview rather than leaving you guessing.
 Before you rely on it, know that:
 
 - A handful of production-readiness items are still open: a documented
-  backup/restore drill against a real restic repository, upgrade testing
-  across minor versions, and pinning the shipped modules' floating `latest`
-  image tags. None of these are code gaps — see
-  [`docs/roadmap.md`](docs/roadmap.md) for the full, current list.
+  backup/restore drill runbook, upgrade testing across minor versions, and
+  resource-limit guidance sized from real workloads. None of these are code
+  gaps — see [`docs/roadmap.md`](docs/roadmap.md) for the full, current list.
 
 [`docs/roadmap.md`](docs/roadmap.md) tracks everything that stands between beta
 and a v1 GA.
