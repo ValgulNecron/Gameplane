@@ -78,6 +78,36 @@ manage Gameplane with `kubectl apply` — the operator is authoritative.
 > JSON merge patch, while the agent independently patches `status.agent`;
 > the two never clobber each other.
 
+### Sleep an idle server
+
+Opt-in per server via `spec.idle`. Every reconcile the operator decides, from
+the object alone, whether idle time is accruing:
+
+1. Agent heartbeat sets `status.agent.playersOnline` (null when the game
+   exposes no player source)
+2. Operator sees a *fresh* heartbeat reporting exactly `0` while the phase is
+   `Running` → stamps `status.idle.emptySince`
+3. `emptySince` older than `spec.idle.afterMinutes` → operator writes the
+   `gameplane.local/idle-asleep-since` annotation
+4. `desiredReplicas` sees the marker and runs the same `softStop` as an explicit
+   stop: module stop sequence over RCON/pty, wait for not-ready, scale to zero
+5. Phase reads `Suspended` with condition reason `IdleAsleep`; the PVC is kept
+6. A `wakeWindows` cron tick, or `POST /servers/foo:wake`, clears the marker and
+   the pod comes back
+
+> **Why not `spec.suspend`.** That field is the user's own power switch — the
+> `:start`/`:stop` verbs patch it directly. If the operator wrote it too, an
+> automatic sleep would be indistinguishable from a deliberate stop, and a wake
+> window would resurrect a server its owner had turned off. The sleep marker is
+> therefore an operator-owned annotation, and `spec.suspend` always wins over
+> the idle policy.
+>
+> **Unknown is not zero.** A stale heartbeat or an absent `playersOnline` both
+> freeze the idle clock rather than counting as empty — a dead agent must never
+> look like an empty server, and a game with no player-count protocol must never
+> sleep. Both cases record the reason on `status.idle` so the dashboard can say
+> why a server will never sleep.
+
 ### Tail logs
 
 1. Dashboard opens WS `/ws/servers/foo/logs`
