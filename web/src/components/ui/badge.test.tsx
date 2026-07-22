@@ -42,4 +42,16 @@ describe("PhaseBadge", () => {
     render(<PhaseBadge phase="Mysterious" />);
     expect(screen.getByText("Mysterious").className).toContain("bg-muted/20");
   });
+
+  it("overrides to Asleep when asleep is true", () => {
+    render(<PhaseBadge phase="Suspended" asleep={true} />);
+    expect(screen.getByText("Asleep")).toBeInTheDocument();
+    expect(screen.getByText("Asleep").className).toContain("bg-violet/20");
+  });
+
+  it("shows phase when asleep is false", () => {
+    render(<PhaseBadge phase="Suspended" asleep={false} />);
+    expect(screen.getByText("Suspended")).toBeInTheDocument();
+    expect(screen.getByText("Suspended").className).toContain("bg-muted/20");
+  });
 });

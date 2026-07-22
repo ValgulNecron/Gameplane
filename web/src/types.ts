@@ -376,6 +376,17 @@ export interface GameServerStorage {
   mountPath?: string;
 }
 
+// Idle auto-sleep configuration (GameServer.spec.idle). Named rather than
+// inlined so the settings form can pass a whole draft around without
+// restating the shape.
+export interface IdleSpec {
+  enabled?: boolean;
+  // 5–1440, default 30 (bounds mirror the CRD).
+  afterMinutes?: number;
+  // Five-field cron expressions, max 8.
+  wakeWindows?: string[];
+}
+
 export interface InlineBackupPolicy {
   schedule: string;
   repoRef: { name: string; key: string };
@@ -418,6 +429,10 @@ export interface GameServer {
     // GameTemplate.spec.capabilities.mods.idList). Absent/undefined for
     // file-drop games.
     mods?: { ids?: ModID[] };
+    // Idle auto-sleep. Opt-in: when enabled, the operator scales the server
+    // to zero after afterMinutes of zero reported players, and brings it back
+    // on a wakeWindows cron tick or an explicit :wake.
+    idle?: IdleSpec;
   };
   status?: {
     phase?: GameServerPhase;
@@ -441,6 +456,19 @@ export interface GameServer {
       // Set by the API when the heartbeat is older than the freshness
       // window — the reported values are no longer current.
       stale?: boolean;
+    };
+    // Observed state of idle auto-sleep. `asleep` is the operator's own
+    // marker and is distinct from spec.suspend, the user's power switch —
+    // both surface as phase Suspended, so this field is the only thing that
+    // tells an automatic sleep apart from a deliberate stop.
+    idle?: {
+      emptySince?: string;
+      asleep?: boolean;
+      asleepSince?: string;
+      lastWakeTime?: string;
+      // One short phrase from the operator explaining the current state —
+      // why idle time is or isn't accruing. Render it as given.
+      reason?: string;
     };
     // Ready / Progressing / Healthy. The operator refines Progressing's
     // message while Starting (e.g. "pulling the game image") — the
