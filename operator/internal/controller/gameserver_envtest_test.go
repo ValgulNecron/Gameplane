@@ -381,7 +381,7 @@ func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
 	stale := seeded.DeepCopy()
 	stale.Status.Agent = nil
 	r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
-	if _, err := r.reconcileStatus(ctx, stale); err != nil {
+	if _, err := r.reconcileStatus(ctx, stale, idleAwake, nil); err != nil {
 		t.Fatalf("reconcileStatus: %v", err)
 	}
 

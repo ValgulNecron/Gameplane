@@ -38,6 +38,14 @@ top bar, and RBAC, audit, and e2e coverage all thread the cluster dimension.
 One caveat — WebSocket streams (console, logs) stay scoped to the
 locally-configured cluster; that's a documented follow-up.
 
+**Idle auto-sleep has one sharp edge**: there is no wake-on-connect. A player
+who finds a server asleep cannot start it by trying to join — someone with
+access has to press **Wake**, or a wake window has to come around. Plan the
+windows around when people actually play, and note that a woken server still
+needs its normal boot time before it accepts connections. Games whose agent
+reports no player count (no RCON or query protocol) never sleep at all; the
+server says so on its Overview rather than leaving you guessing.
+
 Before you rely on it, know that:
 
 - A handful of production-readiness items are still open: a documented
@@ -71,6 +79,12 @@ control plane handles both.
   Source RCON, telnet RCON, or (for pty-console games with no RCON) a
   pod-attach to stdin — so a restart saves the world instead of just sending
   SIGTERM.
+- **Idle auto-sleep** (opt-in): scale a server to zero once it has reported no
+  players for a set time, and bring it back on a cron wake window or the
+  dashboard's Wake button. Sleeping runs the same graceful shutdown as a manual
+  stop, so the world is saved, and the data volume is kept. Games whose agent
+  cannot report a player count are never slept — see the caveat under
+  [Beta status](#beta-status--known-limitations).
 - **Console**: live stdout/stderr over WebSocket, RCON stdin
 - **Logs**: historical log viewer with filtering and download
 - **Files**: browse, edit, upload, download server files (Monaco editor in-browser)

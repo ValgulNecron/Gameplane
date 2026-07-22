@@ -254,7 +254,7 @@ image-mcp-server: ## Build mcp-server image
 	docker build -t $(REGISTRY)/mcp-server:$(TAG) -f mcp-server/Dockerfile .
 
 # -------- codegen --------
-.PHONY: generate manifests module-schema
+.PHONY: generate manifests module-schema module-pin
 generate: ## Run controller-gen deepcopy generators
 	cd operator && go run sigs.k8s.io/controller-tools/cmd/controller-gen object paths=./api/...
 
@@ -274,6 +274,16 @@ manifests: ## Regenerate CRDs + RBAC manifests (and sync chart CRD copies)
 module-schema: ## Regenerate the editor JSON Schema for module template.yaml from the CRD
 	python3 hack/gen-module-schema.py
 	@echo "commit modules/.schema/gametemplate.schema.json in the gameplane-module repo + bump the submodule pointer"
+
+module-pin: ## Re-resolve every module image tag to its current digest (rewrites modules/*/template.yaml)
+	# Module images are pinned by digest so an upstream retag can never change a
+	# running game's binary. That also means new upstream builds only arrive when
+	# someone runs this. Each changed digest is a game binary that changes for
+	# every server on its next restart -- read the diff before committing.
+	# Entries marked `# gameplane:floating` are skipped on purpose.
+	# The gameplane-module repo also runs this monthly via refresh-pins.yml.
+	python3 modules/validate.py --pin
+	@echo "commit the rewritten modules/*/template.yaml in the gameplane-module repo + bump the submodule pointer"
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-push dev-install

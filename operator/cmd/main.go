@@ -273,6 +273,7 @@ func main() {
 	// time, so registration order relative to Start doesn't matter.
 	metrics.Registry.MustRegister(
 		controller.NewGameServerCollector(mgr.GetClient()),
+		controller.NewGameServerIdleCollector(mgr.GetClient()),
 		controller.NewBackupCollector(mgr.GetClient()),
 	)
 

@@ -123,6 +123,62 @@ type GameServerSpec struct {
 	// by file-drop games.
 	// +optional
 	Mods *GameServerModsSpec `json:"mods,omitempty"`
+
+	// Idle configures automatic sleep while nobody is playing. Opt-in.
+	// +optional
+	Idle *IdleSpec `json:"idle,omitempty"`
+}
+
+// IdleSpec configures idle auto-sleep: the operator scales the server down
+// once it has reported no online players for AfterMinutes, and brings it back
+// on a WakeWindows cron tick or an explicit wake request.
+//
+// Sleeping reuses the same graceful path as spec.suspend — the module-declared
+// stop sequence runs first, so the world is saved — and retains the data
+// volume. It is deliberately *not* expressed as spec.suspend: that field is
+// the user's own power switch, and conflating the two would let a wake window
+// resurrect a server its owner had deliberately turned off.
+//
+// A server whose game reports no player count can never satisfy the trigger
+// (unknown is not zero — see AgentStatus.PlayersOnline). Rather than sleeping
+// forever without explanation, the controller surfaces that as an
+// IdleEligible=False condition.
+type IdleSpec struct {
+	// Enabled turns idle auto-sleep on for this server.
+	// +kubebuilder:default=false
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// AfterMinutes is how long the server must continuously report zero
+	// online players before it is put to sleep. The floor of 5 minutes keeps
+	// a server from flapping between the last player leaving and the next
+	// arriving.
+	// +kubebuilder:validation:Minimum=5
+	// +kubebuilder:validation:Maximum=1440
+	// +kubebuilder:default=30
+	// +optional
+	AfterMinutes *int32 `json:"afterMinutes,omitempty"`
+
+	// WakeWindows are cron expressions, in the cluster's timezone, at which a
+	// sleeping server is woken back up — the scheduled counterpart to the
+	// dashboard's Wake button, so a server can be up before players arrive
+	// without anyone holding write access.
+	//
+	// Same five-field form and structural guard as BackupScheduleSpec.Schedule;
+	// the controller parses with robfig/cron/v3 and reports an unparseable
+	// entry as a failed condition. A window never wakes a server the user
+	// suspended by hand.
+	//
+	// Bounded (and each entry length-capped) deliberately: an unbounded list
+	// carrying a per-item rule blows the apiserver's CEL cost budget and gets
+	// the whole CRD rejected at install time.
+	// +kubebuilder:validation:MaxItems=8
+	// +kubebuilder:validation:items:MinLength=9
+	// +kubebuilder:validation:items:MaxLength=64
+	// +kubebuilder:validation:items:Pattern=`^\S+\s+\S+\s+\S+\s+\S+\s+\S+(\s+\S+)?$`
+	// +listType=atomic
+	// +optional
+	WakeWindows []string `json:"wakeWindows,omitempty"`
 }
 
 // GameServerModsSpec is the set of mods selected for a server whose game
@@ -275,6 +331,43 @@ type GameServerStatus struct {
 	// successful backup of this server.
 	// +optional
 	LastBackupTime *metav1.Time `json:"lastBackupTime,omitempty"`
+
+	// Idle reports the observed state of idle auto-sleep (spec.idle).
+	// +optional
+	Idle *IdleStatus `json:"idle,omitempty"`
+}
+
+// IdleStatus is the observed state of idle auto-sleep. It is a read model:
+// the authoritative sleep marker is an operator-owned annotation, so the
+// decision survives a status subresource being reset.
+type IdleStatus struct {
+	// EmptySince is when the server first reported a *fresh* zero player
+	// count. It is cleared the moment a player appears or the count goes
+	// unknown, so the elapsed time since it is the true continuous-empty
+	// duration. Nil while the server is not accumulating idle time.
+	// +optional
+	EmptySince *metav1.Time `json:"emptySince,omitempty"`
+
+	// Asleep reports whether the operator has scaled this server down for
+	// idleness. While true the phase reads Suspended with reason IdleAsleep;
+	// it is distinct from spec.suspend, which is the user's own stop.
+	// +optional
+	Asleep bool `json:"asleep,omitempty"`
+
+	// AsleepSince is when the server was put to sleep.
+	// +optional
+	AsleepSince *metav1.Time `json:"asleepSince,omitempty"`
+
+	// LastWakeTime is when it was last woken, by a wake window or an
+	// explicit request.
+	// +optional
+	LastWakeTime *metav1.Time `json:"lastWakeTime,omitempty"`
+
+	// Reason explains the current idle state in one short phrase — why the
+	// server is not accumulating idle time, or what woke it.
+	// +kubebuilder:validation:MaxLength=256
+	// +optional
+	Reason string `json:"reason,omitempty"`
 }
 
 // GameServerEndpoint is a single externally reachable (host, port)
@@ -296,7 +389,12 @@ type AgentStatus struct {
 	LastHeartbeat *metav1.Time `json:"lastHeartbeat,omitempty"`
 
 	// PlayersOnline is the count reported by the game protocol (RCON /
-	// server query). -1 means "unknown / not supported by this game".
+	// server query). Null (absent) means "unknown" — the game exposes no
+	// player source, or the query failed. Consumers must not treat unknown
+	// as zero: idle auto-sleep depends on exactly that distinction, and the
+	// dashboard sums this field across servers, which is why the agent
+	// patches null rather than a -1 sentinel (see
+	// agent/internal/heartbeat.sendOnce).
 	// +optional
 	PlayersOnline *int32 `json:"playersOnline,omitempty"`
 
@@ -345,6 +443,11 @@ type AgentStatus struct {
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Players",type=integer,JSONPath=`.status.agent.playersOnline`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// Asleep distinguishes an idle auto-sleep from a user's own stop, which the
+// reused Suspended phase cannot. priority=1 keeps it out of the default table
+// (it only shows under `-o wide`) so existing `kubectl get gs` output is
+// unchanged.
+// +kubebuilder:printcolumn:name="Asleep",type=boolean,JSONPath=`.status.idle.asleep`,priority=1
 // +kubebuilder:subresource:status
 
 // GameServer is a single running game server instance.

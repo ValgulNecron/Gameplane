@@ -237,7 +237,17 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile rcon Secret")
 		return ctrl.Result{}, err
 	}
-	replicas, stopRequeue, err := r.desiredReplicas(ctx, &gs, &tmpl)
+	// Idle policy runs before the replica computation so a sleep or wake
+	// decided this pass is already reflected in the count below. It writes
+	// only annotations; its status read model is folded into reconcileStatus'
+	// single status patch further down.
+	idle, idleStatus, idleRequeue, err := r.reconcileIdle(ctx, &gs)
+	if err != nil {
+		logger.Error(err, "reconcile idle")
+		return ctrl.Result{}, err
+	}
+
+	replicas, stopRequeue, err := r.desiredReplicas(ctx, &gs, &tmpl, idle)
 	if err != nil {
 		logger.Error(err, "compute desired replicas")
 		return ctrl.Result{}, err
@@ -260,14 +270,19 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.reconcileStatus(ctx, &gs)
+	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	// While a soft stop is mid-flight, requeue at the (sooner) grace deadline
-	// so we scale to zero even if no pod event arrives first.
-	if stopRequeue > 0 && (requeue == 0 || stopRequeue < requeue) {
-		requeue = stopRequeue
+	// so we scale to zero even if no pod event arrives first. The idle hint is
+	// the sleep deadline or the next wake window; take whichever comes first,
+	// or nothing fires the transition until an unrelated event happens to
+	// wake the reconciler.
+	for _, hint := range []time.Duration{stopRequeue, idleRequeue} {
+		if hint > 0 && (requeue == 0 || hint < requeue) {
+			requeue = hint
+		}
 	}
 	return ctrl.Result{RequeueAfter: requeue}, nil
 }
@@ -605,13 +620,19 @@ func svcPortsFromTemplate(
 }
 
 // desiredReplicas decides the StatefulSet replica count. It brings the server
-// down (gracefully, via the soft stop) on a spec.suspend or while a restart
-// drains, and back up otherwise. A restart is an operator-owned scale-down →
-// scale-up: the pod is recycled only once it is confirmed gone, so the request
-// survives coalesced reconciles. The second return value is a requeue hint (>0
-// while a soft stop or restart drain is in progress).
+// down (gracefully, via the soft stop) on a spec.suspend, while a restart
+// drains, or when the idle policy has parked it, and back up otherwise. A
+// restart is an operator-owned scale-down → scale-up: the pod is recycled only
+// once it is confirmed gone, so the request survives coalesced reconciles. The
+// second return value is a requeue hint (>0 while a soft stop or restart drain
+// is in progress).
+//
+// Idle sleep deliberately routes through the very same softStop path as an
+// explicit stop: the module-declared stop sequence runs, the game saves, and
+// only then does the pod go away. A slept world is not a killed world.
 func (r *GameServerReconciler) desiredReplicas(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+	idle idleState,
 ) (int32, time.Duration, error) {
 	// A pending restart (stamped by the API) drives a transient scale-down →
 	// scale-up entirely operator-side, so the request can't be lost to a
@@ -627,13 +648,19 @@ func (r *GameServerReconciler) desiredReplicas(
 		if err := r.ackRestart(ctx, gs); err != nil {
 			return 1, 0, err
 		}
-		if gs.Spec.Suspend {
-			return 0, 0, nil // an explicit suspend outlives the restart
+		// The power state outlives the restart — whether the user set it or the
+		// idle policy did. Without the idle arm here, restarting a sleeping
+		// server would quietly bring it back up and leave it running.
+		if gs.Spec.Suspend || idle == idleAsleep {
+			return 0, 0, nil
 		}
 		return 1, 0, nil
 	}
 
-	stopping := gs.Spec.Suspend || restart == restartDraining
+	// A player joining mid-drain cancels the sleep: the next reconcile reads a
+	// non-zero count, reconcileIdle clears the marker, and this falls back to
+	// the running branch — which also drops the soft-stop bookkeeping.
+	stopping := gs.Spec.Suspend || restart == restartDraining || idle == idleAsleep
 	if !stopping {
 		// Running: drop any stale soft-stop bookkeeping from a prior stop.
 		return 1, 0, r.clearStopAnnotation(ctx, gs)

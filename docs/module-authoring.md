@@ -395,6 +395,8 @@ switch entries later from **Settings → Version** (the operator re-renders
 the StatefulSet and restarts the pod on the new entry).
 
 ```yaml
+# Digests elided for readability — both refs below must actually be pinned
+# as repo:tag@sha256:…; see §Pinning images by digest.
 image: itzg/minecraft-server:java21   # fallback when no version is selected
 versions:
   - id: "1.21.4-paper"        # what GameServer.spec.version stores (≤ 40 chars)
@@ -435,6 +437,68 @@ Semantics:
   `capabilities.mods.loaders` (or be absent/`vanilla`-style for entries
   with no mod manager). Use the registry's loader token verbatim (e.g.
   Modrinth's `paper`/`fabric`/`neoforge`) so browse filtering works.
+
+### Pinning images by digest
+
+**Every image a user can get without choosing must be pinned to a digest.**
+`validate.py` enforces this, and CI fails a module that breaks it.
+
+```yaml
+image: itzg/minecraft-server:java21@sha256:f71555873bdaa6…   # required form
+```
+
+Write the readable `repo:tag@sha256:…` form rather than a bare
+`repo@sha256:…`. Kubernetes resolves by the digest either way — the tag is
+decorative and carries no guarantee — but it keeps the ref legible in the
+dashboard and in `kubectl describe`, and it is what the refresh tooling
+re-resolves against.
+
+*Why:* a floating tag means a pod restart can swap the game binary under a
+live world, with no version bump and no changelog. This is not hypothetical.
+`passivelemon/terraria-docker:terraria-latest` moved from Terraria 1.4.4.9 to
+1.4.5.6, changed the network protocol version, and broke the e2e Terraria bot
+— the first anyone knew of it was a red CI job.
+
+What the rule requires, exactly:
+
+| Field | Requirement |
+|---|---|
+| `spec.image` | **must** be pinned (ERROR) — it runs when no version is selected |
+| a `default: true` version entry | **must** be pinned (ERROR) — it runs when the user doesn't choose |
+| any other version entry | pinned by default; may float if marked (WARN) |
+
+A non-default entry may deliberately keep moving. Mark its image line and the
+pinner will leave it alone:
+
+```yaml
+  - id: latest
+    displayName: "Experimental channel"
+    image: factoriotools/factorio:latest  # gameplane:floating
+```
+
+Use this only where tracking upstream *is* the entry's purpose and its
+`displayName` makes the drift obvious — factorio's "Experimental channel",
+terraria's "tModLoader latest preview". Selecting one is then the user's
+explicit, labelled choice rather than a silent default.
+
+Pinning is mechanical; don't hand-write digests:
+
+```sh
+make module-pin        # rewrites every modules/*/template.yaml in place
+```
+
+It resolves each tag through the registry's standard bearer-token flow (any
+OCI registry, not just Docker Hub), preserves the templates' comments, and
+leaves any ref it cannot resolve untouched rather than guessing. The digest it
+writes is the **tag manifest's** digest — for a multi-arch image that is the
+index digest covering every published platform, so a pinned module still runs
+on both amd64 and arm64.
+
+Because pinning stops upstream releases from arriving on their own, the
+`gameplane-module` repo runs `refresh-pins.yml` monthly to re-resolve every
+pin and open a PR. It never auto-merges: each changed digest is a game binary
+that changes for every server on its next restart, which is exactly the event
+worth a human's attention.
 
 ### Config schema → wizard
 
