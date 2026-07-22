@@ -85,7 +85,7 @@ while, but [`install.md`](install.md#helm-crd-caveat) still told users to run
 
 Not yet covered: upgrades skipping several releases at once, and Postgres.
 
-### Idle auto-sleep (PR #180)
+### Idle auto-sleep (backend PR #180, dashboard PR #182)
 
 Opt-in per server (`spec.idle`): the operator scales a GameServer to zero once
 it has reported no online players for `afterMinutes`, and brings it back on a
@@ -108,6 +108,21 @@ dominant cost; this releases it without touching the data volume.
   than reading as empty — unknown is not zero. Each refusal records a reason on
   `status.idle`, so a server that can never sleep explains itself.
 - `gameplane_gameservers_idle{state=asleep|awake}` reports the saving.
+- The dashboard (PR #182) renders a slept server as **Asleep** rather than
+  `Suspended`, and replaces its Start button with **Wake**. That substitution
+  is a bug fix, not decoration: an asleep server has `spec.suspend` still
+  `false`, so the Start button the phase used to offer patched a field to the
+  value it already held — a silent no-op that never woke anything. Only
+  `:wake` clears the operator's marker.
+- The server's Overview reports `status.idle.reason` verbatim, so a server
+  that will never sleep says why instead of looking broken.
+
+**Follow-up:** `status.idle.nextWakeTime`. The dashboard lists the configured
+wake windows as raw cron strings, because the operator computes the next tick
+only for its own requeue and never persists it — and re-deriving it in the
+browser would duplicate scheduling semantics the operator owns (rule 10).
+Persisting it on status is the right fix, and is a CRD change rather than a
+dashboard one.
 
 **Known gap:** no wake-on-connect. Waking needs the dashboard, the API, or a
 wake window; a player cannot start a sleeping server by trying to join. Closing

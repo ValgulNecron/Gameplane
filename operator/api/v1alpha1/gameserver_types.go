@@ -141,8 +141,8 @@ type GameServerSpec struct {
 //
 // A server whose game reports no player count can never satisfy the trigger
 // (unknown is not zero — see AgentStatus.PlayersOnline). Rather than sleeping
-// forever without explanation, the controller surfaces that as an
-// IdleEligible=False condition.
+// forever without explanation, the controller records why on
+// IdleStatus.Reason, which the dashboard surfaces on the server's Overview.
 type IdleSpec struct {
 	// Enabled turns idle auto-sleep on for this server.
 	// +kubebuilder:default=false
