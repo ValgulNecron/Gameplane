@@ -135,6 +135,7 @@ export const handlers = [
   http.post(/\/servers\/[^/]+:start$/, () => new HttpResponse(null, { status: 202 })),
   http.post(/\/servers\/[^/]+:stop$/, () => new HttpResponse(null, { status: 202 })),
   http.post(/\/servers\/[^/]+:restart$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:wake$/, () => new HttpResponse(null, { status: 202 })),
   http.post(/\/servers\/[^/]+:clone$/, async ({ request }) => {
     const body = (await request.json().catch(() => null)) as {
       newName?: string;

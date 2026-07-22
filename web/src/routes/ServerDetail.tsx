@@ -7,6 +7,7 @@ import {
   Play,
   RotateCw,
   Square,
+  Sunrise,
   Terminal,
 } from "lucide-react";
 import { Servers, Templates, type LifecycleVerb } from "@/lib/endpoints";
@@ -77,6 +78,12 @@ export function ServerDetailPage() {
   });
 
   const phase = gs?.status?.phase;
+  // The operator's derivePhase reports Stopping (not Suspended) for the
+  // whole graceful-drain window even after status.idle.asleep flips true —
+  // players may still be connected. Excluding Stopping keeps the badge
+  // honest and keeps the Wake button from appearing on a server that is
+  // still shutting down, not actually asleep yet.
+  const asleep = gs?.status?.idle?.asleep === true && phase !== "Stopping";
   const running = phase === "Running";
   // While provisioning, the operator refines the Progressing condition
   // with what the pod is doing (pulling image, installing server files,
@@ -96,8 +103,10 @@ export function ServerDetailPage() {
   // Gate lifecycle actions on phase so they aren't fired during a
   // transition (Starting/Stopping/Pending): Start only from a stopped
   // state, Stop/Restart only while Running. act.isPending blocks
-  // duplicate mutations from a double-click.
-  const canStart = phase === "Stopped" || phase === "Suspended" || phase === "Failed";
+  // duplicate mutations from a double-click. When asleep, Start is a silent
+  // no-op (spec.suspend is already false) — only :wake clears the operator's
+  // sleep marker.
+  const canStart = (phase === "Stopped" || phase === "Suspended" || phase === "Failed") && !asleep;
   const version = gs?.status?.agent?.gameVersion;
   const uptime = formatUptime(gs?.status?.startedAt);
 
@@ -157,7 +166,7 @@ export function ServerDetailPage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="truncate font-mono text-2xl font-semibold text-fg">{name}</h1>
-                <PhaseBadge phase={phase} />
+                <PhaseBadge phase={phase} asleep={asleep} />
               </div>
               {provisioning && progressMessage && (
                 <div className="pt-1 flex items-center gap-1.5 text-xs text-warning">
@@ -192,10 +201,20 @@ export function ServerDetailPage() {
             <Button
               variant="outline"
               onClick={() => act.mutate("stop")}
-              disabled={!running || act.isPending}
+              // An asleep server is phase Suspended, not Running, but :stop
+              // is still a real action on it — it patches spec.suspend=true,
+              // which the operator honors immediately and records as
+              // "stopped by user", distinct from an automatic sleep a wake
+              // window would otherwise resurrect.
+              disabled={(!running && !asleep) || act.isPending}
             >
               <Square className="h-4 w-4" /> Stop
             </Button>
+            {asleep && (
+              <Button onClick={() => act.mutate("wake")} disabled={act.isPending}>
+                <Sunrise className="h-4 w-4" /> Wake
+              </Button>
+            )}
             {canStart && (
               <Button variant="outline" onClick={() => act.mutate("start")} disabled={act.isPending}>
                 <Play className="h-4 w-4" /> Start

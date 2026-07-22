@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ServerActionsCard } from "@/components/server/ServerActionsCard";
 import { ServerStatusCard } from "@/components/server/ServerStatusCard";
+import { ServerSleepCard } from "@/components/server/ServerSleepCard";
 import { EventList } from "@/components/server/EventList";
 import { formatBytes } from "@/lib/utils";
 import { mapServerEvent, type NormalizedServerEvent } from "@/lib/events";
@@ -173,6 +174,8 @@ export function OverviewTab({
         <PlayersCard roster={roster} fallbackOnline={players} />
 
         <ServerStatusCard name={name} tmpl={tmpl} running={running} />
+
+        <ServerSleepCard gs={gs} />
 
         <ServerActionsCard name={name} tmpl={tmpl} />
       </div>

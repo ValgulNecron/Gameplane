@@ -55,7 +55,12 @@ export function phaseGroups(items: GameServer[]): PhaseGroups {
     else if (p === "Failed") g.failed += 1;
     else if (p === "Stopped" || p === "Suspended") g.stopped += 1;
     else g.other += 1;
-    if (p === "Failed" || gs.status?.agent?.stale) g.attention.push(gs);
+    // An expected-down server (Stopped, or Suspended — which also covers
+    // idle auto-sleep) has zero replicas and therefore no heartbeat by
+    // definition; a stale agent there is not a fault and must not flood
+    // "Needs attention" every time a server sleeps overnight.
+    const down = p === "Stopped" || p === "Suspended";
+    if (p === "Failed" || (gs.status?.agent?.stale && !down)) g.attention.push(gs);
   }
   return g;
 }
