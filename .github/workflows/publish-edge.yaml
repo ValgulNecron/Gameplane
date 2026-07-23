@@ -93,6 +93,13 @@ jobs:
         uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: 'v3.0.6'
+      # Refresh the Sigstore TUF trust root so the runner has the CURRENT
+      # public-good signing config — the Rekor v2 log key + timestamp authority.
+      # cosign's baked-in root can still reference a decommissioned yearly Rekor
+      # shard; without this, signing fails the Rekor-v2 TSA/checkpoint threshold
+      # check ("accepted signatures do not match threshold, Found: 0").
+      - name: refresh sigstore trust root
+        run: cosign initialize
       # Keyed-sign the pushed image by digest AND record the signature in
       # Sigstore's public-good Rekor transparency log (cosign v3 uploads by
       # default), so misuse of the project key becomes publicly detectable.
