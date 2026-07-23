@@ -1,10 +1,9 @@
 name: cosign-diag
 
-# TEMPORARY diagnostic: validate the offline cross-sign ceremony (old Ed25519
-# key signs the new key) using cosign v2.6.3 — v3 has Ed25519 sign/verify
-# regressions, but v2 (what the current pipeline already uses) handles it.
-# Runs in seconds, uses the CURRENT key in secrets, offline (no Rekor).
-# DELETE before merging Phase 1.
+# TEMPORARY diagnostic: does an OLDER cosign sign-blob the Ed25519 key without
+# the "hash function #0" panic? If yes, the one-time cross-sign is a trivial
+# offline cosign command and its raw Ed25519 signature is openssl-verifiable.
+# Uses the CURRENT key in secrets, offline. DELETE before merging Phase 1.
 on:
   push:
     branches: [ci/rekor-edge-images]
@@ -14,20 +13,20 @@ permissions:
   contents: read
 
 jobs:
-  diag:
+  trycosign:
+    strategy:
+      fail-fast: false
+      matrix:
+        ver: ['v2.4.3', 'v2.2.4', 'v2.0.2']
     runs-on: ubuntu-latest
     steps:
-      - name: install cosign v2.6.3
+      - name: install cosign ${{ matrix.ver }}
         uses: sigstore/cosign-installer@v4.1.2
         with:
-          cosign-release: 'v2.6.3'
-      - name: version
-        run: cosign version
+          cosign-release: ${{ matrix.ver }}
       - name: simulate the NEW public key file
-        run: |
-          printf -- '-----BEGIN PUBLIC KEY-----\n(stand-in for the new ECDSA cosign.pub)\n-----END PUBLIC KEY-----\n' > cosign.pub.new
-      # Old Ed25519 key signs the new key file, OFFLINE. Classic v2 flags.
-      - name: cross-sign the new key with the OLD key (offline, cosign v2)
+        run: printf 'stand-in for the new ECDSA cosign.pub\n' > cosign.pub.new
+      - name: sign-blob with OLD Ed25519 key (offline)
         continue-on-error: true
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -35,18 +34,22 @@ jobs:
         run: |
           set -x
           cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false \
-            --output-signature cosign.pub.new.legacy-sig \
-            cosign.pub.new && echo "CROSS-SIGN: OK"
-          echo "--- signature (base64) ---"; cat cosign.pub.new.legacy-sig; echo
-      - name: derive the OLD public key
+            --output-signature sig.b64 cosign.pub.new && echo "SIGN ${{ matrix.ver }}: OK"
+          cat sig.b64; echo
+      - name: derive old pub + verify (offline)
         continue-on-error: true
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-        run: cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile cosign-legacy.pub && cat cosign-legacy.pub
-      - name: verify cross-signature with OLD public key (offline)
+        run: |
+          set -x
+          cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile cosign-legacy.pub
+          cosign verify-blob --key cosign-legacy.pub --insecure-ignore-tlog \
+            --signature sig.b64 cosign.pub.new && echo "VERIFY ${{ matrix.ver }}: OK"
+      # If cosign works, prove the SAME signature is openssl-verifiable (raw Ed25519).
+      - name: openssl verify the same signature
         continue-on-error: true
         run: |
           set -x
-          cosign verify-blob --key cosign-legacy.pub --insecure-ignore-tlog \
-            --signature cosign.pub.new.legacy-sig \
-            cosign.pub.new && echo "VERIFY: OK"
+          base64 -d sig.b64 > sig.bin
+          openssl pkeyutl -verify -pubin -inkey cosign-legacy.pub -rawin \
+            -in cosign.pub.new -sigfile sig.bin && echo "OPENSSL ${{ matrix.ver }}: OK"
