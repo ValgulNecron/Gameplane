@@ -104,16 +104,23 @@ jobs:
       # Sigstore's public-good Rekor transparency log, so misuse of the project
       # key becomes publicly detectable.
       #
-      # --use-signing-config=false selects cosign's legacy tlog-upload path
-      # (classic Rekor) rather than the new Rekor v2 / signing-config flow. The
-      # v2 flow additionally requires an RFC3161 TSA timestamp and a live yearly
-      # log shard, and keyed signing to it currently fails cosign's post-sign
-      # threshold self-check ("accepted signatures do not match threshold").
-      # The legacy path needs no TSA and emits the classic bundle format that
-      # existing `cosign verify` clients and the operator's cosign/v2 verifier
-      # already understand. Bounded retry tolerates a transient Rekor blip; we
-      # never fall back to an unlogged signature (strict verify below would fail
-      # anyway).
+      # Two flags select cosign's classic, widely-compatible signing path over
+      # the new Rekor v2 flow:
+      #   --new-bundle-format=false  → classic OCI `.sig` signature + hashedrekord
+      #                                tlog entry (not a protobuf DSSE bundle),
+      #                                the format existing `cosign verify` clients
+      #                                and the operator's cosign/v2 verifier read.
+      #   --use-signing-config=false → legacy tlog upload to --rekor-url's default
+      #                                (https://rekor.sigstore.dev), NOT the Rekor
+      #                                v2 signing-config path. (cosign requires
+      #                                these two together: use-signing-config
+      #                                implies the new bundle format.)
+      # The default v3 flow targets Rekor v2, which additionally needs an RFC3161
+      # TSA timestamp and a live yearly log shard; keyed signing to it fails
+      # cosign's post-sign threshold self-check ("accepted signatures do not
+      # match threshold, Found: 0"). The classic path needs no TSA. Bounded retry
+      # tolerates a transient Rekor blip; we never fall back to an unlogged
+      # signature (strict verify below would fail anyway).
       - name: sign image (keyed, logged)
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -123,7 +130,8 @@ jobs:
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           ref="ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
           for attempt in 1 2 3; do
-            if cosign sign --yes --key env://COSIGN_PRIVATE_KEY --use-signing-config=false "$ref"; then
+            if cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+                --new-bundle-format=false --use-signing-config=false "$ref"; then
               exit 0
             fi
             echo "::warning::cosign sign attempt ${attempt} failed; retrying"
@@ -145,7 +153,9 @@ jobs:
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile "$RUNNER_TEMP/cosign.pub"
-          cosign verify --key "$RUNNER_TEMP/cosign.pub" \
+          # --new-bundle-format=false to read the classic signature we produced;
+          # no --insecure-ignore-tlog, so the Rekor log entry must be present.
+          cosign verify --key "$RUNNER_TEMP/cosign.pub" --new-bundle-format=false \
             "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
           if [ -f cosign.pub ] && ! cmp -s cosign.pub "$RUNNER_TEMP/cosign.pub"; then
             echo "::error::committed cosign.pub does not match COSIGN_PRIVATE_KEY — update the published key"
