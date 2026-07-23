@@ -406,15 +406,17 @@ defaultModuleSource:
     # namespace for private registries. Leave empty for public registries.
     pullSecretName: ""
     # Cosign signature verification (oci only). The official Gameplane
-    # module-signing public key (ed25519) ships below; set enabled: true (with
-    # type: oci) to refuse any official bundle not signed by the matching
-    # private key. Verification is keyed and offline (no Rekor). See
+    # module-signing public key (ECDSA P-256) ships below; set enabled: true
+    # (with type: oci) to refuse any official bundle not signed by the matching
+    # private key. Module-bundle verification is keyed and offline (no Rekor) by
+    # default. Keep this key byte-identical to the repo-root cosign.pub. See
     # docs/module-authoring.md "Signing official bundles".
     verify:
       enabled: false
       cosignPublicKey: |
         -----BEGIN PUBLIC KEY-----
-        MCowBQYDK2VwAyEAYckd3bJCpDVzsH0RzBcx0Hpb1S85yY77yRxWwFwzqww=
+        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEptXw/hWES+fiWwez02SAqfPvvXzb
+        DleBuL5fwB4MM20CXQWykjj12Kx3ZHLmf0KTb6TN4QCjJ7B4tj2pc066ow==
         -----END PUBLIC KEY-----
 
 # Upload-backed ModuleSource: bundles uploaded through the dashboard
