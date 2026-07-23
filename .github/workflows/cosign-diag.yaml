@@ -1,9 +1,9 @@
 name: cosign-diag
 
-# TEMPORARY diagnostic: validate the offline cross-sign ceremony commands (old
-# key signs the new key) before handing the maintainer a runbook. Runs in
-# seconds, no image build, uses the CURRENT key already in secrets. Offline
-# (no Rekor), so the Ed25519/Rekor hash issue does not apply here.
+# TEMPORARY diagnostic: validate the offline cross-sign ceremony (old Ed25519
+# key signs the new key) using cosign v2.6.3 — v3 has Ed25519 sign/verify
+# regressions, but v2 (what the current pipeline already uses) handles it.
+# Runs in seconds, uses the CURRENT key in secrets, offline (no Rekor).
 # DELETE before merging Phase 1.
 on:
   push:
@@ -17,49 +17,36 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: install cosign
+      - name: install cosign v2.6.3
         uses: sigstore/cosign-installer@v4.1.2
         with:
-          cosign-release: 'v3.0.6'
+          cosign-release: 'v2.6.3'
       - name: version
         run: cosign version
       - name: simulate the NEW public key file
-        run: echo "-----BEGIN PUBLIC KEY-----\n(stand-in for the new ECDSA cosign.pub)\n-----END PUBLIC KEY-----" > cosign.pub.new
-      # Old key signs the new key file, ONLINE (logged in Rekor). Ed25519 panics
-      # on the offline sign-blob path on v3, but the online legacy-tlog path
-      # works (--use-signing-config=false selects it). Logging the rotation is a
-      # bonus: the "old key endorses new key" statement lands in the public log.
-      - name: cross-sign the new key with the OLD key (online, logged)
-        id: crosssign
+        run: |
+          printf -- '-----BEGIN PUBLIC KEY-----\n(stand-in for the new ECDSA cosign.pub)\n-----END PUBLIC KEY-----\n' > cosign.pub.new
+      # Old Ed25519 key signs the new key file, OFFLINE. Classic v2 flags.
+      - name: cross-sign the new key with the OLD key (offline, cosign v2)
         continue-on-error: true
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
           set -x
-          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
-            --use-signing-config=false \
-            --bundle cosign.pub.new.legacy-bundle.json \
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false \
+            --output-signature cosign.pub.new.legacy-sig \
             cosign.pub.new && echo "CROSS-SIGN: OK"
-          echo "--- bundle ---"; cat cosign.pub.new.legacy-bundle.json; echo
+          echo "--- signature (base64) ---"; cat cosign.pub.new.legacy-sig; echo
       - name: derive the OLD public key
         continue-on-error: true
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile cosign-legacy.pub && cat cosign-legacy.pub
-      # Verify the cross-signature with the old PUBLIC key, as any downstream
-      # user would. Try strict (logged) first, then ignore-tlog fallback.
-      - name: verify cross-signature with OLD public key (strict)
-        continue-on-error: true
-        run: |
-          set -x
-          cosign verify-blob --key cosign-legacy.pub \
-            --bundle cosign.pub.new.legacy-bundle.json \
-            cosign.pub.new && echo "VERIFY-STRICT: OK"
-      - name: verify cross-signature with OLD public key (ignore-tlog)
+      - name: verify cross-signature with OLD public key (offline)
         continue-on-error: true
         run: |
           set -x
           cosign verify-blob --key cosign-legacy.pub --insecure-ignore-tlog \
-            --bundle cosign.pub.new.legacy-bundle.json \
-            cosign.pub.new && echo "VERIFY-IGNORETLOG: OK"
+            --signature cosign.pub.new.legacy-sig \
+            cosign.pub.new && echo "VERIFY: OK"
