@@ -1,10 +1,14 @@
 name: cosign-diag
 
-# TEMPORARY diagnostic workflow (workflow_dispatch only) for pinning down the
-# correct cosign v3 keyed-signing-with-Rekor invocation. Uses `cosign sign-blob`
-# so it runs in seconds with no image build. DELETE before merging Phase 1.
+# TEMPORARY diagnostic workflow for pinning down the correct cosign v3
+# keyed-signing-with-Rekor invocation. Uses `cosign sign-blob` so it runs in
+# seconds with no image build. Triggered on push to this branch (a brand-new
+# workflow_dispatch workflow isn't dispatchable until it's on the default
+# branch). DELETE before merging Phase 1.
 on:
-  workflow_dispatch: {}
+  push:
+    branches: [ci/rekor-edge-images]
+    paths: ['.github/workflows/cosign-diag.yaml']
 
 permissions:
   contents: read
