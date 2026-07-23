@@ -25,9 +25,11 @@ jobs:
         run: cosign version
       - name: simulate the NEW public key file
         run: echo "-----BEGIN PUBLIC KEY-----\n(stand-in for the new ECDSA cosign.pub)\n-----END PUBLIC KEY-----" > cosign.pub.new
-      # Old key signs the new key file, OFFLINE (no tlog). On v3, --tlog-upload=
-      # false requires --use-signing-config=false; --new-bundle-format=false
-      # gives a plain detached signature.
+      # Old key signs the new key file, OFFLINE (no tlog). The Ed25519 key
+      # panics on the classic --new-bundle-format=false path
+      # ("crypto: requested hash function #0 is unavailable"), so use the new
+      # bundle format (--bundle). --tlog-upload=false requires
+      # --use-signing-config=false on v3.
       - name: cross-sign the new key with the OLD key (offline)
         id: crosssign
         continue-on-error: true
@@ -37,10 +39,10 @@ jobs:
         run: |
           set -x
           cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
-            --tlog-upload=false --use-signing-config=false --new-bundle-format=false \
-            --output-signature cosign.pub.new.legacy-sig \
+            --tlog-upload=false --use-signing-config=false \
+            --bundle cosign.pub.new.legacy-bundle.json \
             cosign.pub.new && echo "CROSS-SIGN: OK"
-          echo "--- signature (base64) ---"; cat cosign.pub.new.legacy-sig; echo
+          echo "--- bundle ---"; cat cosign.pub.new.legacy-bundle.json; echo
       - name: derive the OLD public key
         continue-on-error: true
         env:
@@ -53,6 +55,6 @@ jobs:
         run: |
           set -x
           cosign verify-blob --key cosign-legacy.pub \
-            --insecure-ignore-tlog --new-bundle-format=false \
-            --signature cosign.pub.new.legacy-sig \
+            --insecure-ignore-tlog \
+            --bundle cosign.pub.new.legacy-bundle.json \
             cosign.pub.new && echo "VERIFY: OK"
