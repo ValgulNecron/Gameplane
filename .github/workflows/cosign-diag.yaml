@@ -25,12 +25,11 @@ jobs:
         run: cosign version
       - name: simulate the NEW public key file
         run: echo "-----BEGIN PUBLIC KEY-----\n(stand-in for the new ECDSA cosign.pub)\n-----END PUBLIC KEY-----" > cosign.pub.new
-      # Old key signs the new key file, OFFLINE (no tlog). The Ed25519 key
-      # panics on the classic --new-bundle-format=false path
-      # ("crypto: requested hash function #0 is unavailable"), so use the new
-      # bundle format (--bundle). --tlog-upload=false requires
-      # --use-signing-config=false on v3.
-      - name: cross-sign the new key with the OLD key (offline)
+      # Old key signs the new key file, ONLINE (logged in Rekor). Ed25519 panics
+      # on the offline sign-blob path on v3, but the online legacy-tlog path
+      # works (--use-signing-config=false selects it). Logging the rotation is a
+      # bonus: the "old key endorses new key" statement lands in the public log.
+      - name: cross-sign the new key with the OLD key (online, logged)
         id: crosssign
         continue-on-error: true
         env:
@@ -39,7 +38,7 @@ jobs:
         run: |
           set -x
           cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
-            --tlog-upload=false --use-signing-config=false \
+            --use-signing-config=false \
             --bundle cosign.pub.new.legacy-bundle.json \
             cosign.pub.new && echo "CROSS-SIGN: OK"
           echo "--- bundle ---"; cat cosign.pub.new.legacy-bundle.json; echo
@@ -49,12 +48,18 @@ jobs:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile cosign-legacy.pub && cat cosign-legacy.pub
       # Verify the cross-signature with the old PUBLIC key, as any downstream
-      # user would. Offline (ignore tlog).
-      - name: verify cross-signature with OLD public key
+      # user would. Try strict (logged) first, then ignore-tlog fallback.
+      - name: verify cross-signature with OLD public key (strict)
         continue-on-error: true
         run: |
           set -x
           cosign verify-blob --key cosign-legacy.pub \
-            --insecure-ignore-tlog \
             --bundle cosign.pub.new.legacy-bundle.json \
-            cosign.pub.new && echo "VERIFY: OK"
+            cosign.pub.new && echo "VERIFY-STRICT: OK"
+      - name: verify cross-signature with OLD public key (ignore-tlog)
+        continue-on-error: true
+        run: |
+          set -x
+          cosign verify-blob --key cosign-legacy.pub --insecure-ignore-tlog \
+            --bundle cosign.pub.new.legacy-bundle.json \
+            cosign.pub.new && echo "VERIFY-IGNORETLOG: OK"
