@@ -77,46 +77,51 @@ jobs:
             VERSION=edge-${{ github.sha }}
           cache-from: type=gha,scope=edge-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=edge-${{ matrix.component }}
-      # Keyed-sign the pushed image by digest (offline, no Rekor), mirroring the
-      # module-bundle signing in release.yaml. Gated on COSIGN_PRIVATE_KEY so the
-      # edge publish still succeeds before the signing key is provisioned
-      # (secrets aren't usable in `if:`, so gate via a plain step output).
-      - name: signing key present?
-        id: gate
+      # Signing is mandatory for the official edge channel: fail the publish if
+      # the key is absent rather than shipping unsigned images. The key has been
+      # provisioned since module signing went live, so this never regresses a
+      # real run — it only prevents a silently-unsigned one.
+      - name: require signing key
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: |
-          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::COSIGN_PRIVATE_KEY not set — skipping image signing."
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::error::COSIGN_PRIVATE_KEY is required for edge image publishing"
+            exit 1
           fi
       - name: install cosign
-        if: steps.gate.outputs.enabled == 'true'
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.1.2
         with:
-          # Pin cosign v2: v3 dropped the offline-keyed `--tlog-upload=false`
-          # flag this signing uses (it now requires a signing-config).
-          cosign-release: 'v2.4.3'
-      - name: sign image (keyed, offline)
-        if: steps.gate.outputs.enabled == 'true'
+          cosign-release: 'v3.0.6'
+      # Keyed-sign the pushed image by digest AND record the signature in
+      # Sigstore's public-good Rekor transparency log (cosign v3 uploads by
+      # default), so misuse of the project key becomes publicly detectable.
+      # Bounded retry tolerates a transient Rekor blip; we never fall back to an
+      # unlogged signature (that would fail the strict verify below anyway).
+      - name: sign image (keyed, logged)
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY \
-            "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
+          ref="ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$ref"; then
+              exit 0
+            fi
+            echo "::warning::cosign sign attempt ${attempt} failed; retrying"
+            sleep $((attempt * 10))
+          done
+          echo "::error::cosign sign failed after 3 attempts (Rekor unavailable?)"
+          exit 1
       # Round-trip check: derive the public key from the signing secret and
-      # verify the signature just pushed, so a corrupted key or a sign/verify
-      # flag mismatch fails the publish instead of every user's `cosign
+      # strictly verify the signature just pushed — no --insecure-ignore-tlog, so
+      # the Rekor inclusion evidence must be present. A corrupted key or a
+      # sign/verify mismatch fails the publish instead of every user's `cosign
       # verify`. When cosign.pub is committed in the repo it must match the
-      # derived key — a mismatch means the key was rotated without updating
-      # the published one.
+      # derived key — a mismatch means the key was rotated without updating it.
       - name: verify signature & check published key
-        if: steps.gate.outputs.enabled == 'true'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -124,7 +129,7 @@ jobs:
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile "$RUNNER_TEMP/cosign.pub"
-          cosign verify --key "$RUNNER_TEMP/cosign.pub" --insecure-ignore-tlog=true \
+          cosign verify --key "$RUNNER_TEMP/cosign.pub" \
             "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
           if [ -f cosign.pub ] && ! cmp -s cosign.pub "$RUNNER_TEMP/cosign.pub"; then
             echo "::error::committed cosign.pub does not match COSIGN_PRIVATE_KEY — update the published key"
@@ -134,7 +139,7 @@ jobs:
       # rotating the repo's cosign.pub never requires handling the private key
       # outside CI. One matrix leg is enough — the key is the same for all.
       - name: export public key
-        if: steps.gate.outputs.enabled == 'true' && matrix.component == 'operator'
+        if: matrix.component == 'operator'
         run: |
           {
             echo '### cosign public key'
@@ -143,7 +148,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: upload public key artifact
-        if: steps.gate.outputs.enabled == 'true' && matrix.component == 'operator'
+        if: matrix.component == 'operator'
         uses: actions/upload-artifact@v4
         with:
           name: cosign-pub
