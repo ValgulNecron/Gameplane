@@ -1,0 +1,72 @@
+name: cosign-diag
+
+# TEMPORARY diagnostic workflow (workflow_dispatch only) for pinning down the
+# correct cosign v3 keyed-signing-with-Rekor invocation. Uses `cosign sign-blob`
+# so it runs in seconds with no image build. DELETE before merging Phase 1.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: 'v3.0.6'
+      - name: version + initialize
+        run: |
+          cosign version
+          echo "--- initialize ---"
+          cosign initialize || echo "(initialize failed)"
+      - name: prep blob
+        run: echo "gameplane cosign diag $(date -u +%s 2>/dev/null || echo x)" > blob.txt
+      # A) Baseline offline — proves the key + password work at all.
+      - name: A offline (tlog-upload=false)
+        continue-on-error: true
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -x
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false \
+            --bundle /tmp/a.json blob.txt && echo "A: OK"
+      # B) Default v3 (reproduces the publish-edge failure) with verbose.
+      - name: B default (repro)
+        continue-on-error: true
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -x
+          cosign sign-blob --yes --verbose --key env://COSIGN_PRIVATE_KEY \
+            --bundle /tmp/b.json blob.txt && echo "B: OK"
+      # C) Disable the TUF signing-config → legacy tlog upload (Rekor v1, no TSA).
+      - name: C use-signing-config=false
+        continue-on-error: true
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -x
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY --use-signing-config=false \
+            --bundle /tmp/c.json blob.txt && echo "C: OK"
+      # D) Legacy tlog upload explicit + no signing-config.
+      - name: D use-signing-config=false + tlog-upload=true
+        continue-on-error: true
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -x
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
+            --use-signing-config=false --tlog-upload=true \
+            --bundle /tmp/d.json blob.txt && echo "D: OK"
+      - name: summary
+        if: always()
+        run: |
+          echo "Bundles written:"
+          ls -la /tmp/*.json 2>/dev/null || echo "(none)"
