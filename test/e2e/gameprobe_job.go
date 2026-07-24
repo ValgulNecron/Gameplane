@@ -38,6 +38,17 @@ func (e *Env) probeImage() string {
 	return "gameplane-test/gameprobe:" + tag
 }
 
+// GameProbe describes one in-cluster probe run.
+type GameProbe struct {
+	GameNS      string        // namespace holding the GameServer
+	GSName      string        // GameServer name (its Service is dialled)
+	Game        string        // module dir name; selects the /probe/<Game> binary
+	Port        int
+	Deadline    time.Duration
+	ExpectDepth string        // JOINED | PARTIAL | QUERY — asserted by the probe itself
+	Args        []string      // extra per-game flags, e.g. []string{"-user", "bot"}
+}
+
 // RunGameProbe runs the headless protocol bot as a Job inside the cluster,
 // pointed at the game Service's DNS name, and fails the test unless it exits 0.
 //
@@ -50,11 +61,11 @@ func (e *Env) probeImage() string {
 // retrying the protocol here.
 //
 // The Job runs in probeNamespace (default) and dials the game Service in gameNS.
-func (e *Env) RunGameProbe(t *testing.T, gameNS, gsName, game string, port int, deadline time.Duration) {
+func (e *Env) RunGameProbe(t *testing.T, p GameProbe) {
 	t.Helper()
 	ctx := context.Background()
-	jobName := gsName + "-probe"
-	addr := fmt.Sprintf("%s.%s.svc.cluster.local:%d", gsName, gameNS, port)
+	jobName := p.GSName + "-probe"
+	addr := fmt.Sprintf("%s.%s.svc.cluster.local:%d", p.GSName, p.GameNS, p.Port)
 
 	bg := metav1.DeletePropagationBackground
 	// Recreate so a previous failure can't leave a Failed shell behind.
@@ -71,6 +82,15 @@ func (e *Env) RunGameProbe(t *testing.T, gameNS, gsName, game string, port int, 
 		uid       = int64(65532)
 		backoff   = int32(0)
 	)
+
+	// Build args: -addr, -deadline, -expect-depth, then any per-game args.
+	args := []string{
+		"-addr", addr,
+		"-deadline", p.Deadline.String(),
+		"-expect-depth", p.ExpectDepth,
+	}
+	args = append(args, p.Args...)
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: probeNamespace},
 		Spec: batchv1.JobSpec{
@@ -91,11 +111,8 @@ func (e *Env) RunGameProbe(t *testing.T, gameNS, gsName, game string, port int, 
 						Image: e.probeImage(),
 						// Side-loaded into kind; never pulled from a registry.
 						ImagePullPolicy: corev1.PullNever,
-						Args: []string{
-							"-game", game,
-							"-addr", addr,
-							"-deadline", deadline.String(),
-						},
+						Command:         []string{"/probe/" + p.Game},
+						Args:            args,
 						SecurityContext: &corev1.SecurityContext{
 							RunAsNonRoot:             &nonRoot,
 							AllowPrivilegeEscalation: &noPrivEsc,
@@ -108,31 +125,31 @@ func (e *Env) RunGameProbe(t *testing.T, gameNS, gsName, game string, port int, 
 		},
 	}
 	if _, err := e.K8s.BatchV1().Jobs(probeNamespace).Create(ctx, job, metav1.CreateOptions{}); err != nil {
-		t.Fatalf("create %s probe job: %v", game, err)
+		t.Fatalf("create %s probe job: %v", p.Game, err)
 	}
 
 	// Allow a little more than the probe's own deadline, so a probe timeout
 	// surfaces as its logged reason rather than as this wait expiring.
-	wait := deadline + 2*time.Minute
+	wait := p.Deadline + 2*time.Minute
 	expiry := time.Now().Add(wait)
 	for {
 		j, err := e.K8s.BatchV1().Jobs(probeNamespace).Get(ctx, jobName, metav1.GetOptions{})
 		if err == nil {
 			if j.Status.Succeeded > 0 {
 				out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=50")
-				t.Logf("%s probe passed against %s:\n%s", game, addr, out)
+				t.Logf("%s probe passed against %s (depth=%s):\n%s", p.Game, addr, p.ExpectDepth, out)
 				return
 			}
 			if j.Status.Failed > 0 {
 				out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
-				t.Fatalf("%s probe failed — %s never became playable:\n%s", game, addr, out)
+				t.Fatalf("%s probe failed — %s never reached depth %s:\n%s", p.Game, addr, p.ExpectDepth, out)
 			}
 		}
 		if time.Now().After(expiry) {
 			out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
 			pods, _ := e.Kubectl("get", "pods", "-n", probeNamespace, "-l", "job-name="+jobName, "-o", "wide")
 			t.Fatalf("%s probe job did not finish within %s (is %s loaded into the cluster?)\npods:\n%s\nlogs:\n%s",
-				game, wait, e.probeImage(), pods, out)
+				p.Game, wait, e.probeImage(), pods, out)
 		}
 		time.Sleep(5 * time.Second)
 	}

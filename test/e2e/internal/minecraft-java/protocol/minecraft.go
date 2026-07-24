@@ -1,7 +1,7 @@
-// Package mcbot is a tiny, dependency-free Minecraft: Java Edition protocol
-// client. The e2e suite (and the mcprobe CLI under cmd/) use it to prove that
-// a Gameplane-managed Minecraft server is not merely "Running" in Kubernetes but
-// genuinely playable: it answers a Server List Ping and accepts a login.
+// Package protocol implements the Minecraft: Java Edition wire protocol client
+// for the e2e suite to prove that a Gameplane-managed Minecraft server is not
+// merely "Running" in Kubernetes but genuinely playable: it answers a Server
+// List Ping and accepts a login.
 //
 // It speaks just enough of the post-Netty protocol (Minecraft 1.7+):
 //
@@ -14,7 +14,7 @@
 // Only the Handshaking/Status/Login states are implemented (no Play state),
 // which is enough to confirm a bot can join and keeps the code stable across
 // Minecraft versions — login-state packet IDs have not changed in years.
-package mcbot
+package protocol
 
 import (
 	"bufio"
@@ -80,27 +80,27 @@ func Ping(ctx context.Context, addr string) (*Status, error) {
 	// Handshake with next state = 1 (status). Protocol version is ignored by
 	// servers for status, so -1 is conventional.
 	if _, err := conn.Write(handshake(-1, host, port, 1)); err != nil {
-		return nil, fmt.Errorf("mcbot: write handshake: %w", err)
+		return nil, fmt.Errorf("protocol: write handshake: %w", err)
 	}
 	if _, err := conn.Write(buildPacket(0x00, nil)); err != nil { // Status Request
-		return nil, fmt.Errorf("mcbot: write status request: %w", err)
+		return nil, fmt.Errorf("protocol: write status request: %w", err)
 	}
 
 	rd := &reader{br: bufio.NewReader(conn)}
 	id, payload, err := rd.readPacket()
 	if err != nil {
-		return nil, fmt.Errorf("mcbot: read status response: %w", err)
+		return nil, fmt.Errorf("protocol: read status response: %w", err)
 	}
 	if id != 0x00 {
-		return nil, fmt.Errorf("mcbot: unexpected status packet id 0x%02x", id)
+		return nil, fmt.Errorf("protocol: unexpected status packet id 0x%02x", id)
 	}
 	raw, err := readString(bytes.NewReader(payload))
 	if err != nil {
-		return nil, fmt.Errorf("mcbot: read status json: %w", err)
+		return nil, fmt.Errorf("protocol: read status json: %w", err)
 	}
 	var s Status
 	if err := json.Unmarshal([]byte(raw), &s); err != nil {
-		return nil, fmt.Errorf("mcbot: parse status json: %w", err)
+		return nil, fmt.Errorf("protocol: parse status json: %w", err)
 	}
 	return &s, nil
 }
@@ -113,7 +113,7 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 	// "Failed to decode packet 'serverbound/minecraft:hello'". Fail loudly here
 	// instead.
 	if len(username) > 16 {
-		return nil, fmt.Errorf("mcbot: username %q is %d characters; Minecraft allows at most 16",
+		return nil, fmt.Errorf("protocol: username %q is %d characters; Minecraft allows at most 16",
 			username, len(username))
 	}
 
@@ -132,7 +132,7 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 	writeString(&ls, username)
 	uuid := make([]byte, 16)
 	if _, err := rand.Read(uuid); err != nil {
-		return nil, fmt.Errorf("mcbot: uuid: %w", err)
+		return nil, fmt.Errorf("protocol: uuid: %w", err)
 	}
 	ls.Write(uuid)
 
@@ -143,14 +143,14 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 	login.Write(handshake(int32(protocol), host, port, 2))
 	login.Write(buildPacket(0x00, ls.Bytes()))
 	if _, err := conn.Write(login.Bytes()); err != nil {
-		return nil, fmt.Errorf("mcbot: write login: %w", err)
+		return nil, fmt.Errorf("protocol: write login: %w", err)
 	}
 
 	rd := &reader{br: bufio.NewReader(conn)}
 	for {
 		id, payload, err := rd.readPacket()
 		if err != nil {
-			return nil, fmt.Errorf("mcbot: read login response: %w", err)
+			return nil, fmt.Errorf("protocol: read login response: %w", err)
 		}
 		switch id {
 		case 0x03: // Set Compression — subsequent frames are compressed.
@@ -190,7 +190,7 @@ func dial(ctx context.Context, addr string, timeout time.Duration) (net.Conn, er
 	d := net.Dialer{}
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("mcbot: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("protocol: dial %s: %w", addr, err)
 	}
 	deadline := time.Now().Add(timeout)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
@@ -203,11 +203,11 @@ func dial(ctx context.Context, addr string, timeout time.Duration) (net.Conn, er
 func splitHostPort(addr string) (string, uint16, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", 0, fmt.Errorf("mcbot: split %q: %w", addr, err)
+		return "", 0, fmt.Errorf("protocol: split %q: %w", addr, err)
 	}
 	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
-		return "", 0, fmt.Errorf("mcbot: port %q: %w", portStr, err)
+		return "", 0, fmt.Errorf("protocol: port %q: %w", portStr, err)
 	}
 	return host, uint16(port), nil
 }
@@ -245,7 +245,7 @@ func (rd *reader) readPacket() (int32, []byte, error) {
 		return 0, nil, err
 	}
 	if length <= 0 || length > 8<<20 {
-		return 0, nil, fmt.Errorf("mcbot: bad packet length %d", length)
+		return 0, nil, fmt.Errorf("protocol: bad packet length %d", length)
 	}
 	frame := make([]byte, length)
 	if _, err := io.ReadFull(rd.br, frame); err != nil {
@@ -260,11 +260,11 @@ func (rd *reader) readPacket() (int32, []byte, error) {
 		if dataLen > 0 { // dataLen == 0 means the rest is stored uncompressed
 			zr, err := zlib.NewReader(fr)
 			if err != nil {
-				return 0, nil, fmt.Errorf("mcbot: zlib: %w", err)
+				return 0, nil, fmt.Errorf("protocol: zlib: %w", err)
 			}
 			out := make([]byte, dataLen)
 			if _, err := io.ReadFull(zr, out); err != nil {
-				return 0, nil, fmt.Errorf("mcbot: inflate: %w", err)
+				return 0, nil, fmt.Errorf("protocol: inflate: %w", err)
 			}
 			_ = zr.Close()
 			fr = bytes.NewReader(out)
@@ -308,7 +308,7 @@ func readVarInt(r io.ByteReader) (int32, error) {
 			return int32(result), nil
 		}
 	}
-	return 0, errors.New("mcbot: VarInt too long")
+	return 0, errors.New("protocol: VarInt too long")
 }
 
 func writeString(buf *bytes.Buffer, s string) {
@@ -322,7 +322,7 @@ func readString(r *bytes.Reader) (string, error) {
 		return "", err
 	}
 	if n < 0 || int(n) > r.Len() {
-		return "", errors.New("mcbot: bad string length")
+		return "", errors.New("protocol: bad string length")
 	}
 	b := make([]byte, n)
 	if _, err := io.ReadFull(r, b); err != nil {

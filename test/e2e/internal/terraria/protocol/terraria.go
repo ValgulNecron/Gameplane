@@ -1,11 +1,11 @@
-// Package terrabot is a minimal headless Terraria protocol client, just
+// Package protocol is a minimal headless Terraria protocol client, just
 // deep enough to prove a server is playable: it completes the connection
 // handshake (ConnectRequest → ContinueConnecting) and requests world data.
 //
 // Wire format: every message is [length uint16 LE][type byte][payload],
 // where length counts the whole message including the 2 length bytes.
 // Strings are .NET BinaryWriter style: 7-bit-encoded length + UTF-8.
-package terrabot
+package protocol
 
 import (
 	"bytes"
