@@ -1,14 +1,16 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 
+# gameproto is an in-repo module the sentinel depends on via a local replace
+# (../gameproto); copy it first so `go mod download` and the build resolve
+# it. Mirrors agent/Dockerfile and api/Dockerfile for the same reason.
+COPY gameproto/ ./gameproto/
 COPY sentinel/go.mod sentinel/go.sum* ./sentinel/
 WORKDIR /src/sentinel
 RUN go mod download
 
 WORKDIR /src
 COPY sentinel/ ./sentinel/
-# Also need gameproto for imports
-COPY gameproto/ ./gameproto/
 WORKDIR /src/sentinel
 
 ARG VERSION=dev
