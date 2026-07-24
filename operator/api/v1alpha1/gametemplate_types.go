@@ -876,6 +876,17 @@ type GamePort struct {
 	// +kubebuilder:default=true
 	// +optional
 	Advertise bool `json:"advertise"`
+
+	// WakeProtocol selects the parser the wake sentinel applies to this port
+	// while the server is asleep. "minecraft" and "terraria" parse the real
+	// handshake, so only a genuine join wakes the server and a server-list
+	// ping is answered in place without waking it. "generic" wakes on
+	// plausible traffic — the only option for the UDP-only games, which have
+	// no connection to hold. "none" never wakes.
+	// +kubebuilder:validation:Enum=minecraft;terraria;generic;none
+	// +kubebuilder:default=generic
+	// +optional
+	WakeProtocol string `json:"wakeProtocol,omitempty"`
 }
 
 // GameStorageSpec describes the persistent storage layout for a game.

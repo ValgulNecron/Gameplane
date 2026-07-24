@@ -179,6 +179,16 @@ type IdleSpec struct {
 	// +listType=atomic
 	// +optional
 	WakeWindows []string `json:"wakeWindows,omitempty"`
+
+	// WakeOnConnect arms the wake sentinel for this server: while it is
+	// asleep, a small pod holds its advertised ports and wakes it when a
+	// player genuinely tries to join, instead of the player getting a
+	// connection error. Costs one small pod per sleeping server, so it is
+	// opt-in; without it, waking needs a wakeWindows tick, the dashboard,
+	// or POST /servers/{name}:wake.
+	// +kubebuilder:default=false
+	// +optional
+	WakeOnConnect bool `json:"wakeOnConnect,omitempty"`
 }
 
 // GameServerModsSpec is the set of mods selected for a server whose game

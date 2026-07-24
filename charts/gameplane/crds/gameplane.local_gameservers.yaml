@@ -1220,6 +1220,16 @@ spec:
                     default: false
                     description: Enabled turns idle auto-sleep on for this server.
                     type: boolean
+                  wakeOnConnect:
+                    default: false
+                    description: |-
+                      WakeOnConnect arms the wake sentinel for this server: while it is
+                      asleep, a small pod holds its advertised ports and wakes it when a
+                      player genuinely tries to join, instead of the player getting a
+                      connection error. Costs one small pod per sleeping server, so it is
+                      opt-in; without it, waking needs a wakeWindows tick, the dashboard,
+                      or POST /servers/{name}:wake.
+                    type: boolean
                   wakeWindows:
                     description: |-
                       WakeWindows are cron expressions, in the cluster's timezone, at which a

@@ -385,6 +385,9 @@ export interface IdleSpec {
   afterMinutes?: number;
   // Five-field cron expressions, max 8.
   wakeWindows?: string[];
+  // Whether to arm the wake sentinel while asleep: a small pod holds the
+  // server's advertised ports and wakes it when a player joins.
+  wakeOnConnect?: boolean;
 }
 
 export interface InlineBackupPolicy {
