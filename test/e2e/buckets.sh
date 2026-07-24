@@ -128,6 +128,7 @@ EOF
 bucket_bot_fast() { cat <<'EOF'
 TestGameServer_MinecraftJavaBot_Joined
 TestGameServer_TerrariaBot_Joined
+TestGameServer_GarrysModBot_Query
 EOF
 }
 
@@ -137,6 +138,7 @@ EOF
 # maintainer hand-run with `GAMEPLANE_E2E_GAMES=all`. Do not add CI jobs or
 # workflows that execute this bucket; that would defeat its purpose.
 bucket_bot_heavy() { cat <<'EOF'
+TestGameServer_CS2Bot_Query
 EOF
 }
 
