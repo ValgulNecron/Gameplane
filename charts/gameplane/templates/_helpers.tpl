@@ -36,6 +36,14 @@ track a rolling channel.
 {{- printf "%s/telemetry-receiver:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
 {{- end -}}
 
+{{- define "gameplane.sentinelImage" -}}
+{{- if .Values.operator.sentinelImage -}}
+{{- .Values.operator.sentinelImage -}}
+{{- else -}}
+{{- printf "%s/sentinel:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "gameplane.mcpServerImage" -}}
 {{- printf "%s/mcp-server:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
 {{- end -}}
