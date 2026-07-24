@@ -93,6 +93,21 @@ type VerifySpec struct {
 	// OIDC issuer and certificate identity.
 	// +optional
 	Keyless *KeylessVerifySpec `json:"keyless,omitempty"`
+
+	// RequireTransparencyLog additionally requires each signature to carry
+	// valid Sigstore transparency-log (Rekor) inclusion evidence, proving the
+	// signing event was publicly recorded and making misuse of a stolen key
+	// detectable.
+	//
+	// Only meaningful with key: keyless verification always enforces the log.
+	// Defaults to false, because a keyed signature is complete without a log
+	// entry and requiring one would break air-gapped clusters and any private
+	// registry whose bundles are signed offline. The operator must be able to
+	// reach the Sigstore TUF root to load the Rekor public keys when this is
+	// enabled; the inclusion proof bundled with the signature is then checked
+	// offline, without a live log query per verification.
+	// +optional
+	RequireTransparencyLog bool `json:"requireTransparencyLog,omitempty"`
 }
 
 // KeylessVerifySpec pins the OIDC issuer and certificate identity a keyless

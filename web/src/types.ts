@@ -766,6 +766,10 @@ export interface ModuleVerifySpec {
   // Keyed verification: a Secret holding the cosign public key (cosign.pub).
   key?: { name: string };
   keyless?: ModuleVerifyKeyless;
+  // Also require Sigstore transparency-log (Rekor) inclusion evidence. Only
+  // meaningful with `key` — keyless always enforces the log. Off by default so
+  // air-gapped clusters keep verifying offline-signed bundles.
+  requireTransparencyLog?: boolean;
 }
 
 // Discriminated union mirroring ModuleSourceSpec on the CRD: exactly
