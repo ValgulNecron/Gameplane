@@ -34,6 +34,13 @@ endif
 
 GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver mcp-server
 GO_INTEGRATION_MODULES := operator api
+
+# test/e2e is a separate module (its own go.mod, excluded from the coverage
+# gates). Its per-game probe protocol packages carry untagged unit tests that
+# must run on every PR, so test-go covers it — but coverage/build/tidy stay on
+# GO_MODULES.
+GO_UNIT_MODULES := $(GO_MODULES) test/e2e
+
 GO_BUILDFLAGS  ?= -trimpath
 
 # Pinned versions of coverage tooling — pulled via `go run` so no install step.
@@ -67,7 +74,7 @@ test: test-go test-web ## Run all tests
 
 .PHONY: test-go
 test-go: ## Run Go tests across all modules (no envtest)
-	@for m in $(GO_MODULES); do \
+	@for m in $(GO_UNIT_MODULES); do \
 		echo ">> testing $$m"; \
 		(cd $$m && go test ./...) || exit $$?; \
 	done
@@ -188,7 +195,7 @@ test-e2e-keep: ## Re-run E2E tests against an already-up cluster (skip create/de
 		go test -tags=e2e -timeout 35m -v ./...
 
 .PHONY: test-e2e-bucket
-test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-rbac|api-agent|ratelimit|bot|multicluster). BUCKET=multicluster additionally needs a second kind cluster up and GAMEPLANE_E2E_CLUSTER_B set to its name (default gameplane-e2e-b).
+test-e2e-bucket: ## Run one CI e2e bucket against an already-up cluster (BUCKET=operator|api-auth|api-roles|api-rbac|api-agent|api-mods|ratelimit|bot-fast|bot-heavy|multicluster|upgrade). BUCKET=multicluster additionally needs a second kind cluster up and GAMEPLANE_E2E_CLUSTER_B set to its name (default gameplane-e2e-b).
 	cd test/e2e && GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CLUSTER=$(KIND_E2E_CLUSTER) \
 		go test -tags=e2e -timeout 35m -v -run "$$(./buckets.sh regex $(BUCKET))" ./...
 

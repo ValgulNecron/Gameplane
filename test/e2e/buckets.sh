@@ -125,9 +125,18 @@ TestAPI_LoginRateLimit
 EOF
 }
 
-bucket_bot() { cat <<'EOF'
-TestGameServer_MinecraftBotConnects
-TestGameServer_TerrariaBotConnects
+bucket_bot_fast() { cat <<'EOF'
+TestGameServer_MinecraftJavaBot_Joined
+TestGameServer_TerrariaBot_Joined
+EOF
+}
+
+# Games with heavy resource requirements (long boots, high memory).
+# This bucket is DELIBERATELY never run in CI — not on PRs, not nightly, not
+# on `schedule:`, not via `workflow_dispatch:`. It is validated only by a
+# maintainer hand-run with `GAMEPLANE_E2E_GAMES=all`. Do not add CI jobs or
+# workflows that execute this bucket; that would defeat its purpose.
+bucket_bot_heavy() { cat <<'EOF'
 EOF
 }
 
@@ -156,7 +165,7 @@ EOF
 unbucketed() { :; }
 
 bucket_names() {
-	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot multicluster upgrade
+	printf '%s\n' operator api-auth api-roles api-rbac api-agent api-mods ratelimit bot-fast bot-heavy multicluster upgrade
 }
 
 list_bucket() {
@@ -168,7 +177,8 @@ list_bucket() {
 	api-agent) bucket_api_agent ;;
 	api-mods) bucket_api_mods ;;
 	ratelimit) bucket_ratelimit ;;
-	bot) bucket_bot ;;
+	bot-fast) bucket_bot_fast ;;
+	bot-heavy) bucket_bot_heavy ;;
 	multicluster) bucket_multicluster ;;
 	upgrade) bucket_upgrade ;;
 	*)

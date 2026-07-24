@@ -357,6 +357,38 @@ jobs:
           fi
           echo "chart cosign key matches root cosign.pub"
 
+  # Unit tests for probe protocol packages (minecraft, terraria, etc).
+  # These are in test/e2e but are untagged Go unit tests, not integration
+  # tests, so they run without a cluster or build tags. Gated on e2e
+  # changes since the tests live in the e2e directory (covered by e2etree
+  # filter). This job intentionally runs no coverage — test/e2e has no
+  # .testcoverage.yml and is excluded from the coverage gates.
+  go-e2e-unit:
+    name: go (test/e2e)
+    needs: [changes]
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25", cache: false }
+      - name: go module + build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ runner.arch }}-e2e-unit-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-e2e-unit-
+      - name: go vet
+        working-directory: test/e2e
+        run: go vet ./...
+      - name: unit test (probe protocols)
+        working-directory: test/e2e
+        run: go test ./...
+
   # ---------------------------------------------------------------------
   # kind e2e — one job per suite, each with its own throwaway cluster on
   # its own VM. No `needs` edges: a broken unit test doesn't gate e2e
@@ -736,7 +768,7 @@ jobs:
         # tag, both fixed. The in-cluster harness is still what exercises the
         # network path a real client uses.)
         run: |
-          RUN_REGEX="$(./test/e2e/buckets.sh regex bot)"
+          RUN_REGEX="$(./test/e2e/buckets.sh regex bot-fast)"
           cd test/e2e && \
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
