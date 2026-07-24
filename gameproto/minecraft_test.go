@@ -1,6 +1,7 @@
 package gameproto
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -65,7 +66,7 @@ func TestClassifyMinecraftStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, result, err := ClassifyMinecraft(bytes.NewReader(tt.data))
+			kind, result, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if tt.expectErr && err == nil {
 				t.Errorf("expected error, got none")
@@ -116,7 +117,7 @@ func TestClassifyMinecraftLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, _, err := ClassifyMinecraft(bytes.NewReader(tt.data))
+			kind, _, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if tt.expectErr && err == nil {
 				t.Errorf("expected error, got none")
@@ -139,7 +140,7 @@ func TestMinecraftConsumedBytes(t *testing.T) {
 	// Build a valid handshake with known consumed bytes.
 	data := buildMinecraftHandshake(761, "localhost", 25565, 2)
 
-	kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+	kind, result, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -369,7 +370,7 @@ func TestClassifyMinecraftInvalidState(t *testing.T) {
 
 	// Build a handshake with next state = 99 (invalid).
 	data := buildMinecraftHandshake(761, "localhost", 25565, 99)
-	kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+	kind, result, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(data)))
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -395,7 +396,7 @@ func TestClassifyMinecraftZeroLength(t *testing.T) {
 
 	// VarInt encoding of 0 is just [0x00].
 	data := []byte{0x00}
-	kind, _, err := ClassifyMinecraft(bytes.NewReader(data))
+	kind, _, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(data)))
 
 	if err == nil {
 		t.Errorf("expected error for zero-length packet")
@@ -443,7 +444,7 @@ func TestMinecraftHostileInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, _, err := ClassifyMinecraft(bytes.NewReader(tt.data))
+			kind, _, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if err == nil {
 				t.Errorf("expected error, got none")
@@ -623,7 +624,7 @@ func TestClassifyMinecraftReplayContract(t *testing.T) {
 		append([]byte{}, extra...),
 	}}
 
-	kind, result, err := ClassifyMinecraft(sr)
+	kind, result, err := ClassifyMinecraft(bufio.NewReader(sr))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -659,6 +660,62 @@ func TestClassifyMinecraftReplayContract(t *testing.T) {
 	}
 }
 
+// TestClassifyMinecraftPipelinedPackets proves the bug fix: when a client
+// sends pipelined packets (Handshake immediately followed by Login Start),
+// all bytes must be recoverable. The fix ensures the caller owns the
+// *bufio.Reader and can continue reading from it after classification.
+// This test feeds all data in a single Read call, which would previously
+// cause the extra bytes to be lost in bufio's internal buffer.
+func TestClassifyMinecraftPipelinedPackets(t *testing.T) {
+	t.Parallel()
+
+	handshake := buildMinecraftHandshake(761, "localhost", 25565, 2)
+	// Simulate a Login Start packet (frame length + packet ID + username)
+	loginStart := []byte{0x06, 0x00, 0x04, 't', 'e', 's', 't'} // length=6, id=0, username="test"
+	full := append(append([]byte{}, handshake...), loginStart...)
+
+	// Create a reader that returns ALL data in a single Read call.
+	// This simulates a real network scenario where pipelined packets arrive
+	// together from the socket buffer.
+	br := bufio.NewReader(bytes.NewReader(full))
+
+	kind, result, err := ClassifyMinecraft(br)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if kind != Join {
+		t.Fatalf("expected kind Join, got %v", kind)
+	}
+	if result == nil {
+		t.Fatalf("expected result, got nil")
+	}
+
+	// Verify consumed bytes match the handshake exactly
+	if !bytes.Equal(result.Consumed, handshake) {
+		t.Fatalf("consumed bytes do not match handshake: got %d, want %d", len(result.Consumed), len(handshake))
+	}
+
+	// Verify the pipelined bytes are still in the caller's bufio.Reader
+	// (this is the core of the bug fix: they must not be lost)
+	remaining := make([]byte, len(loginStart))
+	n, err := io.ReadFull(br, remaining)
+	if err != nil {
+		t.Fatalf("failed to read remaining bytes from bufio.Reader: %v", err)
+	}
+	if n != len(loginStart) {
+		t.Fatalf("expected to read %d remaining bytes, got %d", len(loginStart), n)
+	}
+	if !bytes.Equal(remaining, loginStart) {
+		t.Fatalf("remaining bytes do not match pipelined packet: got %q, want %q", remaining, loginStart)
+	}
+
+	// Verify that Consumed + remaining equals the original input
+	reconstructed := append(append([]byte{}, result.Consumed...), remaining...)
+	if !bytes.Equal(reconstructed, full) {
+		t.Fatalf("consumed+remaining does not reconstruct original: got %d bytes, want %d", len(reconstructed), len(full))
+	}
+}
+
 // TestClassifyMinecraftLengthVarIntTooLong tests that a length-prefix VarInt
 // with five continuation bytes (never terminating) is rejected with a
 // specific, non-EOF error rather than treated as a truncated read.
@@ -666,7 +723,7 @@ func TestClassifyMinecraftLengthVarIntTooLong(t *testing.T) {
 	t.Parallel()
 
 	data := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-	kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+	kind, result, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(data)))
 
 	if err == nil {
 		t.Fatal("expected error for an unterminated length VarInt")
@@ -692,7 +749,7 @@ func TestClassifyMinecraftFrameReadNonEOFError(t *testing.T) {
 	t.Parallel()
 
 	r := &minecraftFlakyReader{}
-	kind, result, err := ClassifyMinecraft(r)
+	kind, result, err := ClassifyMinecraft(bufio.NewReader(r))
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -790,7 +847,7 @@ func TestClassifyMinecraftMalformedFrames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := frameMinecraftPacket(tt.inner)
-			kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+			kind, result, err := ClassifyMinecraft(bufio.NewReader(bytes.NewReader(data)))
 
 			if err == nil {
 				t.Fatalf("expected error, got none (kind=%v)", kind)

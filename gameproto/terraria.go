@@ -1,6 +1,7 @@
 package gameproto
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -24,14 +25,15 @@ const terrariaMaxPacketSize = 65535
 // classifyTerrariaConnect reads and parses the first Terraria message to
 // determine if it's a ConnectRequest (which is always classified as Join).
 // Terraria has no out-of-band status ping, so we only care about connection
-// attempts.
-func classifyTerrariaConnect(r io.Reader) (Kind, *TerrariaClassifyResult, error) {
+// attempts. The caller-provided bufio.Reader is used directly, preserving any
+// pipelined data in its internal buffer for the caller to consume later.
+func classifyTerrariaConnect(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error) {
 	// Accumulate consumed bytes
 	var consumed bytes.Buffer
 
 	// Read the message frame header (2-byte length LE + 1-byte type).
 	var header [3]byte
-	if _, err := io.ReadFull(r, header[:]); err != nil {
+	if _, err := io.ReadFull(br, header[:]); err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return Unknown, nil, err
 		}
@@ -57,7 +59,7 @@ func classifyTerrariaConnect(r io.Reader) (Kind, *TerrariaClassifyResult, error)
 	payloadLength := int(totalLength) - 3
 	payload := make([]byte, payloadLength)
 	if payloadLength > 0 {
-		if _, err := io.ReadFull(r, payload); err != nil {
+		if _, err := io.ReadFull(br, payload); err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				return Unknown, nil, fmt.Errorf("read terraria frame payload: %w", err)
 			}

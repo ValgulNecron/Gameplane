@@ -7,22 +7,35 @@
 //   - Status: a server-list ping or query (answer it without waking).
 //   - Unknown: unrecognized bytes (do not wake; let the connection fail).
 //
-// Each classifier reads from an io.Reader (safe to feed a live net.Conn) and
-// returns the Kind plus parsed context (protocol version, handshake fields)
-// that the caller needs to craft a reply. All parsing is defensive: bounded
-// reads, explicit max packet sizes, no unbounded allocations from length
-// prefixes, and no panics on hostile input.
+// Replay contract: the caller must create a *bufio.Reader and pass it to the
+// classifier. The classifier reads the handshake and returns it in the Consumed
+// field. Any pipelined data (e.g., Handshake followed immediately by Login Start)
+// remains in the *bufio.Reader's internal buffer. The caller then owns that buffer
+// and must continue reading from the same *bufio.Reader for the rest of the
+// connection. The complete original stream is exactly: Consumed + everything
+// remaining in the caller's *bufio.Reader.
 //
-// Classifiers capture the bytes consumed from the reader so the caller can
-// replay the handshake to the real game server. The Consumed field holds the
-// actual bytes read: length-prefix VarInt + frame data for Minecraft, or
-// 3-byte header + payload for Terraria. The caller can replay these exact
-// bytes: len(consumed) + len(remaining) == len(original).
+// All parsing is defensive: bounded reads, explicit max packet sizes, no unbounded
+// allocations from length prefixes, and no panics on hostile input.
+//
+// Example usage:
+//
+//	br := bufio.NewReader(conn)
+//	kind, result, err := ClassifyMinecraft(br)
+//	if err != nil {
+//		return err
+//	}
+//	// Replay the handshake and forward the rest of the connection:
+//	_, err = upstream.Write(result.Consumed)
+//	_, err = io.Copy(upstream, br)  // br still has pipelined bytes
+//
+// The Consumed field holds the actual bytes read: length-prefix VarInt + frame
+// data for Minecraft, or 3-byte header + payload for Terraria.
 package gameproto
 
 import (
+	"bufio"
 	"fmt"
-	"io"
 )
 
 // Kind classifies the reason for a connection attempt.
@@ -77,9 +90,10 @@ type MinecraftClassifyResult struct {
 // status ping), or Unknown if the bytes don't parse. It reads at most one
 // complete handshake packet and returns any error encountered (including EOF
 // on truncated input). Hostile input like a huge length prefix is rejected
-// before allocation.
-func ClassifyMinecraft(r io.Reader) (Kind, *MinecraftClassifyResult, error) {
-	return classifyMinecraftHandshake(r)
+// before allocation. The caller must provide a *bufio.Reader and continue
+// using it for the rest of the connection to avoid losing pipelined data.
+func ClassifyMinecraft(br *bufio.Reader) (Kind, *MinecraftClassifyResult, error) {
+	return classifyMinecraftHandshake(br)
 }
 
 // TerrariaClassifyResult holds the result of classifying a Terraria connection.
@@ -95,9 +109,10 @@ type TerrariaClassifyResult struct {
 // ClassifyTerraria reads a Terraria ConnectRequest and classifies it as Join.
 // Terraria has no out-of-band status ping, only player connections, so any
 // recognized ConnectRequest is classified as Join. Unknown messages or
-// truncated input return Unknown.
-func ClassifyTerraria(r io.Reader) (Kind, *TerrariaClassifyResult, error) {
-	return classifyTerrariaConnect(r)
+// truncated input return Unknown. The caller must provide a *bufio.Reader and
+// continue using it for the rest of the connection to avoid losing pipelined data.
+func ClassifyTerraria(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error) {
+	return classifyTerrariaConnect(br)
 }
 
 // BuildMinecraftStatusResponse builds a JSON status response packet that

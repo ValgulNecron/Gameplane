@@ -18,11 +18,9 @@ const minecraftMaxPacketSize = 512
 
 // classifyMinecraftHandshake reads and parses the Handshake packet to determine
 // whether the connection is a Join (login state) or Status (status state).
-func classifyMinecraftHandshake(r io.Reader) (Kind, *MinecraftClassifyResult, error) {
-	// Wrap reader in bufio.Reader to get ByteReader interface safely.
-	// This avoids blocking on io.Copy with live connections.
-	br := bufio.NewReader(r)
-
+// The caller-provided bufio.Reader is used directly, preserving any pipelined
+// data in its internal buffer for the caller to consume later.
+func classifyMinecraftHandshake(br *bufio.Reader) (Kind, *MinecraftClassifyResult, error) {
 	// Accumulate consumed bytes
 	var consumed bytes.Buffer
 
