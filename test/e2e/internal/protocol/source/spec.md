@@ -133,18 +133,22 @@ The `Raw` field is always populated on success or on read error (including timeo
 
 ## Testing & coverage
 
-The unit tests in `source_test.go` cover:
+**Unit tests** (`source_test.go`) — untagged, run on every `make test-go`:
 
-- **Challenge round-trip:** send 'q', receive 'A' + challenge.
-- **Connect acceptance:** send 'k', receive 0x03 (new client). Raw bytes are preserved.
-- **Connect rejection:** send 'k', receive 0x63 + rejection message. Raw bytes are preserved.
-- **Error handling:** truncated/garbage responses, timeout, bad headers, unexpected packet types. Raw bytes are always preserved.
-- **Payload integrity:** verify challenge, protocol version, and player name are correctly encoded in the outgoing packet.
-- **Protocol version handling:** both protocol 17 and 18 are supported.
+- **Challenge round-trip** (`TestChallenge_RoundTrip`) — send 'q', receive 'A' + challenge.
+- **Challenge error handling** (`TestChallenge_BadHeader`, `TestChallenge_BadPacketType`, `TestChallenge_TruncatedResponse`) — bad/truncated responses.
+- **Connect acceptance** (`TestConnect_Accepted`) — send 'k', receive 0x03. Raw bytes preserved.
+- **Connect rejection** (`TestConnect_RejectedWithMessage`, `TestConnect_RejectedNoMessage`) — send 'k', receive 0x63 + reason. Raw bytes preserved.
+- **Connect error handling** (`TestConnect_TruncatedResponse`, `TestConnect_GarbageResponse`) — truncated/garbage responses, no panic.
+- **Payload integrity** (`TestConnect_PayloadIntegrity`) — verify challenge, protocol version, and player name are correctly encoded in outgoing packet.
+- **Protocol version handling** (`TestConnect_ProtocolVersions`) — both protocol 17 and 18 supported.
+- **Non-loopback peers** (`TestChallenge_NonLoopbackServer`, `TestConnect_NonLoopbackServer`) — verify client works against non-loopback peers on the same host. **Do NOT catch a loopback-only bind regression** (all local addresses are reachable from a loopback-bound socket; the real bug required an off-host, routed destination like a Kubernetes ClusterIP).
 
-All tests use a fake UDP server on `127.0.0.1:0` and run in parallel with 2-second deadlines.
+All tests use a fake UDP server and run in parallel with 2-second deadlines.
 
 **Self-confirming tests:** Tests that use this package's own wire encoder to produce server responses and then verify with its own decoder (e.g., `TestConnect_Accepted`, `TestConnect_RejectedWithMessage`, `TestConnect_PayloadIntegrity`) prove internal consistency, not correctness against real servers. These were converted to use explicit literal byte slices annotated field-by-field to verify the actual wire format being sent and received.
+
+**Regression guard (loopback-bind class of defects):** This package's unit tests cannot catch a loopback-only bind bug because all addresses on the same host are locally reachable; the bug requires an off-host routed destination (Kubernetes Service ClusterIP). This defect class is guarded by the e2e tier: the e2e game bot CI job dials a real Service ClusterIP and did catch this bug once in production before the fix.
 
 ## Next steps (CI verification)
 

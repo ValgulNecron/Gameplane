@@ -90,9 +90,14 @@ type Player struct {
 // It dials addr (UDP), sends A2S_INFO, and if the server replies with a
 // challenge, resends with the challenge appended.
 func QueryInfo(ctx context.Context, addr string) (*Info, error) {
-	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	// Use DialContext to let the kernel choose the local address based on the
+	// destination's route. This avoids binding to loopback when the remote is
+	// a non-loopback address (e.g., a Kubernetes ClusterIP), which would fail
+	// with "sendto: invalid argument".
+	d := net.Dialer{}
+	conn, err := d.DialContext(ctx, "udp4", addr)
 	if err != nil {
-		return nil, fmt.Errorf("a2s: listen udp: %w", err)
+		return nil, fmt.Errorf("a2s: dial udp: %w", err)
 	}
 	defer conn.Close()
 
@@ -105,17 +110,13 @@ func QueryInfo(ctx context.Context, addr string) (*Info, error) {
 
 	// First, try without a challenge.
 	req := buildRequest(requestInfo, nil)
-	raddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("a2s: resolve %s: %w", addr, err)
-	}
 
-	if _, err := conn.WriteTo(req, raddr); err != nil {
+	if _, err := conn.Write(req); err != nil {
 		return nil, fmt.Errorf("a2s: send info request: %w", err)
 	}
 
 	resp := make([]byte, 4096)
-	n, _, err := conn.ReadFrom(resp)
+	n, err := conn.Read(resp)
 	if err != nil {
 		return nil, fmt.Errorf("a2s: receive info response: %w", err)
 	}
@@ -128,11 +129,11 @@ func QueryInfo(ctx context.Context, addr string) (*Info, error) {
 		}
 		// Resend with the challenge appended.
 		req = buildRequest(requestInfo, challenge)
-		if _, err := conn.WriteTo(req, raddr); err != nil {
+		if _, err := conn.Write(req); err != nil {
 			return nil, fmt.Errorf("a2s: send info request with challenge: %w", err)
 		}
 		_ = conn.SetDeadline(deadline)
-		n, _, err = conn.ReadFrom(resp)
+		n, err = conn.Read(resp)
 		if err != nil {
 			return nil, fmt.Errorf("a2s: receive info response after challenge: %w", err)
 		}
@@ -153,9 +154,14 @@ func QueryPlayers(ctx context.Context, addr string) ([]Player, error) {
 		return nil, err
 	}
 
-	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	// Use DialContext to let the kernel choose the local address based on the
+	// destination's route. This avoids binding to loopback when the remote is
+	// a non-loopback address (e.g., a Kubernetes ClusterIP), which would fail
+	// with "sendto: invalid argument".
+	d := net.Dialer{}
+	conn, err := d.DialContext(ctx, "udp4", addr)
 	if err != nil {
-		return nil, fmt.Errorf("a2s: listen udp for players: %w", err)
+		return nil, fmt.Errorf("a2s: dial udp for players: %w", err)
 	}
 	defer conn.Close()
 
@@ -165,24 +171,19 @@ func QueryPlayers(ctx context.Context, addr string) ([]Player, error) {
 	}
 	_ = conn.SetDeadline(deadline)
 
-	raddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("a2s: resolve %s for players: %w", addr, err)
-	}
-
 	// A2S_PLAYER always requires a challenge. Start with 0xFFFFFFFF sentinel.
 	// If the server responds with S2C_CHALLENGE, echo the challenge back.
 	var challenge []byte = []byte{0xFF, 0xFF, 0xFF, 0xFF}
 
 	for attempt := 0; attempt < 2; attempt++ {
 		req := buildRequest(requestPlayer, challenge)
-		if _, err := conn.WriteTo(req, raddr); err != nil {
+		if _, err := conn.Write(req); err != nil {
 			return nil, fmt.Errorf("a2s: send player request: %w", err)
 		}
 
 		resp := make([]byte, 8192)
 		_ = conn.SetDeadline(deadline)
-		n, _, err := conn.ReadFrom(resp)
+		n, err := conn.Read(resp)
 		if err != nil {
 			return nil, fmt.Errorf("a2s: receive player response: %w", err)
 		}

@@ -525,3 +525,129 @@ func TestConnect_ProtocolVersions(t *testing.T) {
 		})
 	}
 }
+
+// TestChallenge_NonLoopbackServer verifies that Challenge works when the server
+// peer is on a non-loopback address. This test does NOT catch a loopback-only
+// bind regression. Empirically, reintroducing net.Dialer{LocalAddr: &net.UDPAddr{IP: net.IPv4(127,0,0,1)}}
+// does not cause this test to fail — all addresses on the same host are locally
+// reachable, so a loopback-bound socket can still reach any local interface.
+// The actual regression guard for this bug class is the e2e tier: the e2e game
+// bot CI job dials a real Kubernetes Service ClusterIP (an off-host, routed
+// destination) and did catch this bug once in production.
+// See: https://github.com/ValgulNecron/gameplane/issues/197
+func TestChallenge_NonLoopbackServer(t *testing.T) {
+	// Find a non-loopback IPv4 address on the host.
+	nonLoopbackAddr := findNonLoopbackIPv4Source()
+	if nonLoopbackAddr == "" {
+		t.Skip("no non-loopback IPv4 address found on this host")
+	}
+
+	listener, err := net.ListenPacket("udp4", nonLoopbackAddr+":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	addr := listener.LocalAddr().String()
+
+	go func() {
+		defer listener.Close()
+		buf := make([]byte, 1024)
+		_, remoteAddr, err := listener.ReadFrom(buf)
+		if err != nil {
+			return
+		}
+
+		// Send challenge response.
+		challengeNum := uint32(0xDEADBEEF)
+		resp := make([]byte, 9)
+		binary.LittleEndian.PutUint32(resp[0:4], connlessHeader)
+		resp[4] = pktChallengeResp
+		binary.LittleEndian.PutUint32(resp[5:9], challengeNum)
+		listener.WriteTo(resp, remoteAddr)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	challenge, err := Challenge(ctx, addr)
+	if err != nil {
+		t.Fatalf("Challenge: %v", err)
+	}
+	if challenge != 0xDEADBEEF {
+		t.Errorf("challenge: got 0x%08x, want 0xDEADBEEF", challenge)
+	}
+}
+
+// TestConnect_NonLoopbackServer verifies that Connect works when the server
+// peer is on a non-loopback address. This test does NOT catch a loopback-only
+// bind regression — see TestChallenge_NonLoopbackServer's comment for why. The
+// actual regression guard is the e2e tier, which dials a real Service ClusterIP.
+func TestConnect_NonLoopbackServer(t *testing.T) {
+	// Find a non-loopback IPv4 address on the host.
+	nonLoopbackAddr := findNonLoopbackIPv4Source()
+	if nonLoopbackAddr == "" {
+		t.Skip("no non-loopback IPv4 address found on this host")
+	}
+
+	listener, err := net.ListenPacket("udp4", nonLoopbackAddr+":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	addr := listener.LocalAddr().String()
+
+	go func() {
+		defer listener.Close()
+		buf := make([]byte, 1024)
+		_, remoteAddr, err := listener.ReadFrom(buf)
+		if err != nil {
+			return
+		}
+
+		// Send acceptance.
+		resp := make([]byte, 5)
+		binary.LittleEndian.PutUint32(resp[0:4], connlessHeader)
+		resp[4] = pktAccept
+		listener.WriteTo(resp, remoteAddr)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	result, err := Connect(ctx, addr, 0x11223344, "TestBot", ProtocolSource1)
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	if !result.Accepted {
+		t.Errorf("Connect.Accepted: got false, want true")
+	}
+}
+
+// findNonLoopbackIPv4Source searches for a non-loopback IPv4 address on any
+// local interface. Returns an empty string if none is found. This is the source
+// package version of the helper.
+func findNonLoopbackIPv4Source() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		ip := ipnet.IP
+		// Skip loopback, IPv6, and non-unicast addresses.
+		if ip.IsLoopback() || ip.To4() == nil {
+			continue
+		}
+
+		return ip.String()
+	}
+
+	return ""
+}

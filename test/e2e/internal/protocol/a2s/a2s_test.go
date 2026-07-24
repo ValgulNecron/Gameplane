@@ -380,6 +380,69 @@ func startFakeA2SServer(t *testing.T, handler func(req []byte, raddr net.Addr) [
 	return server
 }
 
+// startFakeA2SServerOnAddr starts a UDP server on the specified IP address
+// (with port 0 for auto-assignment). This is used for regression testing to
+// ensure the client doesn't bind to loopback when connecting to a non-loopback
+// server address.
+func startFakeA2SServerOnAddr(t *testing.T, addr string, handler func(req []byte, raddr net.Addr) []byte) *fakeA2SServer {
+	conn, err := net.ListenPacket("udp4", addr+":0")
+	if err != nil {
+		t.Fatalf("failed to start fake server on %s: %v", addr, err)
+	}
+
+	server := &fakeA2SServer{conn: conn}
+
+	go func() {
+		defer conn.Close()
+
+		for {
+			buf := make([]byte, 4096)
+			_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
+
+			n, raddr, err := conn.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+
+			resp := handler(buf[:n], raddr)
+			if resp != nil {
+				_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+				_, _ = conn.WriteTo(resp, raddr)
+			}
+		}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	return server
+}
+
+// findNonLoopbackIPv4 searches for a non-loopback IPv4 address on any local
+// interface. Returns an empty string if none is found.
+func findNonLoopbackIPv4() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+
+		ip := ipnet.IP
+		// Skip loopback, IPv6, and non-unicast addresses.
+		if ip.IsLoopback() || ip.To4() == nil {
+			continue
+		}
+
+		return ip.String()
+	}
+
+	return ""
+}
+
 // buildFakeInfoResponse constructs a valid A2S_INFO response.
 // Fields are laid out according to the Valve Developer Community spec:
 // https://developer.valvesoftware.com/wiki/Server_queries
@@ -540,5 +603,117 @@ func TestParsePlayersList(t *testing.T) {
 	}
 	if len(players) > 0 && players[0].Name != "Alice" {
 		t.Errorf("got first player %q, want Alice", players[0].Name)
+	}
+}
+
+// TestQueryInfoNonLoopbackServer verifies that QueryInfo works when the server
+// peer is on a non-loopback address (e.g., 192.168.1.1:port) rather than
+// 127.0.0.1. This test does NOT catch a loopback-only bind regression.
+// Empirically, reintroducing net.Dialer{LocalAddr: &net.UDPAddr{IP: net.IPv4(127,0,0,1)}}
+// does not cause this test to fail — all addresses on the same host are locally
+// reachable, so a loopback-bound socket can still reach any local interface.
+// The actual regression guard for this bug class is the e2e tier: the e2e game
+// bot CI job dials a real Kubernetes Service ClusterIP (an off-host, routed
+// destination) and did catch this bug once in production.
+// See: https://github.com/ValgulNecron/gameplane/issues/197
+func TestQueryInfoNonLoopbackServer(t *testing.T) {
+	// Find a non-loopback IPv4 address on the host.
+	nonLoopbackAddr := findNonLoopbackIPv4()
+	if nonLoopbackAddr == "" {
+		t.Skip("no non-loopback IPv4 address found on this host")
+	}
+
+	server := startFakeA2SServerOnAddr(t, nonLoopbackAddr, func(req []byte, raddr net.Addr) []byte {
+		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
+			return nil
+		}
+		if req[4] != requestInfo {
+			return nil
+		}
+		return buildFakeInfoResponse()
+	})
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	info, err := QueryInfo(ctx, server.LocalAddr().String())
+	if err != nil {
+		t.Fatalf("QueryInfo failed: %v", err)
+	}
+
+	if info == nil {
+		t.Fatal("QueryInfo returned nil Info")
+	}
+	if info.Name != "Test Server" {
+		t.Errorf("got name %q, want %q", info.Name, "Test Server")
+	}
+}
+
+// TestQueryPlayersNonLoopbackServer verifies that QueryPlayers works when the
+// server peer is on a non-loopback address. This test does NOT catch a loopback-only
+// bind regression — see TestQueryInfoNonLoopbackServer's comment for why. The
+// actual regression guard is the e2e tier, which dials a real Service ClusterIP.
+func TestQueryPlayersNonLoopbackServer(t *testing.T) {
+	// Find a non-loopback IPv4 address on the host.
+	nonLoopbackAddr := findNonLoopbackIPv4()
+	if nonLoopbackAddr == "" {
+		t.Skip("no non-loopback IPv4 address found on this host")
+	}
+
+	serverChallenge := []byte{0x78, 0x56, 0x34, 0x12}
+	infoCount := 0
+	playerRequestCount := 0
+
+	server := startFakeA2SServerOnAddr(t, nonLoopbackAddr, func(req []byte, raddr net.Addr) []byte {
+		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
+			return nil
+		}
+
+		switch req[4] {
+		case requestInfo:
+			infoCount++
+			return buildFakeInfoResponse()
+
+		case requestPlayer:
+			playerRequestCount++
+			if playerRequestCount == 1 {
+				var buf bytes.Buffer
+				buf.WriteByte(0xFF)
+				buf.WriteByte(0xFF)
+				buf.WriteByte(0xFF)
+				buf.WriteByte(0xFF)
+				buf.WriteByte(responseChallenge)
+				buf.Write(serverChallenge)
+				return buf.Bytes()
+			}
+			if len(req) < 9 {
+				return nil
+			}
+			clientChallenge := req[5:9]
+			if !bytes.Equal(clientChallenge, serverChallenge) {
+				return nil
+			}
+			return buildFakePlayerResponse()
+
+		default:
+			return nil
+		}
+	})
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	players, err := QueryPlayers(ctx, server.LocalAddr().String())
+	if err != nil {
+		t.Fatalf("QueryPlayers failed: %v", err)
+	}
+
+	if len(players) != 3 {
+		t.Errorf("got %d players, want 3", len(players))
+	}
+	if len(players) > 0 && players[0].Name != "Alice" {
+		t.Errorf("got first player name %q, want %q", players[0].Name, "Alice")
 	}
 }
