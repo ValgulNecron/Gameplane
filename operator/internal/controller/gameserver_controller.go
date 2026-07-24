@@ -250,7 +250,20 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	if err := r.reconcileSentinel(ctx, &gs, &tmpl, idle); err != nil {
+	// planSentinel is the single source of truth for whether the wake
+	// sentinel should exist this pass and whether the game Service should
+	// route to it instead of the game pod — see its doc comment for why
+	// that decision must live in exactly one place. Deliberately NOT an
+	// early-return-and-skip-everything-else when the sentinel isn't ready
+	// yet: a sentinel that cannot start (ImagePullBackOff, quota) must
+	// degrade to "no wake-on-connect this pass", never to "this GameServer
+	// stops reconciling" — so every step below still runs regardless.
+	plan, err := r.planSentinel(ctx, &gs, &tmpl, idle)
+	if err != nil {
+		logger.Error(err, "plan wake sentinel")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileSentinel(ctx, &gs, &tmpl, plan.wantSentinel); err != nil {
 		logger.Error(err, "reconcile sentinel")
 		return ctrl.Result{}, err
 	}
@@ -262,29 +275,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile game-direct Service")
 		return ctrl.Result{}, err
 	}
-
-	// Check if sentinel is ready before flipping the main Service selector.
-	sentinelReady := false
-	if shouldHaveSentinel(&gs, &tmpl, idle) {
-		var err2 error
-		sentinelReady, err2 = r.sentinelIsReady(ctx, gs.Namespace, gs.Name)
-		if err2 != nil {
-			logger.Error(err2, "check sentinel readiness")
-			return ctrl.Result{}, err2
-		}
-		// If we want the sentinel but it's not ready yet, requeue.
-		if !sentinelReady {
-			// Requeue sooner to check sentinel readiness.
-			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
-		}
-	}
-
-	_, err = r.updateServiceSelector(ctx, &gs, idle, sentinelReady)
-	if err != nil {
-		logger.Error(err, "update Service selector")
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileService(ctx, &gs, &tmpl); err != nil {
+	if err := r.reconcileService(ctx, &gs, &tmpl, plan.routeToSentinel); err != nil {
 		logger.Error(err, "reconcile Service")
 		return ctrl.Result{}, err
 	}
@@ -321,7 +312,18 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// the sleep deadline or the next wake window; take whichever comes first,
 	// or nothing fires the transition until an unrelated event happens to
 	// wake the reconciler.
-	for _, hint := range []time.Duration{stopRequeue, idleRequeue} {
+	hints := []time.Duration{stopRequeue, idleRequeue}
+	if plan.wantSentinel {
+		// Bounded backstop for planSentinel's wait on the sentinel or the
+		// game pod. Both are owned (Owns(&appsv1.Deployment{}),
+		// Owns(&appsv1.StatefulSet{})) so a readiness transition normally
+		// retriggers Reconcile on its own; this only bounds how long a
+		// missed/coalesced event could otherwise leave things stale. It is
+		// NOT a substitute for the early-return-and-skip-everything this
+		// replaced — every step above still ran this pass regardless.
+		hints = append(hints, sentinelBackstopRequeue)
+	}
+	for _, hint := range hints {
 		if hint > 0 && (requeue == 0 || hint < requeue) {
 			requeue = hint
 		}
@@ -390,8 +392,16 @@ func (r *GameServerReconciler) reconcilePVC(
 	return err
 }
 
+// reconcileService maintains the main game Service. routeToSentinel is
+// planSentinel's decision for this pass (see gameserver_sentinel.go): this
+// is the ONLY place spec.selector is written. It used to be written here
+// and, separately, by updateServiceSelector — two CreateOrUpdate calls
+// racing to set the same field, with this one always winning last and
+// silently undoing the flip to the sentinel. Do not reintroduce a second
+// writer of svc.Spec.Selector.
 func (r *GameServerReconciler) reconcileService(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+	routeToSentinel bool,
 ) error {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: gs.Name, Namespace: gs.Namespace},
@@ -412,9 +422,16 @@ func (r *GameServerReconciler) reconcileService(
 		} else {
 			svc.Spec.LoadBalancerSourceRanges = nil
 		}
-		svc.Spec.Selector = map[string]string{
-			"app.kubernetes.io/name":     "gameplane-game",
-			"app.kubernetes.io/instance": gs.Name,
+		if routeToSentinel {
+			svc.Spec.Selector = map[string]string{
+				sentinelLabel:                sentinelValue,
+				"app.kubernetes.io/instance": gs.Name,
+			}
+		} else {
+			svc.Spec.Selector = map[string]string{
+				"app.kubernetes.io/name":     "gameplane-game",
+				"app.kubernetes.io/instance": gs.Name,
+			}
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
 		applyManagedServiceAnnotations(svc, desiredServiceAnnotations(gs))
