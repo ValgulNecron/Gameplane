@@ -3,6 +3,7 @@ package gameproto
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -485,6 +486,22 @@ func TestJSONEscaping(t *testing.T) {
 			input:    "tab\there",
 			expected: `tab\there`,
 		},
+		{
+			input:    "back\bspace",
+			expected: `back\bspace`,
+		},
+		{
+			input:    "form\ffeed",
+			expected: `form\ffeed`,
+		},
+		{
+			input:    "carriage\rreturn",
+			expected: `carriage\rreturn`,
+		},
+		{
+			input:    "control\x01char",
+			expected: `control\u0001char`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -565,4 +582,306 @@ func ClassifyMinecraftStatusResponse(data []byte) (string, string, error) {
 	}
 
 	return "status_response", jsonStr, nil
+}
+
+// minecraftStepReader hands back one queued chunk per Read call, simulating
+// data arriving across separate reads (e.g. distinct TCP segments) instead
+// of being available synchronously in a single buffer. This matches how a
+// live net.Conn behaves: a Read call returns only what has actually arrived
+// on the wire, never more than that.
+type minecraftStepReader struct {
+	chunks [][]byte
+}
+
+func (s *minecraftStepReader) Read(p []byte) (int, error) {
+	if len(s.chunks) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, s.chunks[0])
+	s.chunks[0] = s.chunks[0][n:]
+	if len(s.chunks[0]) == 0 {
+		s.chunks = s.chunks[1:]
+	}
+	return n, nil
+}
+
+// TestClassifyMinecraftReplayContract proves the replay contract from the
+// package doc comment: Consumed plus whatever remains unread in the source
+// reconstructs the original stream byte-for-byte. The handshake and a
+// trailing "next packet" arrive as two separate reads (as they would from a
+// live connection), so the internal bufio.Reader never buffers ahead past
+// the handshake.
+func TestClassifyMinecraftReplayContract(t *testing.T) {
+	t.Parallel()
+
+	handshake := buildMinecraftHandshake(761, "localhost", 25565, 2)
+	extra := []byte("subsequent packet bytes belonging to a different message")
+	full := append(append([]byte{}, handshake...), extra...)
+
+	sr := &minecraftStepReader{chunks: [][]byte{
+		append([]byte{}, handshake...),
+		append([]byte{}, extra...),
+	}}
+
+	kind, result, err := ClassifyMinecraft(sr)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if kind != Join {
+		t.Fatalf("expected kind Join, got %v", kind)
+	}
+	if result == nil {
+		t.Fatalf("expected result, got nil")
+	}
+	if !bytes.Equal(result.Consumed, handshake) {
+		t.Fatalf("consumed %d bytes does not match handshake %d bytes", len(result.Consumed), len(handshake))
+	}
+
+	var remaining bytes.Buffer
+	buf := make([]byte, 4096)
+	for {
+		n, rerr := sr.Read(buf)
+		if n > 0 {
+			remaining.Write(buf[:n])
+		}
+		if rerr != nil {
+			break
+		}
+	}
+
+	if !bytes.Equal(remaining.Bytes(), extra) {
+		t.Errorf("remaining %q does not match expected extra %q", remaining.Bytes(), extra)
+	}
+
+	reconstructed := append(append([]byte{}, result.Consumed...), remaining.Bytes()...)
+	if !bytes.Equal(reconstructed, full) {
+		t.Errorf("consumed+remaining does not reconstruct original: got %d bytes, want %d", len(reconstructed), len(full))
+	}
+}
+
+// TestClassifyMinecraftLengthVarIntTooLong tests that a length-prefix VarInt
+// with five continuation bytes (never terminating) is rejected with a
+// specific, non-EOF error rather than treated as a truncated read.
+func TestClassifyMinecraftLengthVarIntTooLong(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+
+	if err == nil {
+		t.Fatal("expected error for an unterminated length VarInt")
+	}
+	if kind != Unknown {
+		t.Errorf("expected kind Unknown, got %v", kind)
+	}
+	if result != nil {
+		t.Errorf("expected nil result, got %+v", result)
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("varint too long")) {
+		t.Errorf("expected error containing %q, got: %v", "varint too long", err)
+	}
+	if bytes.Contains([]byte(err.Error()), []byte("EOF")) {
+		t.Errorf("expected a non-EOF error, got: %v", err)
+	}
+}
+
+// TestClassifyMinecraftFrameReadNonEOFError tests that a non-EOF read error
+// while reading the frame body is wrapped and surfaced distinctly from the
+// EOF/truncation case (which returns Unknown with an EOF-flavored error).
+func TestClassifyMinecraftFrameReadNonEOFError(t *testing.T) {
+	t.Parallel()
+
+	r := &minecraftFlakyReader{}
+	kind, result, err := ClassifyMinecraft(r)
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if kind != Unknown {
+		t.Errorf("expected kind Unknown, got %v", kind)
+	}
+	if result != nil {
+		t.Errorf("expected nil result, got %+v", result)
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("read handshake frame")) {
+		t.Errorf("expected error containing %q, got: %v", "read handshake frame", err)
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("simulated read failure")) {
+		t.Errorf("expected wrapped cause %q, got: %v", "simulated read failure", err)
+	}
+}
+
+// minecraftFlakyReader supplies a valid one-byte length prefix (5) on the
+// first Read call, then fails with a distinct, non-EOF error on every
+// subsequent call, forcing the frame-body read to hit a genuine I/O error
+// rather than EOF/ErrUnexpectedEOF.
+type minecraftFlakyReader struct {
+	calls int
+}
+
+func (f *minecraftFlakyReader) Read(p []byte) (int, error) {
+	f.calls++
+	if f.calls == 1 {
+		p[0] = 0x05
+		return 1, nil
+	}
+	return 0, errors.New("simulated read failure")
+}
+
+// TestClassifyMinecraftMalformedFrames drives classifyMinecraftHandshake
+// through every distinct error branch inside the frame body: a bad packet
+// ID, a truncated field at each stage, an oversized embedded string length,
+// and an inner VarInt that never terminates.
+func TestClassifyMinecraftMalformedFrames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		inner  []byte
+		errStr string
+	}{
+		{
+			name:   "unexpected packet id",
+			inner:  []byte{0x01},
+			errStr: "expected handshake packet id 0x00",
+		},
+		{
+			name:   "truncated packet id varint",
+			inner:  []byte{0x80},
+			errStr: "read packet id",
+		},
+		{
+			name:   "missing protocol version",
+			inner:  []byte{0x00},
+			errStr: "read protocol version",
+		},
+		{
+			name:   "protocol version varint too long",
+			inner:  append([]byte{0x00}, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF),
+			errStr: "read protocol version",
+		},
+		{
+			name:   "missing server address",
+			inner:  []byte{0x00, 0x00},
+			errStr: "read server address",
+		},
+		{
+			name:   "server address string length out of range",
+			inner:  append([]byte{0x00, 0x00}, mustMinecraftVarInt(40000)...),
+			errStr: "read server address",
+		},
+		{
+			name:   "server address string data truncated",
+			inner:  []byte{0x00, 0x00, 0x0A}, // claims a 10-byte address, sends none
+			errStr: "read server address",
+		},
+		{
+			name:   "missing server port",
+			inner:  []byte{0x00, 0x00, 0x00}, // packet id, protocol version, empty address
+			errStr: "read server port",
+		},
+		{
+			name:   "missing next state",
+			inner:  []byte{0x00, 0x00, 0x00, 0x00, 0x00}, // ...+ empty address + 2-byte port
+			errStr: "read next state",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := frameMinecraftPacket(tt.inner)
+			kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+
+			if err == nil {
+				t.Fatalf("expected error, got none (kind=%v)", kind)
+			}
+			if kind != Unknown {
+				t.Errorf("expected kind Unknown, got %v", kind)
+			}
+			if result != nil {
+				t.Errorf("expected nil result, got %+v", result)
+			}
+			if !bytes.Contains([]byte(err.Error()), []byte(tt.errStr)) {
+				t.Errorf("expected error containing %q, got: %v", tt.errStr, err)
+			}
+		})
+	}
+}
+
+// mustMinecraftVarInt encodes v as a Minecraft VarInt for use in hand-built
+// test frames.
+func mustMinecraftVarInt(v int32) []byte {
+	var buf bytes.Buffer
+	writeMinecraftVarInt(&buf, v)
+	return buf.Bytes()
+}
+
+// TestBuildMinecraftStatusResponseTooLong tests that an oversized JSON
+// payload is rejected rather than silently truncated or panicking.
+func TestBuildMinecraftStatusResponseTooLong(t *testing.T) {
+	t.Parallel()
+
+	huge := bigString(40000)
+	_, err := BuildMinecraftStatusResponse(huge)
+	if err == nil {
+		t.Fatal("expected error for oversized JSON payload")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("encode status response")) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestBuildMinecraftLoginDisconnectTooLong tests that an oversized
+// disconnect reason is rejected rather than silently truncated.
+func TestBuildMinecraftLoginDisconnectTooLong(t *testing.T) {
+	t.Parallel()
+
+	huge := bigString(40000)
+	_, err := BuildMinecraftLoginDisconnect(huge)
+	if err == nil {
+		t.Fatal("expected error for oversized disconnect reason")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("encode disconnect reason")) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// bigString builds an n-byte ASCII string for oversized-input tests.
+func bigString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = 'a'
+	}
+	return string(b)
+}
+
+// minecraftByteOnlyReader implements io.ByteReader but deliberately not
+// io.Reader, to exercise readMinecraftString's defensive type assertion.
+type minecraftByteOnlyReader struct {
+	data []byte
+	pos  int
+}
+
+func (b *minecraftByteOnlyReader) ReadByte() (byte, error) {
+	if b.pos >= len(b.data) {
+		return 0, io.EOF
+	}
+	c := b.data[b.pos]
+	b.pos++
+	return c, nil
+}
+
+// TestReadMinecraftStringNonIOReader tests the defensive branch that
+// rejects a ByteReader which does not also implement io.Reader.
+func TestReadMinecraftStringNonIOReader(t *testing.T) {
+	t.Parallel()
+
+	r := &minecraftByteOnlyReader{data: []byte{0x03, 'a', 'b', 'c'}}
+	_, err := readMinecraftString(r)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("does not implement io.Reader")) {
+		t.Errorf("unexpected error: %v", err)
+	}
 }
