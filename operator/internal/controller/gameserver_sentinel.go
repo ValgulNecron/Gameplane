@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -224,20 +225,7 @@ func (r *GameServerReconciler) reconcileSentinel(
 
 		// Build the per-port config env var (comma-separated list).
 		// Format: "port:protocol:wakeProtocol,..." e.g. "25565:TCP:minecraft,19133:UDP:generic"
-		portConfig := ""
-		for i, p := range tmpl.Spec.Ports {
-			if !p.Advertise {
-				continue
-			}
-			if i > 0 {
-				portConfig += ","
-			}
-			proto := p.Protocol
-			if proto == "" {
-				proto = corev1.ProtocolTCP
-			}
-			portConfig += fmt.Sprintf("%d:%s:%s", p.ContainerPort, proto, p.WakeProtocol)
-		}
+		portConfig := buildSentinelPortConfig(tmpl)
 
 		dep.Spec.Template.Spec.Containers = []corev1.Container{{
 			Name:  "sentinel",
@@ -434,4 +422,22 @@ func (r *GameServerReconciler) reconcileSentinelRBAC(ctx context.Context, gs *ga
 		return controllerutil.SetControllerReference(gs, rb, r.Scheme)
 	})
 	return err
+}
+
+// buildSentinelPortConfig constructs the comma-separated PORTS_CONFIG env var
+// from a GameTemplate's advertised ports. Format: "port:protocol:wakeProtocol,..."
+// e.g. "25565:TCP:minecraft,19133:UDP:generic"
+func buildSentinelPortConfig(tmpl *gameplanev1alpha1.GameTemplate) string {
+	entries := make([]string, 0)
+	for _, p := range tmpl.Spec.Ports {
+		if !p.Advertise {
+			continue
+		}
+		proto := p.Protocol
+		if proto == "" {
+			proto = corev1.ProtocolTCP
+		}
+		entries = append(entries, fmt.Sprintf("%d:%s:%s", p.ContainerPort, proto, p.WakeProtocol))
+	}
+	return strings.Join(entries, ",")
 }
