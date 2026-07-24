@@ -170,7 +170,11 @@ spec:
 ---
 # Allow inbound traffic to the wake sentinel on its advertised ports.
 # The sentinel pod holds the advertised ports while a game is asleep, and must
-# accept player traffic on the same CIDRs allowed to game pods.
+# accept player traffic on the same CIDRs allowed to game pods — reusing
+# networkPolicies.gameIngress.fromCIDRs (not a sentinel-specific key) is
+# deliberate: whatever CIDRs are trusted to reach the game port while it's
+# awake are exactly the CIDRs that should be trusted to reach the sentinel
+# standing in for it while asleep.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -184,14 +188,16 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        {{- $ingressCidrs := (.Values.networkPolicies.gameIngressCIDRs | default (list "0.0.0.0/0")) }}
+        {{- $ingressCidrs := (.Values.networkPolicies.gameIngress.fromCIDRs | default (list "0.0.0.0/0")) }}
         {{- range $ingressCidrs }}
         - ipBlock: { cidr: {{ . | quote }} }
         {{- end }}
+      {{- with .Values.networkPolicies.gameIngress.ports }}
       ports:
-        # All ports; the NetworkPolicy will be created per-GameServer so it can
-        # match that specific sentinel's port list. For now, allow any port and
-        # rely on the per-server ingress policy to narrow it.
+        {{- range . }}
+        - { protocol: {{ .protocol }}, port: {{ .port }} }
+        {{- end }}
+      {{- end }}
 ---
 # Allow the sentinel to reach the kube-apiserver for patching the
 # wake-requested annotation.
@@ -224,6 +230,13 @@ spec:
         - { protocol: TCP, port: 6443 }
 ---
 # Allow the sentinel to egress to game pods on advertised ports for the proxy path.
+# This is the INGRESS half only, on the game pod's own selector.
+# NetworkPolicy requires both sides to agree: the destination (this policy)
+# admits the sentinel, but default-deny-egress's podSelector: {} still
+# governs the sentinel as a SOURCE and only opens DNS. allow-sentinel-to-game-egress
+# below is the matching Egress half on the sentinel's selector — without it
+# the sentinel can never actually dial a game pod's <gs>-game-direct Service,
+# ingress rule notwithstanding.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -242,4 +255,30 @@ spec:
               app.kubernetes.io/name: gameplane-waker
       # All ports; the per-server ingress policy covers which ports are
       # actually advertised for each server.
+---
+# The Egress half of allow-sentinel-to-game (see its comment above): admits
+# the sentinel, as a traffic SOURCE, to reach game pods. Selects the
+# sentinel's own label (gameplane-waker) so default-deny-egress's
+# podSelector: {} — which otherwise limits every pod in the namespace,
+# sentinels included, to DNS-only egress — no longer blocks the sentinel's
+# proxy path to <gs>-game-direct.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sentinel-to-game-egress
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-waker
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gameplane-game
+      # All ports; allow-sentinel-to-game above (the matching ingress half)
+      # and the per-server ingress policy cover which ports are actually
+      # advertised for each server.
 {{- end }}
