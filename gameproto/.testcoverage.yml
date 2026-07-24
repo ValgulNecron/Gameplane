@@ -1,0 +1,13 @@
+# Coverage threshold gate for the shared gameproto module — wire-protocol
+# parsing for Minecraft and Terraria server handshakes.
+#
+# gameproto is pure stdlib with comprehensive table-driven tests covering
+# both join and status classification, error handling for truncated/malicious
+# input, string/integer encoding roundtrips, and packet building. Gate at 90%.
+profile: coverage/unit.out
+github-action-output: false
+
+threshold:
+  file: 0
+  package: 0
+  total: 90
