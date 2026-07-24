@@ -41,18 +41,21 @@ when you need reproducibility.
 
 ### Verifying image signatures
 
-Every published image (tagged releases and `:edge`) is signed with the
-project's cosign key, [`cosign.pub`](../cosign.pub) at the repo root. The
-signatures are offline/keyed (no transparency log), so pass the matching
-flag:
+Every published image (tagged releases and `:edge`), the Helm chart, and the
+official module bundles are signed with the project's cosign key,
+[`cosign.pub`](../cosign.pub) at the repo root, and recorded in the public
+Sigstore Rekor transparency log:
 
 ```sh
-cosign verify --key cosign.pub --insecure-ignore-tlog=true \
+cosign verify --key cosign.pub \
   ghcr.io/valgulnecron/gameplane/operator:<version>
 ```
 
-The official module bundles are signed with the same key; the chart already
-carries it, so bundle verification is just a values flip — see
+Pre-rotation releases (v0.2.0-beta.7 and earlier) used the retired Ed25519 key
+and lack transparency log entries — verify those with `cosign-legacy.pub` and
+`--insecure-ignore-tlog=true`. See [`key-rotation.md`](key-rotation.md) for the
+trust continuity proof. Module bundles are verified the same way; the chart
+carries the key, so bundle verification is just a values flip — see
 [`module-authoring.md`](module-authoring.md#signing-official-bundles).
 
 From source (during development), the chart in this repo always renders against

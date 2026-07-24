@@ -199,9 +199,13 @@ boundary. Three controls protect it:
   the operator refuse any bundle without a valid cosign signature — keyed (a
   public key) or keyless (a pinned Fulcio issuer + identity). Use it for any
   source you don't fully control. The official `modules/*` bundles are
-  keyed-signed by the release pipeline and verify **offline** (no Rekor/Fulcio
-  reachability needed). Signing is an OCI concept, so switch the default source
-  to `type: oci` and enable `defaultModuleSource.oci.verify.enabled`.
+  keyed-signed by the release pipeline (and now also recorded in the public
+  Sigstore Rekor log), and verify **offline** (no Rekor/Fulcio reachability
+  needed). The operator's verification is intentionally offline/keyed, keeping
+  air-gapped and self-hosted clusters functional. Opt-in enforcement of
+  transparency log inclusion is future work. Signing is an OCI concept, so
+  switch the default source to `type: oci` and enable
+  `defaultModuleSource.oci.verify.enabled`.
 - **Digest pinning.** `Module.spec.digest` pins exact bundle content; a moved
   tag fails the install with `DigestMismatch`.
 
