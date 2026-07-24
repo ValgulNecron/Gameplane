@@ -12,6 +12,12 @@
 // that the caller needs to craft a reply. All parsing is defensive: bounded
 // reads, explicit max packet sizes, no unbounded allocations from length
 // prefixes, and no panics on hostile input.
+//
+// Classifiers capture the bytes consumed from the reader so the caller can
+// replay the handshake to the real game server. The Consumed field holds the
+// actual bytes read: length-prefix VarInt + frame data for Minecraft, or
+// 3-byte header + payload for Terraria. The caller can replay these exact
+// bytes: len(consumed) + len(remaining) == len(original).
 package gameproto
 
 import (
@@ -60,6 +66,10 @@ type MinecraftClassifyResult struct {
 
 	// ServerAddr is the server address (host:port) the client sent in the handshake.
 	ServerAddr string
+
+	// Consumed holds the bytes read from the input to parse this handshake.
+	// Can be replayed: len(consumed) + len(remaining) == len(original).
+	Consumed []byte
 }
 
 // ClassifyMinecraft reads a Minecraft handshake from the connection and
@@ -77,9 +87,9 @@ type TerrariaClassifyResult struct {
 	// Version is the protocol version string from the ConnectRequest.
 	Version string
 
-	// MaxPlayers is the max player count if parseable from the request.
-	// Not all Terraria clients send it; zero if unavailable.
-	MaxPlayers byte
+	// Consumed holds the bytes read from the input to parse this request.
+	// Can be replayed: len(consumed) + len(remaining) == len(original).
+	Consumed []byte
 }
 
 // ClassifyTerraria reads a Terraria ConnectRequest and classifies it as Join.

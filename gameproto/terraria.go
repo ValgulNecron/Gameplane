@@ -26,6 +26,9 @@ const terrariaMaxPacketSize = 65535
 // Terraria has no out-of-band status ping, so we only care about connection
 // attempts.
 func classifyTerrariaConnect(r io.Reader) (Kind, *TerrariaClassifyResult, error) {
+	// Accumulate consumed bytes
+	var consumed bytes.Buffer
+
 	// Read the message frame header (2-byte length LE + 1-byte type).
 	var header [3]byte
 	if _, err := io.ReadFull(r, header[:]); err != nil {
@@ -34,6 +37,9 @@ func classifyTerrariaConnect(r io.Reader) (Kind, *TerrariaClassifyResult, error)
 		}
 		return Unknown, nil, fmt.Errorf("read terraria frame header: %w", err)
 	}
+
+	// Record the header bytes
+	consumed.Write(header[:])
 
 	// The length includes the 2-byte length field itself.
 	totalLength := binary.LittleEndian.Uint16(header[:2])
@@ -59,6 +65,9 @@ func classifyTerrariaConnect(r io.Reader) (Kind, *TerrariaClassifyResult, error)
 		}
 	}
 
+	// Record the payload bytes
+	consumed.Write(payload)
+
 	// Only ConnectRequest (type 1) indicates a join attempt.
 	if messageType != terrariaConnectRequest {
 		return Unknown, nil, nil
@@ -70,11 +79,14 @@ func classifyTerrariaConnect(r io.Reader) (Kind, *TerrariaClassifyResult, error)
 		return Unknown, nil, fmt.Errorf("parse terraria ConnectRequest: %w", err)
 	}
 
+	// Store consumed bytes
+	result.Consumed = consumed.Bytes()
+
 	return Join, result, nil
 }
 
 // parseTerrariaConnectRequest parses the payload of a ConnectRequest message.
-// Format: [version string][unknown field byte][max players byte]
+// Format: [version string only]
 func parseTerrariaConnectRequest(payload []byte) (*TerrariaClassifyResult, error) {
 	if len(payload) == 0 {
 		return nil, errors.New("empty ConnectRequest payload")
@@ -90,23 +102,6 @@ func parseTerrariaConnectRequest(payload []byte) (*TerrariaClassifyResult, error
 
 	result := &TerrariaClassifyResult{
 		Version: version,
-	}
-
-	// Try to read max players; it's optional in some versions.
-	// Skip one byte (unknown/reserved field) if present.
-	_, err = br.ReadByte()
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("read unknown field: %w", err)
-	}
-	if err == nil {
-		// Read one more byte for max players if available.
-		maxPlayers, err := br.ReadByte()
-		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("read max players: %w", err)
-		}
-		if err == nil {
-			result.MaxPlayers = maxPlayers
-		}
 	}
 
 	return result, nil

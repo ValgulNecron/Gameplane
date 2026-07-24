@@ -19,19 +19,19 @@ func TestClassifyTerrariaConnectRequest(t *testing.T) {
 	}{
 		{
 			name:       "valid connect request",
-			data:       buildTerrariaConnectRequest("Terraria279", 0, 10),
+			data:       buildTerrariaConnectRequest("Terraria279"),
 			expectKind: Join,
 			expectErr:  false,
 		},
 		{
 			name:       "connect with different version",
-			data:       buildTerrariaConnectRequest("Terraria234", 0, 16),
+			data:       buildTerrariaConnectRequest("Terraria234"),
 			expectKind: Join,
 			expectErr:  false,
 		},
 		{
 			name:       "connect minimal",
-			data:       buildTerrariaConnectRequest("Terraria279", 0, 0),
+			data:       buildTerrariaConnectRequest("Terraria279"),
 			expectKind: Join,
 			expectErr:  false,
 		},
@@ -241,7 +241,7 @@ func TestBuildTerrariaDisconnect(t *testing.T) {
 				t.Errorf("expected message type %d, got %d", terrariaDisconnect, messageType)
 			}
 
-			// The length field includes itself, so actual data is length-2 bytes after the length.
+			// The length field includes itself, so actual data is length bytes after the length field.
 			if len(data) != int(length)+2 {
 				t.Errorf("frame length mismatch: claimed %d, actual %d", length, len(data)-2)
 			}
@@ -322,31 +322,22 @@ func TestTerrariaConnectRequestParsing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		version        string
-		unknownByte    byte
-		maxPlayers     byte
-		expectVersion  string
-		expectMaxPlayers byte
-		expectErr      bool
+		name          string
+		version       string
+		expectVersion string
+		expectErr     bool
 	}{
 		{
-			name:           "standard connect",
-			version:        "Terraria279",
-			unknownByte:    0,
-			maxPlayers:     10,
-			expectVersion:  "Terraria279",
-			expectMaxPlayers: 10,
-			expectErr:      false,
+			name:          "standard connect",
+			version:       "Terraria279",
+			expectVersion: "Terraria279",
+			expectErr:     false,
 		},
 		{
-			name:           "different version",
-			version:        "Terraria238",
-			unknownByte:    0,
-			maxPlayers:     16,
-			expectVersion:  "Terraria238",
-			expectMaxPlayers: 16,
-			expectErr:      false,
+			name:          "different version",
+			version:       "Terraria238",
+			expectVersion: "Terraria238",
+			expectErr:     false,
 		},
 	}
 
@@ -355,8 +346,6 @@ func TestTerrariaConnectRequestParsing(t *testing.T) {
 			// Build payload.
 			var payload bytes.Buffer
 			_ = writeTerrariaString(&payload, tt.version)
-			payload.WriteByte(tt.unknownByte)
-			payload.WriteByte(tt.maxPlayers)
 
 			result, err := parseTerrariaConnectRequest(payload.Bytes())
 
@@ -370,9 +359,6 @@ func TestTerrariaConnectRequestParsing(t *testing.T) {
 			if !tt.expectErr && result != nil {
 				if result.Version != tt.expectVersion {
 					t.Errorf("expected version %q, got %q", tt.expectVersion, result.Version)
-				}
-				if result.MaxPlayers != tt.expectMaxPlayers {
-					t.Errorf("expected max players %d, got %d", tt.expectMaxPlayers, result.MaxPlayers)
 				}
 			}
 		})
@@ -459,7 +445,7 @@ func TestClassifyTerrariaEOFHandling(t *testing.T) {
 	t.Parallel()
 
 	// A proper ConnectRequest followed by EOF should parse successfully.
-	data := buildTerrariaConnectRequest("Terraria279", 0, 10)
+	data := buildTerrariaConnectRequest("Terraria279")
 	kind, result, err := ClassifyTerraria(bytes.NewReader(data))
 
 	if err != nil {
@@ -473,16 +459,105 @@ func TestClassifyTerrariaEOFHandling(t *testing.T) {
 	}
 }
 
+// TestTerrariaConsumedBytes tests that consumed bytes can be replayed.
+func TestTerrariaConsumedBytes(t *testing.T) {
+	t.Parallel()
+
+	data := buildTerrariaConnectRequest("Terraria279")
+	kind, result, err := ClassifyTerraria(bytes.NewReader(data))
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if kind != Join {
+		t.Fatalf("expected kind Join, got %v", kind)
+	}
+	if result == nil {
+		t.Fatalf("expected result, got nil")
+	}
+
+	// Consumed should equal the total data length for a complete read
+	if len(result.Consumed) != len(data) {
+		t.Errorf("consumed %d != len(data) %d", len(result.Consumed), len(data))
+	}
+
+	// Consumed must be non-empty
+	if len(result.Consumed) == 0 {
+		t.Errorf("consumed should be non-empty")
+	}
+
+	// Consumed bytes should match the original data
+	if !bytes.Equal(result.Consumed, data) {
+		t.Errorf("consumed bytes do not match original data")
+	}
+}
+
+// TestTerrariaHostileInputs tests hostile/malformed input.
+func TestTerrariaHostileInputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		data   []byte
+		errStr string // substring expected in error message
+	}{
+		{
+			name:   "length 0xFFFFFFFF (claim max uint16)",
+			data:   buildTerrariaMessage(terrariaConnectRequest, make([]byte, 65530)),
+			errStr: "", // This should succeed as it's within bounds
+		},
+		{
+			name:   "zero length",
+			data:   []byte{0x00, 0x00, 0x01},
+			errStr: "too short",
+		},
+		{
+			name:   "truncated header",
+			data:   []byte{0x00},
+			errStr: "EOF",
+		},
+		{
+			name:   "truncated payload",
+			data:   []byte{0x10, 0x00, 0x01, 0x02}, // length=16 but only 4 bytes total
+			errStr: "read terraria frame payload",
+		},
+		{
+			name:   "empty input",
+			data:   []byte{},
+			errStr: "EOF",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kind, _, err := ClassifyTerraria(bytes.NewReader(tt.data))
+
+			if tt.errStr != "" {
+				if err == nil {
+					t.Errorf("expected error, got none")
+				}
+				if kind != Unknown {
+					t.Errorf("expected kind Unknown, got %v", kind)
+				}
+				if !bytes.Contains([]byte(err.Error()), []byte(tt.errStr)) {
+					t.Errorf("expected error containing %q, got: %v", tt.errStr, err)
+				}
+			} else {
+				// No error expected
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
 // Helper function to build a ConnectRequest frame.
-func buildTerrariaConnectRequest(version string, unknownByte, maxPlayers byte) []byte {
+func buildTerrariaConnectRequest(version string) []byte {
 	var payload bytes.Buffer
 
-	// Write version string.
+	// Write version string only.
 	_ = writeTerrariaString(&payload, version)
-
-	// Write unknown byte and max players.
-	payload.WriteByte(unknownByte)
-	payload.WriteByte(maxPlayers)
 
 	return buildTerrariaMessage(terrariaConnectRequest, payload.Bytes())
 }

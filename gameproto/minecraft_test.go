@@ -131,6 +131,40 @@ func TestClassifyMinecraftLogin(t *testing.T) {
 	}
 }
 
+// TestMinecraftConsumedBytes tests that consumed bytes can be replayed.
+func TestMinecraftConsumedBytes(t *testing.T) {
+	t.Parallel()
+
+	// Build a valid handshake with known consumed bytes.
+	data := buildMinecraftHandshake(761, "localhost", 25565, 2)
+
+	kind, result, err := ClassifyMinecraft(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if kind != Join {
+		t.Fatalf("expected kind Join, got %v", kind)
+	}
+	if result == nil {
+		t.Fatalf("expected result, got nil")
+	}
+
+	// Consumed + remaining should equal original
+	if len(result.Consumed) != len(data) {
+		t.Errorf("consumed %d != len(data) %d", len(result.Consumed), len(data))
+	}
+
+	// Consumed must be non-empty
+	if len(result.Consumed) == 0 {
+		t.Errorf("consumed should be non-empty")
+	}
+
+	// Consumed bytes should match the original data
+	if !bytes.Equal(result.Consumed, data) {
+		t.Errorf("consumed bytes do not match original data")
+	}
+}
+
 // TestBuildMinecraftStatusResponse tests response building.
 func TestBuildMinecraftStatusResponse(t *testing.T) {
 	t.Parallel()
@@ -367,6 +401,59 @@ func TestClassifyMinecraftZeroLength(t *testing.T) {
 	}
 	if kind != Unknown {
 		t.Errorf("expected kind Unknown, got %v", kind)
+	}
+}
+
+// TestMinecraftHostileInputs tests hostile/malformed input.
+func TestMinecraftHostileInputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		data   []byte
+		errStr string // substring expected in error message
+	}{
+		{
+			name:   "length 0xFFFFFFFF (2GB claim)",
+			data:   []byte{0xFF, 0xFF, 0xFF, 0xFF, 0x7F},
+			errStr: "out of range",
+		},
+		{
+			name:   "negative length encoding",
+			data:   []byte{0x80, 0x80, 0x80, 0x80, 0x08}, // -1 as 5-byte varint
+			errStr: "out of range",
+		},
+		{
+			name:   "truncated packet (claim 100 bytes, send 5)",
+			data:   []byte{0x64, 0x00, 0x01, 0x02, 0x03}, // length=100, data...
+			errStr: "read handshake frame",
+		},
+		{
+			name:   "empty input",
+			data:   []byte{},
+			errStr: "EOF",
+		},
+		{
+			name:   "partial varint",
+			data:   []byte{0xFF, 0xFF, 0xFF}, // incomplete 5-byte varint
+			errStr: "EOF",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kind, _, err := ClassifyMinecraft(bytes.NewReader(tt.data))
+
+			if err == nil {
+				t.Errorf("expected error, got none")
+			}
+			if kind != Unknown {
+				t.Errorf("expected kind Unknown, got %v", kind)
+			}
+			if tt.errStr != "" && !bytes.Contains([]byte(err.Error()), []byte(tt.errStr)) {
+				t.Errorf("expected error containing %q, got: %v", tt.errStr, err)
+			}
+		})
 	}
 }
 

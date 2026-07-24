@@ -1,6 +1,7 @@
 package gameproto
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -18,24 +19,15 @@ const minecraftMaxPacketSize = 512
 // classifyMinecraftHandshake reads and parses the Handshake packet to determine
 // whether the connection is a Join (login state) or Status (status state).
 func classifyMinecraftHandshake(r io.Reader) (Kind, *MinecraftClassifyResult, error) {
-	// Wrap the reader in a bufio reader if needed to get ByteReader interface.
-	br, ok := r.(io.ByteReader)
-	if !ok {
-		// Try to wrap in bytes.Reader if it's a []byte slice.
-		if buf, ok := r.(*bytes.Buffer); ok {
-			br = buf
-		} else {
-			// Fallback: read into a buffer first.
-			var buf bytes.Buffer
-			if _, err := io.Copy(&buf, r); err != nil {
-				return Unknown, nil, fmt.Errorf("buffer read: %w", err)
-			}
-			br = bytes.NewReader(buf.Bytes())
-		}
-	}
+	// Wrap reader in bufio.Reader to get ByteReader interface safely.
+	// This avoids blocking on io.Copy with live connections.
+	br := bufio.NewReader(r)
+
+	// Accumulate consumed bytes
+	var consumed bytes.Buffer
 
 	// Read the frame length (VarInt).
-	length, err := readMinecraftVarInt(br)
+	length, err := readMinecraftVarIntWithCapture(br, &consumed)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			return Unknown, nil, err
@@ -49,12 +41,15 @@ func classifyMinecraftHandshake(r io.Reader) (Kind, *MinecraftClassifyResult, er
 
 	// Read the packet data into a buffer.
 	frame := make([]byte, length)
-	if _, err = io.ReadFull(r, frame); err != nil {
+	if _, err = io.ReadFull(br, frame); err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return Unknown, nil, fmt.Errorf("read handshake frame: %w", err)
 		}
 		return Unknown, nil, fmt.Errorf("read handshake frame: %w", err)
 	}
+
+	// Add frame data to consumed
+	consumed.Write(frame)
 
 	// Parse the handshake packet.
 	frameReader := bytes.NewReader(frame)
@@ -97,6 +92,7 @@ func classifyMinecraftHandshake(r io.Reader) (Kind, *MinecraftClassifyResult, er
 		ProtocolVersion: protocolVersion,
 		NextState:       nextState,
 		ServerAddr:      serverAddr + ":" + strconv.Itoa(int(port)),
+		Consumed:        consumed.Bytes(),
 	}
 
 	switch nextState {
@@ -160,6 +156,23 @@ func readMinecraftVarInt(r io.ByteReader) (int32, error) {
 	return 0, errors.New("varint too long")
 }
 
+// readMinecraftVarIntWithCapture reads a VarInt and writes its bytes to a buffer.
+func readMinecraftVarIntWithCapture(r io.ByteReader, w io.Writer) (int32, error) {
+	var result uint32
+	for i := 0; i < 5; i++ {
+		b, err := r.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		w.Write([]byte{b})
+		result |= uint32(b&0x7f) << (7 * i)
+		if b&0x80 == 0 {
+			return int32(result), nil
+		}
+	}
+	return 0, errors.New("varint too long")
+}
+
 // writeMinecraftVarInt writes a VarInt to w.
 func writeMinecraftVarInt(w *bytes.Buffer, v int32) {
 	uv := uint32(v)
@@ -186,22 +199,10 @@ func readMinecraftString(r io.ByteReader) (string, error) {
 		return "", fmt.Errorf("string length %d out of range", length)
 	}
 
-	// Convert ByteReader to Reader so we can use ReadFull.
-	// If r is already a Reader, use it directly; otherwise wrap it.
-	var rr io.Reader
-	if reader, ok := r.(io.Reader); ok {
-		rr = reader
-	} else {
-		// Fallback: read bytes one by one.
-		buf := make([]byte, length)
-		for i := 0; i < int(length); i++ {
-			b, err := r.ReadByte()
-			if err != nil {
-				return "", err
-			}
-			buf[i] = b
-		}
-		return string(buf), nil
+	// Convert ByteReader to Reader. If r is a bufio.Reader or bytes.Reader, it implements io.Reader.
+	rr, ok := r.(io.Reader)
+	if !ok {
+		return "", fmt.Errorf("reader does not implement io.Reader")
 	}
 
 	buf := make([]byte, length)
