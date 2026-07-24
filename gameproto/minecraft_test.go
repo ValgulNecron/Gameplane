@@ -37,28 +37,28 @@ func TestClassifyMinecraftStatus(t *testing.T) {
 			expectErr:     false,
 		},
 		{
-			name:          "truncated length",
-			data:          []byte{0xFF},
-			expectKind:    Unknown,
-			expectErr:     true,
+			name:       "truncated length",
+			data:       []byte{0xFF},
+			expectKind: Unknown,
+			expectErr:  true,
 		},
 		{
-			name:          "truncated frame",
-			data:          []byte{0x05, 0x00, 0x00}, // length=5 but only 2 bytes of data
-			expectKind:    Unknown,
-			expectErr:     true,
+			name:       "truncated frame",
+			data:       []byte{0x05, 0x00, 0x00}, // length=5 but only 2 bytes of data
+			expectKind: Unknown,
+			expectErr:  true,
 		},
 		{
-			name:          "empty input",
-			data:          []byte{},
-			expectKind:    Unknown,
-			expectErr:     true,
+			name:       "empty input",
+			data:       []byte{},
+			expectKind: Unknown,
+			expectErr:  true,
 		},
 		{
-			name:          "huge packet size",
-			data:          []byte{0xFF, 0xFF, 0xFF, 0xFF, 0x7F}, // 2GB size
-			expectKind:    Unknown,
-			expectErr:     true,
+			name:       "huge packet size",
+			data:       []byte{0xFF, 0xFF, 0xFF, 0xFF, 0x7F}, // 2GB size
+			expectKind: Unknown,
+			expectErr:  true,
 		},
 	}
 

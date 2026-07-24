@@ -98,9 +98,9 @@ func TestClassifyTerrariaTruncatedHeader(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		data   []byte
-		isEOF  bool
+		name  string
+		data  []byte
+		isEOF bool
 	}{
 		{
 			name:  "no bytes",
