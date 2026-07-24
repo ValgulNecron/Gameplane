@@ -7,6 +7,24 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Security
+
+- **Signing key rotated:** cosign key type changed from Ed25519 to ECDSA P-256
+  (cross-signed for trust continuity; see `docs/key-rotation.md`).
+- **Transparency logging enabled:** all published images, the Helm chart (now
+  signed for the first time), and official module bundles are signed and
+  recorded in the public Sigstore Rekor transparency log. Signing is now
+  fail-closed in CI (missing `COSIGN_PRIVATE_KEY` fails the release).
+
+### Changed
+
+- **`modules/build.sh`** gained `--tlog-upload` flag (passed by the release
+  pipeline for official bundles); default stays offline for air-gapped authoring.
+- **Module bundles** are now signed by the pushed manifest digest. `build.sh`
+  previously took the first `sha256:` token in `oras push` output, which is not
+  necessarily the manifest — a layer digest printed in full would have been
+  signed instead (operator verification unchanged).
+
 ## [0.2.0-beta.7] — 2026-07-18
 
 A stabilization release: a full audit of code, the live dashboard, the API, and

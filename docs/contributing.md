@@ -98,12 +98,13 @@ merges, bump the submodule pointer here (`git add modules`) in a follow-up PR.
 ## Release process
 
 Tags matching `v*` trigger the `release.yaml` workflow, which builds the
-component images, pushes the Helm chart to the `gameplane` OCI registry,
-and — when a signing key is configured — keyed-cosign-signs the images by
-digest and pushes and signs the official `modules/*` bundles.
+component images, pushes the Helm chart to the `gameplane` OCI registry, and
+keyed-cosign-signs all images (component and chart) and official `modules/*`
+bundles by digest, recording all signatures in the public Sigstore Rekor
+transparency log.
 
-Module signing is gated on a one-time key setup: run `cosign
-generate-key-pair`, set `COSIGN_PRIVATE_KEY`/`COSIGN_PASSWORD` as CI
-secrets, and publish `cosign.pub`. Until then the `modules` job no-ops and
-the release still succeeds. See
-[`module-authoring.md`](module-authoring.md#signing-official-bundles).
+Signing is **mandatory and fail-closed**: if `COSIGN_PRIVATE_KEY` is not
+configured, the release job fails. A one-time key setup is required: run `cosign
+generate-key-pair`, set `COSIGN_PRIVATE_KEY`/`COSIGN_PASSWORD` as CI secrets,
+and publish `cosign.pub` at the repo root. See
+[`module-authoring.md`](module-authoring.md#signing-official-bundles) for details.

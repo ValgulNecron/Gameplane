@@ -301,7 +301,7 @@ These aren't code dependencies of any component; they're invoked by
 - **`sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19`** — installed by `make envtest-bin`; downloads the K8s 1.31.0 envtest binaries (`kube-apiserver`, `etcd`) that back `operator`'s and `api`'s `-tags=envtest` integration tests.
 - **`golangci-lint` v1.64.8** — pinned in `.devcontainer/post-create.sh` (built from source, not the release binary, because the release binary is built with an older Go than the repo's `go 1.25.0` toolchain wants). Configured by `.golangci.yml` (bodyclose, errcheck, gosec, govet, ineffassign, staticcheck, unused, misspell, gofmt, goimports, revive, unparam, nilerr, noctx, errorlint, contextcheck). **Not currently invoked by CI** — `ci.yaml`'s `go` job runs only `go vet`, not `golangci-lint run`; `make lint-go` exists for local/devcontainer use and is called out in `docs/contributing.md` as a pre-PR step, but nothing in `.github/workflows/` gates on it. Same for the web job: it runs `npm run build` and `npm run test:cover`, not `npm run lint` — ESLint isn't CI-gated either.
 - **`oras` CLI ≥ 1.2.0** (pinned `1.2.0` in the devcontainer; `oras-project/setup-oras@v1` action in `release.yaml`) — `modules/build.sh` pushes each `modules/<name>/` directory as an OCI module bundle (`make modules-push`); this is a *different* thing from `operator`'s `oras.land/oras-go/v2` **library** dependency, which is the operator's own pull-side client, not the CLI.
-- **`cosign` CLI v2.4.3** (`sigstore/cosign-installer@v3`, pinned `cosign-release: 'v2.4.3'`) — used in `publish-edge.yaml`/`release.yaml` to keyed-sign (offline, `--tlog-upload=false`, no Rekor) published container images and module bundles against `COSIGN_PRIVATE_KEY`, and to round-trip-verify against the derived public key before publishing. Distinct from `operator`'s `sigstore/cosign/v2` **library** dependency, which only ever *verifies* (never signs) at reconcile time.
+- **`cosign` CLI v3.0.6** (`sigstore/cosign-installer@v4.1.2`) — used in `publish-edge.yaml`/`release.yaml` to sign published container images, the Helm chart, and module bundles against `COSIGN_PRIVATE_KEY`, recording each signature in the public Rekor transparency log, and to round-trip-verify against the derived public key before publishing. Signatures use the classic format (`--new-bundle-format=false --use-signing-config=false`), which is what keeps them readable by the operator's `sigstore/cosign/v2` library; cosign's newer Rekor v2 flow additionally requires an RFC3161 timestamp authority that keyed signing cannot satisfy. `modules/build.sh` gates the same behaviour behind its own `--tlog-upload` flag so local and air-gapped authoring stays offline. Distinct from `operator`'s `sigstore/cosign/v2` **library** dependency, which only ever *verifies* (never signs) at reconcile time.
 - **`kind`** v0.24.0 (devcontainer pin) / `helm/kind-action@v1` (`install_only: true` in CI) — spins up the ephemeral clusters for `make dev-up`, `make test-e2e`, and every `e2e-*` CI job.
 - **`helm`** (`azure/setup-helm@v4` in CI; `kubectl-helm-minikube` devcontainer feature, `helm: latest`) — chart lint (`helm lint`), chart render sanity-check, `helm template`, and `helm upgrade --install` in `deploy/kind/*.sh`/`Makefile`'s `dev-install`.
 - **`docker buildx bake`** (`docker-bake.hcl`, `docker/bake-action@v6`) — builds the operator/api/agent e2e images concurrently with a shared GitHub Actions layer cache (`.github/actions/e2e-images`); also builds the `e2e-gameprobe` headless bot image used only by the game-bot CI job.
@@ -350,13 +350,11 @@ The Helm chart itself (`charts/gameplane/Chart.yaml`) declares **no chart
   adding a new local module.
 - **Signing has two independent code paths that must be kept in sync.**
   Verification (`operator`'s `sigstore/cosign/v2` **library**, checked at
-  Module-reconcile time against `cosign.pub`) and signing (the `cosign`
-  **CLI**, `sigstore/cosign-installer@v3` in CI, gated on
-  `COSIGN_PRIVATE_KEY` being set) are deliberately pinned to the same
-  cosign v2 line (`v2.6.3` library / `v2.4.3` CLI) because cosign v3
-  dropped the offline `--tlog-upload=false` flag this project's keyed,
-  no-Rekor signing model depends on — a bump to either side needs to keep
-  that constraint in mind.
+  Module-reconcile time against `cosign.pub`) and signing (the `cosign` **CLI**
+  v3.0.6, `sigstore/cosign-installer@v4.1.2` in CI) both use classic cosign
+  signature format (`--new-bundle-format=false --use-signing-config=false`) for
+  mutual compatibility. A bump to either side needs to preserve that format
+  compatibility and the ability to sign with `--tlog-upload` (Rekor logging).
 - **Lint is configured but not CI-enforced.** `.golangci.yml` and
   `web/eslint.config.js` are both real, actively-maintained rule sets (see
   "Fix, don't silence" in `CLAUDE.md`), but neither `golangci-lint run` nor

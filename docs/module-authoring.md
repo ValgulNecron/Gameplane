@@ -289,9 +289,11 @@ sigstore trust root and Rekor:
       identity: https://github.com/<org>/<repo>/.github/workflows/release.yaml@refs/tags/v1.0.0
 ```
 
-The official Gameplane bundles are **keyed**-signed (offline, no Rekor — see
+The official Gameplane bundles are **keyed**-signed (see
 [Signing official bundles](#signing-official-bundles) below), so verify them
-with the keyed form above.
+with the keyed form above. Their signatures are also recorded in the public
+Rekor log, but the operator's keyed path checks the signature offline and does
+not require log inclusion — so this stays air-gap friendly.
 
 `spec.verify` is rejected on non-OCI sources (cosign signatures are an OCI
 concept); `git`/`http`/`local`/`upload` rely on the content digest plus a
@@ -301,10 +303,11 @@ concept); `git`/`http`/`local`/`upload` rely on the content digest plus a
 
 ### Signing official bundles
 
-The official `modules/*` bundles are signed by the release pipeline so installs
-can verify them offline. Signing is **keyed** (an Ed25519 key, no transparency
-log) — the operator's keyed verify path needs no Fulcio/Rekor connectivity,
-which suits air-gapped and self-hosted clusters.
+The official `modules/*` bundles are signed by the release pipeline (ECDSA
+P-256 key) and recorded in the public Sigstore Rekor transparency log. The
+operator's keyed verify path is deliberately **offline** (no Fulcio/Rekor
+connectivity required), which keeps air-gapped and self-hosted clusters
+functional.
 
 **One-time key setup (maintainer).** Generate a project signing key and store
 the halves in the right places — the private key never leaves CI secrets, the
@@ -318,10 +321,12 @@ cosign generate-key-pair                 # writes cosign.key (private) + cosign.
 # private key on every publish, and it ships as a release asset.
 ```
 
-The `release.yaml` `modules` job then runs `modules/build.sh push --sign` on
-every `v*` tag, pushing each bundle to `ghcr.io/<owner>/gameplane-modules` and
-signing it by digest. The job is gated on `COSIGN_PRIVATE_KEY`: until the key
-exists the release simply skips module publishing.
+The `release.yaml` `modules` job runs `modules/build.sh push --sign
+--tlog-upload` on every `v*` tag, pushing each bundle to
+`ghcr.io/<owner>/gameplane-modules` and signing it by digest with public Rekor
+log recording. The default (no `--tlog-upload`) keeps signing local/offline for
+air-gapped authoring. Signing is mandatory: a missing `COSIGN_PRIVATE_KEY`
+fails the job rather than publishing unsigned bundles.
 
 **Verifying the official source (operator).** Signing is an OCI concept, so
 switch the default source to `type: oci` and turn verification on. The official
@@ -335,7 +340,7 @@ defaultModuleSource:
   oci:
     verify:
       enabled: true
-      # cosignPublicKey ships with the chart (the official Ed25519 key,
+      # cosignPublicKey ships with the chart (the official ECDSA P-256 key,
       # same as the repo-root cosign.pub);
       # override it only to pin a different signer.
 ```

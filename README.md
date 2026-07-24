@@ -199,8 +199,10 @@ credential on your behalf.
 ├── charts/gameplane/       # Helm chart
 ├── deploy/kind/          # local dev cluster
 ├── docs/
-├── cosign.pub    # public key for verifying signed images + module bundles
-└── design.pen    # Pencil design source (do not delete)
+├── cosign.pub            # ECDSA P-256 key for verifying signed artifacts (current)
+├── cosign-legacy.pub     # Ed25519 key for verifying pre-rotation artifacts
+├── cosign.pub.legacy-sig # cross-signature proving trust continuity
+└── design.pen            # Pencil design source (do not delete)
 ```
 
 ## Install on a cluster
@@ -221,15 +223,20 @@ add `--set image.tag=edge`. Then seed an admin user and log in — see
 [`docs/install.md`](docs/install.md) for the full flow, OIDC, Postgres, and
 values reference.
 
-All published images and module bundles are signed with the project's
-cosign key ([`cosign.pub`](cosign.pub), also baked into the chart for
-module verification). Signing is offline/keyed — no transparency log —
-so verification needs the matching flag:
+All published images, the Helm chart, and official module bundles are signed
+with the project's cosign key ([`cosign.pub`](cosign.pub), also baked into
+the chart for module verification) and recorded in the public Sigstore Rekor
+transparency log:
 
 ```sh
-cosign verify --key cosign.pub --insecure-ignore-tlog=true \
+cosign verify --key cosign.pub \
   ghcr.io/valgulnecron/gameplane/operator:<version>
 ```
+
+Pre-rotation releases (v0.2.0-beta.7 and earlier) were signed with the retired
+Ed25519 key and do not have transparency log entries — verify them with
+`cosign-legacy.pub` and `--insecure-ignore-tlog=true`. See
+[`docs/key-rotation.md`](docs/key-rotation.md) for details.
 
 ## Quickstart (local dev)
 
