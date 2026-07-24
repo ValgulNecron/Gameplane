@@ -20,12 +20,14 @@ import (
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -419,6 +421,31 @@ func patchJobStatus(t *testing.T, ns, name string, mut func(s *batchv1.JobStatus
 	mut(&job.Status)
 	if err := k8sClient.Status().Update(context.Background(), &job); err != nil {
 		t.Fatalf("status update job %s/%s: %v", ns, name, err)
+	}
+}
+
+// setDeploymentReady fakes a Deployment's status in envtest, which runs no
+// Deployment controller. Setting only ReadyReplicas while Status.Replicas
+// stays at its zero default makes the apiserver reject the status update
+// outright — status.readyReplicas cannot exceed status.replicas — so this
+// sets all four counters consistently, matching what the real Deployment
+// controller reports for a fully rolled-out, fully available Deployment.
+// Uses RetryOnConflict like setSSStatus: a live reconciler may be writing
+// the same object concurrently under startMgr.
+func setDeploymentReady(t *testing.T, ns, name string, ready int32) {
+	t.Helper()
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var dep appsv1.Deployment
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &dep); err != nil {
+			return err
+		}
+		dep.Status.Replicas = ready
+		dep.Status.ReadyReplicas = ready
+		dep.Status.AvailableReplicas = ready
+		dep.Status.UpdatedReplicas = ready
+		return k8sClient.Status().Update(context.Background(), &dep)
+	}); err != nil {
+		t.Fatalf("set deployment %s ready=%d: %v", name, ready, err)
 	}
 }
 

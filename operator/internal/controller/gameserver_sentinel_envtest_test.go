@@ -343,22 +343,6 @@ func TestSentinelReconciliation(t *testing.T) {
 // real Reconcile pass.
 // ---------------------------------------------------------------------
 
-// setDeployReady fakes a Deployment's ReadyReplicas in envtest, which has
-// no controller-manager to run the real Deployment controller.
-func setDeployReady(t *testing.T, ns, name string, ready int32) {
-	t.Helper()
-	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var dep appsv1.Deployment
-		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: name}, &dep); err != nil {
-			return err
-		}
-		dep.Status.ReadyReplicas = ready
-		return k8sClient.Status().Update(context.Background(), &dep)
-	}); err != nil {
-		t.Fatalf("set deployment %s ready=%d: %v", name, ready, err)
-	}
-}
-
 func deploymentExists(t *testing.T, ns, name string) bool {
 	t.Helper()
 	var dep appsv1.Deployment
@@ -454,7 +438,7 @@ func TestGameServer_WakeOnConnectServiceSelector(t *testing.T) {
 	eventually(t, func() (bool, string) {
 		return deploymentExists(t, ns, "wakesel-waker"), "sentinel deployment not created"
 	})
-	setDeployReady(t, ns, "wakesel-waker", 1)
+	setDeploymentReady(t, ns, "wakesel-waker", 1)
 	eventually(t, func() (bool, string) {
 		return gameServiceSelectorName(t, ns, "wakesel") == sentinelValue, "service not routed to sentinel"
 	})
@@ -534,7 +518,7 @@ func TestGameServer_WakeOnConnectHostportNoHoldOpen(t *testing.T) {
 	eventually(t, func() (bool, string) {
 		return deploymentExists(t, ns, "wakehp-waker"), "sentinel deployment not created"
 	})
-	setDeployReady(t, ns, "wakehp-waker", 1)
+	setDeploymentReady(t, ns, "wakehp-waker", 1)
 	setSSStatus(t, ns, "wakehp", 0, 0)
 
 	// Wake it, but do NOT mark the game pod Ready — in the three
