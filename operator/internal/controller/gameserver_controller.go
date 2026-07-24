@@ -66,6 +66,12 @@ type GameServerReconciler struct {
 	// DefaultConfigInitImage.
 	ConfigInitImage string
 
+	// SentinelImage is the image for the wake sentinel pod that holds
+	// advertised ports while the server is asleep. Set from an operator flag
+	// so air-gapped installs can point it at a private registry mirror.
+	// Empty falls back to DefaultSentinelImage.
+	SentinelImage string
+
 	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
 	// wide Secret holding `ca.crt` + `ca.key` used to sign the
 	// per-GameServer agent server cert. Provisioned by the chart
@@ -148,6 +154,7 @@ const (
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/finalizers,verbs=update
 // +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
@@ -205,10 +212,6 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile mod PVC")
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileService(ctx, &gs, &tmpl); err != nil {
-		logger.Error(err, "reconcile Service")
-		return ctrl.Result{}, err
-	}
 	if err := r.reconcileAgentService(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile agent Service")
 		return ctrl.Result{}, err
@@ -247,6 +250,36 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	// planSentinel is the single source of truth for whether the wake
+	// sentinel should exist this pass and whether the game Service should
+	// route to it instead of the game pod — see its doc comment for why
+	// that decision must live in exactly one place. Deliberately NOT an
+	// early-return-and-skip-everything-else when the sentinel isn't ready
+	// yet: a sentinel that cannot start (ImagePullBackOff, quota) must
+	// degrade to "no wake-on-connect this pass", never to "this GameServer
+	// stops reconciling" — so every step below still runs regardless.
+	plan, err := r.planSentinel(ctx, &gs, &tmpl, idle)
+	if err != nil {
+		logger.Error(err, "plan wake sentinel")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileSentinel(ctx, &gs, &tmpl, plan.wantSentinel); err != nil {
+		logger.Error(err, "reconcile sentinel")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileSentinelRBAC(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile sentinel RBAC")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGameDirectServiceFromTemplate(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile game-direct Service")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileService(ctx, &gs, &tmpl, plan.routeToSentinel); err != nil {
+		logger.Error(err, "reconcile Service")
+		return ctrl.Result{}, err
+	}
+
 	replicas, stopRequeue, err := r.desiredReplicas(ctx, &gs, &tmpl, idle)
 	if err != nil {
 		logger.Error(err, "compute desired replicas")
@@ -279,7 +312,18 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// the sleep deadline or the next wake window; take whichever comes first,
 	// or nothing fires the transition until an unrelated event happens to
 	// wake the reconciler.
-	for _, hint := range []time.Duration{stopRequeue, idleRequeue} {
+	hints := []time.Duration{stopRequeue, idleRequeue}
+	if plan.wantSentinel {
+		// Bounded backstop for planSentinel's wait on the sentinel or the
+		// game pod. Both are owned (Owns(&appsv1.Deployment{}),
+		// Owns(&appsv1.StatefulSet{})) so a readiness transition normally
+		// retriggers Reconcile on its own; this only bounds how long a
+		// missed/coalesced event could otherwise leave things stale. It is
+		// NOT a substitute for the early-return-and-skip-everything this
+		// replaced — every step above still ran this pass regardless.
+		hints = append(hints, sentinelBackstopRequeue)
+	}
+	for _, hint := range hints {
 		if hint > 0 && (requeue == 0 || hint < requeue) {
 			requeue = hint
 		}
@@ -291,6 +335,7 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gameplanev1alpha1.GameServer{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
@@ -347,8 +392,16 @@ func (r *GameServerReconciler) reconcilePVC(
 	return err
 }
 
+// reconcileService maintains the main game Service. routeToSentinel is
+// planSentinel's decision for this pass (see gameserver_sentinel.go): this
+// is the ONLY place spec.selector is written. It used to be written here
+// and, separately, by updateServiceSelector — two CreateOrUpdate calls
+// racing to set the same field, with this one always winning last and
+// silently undoing the flip to the sentinel. Do not reintroduce a second
+// writer of svc.Spec.Selector.
 func (r *GameServerReconciler) reconcileService(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+	routeToSentinel bool,
 ) error {
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: gs.Name, Namespace: gs.Namespace},
@@ -369,9 +422,16 @@ func (r *GameServerReconciler) reconcileService(
 		} else {
 			svc.Spec.LoadBalancerSourceRanges = nil
 		}
-		svc.Spec.Selector = map[string]string{
-			"app.kubernetes.io/name":     "gameplane-game",
-			"app.kubernetes.io/instance": gs.Name,
+		if routeToSentinel {
+			svc.Spec.Selector = map[string]string{
+				sentinelLabel:                sentinelValue,
+				"app.kubernetes.io/instance": gs.Name,
+			}
+		} else {
+			svc.Spec.Selector = map[string]string{
+				"app.kubernetes.io/name":     "gameplane-game",
+				"app.kubernetes.io/instance": gs.Name,
+			}
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
 		applyManagedServiceAnnotations(svc, desiredServiceAnnotations(gs))
@@ -991,6 +1051,11 @@ const configFilesStagingPath = "/etc/gameplane/config-files"
 // either job (distroless, no shell or cp). Overridable via the operator's
 // --config-init-image flag for air-gapped installs.
 const DefaultConfigInitImage = "busybox:1.37.0"
+
+// DefaultSentinelImage is the image for the wake sentinel pod that holds
+// advertised ports while a server is asleep, waking it when a player connects.
+// Overridable via the operator's --sentinel-image flag for air-gapped installs.
+const DefaultSentinelImage = "ghcr.io/valgulnecron/gameplane/sentinel:dev"
 
 // configInitImageOrDefault resolves the configured shell image, falling back to
 // the pin when the operator wasn't given a --config-init-image.

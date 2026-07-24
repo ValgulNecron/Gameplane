@@ -290,6 +290,17 @@ networkPolicies:
     enabled: true
     fromCIDRs:
       - 0.0.0.0/0
+    # Ports the wake sentinel (allow-sentinel-ingress) accepts while a
+    # server is asleep and the sentinel is holding its advertised ports.
+    # Unlike the operator's per-GameServer <gs>-game-ingress policy — which
+    # reads the exact advertised ports off that one GameServer's
+    # GameTemplate — this is a single chart-wide policy shared by every
+    # sentinel pod in the fleet, so it has no per-server template to read
+    # and can't be narrowed automatically. Empty (default) allows any port
+    # on the sentinel, same as before this was configurable; list the union
+    # of ports your game templates advertise to narrow it, e.g.
+    # [{ protocol: TCP, port: 25565 }].
+    ports: []
 
 # Credential-minting cluster operations surfaced in the dashboard's
 # Cluster page (Add node = create a bootstrap token; Download kubeconfig =
