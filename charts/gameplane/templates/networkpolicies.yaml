@@ -167,4 +167,79 @@ spec:
         - { protocol: {{ .protocol }}, port: {{ .port }} }
         {{- end }}
 {{- end }}
+---
+# Allow inbound traffic to the wake sentinel on its advertised ports.
+# The sentinel pod holds the advertised ports while a game is asleep, and must
+# accept player traffic on the same CIDRs allowed to game pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sentinel-ingress
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-waker
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- $ingressCidrs := (.Values.networkPolicies.gameIngressCIDRs | default (list "0.0.0.0/0")) }}
+        {{- range $ingressCidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+      ports:
+        # All ports; the NetworkPolicy will be created per-GameServer so it can
+        # match that specific sentinel's port list. For now, allow any port and
+        # rely on the per-server ingress policy to narrow it.
+---
+# Allow the sentinel to reach the kube-apiserver for patching the
+# wake-requested annotation.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sentinel-to-apiserver
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-waker
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- $apiCidrs := (.Values.networkPolicies.apiServerCIDRs | default (list)) }}
+        {{- if $apiCidrs }}
+        {{- range $apiCidrs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+        {{- else }}
+        - ipBlock: { cidr: 10.0.0.0/8 }
+        - ipBlock: { cidr: 172.16.0.0/12 }
+        - ipBlock: { cidr: 192.168.0.0/16 }
+        - ipBlock: { cidr: 169.254.0.0/16 }
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 6443 }
+---
+# Allow the sentinel to egress to game pods on advertised ports for the proxy path.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sentinel-to-game
+  namespace: {{ .Values.gamesNamespace }}
+  labels: {{- include "gameplane.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: gameplane-game
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: gameplane-waker
+      # All ports; the per-server ingress policy covers which ports are
+      # actually advertised for each server.
 {{- end }}
