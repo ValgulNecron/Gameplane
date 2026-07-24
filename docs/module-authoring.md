@@ -278,6 +278,25 @@ spec:
                                  # public key under data "cosign.pub"
 ```
 
+Keyed verification checks the signature offline by default. Add
+`requireTransparencyLog: true` to also require Sigstore (Rekor) inclusion
+evidence, so a bundle only installs if its signing event was publicly logged —
+which is what makes misuse of a stolen key detectable:
+
+```yaml
+  verify:
+    key: { name: cosign-pub }
+    requireTransparencyLog: true   # needs outbound access to the sigstore
+                                   # trust root; leave off when air-gapped
+```
+
+It is off by default because a keyed signature is complete without a log entry,
+and requiring one would break air-gapped clusters and any private registry
+whose bundles are signed offline. The official bundles are logged, so enabling
+it against them works. The proof bundled with the signature is checked offline —
+there is no live log query per install. The setting has no effect on keyless
+verification, which always enforces the log.
+
 Keyless (Fulcio certificate identity) — for sources whose author signs with a
 CI OIDC identity instead of a key. The operator needs outbound access to the
 sigstore trust root and Rekor:

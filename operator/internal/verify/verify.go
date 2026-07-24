@@ -62,7 +62,7 @@ func Build(ctx context.Context, c client.Client, namespace string, src *gameplan
 		if err != nil {
 			return nil, err
 		}
-		return newKeyed(pub, auth, insecure)
+		return newKeyed(ctx, pub, auth, insecure, v.RequireTransparencyLog)
 	case v.Keyless != nil:
 		return newKeyless(ctx, v.Keyless.Issuer, v.Keyless.Identity, auth, insecure)
 	default:
@@ -105,18 +105,38 @@ func baseCheckOpts(ctx context.Context, auth authn.Authenticator) *cosign.CheckO
 	}
 }
 
-func newKeyed(pubPEM []byte, auth authn.Authenticator, insecure bool) (Verifier, error) {
+func newKeyed(ctx context.Context, pubPEM []byte, auth authn.Authenticator, insecure, requireTlog bool) (Verifier, error) {
 	ver, err := cosignsig.LoadPublicKeyRaw(pubPEM, crypto.SHA256)
 	if err != nil {
 		return nil, fmt.Errorf("load cosign public key: %w", err)
 	}
+	// When the source requires transparency-log inclusion, load the Rekor
+	// public keys once here rather than per verification: a failure to reach
+	// the Sigstore trust root is a configuration problem the caller should see
+	// immediately, not a per-bundle verification error.
+	var rekorPubs *cosign.TrustedTransparencyLogPubKeys
+	if requireTlog {
+		rekorPubs, err = cosign.GetRekorPubs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load rekor public keys (verify.requireTransparencyLog): %w", err)
+		}
+	}
 	mk := func(ctx context.Context) *cosign.CheckOpts {
 		co := baseCheckOpts(ctx, auth)
 		co.SigVerifier = ver
-		// Keyed signatures need neither a transparency-log entry nor an SCT.
-		co.IgnoreTlog = true
+		// A keyed signature carries no Fulcio certificate, so there is never
+		// an SCT to check, whatever the log policy is.
 		co.IgnoreSCT = true
+		// Offline either way: with the log required, the inclusion proof
+		// bundled with the signature is verified against the Rekor keys loaded
+		// above — no live log query per bundle.
 		co.Offline = true
+		if rekorPubs != nil {
+			co.RekorPubKeys = rekorPubs
+			co.IgnoreTlog = false
+		} else {
+			co.IgnoreTlog = true
+		}
 		return co
 	}
 	return &cosignVerifier{mkOpts: mk, insecure: insecure}, nil
