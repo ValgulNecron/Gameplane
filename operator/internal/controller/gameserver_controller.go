@@ -66,6 +66,12 @@ type GameServerReconciler struct {
 	// DefaultConfigInitImage.
 	ConfigInitImage string
 
+	// SentinelImage is the image for the wake sentinel pod that holds
+	// advertised ports while the server is asleep. Set from an operator flag
+	// so air-gapped installs can point it at a private registry mirror.
+	// Empty falls back to DefaultSentinelImage.
+	SentinelImage string
+
 	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
 	// wide Secret holding `ca.crt` + `ca.key` used to sign the
 	// per-GameServer agent server cert. Provisioned by the chart
@@ -148,6 +154,7 @@ const (
 // +kubebuilder:rbac:groups=gameplane.local,resources=gameservers/finalizers,verbs=update
 // +kubebuilder:rbac:groups=gameplane.local,resources=gametemplates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
@@ -205,10 +212,6 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile mod PVC")
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileService(ctx, &gs, &tmpl); err != nil {
-		logger.Error(err, "reconcile Service")
-		return ctrl.Result{}, err
-	}
 	if err := r.reconcileAgentService(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile agent Service")
 		return ctrl.Result{}, err
@@ -244,6 +247,45 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	idle, idleStatus, idleRequeue, err := r.reconcileIdle(ctx, &gs)
 	if err != nil {
 		logger.Error(err, "reconcile idle")
+		return ctrl.Result{}, err
+	}
+
+	if err := r.reconcileSentinel(ctx, &gs, &tmpl, idle); err != nil {
+		logger.Error(err, "reconcile sentinel")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileSentinelRBAC(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile sentinel RBAC")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGameDirectServiceFromTemplate(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile game-direct Service")
+		return ctrl.Result{}, err
+	}
+
+	// Check if sentinel is ready before flipping the main Service selector.
+	sentinelReady := false
+	if shouldHaveSentinel(&gs, &tmpl, idle) {
+		var err2 error
+		sentinelReady, err2 = r.sentinelIsReady(ctx, gs.Namespace, gs.Name)
+		if err2 != nil {
+			logger.Error(err2, "check sentinel readiness")
+			return ctrl.Result{}, err2
+		}
+		// If we want the sentinel but it's not ready yet, requeue.
+		if !sentinelReady {
+			// Requeue sooner to check sentinel readiness.
+			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+		}
+	}
+
+	_, err = r.updateServiceSelector(ctx, &gs, idle, sentinelReady)
+	if err != nil {
+		logger.Error(err, "update Service selector")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileService(ctx, &gs, &tmpl); err != nil {
+		logger.Error(err, "reconcile Service")
 		return ctrl.Result{}, err
 	}
 
@@ -291,6 +333,7 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gameplanev1alpha1.GameServer{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
@@ -991,6 +1034,11 @@ const configFilesStagingPath = "/etc/gameplane/config-files"
 // either job (distroless, no shell or cp). Overridable via the operator's
 // --config-init-image flag for air-gapped installs.
 const DefaultConfigInitImage = "busybox:1.37.0"
+
+// DefaultSentinelImage is the image for the wake sentinel pod that holds
+// advertised ports while a server is asleep, waking it when a player connects.
+// Overridable via the operator's --sentinel-image flag for air-gapped installs.
+const DefaultSentinelImage = "ghcr.io/valgulnecron/gameplane/sentinel:dev"
 
 // configInitImageOrDefault resolves the configured shell image, falling back to
 // the pin when the operator wasn't given a --config-init-image.
