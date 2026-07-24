@@ -241,9 +241,10 @@ func TestBuildTerrariaDisconnect(t *testing.T) {
 				t.Errorf("expected message type %d, got %d", terrariaDisconnect, messageType)
 			}
 
-			// The length field includes itself, so actual data is length bytes after the length field.
-			if len(data) != int(length)+2 {
-				t.Errorf("frame length mismatch: claimed %d, actual %d", length, len(data)-2)
+			// The length field includes itself, so the claimed length equals the
+			// total frame size (not the size after the length field).
+			if len(data) != int(length) {
+				t.Errorf("frame length mismatch: claimed %d, actual %d", length, len(data))
 			}
 		})
 	}
