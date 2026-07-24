@@ -85,6 +85,9 @@ jobs:
               - 'web/**'
             charts:
               - 'charts/**'
+              # The chart embeds a copy of the root signing key; the drift
+              # check in `chart render` has to run when either side moves.
+              - 'cosign.pub'
             e2etree:
               - 'test/e2e/**'
               - 'deploy/kind/**'
@@ -326,6 +329,32 @@ jobs:
         # readable by Helm .Files). make manifests keeps both in sync; guard
         # against a drift that would apply stale CRDs on upgrade.
         run: diff -r charts/gameplane/crds charts/gameplane/crd-manifests
+      - name: chart cosign key matches root cosign.pub
+        # values.yaml embeds a copy of the signing public key so the operator
+        # can verify official module bundles. Nothing regenerates it, so a key
+        # rotation that updates only the root file leaves the chart verifying
+        # against the retired key — every official bundle then fails to install.
+        # The release workflows check the root key against the signing secret;
+        # this checks the chart's copy against the root key.
+        run: |
+          helm template gameplane charts/gameplane \
+            --set defaultModuleSource.oci.verify.enabled=true \
+            --show-only templates/module-cosign-key.yaml > /tmp/keysecret.yaml
+          # The rendered Secret carries the key under stringData/data; pull the
+          # PEM back out and compare it to the committed root key.
+          python3 - <<'PY' > /tmp/chart-cosign.pub
+          import base64, sys, yaml
+          d = yaml.safe_load(open('/tmp/keysecret.yaml'))
+          data = (d.get('stringData') or {}).get('cosign.pub')
+          if data is None:
+              data = base64.b64decode((d.get('data') or {})['cosign.pub']).decode()
+          sys.stdout.write(data if data.endswith('\n') else data + '\n')
+          PY
+          if ! diff -u cosign.pub /tmp/chart-cosign.pub; then
+            echo "::error::charts/gameplane/values.yaml cosignPublicKey does not match the root cosign.pub — update both when rotating the signing key"
+            exit 1
+          fi
+          echo "chart cosign key matches root cosign.pub"
 
   # ---------------------------------------------------------------------
   # kind e2e — one job per suite, each with its own throwaway cluster on
