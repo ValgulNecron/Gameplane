@@ -47,43 +47,51 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ github.ref_name }}
-      # Keyed-sign the released image by digest (offline, no Rekor), same as the
-      # module bundles below. Gated on COSIGN_PRIVATE_KEY so a release still
-      # succeeds before the signing key is provisioned (secrets aren't usable in
-      # `if:`, so gate via a plain step output).
-      - name: signing key present?
-        id: gate
+      # Signing is mandatory for an official release: fail rather than publish
+      # unsigned images. Mirrors publish-edge.yaml.
+      - name: require signing key
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: |
-          if [ -n "$COSIGN_PRIVATE_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::COSIGN_PRIVATE_KEY not set — skipping image signing."
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::error::COSIGN_PRIVATE_KEY is required for official image publishing"
+            exit 1
           fi
       - name: install cosign
-        if: steps.gate.outputs.enabled == 'true'
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.1.2
         with:
-          # Pin cosign v2: v3 dropped the offline-keyed `--tlog-upload=false`
-          # flag the image/bundle signing uses (it now requires a signing-config).
-          cosign-release: 'v2.4.3'
-      - name: sign image (keyed, offline)
-        if: steps.gate.outputs.enabled == 'true'
+          cosign-release: 'v3.0.6'
+      # Refresh the Sigstore TUF trust root before signing (see publish-edge.yaml).
+      - name: refresh sigstore trust root
+        run: cosign initialize
+      # Keyed-sign the released image by digest AND record it in the public Rekor
+      # transparency log. --new-bundle-format=false --use-signing-config=false
+      # selects the classic path (hashedrekord against rekor.sigstore.dev, no
+      # TSA) — the format existing cosign clients and the operator's cosign/v2
+      # verifier read. See publish-edge.yaml for the full rationale.
+      - name: sign image (keyed, logged)
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY \
-            "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
-      # Round-trip check, mirroring publish-edge.yaml: verify the signature
-      # just pushed with the key derived from the signing secret, and fail the
-      # release if a committed cosign.pub no longer matches that key.
+          ref="ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+                --new-bundle-format=false --use-signing-config=false "$ref"; then
+              exit 0
+            fi
+            echo "::warning::cosign sign attempt ${attempt} failed; retrying"
+            sleep $((attempt * 10))
+          done
+          echo "::error::cosign sign failed after 3 attempts (Rekor unavailable?)"
+          exit 1
+      # Round-trip check, mirroring publish-edge.yaml: strictly verify the
+      # signature just pushed (no --insecure-ignore-tlog, so the Rekor evidence
+      # must be present), and fail the release if the committed cosign.pub no
+      # longer matches the signing key.
       - name: verify signature & check published key
-        if: steps.gate.outputs.enabled == 'true'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -91,7 +99,7 @@ jobs:
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile "$RUNNER_TEMP/cosign.pub"
-          cosign verify --key "$RUNNER_TEMP/cosign.pub" --insecure-ignore-tlog=true \
+          cosign verify --key "$RUNNER_TEMP/cosign.pub" --new-bundle-format=false \
             "ghcr.io/${owner_lc}/gameplane/${{ matrix.component }}@${DIGEST}"
           if [ -f cosign.pub ] && ! cmp -s cosign.pub "$RUNNER_TEMP/cosign.pub"; then
             echo "::error::committed cosign.pub does not match COSIGN_PRIVATE_KEY — update the published key"
@@ -111,7 +119,25 @@ jobs:
           sed -i "s/^appVersion: .*/appVersion: ${GITHUB_REF_NAME#v}/" charts/gameplane/Chart.yaml
       - name: helm package
         run: helm package charts/gameplane -d dist
+      # The chart is a published artifact like the images, so it must be signed
+      # too — it was previously pushed unsigned, which made the "everything we
+      # publish is signed" claim untrue.
+      - name: require signing key
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        run: |
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::error::COSIGN_PRIVATE_KEY is required for official chart publishing"
+            exit 1
+          fi
+      - name: install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: 'v3.0.6'
+      - name: refresh sigstore trust root
+        run: cosign initialize
       - name: push to OCI
+        id: push
         env:
           HELM_REGISTRY_CONFIG: ${{ runner.temp }}/helm.json
         run: |
@@ -119,7 +145,40 @@ jobs:
           # account's original casing (ValgulNecron), so fold it down.
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
-          helm push dist/gameplane-*.tgz "oci://ghcr.io/${owner_lc}/charts"
+          # `helm push` prints "Digest: sha256:…" for the pushed chart manifest;
+          # capture it so the signature covers the immutable digest, not a tag.
+          out="$(helm push dist/gameplane-*.tgz "oci://ghcr.io/${owner_lc}/charts" 2>&1)"
+          printf '%s\n' "$out"
+          digest="$(printf '%s\n' "$out" | sed -n 's/^Digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' | head -n1)"
+          if [ -z "$digest" ]; then
+            echo "::error::could not parse the pushed chart digest from helm push output"
+            exit 1
+          fi
+          echo "ref=ghcr.io/${owner_lc}/charts/gameplane@${digest}" >> "$GITHUB_OUTPUT"
+      - name: sign chart (keyed, logged)
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          REF: ${{ steps.push.outputs.ref }}
+        run: |
+          for attempt in 1 2 3; do
+            if cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+                --new-bundle-format=false --use-signing-config=false "$REF"; then
+              exit 0
+            fi
+            echo "::warning::cosign sign attempt ${attempt} failed; retrying"
+            sleep $((attempt * 10))
+          done
+          echo "::error::cosign sign failed after 3 attempts (Rekor unavailable?)"
+          exit 1
+      - name: verify chart signature
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+          REF: ${{ steps.push.outputs.ref }}
+        run: |
+          cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile "$RUNNER_TEMP/cosign.pub"
+          cosign verify --key "$RUNNER_TEMP/cosign.pub" --new-bundle-format=false "$REF"
 
   # Publish the GitHub Release page for the tag, with the matching CHANGELOG
   # section as the notes. beta.3's page was created by hand and beta.4's was
