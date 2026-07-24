@@ -215,6 +215,7 @@ Each game's e2e test (`TestGameServer_<Game>Bot_<Depth>`) is registered in `test
 - **Fast set** (`bot-fast` bucket) — runs in the `e2e-game-bot` CI job on every PR (amd64 only):
   - `TestGameServer_MinecraftJavaBot_Joined`
   - `TestGameServer_TerrariaBot_Joined`
+  - `TestGameServer_GarrysModBot_Query`
 
 - **Heavy set** (`bot-heavy` bucket) — **deliberately never runs in CI** — only on maintainer hand-run with `GAMEPLANE_E2E_GAMES=all`:
   - All other games. Reserved for `KESTREL_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=… GAMEPLANE_E2E_GAMES=all make test-e2e-keep`.
@@ -228,8 +229,8 @@ The `buckets.sh verify` step fails CI if any test is unbucketed or double-bucket
 | minecraft-java | TCP | 25565 | Fast | Protocol client implemented; CI-verified (PR #194, run 30125535832) | JOINED |
 | terraria | TCP | 7777 | Fast | Protocol client implemented; CI-verified (PR #194, run 30125535832) | JOINED |
 | factorio | UDP | 34197 | Fast | Not yet implemented | — |
-| garrys-mod | UDP | 27015 | Fast | Not yet implemented | — |
-| cs2 | UDP | 27015 | Heavy | Not yet implemented | — |
+| garrys-mod | UDP | 27015 | Fast | A2S query confirmed (PR #197); Source connect channel confirmed reachable, protocol version measured as blocker (PR #197, 2026-07-24) | QUERY |
+| cs2 | UDP | 27015 | Heavy | A2S query verified against Valve spec; Source protocol family confirmed against real server (shared with garrys-mod) | QUERY |
 | 7-days-to-die | UDP | 26900 | Heavy | Not yet implemented | — |
 | project-zomboid | UDP | 16261 | Heavy | Not yet implemented | — |
 | valheim | UDP | 2456 | Heavy | Not yet implemented | — |
@@ -275,7 +276,8 @@ runs all 16 games against a pre-existing cluster (e.g., the `kubelab` remote k3s
 
 Known families (each with its own `internal/protocol/<family>/` dir, spec, and unit tests):
 
-- **Source A2S (connectionless):** `A2S_GETCHALLENGE` + `A2S_INFO` query, used by cs2, garrys-mod, and others. Returns player count, server name, map, game version.
+- **A2S / Source A2S query (`protocol/a2s`):** `A2S_GETCHALLENGE` + `A2S_INFO` connectionless query protocol, verified against Valve's specification. Used by cs2, garrys-mod, and others. Returns player count, server name, map, game version. Implementation is confirmed correct and determines QUERY depth.
+- **Source protocol (`protocol/source`):** Challenge and Connect handshake for login-phase connectivity. The challenge exchange (A2S_GETCHALLENGE → S2C_CHALLENGE) is CONFIRMED against a real Garry's Mod server (PR #197, 2026-07-24). The server's ability to parse C2S_CONNECT and reply with a structured rejection is CONFIRMED. The rejection-handling logic now correctly identifies response type 0x39 as a rejection. Packet layout remains unverified (server rejected before validating fields beyond the header). Protocol version is the measured next blocker. Currently used diagnostically for evidence; does not determine depth until the version constant is corrected and re-measured.
 - **Steam A2S (query-only):** Same as above; some servers support both query and a login state.
 - **LiteNetLib (Unity):** Connection-oriented UDP with per-message reliability flags, used by 7-days-to-die and possibly v-rising.
 - **Minecraft protocol:** Handshaking, Status (Server List Ping), Login states. Shared across Java and potential .NET Bedrock ports.
