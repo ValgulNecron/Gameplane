@@ -262,15 +262,18 @@ Every piece of work goes on its own branch (rule 8). The moment that branch is m
 - **Mechanics:** finish the branch → get it merged into `main` (PR-merge, or — since `main` is unprotected — a `--no-ff` merge pushed to main; CI also runs on `push: [main]`) → immediately delete the branch remote + local. Before ending a session, confirm no merged branch is left behind.
 - Never delete a branch whose work is **not** yet in `main`, and never `--delete-branch` a stacked child whose descendants still depend on it (merge bottom-up first).
 
-### 13. Delegate to subagents, smallest model first
+### 13. Delegate to subagents — always, in bulk, smallest model first
 
-Prefer handing work to subagents over doing it in the main loop — exploration, design.pen/Pencil edits, doc passes, mechanical refactors, test writing, conflict grunt-work. The main loop's job is orchestration, judgment, and verification, not the legwork.
+Subagents are the default execution path, not an optimization. **Every user request gets delegated**, and it gets delegated to as many concurrent subagents as the work can be split into. The main loop's job is decomposition, orchestration, judgment, and verification — never the legwork.
 
-- **Size the model bottom-up.** Start every delegated task at the smallest model (`haiku`), and escalate step by step (`haiku` → `sonnet` → `opus`/`fable`) *only* when the smaller model's output is actually inadequate. There's no need for a top-tier model on design/scan/mechanical work that a smaller one handles fine.
-- **Mechanics:** pass `model: "haiku"` on the first `Agent` attempt for a well-scoped task, verify the result (screenshot / diff / compile), and re-run one tier up only if needed. Reserve the top model for the main loop's decisions.
-- *Why:* cost and latency — the biggest model adds nothing on well-scoped tasks, and concurrent cheap subagents finish the breadth faster.
-- **Review loop (mandatory):** once **all** subagents in the current wave have finished, launch an **opus/fable-level review subagent** over their combined edits (branch diffs + original specs) to find defects and propose a fix/upgrade path, then relaunch the original small agents to apply those fixes — the big model reviews, the small models implement. In parallel with the review, launch a **sonnet** agent driving the dashboard on the updated test cluster through the Chrome MCP to confirm everything still works (skip only when the wave has no runtime surface).
+- **Always delegate.** Exploration, code edits, `design.pen`/Pencil passes, doc writing, mechanical refactors, test authoring, CI log reading, conflict grunt-work — all of it goes to subagents. Only orchestration, final judgment, and talking to the human stay in the main loop.
+- **Maximize fan-out.** Split the request into the largest number of genuinely independent tasks it supports and launch them **concurrently in a single message** (multiple `Agent` tool calls in one block). Don't serialize work that has no dependency between its parts.
+- **Start at the bottom.** Every delegated task starts at `haiku`. Escalate one tier at a time — `haiku` → `sonnet` → `opus` → `fable` — and **only on failure**, meaning the smaller model actually produced inadequate output. Never pre-emptively start a task at a higher tier because it "feels hard".
+- **`fable` requires explicit human authorization.** Never launch a `fable` agent — for work *or* for review — without asking the human first and getting a yes.
+- **Review at tier + 1 (mandatory).** Once **all** subagents in a wave have finished, review their combined output with an agent one tier above the tier the work ran at: work at `haiku` → review at `sonnet`; work at `sonnet` → review at `opus`; work at `opus` → review at `fable` (authorization required). The reviewer gets the branch diffs plus the original specs, and returns defects and a fix plan. Then **relaunch small agents to apply the fixes** — the big model reviews, the small models implement. Never fix in the main loop.
+- **Runtime smoke in parallel.** Alongside the review, launch a `sonnet` agent to drive the dashboard on the test cluster through the Chrome MCP. Skip only when the wave has no runtime surface.
 - **Label agents with their model** in the visible description — e.g. "OIDC docs PR (haiku)" — so the human can see at a glance which tier each agent runs on.
+- *Why:* cost and latency. The biggest model adds nothing on well-scoped tasks, and many concurrent cheap agents cover the breadth far faster than one expensive serial one. A subagent's "done" is a claim, not evidence — that's what the tier+1 review is for.
 
 ---
 
