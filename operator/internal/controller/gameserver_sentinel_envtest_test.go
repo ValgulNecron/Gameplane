@@ -35,6 +35,10 @@ func wakeableTestTemplate(name, wakeProtocol string) *gameplanev1alpha1.GameTemp
 	return &gameplanev1alpha1.GameTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: gameplanev1alpha1.GameTemplateSpec{
+			DisplayName: "Test " + name,
+			Game:        name,
+			Version:     "test",
+			Image:       "ghcr.io/test/" + name + ":latest",
 			Ports: []gameplanev1alpha1.GamePort{{
 				Name:          "game",
 				ContainerPort: 25565,
@@ -223,9 +227,14 @@ func TestSentinelReconciliation(t *testing.T) {
 		// wakeOnConnectEligible must be false, so this Service should never
 		// be created for the majority of GameServers that don't use this
 		// feature.
+		name := uniqueName("sentinel-tmpl")
 		tmpl := &gameplanev1alpha1.GameTemplate{
-			ObjectMeta: metav1.ObjectMeta{Name: uniqueName("sentinel-tmpl")},
+			ObjectMeta: metav1.ObjectMeta{Name: name},
 			Spec: gameplanev1alpha1.GameTemplateSpec{
+				DisplayName: "Test " + name,
+				Game:        name,
+				Version:     "test",
+				Image:       "ghcr.io/test/" + name + ":latest",
 				Ports: []gameplanev1alpha1.GamePort{{
 					Name: "game", ContainerPort: 25565, Protocol: corev1.ProtocolTCP, Advertise: true,
 				}},
