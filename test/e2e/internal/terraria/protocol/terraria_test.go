@@ -250,8 +250,8 @@ func TestConnectVersionMismatch(t *testing.T) {
 				// First attempt: kick with the new version.
 				attempt++
 				var kickPayload bytes.Buffer
-				kickPayload.WriteByte(0) // mode: literal
-				writeString(&kickPayload, "server wants Terraria280")
+				kickPayload.WriteByte(1) // mode: has substitutions
+				writeString(&kickPayload, "server wants {0}")
 				kickPayload.WriteByte(1) // 1 substitution
 				kickPayload.WriteByte(0) // sub mode: literal
 				writeString(&kickPayload, "Terraria280")
