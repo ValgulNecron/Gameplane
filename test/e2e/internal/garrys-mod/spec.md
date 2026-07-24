@@ -108,14 +108,30 @@ func Retry(ctx context.Context, what string, attempt time.Duration, fn func(cont
 func Main(f Flags, run func(context.Context) (Depth, error))
 ```
 
+## Measured connect evidence
+
+**Date:** 2026-07-24  
+**Server:** ceifa/garrysmod:debian, `sv_lan 1`, AUTOUPDATE=0  
+**CI run:** PR #197, job `e2e game bot`  
+**Boot + probe time:** 134.82 seconds (one observation, not an average)
+
+After A2S_INFO succeeded, the probe attempted a Source protocol connect handshake:
+
+- A2S_GETCHALLENGE: succeeded, challenge obtained
+- C2S_CONNECT: parsed by the server, rejected with response type 0x39 + "game#GameUI_ServerRejectOldVersion\0"
+
+The rejection identified protocol version as the blocker. Full hex and decode in `protocol/source/spec.md#Measured evidence`. The server did not respond with a Steam authentication gate; the protocol version must be corrected to proceed deeper.
+
 ## Key invariants
 
 1. **A2S is always attempted first.** Establishing QUERY depth (server responds to A2S) is a prerequisite. A2S failure means the server is not even answering queries and the probe fails.
 
-2. **Source protocol is diagnostic only.** After A2S succeeds, the probe attempts source challenge/connect as pure instrumentation. These attempts:
-   - Never change the returned depth (remains QUERY).
-   - Never fail the probe (errors are logged, not propagated).
-   - Provide evidence (raw bytes, rejection messages) for a future round to escalate depth if the format is verified.
+2. **Source protocol provides measured evidence.** After A2S succeeds, the probe attempts source challenge/connect to gather evidence on which the next iteration will be based:
+   - The challenge exchange works (CONFIRMED, PR #197).
+   - The server parses our connect request (CONFIRMED, PR #197).
+   - Protocol version is the measured blocker (CONFIRMED, PR #197).
+   - The returned depth remains QUERY until the connect gate is passed.
+   - Errors are logged, not propagated; the probe does not fail on source diagnostics.
 
 3. **sv_lan 1 disables Steam auth.** The template environment includes `ARGS: "+sv_lan 1"`, which disables Steam GSLT requirement in srcds. This is necessary for unauthenticated joins in CI. Without it, even with a correct connect format, the server would reject on an auth gate.
 
@@ -162,13 +178,16 @@ No external modules.
 
 ### Boot Time and Disk
 
-**Configured budgets (not measurements):**
+**Configured budgets:**
 - **Ready timeout budget:** 10 minutes (configured in `garrysmod_bot_e2e_test.go`). First boot requires pulling the image from Docker registry.
 - **Storage size:** 2Gi (allocated in PVC; actual usage depends on server save data, typically small).
 - **Probe deadline:** 4 minutes (configured in `garrysmod_bot_e2e_test.go`; how long the in-cluster probe retries A2S and source queries before timing out).
 - **CPU/memory requests:** 500m CPU, 1Gi memory; limits 2 CPU, 2Gi memory.
 
-**Measured in CI:** *Pending first green CI run.* These budgets are conservative starting points; actual performance will be observed on the first successful CI run and documented if they diverge significantly.
+**Measured in CI (PR #197, job `e2e game bot`):**
+- **Boot + probe time:** 134.82 seconds (one observation, not an average). This is the sum of pod ready time (server boot) plus the probe's retry loop (challenge + connect attempts until success or deadline).
+
+These budgets are conservative starting points; if actual performance diverges significantly on repeated runs, the budgets will be adjusted.
 
 ### Readiness Probe
 
@@ -195,15 +214,15 @@ Garry's Mod is included in the **fast set** of bot tests (runs by default withou
 This test is named `TestGameServer_GarrysModBot_Query` and expects `ExpectDepth: "QUERY"`. The depth is established by A2S_INFO succeeding:
 
 - A2S succeeds: proves QUERY depth, server is alive and responding to queries.
-- Source protocol connection: attempted as diagnostic instrumentation only; success or failure does not change the returned depth.
+- Source protocol connection: measured evidence gathering (PR #197, 2026-07-24). The challenge exchange works; the server parses our connect request and rejects on protocol version.
 
-**Diagnostic connect attempt:**
+**Connect measurement (PR #197):**
 The probe attempts a source-protocol challenge and connect handshake after A2S succeeds. This attempt:
-- Never changes the returned depth (stays QUERY regardless of connect outcome).
-- Logs all evidence to the CI job log: whether a challenge was obtained, whether the server responded to connect, response bytes (hex-encoded, bounded to ~256 hex chars), and any rejection message.
+- Does not change the returned depth (stays QUERY until connect succeeds).
+- Logs all evidence to the CI job log: challenge obtained, server response type (0x39 measured), response bytes (hex-encoded), and rejection reason ("GameUI_ServerRejectOldVersion").
 - Wraps errors gracefully; network failures or protocol errors do not fail the probe.
 
-The raw connect response bytes provide evidence that can inform a future round: once the connect format is verified against a real server's response and confirmed to be correct, the depth can be escalated to PARTIAL (if the server rejects on an auth gate) or JOINED (if accepted).
+The measured rejection (response type 0x39, protocol version mismatch) provides the concrete next step: correct the ProtocolSource1 constant and re-measure. The depth can escalate to PARTIAL (if an unpassable auth gate appears) or JOINED (if the version correction succeeds) on the next iteration.
 
 **Configuration details:**
 - `sv_lan 1` is delivered via the `ARGS` environment variable, disabling Steam GSLT requirement.

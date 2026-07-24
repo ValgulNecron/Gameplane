@@ -6,14 +6,17 @@
 // in-game protocol layer) to attempt a connection. This package implements:
 //
 //   - A2S_GETCHALLENGE ('q'): query for a server challenge number, required
-//     before attempting to join.
+//     before attempting to join. CONFIRMED against real Garry's Mod server
+//     (PR #197, e2e game bot job, 2026-07-24).
 //   - C2S_CONNECT ('k'): attempt to connect with the challenge, protocol
-//     version, and player name. Success depends on server config (sv_lan mode,
-//     Steam auth enforcement).
+//     version, and player name. The server's ability to parse and reply to
+//     our connect attempt is CONFIRMED against a real server; the rejection
+//     identified protocol version as the blocker. Packet layout remains
+//     unverified (server rejected before validating the full payload).
 //
 // Reference: https://developer.valvesoftware.com/wiki/Server_queries
-// (primary reference for packet types and formats). See spec.md for caveats
-// on packet layout verification.
+// (primary reference for packet types and formats). See spec.md for measured
+// evidence and verification status.
 //
 // # Steam Auth vs. LAN Mode
 //
@@ -44,11 +47,20 @@ import (
 
 // Packet types (Valve Source protocol, the 4-byte 0xFFFFFFFF header is implicit).
 const (
-	pktChallengeReq  byte = 'q'  // A2S_GETCHALLENGE
-	pktChallengeResp byte = 'A'  // S2C_CHALLENGE
-	pktConnectReq    byte = 'k'  // C2S_CONNECT
-	pktDisconnect    byte = 'c'  // Disconnect (server rejection, carries reason text)
-	pktAccept        byte = 0x03 // Server accepted; new client handshake
+	pktChallengeReq  byte = 'q' // A2S_GETCHALLENGE
+	pktChallengeResp byte = 'A' // S2C_CHALLENGE
+	pktConnectReq    byte = 'k' // C2S_CONNECT
+
+	// pktRejectVersion is observed on protocol version mismatch. Measured against
+	// a real Garry's Mod server (PR #197, e2e game bot job, 2026-07-24) rejecting
+	// with "game#GameUI_ServerRejectOldVersion\0" when the protocol version did not match.
+	pktRejectVersion byte = 0x39 // '9' (confirmed by measurement)
+
+	// pktDisconnect and pktAccept are unconfirmed guesses based on Valve's documentation.
+	// A real server has not yet been observed sending these packet types.
+	// Do not rely on these constants until they are confirmed by measurement.
+	pktDisconnect byte = 'c'  // Disconnect (server rejection with reason text) — unconfirmed
+	pktAccept     byte = 0x03 // Server accepted; new client handshake — unconfirmed
 )
 
 // Connectionless packet header (0xFFFFFFFF in network byte order).
@@ -239,12 +251,12 @@ func Connect(ctx context.Context, addr string, challenge uint32, name string, pr
 	pktType := resp[4]
 	switch pktType {
 	case pktAccept:
-		// 0x03: server accepted; new client handshake begins.
+		// 0x03: server accepted; new client handshake begins (unconfirmed).
 		result.Accepted = true
 		result.RejectMsg = ""
-	case pktDisconnect:
-		// 0x63: server rejected; extract the reason string.
-		// The string is null-terminated UTF-8 at resp[5:].
+	case pktDisconnect, pktRejectVersion:
+		// Rejection: either 0x63 (unconfirmed) or 0x39 (measured).
+		// Both carry a null-terminated UTF-8 reason string at resp[5:].
 		result.Accepted = false
 		if n > 5 {
 			// Find the null terminator.

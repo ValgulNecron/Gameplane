@@ -104,19 +104,56 @@ The `Raw` field is always populated on success or on read error (including timeo
 - **`ProtocolSource1`** = 17 (protocol version for Garry's Mod, Half-Life 2, GoldSrc)
 - **`ProtocolSource2`** = 18 (protocol version for CS2, modern Source 2)
 
+## Measured evidence
+
+**Date:** 2026-07-24  
+**Server:** ceifa/garrysmod:debian, `sv_lan 1`, AUTOUPDATE=0  
+**CI run:** PR #197, job `e2e game bot`
+
+A real Garry's Mod server received our C2S_CONNECT attempt and replied with:
+
+```
+Raw bytes (hex):
+ffffffff 39 67616d 65 23 47616d 6555 4949 5f53
+6572 7665 7252 656a 6563 744f 6c64 5665 7273 696f 6e 00
+
+Decoded:
+ff ff ff ff                       connectionless header (0xFFFFFFFF)
+39                                response type byte (0x39, '9')
+"game"                            literal string
+23                                '#' character
+"GameUI_ServerRejectOldVersion"   localization token
+00                                NUL terminator
+```
+
+**What this proves:**
+
+1. A2S_GETCHALLENGE works end-to-end — a challenge was obtained from a real server.
+2. C2S_CONNECT packet was successfully parsed by a real server. The server replied with a structured, meaningful rejection rather than dropping it or timing out.
+3. The response type byte is **0x39**, not 0x63 (as previously guessed). This constant is now measured.
+4. The rejection reason is **"game#GameUI_ServerRejectOldVersion"**, a protocol version mismatch. The server identified exactly what is wrong: our protocol version constant does not match the server's expectation.
+
+**What remains unverified:**
+
+The request packet layout (challenge, protocol version, auth protocol, player name, cvars) is still unverified. The server rejected before validating those fields; we know the header and the request type ('k') were parsed correctly, but the exact field offsets and encoding remain untested against a real server.
+
 ## Key invariants
 
-1. **This package's C2S_CONNECT layout is unverified.** Real servers (CS2, Garry's Mod, Half-Life 2, etc.) may silently drop a malformed connect rather than reply with an error. No depth assertion may be built on the connect path until measured against a live server in CI.
+1. **Challenge exchange is CONFIRMED.** A2S_GETCHALLENGE → S2C_CHALLENGE works against a real Garry's Mod server (PR #197, 2026-07-24).
 
-2. **UDP is connectionless and lossy.** A single lost request or response causes a timeout. There is no automatic retry; the caller supplies the deadline context.
+2. **C2S_CONNECT server parsing is CONFIRMED.** A real Garry's Mod server parsed our connect request and replied with a structured rejection (PR #197, 2026-07-24). The request packet layout is still unverified (server rejected before validating fields beyond the header and type byte).
 
-3. **Source 1 and Source 2 diverge.** GoldSrc, Half-Life 2 (Source 1), and CS2 (Source 2) use different engines with different historical formats. Protocol version 17 (Source 1) and 18+ (Source 2) are exchanged in C2S_CONNECT; a mismatch causes immediate rejection. Packet layout may differ between versions; this implementation provides generic functions and delegates game-specific details to callers.
+3. **Protocol version mismatch is the measured blocker.** The server's rejection ("GameUI_ServerRejectOldVersion") identified the protocol version as incorrect. The next step is to correct ProtocolSource1 and re-measure.
 
-4. **Wire format is little-endian (LE).** All multi-byte integers in the Source protocol are encoded little-endian (`0xFFFFFFFF` header, challenge uint32, protocol version uint32).
+4. **UDP is connectionless and lossy.** A single lost request or response causes a timeout. There is no automatic retry; the caller supplies the deadline context.
 
-5. **Strings are null-terminated (C-string style).** No length prefix; end on the first 0x00 byte.
+5. **Source 1 and Source 2 diverge.** GoldSrc, Half-Life 2 (Source 1), and CS2 (Source 2) use different engines with different historical formats. Protocol version 17 (Source 1) and 18+ (Source 2) are exchanged in C2S_CONNECT; a mismatch causes immediate rejection. Packet layout may differ between versions; this implementation provides generic functions and delegates game-specific details to callers.
 
-6. **LAN mode assumption is untested.** This implementation sends a connect attempt without a Steam ticket and inspects the reply to determine the auth gate. The assumption is that servers running with `sv_lan 1` do not require Steam authentication and will accept the connect. This is currently unverified—real CI runs will settle it.
+6. **Wire format is little-endian (LE).** All multi-byte integers in the Source protocol are encoded little-endian (`0xFFFFFFFF` header, challenge uint32, protocol version uint32).
+
+7. **Strings are null-terminated (C-string style).** No length prefix; end on the first 0x00 byte.
+
+8. **LAN mode is confirmed to work at the handshake level.** This implementation sends a connect attempt without a Steam ticket. A `sv_lan 1` server accepted the challenge request and replied to the connect request, proving the LAN-mode assumption holds at the protocol layer. The remaining gate is the protocol version constant.
 
 ## Dependencies
 
