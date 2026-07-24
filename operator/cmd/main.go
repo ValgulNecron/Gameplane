@@ -67,6 +67,7 @@ func main() {
 		agentImagePullPolicy   string
 		configInitImage        string
 		resticImage            string
+		sentinelImage          string
 		agentLogLevel          string
 		agentCABundle          string
 		agentClientCert        string
@@ -96,6 +97,9 @@ func main() {
 			"Point at a private registry mirror for air-gapped installs.")
 	flag.StringVar(&resticImage, "restic-image", controller.DefaultResticImage,
 		"Image for the restic backup/restore Jobs. "+
+			"Point at a private registry mirror for air-gapped installs.")
+	flag.StringVar(&sentinelImage, "sentinel-image", controller.DefaultSentinelImage,
+		"Image for the wake sentinel pod that holds advertised ports while a server is asleep. "+
 			"Point at a private registry mirror for air-gapped installs.")
 	flag.StringVar(&agentLogLevel, "agent-log-level", "",
 		"Log level (debug, info, warn, or error) injected into agent sidecars as GAMEPLANE_LOG_LEVEL. "+
@@ -191,6 +195,7 @@ func main() {
 		AgentImage:             agentImage,
 		AgentImagePullPolicy:   agentImagePullPolicy,
 		ConfigInitImage:        configInitImage,
+		SentinelImage:          sentinelImage,
 		AgentLogLevel:          agentLogLevel,
 		AgentCASecretName:      agentCASecretName,
 		AgentCASecretNamespace: agentCASecretNamespace,
