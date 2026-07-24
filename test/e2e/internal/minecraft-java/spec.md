@@ -188,11 +188,18 @@ All tests use `t.Parallel()` and `net.Listen` on 127.0.0.1:0 for isolation. No e
 
 ### Boot Time and Disk
 
-- **Ready timeout budget:** 10 minutes (configured in `minecraft_bot_e2e_test.go`, not a measured observation). First boot requires pulling the Docker image, downloading the Minecraft server jar, and generating the superflat world—all heavyweight I/O operations that justify the generous budget.
+**Configured budgets (not measurements):**
+- **Ready timeout budget:** 10 minutes (configured in `minecraft_bot_e2e_test.go`). First boot requires pulling the Docker image, downloading the Minecraft server jar, and generating the superflat world—all heavyweight I/O operations that justify the generous budget.
 - **Storage size:** 2Gi (allocated, not necessarily used; a superflat world with VIEW_DISTANCE=4 is small).
-- **Actual boot time:** Unmeasured; the real first-boot duration will be recorded after the first green CI run of `bot-fast`.
-- **Cost:** Unmeasured beyond the timeout budget; disk usage and subsequent-boot times have not been explicitly sampled.
-- **Fast set:** This test is in the **fast set** — it runs in every CI job (not just heavy jobs) because the 10-minute timeout + 4-minute probe deadline is acceptable for a bot test, and the turnaround is important for catching regressions quickly.
+- **Probe deadline:** 4 minutes (configured in `minecraft_bot_e2e_test.go`; how long the in-cluster probe retries ping and login before failing).
+
+**Measured in CI (GitHub-hosted amd64 runner, kind e2e cluster):**
+- **Full test runtime:** 51.09s (GitHub Actions log timestamp 2026-07-24T20:59:34Z, CI run 30125535832, job `e2e game bot (kind)`). This includes GameServer creation, polling for Running status, probe Job creation, and probe execution.
+- **Server version reported:** Minecraft 1.21.4, protocol version 769
+- **Probe outcome:** Login succeeded (server accepted player name "gameplane-bot"), depth JOINED confirmed.
+- **Subsequent-boot times:** Not yet measured.
+
+**Fast set:** This test is in the **fast set** — it runs in every CI job (not just heavy jobs) because the 10-minute timeout + 4-minute probe deadline is acceptable for a bot test, and the turnaround is important for catching regressions quickly.
 
 ### Protocol Reference
 

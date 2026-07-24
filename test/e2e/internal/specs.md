@@ -225,8 +225,8 @@ The `buckets.sh verify` step fails CI if any test is unbucketed or double-bucket
 
 | Module | Transport | Port | Set | Status | Depth |
 |---|---|---|---|---|---|
-| minecraft-java | TCP | 25565 | Fast | Protocol client implemented | JOINED (expected, unverified) |
-| terraria | TCP | 7777 | Fast | Protocol client implemented | JOINED (expected, unverified) |
+| minecraft-java | TCP | 25565 | Fast | Protocol client implemented; CI-verified (PR #194, run 30125535832) | JOINED |
+| terraria | TCP | 7777 | Fast | Protocol client implemented; CI-verified (PR #194, run 30125535832) | JOINED |
 | factorio | UDP | 34197 | Fast | Not yet implemented | — |
 | garrys-mod | UDP | 27015 | Fast | Not yet implemented | — |
 | cs2 | UDP | 27015 | Heavy | Not yet implemented | — |

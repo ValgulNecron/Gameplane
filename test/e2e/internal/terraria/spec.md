@@ -187,11 +187,12 @@ Version-mismatch kicks encode the wanted version as a substitution, e.g., `mode=
 - **Probe deadline:** 4 minutes (configured in `terraria_bot_e2e_test.go` line 57; how long the in-cluster probe retries the handshake and world-data request before failing).
 - **Storage request:** 2Gi (configured in `terraria_bot_e2e_test.go` line 47; persistent volume requested for `/opt/terraria/config` — a PVC request, not a measurement of actual disk usage).
 
-**Measured in CI (kind e2e cluster):**
-- Actual first-boot time: *not yet measured* — will be recorded after the first green CI run of `bot-fast`.
-- Actual disk usage: *not yet measured*.
-- Image pull time: *not applicable in CI* (images are side-loaded into kind via `docker load`).
-- Subsequent-boot times: *not yet measured*.
+**Measured in CI (GitHub-hosted amd64 runner, kind e2e cluster):**
+- **Full test runtime:** 67.07s (GitHub Actions log timestamp 2026-07-24T20:59:34Z, CI run 30125535832, job `e2e game bot (kind)`). This includes GameServer creation, polling for Running status, probe Job creation, and probe execution.
+- **Probe outcome:** Handshake succeeded (server accepted connection and assigned player slot), world data received, depth JOINED confirmed.
+- **Actual disk usage:** *not yet measured*.
+- **Image pull time:** *not applicable in CI* (images are side-loaded into kind via `docker load`).
+- **Subsequent-boot times:** *not yet measured*.
 
 ### Belongs to fast set
 
