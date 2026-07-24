@@ -12,6 +12,15 @@
 #      (--allow-insecure-registry) — matching the operator's offline keyed
 #      verify path (IgnoreTlog/Offline).
 #
+# The cosign version and flags here deliberately mirror what the release
+# pipeline uses (modules/build.sh --sign), so this test proves the operator's
+# cosign/v2 *library* can verify what the cosign v3 *CLI* actually produces:
+#   --new-bundle-format=false   classic OCI .sig, not a protobuf bundle
+#   --use-signing-config=false  required for --tlog-upload=false on v3, and
+#                               keeps cosign off the Rekor v2 / TSA path
+# Only --tlog-upload differs: the release pipeline logs to Rekor, while this
+# suite must stay hermetic (no Sigstore connectivity from a kind cluster).
+#
 # backoffLimit 0 / restartPolicy Never: a single pod attempt, so the init
 # container's generate-key-pair never races a Secret it already created. The
 # test deletes this Job and the keypair Secret before each apply for a clean run.
@@ -71,7 +80,7 @@ spec:
       serviceAccountName: e2e-cosign-signer
       initContainers:
         - name: keygen
-          image: ghcr.io/sigstore/cosign/cosign:v2.4.1
+          image: ghcr.io/sigstore/cosign/cosign:v3.0.6
           args:
             - generate-key-pair
             - k8s://gameplane-system/e2e-sign-keypair
@@ -83,10 +92,16 @@ spec:
             - { name: tmp, mountPath: /tmp }
       containers:
         - name: sign
-          image: ghcr.io/sigstore/cosign/cosign:v2.4.1
+          image: ghcr.io/sigstore/cosign/cosign:v3.0.6
           args:
             - sign
             - --key=k8s://gameplane-system/e2e-sign-keypair
+            # Classic signature format + legacy (non-signing-config) path, so
+            # this matches the release pipeline byte-for-byte apart from the
+            # tlog upload. On v3, --tlog-upload=false is rejected unless
+            # --use-signing-config=false is also set.
+            - --new-bundle-format=false
+            - --use-signing-config=false
             - --tlog-upload=false
             # The in-cluster test registry is plain HTTP, so cosign needs
             # --allow-http-registry (use HTTP). --allow-insecure-registry only
