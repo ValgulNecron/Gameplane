@@ -1,6 +1,7 @@
 package gameproto
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -40,7 +41,7 @@ func TestClassifyTerrariaConnectRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, result, err := ClassifyTerraria(bytes.NewReader(tt.data))
+			kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if tt.expectErr && err == nil {
 				t.Errorf("expected error, got none")
@@ -67,7 +68,7 @@ func TestClassifyTerrariaDisconnectMessage(t *testing.T) {
 	// Build a Disconnect message (type 2).
 	data := buildTerrariaMessage(terrariaDisconnect, []byte{0x00})
 
-	kind, _, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestClassifyTerrariaPasswordRequired(t *testing.T) {
 	// Build a PasswordRequired message (type 37).
 	data := buildTerrariaMessage(terrariaPasswordRequired, []byte{})
 
-	kind, _, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestClassifyTerrariaTruncatedHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, _, err := ClassifyTerraria(bytes.NewReader(tt.data))
+			kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if err == nil {
 				t.Errorf("expected error for truncated frame")
@@ -144,7 +145,7 @@ func TestClassifyTerrariaTruncatedPayload(t *testing.T) {
 	frame.WriteByte(terrariaConnectRequest)
 	frame.Write([]byte{0x00, 0x01, 0x02, 0x03, 0x04})
 
-	kind, _, err := ClassifyTerraria(bytes.NewReader(frame.Bytes()))
+	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(frame.Bytes())))
 
 	if err == nil {
 		t.Errorf("expected error for truncated payload")
@@ -163,7 +164,7 @@ func TestClassifyTerrariaFrameTooSmall(t *testing.T) {
 	frame.Write(binary.LittleEndian.AppendUint16(nil, 2))
 	frame.WriteByte(terrariaConnectRequest)
 
-	kind, _, err := ClassifyTerraria(bytes.NewReader(frame.Bytes()))
+	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(frame.Bytes())))
 
 	if err == nil {
 		t.Errorf("expected error for frame too small")
@@ -183,7 +184,7 @@ func TestClassifyTerrariaFrameTooLarge(t *testing.T) {
 	frame.WriteByte(terrariaConnectRequest)
 	frame.Write([]byte{0x01, 0x02, 0x03})
 
-	kind, _, err := ClassifyTerraria(bytes.NewReader(frame.Bytes()))
+	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(frame.Bytes())))
 
 	if err == nil {
 		t.Errorf("expected error for frame with insufficient data")
@@ -432,7 +433,7 @@ func TestClassifyTerrariaRoundtrip(t *testing.T) {
 	}
 
 	// Parse it back (as Unknown since it's not a ConnectRequest).
-	kind, _, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
 		t.Errorf("parse failed: %v", err)
 	}
@@ -448,7 +449,7 @@ func TestClassifyTerrariaEOFHandling(t *testing.T) {
 
 	// A proper ConnectRequest followed by EOF should parse successfully.
 	data := buildTerrariaConnectRequest("Terraria279")
-	kind, result, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -466,7 +467,7 @@ func TestTerrariaConsumedBytes(t *testing.T) {
 	t.Parallel()
 
 	data := buildTerrariaConnectRequest("Terraria279")
-	kind, result, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -532,7 +533,7 @@ func TestTerrariaHostileInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, _, err := ClassifyTerraria(bytes.NewReader(tt.data))
+			kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if tt.errStr != "" {
 				if err == nil {
@@ -623,7 +624,8 @@ func TestClassifyTerrariaReplayContract(t *testing.T) {
 	full := append(append([]byte{}, message...), extra...)
 
 	r := bytes.NewReader(full)
-	kind, result, err := ClassifyTerraria(r)
+	br := bufio.NewReader(r)
+	kind, result, err := ClassifyTerraria(br)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -637,8 +639,9 @@ func TestClassifyTerrariaReplayContract(t *testing.T) {
 		t.Fatalf("consumed %d bytes does not match message %d bytes", len(result.Consumed), len(message))
 	}
 
-	remaining := make([]byte, r.Len())
-	n, _ := r.Read(remaining)
+	// Read the remaining bytes from the bufio.Reader, not from the original bytes.Reader
+	remaining := make([]byte, len(extra))
+	n, _ := br.Read(remaining)
 	if !bytes.Equal(remaining[:n], extra) {
 		t.Errorf("remaining %q does not match expected extra %q", remaining[:n], extra)
 	}
@@ -663,7 +666,7 @@ func (terrariaAlwaysErrReader) Read([]byte) (int, error) {
 func TestClassifyTerrariaHeaderReadNonEOFError(t *testing.T) {
 	t.Parallel()
 
-	kind, result, err := ClassifyTerraria(terrariaAlwaysErrReader{})
+	kind, result, err := ClassifyTerraria(bufio.NewReader(terrariaAlwaysErrReader{}))
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -710,7 +713,7 @@ func TestClassifyTerrariaPayloadReadNonEOFError(t *testing.T) {
 	header := append(binary.LittleEndian.AppendUint16(nil, 10), terrariaConnectRequest)
 	r := &terrariaHeaderThenErrReader{header: header}
 
-	kind, result, err := ClassifyTerraria(r)
+	kind, result, err := ClassifyTerraria(bufio.NewReader(r))
 
 	if err == nil {
 		t.Fatal("expected error")
@@ -736,7 +739,7 @@ func TestClassifyTerrariaEmptyConnectRequestPayload(t *testing.T) {
 	t.Parallel()
 
 	data := buildTerrariaMessage(terrariaConnectRequest, []byte{})
-	kind, result, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 
 	if err == nil {
 		t.Fatal("expected error for empty ConnectRequest payload")
@@ -763,7 +766,7 @@ func TestClassifyTerrariaMalformedVersionLength(t *testing.T) {
 	t.Parallel()
 
 	data := buildTerrariaMessage(terrariaConnectRequest, []byte{0x80})
-	kind, result, err := ClassifyTerraria(bytes.NewReader(data))
+	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
 
 	if err == nil {
 		t.Fatal("expected error for truncated version-string length")
