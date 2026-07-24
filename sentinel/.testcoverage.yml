@@ -1,0 +1,15 @@
+# Coverage threshold gate for the sentinel module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# The sentinel is a wake-on-connect daemon that listens on advertised ports
+# and wakes a sleeping game server when a player connects. Tests cover config
+# parsing, UDP packet-counting heuristic, wake request rate limiting, and
+# connection lifecycle. Process wiring (net.Listen loops, signal handling) is
+# not unit-testable. Gate below measured; ratchet up as coverage grows.
+profile: coverage/unit.out
+github-action-output: false
+
+threshold:
+  file: 0
+  package: 0
+  total: 70
