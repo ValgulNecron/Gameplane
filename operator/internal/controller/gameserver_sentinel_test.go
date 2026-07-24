@@ -88,3 +88,152 @@ func TestWakeOnConnectEligible(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildSentinelPortConfig covers the PORTS_CONFIG env var building logic.
+// It exercises the fix for the index-based separator bug: when the first
+// advertised port is not at index 0, the old code would produce a leading comma.
+func TestBuildSentinelPortConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		tmpl *gameplanev1alpha1.GameTemplate
+		want string
+	}{
+		{
+			name: "advertised port first",
+			tmpl: &gameplanev1alpha1.GameTemplate{
+				Spec: gameplanev1alpha1.GameTemplateSpec{
+					Ports: []gameplanev1alpha1.GamePort{{
+						Name:          "game",
+						ContainerPort: 25565,
+						Protocol:      corev1.ProtocolTCP,
+						Advertise:     true,
+						WakeProtocol:  "minecraft",
+					}},
+				},
+			},
+			want: "25565:TCP:minecraft",
+		},
+		{
+			name: "non-advertised port first, advertised port second (the bug)",
+			tmpl: &gameplanev1alpha1.GameTemplate{
+				Spec: gameplanev1alpha1.GameTemplateSpec{
+					Ports: []gameplanev1alpha1.GamePort{
+						{
+							Name:          "rcon",
+							ContainerPort: 25575,
+							Protocol:      corev1.ProtocolTCP,
+							Advertise:     false,
+							WakeProtocol:  "none",
+						},
+						{
+							Name:          "game",
+							ContainerPort: 25565,
+							Protocol:      corev1.ProtocolTCP,
+							Advertise:     true,
+							WakeProtocol:  "minecraft",
+						},
+					},
+				},
+			},
+			want: "25565:TCP:minecraft",
+		},
+		{
+			name: "multiple advertised ports with non-advertised ports interleaved",
+			tmpl: &gameplanev1alpha1.GameTemplate{
+				Spec: gameplanev1alpha1.GameTemplateSpec{
+					Ports: []gameplanev1alpha1.GamePort{
+						{
+							Name:          "rcon",
+							ContainerPort: 25575,
+							Protocol:      corev1.ProtocolTCP,
+							Advertise:     false,
+							WakeProtocol:  "none",
+						},
+						{
+							Name:          "game",
+							ContainerPort: 25565,
+							Protocol:      corev1.ProtocolTCP,
+							Advertise:     true,
+							WakeProtocol:  "minecraft",
+						},
+						{
+							Name:          "query",
+							ContainerPort: 25566,
+							Protocol:      corev1.ProtocolUDP,
+							Advertise:     false,
+							WakeProtocol:  "none",
+						},
+						{
+							Name:          "listeningport",
+							ContainerPort: 19133,
+							Protocol:      corev1.ProtocolUDP,
+							Advertise:     true,
+							WakeProtocol:  "generic",
+						},
+					},
+				},
+			},
+			want: "25565:TCP:minecraft,19133:UDP:generic",
+		},
+		{
+			name: "all ports non-advertised",
+			tmpl: &gameplanev1alpha1.GameTemplate{
+				Spec: gameplanev1alpha1.GameTemplateSpec{
+					Ports: []gameplanev1alpha1.GamePort{
+						{
+							Name:          "rcon",
+							ContainerPort: 25575,
+							Protocol:      corev1.ProtocolTCP,
+							Advertise:     false,
+							WakeProtocol:  "none",
+						},
+					},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "advertised port with empty Protocol (defaults to TCP)",
+			tmpl: &gameplanev1alpha1.GameTemplate{
+				Spec: gameplanev1alpha1.GameTemplateSpec{
+					Ports: []gameplanev1alpha1.GamePort{
+						{
+							Name:          "game",
+							ContainerPort: 25565,
+							Protocol:      "",
+							Advertise:     true,
+							WakeProtocol:  "minecraft",
+						},
+					},
+				},
+			},
+			want: "25565:TCP:minecraft",
+		},
+		{
+			name: "wakeProtocol value is carried through correctly",
+			tmpl: &gameplanev1alpha1.GameTemplate{
+				Spec: gameplanev1alpha1.GameTemplateSpec{
+					Ports: []gameplanev1alpha1.GamePort{
+						{
+							Name:          "game",
+							ContainerPort: 7777,
+							Protocol:      corev1.ProtocolUDP,
+							Advertise:     true,
+							WakeProtocol:  "valheim",
+						},
+					},
+				},
+			},
+			want: "7777:UDP:valheim",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildSentinelPortConfig(tc.tmpl)
+			if got != tc.want {
+				t.Errorf("buildSentinelPortConfig() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
