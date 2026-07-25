@@ -30,7 +30,7 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
   // list changes. Adjusted directly during render (not in an effect),
   // gated on the previously-seen (open, sources) pair.
   const [resetFor, setResetFor] = useState<{ open: boolean; sources: string[] }>({
-    open,
+    open: false,
     sources,
   });
   if (open !== resetFor.open || sources !== resetFor.sources) {

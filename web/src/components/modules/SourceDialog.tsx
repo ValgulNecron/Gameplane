@@ -158,7 +158,7 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
   // changes. Adjusted directly during render (not in an effect), gated on
   // the previously-seen (open, source) pair.
   const [resetFor, setResetFor] = useState<{ open: boolean; source: ModuleSource | null }>({
-    open,
+    open: false,
     source,
   });
   if (open !== resetFor.open || source !== resetFor.source) {

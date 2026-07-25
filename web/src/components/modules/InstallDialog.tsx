@@ -31,7 +31,7 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
   // directly during render (not in an effect), gated on the
   // previously-seen (open, entry) pair.
   const [resetFor, setResetFor] = useState<{ open: boolean; entry: CatalogEntry | null }>({
-    open,
+    open: false,
     entry,
   });
   if (open !== resetFor.open || entry !== resetFor.entry) {

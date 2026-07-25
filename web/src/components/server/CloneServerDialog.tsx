@@ -39,7 +39,7 @@ export function CloneServerDialog({
   // server changes. Adjusted directly during render (not in an effect),
   // gated on the previously-seen (open, sourceName) pair.
   const [resetFor, setResetFor] = useState<{ open: boolean; sourceName: string }>({
-    open,
+    open: false,
     sourceName,
   });
   if (open !== resetFor.open || sourceName !== resetFor.sourceName) {
