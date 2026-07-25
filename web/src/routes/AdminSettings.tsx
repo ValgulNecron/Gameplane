@@ -13,7 +13,6 @@ import {
   Lock,
   Mail,
   MessagesSquare,
-  MessageCircle,
   Plus,
   Puzzle,
   RefreshCcw,
@@ -29,6 +28,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SlackIcon } from "@/components/ui/slack-icon";
 import { cn, formatRelative } from "@/lib/utils";
 import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
 import type { ClusterInfo } from "@/types";
@@ -962,7 +962,7 @@ const defaultOnEvents: NotifEventType[] = [
 
 const sinkIcons: Record<SinkKind, typeof Bell> = {
   discord: MessagesSquare,
-  slack: MessageCircle,
+  slack: SlackIcon,
   smtp: Mail,
   webhook: Webhook,
   ntfy: BellRing,
