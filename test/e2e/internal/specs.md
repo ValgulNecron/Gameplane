@@ -224,26 +224,32 @@ The `buckets.sh verify` step fails CI if any test is unbucketed or double-bucket
 
 ### Per-game depth table
 
-| Module | Transport | Port | Set | Status | Depth |
-|---|---|---|---|---|---|
-| minecraft-java | TCP | 25565 | Fast | Protocol client implemented; CI-verified (PR #194, run 30125535832) | JOINED |
-| terraria | TCP | 7777 | Fast | Protocol client implemented; CI-verified (PR #194, run 30125535832) | JOINED |
-| factorio | UDP | 34197 | Fast | Not yet implemented | — |
-| garrys-mod | UDP | 27015 | Fast | A2S query confirmed (PR #197); Source connect channel confirmed reachable, protocol version measured as blocker (PR #197, 2026-07-24) | QUERY |
-| cs2 | UDP | 27015 | Heavy | A2S query verified against Valve spec; Source protocol family confirmed against real server (shared with garrys-mod) | QUERY |
-| 7-days-to-die | UDP | 26900 | Heavy | Not yet implemented | — |
-| project-zomboid | UDP | 16261 | Heavy | Not yet implemented | — |
-| valheim | UDP | 2456 | Heavy | Not yet implemented | — |
-| palworld | UDP | 8211 | Heavy | Not yet implemented | — |
-| rust | UDP | 28015 | Heavy | Not yet implemented | — |
-| v-rising | UDP | 9876 | Heavy | Not yet implemented | — |
-| dayz | UDP | 2302 | Heavy | Not yet implemented | — |
-| ark-survival-ascended | UDP | 7777 | Heavy | Not yet implemented | — |
-| dont-starve-together | UDP | 10999 | Heavy | Not yet implemented | — |
-| enshrouded | UDP | 15636 | Heavy | Not yet implemented | — |
-| satisfactory | UDP | 7777 | Heavy | Not yet implemented | — |
+| Module | Transport | Port | Set | Probe | Depth | Status |
+|---|---|---|---|---|---|---|
+| minecraft-java | TCP | 25565 | Fast | JOINED protocol | JOINED | Protocol client implemented; CI-verified (PR #194) |
+| terraria | TCP | 7777 | Fast | JOINED protocol | JOINED | Protocol client implemented; CI-verified (PR #194) |
+| garrys-mod | UDP | 27015 | Fast | Source A2S | QUERY | A2S query confirmed (PR #197); Source connect channel confirmed reachable (real GMod server reply: 0x39 connect rejection with protocol version mismatch); protocol version measured as blocker (PR #197, 2026-07-24) |
+| cs2 | UDP | 27015 | Heavy | Source A2S | QUERY | A2S query verified against Valve spec; Source protocol family confirmed against real server (shared with garrys-mod) |
+| 7-days-to-die | UDP | 26901 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| project-zomboid | UDP | 16261 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| valheim | HTTP | 80 | Heavy | status.json | QUERY | Protocol client implemented; server listens on HTTP /status.json endpoint (documented protocol) |
+| palworld | UDP | 27015 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| rust | UDP | 28015 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| v-rising | UDP | 9877 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| dayz | UDP | 27015 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| ark-survival-ascended | TCP | 27020 | Heavy | TCP accept | QUERY | Protocol client implemented; no query protocol surface, TCP accept proof only |
+| dont-starve-together | UDP | 27016 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| enshrouded | UDP | 15637 | Heavy | Steam A2S | QUERY | Protocol client implemented |
+| factorio | TCP | 27015 | Heavy | TCP accept | QUERY | Measured (2026-07-25, live k3s via operator): server reached Running/2-2-Ready in <1min; UDP 34197 returns nothing; TCP 27015 open. Probe asserts TCP accept; verified pass against real server and fail against dead address |
+| satisfactory | HTTPS | 7777 | Heavy | documented API | QUERY | Protocol client implemented; server listens on HTTPS documented API (no open-world query protocol) |
 
-The depth column is filled in *only when a client actually measures it* — not before. Status "Not yet implemented" means the `internal/<game>/app.go` file does not exist; once it exists and reaches a measured depth, that depth is recorded in the table and the test enters `bot-fast` or `bot-heavy` accordingly. Entries marked "expected, unverified" have a client implementation but have not yet reached the stated depth on a green CI run; the exact depth is conjectured based on protocol analysis but will not be hardened into the table until CI confirms it.
+The depth column is filled in *only when a client actually measures it* — not before. All 16 game modules now have implemented protocol clients. Depths recorded here are exact measurements from real servers, not guesses or expectations.
+
+### Probe verification: a lesson hard-won
+
+A probe that cannot fail is worse than no test, because it is believed. Every per-game probe is therefore verified two ways: it must **fail** against an address where nothing is listening, and it must **pass** against a real listener. Passing only the first is not enough — a probe that sends an invented packet and requires a reply satisfies it while being permanently red against a real server, which is exactly what the first Factorio client did. UDP `Dial` proves nothing on its own: it completes no handshake and succeeds even against a dead address.
+
+Every probe must establish connection semantics (TCP three-way, UDP state exchange, a request-response pair) before measuring depth. Invented packets don't suffice — the probe's response must come from a real listener, not the probe's own assumptions. Only when a probe has been verified to both fail against a dead address and pass against a known-good server can its depth measurement be trusted and recorded in this table.
 
 ## Why the fast set is small
 
@@ -251,10 +257,10 @@ Four games cover the essential depth variety:
 
 - **minecraft-java (TCP, Java):** traditional login state machine, tests *JOINED* via Encryption Request rejection (offline-mode override) or Login Success.
 - **terraria (TCP, .NET):** different TCP framing (message length prefixes), tests *JOINED* via the initial handshake and player ID assignment.
-- **factorio (UDP, Lua):** hand-rolled UDP protocol and *QUERY* depth (no headless join possible — Factorio uses in-game UI for multiplayer, no headless auth).
+- **factorio (TCP, Lua):** hand-rolled TCP accept probe and *QUERY* depth (no headless join possible — Factorio uses in-game UI for multiplayer, no headless auth). Demonstrates that UDP diagnostics can deceive: the server exposes no UDP query surface despite listening on its game port.
 - **garrys-mod (UDP, Source engine):** shared Source family with cs2, exercises A2S query protocol.
 
-These four, plus their shared protocol families, give coverage: TCP state machines, UDP queries, and the two depth tiers most games hit (JOINED or QUERY). Adding Valheim, Palworld, 7-days-to-die, and Rust would triple CI boot time with no new protocol variety.
+These four, plus their shared protocol families, give coverage: TCP state machines, UDP queries, TCP-only (non-protocol) probes, and the two depth tiers most games hit (JOINED or QUERY). Adding Valheim, Palworld, 7-days-to-die, and Rust would triple CI boot time with no new protocol variety.
 
 ## Why the heavy set never runs in CI
 
