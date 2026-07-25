@@ -27,7 +27,7 @@
     "@tanstack/react-virtual": "^3.14.8",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "class-variance-authority": "^0.7.0",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.26.0",
     "react": "^19.2.8",
@@ -62,7 +62,7 @@
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
-    "vitest-websocket-mock": "^0.4.0"
+    "vitest-websocket-mock": "^0.7.0"
   },
   "msw": {
     "workerDirectory": [
