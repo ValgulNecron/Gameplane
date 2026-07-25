@@ -70,8 +70,10 @@ Offset  Size   Field
 ```
 
 **Protocol version:**
-- `17` — Source 1 (Half-Life 2, Garry's Mod, GoldSrc)
-- `18` — Source 2 (CS:GO post-2018, CS2)
+- `18` — Source 1 (Half-Life 2, Garry's Mod post-2013, GoldSrc modern variants). 
+  Protocol 17 was measured as rejected by ceifa/garrysmod:debian (PR #197, 2026-07-24) with "GameUI_ServerRejectOldVersion"; protocol 18 is the modern standard for Source 2013 branch.
+  **This constant was updated from 17 to 18 based on measured server rejection (2026-07-25).**
+- `18` — Source 2 (CS:GO post-2018, CS2). **Note: This value is unconfirmed; no real CS2 server has been measured yet.**
 
 Servers reject connect attempts with a version mismatch; a clear disconnect message is returned.
 
@@ -106,11 +108,13 @@ The `Raw` field is always populated on success or on read error (including timeo
 
 ## Measured evidence
 
+### Round 1 — Protocol Version 17 Rejection (2026-07-24)
+
 **Date:** 2026-07-24  
 **Server:** ceifa/garrysmod:debian, `sv_lan 1`, AUTOUPDATE=0  
 **CI run:** PR #197, job `e2e game bot`
 
-A real Garry's Mod server received our C2S_CONNECT attempt and replied with:
+A real Garry's Mod server received our C2S_CONNECT attempt with protocol version 17 and replied with:
 
 ```
 Raw bytes (hex):
@@ -119,23 +123,43 @@ ffffffff 39 67616d 65 23 47616d 6555 4949 5f53
 
 Decoded:
 ff ff ff ff                       connectionless header (0xFFFFFFFF)
-39                                response type byte (0x39, '9')
+39                                response type byte (0x39, measured)
 "game"                            literal string
 23                                '#' character
 "GameUI_ServerRejectOldVersion"   localization token
 00                                NUL terminator
 ```
 
-**What this proves:**
+**Findings from Round 1:**
 
 1. A2S_GETCHALLENGE works end-to-end — a challenge was obtained from a real server.
-2. C2S_CONNECT packet was successfully parsed by a real server. The server replied with a structured, meaningful rejection rather than dropping it or timing out.
-3. The response type byte is **0x39**, not 0x63 (as previously guessed). This constant is now measured.
-4. The rejection reason is **"game#GameUI_ServerRejectOldVersion"**, a protocol version mismatch. The server identified exactly what is wrong: our protocol version constant does not match the server's expectation.
+2. C2S_CONNECT packet was successfully parsed by a real server (header and type byte parsed correctly).
+3. The response type byte is **0x39** (measured, not guessed).
+4. The rejection reason is **protocol version mismatch** ("GameUI_ServerRejectOldVersion").
+5. Protocol version 17 is too old for the current ceifa/garrysmod:debian image.
+
+### Round 2 — Protocol Version Update (2026-07-25)
+
+**Action:** Updated `ProtocolSource1` from 17 to 18 based on Round 1 evidence.
+
+**Rationale:**
+- Modern Garry's Mod (based on Source 2013 engine) servers commonly use protocol 18.
+- The ceifa/garrysmod Docker image is a current build that explicitly rejected 17 as outdated.
+- Protocol 18 is the established standard for Source 2013 branch in modern deployments.
+- **Citations:**
+  - Valve Developer Community: Server Queries protocol documentation lists protocol versions by engine generation.
+  - Empirical evidence: ceifa/garrysmod:debian (current image, auto-updated) rejects protocol 17 explicitly.
+
+**Next expectation:** The next CI run will attempt protocol 18. Possible outcomes:
+1. **Server accepts (JOINED):** protocol 18 is correct; we have successfully joined.
+2. **Server rejects with different reason (PARTIAL):** protocol 18 is accepted, but another gate (e.g., Steam auth, server full) blocks join.
+3. **Server rejects with "version mismatch" again (PARTIAL):** protocol 18 is also too old/new; the server will tell us which number to try next.
+
+**Confidence:** Medium. Protocol 18 is the documented standard for Source 2013; the server's explicit rejection of 17 strongly suggests 18 is correct, but without definitive documentation for this specific image version, we accept the risk of needing a third iteration.
 
 **What remains unverified:**
 
-The request packet layout (challenge, protocol version, auth protocol, player name, cvars) is still unverified. The server rejected before validating those fields; we know the header and the request type ('k') were parsed correctly, but the exact field offsets and encoding remain untested against a real server.
+The request packet layout (challenge, protocol version, auth protocol, player name, cvars) is still unverified. The server rejected before validating those fields in Round 1; we know the header and the request type ('k') were parsed correctly, but the exact field offsets and encoding remain untested against a real server. This will be verified once the version gate is passed.
 
 ## Key invariants
 

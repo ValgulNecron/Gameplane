@@ -526,6 +526,74 @@ func TestConnect_ProtocolVersions(t *testing.T) {
 	}
 }
 
+// TestConnect_MeasuredVersionRejection_0x39 tests rejection response type 0x39
+// as measured against a real ceifa/garrysmod:debian server (PR #197, 2026-07-24).
+// This is the exact payload the server sent when protocol version 17 was rejected.
+// The server identified "game#GameUI_ServerRejectOldVersion" as the reason.
+func TestConnect_MeasuredVersionRejection_0x39(t *testing.T) {
+	t.Parallel()
+
+	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	addr := listener.LocalAddr().String()
+
+	go func() {
+		defer listener.Close()
+		buf := make([]byte, 1024)
+		_, remoteAddr, err := listener.ReadFrom(buf)
+		if err != nil {
+			return
+		}
+
+		// Send the exact payload observed from a real Garry's Mod server.
+		// Hex breakdown:
+		//   ff ff ff ff           - connectionless header (0xFFFFFFFF, LE)
+		//   39                    - response type 0x39 (version rejection)
+		//   67 61 6d 65           - "game" (literal string)
+		//   23                    - '#' (separator)
+		//   47 61 6d 65 55 49 ... - "GameUI_ServerRejectOldVersion" (localization token)
+		//   00                    - NUL terminator
+		resp := []byte{
+			0xFF, 0xFF, 0xFF, 0xFF,
+			0x39,
+			'g', 'a', 'm', 'e',
+			'#',
+			'G', 'a', 'm', 'e', 'U', 'I', '_', 'S', 'e', 'r', 'v', 'e', 'r',
+			'R', 'e', 'j', 'e', 'c', 't', 'O', 'l', 'd', 'V', 'e', 'r', 's', 'i', 'o', 'n',
+			0x00,
+		}
+		listener.WriteTo(resp, remoteAddr)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	result, err := Connect(ctx, addr, 0x11223344, "Bot", ProtocolSource1)
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+
+	// Verify rejection was detected.
+	if result.Accepted {
+		t.Errorf("Connect.Accepted: got true, want false")
+	}
+
+	// Verify the rejection message was extracted correctly.
+	expectedMsg := "game#GameUI_ServerRejectOldVersion"
+	if result.RejectMsg != expectedMsg {
+		t.Errorf("Connect.RejectMsg: got %q, want %q", result.RejectMsg, expectedMsg)
+	}
+
+	// Verify raw bytes are preserved for diagnosis.
+	if result.Raw == nil {
+		t.Error("Connect.Raw: expected raw bytes, got nil")
+	}
+}
+
 // TestChallenge_NonLoopbackServer verifies that Challenge works when the server
 // peer is on a non-loopback address. This test does NOT catch a loopback-only
 // bind regression. Empirically, reintroducing net.Dialer{LocalAddr: &net.UDPAddr{IP: net.IPv4(127,0,0,1)}}

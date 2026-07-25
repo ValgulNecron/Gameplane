@@ -9,10 +9,10 @@
 //     before attempting to join. CONFIRMED against real Garry's Mod server
 //     (PR #197, e2e game bot job, 2026-07-24).
 //   - C2S_CONNECT ('k'): attempt to connect with the challenge, protocol
-//     version, and player name. The server's ability to parse and reply to
-//     our connect attempt is CONFIRMED against a real server; the rejection
-//     identified protocol version as the blocker. Packet layout remains
-//     unverified (server rejected before validating the full payload).
+//     version, and player name. Server parsing CONFIRMED; protocol version 17
+//     was rejected as outdated (PR #197, 2026-07-24); attempting version 18 next.
+//     Packet layout remains unverified (server rejected at version check before
+//     validating the full payload).
 //
 // Reference: https://developer.valvesoftware.com/wiki/Server_queries
 // (primary reference for packet types and formats). See spec.md for measured
@@ -67,12 +67,16 @@ const (
 const connlessHeader = 0xFFFFFFFF
 
 // Protocol version constants.
-// Source 1 (GoldSrc, Half-Life 2, Garry's Mod): protocol 17
-// Source 2 (CS:GO post-2018, CS2): protocol 18+
-// These are the most common for LAN mode testing; servers will reject
-// mismatched versions with a clear message.
+// ProtocolSource1 = 18 is the current best candidate pending the diagnostic sweep.
+// It is based on Source 2013 engine documentation and ceifa/garrysmod:debian's explicit
+// rejection of protocol 17 with "GameUI_ServerRejectOldVersion" (PR #197, 2026-07-24).
+// The diagnostic sweep in the Garry's Mod probe tests multiple candidates (24, 18, 17)
+// in a single CI boot to converge on the correct version. Do not treat this constant
+// as measured; it is the hypothesis the sweep will validate or refute.
+//
+// ProtocolSource2 = 18 is unconfirmed (never measured against a real CS2 server).
 const (
-	ProtocolSource1 uint32 = 17
+	ProtocolSource1 uint32 = 18
 	ProtocolSource2 uint32 = 18
 )
 
