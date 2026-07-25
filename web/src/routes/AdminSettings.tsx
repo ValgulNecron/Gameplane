@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type ComponentType, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -960,7 +960,11 @@ const defaultOnEvents: NotifEventType[] = [
   "restore.failed",
 ];
 
-const sinkIcons: Record<SinkKind, typeof Bell> = {
+// SlackIcon (a plain function component) is mixed in alongside lucide-react's
+// forwardRef-based icons; the only prop this map's consumer relies on is
+// `className`, so type the map to that shared contract rather than the full
+// LucideIcon (ForwardRefExoticComponent) shape.
+const sinkIcons: Record<SinkKind, ComponentType<{ className?: string }>> = {
   discord: MessagesSquare,
   slack: SlackIcon,
   smtp: Mail,
