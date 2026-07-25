@@ -271,7 +271,7 @@ for the registration flow.
   server; disabled by default. Works across all four expose modes
   (ClusterIP/NodePort/LoadBalancer/Hostport); Hostport has an asymmetric
   limitation documented in `docs/roadmap.md`. See `sentinel/`.
-- **Operator/Agent → game protocol parsing (gameproto)**: shared Go module for
+- **Sentinel → game protocol parsing (gameproto)**: shared Go module for
   Minecraft and Terraria handshake parsing, used by the sentinel to distinguish
   a genuine join from a server-list ping without corrupting the connection stream.
   UDP-only games (Valheim, Factorio, etc.) have no connection to hold, so the

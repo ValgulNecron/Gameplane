@@ -136,8 +136,8 @@ it on a genuine connection attempt. Opt-in per server via `spec.idle.wakeOnConne
 
 **Design (as implemented):**
 
-- New optional component: `sentinel/` (distroless Docker image, Helm toggle
-  `sentinel.image`). While a GameServer is armed (`spec.idle.wakeOnConnect=true`)
+- New optional component: `sentinel/` (distroless Docker image, configured via
+  `operator.sentinelImage`). While a GameServer is armed (`spec.idle.wakeOnConnect=true`)
   and asleep, the operator runs it as a 1-replica Deployment `<gs>-waker`.
 - The sentinel holds the game's advertised ports (read from `spec.networking`
   and `GamePort.advertise`) and switches traffic between the game pod and itself
@@ -145,7 +145,7 @@ it on a genuine connection attempt. Opt-in per server via `spec.idle.wakeOnConne
   when waking, it points back to the game pod (via a `<gs>-game-direct` ClusterIP
   Service the game pod advertises to).
 - New shared module: `gameproto/` for Minecraft and Terraria real handshake
-  parsing (`Consumed()` lets callers reconstruct the client stream for lossless
+  parsing (`Consumed` field lets callers reconstruct the client stream for lossless
   replay). Every other game uses `generic` — a packets-in-window heuristic.
 - New CRD fields: `GameServer.spec.idle.wakeOnConnect` (bool, default false) and
   `GamePort.wakeProtocol` (enum: `minecraft|terraria|generic|none`, default `generic`).

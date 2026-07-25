@@ -10,7 +10,7 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 ### Added
 
 - **Wake-on-connect for idle auto-sleep:** a sentinel component (distroless Docker
-  image, Helm toggle `sentinel.image`) holds advertised ports while a GameServer
+  image, configured via `operator.sentinelImage`) holds advertised ports while a GameServer
   is asleep and wakes it on a genuine connection attempt. Opt-in per server via
   `spec.idle.wakeOnConnect` (default false). New CRD fields:
   `GameServer.spec.idle.wakeOnConnect` (bool) and `GamePort.wakeProtocol`

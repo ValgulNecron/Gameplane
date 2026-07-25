@@ -154,7 +154,7 @@ Top-level knobs (see `values.yaml` for the full list):
   directory of module bundles into the operator for `local`-type sources
 - `serviceMonitors.enabled` / `prometheusRules.enabled` / `grafanaDashboards.enabled`
   — opt-in Prometheus Operator integration (see [Observability](#observability))
-- `sentinel.image` — the optional sentinel component for wake-on-connect (default
+- `operator.sentinelImage` — the optional sentinel component for wake-on-connect (default
   `ghcr.io/valgulnecron/gameplane/sentinel:<version>`). The sentinel holds
   advertised ports while a GameServer is asleep and wakes it on a genuine
   connection attempt; opt-in per server via `spec.idle.wakeOnConnect` (default
