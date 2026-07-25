@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -277,6 +278,21 @@ func runGameBotPathA(t *testing.T, gsName, ns string, ctrl pathAControl) {
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer cli.Close()
 
+	// RunGameProbe (Path B), which runs before this, only proves the GAME
+	// container's protocol port is serving — it says nothing about the
+	// agent sidecar. actions/run (rcon transport) and the log-tail
+	// WebSocket both dial the agent over the <gs>-agent Service/mTLS, and
+	// "GameServer phase == Running" does not mean that path is up yet:
+	// the agent container can still be starting, and even once
+	// Ready=true the Service's EndpointSlice + kube-proxy dataplane
+	// programming lag behind (see requireAgentReady/waitAgentReachable
+	// doc comments in api_agent_e2e_test.go, the same pair TestAPI_
+	// LogsTailWS waits on before dialing this exact route). Skipping
+	// this wait is what made both Path A tests fail in CI with the WS
+	// closing "agent dial failed" (StatusBadGateway) on first Read.
+	requireAgentReady(t, ns, gsName)
+	waitAgentReachable(t, cli, gsName)
+
 	if ctrl.Mode != "" {
 		runControlAction(t, ctx, cli, gsName, ns, ctrl)
 	}
@@ -305,10 +321,10 @@ func runControlAction(t *testing.T, ctx context.Context, cli *APIClient, gsName,
 		},
 	)
 	if err != nil {
-		t.Fatalf("POST /actions/run: %v", err)
+		t.Fatalf("API rejected the action: POST /actions/run transport error: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST /actions/run %d: %s", resp.StatusCode, string(body))
+		t.Fatalf("API rejected the action: POST /servers/%s/actions/run returned %d: %s", gsName, resp.StatusCode, string(body))
 	}
 
 	// Parse the response to confirm the API accepted the action.
@@ -316,10 +332,10 @@ func runControlAction(t *testing.T, ctx context.Context, cli *APIClient, gsName,
 		OK bool `json:"ok"`
 	}
 	if err := json.Unmarshal(body, &respBody); err != nil {
-		t.Fatalf("decode action response: %v\n%s", err, string(body))
+		t.Fatalf("API rejected the action: decode action response: %v\n%s", err, string(body))
 	}
 	if !respBody.OK {
-		t.Fatalf("action failed: ok=false")
+		t.Fatalf("API rejected the action: response body reported ok=false")
 	}
 
 	// Tail the logs via WebSocket looking for the unique message.
@@ -332,7 +348,17 @@ func runControlAction(t *testing.T, ctx context.Context, cli *APIClient, gsName,
 	for {
 		_, frame, err := wsConn.Read(readCtx)
 		if err != nil {
-			t.Fatalf("read log frame: %v; action either did not run or its output never appeared in logs (expected message: %q)", err, uniqueMessage)
+			// The API closes the downstream WS with StatusBadGateway and
+			// reason "agent dial failed" (api/internal/ws/dialer.go) when
+			// its own dial to the agent sidecar's WS endpoint fails — a
+			// distinct failure from "the marker never showed up in time".
+			// requireAgentReady/waitAgentReachable above should have
+			// already ruled this out; distinguish it clearly if it still
+			// happens (e.g. the agent restarted between the check and now).
+			if websocket.CloseStatus(err) == websocket.StatusBadGateway {
+				t.Fatalf("agent unreachable: log-tail WS closed by the API (%v) before %q appeared; the agent sidecar's dial failed even though requireAgentReady/waitAgentReachable passed", err, uniqueMessage)
+			}
+			t.Fatalf("action ran but its effect never appeared in logs within 30s (want %q): %v", uniqueMessage, err)
 		}
 		if strings.Contains(string(frame), uniqueMessage) {
 			return // Success: found the message in logs.
