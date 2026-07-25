@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Design tokens sampled from design.pen (c: theme, Dark mode). */
 :root {
@@ -31,6 +29,27 @@
   --warning: 38 92% 50%;
   --danger: 0 72% 51%;
   --violet: 258 90% 66%;
+}
+
+@theme {
+  --color-background: hsl(var(--bg));
+  --color-surface: hsl(var(--surface));
+  --color-card: hsl(var(--card));
+  --color-border: hsl(var(--border));
+  --color-muted: hsl(var(--muted));
+  --color-fg: hsl(var(--fg));
+  --color-primary: hsl(var(--primary));
+  --color-primary-fg: hsl(var(--primary-fg));
+  --color-success: hsl(var(--success));
+  --color-warning: hsl(var(--warning));
+  --color-danger: hsl(var(--danger));
+  --color-violet: hsl(var(--violet));
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-md: 6px;
+  --radius-lg: 10px;
 }
 
 html, body, #root { height: 100%; }
