@@ -103,8 +103,8 @@ describe("AuditLogPage", () => {
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
   });
 
-  it("exports CSV with applied filters", async () => {
-    const csvBlob = new Blob(["id,ts,actor\n1,2026-05-03T12:00:00Z,alice"], { type: "text/csv" });
+  it("exports CSV with applied filters and triggers a browser download", async () => {
+    const csvText = "id,ts,actor\n1,2026-05-03T12:00:00Z,alice";
 
     const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
     const events = [event(1, { actor: "alice", method: "POST" })];
@@ -113,10 +113,33 @@ describe("AuditLogPage", () => {
       const u = url.toString();
       if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
       if (u.includes("/admin/audit/export")) {
-        return Promise.resolve(new Response(csvBlob, { status: 200, headers: { "Content-Type": "text/csv" } }));
+        // Body is a string, not a `Blob` instance: jsdom 29 ships its own
+        // Blob implementation (previously jsdom deferred to Node's), and
+        // it lacks `Blob.prototype.stream()`. msw's globalThis.Response
+        // proxy (recordRawHeaders.ts) calls `.stream()` on a Blob body
+        // while constructing the Response, so `new Response(aJsdomBlob,
+        // ...)` throws "object.stream is not a function" in this
+        // environment. A string body hits a different, working
+        // construction path and still round-trips through `res.blob()`
+        // exactly like a real network response would (Audit.exportCsv
+        // calls `res.blob()` regardless of the original body shape).
+        return Promise.resolve(new Response(csvText, { status: 200, headers: { "Content-Type": "text/csv" } }));
       }
       return Promise.resolve(jsonRes(events));
     });
+
+    // The mutation's onSuccess (AuditLog.tsx) builds a real download: an
+    // object URL for the fetched blob, an <a> pointed at it, a click, then
+    // a revoke. Stub URL's two methods in place (rather than replacing the
+    // whole URL global) so `new URL(...)` elsewhere keeps working, and spy
+    // on createElement/click so we can inspect the anchor the component
+    // actually built.
+    const createURL = vi.fn((_blob: Blob) => "blob:test");
+    const revokeURL = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: createURL });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: revokeURL });
+    const createElementSpy = vi.spyOn(document, "createElement");
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
     const user = userEvent.setup();
     render(withClient(<AuditLogPage />));
@@ -135,6 +158,30 @@ describe("AuditLogPage", () => {
         expect.any(Object),
       );
     }, { timeout: 10000 });
+
+    // Wait for the mutation's onSuccess to run the download sequence.
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
+
+    // Verify a real download was triggered, not just the fetch.
+    expect(createElementSpy).toHaveBeenCalledWith("a");
+    const anchorCallIndex = createElementSpy.mock.calls.findIndex(([tag]) => tag === "a");
+    const anchor = createElementSpy.mock.results[anchorCallIndex]?.value as HTMLAnchorElement;
+    // Not `expect.any(Blob)`: the object passed to createObjectURL comes
+    // from the Fetch implementation's internal `res.blob()`, which is a
+    // different Blob constructor/realm than jsdom's global `Blob` used
+    // here — `instanceof Blob` reliably fails even though it is a
+    // functioning Blob-like object. Assert on the structural properties
+    // that matter instead (content-type carried through from the mocked
+    // response) plus call-was-made, matching (and exceeding) what the
+    // pre-migration test asserted.
+    expect(createURL).toHaveBeenCalledOnce();
+    expect(createURL.mock.calls[0][0]).toMatchObject({ type: "text/csv" });
+    expect(anchor.href).toBe("blob:test");
+    expect(anchor.download).toMatch(/^gameplane-audit-.*\.csv$/);
+    expect(revokeURL).toHaveBeenCalledWith("blob:test");
+
+    createElementSpy.mockRestore();
+    clickSpy.mockRestore();
   });
 
   it("renders the integrity banner when chain is verified", async () => {
