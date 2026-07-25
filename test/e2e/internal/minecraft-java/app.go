@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/protocol"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/minecraftproto"
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
 )
 
@@ -41,11 +41,11 @@ func main() {
 // probeMinecraft pings the server for its protocol version, then completes an
 // offline-mode login. Only Login Success proves the world is serving players.
 func probeMinecraft(ctx context.Context, addr, user string) (probe.Depth, error) {
-	var st *protocol.Status
+	var st *minecraftproto.Status
 
 	// Retry the server-list ping until the server answers or the deadline passes.
 	err := probe.Retry(ctx, "server-list ping", probeAttempt, func(c context.Context) error {
-		s, err := protocol.Ping(c, addr)
+		s, err := minecraftproto.Ping(c, addr)
 		if err != nil {
 			return err
 		}
@@ -62,15 +62,15 @@ func probeMinecraft(ctx context.Context, addr, user string) (probe.Depth, error)
 	// The server answers pings while it is still preparing the spawn area but
 	// rejects logins until the world is ready, so the login is retried too.
 	err = probe.Retry(ctx, "login", loginAttempt, func(c context.Context) error {
-		r, err := protocol.Login(c, addr, st.Version.Protocol, user)
+		r, err := minecraftproto.Login(c, addr, st.Version.Protocol, user)
 		if err != nil {
 			return err
 		}
 		switch r.Outcome {
-		case protocol.Success:
+		case minecraftproto.Success:
 			log.Printf("login ok: server accepted %q", r.Detail)
 			return nil
-		case protocol.NeedsAuth:
+		case minecraftproto.NeedsAuth:
 			// ONLINE_MODE was not disabled: no amount of retrying lets an
 			// unauthenticated bot in.
 			return fmt.Errorf("%w: server is in online-mode: %s", probe.ErrFatal, r.Detail)
@@ -89,10 +89,10 @@ func probeMinecraft(ctx context.Context, addr, user string) (probe.Depth, error)
 // to prove that reaching a wake-on-connect sentinel with a status query does
 // NOT trigger a wake — unlike probeMinecraft, it never attempts a login.
 func probeMinecraftPing(ctx context.Context, addr string) (probe.Depth, error) {
-	var st *protocol.Status
+	var st *minecraftproto.Status
 
 	err := probe.Retry(ctx, "server-list ping", probeAttempt, func(c context.Context) error {
-		s, err := protocol.Ping(c, addr)
+		s, err := minecraftproto.Ping(c, addr)
 		if err != nil {
 			return err
 		}
@@ -119,10 +119,10 @@ func probeMinecraftPing(ctx context.Context, addr string) (probe.Depth, error) {
 // fired is the GameServer's annotation/status, which the e2e test asserts
 // via the K8s API — nothing observable on the wire settles it.
 func probeMinecraftWake(ctx context.Context, addr, user string) (probe.Depth, error) {
-	var st *protocol.Status
+	var st *minecraftproto.Status
 
 	err := probe.Retry(ctx, "server-list ping", probeAttempt, func(c context.Context) error {
-		s, err := protocol.Ping(c, addr)
+		s, err := minecraftproto.Ping(c, addr)
 		if err != nil {
 			return err
 		}
@@ -135,7 +135,7 @@ func probeMinecraftWake(ctx context.Context, addr, user string) (probe.Depth, er
 
 	loginCtx, cancel := context.WithTimeout(ctx, loginAttempt)
 	defer cancel()
-	res, err := protocol.Login(loginCtx, addr, st.Version.Protocol, user)
+	res, err := minecraftproto.Login(loginCtx, addr, st.Version.Protocol, user)
 	if err != nil {
 		log.Printf("wake login attempt closed (expected once the sentinel wakes the server): %v", err)
 	} else {

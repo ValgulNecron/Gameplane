@@ -46,7 +46,7 @@ The probe imports the shared `probe` and `protocol/a2s` packages from `test/e2e/
 
 ### Shared protocol families
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto`**
 
 ```go
 type Info struct {
@@ -171,7 +171,7 @@ No external modules.
 
 ## Testing & coverage
 
-**No unit tests for the probe itself.** Project Zomboid probe testing relies entirely on the e2e test (`test/e2e/projectzomboid_bot_e2e_test.go`) running against a real cluster and server. The shared `probe` package has its own unit test coverage in `test/e2e/internal/probe/probe_test.go`, and the shared `a2s` protocol family has its own coverage in `test/e2e/internal/protocol/a2s/a2s_test.go`.
+**No unit tests for the probe itself.** Project Zomboid probe testing relies entirely on the e2e test (`test/e2e/projectzomboid_bot_e2e_test.go`) running against a real cluster and server. The shared `probe` package has its own unit test coverage in `test/e2e/internal/probe/probe_test.go`, and the shared `a2s` protocol family has its own coverage in `test/e2e/internal/protocol/a2sproto/a2s_test.go`.
 
 **Manual local verification** (not a substitute for CI/real-server coverage): see "Local verification" under "Measured connectivity" above.
 
@@ -253,7 +253,7 @@ This test is named `TestGameServer_ProjectZomboidBot_Query` and expects `ExpectD
 - **Probe application:** `test/e2e/internal/project-zomboid/app.go`
 - **E2E test:** `test/e2e/projectzomboid_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/probe.go`
-- **A2S protocol family:** `test/e2e/internal/protocol/a2s/`
+- **A2S protocol family:** `test/e2e/internal/protocol/a2sproto/`
 - **Shipped template:** `modules/project-zomboid/template.yaml`
 - **sknnr/project-zomboid-server repository:** https://github.com/jsknnr/project-zomboid-server
 - **Project Zomboid Official Wiki:** https://projectzomboid.fandom.com/wiki/Server (limited documentation; no join wire-format spec)

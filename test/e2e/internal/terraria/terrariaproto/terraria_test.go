@@ -1,4 +1,4 @@
-package protocol
+package terrariaproto
 
 import (
 	"bytes"
@@ -372,7 +372,7 @@ func TestRequestWorldDataEmpty(t *testing.T) {
 
 	conn := &Conn{c: client}
 	err := conn.RequestWorldData(ctx)
-	if err == nil || err.Error() != "empty WorldData payload" {
+	if err == nil || err.Error() != "terraria: empty WorldData payload" {
 		t.Fatalf("RequestWorldData should reject empty payload, got %v", err)
 	}
 }

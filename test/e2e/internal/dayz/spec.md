@@ -28,7 +28,7 @@ Prove that a Gameplane-managed DayZ server answers Steam A2S query protocol, con
 test/e2e/internal/dayz/
 ├── app.go      # probe entry point; calls A2S, logs game-port diagnostic
 ├── spec.md     # this file
-└── [no protocol/ subdir — reuses test/e2e/internal/protocol/a2s]
+└── [no protocol/ subdir — reuses test/e2e/internal/protocol/a2sproto]
 ```
 
 ## External interface / contracts
@@ -44,7 +44,7 @@ Request:  0xFFFFFFFF 0x54 (type T for info) [optional: 4-byte challenge]
 Response: 0xFFFFFFFF 0x49 (type I) followed by server metadata
 ```
 
-**Implementation:** `test/e2e/internal/protocol/a2s.QueryInfo()` — proven correct against real servers (used by garrys-mod and cs2).
+**Implementation:** `test/e2e/internal/protocol/a2sproto.QueryInfo()` — proven correct against real servers (used by garrys-mod and cs2).
 
 **Measured outcome on DayZ:** Server responds with server name, map, player count, max players. Example log line:
 
@@ -89,7 +89,7 @@ game-port-diagnostic: server responded with N bytes, hex=...
 
 **Internal:**
 - `test/e2e/internal/probe` — retry harness, Depth type, ParseFlags()
-- `test/e2e/internal/protocol/a2s` — A2S query client (stdlib only)
+- `test/e2e/internal/protocol/a2sproto` — A2S query client (stdlib only)
 
 **External:**
 - Stdlib: `context`, `encoding/hex`, `fmt`, `log`, `net`, `time`
@@ -108,7 +108,7 @@ game-port-diagnostic: server responded with N bytes, hex=...
 
 ### Unit tests
 
-Protocol-family tests (`test/e2e/internal/protocol/a2s/a2s_test.go`):
+Protocol-family tests (`test/e2e/internal/protocol/a2sproto/a2s_test.go`):
 - Pre-recorded A2S responses exercised against parsing logic.
 - Runs on every `make test-go` (not e2e-only).
 

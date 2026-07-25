@@ -44,7 +44,7 @@ test/e2e/internal/minecraft-java/
 └── spec.md                     # This file
 ```
 
-- **`protocol/`** — a subpackage (`github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/protocol`) implementing the wire protocol. Stdlib only, no external imports.
+- **`protocol/`** — a subpackage (`github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/minecraftproto`) implementing the wire protocol. Stdlib only, no external imports.
 - **`app.go`** — the main function that runs as a Kubernetes Job. Imports the protocol package and uses the shared `probe` package for retry logic and test framework integration.
 
 ## External interface / contracts
@@ -229,7 +229,7 @@ VarInt(total_length) | VarInt(packet_id) | payload...
 
 ## References
 
-- **Protocol implementation:** `test/e2e/internal/minecraft-java/protocol/minecraft.go`
+- **Protocol implementation:** `test/e2e/internal/minecraft-java/minecraftproto/minecraft.go`
 - **Probe application:** `test/e2e/internal/minecraft-java/app.go`
 - **E2E test:** `test/e2e/minecraft_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/` (created by parallel agent)

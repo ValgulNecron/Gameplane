@@ -68,7 +68,7 @@ test/e2e/internal/rust/
 
 **Internal:**
 - `test/e2e/internal/probe` — harness (Depth, ParseFlags, Main, Retry, ErrFatal)
-- `test/e2e/internal/protocol/a2s` — A2S query implementation
+- `test/e2e/internal/protocol/a2sproto` — A2S query implementation
 
 **External:**
 - stdlib only (Go 1.25+)
@@ -88,7 +88,7 @@ test/e2e/internal/rust/
 
 ## Testing & Coverage
 
-**Unit tests:** None (the A2S family has its own tests in `test/e2e/internal/protocol/a2s/a2s_test.go`).
+**Unit tests:** None (the A2S family has its own tests in `test/e2e/internal/protocol/a2sproto/a2s_test.go`).
 
 **E2E test:** `TestGameServer_RustBot_Query` in `test/e2e/rust_bot_e2e_test.go`.
 
@@ -103,7 +103,7 @@ GAMEPLANE_E2E_GAMES=all
 - **Rust image:** `didstopia/rust-server:latest` (pinned to specific SHA in template; verify tag exists before boot)
 - **A2S protocol:** https://developer.valvesoftware.com/wiki/Server_queries
 - **agent/internal/rcon/websocket.go** — the agent's WebSocket RCON client (Path A / not used here)
-- **test/e2e/internal/protocol/a2s/** — A2S query family (used by this probe and garrys-mod/cs2)
+- **test/e2e/internal/protocol/a2sproto/** — A2S query family (used by this probe and garrys-mod/cs2)
 
 ## Configured Budgets
 

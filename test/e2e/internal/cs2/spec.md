@@ -117,14 +117,14 @@ type ConnectResult struct {
 
 5. **Readiness probe on UDP:** CS2 boots with SteamCMD downloads and map initialization. The module's template should include a readiness probe if not already present. Since the game port is UDP, the probe cannot use a simple tcpSocket check. The e2e test uses the probe Job itself as the readiness gate: the pod must be Running before the probe Job starts.
 
-6. **Source protocol is unverified.** Counter-Strike 2 is built on Source 2 engine, which evolved from Source 1 (Garry's Mod). The exact Challenge/Connect packet format may differ between Source 1 and Source 2. The Source protocol implementation in `test/e2e/internal/protocol/source/` is best-effort; its correct behavior is not guaranteed. The diagnostic connect attempt allows observation of the divergence, but no depth decision is based on it.
+6. **Source protocol is unverified.** Counter-Strike 2 is built on Source 2 engine, which evolved from Source 1 (Garry's Mod). The exact Challenge/Connect packet format may differ between Source 1 and Source 2. The Source protocol implementation in `test/e2e/internal/protocol/sourceproto/` is best-effort; its correct behavior is not guaranteed. The diagnostic connect attempt allows observation of the divergence, but no depth decision is based on it.
 
 ## Dependencies
 
 **Internal:** 
 - `github.com/ValgulNecron/gameplane/test/e2e/internal/probe` (shared probe harness)
-- `github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s` (concurrent agent)
-- `github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/source` (concurrent agent)
+- `github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto` (concurrent agent)
+- `github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/sourceproto` (concurrent agent)
 
 **External:** stdlib only (`context`, `encoding/hex`, `errors`, `fmt`, `log`, `time`).
 
@@ -144,7 +144,7 @@ No third-party Go modules. The probe image builds with `GOWORK=off` against `tes
 
 ### Protocol packages
 
-**`internal/protocol/a2s/`** and **`internal/protocol/source/`** (concurrent agents)
+**`internal/protocol/a2sproto/`** and **`internal/protocol/sourceproto/`** (concurrent agents)
 
 Each carries untagged unit tests that run on every `make test-go`:
 
@@ -199,8 +199,8 @@ No CI job ever sets `GAMEPLANE_E2E_GAMES=all` or runs the `bot-heavy` bucket.
 ## References
 
 - **Protocol implementations:** (concurrent agents create)
-  - `test/e2e/internal/protocol/a2s/a2s.go` — Source A2S query
-  - `test/e2e/internal/protocol/source/source.go` — Source Challenge/Connect
+  - `test/e2e/internal/protocol/a2sproto/a2s.go` — Source A2S query
+  - `test/e2e/internal/protocol/sourceproto/source.go` — Source Challenge/Connect
 - **Probe application:** `test/e2e/internal/cs2/app.go`
 - **E2E test:** `test/e2e/cs2_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/` (shared across all games)

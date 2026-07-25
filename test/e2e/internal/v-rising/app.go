@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s"
+	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
 )
 
 func main() {

@@ -145,7 +145,7 @@ package main
 import (
     "context"
     "github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-    "github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/protocol"
+    "github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/minecraftproto"
 )
 
 func main() {

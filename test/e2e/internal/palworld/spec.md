@@ -38,7 +38,7 @@ test/e2e/internal/palworld/
 ```
 
 - **`app.go`** — the main function that runs as a Kubernetes Job. Imports the protocol package and uses the shared `probe` package for retry logic and test framework integration.
-- **Protocol client** — reuses the shared A2S client from `test/e2e/internal/protocol/a2s`.
+- **Protocol client** — reuses the shared A2S client from `test/e2e/internal/protocol/a2sproto`.
 
 ## External interface / contracts
 
@@ -72,7 +72,7 @@ A2S_INFO response structure (after header 0xFFFFFFFF 0x49):
 - Max players (1 byte)
 - ... (additional fields not captured by probe)
 
-This is a standard, citable protocol with no fabrication. Implementation lives in `test/e2e/internal/protocol/a2s` and is shared across multiple games (garrys-mod, cs2, palworld).
+This is a standard, citable protocol with no fabrication. Implementation lives in `test/e2e/internal/protocol/a2sproto` and is shared across multiple games (garrys-mod, cs2, palworld).
 
 ## Depth Measurement
 
@@ -111,7 +111,7 @@ First boot downloads several GB via steamcmd; see module template's startup prob
 
 - **A2S query protocol:** https://developer.valvesoftware.com/wiki/Server_queries (Valve's authoritative source)
 - **Palworld module:** `modules/palworld/template.yaml`
-- **A2S client implementation:** `test/e2e/internal/protocol/a2s/a2s.go`
+- **A2S client implementation:** `test/e2e/internal/protocol/a2sproto/a2s.go`
 - **Probe harness:** `test/e2e/internal/probe/probe.go`
 - **E2E test:**`test/e2e/palworld_bot_e2e_test.go`
 - **Buckets:** `test/e2e/buckets.sh` (Palworld in `bot-heavy` bucket)

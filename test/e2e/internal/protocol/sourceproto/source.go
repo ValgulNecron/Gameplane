@@ -33,7 +33,7 @@
 //
 // This implementation sends a connect attempt without a Steam ticket and
 // inspects the reply to determine the gate.
-package source
+package sourceproto
 
 import (
 	"context"
@@ -109,7 +109,7 @@ type ConnectResult struct {
 func Challenge(ctx context.Context, addr string) (uint32, error) {
 	conn, err := dialContext(ctx, addr)
 	if err != nil {
-		return 0, fmt.Errorf("dial: %w", err)
+		return 0, fmt.Errorf("source: dial: %w", err)
 	}
 	defer conn.Close()
 
@@ -122,25 +122,25 @@ func Challenge(ctx context.Context, addr string) (uint32, error) {
 	binary.LittleEndian.PutUint32(req[5:9], 0)
 
 	if _, err := conn.Write(req); err != nil {
-		return 0, fmt.Errorf("send challenge request: %w", err)
+		return 0, fmt.Errorf("source: send challenge request: %w", err)
 	}
 
 	// Read response: expect 0xFFFFFFFF + 'A' + 4-byte challenge.
 	resp := make([]byte, 9)
 	n, err := conn.Read(resp)
 	if err != nil {
-		return 0, fmt.Errorf("read challenge response: %w", err)
+		return 0, fmt.Errorf("source: read challenge response: %w", err)
 	}
 	if n < 9 {
-		return 0, fmt.Errorf("challenge response too short: got %d bytes, expected 9", n)
+		return 0, fmt.Errorf("source: challenge response too short: got %d bytes, expected 9", n)
 	}
 
 	if binary.LittleEndian.Uint32(resp[0:4]) != connlessHeader {
-		return 0, fmt.Errorf("invalid response header: got 0x%08x, expected 0x%08x",
+		return 0, fmt.Errorf("source: invalid response header: got 0x%08x, expected 0x%08x",
 			binary.LittleEndian.Uint32(resp[0:4]), connlessHeader)
 	}
 	if resp[4] != pktChallengeResp {
-		return 0, fmt.Errorf("unexpected response packet type: got 0x%02x (%c), expected 0x%02x (%c)",
+		return 0, fmt.Errorf("source: unexpected response packet type: got 0x%02x (%c), expected 0x%02x (%c)",
 			resp[4], resp[4], pktChallengeResp, pktChallengeResp)
 	}
 
@@ -172,7 +172,7 @@ func Challenge(ctx context.Context, addr string) (uint32, error) {
 func Connect(ctx context.Context, addr string, challenge uint32, name string, protocol uint32) (*ConnectResult, error) {
 	conn, err := dialContext(ctx, addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial: %w", err)
+		return nil, fmt.Errorf("source: dial: %w", err)
 	}
 	defer conn.Close()
 
@@ -218,7 +218,7 @@ func Connect(ctx context.Context, addr string, challenge uint32, name string, pr
 	req = append(req, 0x00)
 
 	if _, err := conn.Write(req); err != nil {
-		return nil, fmt.Errorf("send connect request: %w", err)
+		return nil, fmt.Errorf("source: send connect request: %w", err)
 	}
 
 	// Read the server's response.
@@ -237,7 +237,7 @@ func Connect(ctx context.Context, addr string, challenge uint32, name string, pr
 	// Preserve the response bytes even on read error (e.g., timeout).
 	// This allows the caller to diagnose what happened.
 	if err != nil && !errors.Is(err, io.EOF) {
-		return result, fmt.Errorf("read connect response: %w", err)
+		return result, fmt.Errorf("source: read connect response: %w", err)
 	}
 
 	if n < 5 {
