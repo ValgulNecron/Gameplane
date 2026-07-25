@@ -30,7 +30,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: restic
-          image: restic/restic:0.19.1
+          image: restic/restic:0.18.1
           command: ["/bin/sh", "-c"]
           # `cat config` is the canonical "does the repo exist" probe;
           # `init` is idempotent against an empty target. Same recipe as
