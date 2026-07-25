@@ -10,13 +10,14 @@ Prove that a Gameplane-managed game server is not merely "Running" in Kubernetes
 
 This harness exists in two independent layers:
 
-- **Path A** — through Gameplane — validates the full stack: API console WebSocket, `/players` endpoint, action commands, agent sidecar, and on down to the module's declared control protocol.
+- **Path A** — through Gameplane — validates the full stack after Path B succeeds: API authentication, `/servers/{name}/actions/run` route, WebSocket log tailing, agent sidecar, and on down to the module's declared control protocol (RCON or stdin). Path A reuses the same running server from Path B rather than booting a second server; this proves the product works end-to-end without doubling boot time.
 - **Path B** — the per-game client — proves the server itself is serving, independent of any Gameplane assumptions. It speaks the real game protocol, shares no code with the agent, and observes only the network facts: what does a real client see?
 
-Neither path alone is sufficient. Path A self-confirms (our agent talking to itself); Path B is the ground truth that the server is actually working.
+Neither path alone is sufficient. Path A alone self-confirms (our API talking to our agent); Path B is the ground truth that the server is actually working. Path A + Path B together prove the product works end-to-end.
 
 ## Responsibilities
 
+**Path B (probe):**
 1. Measure the exact join depth (JOINED, PARTIAL, or QUERY) each game's client reaches and assert it matches the expected depth.
 2. Reject depth regressions: if a game measured as PARTIAL must fail if it starts JOINED (credential gate moved) or drops to QUERY (protocol access lost).
 3. Provide a shared retry harness (`probe.Main`, `probe.Retry`) so every per-game binary avoids re-implementing deadline logic, retry loops, and depth validation.
@@ -24,6 +25,14 @@ Neither path alone is sufficient. Path A self-confirms (our agent talking to its
 5. Build one multi-game probe image (`gameplane-test/gameprobe`) with all per-game binaries at `/probe/<game>`.
 6. Define the protocol specifications and shared family implementations (Source A2S, LiteNetLib, etc.) so new games reuse proven code.
 7. Support environment-based gating (`GAMEPLANE_E2E_GAME_BOT`, `GAMEPLANE_E2E_GAMES`) so heavy games never run in CI.
+
+**Path A (control channel):**
+1. After Path B proves the server is running and reachable via its real protocol, exercise the module's declared control channel (RCON or stdin/PTY) through the Gameplane API.
+2. For RCON games (Minecraft): POST `/servers/{name}/actions/run` with the `broadcast` action, passing a unique test message as a parameter, then tail `/ws/servers/{name}/logs` to observe the message in console output.
+3. For stdin/PTY games (Terraria): POST the `broadcast` action with a unique test message, then tail logs to observe the message in console output.
+4. For games with no control channel (Garry's Mod): skip Path A; document in the spec that no control surface is available.
+5. Reuse the same running server from Path B rather than booting a second server; this proves the product works without doubling boot time and CI costs.
+6. Assert the unique message appears in logs (not just the API response), proving the action actually reached the game process and produced observable output.
 
 ## Non-goals / boundaries
 
@@ -250,6 +259,17 @@ The depth column is filled in *only when a client actually measures it* — not 
 A probe that cannot fail is worse than no test, because it is believed. Every per-game probe is therefore verified two ways: it must **fail** against an address where nothing is listening, and it must **pass** against a real listener. Passing only the first is not enough — a probe that sends an invented packet and requires a reply satisfies it while being permanently red against a real server, which is exactly what the first Factorio client did. UDP `Dial` proves nothing on its own: it completes no handshake and succeeds even against a dead address.
 
 Every probe must establish connection semantics (TCP three-way, UDP state exchange, a request-response pair) before measuring depth. Invented packets don't suffice — the probe's response must come from a real listener, not the probe's own assumptions. Only when a probe has been verified to both fail against a dead address and pass against a known-good server can its depth measurement be trusted and recorded in this table.
+
+### Path A implementation status
+
+Path A exercises the module's control channel after Path B proves the server is running. Implementation status per game:
+
+| Game | Control Channel | Path A Status | Notes |
+|---|---|---|---|
+| minecraft-java | RCON (protocol: source) | IMPLEMENTED | Runs the `broadcast` action with a unique per-run message, tails logs to confirm the message appears |
+| terraria | stdin/PTY (protocol: none, consoleMode: pty) | IMPLEMENTED | Runs the `broadcast` action with a unique per-run message, tails logs to confirm the message appears |
+| garrys-mod | none (protocol: none, no PTY) | SKIPPED | Template declares no control channel; no Path A test |
+| all others | — | NOT YET IMPLEMENTED | Path A will be implemented as games are added to the fast set |
 
 ## Why the fast set is small
 

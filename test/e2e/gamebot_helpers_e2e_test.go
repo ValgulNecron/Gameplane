@@ -4,7 +4,10 @@ package e2e
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -91,11 +94,32 @@ type gameResources struct {
 	ReqCPU, ReqMem, LimCPU, LimMem string
 }
 
+// pathAControl declares how a game is driven THROUGH Gameplane after Path B proves
+// the server is running. Empty/unset means no Path A test (server is unchecked for
+// control channel availability).
+type pathAControl struct {
+	Mode   string // "rcon" | "stdin" | "" (no control channel)
+	Action string // action id to run
+
+	// ExpectRaw is required when Mode == "rcon": the substring the
+	// action's RCON reply (the `raw` field on POST /actions/run's
+	// response — see agent/internal/actions/actions.go's runResp, which
+	// api/internal/ws/actions.go's actionRunResp mirrors) must contain to
+	// prove the command actually ran on the game server. Most chat/
+	// broadcast RCON commands (e.g. Minecraft's "say") return an EMPTY
+	// RCON reply — the message only shows up in game chat/logs, never in
+	// the reply itself — so asserting a broadcast action's reply would be
+	// vacuous. Pick a declared action whose reply carries real text
+	// instead (verified against the game's actual output at the call
+	// site, not assumed).
+	ExpectRaw string
+}
+
 // gameBotSpec fully describes a game for bot testing: template config,
 // container config, readiness expectations, and probe parameters.
 type gameBotSpec struct {
-	Game          string            // module dir name, e.g. "minecraft-java"
-	Template      string            // GameTemplate name
+	Game          string // module dir name, e.g. "minecraft-java"
+	Template      string // GameTemplate name
 	DisplayName   string
 	Image         string
 	Env           map[string]string
@@ -111,6 +135,8 @@ type gameBotSpec struct {
 	Probes        map[string]any // spec.probes; nil means the operator sets no probe
 	RCON          map[string]any // spec.rcon
 	ConsoleMode   string         // spec.consoleMode
+	Actions       []any          // spec.capabilities.actions; nil means no actions
+	Control       pathAControl   // Path A: drive the server through Gameplane (optional)
 }
 
 // runGameBotTest creates the GameTemplate + GameServer, waits for
@@ -170,7 +196,7 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		},
 	}
 
-	// Set optional probes, rcon, and consoleMode if provided.
+	// Set optional probes, rcon, consoleMode, and actions if provided.
 	if s.Probes != nil {
 		spec["probes"] = s.Probes
 	}
@@ -179,6 +205,11 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 	}
 	if s.ConsoleMode != "" {
 		spec["consoleMode"] = s.ConsoleMode
+	}
+	if s.Actions != nil {
+		spec["capabilities"] = map[string]any{
+			"actions": s.Actions,
+		}
 	}
 
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
@@ -238,4 +269,206 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		ExpectDepth: s.ExpectDepth,
 		Args:        s.ProbeArgs,
 	})
+
+	// Path A: drive the server THROUGH Gameplane if a control channel is declared.
+	// This proves the API, agent, and control protocol integration work end-to-end.
+	if s.Control.Mode != "" {
+		runGameBotPathA(t, gsName, ns, s.Control)
+	}
+}
+
+// runGameBotPathA drives the SAME already-running server through Gameplane
+// (API → agent, or API → kubelet-attach → game protocol) to prove
+// end-to-end control integration. It expects the server to already be in
+// Running phase and reachable — RunGameProbe (Path B), which runs
+// immediately before this, already proved the game's own protocol port is
+// live.
+//
+// The two Mode values assert through a DIFFERENT surface each, because
+// the two shipped games declare different control planes:
+//
+//   - "rcon" (Minecraft): the action runs over RCON, proxied through the
+//     agent sidecar (api/internal/ws/dialer.go's httpProxy). The RCON
+//     reply itself carries the command's output, so that reply is what
+//     gets asserted — see runControlActionRCON. This path still depends
+//     on the agent being reachable.
+//
+//   - "stdin" (Terraria): the action is fire-and-forget pod-attach (no
+//     RCON, no reply body) — its effect only ever shows up on the game's
+//     own stdout, which is exactly what the console-pty stream carries
+//     for a consoleMode: pty template. See runControlActionStdinPTY.
+//     Neither the action write nor console-pty touch the agent sidecar —
+//     both attach via the API's own in-cluster kubeconfig against the
+//     kubelet (mountAttach/WriteStdinLines) — so this path has no
+//     agent-unreachable failure mode at all.
+//
+// A prior version of this helper always tailed /ws/servers/{name}/logs
+// (the agent-proxied log surface) regardless of Mode. That surface needs
+// GameTemplate.spec.logPath configured — the operator only passes
+// --game-log-path to the agent when it's set (operator/internal/
+// controller/gameserver_controller.go:1264-1265) — and our hand-built bot
+// templates never set it, so the agent's /logs/tail handler 503s
+// ("log tailing not configured", agent/internal/logs/logs.go:66-69)
+// instead of upgrading to a WebSocket, and the API's dial side
+// (api/internal/ws/dialer.go:158-172) turns that failed upgrade into a
+// bare "agent dial failed" WS close — exactly what CI observed for BOTH
+// games. Terraria in particular has no log file to point logPath at in
+// the first place: passivelemon/terraria-docker logs to stdout only, with
+// "no persistent logfile" (modules/terraria/template.yaml's own doc
+// comment) — so declaring logPath was never going to fix it. Asserting
+// through each game's own declared control surface instead removes the
+// log-tail dependency entirely, for both games.
+func runGameBotPathA(t *testing.T, gsName, ns string, ctrl pathAControl) {
+	t.Helper()
+
+	// Log in once; reuse the same client for all Path A calls to stay
+	// within the login budget (~2 for the entire bot bucket).
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	switch ctrl.Mode {
+	case "rcon":
+		runControlActionRCON(t, cli, gsName, ns, ctrl)
+	case "stdin":
+		runControlActionStdinPTY(t, cli, gsName, ctrl)
+	default:
+		t.Fatalf("pathAControl for %s: unknown Mode %q", gsName, ctrl.Mode)
+	}
+}
+
+// runControlActionRCON fires an RCON-transport action via the API and
+// asserts its effect through the RCON reply body itself — the same text a
+// real RCON client would get back — rather than tailing logs.
+func runControlActionRCON(t *testing.T, cli *APIClient, gsName, ns string, ctrl pathAControl) {
+	t.Helper()
+	if ctrl.ExpectRaw == "" {
+		t.Fatalf("pathAControl for %s: rcon mode requires ExpectRaw", gsName)
+	}
+
+	// actions/run (rcon transport) dials the agent over the <gs>-agent
+	// Service/mTLS, and "GameServer phase == Running" does not mean that
+	// path is up yet: the agent container can still be starting, and even
+	// once Ready=true the Service's EndpointSlice + kube-proxy dataplane
+	// programming lag behind (see requireAgentReady/waitAgentReachable doc
+	// comments in api_agent_e2e_test.go).
+	requireAgentReady(t, ns, gsName)
+	waitAgentReachable(t, cli, gsName)
+
+	resp, body, err := cli.Post(
+		fmt.Sprintf("/servers/%s/actions/run", gsName),
+		map[string]any{"id": ctrl.Action},
+	)
+	if err != nil {
+		t.Fatalf("API rejected the action: POST /actions/run transport error: %v", err)
+	}
+	if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusGatewayTimeout {
+		// api/internal/ws/dialer.go's writeUpstreamErr maps a failed
+		// API→agent dial to 502/504 with body "agent unreachable" — a
+		// distinct failure from the API validating and rejecting the
+		// request outright (checked below). requireAgentReady/
+		// waitAgentReachable above should have already ruled this out;
+		// distinguish it clearly if it still happens (e.g. the agent
+		// restarted between the check and now).
+		t.Fatalf("agent unreachable: POST /servers/%s/actions/run returned %d: %s", gsName, resp.StatusCode, string(body))
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("API rejected the action: POST /servers/%s/actions/run returned %d: %s", gsName, resp.StatusCode, string(body))
+	}
+
+	var respBody struct {
+		OK  bool   `json:"ok"`
+		Raw string `json:"raw"`
+	}
+	if err := json.Unmarshal(body, &respBody); err != nil {
+		t.Fatalf("API rejected the action: decode action response: %v\n%s", err, string(body))
+	}
+	if !respBody.OK {
+		t.Fatalf("API rejected the action: response body reported ok=false: %s", string(body))
+	}
+	if !strings.Contains(respBody.Raw, ctrl.ExpectRaw) {
+		t.Fatalf("action ran but its effect never appeared: RCON reply %q does not contain %q", respBody.Raw, ctrl.ExpectRaw)
+	}
+}
+
+// runControlActionStdinPTY fires a stdin-transport action via the API and
+// asserts its effect on the console-pty stream — the same route
+// TestAPI_ConsolePTYRoundTrip exercises (api_ws_e2e_test.go) — since a
+// fire-and-forget stdin action's own POST response carries no output (see
+// runStdinAction's doc comment in api/internal/ws/actions.go): any effect
+// only ever shows up on the game's stdout.
+//
+// The console-pty connection is dialed and its read loop armed BEFORE the
+// action fires, not after: pod-attach output is live-tail only (nothing
+// buffers it for a client that attaches late), and the action's write goes
+// through a SEPARATE, short-lived attach session (WriteStdinLines in
+// api/internal/kube/stdin.go) rather than this one — so dialing first is
+// what keeps the marker from racing past a reader that isn't listening
+// yet. Both connections attach via the API's own in-cluster kubeconfig
+// (mountAttach in attach.go / WriteStdinLines in stdin.go), never the
+// agent sidecar's mTLS proxy — so unlike runControlActionRCON, this path
+// has no agent-unreachable failure mode at all; a read failure here means
+// the pod-attach itself broke.
+func runControlActionStdinPTY(t *testing.T, cli *APIClient, gsName string, ctrl pathAControl) {
+	t.Helper()
+	ctx := context.Background()
+	uniqueMessage := gsName + "-pathA"
+
+	wsConn, stop := dialAuthedWS(t, cli, fmt.Sprintf("/ws/servers/%s/console-pty", gsName))
+	defer stop()
+
+	resp, body, err := cli.Post(
+		fmt.Sprintf("/servers/%s/actions/run", gsName),
+		map[string]any{
+			"id":     ctrl.Action,
+			"params": map[string]string{"message": uniqueMessage},
+		},
+	)
+	if err != nil {
+		t.Fatalf("API rejected the action: POST /actions/run transport error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("API rejected the action: POST /servers/%s/actions/run returned %d: %s", gsName, resp.StatusCode, string(body))
+	}
+	var respBody struct {
+		OK bool `json:"ok"`
+	}
+	if err := json.Unmarshal(body, &respBody); err != nil {
+		t.Fatalf("API rejected the action: decode action response: %v\n%s", err, string(body))
+	}
+	if !respBody.OK {
+		t.Fatalf("API rejected the action: response body reported ok=false: %s", string(body))
+	}
+
+	readCtx, readCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer readCancel()
+	for {
+		_, frame, err := wsConn.Read(readCtx)
+		if err != nil {
+			// mountAttach (attach.go) accepts the WS unconditionally, then
+			// writes a {"kind":"err",...} envelope before closing on any
+			// pod-attach failure (build-executor error, SPDY stream
+			// error) — so an outright Read error here means the
+			// connection dropped some OTHER way (context deadline, TCP
+			// reset), not a clean server-reported failure.
+			t.Fatalf("pod attach unreachable: console-pty WS read failed before %q appeared: %v", uniqueMessage, err)
+		}
+		var env ptyEnvelope
+		if jsonErr := json.Unmarshal(frame, &env); jsonErr != nil {
+			continue
+		}
+		if env.Kind == "err" {
+			t.Fatalf("pod attach unreachable: console-pty returned a server-side error envelope before %q appeared: %s", uniqueMessage, env.Body)
+		}
+		if env.Kind != "stdout" {
+			continue
+		}
+		raw, decErr := base64.StdEncoding.DecodeString(env.Body)
+		if decErr != nil {
+			continue
+		}
+		if strings.Contains(string(raw), uniqueMessage) {
+			return // Success: found the message on the console-pty stream.
+		}
+	}
 }

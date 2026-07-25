@@ -223,6 +223,17 @@ The shipped template declares `rcon: protocol: none`, so there is no RCON consol
 
 This is not a regression; it is documented in the module comments and is the correct assessment of this specific image.
 
+### Path A: Control Channel
+
+**Status:** No control channel available.
+
+Path A (driving the server through Gameplane) requires a control surface: either RCON or stdin/PTY. Garry's Mod has neither in this module:
+
+- No RCON (protocol: none, and no way to pass RCON password to the image, as noted above).
+- No PTY console (consoleMode is not set; the operator does not allocate a TTY for the game container).
+
+This is documented as a genuine product gap — not a blocker for v1 (Path B proves the server works), but a future enhancement if a user brings a Garry's Mod image that supports RCON or desires console control via a configured RCON password. For CI, Path A is skipped; the test runs Path B only.
+
 ### Fast Set
 
 Garry's Mod is included in the **fast set** of bot tests (runs by default without `GAMEPLANE_E2E_GAMES=all`). The fast set includes Minecraft Java, Terraria, Factorio, and Garry's Mod — four games covering protocol variety (Java/TCP, .NET/TCP, Lua/UDP, Source/UDP) and depth tiers (three at JOINED, one at QUERY). Garry's Mod exercises the Source engine and UDP protocols, which are shared with CS2 (heavy set).
