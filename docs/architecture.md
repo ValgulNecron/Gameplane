@@ -265,6 +265,17 @@ for the registration flow.
   required-ness. Both importers (the agent's RCON path and the API's stdin
   pod-attach) call it independently; each is its own trust boundary, so
   validation is never skipped because the other side already checked.
+- **Operator → sentinel (optional)**: holds advertised ports while a GameServer
+  is asleep and wakes it on a genuine connection attempt (opt-in via
+  `spec.idle.wakeOnConnect`). Runs as a small 1-replica Deployment per armed
+  server; disabled by default. Works across all four expose modes
+  (ClusterIP/NodePort/LoadBalancer/Hostport); Hostport has an asymmetric
+  limitation documented in `docs/roadmap.md`. See `sentinel/`.
+- **Operator/Agent → game protocol parsing (gameproto)**: shared Go module for
+  Minecraft and Terraria handshake parsing, used by the sentinel to distinguish
+  a genuine join from a server-list ping without corrupting the connection stream.
+  UDP-only games (Valheim, Factorio, etc.) have no connection to hold, so the
+  sentinel uses a generic packets-in-window heuristic instead. See `gameproto/`.
 - **API → audit-syslog-bridge (optional)**: plaintext or TLS syslog forward
   for the audit trail, enabled via `api.audit.webhook.syslogBridge.enabled`.
 - **API → telemetry-receiver (optional)**: the anonymous daily usage report

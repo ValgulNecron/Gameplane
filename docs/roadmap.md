@@ -128,11 +128,41 @@ browser would duplicate scheduling semantics the operator owns (rule 10).
 Persisting it on status is the right fix, and is a CRD change rather than a
 dashboard one.
 
-**Known gap:** no wake-on-connect. Waking needs the dashboard, the API, or a
-wake window; a player cannot start a sleeping server by trying to join. Closing
-it means a per-protocol listener holding the Service port while the pod is down,
-across all four expose modes — a substantially larger piece of work, tracked
-below rather than in this one.
+### Wake-on-connect for idle auto-sleep
+
+A sentinel component holds advertised ports while a server is asleep and wakes
+it on a genuine connection attempt. Opt-in per server via `spec.idle.wakeOnConnect`
+(default false), with per-port protocol awareness to avoid corrupting handshakes.
+
+**Design (as implemented):**
+
+- New optional component: `sentinel/` (distroless Docker image, Helm toggle
+  `sentinel.image`). While a GameServer is armed (`spec.idle.wakeOnConnect=true`)
+  and asleep, the operator runs it as a 1-replica Deployment `<gs>-waker`.
+- The sentinel holds the game's advertised ports (read from `spec.networking`
+  and `GamePort.advertise`) and switches traffic between the game pod and itself
+  via Service endpoint surgery: when asleep, the Service points to the sentinel;
+  when waking, it points back to the game pod (via a `<gs>-game-direct` ClusterIP
+  Service the game pod advertises to).
+- New shared module: `gameproto/` for Minecraft and Terraria real handshake
+  parsing (`Consumed()` lets callers reconstruct the client stream for lossless
+  replay). Every other game uses `generic` — a packets-in-window heuristic.
+- New CRD fields: `GameServer.spec.idle.wakeOnConnect` (bool, default false) and
+  `GamePort.wakeProtocol` (enum: `minecraft|terraria|generic|none`, default `generic`).
+- Modules: `minecraft-java` and `terraria` declare their parser.
+- Server-list pings are answered in place without waking (parsing distinguishes
+  a join from a status query); the player's client gets a protocol-native
+  "waking up, try again" message if the game misses the deadline (25s default).
+- UDP-only games (Valheim, Factorio, etc.) hold no connection, so they use the
+  generic heuristic and wake-and-drop — the client retries.
+- Hostport mode is deliberately asymmetric: the sentinel cannot hold the host port
+  the game pod needs to schedule, so on wake it bounces held clients and exits.
+  Service-backed modes (ClusterIP/NodePort/LoadBalancer) proxy through until Ready.
+- Costs one small pod per sleeping server, which is why it is opt-in.
+
+**Honest limitations:** Only Minecraft and Terraria get real parsing; the other
+14 shipped modules use generic (they are UDP-only and have no connection to
+hold). Hostport is asymmetric as described.
 
 ### Read-only MCP server (PR #105)
 
@@ -194,19 +224,6 @@ production-readiness hardening below — tracked items, not code gaps.
   back — against the real in-cluster restic-server that `ensureResticRepo`
   provisions. What is missing is the human-facing runbook, not the test.
 - Resource-limit guidance sized from real workloads rather than defaults.
-
-### Wake-on-connect for idle auto-sleep
-
-Idle auto-sleep ships without it, so a player who finds a server asleep cannot
-start it by trying to join. The fix is a listener that holds the Service port
-while the pod is down, recognizes a genuine connection attempt, flips the wake
-request, and either holds or replays the handshake until the game is ready —
-the `lazytainer` / "sleeping server starter" pattern.
-
-It is a real component, not a tweak: it needs enough per-game protocol
-awareness not to corrupt handshakes, and parity across all four `expose` modes
-(ClusterIP, NodePort, LoadBalancer, Hostport). Until it exists, cron wake
-windows are the answer for predictable play times.
 
 ### Postgres driver: make the store fully driver-portable
 
