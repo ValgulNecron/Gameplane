@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/terraria/protocol"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/terraria/terrariaproto"
 )
 
 func main() {
@@ -21,11 +21,11 @@ func main() {
 // server, requests world data, and returns the join depth.
 func probeTerraria(ctx context.Context, addr string) (probe.Depth, error) {
 	// Retry the handshake at 15 seconds per attempt.
-	var conn *protocol.Conn
+	var conn *terrariaproto.Conn
 	if err := probe.Retry(ctx, "handshake", 15*time.Second, func(actx context.Context) error {
 		var err error
-		conn, _, err = protocol.Connect(actx, addr)
-		if errors.Is(err, protocol.ErrPasswordRequired) {
+		conn, _, err = terrariaproto.Connect(actx, addr)
+		if errors.Is(err, terrariaproto.ErrPasswordRequired) {
 			// Password prompt proves the protocol works but the server is misconfigured
 			// (this template sets no password, so this is a fatal error).
 			return fmt.Errorf("%w: unexpected password prompt (template sets no password)", probe.ErrFatal)

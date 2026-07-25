@@ -46,7 +46,7 @@ The probe imports the shared `protocol/a2s` package (used by several other games
 
 ### Shared protocol families
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto`**
 
 ```go
 type Info struct {
@@ -157,7 +157,7 @@ No external modules.
 
 ## Testing & coverage
 
-**No unit tests for the probe itself.** Enshrouded probe testing relies entirely on the e2e test (`test/e2e/enshrouded_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2s/a2s_test.go`.
+**No unit tests for the probe itself.** Enshrouded probe testing relies entirely on the e2e test (`test/e2e/enshrouded_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2sproto/a2s_test.go`.
 
 **Manual local verification** (not a substitute for CI/real-server coverage): see "Local verification" under "Measured connectivity" above.
 
@@ -218,7 +218,7 @@ For now, QUERY is the honest, defensible measurement — and, unlike before, one
 - **Probe application:** `test/e2e/internal/enshrouded/app.go`
 - **E2E test:** `test/e2e/enshrouded_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/probe.go`
-- **A2S protocol family:** `test/e2e/internal/protocol/a2s/`
+- **A2S protocol family:** `test/e2e/internal/protocol/a2sproto/`
 - **Shipped template:** `modules/enshrouded/template.yaml`
 - **Enshrouded server image:** https://github.com/mornedhels/enshrouded-docker
 - **Enshrouded official site:** https://www.enshrouded.com

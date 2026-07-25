@@ -44,7 +44,7 @@ No DST-specific protocol subpackage; the probe imports the shared `protocol/a2s`
 
 ### Shared protocol families
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto`**
 
 ```go
 type Info struct {
@@ -154,7 +154,7 @@ No external modules.
 
 ## Testing & coverage
 
-**No unit tests for the probe itself.** DST probe testing relies entirely on the e2e test (`test/e2e/dontstarve_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2s/a2s_test.go`.
+**No unit tests for the probe itself.** DST probe testing relies entirely on the e2e test (`test/e2e/dontstarve_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2sproto/a2s_test.go`.
 
 **Manual local verification** (not a substitute for CI/real-server coverage): see "Local verification" under "Measured connectivity" above.
 
@@ -237,7 +237,7 @@ Once Klei publishes the DST wire protocol or a trusted reverse-engineering surfa
 - **Probe application:** `test/e2e/internal/dont-starve-together/app.go`
 - **E2E test:** `test/e2e/dontstarve_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/probe.go`
-- **A2S protocol family:** `test/e2e/internal/protocol/a2s/`
+- **A2S protocol family:** `test/e2e/internal/protocol/a2sproto/`
 - **Shipped template:** `modules/dont-starve-together/template.yaml`
 - **jamesits/dst-server Docker image:** https://github.com/jamesits/dst-server-docker
 - **Don't Starve Together:** https://www.dontstarve.com/ (no public game-port wire-protocol documentation)

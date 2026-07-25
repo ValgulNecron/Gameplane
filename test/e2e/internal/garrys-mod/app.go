@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s"
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/source"
+	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	source "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/sourceproto"
 )
 
 func main() {

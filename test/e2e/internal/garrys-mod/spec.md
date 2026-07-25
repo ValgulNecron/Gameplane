@@ -46,7 +46,7 @@ The probe imports the shared `a2s` and `source` protocol families from `test/e2e
 
 ### Shared protocol families
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto`**
 
 ```go
 type Info struct {
@@ -67,7 +67,7 @@ func QueryInfo(ctx context.Context, addr string) (*Info, error)
 func QueryPlayers(ctx context.Context, addr string) ([]Player, error)
 ```
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/source`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/sourceproto`**
 
 ```go
 func Challenge(ctx context.Context, addr string) (uint32, error)
@@ -187,7 +187,7 @@ No external modules.
 
 ## Testing & coverage
 
-**No unit tests for the probe itself.** Garry's Mod probe testing relies entirely on the e2e test (`test/e2e/garrysmod_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` and `source` protocol families have their own unit test coverage in their respective packages (`test/e2e/internal/protocol/a2s/protocol_test.go`, `test/e2e/internal/protocol/source/protocol_test.go`).
+**No unit tests for the probe itself.** Garry's Mod probe testing relies entirely on the e2e test (`test/e2e/garrysmod_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` and `source` protocol families have their own unit test coverage in their respective packages (`test/e2e/internal/protocol/a2sproto/protocol_test.go`, `test/e2e/internal/protocol/sourceproto/protocol_test.go`).
 
 ## Runtime characteristics
 
@@ -267,8 +267,8 @@ The probe attempts a source-protocol challenge and connect handshake after A2S s
 - **Probe application:** `test/e2e/internal/garrys-mod/app.go`
 - **E2E test:** `test/e2e/garrysmod_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/probe.go`
-- **A2S protocol family:** `test/e2e/internal/protocol/a2s/` (created by parallel agent)
-- **Source protocol family:** `test/e2e/internal/protocol/source/` (created by parallel agent)
+- **A2S protocol family:** `test/e2e/internal/protocol/a2sproto/` (created by parallel agent)
+- **Source protocol family:** `test/e2e/internal/protocol/sourceproto/` (created by parallel agent)
 - **Shipped template:** `modules/garrys-mod/template.yaml`
 - **ceifa/garrysmod Docker image:** https://github.com/ceifa/garrysmod-docker
 - **Source engine A2S documentation:** https://developer.valvesoftware.com/wiki/Server_queries

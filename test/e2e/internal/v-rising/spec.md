@@ -44,7 +44,7 @@ The probe imports the shared `a2s` protocol family from `test/e2e/internal/proto
 
 ### Shared protocol families
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto`**
 
 ```go
 type Info struct {
@@ -153,7 +153,7 @@ No external modules.
 
 ## Testing & coverage
 
-**No unit tests for the probe itself.** V Rising probe testing relies entirely on the e2e test (`test/e2e/vrising_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2s/a2s_test.go`.
+**No unit tests for the probe itself.** V Rising probe testing relies entirely on the e2e test (`test/e2e/vrising_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2sproto/a2s_test.go`.
 
 **Manual local verification** (not a substitute for CI/real-server coverage): see "Local verification" under "Measured connectivity" above.
 
@@ -218,7 +218,7 @@ This test is named `TestGameServer_VRisingBot_Query` and expects `ExpectDepth: "
 - **Probe application:** `test/e2e/internal/v-rising/app.go`
 - **E2E test:** `test/e2e/vrising_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/probe.go`
-- **A2S protocol family:** `test/e2e/internal/protocol/a2s/` (primary, sole gating assertion)
+- **A2S protocol family:** `test/e2e/internal/protocol/a2sproto/` (primary, sole gating assertion)
 - **Shipped template:** `modules/v-rising/template.yaml`
 - **Docker image:** https://github.com/TrueOsiris/docker-vrising (trueosiris/vrising)
 - **node-gamedig (query protocol reference):** https://github.com/gamedig/node-gamedig — `lib/games.js` "vrising" entry (`protocol: 'valve', port_query_offset: [1, 15]`)

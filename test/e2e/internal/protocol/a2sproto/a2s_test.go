@@ -1,4 +1,4 @@
-package a2s
+package a2sproto
 
 import (
 	"bytes"

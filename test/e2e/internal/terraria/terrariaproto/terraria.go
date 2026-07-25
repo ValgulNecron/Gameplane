@@ -1,11 +1,11 @@
-// Package protocol is a minimal headless Terraria protocol client, just
+// Package terrariaproto is a minimal headless Terraria protocol client, just
 // deep enough to prove a server is playable: it completes the connection
 // handshake (ConnectRequest → ContinueConnecting) and requests world data.
 //
 // Wire format: every message is [length uint16 LE][type byte][payload],
 // where length counts the whole message including the 2 length bytes.
 // Strings are .NET BinaryWriter style: 7-bit-encoded length + UTF-8.
-package protocol
+package terrariaproto
 
 import (
 	"bytes"
@@ -73,7 +73,7 @@ func Connect(ctx context.Context, addr string) (*Conn, *ConnectResult, error) {
 		}
 		return nil, nil, err
 	}
-	return nil, nil, fmt.Errorf("server rejected both %s and its own advertised version", DefaultVersion)
+	return nil, nil, fmt.Errorf("terraria: server rejected both %s and its own advertised version", DefaultVersion)
 }
 
 type versionMismatchError struct{ want string }
@@ -86,7 +86,7 @@ func connectOnce(ctx context.Context, addr, version string) (*Conn, *ConnectResu
 	d := net.Dialer{}
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("dial: %w", err)
+		return nil, nil, fmt.Errorf("terraria: dial: %w", err)
 	}
 	if dl, ok := ctx.Deadline(); ok {
 		_ = c.SetDeadline(dl)
@@ -98,13 +98,13 @@ func connectOnce(ctx context.Context, addr, version string) (*Conn, *ConnectResu
 	writeString(&payload, version)
 	if err := writeMessage(c, msgConnectRequest, payload.Bytes()); err != nil {
 		_ = c.Close()
-		return nil, nil, fmt.Errorf("send ConnectRequest: %w", err)
+		return nil, nil, fmt.Errorf("terraria: send ConnectRequest: %w", err)
 	}
 
 	typ, body, err := readMessage(c)
 	if err != nil {
 		_ = c.Close()
-		return nil, nil, fmt.Errorf("read handshake reply: %w", err)
+		return nil, nil, fmt.Errorf("terraria: read handshake reply: %w", err)
 	}
 	switch typ {
 	case msgContinueConnecting:
@@ -124,10 +124,10 @@ func connectOnce(ctx context.Context, addr, version string) (*Conn, *ConnectResu
 				return nil, nil, &versionMismatchError{want: s}
 			}
 		}
-		return nil, nil, fmt.Errorf("server disconnected: %s %v", reason, subs)
+		return nil, nil, fmt.Errorf("terraria: server disconnected: %s %v", reason, subs)
 	default:
 		_ = c.Close()
-		return nil, nil, fmt.Errorf("unexpected handshake reply: message type %d", typ)
+		return nil, nil, fmt.Errorf("terraria: unexpected handshake reply: message type %d", typ)
 	}
 }
 
@@ -142,22 +142,22 @@ func (c *Conn) RequestWorldData(ctx context.Context) error {
 		_ = c.c.SetDeadline(time.Now().Add(20 * time.Second))
 	}
 	if err := writeMessage(c.c, msgRequestWorldData, nil); err != nil {
-		return fmt.Errorf("send RequestWorldData: %w", err)
+		return fmt.Errorf("terraria: send RequestWorldData: %w", err)
 	}
 	for {
 		typ, body, err := readMessage(c.c)
 		if err != nil {
-			return fmt.Errorf("await WorldData: %w", err)
+			return fmt.Errorf("terraria: await WorldData: %w", err)
 		}
 		switch typ {
 		case msgWorldData:
 			if len(body) == 0 {
-				return errors.New("empty WorldData payload")
+				return errors.New("terraria: empty WorldData payload")
 			}
 			return nil
 		case msgDisconnect:
 			reason, subs := parseNetworkText(body)
-			return fmt.Errorf("server disconnected before WorldData: %s %v", reason, subs)
+			return fmt.Errorf("terraria: server disconnected before WorldData: %s %v", reason, subs)
 		default:
 			// Servers may interleave other state (player slots, settings);
 			// keep reading until the world header shows up.
@@ -184,7 +184,7 @@ func readMessage(r io.Reader) (byte, []byte, error) {
 	}
 	total := binary.LittleEndian.Uint16(head[:2])
 	if total < 3 {
-		return 0, nil, fmt.Errorf("bad frame length %d", total)
+		return 0, nil, fmt.Errorf("terraria: bad frame length %d", total)
 	}
 	body := make([]byte, total-3)
 	if _, err := io.ReadFull(r, body); err != nil {
@@ -219,11 +219,11 @@ func readString(r *bytes.Reader) (string, error) {
 		}
 		shift += 7
 		if shift > 21 {
-			return "", errors.New("string length prefix too long")
+			return "", errors.New("terraria: string length prefix too long")
 		}
 	}
 	if length < 0 || length > r.Len() {
-		return "", fmt.Errorf("string length %d exceeds remaining %d", length, r.Len())
+		return "", fmt.Errorf("terraria: string length %d exceeds remaining %d", length, r.Len())
 	}
 	out := make([]byte, length)
 	if _, err := io.ReadFull(r, out); err != nil {

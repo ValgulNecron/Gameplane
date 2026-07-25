@@ -1,4 +1,4 @@
-// Package a2s implements Valve's A2S (Source) query protocol client.
+// Package a2sproto implements Valve's A2S (Source) query protocol client.
 //
 // Protocol reference: https://developer.valvesoftware.com/wiki/Server_queries
 //
@@ -38,7 +38,7 @@
 //	  null-terminated string: player name
 //	  4 bytes int32 LE: score (typically kills/points)
 //	  4 bytes float32 LE: duration (seconds in session)
-package a2s
+package a2sproto
 
 import (
 	"bytes"

@@ -41,13 +41,13 @@ test/e2e/internal/7-days-to-die/
 └── spec.md                     # This file
 ```
 
-The probe imports the shared `a2s` protocol family from `test/e2e/internal/protocol/a2s/`. No game-specific protocol subpackage; node-gamedig's "sdtd" game definition confirms 7 Days to Die's query layer is plain A2S (with an optional telnet enrichment this probe does not use), so no per-game wire-format work is needed.
+The probe imports the shared `a2s` protocol family from `test/e2e/internal/protocol/a2sproto/`. No game-specific protocol subpackage; node-gamedig's "sdtd" game definition confirms 7 Days to Die's query layer is plain A2S (with an optional telnet enrichment this probe does not use), so no per-game wire-format work is needed.
 
 ## External interface / contracts
 
 ### Shared protocol families
 
-**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2s`**
+**`github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto`**
 
 ```go
 type Info struct {
@@ -155,7 +155,7 @@ No external modules.
 
 ## Testing & coverage
 
-**No unit tests for the probe itself.** 7 Days to Die probe testing relies entirely on the e2e test (`test/e2e/sevendaystodie_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2s/a2s_test.go`.
+**No unit tests for the probe itself.** 7 Days to Die probe testing relies entirely on the e2e test (`test/e2e/sevendaystodie_bot_e2e_test.go`) running against a real cluster and server. The shared `a2s` protocol family has its own unit test coverage in `test/e2e/internal/protocol/a2sproto/a2s_test.go`.
 
 **Manual local verification** (not a substitute for CI/real-server coverage): see "Local verification" under "Measured connectivity" above.
 
@@ -238,7 +238,7 @@ If either A2S or a LiteNetLib implementation eventually allow protocol handshake
 - **Probe application:** `test/e2e/internal/7-days-to-die/app.go`
 - **E2E test:** `test/e2e/sevendaystodie_bot_e2e_test.go`
 - **Shared probe harness:** `test/e2e/internal/probe/probe.go`
-- **A2S protocol family:** `test/e2e/internal/protocol/a2s/`
+- **A2S protocol family:** `test/e2e/internal/protocol/a2sproto/`
 - **Shipped template:** `modules/7-days-to-die/template.yaml`
 - **vinanrra/7dtd-server Docker image:** https://github.com/vinanrra/Docker-7DaysToDie
 - **LinuxGSM (game server management):** https://linuxgsm.com/
