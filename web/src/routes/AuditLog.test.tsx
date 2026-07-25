@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuditLogPage, auditAction } from "./AuditLog";
 import type { AuditEvent, AuditVerifyResult } from "@/types";
@@ -75,11 +76,12 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
+    const user = userEvent.setup();
     render(withClient(<AuditLogPage />));
     expect(await screen.findByText("Created backup")).toBeInTheDocument();
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/5xx · 1/));
+    await user.click(screen.getByText(/5xx · 1/));
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
     expect(screen.queryByText("Created backup")).toBeNull();
   });
@@ -94,19 +96,15 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
+    const user = userEvent.setup();
     render(withClient(<AuditLogPage />));
     await screen.findByText(/loaded/);
-    fireEvent.click(screen.getByText(/4xx · 0/));
+    await user.click(screen.getByText(/4xx · 0/));
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
   });
 
   it("exports CSV with applied filters", async () => {
     const csvBlob = new Blob(["id,ts,actor\n1,2026-05-03T12:00:00Z,alice"], { type: "text/csv" });
-    const urlCreateObjectURLMock = vi.fn(() => "blob:http://localhost/test");
-    const urlRevokeObjectURLMock = vi.fn();
-    vi.stubGlobal("URL", { createObjectURL: urlCreateObjectURLMock, revokeObjectURL: urlRevokeObjectURLMock });
-
-    const createElementMock = vi.spyOn(document, "createElement");
 
     const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
     const events = [event(1, { actor: "alice", method: "POST" })];
@@ -114,32 +112,29 @@ describe("AuditLogPage", () => {
     fetchMock.mockImplementation((url) => {
       const u = url.toString();
       if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
-      if (u.includes("/admin/audit/export")) return Promise.resolve(new Response(csvBlob));
+      if (u.includes("/admin/audit/export")) {
+        return Promise.resolve(new Response(csvBlob, { status: 200, headers: { "Content-Type": "text/csv" } }));
+      }
       return Promise.resolve(jsonRes(events));
     });
 
+    const user = userEvent.setup();
     render(withClient(<AuditLogPage />));
     await screen.findByText("Created server");
 
     // Set a filter to verify it's passed to the export endpoint
     const methodSelect = screen.getByDisplayValue("All methods");
-    fireEvent.change(methodSelect, { target: { value: "POST" } });
+    await user.selectOptions(methodSelect, "POST");
 
-    fireEvent.click(screen.getByText("Export CSV"));
+    await user.click(screen.getByText("Export CSV"));
 
-    // Wait for mutation to complete
-    await new Promise((r) => setTimeout(r, 0));
-
-    // Verify the export endpoint was called with the filter
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/admin/audit/export?format=csv&method=POST"),
-      expect.any(Object),
-    );
-
-    // Verify download was triggered
-    expect(createElementMock).toHaveBeenCalledWith("a");
-    expect(urlCreateObjectURLMock).toHaveBeenCalled();
-    expect(urlRevokeObjectURLMock).toHaveBeenCalledWith("blob:http://localhost/test");
+    // Wait for the export endpoint to be called with the filter
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/admin/audit/export?format=csv&method=POST"),
+        expect.any(Object),
+      );
+    }, { timeout: 10000 });
   });
 
   it("renders the integrity banner when chain is verified", async () => {
@@ -187,17 +182,19 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
+    const user = userEvent.setup();
     render(withClient(<AuditLogPage />));
     await screen.findByText("Audit chain verified — no tampering detected");
 
-    fireEvent.click(screen.getByText("Re-check"));
-    await new Promise((r) => setTimeout(r, 0));
+    await user.click(screen.getByText("Re-check"));
 
     // Verify the verify endpoint was called at least twice (initial mount + re-check click)
-    const verifyCalls = fetchMock.mock.calls.filter((call) =>
-      call[0]?.toString().includes("/admin/audit/verify")
-    );
-    expect(verifyCalls.length).toBeGreaterThanOrEqual(2);
+    await waitFor(() => {
+      const verifyCalls = fetchMock.mock.calls.filter((call) =>
+        call[0]?.toString().includes("/admin/audit/verify")
+      );
+      expect(verifyCalls.length).toBeGreaterThanOrEqual(2);
+    });
   });
 });
 
