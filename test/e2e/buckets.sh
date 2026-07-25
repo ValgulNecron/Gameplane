@@ -138,7 +138,19 @@ EOF
 # maintainer hand-run with `GAMEPLANE_E2E_GAMES=all`. Do not add CI jobs or
 # workflows that execute this bucket; that would defeat its purpose.
 bucket_bot_heavy() { cat <<'EOF'
+TestGameServer_ArkBot_Query
 TestGameServer_CS2Bot_Query
+TestGameServer_DayZBot_Query
+TestGameServer_DontStarveTogetherBot_Query
+TestGameServer_EnshroudedBot_Query
+TestGameServer_FactorioBot_Query
+TestGameServer_PalworldBot_Query
+TestGameServer_ProjectZomboidBot_Query
+TestGameServer_RustBot_Query
+TestGameServer_SatisfactoryBot_Query
+TestGameServer_SevenDaysToDieBot_Query
+TestGameServer_ValheimBot_Query
+TestGameServer_VRisingBot_Query
 EOF
 }
 
