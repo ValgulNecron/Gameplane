@@ -22,6 +22,10 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "lcov", "json-summary"],
       reportsDirectory: "./coverage",
+      // Vitest 4 changed the default behavior for coverage instrumentation.
+      // Restore v2 semantics: only instrument files actually imported/executed
+      // by tests, not all files matching include patterns.
+      all: false,
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/main.tsx",
