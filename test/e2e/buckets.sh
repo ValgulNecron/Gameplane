@@ -129,6 +129,9 @@ bucket_bot_fast() { cat <<'EOF'
 TestGameServer_MinecraftJavaBot_Joined
 TestGameServer_TerrariaBot_Joined
 TestGameServer_GarrysModBot_Query
+TestGameServer_WakeOnConnect_PingDoesNotWake
+TestGameServer_WakeOnConnect_LoginWakes
+TestGameServer_WakeOnConnect_UnarmedNoSentinel
 EOF
 }
 
