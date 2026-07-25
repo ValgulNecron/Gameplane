@@ -33,6 +33,13 @@ const (
 	sentinelBackstopRequeue = 5 * time.Second
 )
 
+// sentinelSAName builds the name of the ServiceAccount used by the wake sentinel.
+// This is the single source of truth for the sentinel SA name, used by both
+// reconcileSentinelRBAC (which creates it) and reconcileSentinel (which references it).
+func sentinelSAName(gs *gameplanev1alpha1.GameServer) string {
+	return gs.Name + "-waker-sa"
+}
+
 // wakeOnConnectEligible reports whether this GameServer is configured for
 // wake-on-connect at all: idle policy enabled, wakeOnConnect armed, and at
 // least one advertised template port has a non-"none" wakeProtocol.
@@ -227,6 +234,7 @@ func (r *GameServerReconciler) reconcileSentinel(
 		// Format: "port:protocol:wakeProtocol,..." e.g. "25565:TCP:minecraft,19133:UDP:generic"
 		portConfig := buildSentinelPortConfig(tmpl)
 
+		dep.Spec.Template.Spec.ServiceAccountName = sentinelSAName(gs)
 		dep.Spec.Template.Spec.Containers = []corev1.Container{{
 			Name:  "sentinel",
 			Image: image,
@@ -370,7 +378,7 @@ func (r *GameServerReconciler) reconcileSentinelRBAC(ctx context.Context, gs *ga
 	// ServiceAccount: <gs>-waker-sa
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gs.Name + "-waker-sa",
+			Name:      sentinelSAName(gs),
 			Namespace: gs.Namespace,
 		},
 	}
@@ -381,7 +389,7 @@ func (r *GameServerReconciler) reconcileSentinelRBAC(ctx context.Context, gs *ga
 		return fmt.Errorf("reconcile sentinel serviceaccount: %w", err)
 	}
 
-	// Role: <gs>-waker-role, granting get + patch on this GameServer's status.
+	// Role: <gs>-waker-role, granting get + patch on this GameServer (metadata/annotations).
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gs.Name + "-waker-role",
