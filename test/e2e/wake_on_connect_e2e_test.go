@@ -12,8 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-
-	minecraftproto "github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java/protocol"
 )
 
 // TestGameServer_WakeOnConnect_PingDoesNotWake verifies that a server-list ping
@@ -95,16 +93,21 @@ func TestGameServer_WakeOnConnect_PingDoesNotWake(t *testing.T) {
 		t.Fatalf("service selector does not point to sentinel; selector=%v", svc.Spec.Selector)
 	}
 
-	// Ping the sentinel via the service DNS.
-	pingAddr := gs + "." + ns + ".svc.cluster.local:25565"
-	st, err := minecraftproto.Ping(ctx, pingAddr)
-	if err != nil {
-		t.Fatalf("ping sentinel: %v", err)
-	}
-	if st == nil {
-		t.Fatal("ping returned nil status")
-	}
-	t.Logf("ping succeeded: version=%s, protocol=%d", st.Version.Name, st.Version.Protocol)
+	// Ping the sentinel. The Service DNS name is in-cluster only and does not
+	// resolve from the test process, so — exactly like the other game-bot
+	// tests — the protocol client runs INSIDE the cluster as a Kubernetes
+	// Job (RunGameProbe), dialing the Service the way a real client would.
+	// -mode ping drives the Minecraft probe binary's status-ping-only path
+	// (never logs in): a server-list ping must never trigger a wake.
+	envInstance.RunGameProbe(t, GameProbe{
+		GameNS:      ns,
+		GSName:      gs,
+		Game:        "minecraft-java",
+		Port:        25565,
+		Deadline:    60 * time.Second,
+		ExpectDepth: "QUERY",
+		Args:        []string{"-mode", "ping"},
+	})
 
 	// Verify the server is STILL asleep: poll over several seconds to ensure the
 	// sleep marker remains. Wake propagation is async (the sentinel patches a
@@ -196,20 +199,24 @@ func TestGameServer_WakeOnConnect_LoginWakes(t *testing.T) {
 		return true, ""
 	})
 
-	// Attempt a login via the sentinel's IP (the sentinel should reject it after
-	// waking the server). We expect the sentinel to close the connection once it
-	// has patched the wake annotation, and we'll get a protocol error, which is
-	// acceptable — the goal is to verify the wake annotation was stamped.
-	loginAddr := gs + "." + ns + ".svc.cluster.local:25565"
-	st, res, err := minecraftproto.Connect(ctx, loginAddr, "gameplane-bot")
-	// We may get an error due to the sentinel closing the connection after
-	// patching the wake annotation. That's OK — the point is the annotation
-	// should have been stamped.
-	if st == nil && res == nil {
-		t.Logf("login connection closed (expected if sentinel is waking): %v", err)
-	} else if res != nil {
-		t.Logf("login attempt: outcome=%v, detail=%s", res.Outcome, res.Detail)
-	}
+	// Attempt a genuine login via the sentinel. Same in-cluster constraint as
+	// the ping test: the sentinel's Service DNS does not resolve outside the
+	// cluster, so the Minecraft protocol client runs as an in-cluster Job
+	// (RunGameProbe) via -mode wake, which pings and then makes a single,
+	// non-retried login attempt. The sentinel is expected to parse the login
+	// handshake, patch the wake-request annotation, and drop the connection
+	// before completing a real join — the probe tolerates that outcome (its
+	// own logs record whatever happened on the wire); what this test asserts
+	// is the annotation, checked next via the K8s API.
+	envInstance.RunGameProbe(t, GameProbe{
+		GameNS:      ns,
+		GSName:      gs,
+		Game:        "minecraft-java",
+		Port:        25565,
+		Deadline:    60 * time.Second,
+		ExpectDepth: "PARTIAL",
+		Args:        []string{"-mode", "wake"},
+	})
 
 	// Verify the sentinel stamped the wake-request annotation so the wake is
 	// pinned to the login-parsing path.
