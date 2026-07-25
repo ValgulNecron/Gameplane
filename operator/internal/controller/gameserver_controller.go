@@ -263,12 +263,12 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "plan wake sentinel")
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileSentinel(ctx, &gs, &tmpl, plan.wantSentinel); err != nil {
-		logger.Error(err, "reconcile sentinel")
-		return ctrl.Result{}, err
-	}
 	if err := r.reconcileSentinelRBAC(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile sentinel RBAC")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileSentinel(ctx, &gs, &tmpl, plan.wantSentinel); err != nil {
+		logger.Error(err, "reconcile sentinel")
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileGameDirectServiceFromTemplate(ctx, &gs, &tmpl); err != nil {

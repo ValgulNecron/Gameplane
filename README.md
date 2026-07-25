@@ -38,13 +38,16 @@ top bar, and RBAC, audit, and e2e coverage all thread the cluster dimension.
 One caveat — WebSocket streams (console, logs) stay scoped to the
 locally-configured cluster; that's a documented follow-up.
 
-**Idle auto-sleep has one sharp edge**: there is no wake-on-connect. A player
-who finds a server asleep cannot start it by trying to join — someone with
-access has to press **Wake**, or a wake window has to come around. Plan the
-windows around when people actually play, and note that a woken server still
-needs its normal boot time before it accepts connections. Games whose agent
-reports no player count (no RCON or query protocol) never sleep at all; the
-server says so on its Overview rather than leaving you guessing.
+**Idle auto-sleep** is opt-in per server. A woken server still needs its normal
+boot time before it accepts connections. Players can wake a sleeping server by
+joining (wake-on-connect, opt-in via `spec.idle.wakeOnConnect`, default false),
+or via a cron wake window, or by pressing **Wake** on the dashboard. Games whose
+agent reports no player count (no RCON or query protocol) never sleep at all; the
+server says so on its Overview rather than leaving you guessing. Wake-on-connect
+has honest limitations: only Minecraft and Terraria get real protocol parsing; the
+other 14 shipped games use a generic heuristic and have no connection to hold, so
+they wake-and-drop. Hostport mode also has asymmetric behavior — see
+[`docs/roadmap.md`](docs/roadmap.md#wake-on-connect-for-idle-auto-sleep).
 
 Before you rely on it, know that:
 

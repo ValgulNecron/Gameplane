@@ -134,6 +134,43 @@ func TestSentinelReconciliation(t *testing.T) {
 		}
 	})
 
+	t.Run("sentinel Deployment uses the correct ServiceAccount", func(t *testing.T) {
+		ctx := context.Background()
+		ns := newNamespace(t)
+
+		tmpl := wakeableTestTemplate(uniqueName("sentinel-tmpl"), "minecraft")
+		if err := k8sClient.Create(ctx, tmpl); err != nil {
+			t.Fatalf("create template: %v", err)
+		}
+		deleteCleanup(t, tmpl)
+
+		gs := &gameplanev1alpha1.GameServer{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-sentinel-sa", Namespace: ns},
+			Spec: gameplanev1alpha1.GameServerSpec{
+				TemplateRef: gameplanev1alpha1.GameTemplateRef{Name: tmpl.Name},
+				Idle:        armedIdleSpec(),
+			},
+		}
+		if err := k8sClient.Create(ctx, gs); err != nil {
+			t.Fatalf("create gameserver: %v", err)
+		}
+
+		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		if err := r.reconcileSentinel(ctx, gs, tmpl, true); err != nil {
+			t.Fatalf("reconcileSentinel: %v", err)
+		}
+
+		var dep appsv1.Deployment
+		if err := k8sClient.Get(ctx, types.NamespacedName{
+			Name: "test-sentinel-sa-waker", Namespace: ns,
+		}, &dep); err != nil {
+			t.Fatalf("get sentinel deployment: %v", err)
+		}
+		if dep.Spec.Template.Spec.ServiceAccountName != "test-sentinel-sa-waker-sa" {
+			t.Errorf("ServiceAccountName = %q, want %q", dep.Spec.Template.Spec.ServiceAccountName, "test-sentinel-sa-waker-sa")
+		}
+	})
+
 	t.Run("Hostport mode sets HostPort on sentinel container", func(t *testing.T) {
 		ctx := context.Background()
 		ns := newNamespace(t)
