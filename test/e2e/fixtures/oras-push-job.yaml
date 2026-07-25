@@ -58,7 +58,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: push
-          image: ghcr.io/oras-project/oras:v1.2.0
+          image: ghcr.io/oras-project/oras:v1.3.3
           command: ["oras"]
           args:
             - push
