@@ -95,13 +95,27 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 					},
 				},
 			},
+			map[string]any{
+				"id":          "save-world",
+				"displayName": "Save world",
+				"command":     "save-all flush",
+			},
 		},
-		// Path A: drive the server through Gameplane via RCON.
-		// The broadcast action sends a message via RCON, which the server
-		// echoes in the logs. The log is tailed to confirm the message appeared.
+		// Path A: drive the server through Gameplane via RCON, using
+		// save-world rather than broadcast. Vanilla Minecraft's "say"
+		// command returns an EMPTY RCON reply — the message only shows up
+		// in chat/logs, never in the reply itself — so asserting a
+		// broadcast's reply would be vacuous. "save-all flush" replies
+		// with the exact text of Mojang's "commands.save.success" lang
+		// string, "Saved the game" (verified against the vanilla 1.21.4
+		// en_us.json, not assumed), which runControlActionRCON asserts
+		// against directly. See runGameBotPathA's doc comment in
+		// gamebot_helpers_e2e_test.go for why this reads the RCON reply
+		// instead of tailing logs.
 		Control: pathAControl{
-			Mode:   "rcon",
-			Action: "broadcast",
+			Mode:      "rcon",
+			Action:    "save-world",
+			ExpectRaw: "Saved the game",
 		},
 	})
 }

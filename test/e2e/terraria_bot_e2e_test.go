@@ -84,8 +84,14 @@ func TestGameServer_TerrariaBot_Joined(t *testing.T) {
 		},
 		// Path A: drive the server through Gameplane via stdin.
 		// Terraria declares rcon.protocol: none and consoleMode: pty, so control
-		// happens via pod-attach stdin. The broadcast action sends a message to all
-		// players, which is echoed in the server logs. The log is tailed to confirm.
+		// happens via pod-attach stdin, fire-and-forget (no RCON reply to check).
+		// The broadcast action sends a message to all players, which the server
+		// prints to its own stdout — Terraria has no persistent log file
+		// (modules/terraria/template.yaml), only a console — so
+		// runControlActionStdinPTY asserts the message on the console-pty
+		// stream (the same route TestAPI_ConsolePTYRoundTrip exercises)
+		// rather than tailing logs. See runGameBotPathA's doc comment in
+		// gamebot_helpers_e2e_test.go for the full rationale.
 		Control: pathAControl{
 			Mode:   "stdin",
 			Action: "broadcast",
