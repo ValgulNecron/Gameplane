@@ -110,17 +110,37 @@ func Main(f Flags, run func(context.Context) (Depth, error))
 
 ## Measured connect evidence
 
+### Round 1 — Protocol Version 17 (2026-07-24)
+
 **Date:** 2026-07-24  
 **Server:** ceifa/garrysmod:debian, `sv_lan 1`, AUTOUPDATE=0  
 **CI run:** PR #197, job `e2e game bot`  
 **Boot + probe time:** 134.82 seconds (one observation, not an average)
 
-After A2S_INFO succeeded, the probe attempted a Source protocol connect handshake:
+After A2S_INFO succeeded, the probe attempted a Source protocol connect handshake with **protocol version 17**:
 
-- A2S_GETCHALLENGE: succeeded, challenge obtained
-- C2S_CONNECT: parsed by the server, rejected with response type 0x39 + "game#GameUI_ServerRejectOldVersion\0"
+- **A2S_GETCHALLENGE:** succeeded, challenge obtained
+- **C2S_CONNECT:** sent with protocol 17; parsed by server; rejected with response type **0x39** + "game#GameUI_ServerRejectOldVersion"
 
-The rejection identified protocol version as the blocker. Full hex and decode in `protocol/source/spec.md#Measured evidence`. The server did not respond with a Steam authentication gate; the protocol version must be corrected to proceed deeper.
+The rejection identified protocol version as the blocker. The server did not respond with a Steam authentication gate; the protocol version was explicitly too old. Full details in `protocol/source/spec.md#Measured evidence`.
+
+### Round 2 — Protocol Version 18 (2026-07-25)
+
+**Action:** Updated `ProtocolSource1` constant from 17 → 18 based on ceifa/garrysmod:debian's explicit "ServerRejectOldVersion" response.
+
+**Improved diagnostics (2026-07-25):**
+- The probe now decodes the response type byte and logs it as `0x%02x` instead of requiring manual hex parsing.
+- Rejection messages are logged clearly: "response type 0x%02x — REJECTED: <message>" for immediate visibility.
+- Example improved log output:
+  ```
+  connect-probe: response type 0x39 — REJECTED: game#GameUI_ServerRejectOldVersion
+  ```
+- Raw hex dump is still logged for deep diagnosis, but bounded to prevent log flooding.
+
+**Next expectation (pending CI run):** The next CI run will attempt protocol 18. Possible outcomes:
+1. **ACCEPTED:** The diagnostic will log "response type 0x03 — ACCEPTED (new client)"; depth escalates to JOINED.
+2. **Rejected with different reason:** Diagnostic clearly shows the rejection reason (e.g., Steam auth gate); depth is PARTIAL.
+3. **Rejected with version mismatch again:** Diagnostic shows the server's next-best protocol version; we iterate.
 
 ## Key invariants
 
@@ -216,13 +236,16 @@ This test is named `TestGameServer_GarrysModBot_Query` and expects `ExpectDepth:
 - A2S succeeds: proves QUERY depth, server is alive and responding to queries.
 - Source protocol connection: measured evidence gathering (PR #197, 2026-07-24). The challenge exchange works; the server parses our connect request and rejects on protocol version.
 
-**Connect measurement (PR #197):**
+**Connect measurement (PR #197 & 2026-07-25):**
 The probe attempts a source-protocol challenge and connect handshake after A2S succeeds. This attempt:
 - Does not change the returned depth (stays QUERY until connect succeeds).
-- Logs all evidence to the CI job log: challenge obtained, server response type (0x39 measured), response bytes (hex-encoded), and rejection reason ("GameUI_ServerRejectOldVersion").
+- Logs all evidence to the CI job log with **improved readability (2026-07-25)**: response type decoded as `0x%02x`, rejection reasons displayed as "response type 0x%02x — REJECTED: <reason>" rather than requiring manual hex parsing.
 - Wraps errors gracefully; network failures or protocol errors do not fail the probe.
 
-The measured rejection (response type 0x39, protocol version mismatch) provides the concrete next step: correct the ProtocolSource1 constant and re-measure. The depth can escalate to PARTIAL (if an unpassable auth gate appears) or JOINED (if the version correction succeeds) on the next iteration.
+**Evolution (PR #197 → 2026-07-25):**
+- PR #197 measured protocol version 17 rejection ("GameUI_ServerRejectOldVersion").
+- 2026-07-25 updated `ProtocolSource1` from 17 → 18 and improved diagnostic output to decode responses for immediate visibility.
+- The depth stays QUERY until the version gate is passed, then can escalate to PARTIAL (auth gate) or JOINED (success) on the next CI run.
 
 **Configuration details:**
 - `sv_lan 1` is delivered via the `ARGS` environment variable, disabling Steam GSLT requirement.

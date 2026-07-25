@@ -79,18 +79,31 @@ func probeGarrysMod(ctx context.Context, addr string) (probe.Depth, error) {
 		return probe.Query, nil
 	}
 
-	// Connect succeeded; log the raw response and outcome for evidence.
-	// Bound the hex dump to ~256 bytes to prevent log flooding from a chatty server.
+	// Connect succeeded; decode and log the response for evidence.
+	// Extract response type (byte 4, after the 0xFFFFFFFF header) for diagnosis.
+	var respType string
+	if len(connectResult.Raw) >= 5 {
+		respType = fmt.Sprintf("0x%02x", connectResult.Raw[4])
+	} else {
+		respType = "truncated"
+	}
+
+	// Log outcome: either accepted or rejection reason.
+	if connectResult.Accepted {
+		log.Printf("connect-probe: response type %s — ACCEPTED (new client)", respType)
+	} else if connectResult.RejectMsg != "" {
+		// Log rejection reason; if it contains #GameUI_ token, extract and highlight it.
+		log.Printf("connect-probe: response type %s — REJECTED: %s", respType, connectResult.RejectMsg)
+	} else {
+		log.Printf("connect-probe: response type %s — rejected (no reason provided)", respType)
+	}
+
+	// Also log raw hex for diagnosis, bounded to ~256 bytes to prevent log flooding.
 	rawHex := hex.EncodeToString(connectResult.Raw)
 	if len(rawHex) > 512 {
 		rawHex = rawHex[:512] + "... (truncated)"
 	}
-	log.Printf("connect-probe: challenge obtained, connect response received, accepted=%v, response_bytes=%d, response_hex=%s", connectResult.Accepted, len(connectResult.Raw), rawHex)
-
-	// Log rejection message if present.
-	if connectResult.RejectMsg != "" {
-		log.Printf("connect-probe: rejection message: %s", connectResult.RejectMsg)
-	}
+	log.Printf("connect-probe: raw response (%d bytes): %s", len(connectResult.Raw), rawHex)
 
 	// Regardless of connect outcome, return QUERY because that is what A2S proved.
 	// The connect attempt was diagnostic; evidence is in the logs above.
