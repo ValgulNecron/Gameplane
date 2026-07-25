@@ -238,7 +238,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: "22", cache: "npm", cache-dependency-path: web/package-lock.json }
+        with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - run: npm run build
       - run: npm run test:cover
@@ -279,7 +279,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: "22", cache: "npm", cache-dependency-path: web/package-lock.json }
+        with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - name: playwright browser cache
         uses: actions/cache@v6
@@ -674,7 +674,7 @@ jobs:
           restore-keys: |
             go-${{ runner.os }}-${{ runner.arch }}-e2e-
       - uses: actions/setup-node@v7
-        with: { node-version: "22", cache: "npm", cache-dependency-path: web/package-lock.json }
+        with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - uses: azure/setup-helm@v5
       - name: install kind
         uses: helm/kind-action@v1
