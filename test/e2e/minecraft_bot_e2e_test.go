@@ -38,22 +38,25 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 		DisplayName: "E2E Minecraft",
 		Image:       "itzg/minecraft-server:java21",
 		Env: map[string]string{
-			"EULA":              "TRUE",
-			"TYPE":              "VANILLA",
-			"VERSION":           "1.21.4",
-			"ONLINE_MODE":       "FALSE",
-			"INIT_MEMORY":       "512M",
-			"MAX_MEMORY":        "1G",
-			"USE_AIKAR_FLAGS":   "false",
-			"LEVEL_TYPE":        "FLAT",
-			"VIEW_DISTANCE":     "4",
-			"SPAWN_PROTECTION":  "0",
+			"EULA":             "TRUE",
+			"TYPE":             "VANILLA",
+			"VERSION":          "1.21.4",
+			"ONLINE_MODE":      "FALSE",
+			"INIT_MEMORY":      "512M",
+			"MAX_MEMORY":       "1G",
+			"USE_AIKAR_FLAGS":  "false",
+			"LEVEL_TYPE":       "FLAT",
+			"VIEW_DISTANCE":    "4",
+			"SPAWN_PROTECTION": "0",
+			"ENABLE_RCON":      "true",
+			"RCON_PORT":        "25575",
 		},
 		Ports: []gamePort{
 			{Name: "game", Port: 25565, Protocol: "TCP"},
+			{Name: "rcon", Port: 25575, Protocol: "TCP"},
 		},
-		StorageSize:   "2Gi",
-		MountPath:     "/data",
+		StorageSize: "2Gi",
+		MountPath:   "/data",
 		Resources: gameResources{
 			ReqCPU: "250m",
 			ReqMem: "1Gi",
@@ -72,6 +75,33 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 				"periodSeconds":       int64(10),
 				"failureThreshold":    int64(60),
 			},
+		},
+		RCON: map[string]any{
+			"protocol":    "source",
+			"port":        int64(25575),
+			"passwordEnv": "RCON_PASSWORD",
+		},
+		Actions: []any{
+			map[string]any{
+				"id":          "broadcast",
+				"displayName": "Broadcast message",
+				"command":     "say {{.Params.message}}",
+				"params": []any{
+					map[string]any{
+						"name":        "message",
+						"displayName": "Message",
+						"type":        "string",
+						"required":    true,
+					},
+				},
+			},
+		},
+		// Path A: drive the server through Gameplane via RCON.
+		// The broadcast action sends a message via RCON, which the server
+		// echoes in the logs. The log is tailed to confirm the message appeared.
+		Control: pathAControl{
+			Mode:   "rcon",
+			Action: "broadcast",
 		},
 	})
 }

@@ -44,8 +44,8 @@ func TestGameServer_TerrariaBot_Joined(t *testing.T) {
 		Ports: []gamePort{
 			{Name: "game", Port: 7777, Protocol: "TCP"},
 		},
-		StorageSize:   "2Gi",
-		MountPath:     "/opt/terraria/config",
+		StorageSize: "2Gi",
+		MountPath:   "/opt/terraria/config",
 		Resources: gameResources{
 			ReqCPU: "200m",
 			ReqMem: "512Mi",
@@ -65,6 +65,30 @@ func TestGameServer_TerrariaBot_Joined(t *testing.T) {
 				"periodSeconds":       int64(10),
 				"failureThreshold":    int64(30),
 			},
+		},
+		Actions: []any{
+			map[string]any{
+				"id":          "broadcast",
+				"displayName": "Broadcast message",
+				"transport":   "stdin",
+				"command":     "say {{.Params.message}}",
+				"params": []any{
+					map[string]any{
+						"name":        "message",
+						"displayName": "Message",
+						"type":        "string",
+						"required":    true,
+					},
+				},
+			},
+		},
+		// Path A: drive the server through Gameplane via stdin.
+		// Terraria declares rcon.protocol: none and consoleMode: pty, so control
+		// happens via pod-attach stdin. The broadcast action sends a message to all
+		// players, which is echoed in the server logs. The log is tailed to confirm.
+		Control: pathAControl{
+			Mode:   "stdin",
+			Action: "broadcast",
 		},
 	})
 }

@@ -4,7 +4,9 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -91,11 +93,19 @@ type gameResources struct {
 	ReqCPU, ReqMem, LimCPU, LimMem string
 }
 
+// pathAControl declares how a game is driven THROUGH Gameplane after Path B proves
+// the server is running. Empty/unset means no Path A test (server is unchecked for
+// control channel availability).
+type pathAControl struct {
+	Mode   string // "rcon" | "stdin" | "" (no control channel)
+	Action string // action id to run
+}
+
 // gameBotSpec fully describes a game for bot testing: template config,
 // container config, readiness expectations, and probe parameters.
 type gameBotSpec struct {
-	Game          string            // module dir name, e.g. "minecraft-java"
-	Template      string            // GameTemplate name
+	Game          string // module dir name, e.g. "minecraft-java"
+	Template      string // GameTemplate name
 	DisplayName   string
 	Image         string
 	Env           map[string]string
@@ -111,6 +121,8 @@ type gameBotSpec struct {
 	Probes        map[string]any // spec.probes; nil means the operator sets no probe
 	RCON          map[string]any // spec.rcon
 	ConsoleMode   string         // spec.consoleMode
+	Actions       []any          // spec.capabilities.actions; nil means no actions
+	Control       pathAControl   // Path A: drive the server through Gameplane (optional)
 }
 
 // runGameBotTest creates the GameTemplate + GameServer, waits for
@@ -170,7 +182,7 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		},
 	}
 
-	// Set optional probes, rcon, and consoleMode if provided.
+	// Set optional probes, rcon, consoleMode, and actions if provided.
 	if s.Probes != nil {
 		spec["probes"] = s.Probes
 	}
@@ -179,6 +191,11 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 	}
 	if s.ConsoleMode != "" {
 		spec["consoleMode"] = s.ConsoleMode
+	}
+	if s.Actions != nil {
+		spec["capabilities"] = map[string]any{
+			"actions": s.Actions,
+		}
 	}
 
 	tmpl := &unstructured.Unstructured{Object: map[string]any{
@@ -238,4 +255,87 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		ExpectDepth: s.ExpectDepth,
 		Args:        s.ProbeArgs,
 	})
+
+	// Path A: drive the server THROUGH Gameplane if a control channel is declared.
+	// This proves the API, agent, and control protocol integration work end-to-end.
+	if s.Control.Mode != "" {
+		runGameBotPathA(t, gsName, ns, s.Control)
+	}
+}
+
+// runGameBotPathA drives the SAME already-running server through Gameplane
+// (API → agent → game protocol) to prove end-to-end control integration.
+// It expects the server to already be in Running phase and reachable.
+// All control modes run an action and assert its effect via log tailing.
+func runGameBotPathA(t *testing.T, gsName, ns string, ctrl pathAControl) {
+	t.Helper()
+	ctx := context.Background()
+
+	// Log in once; reuse the same client for all Path A calls to stay
+	// within the login budget (~2 for the entire bot bucket).
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	if ctrl.Mode != "" {
+		runControlAction(t, ctx, cli, gsName, ns, ctrl)
+	}
+}
+
+// runControlAction fires an action via the API and asserts its effect
+// by tailing logs for a unique message derived from the GameServer name.
+// This works for both RCON and stdin/PTY games: RCON outputs through logs,
+// stdin outputs through console which is captured in logs.
+func runControlAction(t *testing.T, ctx context.Context, cli *APIClient, gsName, ns string, ctrl pathAControl) {
+	t.Helper()
+
+	// Derive a unique message from the GameServer name (e.g., gsName="e2e-minecraft-bot" → "e2e-minecraft-bot-pathA").
+	// This allows concurrent tests to distinguish their messages in shared logs.
+	uniqueMessage := gsName + "-pathA"
+
+	// POST /servers/{gsName}/actions/run with the broadcast action.
+	// The action receives the unique message as a parameter.
+	resp, body, err := cli.Post(
+		fmt.Sprintf("/servers/%s/actions/run", gsName),
+		map[string]any{
+			"id": ctrl.Action,
+			"params": map[string]string{
+				"message": uniqueMessage,
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("POST /actions/run: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /actions/run %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response to confirm the API accepted the action.
+	var respBody struct {
+		OK bool `json:"ok"`
+	}
+	if err := json.Unmarshal(body, &respBody); err != nil {
+		t.Fatalf("decode action response: %v\n%s", err, string(body))
+	}
+	if !respBody.OK {
+		t.Fatalf("action failed: ok=false")
+	}
+
+	// Tail the logs via WebSocket looking for the unique message.
+	// The action output is captured in the game's console/log output.
+	wsConn, stop := dialAuthedWS(t, cli, fmt.Sprintf("/ws/servers/%s/logs", gsName))
+	defer stop()
+
+	readCtx, readCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer readCancel()
+	for {
+		_, frame, err := wsConn.Read(readCtx)
+		if err != nil {
+			t.Fatalf("read log frame: %v; action either did not run or its output never appeared in logs (expected message: %q)", err, uniqueMessage)
+		}
+		if strings.Contains(string(frame), uniqueMessage) {
+			return // Success: found the message in logs.
+		}
+	}
 }
