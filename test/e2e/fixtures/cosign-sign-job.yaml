@@ -80,7 +80,7 @@ spec:
       serviceAccountName: e2e-cosign-signer
       initContainers:
         - name: keygen
-          image: ghcr.io/sigstore/cosign/cosign:v3.0.6
+          image: ghcr.io/sigstore/cosign/cosign:v3.1.2
           args:
             - generate-key-pair
             - k8s://gameplane-system/e2e-sign-keypair
@@ -92,7 +92,7 @@ spec:
             - { name: tmp, mountPath: /tmp }
       containers:
         - name: sign
-          image: ghcr.io/sigstore/cosign/cosign:v3.0.6
+          image: ghcr.io/sigstore/cosign/cosign:v3.1.2
           args:
             - sign
             - --key=k8s://gameplane-system/e2e-sign-keypair
