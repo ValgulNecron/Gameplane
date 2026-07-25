@@ -53,8 +53,8 @@ EOF
 
     kubectl cluster-info --context "kind-${CLUSTER}" >/dev/null
 
-    echo "loading gameplane/{operator,api,agent}:${TAG} images into kind"
-    for img in operator api agent; do
+    echo "loading gameplane/{operator,api,agent,sentinel}:${TAG} images into kind"
+    for img in operator api agent sentinel; do
         if ! docker image inspect "gameplane-test/${img}:${TAG}" >/dev/null 2>&1; then
             echo "  missing local image gameplane-test/${img}:${TAG} — building"
             docker build -t "gameplane-test/${img}:${TAG}" -f "${REPO}/${img}/Dockerfile" "${REPO}"
@@ -92,6 +92,7 @@ EOF
         --set "ingress.enabled=false" \
         --set "web.enabled=false" \
         --set "operator.agentImage=gameplane-test/agent:${TAG}" \
+        --set "operator.sentinelImage=gameplane-test/sentinel:${TAG}" \
         --set "api.resources.limits.memory=1Gi" \
         --set "operator.leaderElect=false" \
         --set "defaultModuleSource.enabled=false" \

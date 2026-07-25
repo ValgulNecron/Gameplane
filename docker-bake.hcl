@@ -4,7 +4,7 @@
 # time versus three sequential `docker build`s. Tags match what
 # `make e2e-images` produces and what deploy/kind/e2e.sh loads.
 group "e2e" {
-  targets = ["e2e-operator", "e2e-api", "e2e-agent"]
+  targets = ["e2e-operator", "e2e-api", "e2e-agent", "e2e-sentinel"]
 }
 
 target "e2e-operator" {
@@ -23,6 +23,12 @@ target "e2e-agent" {
   context    = "."
   dockerfile = "agent/Dockerfile"
   tags       = ["gameplane-test/agent:e2e"]
+}
+
+target "e2e-sentinel" {
+  context    = "."
+  dockerfile = "sentinel/Dockerfile"
+  tags       = ["gameplane-test/sentinel:e2e"]
 }
 
 # The headless protocol bot the game-bot job runs inside the cluster. It is
