@@ -8,6 +8,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -58,13 +59,13 @@ func TestGameServer_WakeOnConnect_PingDoesNotWake(t *testing.T) {
 		t.Fatalf("patch idle+wakeOnConnect: %v", err)
 	}
 
-	// Backdate the idle clock to force the server to sleep.
+	// Drive the server to sleep by stamping the authoritative sleep marker.
+	// (The annotation, not the status field, is what drives the reconciler's decision.)
 	past := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
-	clockPatch := []byte(`{"status":{"idle":{"emptySince":"` + past + `"}}}`)
+	sleepPatch := []byte(`{"metadata":{"annotations":{"gameplane.local/idle-asleep-since":"` + past + `"}}}`)
 	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-		Patch(ctx, gs, types.MergePatchType, clockPatch, metav1.PatchOptions{},
-			"status"); err != nil {
-		t.Fatalf("backdate idle clock: %v", err)
+		Patch(ctx, gs, types.MergePatchType, sleepPatch, metav1.PatchOptions{}); err != nil {
+		t.Fatalf("stamp sleep marker: %v", err)
 	}
 
 	// Give the operator time to reconcile and create the sentinel.
@@ -105,14 +106,21 @@ func TestGameServer_WakeOnConnect_PingDoesNotWake(t *testing.T) {
 	}
 	t.Logf("ping succeeded: version=%s, protocol=%d", st.Version.Name, st.Version.Protocol)
 
-	// Verify the server is STILL asleep: the sleep annotation should still be present.
-	gsObj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-		Get(ctx, gs, metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("get gameserver after ping: %v", err)
-	}
-	if ann := gsObj.GetAnnotations(); ann["gameplane.local/idle-asleep-since"] == "" {
-		t.Fatal("server woke up after a ping; sleep annotation missing")
+	// Verify the server is STILL asleep: poll over several seconds to ensure the
+	// sleep marker remains. Wake propagation is async (the sentinel patches a
+	// request annotation; only the operator's next reconcile clears the sleep marker),
+	// so we must allow time for a regression to manifest.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		gsObj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gs, metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("get gameserver: %v", err)
+		}
+		if ann := gsObj.GetAnnotations(); ann["gameplane.local/idle-asleep-since"] == "" {
+			t.Fatal("server woke up after a ping; sleep annotation missing")
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	// Verify the game StatefulSet is still at 0 replicas.
@@ -163,13 +171,13 @@ func TestGameServer_WakeOnConnect_LoginWakes(t *testing.T) {
 		t.Fatalf("patch idle+wakeOnConnect: %v", err)
 	}
 
-	// Backdate the idle clock to force the server to sleep.
+	// Drive the server to sleep by stamping the authoritative sleep marker.
+	// (The annotation, not the status field, is what drives the reconciler's decision.)
 	past := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
-	clockPatch := []byte(`{"status":{"idle":{"emptySince":"` + past + `"}}}`)
+	sleepPatch := []byte(`{"metadata":{"annotations":{"gameplane.local/idle-asleep-since":"` + past + `"}}}`)
 	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-		Patch(ctx, gs, types.MergePatchType, clockPatch, metav1.PatchOptions{},
-			"status"); err != nil {
-		t.Fatalf("backdate idle clock: %v", err)
+		Patch(ctx, gs, types.MergePatchType, sleepPatch, metav1.PatchOptions{}); err != nil {
+		t.Fatalf("stamp sleep marker: %v", err)
 	}
 
 	// Give the operator time to reconcile and create the sentinel.
@@ -202,6 +210,20 @@ func TestGameServer_WakeOnConnect_LoginWakes(t *testing.T) {
 	} else if res != nil {
 		t.Logf("login attempt: outcome=%v, detail=%s", res.Outcome, res.Detail)
 	}
+
+	// Verify the sentinel stamped the wake-request annotation so the wake is
+	// pinned to the login-parsing path.
+	envInstance.Eventually(t, 10*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gs, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		if ann := obj.GetAnnotations(); ann["gameplane.local/idle-wake-requested"] == "" {
+			return false, "wake-request annotation not stamped"
+		}
+		return true, ""
+	})
 
 	// Give the operator time to react to the wake annotation and bring the
 	// server back up.
@@ -271,13 +293,13 @@ func TestGameServer_WakeOnConnect_UnarmedNoSentinel(t *testing.T) {
 		t.Fatalf("patch idle without wakeOnConnect: %v", err)
 	}
 
-	// Backdate the idle clock to force the server to sleep.
+	// Drive the server to sleep by stamping the authoritative sleep marker.
+	// (The annotation, not the status field, is what drives the reconciler's decision.)
 	past := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339)
-	clockPatch := []byte(`{"status":{"idle":{"emptySince":"` + past + `"}}}`)
+	sleepPatch := []byte(`{"metadata":{"annotations":{"gameplane.local/idle-asleep-since":"` + past + `"}}}`)
 	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-		Patch(ctx, gs, types.MergePatchType, clockPatch, metav1.PatchOptions{},
-			"status"); err != nil {
-		t.Fatalf("backdate idle clock: %v", err)
+		Patch(ctx, gs, types.MergePatchType, sleepPatch, metav1.PatchOptions{}); err != nil {
+		t.Fatalf("stamp sleep marker: %v", err)
 	}
 
 	// Give the operator time to reconcile.
@@ -328,19 +350,11 @@ func applyMinecraftTemplateWithWake(t *testing.T, tmplName string) {
 		},
 	}}
 	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).
-		Create(ctx, tmpl, metav1.CreateOptions{}); err != nil {
-		// IsAlreadyExists is OK; we're creating a fixture that may be reused.
-		if err.Error() != "the server could not find the requested resource" && !isAlreadyExists(err) {
-			t.Fatalf("create template %s: %v", tmplName, err)
-		}
+		Create(ctx, tmpl, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create template %s: %v", tmplName, err)
 	}
 	t.Cleanup(func() {
 		_ = envInstance.Dyn.Resource(gameTemplateGVR).
 			Delete(context.Background(), tmplName, metav1.DeleteOptions{})
 	})
-}
-
-// isAlreadyExists is a simple check for the "already exists" error.
-func isAlreadyExists(err error) bool {
-	return err != nil && err.Error() == "already exists"
 }
