@@ -13,11 +13,11 @@ import {
   Lock,
   Mail,
   MessagesSquare,
+  MessageCircle,
   Plus,
   Puzzle,
   RefreshCcw,
   ShieldCheck,
-  Slack,
   Activity,
   Trash2,
   Webhook,
@@ -962,7 +962,7 @@ const defaultOnEvents: NotifEventType[] = [
 
 const sinkIcons: Record<SinkKind, typeof Bell> = {
   discord: MessagesSquare,
-  slack: Slack,
+  slack: MessageCircle,
   smtp: Mail,
   webhook: Webhook,
   ntfy: BellRing,

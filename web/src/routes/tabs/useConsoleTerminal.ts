@@ -36,7 +36,7 @@ export interface ConsoleProtocol {
 }
 
 export interface ConsoleHandle {
-  hostRef: RefObject<HTMLDivElement>;
+  hostRef: RefObject<HTMLDivElement | null>;
   status: WSStatus;
   clear: () => void;
   download: () => void;
