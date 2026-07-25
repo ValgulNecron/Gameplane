@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react";
+import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -72,6 +72,13 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [sectionValid, setSectionValid] = useState(true);
+  // `dirty` (does draft differ from the last known-good server snapshot) is
+  // read directly in JSX, so it's tracked as its own piece of state,
+  // recomputed imperatively at every site that mutates `draft` or the
+  // baseline. That keeps `baselineRef` a plain ref (safe to read in effects
+  // and handlers, never during render) instead of needing its `.current` in
+  // a render-time computation.
+  const [dirty, setDirty] = useState(false);
   const baselineRef = useRef<GameServer | null>(null);
   const lastSeenRef = useRef<GameServer | undefined>(undefined);
 
@@ -91,12 +98,8 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
     baselineRef.current = clone;
     setDraft(clone);
     setConflict(false);
+    setDirty(false);
   }, [gs, draft]);
-
-  const dirty = useMemo(() => {
-    if (!draft || !baselineRef.current) return false;
-    return isDirty(draft, baselineRef.current);
-  }, [draft]);
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -121,6 +124,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
       const clone = structuredClone(saved);
       baselineRef.current = clone;
       setDraft(clone);
+      setDirty(false);
       setConflict(false);
       setError(null);
       setSavedAt(Date.now());
@@ -143,6 +147,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
   const reset = () => {
     if (baselineRef.current) {
       setDraft(structuredClone(baselineRef.current));
+      setDirty(false);
     }
     setConflict(false);
     setError(null);
@@ -153,6 +158,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
     const clone = structuredClone(fresh);
     baselineRef.current = clone;
     setDraft(clone);
+    setDirty(false);
     setConflict(false);
     setError(null);
     qc.setQueryData(["server", name], fresh);
@@ -160,6 +166,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
 
   const onChangeDraft = (next: GameServer) => {
     setDraft(next);
+    setDirty(baselineRef.current ? isDirty(next, baselineRef.current) : false);
     if (savedAt) setSavedAt(null);
   };
 

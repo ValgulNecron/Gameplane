@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
@@ -26,18 +26,20 @@ export function RestoreDialog({ backup, defaultServer, onClose }: Props) {
     enabled: open,
   });
   const [target, setTarget] = useState("");
-
-  // Reset the target whenever a different backup is opened: restic restores
-  // default to the in-place server; volume-snapshot restores suggest a fresh
-  // "<original>-restored" name.
-  useEffect(() => {
-    if (!backup) return;
+  // Tracks which backup `target` was last initialized for, so the reset
+  // below (adjusted directly during render, not in an effect) fires exactly
+  // once per newly-opened backup: restic restores default to the in-place
+  // server; volume-snapshot restores suggest a fresh "<original>-restored"
+  // name.
+  const [initializedFor, setInitializedFor] = useState<Backup | null>(null);
+  if (backup && backup !== initializedFor) {
+    setInitializedFor(backup);
     setTarget(
       backup.spec.strategy === "volume-snapshot"
         ? `${backup.spec.serverRef.name}-restored`
         : (defaultServer ?? ""),
     );
-  }, [backup, defaultServer]);
+  }
 
   const nameTaken =
     isVolumeSnapshot &&

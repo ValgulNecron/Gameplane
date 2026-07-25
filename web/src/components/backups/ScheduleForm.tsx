@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,13 +25,13 @@ export function ScheduleForm({ serverName, onClose }: Props) {
   });
   const [retention, setRetention] = useState<RetentionForm>({ keepLast: 7 });
   const isVolumeSnapshot = form.strategy === "volume-snapshot";
-  // Default the destination to the first one once the list resolves.
-  // The user can still pick a different one if more than one exists.
-  useEffect(() => {
-    if (!form.repoName && destinations.length > 0) {
-      setForm((f) => ({ ...f, repoName: destinations[0].name }));
-    }
-  }, [destinations, form.repoName]);
+  // Default the destination to the first one once the list resolves. The
+  // user can still pick a different one if more than one exists. Adjusted
+  // directly during render (not in an effect) — the condition becomes false
+  // as soon as repoName is set, so this can't loop.
+  if (!form.repoName && destinations.length > 0) {
+    setForm((f) => ({ ...f, repoName: destinations[0].name }));
+  }
 
   const create = useMutation({
     mutationFn: () =>

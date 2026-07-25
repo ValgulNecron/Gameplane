@@ -95,12 +95,14 @@ export function AdminLogsPage() {
     // Pin follow reconnects to the pod the first response picked, so the
     // stream doesn't hop between replicas; a component/tail change resets it.
     let currentPod = "";
-    setText("");
-    setPod("");
-    setError("");
     stickRef.current = true;
 
     const run = async () => {
+      // Clear stale display state as the first step of a fresh streaming
+      // session (a new component/tail/follow combination).
+      setText("");
+      setPod("");
+      setError("");
       for (;;) {
         try {
           await streamSystemLogs({

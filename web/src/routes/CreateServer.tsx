@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
@@ -211,15 +211,19 @@ export function CreateServerWizard() {
   // loads. One-shot, so manual changes afterwards aren't clobbered.
   const search = useSearch({ from: "/app-layout/servers/new" });
   const { data: templates } = useQuery({ queryKey: ["templates"], queryFn: () => Templates.list() });
-  const presetApplied = useRef(false);
-  useEffect(() => {
-    if (presetApplied.current || !search.template || !templates) return;
+  const [presetApplied, setPresetApplied] = useState(false);
+  // Adjusted directly during render (not in an effect): re-checks on every
+  // render until a match is found (templates may still be loading, or the
+  // list may not include the requested name yet), but only calls setState
+  // — flipping presetApplied, which stops the check — once it actually
+  // finds one.
+  if (!presetApplied && search.template && templates) {
     const match = templates.items.find((t) => t.metadata.name === search.template);
     if (match) {
-      presetApplied.current = true;
+      setPresetApplied(true);
       setState((s) => ({ ...s, template: match, config: {}, version: defaultVersionId(match) ?? "" }));
     }
-  }, [search.template, templates]);
+  }
 
   const create = useMutation({
     mutationFn: () => Servers.create(buildCreateBody(state)),

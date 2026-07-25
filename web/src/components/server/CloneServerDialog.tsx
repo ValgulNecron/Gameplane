@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -35,10 +35,17 @@ export function CloneServerDialog({
   const qc = useQueryClient();
   const nav = useNavigate();
   const [newName, setNewName] = useState("");
-
-  useEffect(() => {
+  // Reset the suggested name whenever the dialog (re)opens or the source
+  // server changes. Adjusted directly during render (not in an effect),
+  // gated on the previously-seen (open, sourceName) pair.
+  const [resetFor, setResetFor] = useState<{ open: boolean; sourceName: string }>({
+    open,
+    sourceName,
+  });
+  if (open !== resetFor.open || sourceName !== resetFor.sourceName) {
+    setResetFor({ open, sourceName });
     if (open) setNewName(`${sourceName.slice(0, 58)}-copy`);
-  }, [open, sourceName]);
+  }
 
   const clone = useMutation({
     mutationFn: () => Servers.clone(sourceName, newName, ns),

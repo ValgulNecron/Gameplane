@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -52,9 +52,14 @@ export function useConsoleTerminal(proto: ConsoleProtocol): ConsoleHandle {
   const attRef = useRef<ConsoleAttachment | null>(null);
   const disposedRef = useRef(false);
   // Keep the latest protocol reachable from the lifecycle effect without
-  // re-running it (the effect keys only on wsPath).
+  // re-running it (the effect keys only on wsPath). Assigning ref.current
+  // must not happen during render, so this runs in a layout effect —
+  // synchronously after commit, before the lifecycle effect below (layout
+  // effects always run before passive effects) and before any paint.
   const protoRef = useRef(proto);
-  protoRef.current = proto;
+  useLayoutEffect(() => {
+    protoRef.current = proto;
+  });
 
   const [status, setStatus] = useState<WSStatus>("connecting");
 

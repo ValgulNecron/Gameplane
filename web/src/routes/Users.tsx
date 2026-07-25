@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   useMutation,
   useQuery,
@@ -497,12 +497,16 @@ function EditUserModal({
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [role, setRole] = useState<string>(user.role);
-
-  useEffect(() => {
+  // Re-sync the form if `user` changes identity while mounted. Adjusted
+  // directly during render (not in an effect), gated on the previously-seen
+  // `user` reference.
+  const [resetFor, setResetFor] = useState(user);
+  if (user !== resetFor) {
+    setResetFor(user);
     setDisplayName(user.displayName ?? "");
     setEmail(user.email ?? "");
     setRole(user.role);
-  }, [user]);
+  }
 
   const dirty: UserUpdate = useMemo(() => {
     const out: UserUpdate = {};
