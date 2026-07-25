@@ -359,7 +359,7 @@ function ParamField({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm text-fg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
         >
           {(param.enum ?? []).map((opt) => (
             <option key={opt} value={opt}>

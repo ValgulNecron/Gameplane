@@ -538,7 +538,7 @@ function Configure({ state, setState }: { state: WizardState; setState: (s: Wiza
       <label className="block space-y-1.5">
         <span className="text-xs text-muted">Description</span>
         <textarea
-          className="min-h-[72px] w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-none"
+          className="min-h-[72px] w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-hidden"
           value={state.description}
           onChange={(e) => setState({ ...state, description: e.target.value })}
           placeholder="Hardcore survival realm with curated mods. Invite only."

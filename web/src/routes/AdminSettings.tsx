@@ -88,7 +88,7 @@ export function AdminSettingsPage() {
               onClick={() => setSection(key)}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary",
                 section === key
                   ? "bg-surface text-fg"
                   : "text-muted hover:bg-surface/60 hover:text-fg",

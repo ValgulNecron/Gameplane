@@ -302,7 +302,7 @@ function UserRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="rounded p-1 text-muted hover:bg-border hover:text-fg focus:outline-none focus:ring-1 focus:ring-primary"
+              className="rounded p-1 text-muted hover:bg-border hover:text-fg focus:outline-hidden focus:ring-1 focus:ring-primary"
               aria-label={`Actions for ${u.username}`}
             >
               <MoreHorizontal className="h-4 w-4" />
