@@ -76,6 +76,7 @@ jobs:
               - 'agent/**'
               - 'audit-syslog-bridge/**'
               - 'telemetry-receiver/**'
+              - 'sentinel/**'
               - 'mcp-server/**'
               - 'go.work'
               - 'go.work.sum'
@@ -170,7 +171,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server]
+        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server]
         arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4

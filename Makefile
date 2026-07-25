@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver mcp-server
+GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server
 GO_INTEGRATION_MODULES := operator api
 
 # test/e2e is a separate module (its own go.mod, excluded from the coverage
@@ -237,7 +237,7 @@ lint-web: ## Run web linters
 
 # -------- images --------
 .PHONY: images
-images: image-operator image-api image-web image-agent image-audit-syslog image-telemetry-receiver image-mcp-server ## Build all container images
+images: image-operator image-api image-web image-agent image-audit-syslog image-telemetry-receiver image-sentinel image-mcp-server ## Build all container images
 
 image-operator: ## Build operator image
 	docker build -t $(REGISTRY)/operator:$(TAG) -f operator/Dockerfile .
@@ -256,6 +256,9 @@ image-audit-syslog: ## Build audit-syslog-bridge image
 
 image-telemetry-receiver: ## Build telemetry-receiver image
 	docker build -t $(REGISTRY)/telemetry-receiver:$(TAG) -f telemetry-receiver/Dockerfile .
+
+image-sentinel: ## Build sentinel image
+	docker build -t $(REGISTRY)/sentinel:$(TAG) -f sentinel/Dockerfile .
 
 image-mcp-server: ## Build mcp-server image
 	docker build -t $(REGISTRY)/mcp-server:$(TAG) -f mcp-server/Dockerfile .

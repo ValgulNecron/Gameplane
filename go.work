@@ -9,6 +9,7 @@ use (
 	./agent
 	./audit-syslog-bridge
 	./telemetry-receiver
+	./sentinel
 	./mcp-server
 	./test/e2e
 )

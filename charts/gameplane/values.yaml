@@ -55,6 +55,7 @@ operator:
     requests: { cpu: 100m, memory: 64Mi }
     limits:   { cpu: 500m, memory: 256Mi }
   agentImage: ""   # defaults to {image.registry}/agent:{image.tag}
+  sentinelImage: ""   # defaults to {image.registry}/sentinel:{image.tag}
   # Images the operator injects into game/backup pods. Retag these to a
   # private registry mirror for air-gapped installs (Docker Hub blocked).
   configInitImage: busybox:1.37.0
