@@ -7,6 +7,19 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Wake-on-connect for idle auto-sleep:** a sentinel component (distroless Docker
+  image, configured via `operator.sentinelImage`) holds advertised ports while a GameServer
+  is asleep and wakes it on a genuine connection attempt. Opt-in per server via
+  `spec.idle.wakeOnConnect` (default false). New CRD fields:
+  `GameServer.spec.idle.wakeOnConnect` (bool) and `GamePort.wakeProtocol`
+  (enum: `minecraft|terraria|generic|none`, default `generic`). New shared
+  module `gameproto/` for Minecraft and Terraria handshake parsing; UDP-only
+  games use a generic packets-in-window heuristic. Works across all four expose
+  modes; Hostport has asymmetric limitations documented in `docs/roadmap.md`.
+  Costs one small pod per sleeping server.
+
 ### Security
 
 - **Signing key rotated:** cosign key type changed from Ed25519 to ECDSA P-256
