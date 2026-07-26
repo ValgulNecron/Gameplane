@@ -227,8 +227,15 @@ describe("AppLayout", () => {
     // also render in the desktop sidebar's profile footer (present in the
     // DOM even though it's visually hidden below `lg`), so scope to the
     // Topbar (the page's <header>, role "banner") to keep the match unique.
-    const header = await screen.findByRole("banner");
-    expect(await within(header).findByText("AL")).toBeInTheDocument();
+    // AppShellSkeleton *also* renders a <header role="banner"> (with no
+    // "AL" text inside) while useMe() is loading, so an unscoped
+    // findByRole("banner") can resolve to that transient skeleton header
+    // before real data arrives — within() on that since-unmounted node then
+    // never finds "AL" and hangs. Wait for a loaded-only element (a real
+    // nav link, which the skeleton never renders) first.
+    await screen.findByRole("link", { name: /Dashboard/i });
+    const header = screen.getByRole("banner");
+    expect(within(header).getByText("AL")).toBeInTheDocument();
   });
 
   it("search dropdown shows no matches message", async () => {
