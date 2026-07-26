@@ -99,7 +99,7 @@ describe("AdminSettingsPage", () => {
           general: { instanceName: "", externalURL: "", defaultNamespace: "" },
         }),
       ),
-      http.get("/admin/auth/providers", () =>
+      http.get("/auth/providers", () =>
         HttpResponse.json({
           providers: [{ name: "Local accounts", kind: "local", label: "Local Accounts" }],
         }),
@@ -108,7 +108,10 @@ describe("AdminSettingsPage", () => {
     renderWithQuery(<AdminSettingsPage />);
     await screen.findByRole("heading", { name: /Admin settings/i });
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
-    expect(await screen.findByText(/Local accounts/i)).toBeInTheDocument();
+    // Exact string, not a case-insensitive regex: the section subtitle
+    // ("Built-in local accounts plus federated identity providers…") also
+    // matches /Local accounts/i, so a regex query is ambiguous here.
+    expect(await screen.findByText("Local accounts")).toBeInTheDocument();
   });
 
   it("saves general section changes", async () => {
@@ -150,7 +153,10 @@ describe("AdminSettingsPage", () => {
       ),
     );
     renderWithQuery(<AdminSettingsPage />);
-    await screen.findByDisplayValue("");
+    // All three General fields are blank in this fixture, so
+    // findByDisplayValue("") would match all of them ambiguously — wait
+    // for the section's own Save button to render instead.
+    await screen.findByRole("button", { name: /Save changes/i });
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     await waitFor(() =>
       expect(screen.getByText(/Validation error/i)).toBeInTheDocument(),
@@ -169,8 +175,11 @@ describe("AdminSettingsPage", () => {
     );
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Telemetry/i }));
-    const toggle = await screen.findByRole("checkbox");
-    expect(toggle).not.toBeChecked();
+    // The Switch component renders role="switch" (a <button>), not a
+    // native checkbox input; assert via aria-checked, matching
+    // switch.test.tsx's own convention for this component.
+    const toggle = await screen.findByRole("switch");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
     await userEvent.click(toggle);
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
@@ -281,7 +290,10 @@ describe("AdminSettingsPage", () => {
     const toggle = await screen.findByLabelText(/Disable sink test-sink/i);
     await userEvent.click(toggle);
     const testBtn = screen.getByRole("button", { name: /Send test/i });
-    expect(testBtn).toHaveAttribute("title", /Save changes first/i);
+    // toHaveAttribute compares the attribute value with strict equality
+    // unless the expected value is an asymmetric matcher — a bare RegExp
+    // literal never matches, so wrap it in stringMatching.
+    expect(testBtn).toHaveAttribute("title", expect.stringMatching(/Save changes first/i));
   });
 
   it("runs test on notification sink", async () => {
@@ -373,7 +385,10 @@ describe("AdminSettingsPage", () => {
       http.get("/admin/config", () =>
         HttpResponse.json({}),
       ),
-      http.get("/admin/backup-destinations", () =>
+      // BackupDestinations.list() hits /backup-destinations, not the
+      // /admin-prefixed path — that prefix is only used for the auth
+      // provider / mod registry secret write endpoints.
+      http.get("/backup-destinations", () =>
         HttpResponse.json({
           items: [
             {
@@ -396,7 +411,7 @@ describe("AdminSettingsPage", () => {
       http.get("/admin/config", () =>
         HttpResponse.json({}),
       ),
-      http.get("/admin/backup-destinations", () =>
+      http.get("/backup-destinations", () =>
         new HttpResponse("Server error", { status: 500 }),
       ),
     );
@@ -410,7 +425,7 @@ describe("AdminSettingsPage", () => {
       http.get("/admin/config", () =>
         HttpResponse.json({}),
       ),
-      http.get("/admin/backup-destinations", () =>
+      http.get("/backup-destinations", () =>
         HttpResponse.json({ items: [] }),
       ),
     );
@@ -453,7 +468,9 @@ describe("AdminSettingsPage", () => {
           },
         }),
       ),
-      http.get("/admin/auth/providers", () =>
+      // AuthSection's runtime-providers query hits /auth/providers, not
+      // the /admin-prefixed secret-management path.
+      http.get("/auth/providers", () =>
         HttpResponse.json({
           providers: [
             { name: "helm", kind: "oidc", label: "Helm-managed" },

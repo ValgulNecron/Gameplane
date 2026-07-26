@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -16,6 +16,16 @@ vi.mock("@tanstack/react-router", () => ({
 import { BackupsPage } from "./Backups";
 
 describe("BackupsPage", () => {
+  // BackupsPage reads its initial tab from the URL (readTab()) and pushes
+  // the active tab into it via history.replaceState. jsdom's window is
+  // shared across tests in this file, so a prior test that switched tabs
+  // (e.g. "switches to the Restores tab") otherwise leaks its ?tab= param
+  // into the next test's initial render, silently mounting the wrong
+  // panel and starving that test's own MSW handlers.
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
   it("renders the Backups tab and loads rows", async () => {
     server.use(
       http.get("/backups", () =>
@@ -120,8 +130,10 @@ describe("BackupsPage", () => {
     );
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-1");
-    // Select beta server filter
-    const serverSelect = screen.getByDisplayValue("Select a server…") as HTMLSelectElement;
+    // Select beta server filter. BackupFilters' server select defaults to
+    // "All servers" (a filter with no selection means "show everything"),
+    // unlike the "Back up now" dialog's forced-choice "Select a server…".
+    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
     await userEvent.selectOptions(serverSelect, "beta");
     // Only beta-1 should be visible
     expect(screen.getByText("beta-1")).toBeInTheDocument();
@@ -147,9 +159,10 @@ describe("BackupsPage", () => {
     );
     renderWithQuery(<BackupsPage />);
     await screen.findByText("backup-1");
-    // Get phase select (second filter select after server)
-    const selects = screen.getAllByDisplayValue("");
-    const phaseSelect = selects[1] as HTMLSelectElement;
+    // Phase select defaults to "All phases" (same "no selection = show
+    // everything" convention as the server filter, so neither filter
+    // select's display value is the empty string).
+    const phaseSelect = screen.getByDisplayValue("All phases") as HTMLSelectElement;
     await userEvent.selectOptions(phaseSelect, "Succeeded");
     expect(screen.getByText("backup-1")).toBeInTheDocument();
     expect(screen.queryByText("backup-2")).not.toBeInTheDocument();
@@ -205,7 +218,7 @@ describe("BackupsPage", () => {
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-1");
     // Filter to beta server (which has no backups)
-    const serverSelect = screen.getByDisplayValue("Select a server…") as HTMLSelectElement;
+    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
     await userEvent.selectOptions(serverSelect, "beta");
     expect(screen.getByText(/No backups match the current filters/)).toBeInTheDocument();
   });
@@ -268,7 +281,9 @@ describe("BackupsPage", () => {
     const schedTab = screen.getByRole("button", { name: /Schedules/i });
     await userEvent.click(schedTab);
     await screen.findByText("alpha-daily");
-    const switchBtn = screen.getByRole("checkbox");
+    // The schedule-active Switch renders role="switch" (a <button>), not
+    // a native checkbox.
+    const switchBtn = screen.getByRole("switch");
     await userEvent.click(switchBtn);
     await waitFor(() => expect(toggleHandler).toHaveBeenCalled());
   });
@@ -333,8 +348,9 @@ describe("BackupsPage", () => {
     const restoresTab = screen.getByRole("button", { name: /Restores/i });
     await userEvent.click(restoresTab);
     await screen.findByText("restore-1");
-    // Filter by alpha server
-    const serverSelect = screen.getByDisplayValue("Select a server…") as HTMLSelectElement;
+    // Filter by alpha server (RestoresTabPanel reuses BackupFilters, so
+    // same "All servers" default as the Backups tab's server filter).
+    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
     await userEvent.selectOptions(serverSelect, "alpha");
     expect(screen.getByText("restore-1")).toBeInTheDocument();
     expect(screen.queryByText("restore-2")).not.toBeInTheDocument();
