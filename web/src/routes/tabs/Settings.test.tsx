@@ -276,7 +276,7 @@ describe("SettingsTab", () => {
 
   it("disables save button when section is invalid", async () => {
     stubTemplate();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    const { unmount } = render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
 
     // General section is safe, but let's switch to Lifecycle and make it invalid
     fireEvent.click(screen.getByRole("button", { name: /Lifecycle/i }));
@@ -285,6 +285,11 @@ describe("SettingsTab", () => {
     fireEvent.change(screen.getAllByRole("textbox")[0], {
       target: { value: "30" },
     });
+
+    // render() doesn't replace the previous tree, it mounts a second one
+    // alongside it — unmount first, or every subsequent screen query below
+    // (starting with "Lifecycle") is ambiguous across both instances.
+    unmount();
 
     // Now create invalid grace period state
     render(
@@ -410,8 +415,14 @@ describe("SettingsTab", () => {
     });
     await waitFor(() => expect(onDirty).toHaveBeenCalledWith(true));
 
-    // Simulate 409 conflict
-    fetchMock.mockImplementationOnce(async (url: string, init?: FetchInit) => {
+    // Simulate 409 conflict. save.mutate's mutationFn does a GET (fetch
+    // latest to merge onto) *then* a PUT — mockImplementationOnce only
+    // swaps out a single call, so it intercepted the GET and left the PUT
+    // falling through to the earlier fetchCount-based mock (which has no
+    // PUT branch, so it threw "unexpected fetch"). Use a persistent
+    // override so both the mutation's internal GET and its PUT — plus the
+    // GET the "Reload" button issues afterward — are handled.
+    fetchMock.mockImplementation(async (url: string, init?: FetchInit) => {
       if (url.startsWith("/templates/")) {
         return jsonRes({
           metadata: { name: "minecraft-java" },

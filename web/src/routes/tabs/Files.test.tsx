@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FilesTab } from "./Files";
 
@@ -623,15 +623,19 @@ describe("FilesTab", () => {
   });
 
   it("navigates via breadcrumbs", async () => {
+    // "dir1" isn't in the shared ROOT_ENTRIES fixture, so the root listing
+    // here needs its own entries. The condition order also matters:
+    // "path=%2Fdir1" is a substring of "path=%2Fdir1%2Fdir2", and root's
+    // "path=%2F" is a substring of every path — check the most specific
+    // path first so a deeper request isn't swallowed by a broader match.
+    const rootEntries = [
+      { name: "dir1", path: "/dir1", size: 0, dir: true },
+    ];
     const nestedEntries = [
       { name: "file.txt", path: "/dir1/dir2/file.txt", size: 100, dir: false },
     ];
     let lastPath = "";
     fetchMock.mockImplementation(async (url: string) => {
-      if (url.includes("path=%2F")) {
-        lastPath = "/";
-        return jsonRes(ROOT_ENTRIES);
-      }
       if (url.includes("path=%2Fdir1%2Fdir2")) {
         lastPath = "/dir1/dir2";
         return jsonRes(nestedEntries);
@@ -642,11 +646,15 @@ describe("FilesTab", () => {
           { name: "dir2", path: "/dir1/dir2", size: 0, dir: true },
         ]);
       }
+      if (url.includes("path=%2F")) {
+        lastPath = "/";
+        return jsonRes(rootEntries);
+      }
       throw new Error(`unexpected fetch: ${url}`);
     });
     render(withClient(<FilesTab name="mc-survival" />));
     await waitFor(() => expect(lastPath).toBe("/"));
-    fireEvent.click(screen.getByText("dir1"));
+    fireEvent.click(await screen.findByText("dir1"));
     await waitFor(() => expect(lastPath).toBe("/dir1"));
   });
 
@@ -661,8 +669,12 @@ describe("FilesTab", () => {
     await screen.findByTestId("monaco");
     // Back to tree pane
     fireEvent.click(screen.getByRole("button", { name: /back to files/i }));
-    // Click the same file again
-    fireEvent.click(await screen.findByText("server.properties"));
+    // Click the same file again. Scope the query to the tree pane: once a
+    // file is selected, the (CSS-hidden but still-mounted) editor header
+    // also renders the selected file's name, so an unscoped query for
+    // "server.properties" is ambiguous here.
+    const aside = container.querySelector("aside") as HTMLElement;
+    fireEvent.click(await within(aside).findByText("server.properties"));
     const main = container.querySelector("main") as HTMLElement;
     await waitFor(() => {
       const hasHidden = main.className.split(/\s+/).includes("hidden");
@@ -681,10 +693,14 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    const { container } = render(withClient(<FilesTab name="mc-survival" />));
     fireEvent.click(await screen.findByText("server.properties"));
-    // Should show loader while file is being read
-    const loaders = screen.getAllByRole("img", { hidden: true });
+    // Should show loader while file is being read. lucide-react icons render
+    // aria-hidden="true" by default, which removes them from the
+    // accessibility tree entirely (the `hidden` option to getByRole only
+    // covers CSS-hidden elements, not aria-hidden ones) — so this can never
+    // find a role="img" element. Query by the spin class instead.
+    const loaders = container.querySelectorAll(".animate-spin");
     expect(loaders.length).toBeGreaterThan(0);
     // Resolve the read
     await act(async () => {
