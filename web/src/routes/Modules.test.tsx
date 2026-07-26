@@ -280,4 +280,166 @@ describe("ModulesPage", () => {
       expect(removeUpload).toHaveBeenCalledWith("uploads", "custom-game"),
     );
   });
+
+  it("filters by source name", async () => {
+    const mc = { ...MINECRAFT, sources: [{ name: "default", type: "oci" }] };
+    const val = { ...VALHEIM_INSTALLED, sources: [{ name: "community", type: "git" }] };
+    catalog.mockResolvedValue({ items: [mc, val] });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+
+    // Click the "community" source filter
+    await userEvent.click(screen.getByRole("button", { name: "community" }));
+    expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+  });
+
+  it("searches modules by display name", async () => {
+    const mc = { ...MINECRAFT, displayName: "Minecraft (Java)" };
+    const val = { ...VALHEIM_INSTALLED, displayName: "Valheim" };
+    catalog.mockResolvedValue({ items: [mc, val] });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    const input = screen.getByRole("textbox", { name: /search modules/i });
+    await userEvent.type(input, "valheim");
+    expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
+    expect(screen.getByText("Valheim")).toBeInTheDocument();
+  });
+
+  it("searches case-insensitively", async () => {
+    const mc = { ...MINECRAFT, displayName: "Minecraft (Java)" };
+    catalog.mockResolvedValue({ items: [mc] });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    const input = screen.getByRole("textbox", { name: /search modules/i });
+    await userEvent.type(input, "MINECRAFT");
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+  });
+
+  it("shows empty message when all modules are filtered out", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT] });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    const input = screen.getByRole("textbox", { name: /search modules/i });
+    await userEvent.type(input, "nonexistent");
+    expect(
+      screen.getByText(/No modules match the current filter/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
+  });
+
+  it("shows empty message when catalog is empty", async () => {
+    catalog.mockResolvedValue({ items: [] });
+    renderPage();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/No modules in any catalog yet/),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("shows install error on the page", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT] });
+    install.mockRejectedValue(new Error("network timeout"));
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    await userEvent.click(screen.getByRole("button", { name: /install/i }));
+    const confirms = screen.getAllByRole("button", { name: /^install$/i });
+    await userEvent.click(confirms[confirms.length - 1]);
+
+    await waitFor(() =>
+      expect(screen.getByText(/network timeout/)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows upgrade error on the page", async () => {
+    catalog.mockResolvedValue({ items: [TERRARIA_UPGRADE] });
+    upgrade.mockRejectedValue(new Error("permission denied"));
+    renderPage();
+
+    await screen.findByText("Terraria");
+    await userEvent.click(screen.getByRole("button", { name: /upgrade/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/permission denied/)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows uninstall error on the page", async () => {
+    catalog.mockResolvedValue({ items: [VALHEIM_INSTALLED] });
+    uninstall.mockRejectedValue(new Error("servers still running"));
+    renderPage();
+
+    await screen.findByText("Valheim");
+    await userEvent.click(screen.getByRole("button", { name: /uninstall/i }));
+    const buttons = await screen.findAllByRole("button", { name: /uninstall/i });
+    await userEvent.click(buttons[buttons.length - 1]);
+
+    await waitFor(() =>
+      expect(screen.getByText(/servers still running/)).toBeInTheDocument(),
+    );
+  });
+
+  it("clears page error when install succeeds", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT] });
+    install.mockRejectedValueOnce(new Error("first attempt failed"))
+      .mockResolvedValueOnce({});
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    await userEvent.click(screen.getByRole("button", { name: /install/i }));
+    let confirms = screen.getAllByRole("button", { name: /^install$/i });
+    await userEvent.click(confirms[confirms.length - 1]);
+
+    await screen.findByText(/first attempt failed/);
+
+    // Try again; error should clear on success
+    await userEvent.click(screen.getByRole("button", { name: /install/i }));
+    confirms = screen.getAllByRole("button", { name: /^install$/i });
+    await userEvent.click(confirms[confirms.length - 1]);
+
+    await waitFor(() =>
+      expect(screen.queryByText(/first attempt failed/)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("filters 'All categories' clears the category set", async () => {
+    const mc = { ...MINECRAFT, categories: ["Sandbox"] };
+    catalog.mockResolvedValue({ items: [mc] });
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    // Click Sandbox to filter
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
+
+    // Click All categories to reset
+    await userEvent.click(screen.getByRole("button", { name: "All categories" }));
+    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+  });
+
+  it("disables buttons while mutations are pending", async () => {
+    catalog.mockResolvedValue({ items: [MINECRAFT, VALHEIM_INSTALLED] });
+    install.mockImplementation(() => new Promise(() => {})); // never resolves
+    renderPage();
+
+    await screen.findByText("Minecraft (Java)");
+    const installBtns = screen.getAllByRole("button", { name: /install/i });
+    await userEvent.click(installBtns[0]);
+    const confirms = screen.getAllByRole("button", { name: /^install$/i });
+    await userEvent.click(confirms[confirms.length - 1]);
+
+    // While the mutation is pending, the uninstall button should be disabled
+    const uninstallBtns = screen.getAllByRole("button", { name: /uninstall/i });
+    await waitFor(() => {
+      expect(uninstallBtns[0]).toBeDisabled();
+    });
+  });
 });

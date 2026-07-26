@@ -292,4 +292,168 @@ describe("SourceDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText(/still used by installed module/);
   });
+
+  it("reveals keyed verify fields and validates them", async () => {
+    const onConfirm = renderDialog();
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "signed-upstream" } });
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
+      target: { value: "ghcr.io/x" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("minecraft-java, valheim"), {
+      target: { value: "minecraft-java" },
+    });
+
+    // Switch to keyed verify mode.
+    fireEvent.change(screen.getByRole("combobox", { name: /Signature verification/ }), {
+      target: { value: "keyed" },
+    });
+    expect(screen.getByText("Public key secret")).toBeInTheDocument();
+
+    // Blank secret name blocks submit.
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await screen.findByText(/keyed verification needs a public key secret name/);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    // Filling it submits the verify block.
+    fireEvent.change(screen.getByPlaceholderText("cosign-pub"), {
+      target: { value: "my-cosign-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+    expect(onConfirm).toHaveBeenCalledWith({
+      name: "signed-upstream",
+      spec: {
+        type: "oci",
+        oci: { url: "ghcr.io/x", modules: [{ name: "minecraft-java" }] },
+        verify: { key: { name: "my-cosign-key" } },
+      },
+    });
+  });
+
+  it("prefills keyed verify when editing a signed source", () => {
+    const signed = makeModuleSource({
+      metadata: { name: "upstream" },
+      spec: {
+        type: "oci",
+        oci: { url: "ghcr.io/x", modules: [{ name: "mc" }] },
+        verify: { key: { name: "cosign-pub" } },
+      },
+    });
+    renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={signed} onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByDisplayValue("cosign-pub")).toBeInTheDocument();
+  });
+
+  it("validates git source requires URL", async () => {
+    const onConfirm = renderDialog();
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "git-src" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+      target: { value: "git" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await screen.findByText(/url is required/);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("validates http source requires URL", async () => {
+    const onConfirm = renderDialog();
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "http-src" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+      target: { value: "http" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await screen.findByText(/url is required/);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("allows local and upload sources without URL", async () => {
+    let onConfirm = renderDialog();
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "local-src" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+      target: { value: "local" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+
+    // Reset and test upload
+    const { unmount } = renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={vi.fn()} />,
+    );
+    unmount();
+
+    onConfirm = renderDialog();
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upload-src" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
+      target: { value: "upload" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+  });
+
+  it("prefills git source with subPath when editing", () => {
+    const git = makeModuleSource({
+      metadata: { name: "community" },
+      spec: { type: "git", git: { url: "https://g/x.git", ref: "main", subPath: "mods" } },
+    });
+    renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={git} onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByDisplayValue("https://g/x.git")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("main")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("mods")).toBeInTheDocument();
+  });
+
+  it("prefills http source with secret when editing", () => {
+    const http = makeModuleSource({
+      metadata: { name: "archive" },
+      spec: { type: "http", http: { url: "https://e/m.zip", secretRef: { name: "archive-creds" } } },
+    });
+    renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={http} onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByDisplayValue("https://e/m.zip")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("archive-creds")).toBeInTheDocument();
+  });
+
+  it("clears error when dialog reopens", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error("failed"));
+    const { rerender } = renderWithQuery(
+      <SourceDialog
+        open
+        onOpenChange={() => undefined}
+        source={null}
+        onConfirm={onConfirm}
+      />,
+    );
+    fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "src" } });
+    fireEvent.change(screen.getByPlaceholderText("ghcr.io/valgulnecron/gameplane-modules"), {
+      target: { value: "ghcr.io/x" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("minecraft-java, valheim"), {
+      target: { value: "mc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await screen.findByText(/failed/);
+
+    // Close and reopen the dialog
+    rerender(
+      <SourceDialog
+        open={false}
+        onOpenChange={() => undefined}
+        source={null}
+        onConfirm={onConfirm}
+      />,
+    );
+    rerender(
+      <SourceDialog
+        open
+        onOpenChange={() => undefined}
+        source={null}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    expect(screen.queryByText(/failed/)).not.toBeInTheDocument();
+  });
 });
