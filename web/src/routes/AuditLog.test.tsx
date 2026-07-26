@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuditLogPage, auditAction } from "./AuditLog";
@@ -242,6 +242,352 @@ describe("AuditLogPage", () => {
       );
       expect(verifyCalls.length).toBeGreaterThanOrEqual(2);
     });
+  });
+
+  it("filters rows by actor search", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { actor: "alice", method: "POST", path: "/servers" }),
+      event(2, { actor: "bob", method: "POST", path: "/backups" }),
+      event(3, { actor: "charlie", method: "GET", path: "/servers" }),
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("Created server")).toBeInTheDocument();
+
+    const actorInput = screen.getByPlaceholderText(/Filter by actor/i);
+    await fireEvent.change(actorInput, { target: { value: "alice" } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByText("Created server")).toBeInTheDocument();
+    expect(screen.queryByText("Created backup")).toBeNull();
+  });
+
+  it("filters rows by method", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { method: "POST", path: "/servers" }),
+      event(2, { method: "DELETE", path: "/servers/old" }),
+      event(3, { method: "GET", path: "/servers" }),
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("Created server");
+
+    const methodSelect = screen.getByDisplayValue("All methods");
+    fireEvent.change(methodSelect, { target: { value: "GET" } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByText(/Viewed server/i)).toBeInTheDocument();
+    expect(screen.queryByText("Created server")).toBeNull();
+    expect(screen.queryByText("Deleted server")).toBeNull();
+  });
+
+  it("filters by multiple criteria simultaneously", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { actor: "alice", method: "POST", status: 200, path: "/servers" }),
+      event(2, { actor: "alice", method: "DELETE", status: 500, path: "/servers/x" }),
+      event(3, { actor: "bob", method: "POST", status: 200, path: "/servers" }),
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("Created server");
+
+    const methodSelect = screen.getByDisplayValue("All methods");
+    fireEvent.change(methodSelect, { target: { value: "POST" } });
+
+    fireEvent.click(screen.getByText(/5xx · 1/));
+
+    const actorInput = screen.getByPlaceholderText(/Filter by actor/i);
+    fireEvent.change(actorInput, { target: { value: "alice" } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.queryByText("Created server")).toBeNull();
+    expect(screen.queryByText("Deleted server")).toBeNull();
+  });
+
+  it("shows correct status counts for different status classes", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { status: 200 }),
+      event(2, { status: 201 }),
+      event(3, { status: 400 }),
+      event(4, { status: 403 }),
+      event(5, { status: 500 }),
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText(/2xx · 2/);
+    expect(screen.getByText(/4xx · 2/)).toBeInTheDocument();
+    expect(screen.getByText(/5xx · 1/)).toBeInTheDocument();
+  });
+
+  it("renders method pills with correct colors for each method", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { method: "GET", status: 200 }),
+      event(2, { method: "POST", status: 201 }),
+      event(3, { method: "PUT", status: 200 }),
+      event(4, { method: "PATCH", status: 200 }),
+      event(5, { method: "DELETE", status: 204 }),
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("GET");
+    expect(screen.getByText("POST")).toBeInTheDocument();
+    expect(screen.getByText("PUT")).toBeInTheDocument();
+    expect(screen.getByText("PATCH")).toBeInTheDocument();
+    expect(screen.getByText("DELETE")).toBeInTheDocument();
+  });
+
+  it("shows correct access outcomes for different status codes", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { status: 200 }),  // allowed
+      event(2, { status: 403 }),  // denied
+      event(3, { status: 400 }),  // failed
+      event(4, { status: 500 }),  // error
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("Allowed");
+    expect(screen.getByText("Denied")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+  });
+
+  it("shows integrity error banner with custom message", async () => {
+    const verifyResult: AuditVerifyResult = {
+      ok: false,
+      firstBadId: 5,
+      checked: 50,
+      message: "Custom error: something went wrong",
+    };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("Custom error: something went wrong")).toBeInTheDocument();
+  });
+
+  it("shows integrity error with default message when no message provided", async () => {
+    const verifyResult: AuditVerifyResult = {
+      ok: false,
+      firstBadId: 42,
+      checked: 50,
+      message: "",
+    };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText(/chain breaks at event #42/)).toBeInTheDocument();
+  });
+
+  it("shows no banner when verify is still loading", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) {
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(jsonRes(verifyResult)), 100),
+        );
+      }
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    // Initially no banner should be shown while loading
+    expect(screen.queryByText(/verified/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/integrity status/i)).not.toBeInTheDocument();
+  });
+
+  it("shows unavailable banner when verify query errors", async () => {
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) {
+        return Promise.reject(new Error("Network error"));
+      }
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("Integrity status unavailable")).toBeInTheDocument();
+  });
+
+  it("loads next page of events on demand", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const firstPage = Array.from({ length: 100 }, (_, i) => event(i));
+    const secondPage = Array.from({ length: 50 }, (_, i) => event(100 + i));
+
+    let callCount = 0;
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      callCount++;
+      if (callCount === 1) return Promise.resolve(jsonRes(firstPage));
+      if (u.includes("pageParam=100")) return Promise.resolve(jsonRes(secondPage));
+      return Promise.resolve(jsonRes([]));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText(/loaded/);
+
+    const loadMore = await screen.findByRole("button", { name: /Load more/i });
+    expect(loadMore).toBeInTheDocument();
+    fireEvent.click(loadMore);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.getByRole("button", { name: /End of log/i })).toBeInTheDocument();
+  });
+
+  it("disables load more button while fetching next page", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const firstPage = Array.from({ length: 100 }, (_, i) => event(i));
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return new Promise((resolve) =>
+        setTimeout(() => resolve(jsonRes(firstPage)), 50),
+      );
+    });
+
+    render(withClient(<AuditLogPage />));
+    const loadMore = await screen.findByRole("button", { name: /Load more/i });
+    fireEvent.click(loadMore);
+
+    // Button should become disabled during fetch
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Loading/i })).toBeInTheDocument();
+    });
+  });
+
+  it("shows refresh button and refetches all data", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1, { method: "POST" })];
+
+    let fetchCount = 0;
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      fetchCount++;
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    await screen.findByText("Created server");
+
+    const refreshBtn = screen.getByRole("button", { name: /Refresh/i });
+    const initialFetchCount = fetchCount;
+
+    fireEvent.click(refreshBtn);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fetchCount).toBeGreaterThan(initialFetchCount);
+  });
+
+  it("shows empty state with message when no events loaded", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes([]));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("No audit events yet.")).toBeInTheDocument();
+  });
+
+  it("renders table headers correctly", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [event(1)];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("Time")).toBeInTheDocument();
+    expect(screen.getByText("Actor")).toBeInTheDocument();
+    expect(screen.getByText("Action")).toBeInTheDocument();
+    expect(screen.getByText("Method")).toBeInTheDocument();
+    expect(screen.getByText("Access")).toBeInTheDocument();
+    expect(screen.getByText("IP")).toBeInTheDocument();
+  });
+
+  it("shows IP address or dash when missing", async () => {
+    const verifyResult: AuditVerifyResult = { ok: true, checked: 100, message: "audit chain intact" };
+    const events = [
+      event(1, { ip: "192.168.1.1" }),
+      event(2, { ip: undefined }),
+      event(3, { ip: "" }),
+    ];
+
+    fetchMock.mockImplementation((url) => {
+      const u = url.toString();
+      if (u.includes("/admin/audit/verify")) return Promise.resolve(jsonRes(verifyResult));
+      return Promise.resolve(jsonRes(events));
+    });
+
+    render(withClient(<AuditLogPage />));
+    expect(await screen.findByText("192.168.1.1")).toBeInTheDocument();
+    const dashes = screen.getAllByText("—");
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
 });
 
