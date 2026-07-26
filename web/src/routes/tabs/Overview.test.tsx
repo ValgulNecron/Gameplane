@@ -154,4 +154,24 @@ describe("OverviewTab players card", () => {
     render(withClient(<OverviewTab gs={gs()} name="s1" />));
     expect(await screen.findByText("+ 2 more")).toBeInTheDocument();
   });
+
+  it("calls onViewAllEvents when the View all link is clicked", async () => {
+    const onViewAllEvents = vi.fn();
+    fetchMock.mockImplementation((path: string) => {
+      if (String(path).includes("/events")) {
+        return Promise.resolve(jsonRes([
+          {
+            id: "e1", time: "2026-01-01T00:00:00Z", type: "Normal",
+            reason: "Created", message: "Pod created",
+            source: "kubelet", object: "Pod/s1-0", count: 1,
+          },
+        ]));
+      }
+      return Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" }));
+    });
+    render(withClient(
+      <OverviewTab gs={gs()} name="s1" onViewAllEvents={onViewAllEvents} />,
+    ));
+    expect(await screen.findByText(/View all/i)).toBeInTheDocument();
+  });
 });
