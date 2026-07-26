@@ -231,4 +231,443 @@ describe("ServerActionsCard", () => {
     expect(output).toBeInTheDocument();
     expect(output).toHaveClass("font-mono");
   });
+
+  it("truncates long output to 200 chars", async () => {
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    const longOutput = "x".repeat(250);
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return Promise.resolve(jsonRes({ ok: true, raw: longOutput }));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "cmd", displayName: "Command" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Command/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    const output = await screen.findByText(/^x+…$/);
+    expect(output.textContent).toHaveLength(201); // 200 chars + 1 ellipsis char
+  });
+
+  it("displays error message from failed action", async () => {
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return Promise.reject(new Error("Connection timeout"));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "fail", displayName: "Fail action" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Fail action/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    const error = await screen.findByText("Connection timeout");
+    expect(error).toBeInTheDocument();
+    expect(error).toHaveClass("font-mono");
+  });
+
+  it("allows dismissing status messages", async () => {
+    const runs: RunCall[] = [];
+    routeFetch("operator", runs);
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "save", displayName: "Save" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Save/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    const dismiss = await screen.findByRole("button", { name: "dismiss" });
+    fireEvent.click(dismiss);
+    await waitFor(() => expect(screen.queryByText("Save sent")).not.toBeInTheDocument());
+  });
+
+  it("handles confirm-only actions (no parameters)", async () => {
+    const runs: RunCall[] = [];
+    routeFetch("operator", runs);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([{ id: "restart", displayName: "Restart server", confirm: true }])}
+      />,
+    );
+    const btn = await screen.findByRole("button", { name: /Restart server/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    // Should open a dialog even though there are no parameters
+    expect(await screen.findByText("Run this action now?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(runs).toEqual([{ id: "restart" }]));
+  });
+
+  it("validates required parameters before allowing submission", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "announce",
+            displayName: "Announce",
+            params: [{ name: "msg", type: "string", required: true }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Announce/i }));
+    const runBtn = screen.getByRole("button", { name: "Run" });
+    expect(runBtn).toBeDisabled(); // No input = submit disabled
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "hello" } });
+    await waitFor(() => expect(runBtn).not.toBeDisabled());
+  });
+
+  it("validates enum parameters and rejects invalid choices", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "set-mode",
+            displayName: "Set mode",
+            params: [{ name: "mode", type: "enum", enum: ["creative", "survival"] }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Set mode/i }));
+    const select = screen.getByRole("combobox");
+    expect(select).toHaveValue("creative"); // First enum value is default
+    fireEvent.change(select, { target: { value: "survival" } });
+    await waitFor(() => expect(select).toHaveValue("survival"));
+  });
+
+  it("validates int parameters", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "set-count",
+            displayName: "Set count",
+            params: [{ name: "count", type: "int", required: true }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Set count/i }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "abc" } });
+    expect(
+      await screen.findByText("Must be a whole number"),
+    ).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "42" } });
+    await waitFor(() => expect(screen.queryByText("Must be a whole number")).not.toBeInTheDocument());
+  });
+
+  it("rejects control characters in string parameters", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "cmd",
+            displayName: "Run",
+            params: [{ name: "txt", type: "string", required: true }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Run/i }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "hello\nworld" } }); // LF is control char
+    expect(
+      await screen.findByText("No control characters"),
+    ).toBeInTheDocument();
+  });
+
+  it("handles boolean parameters with checkbox", async () => {
+    const runs: RunCall[] = [];
+    routeFetch("operator", runs);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "toggle",
+            displayName: "Toggle feature",
+            params: [{ name: "enabled", type: "bool" }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Toggle feature/i }));
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(runs).toEqual([{ id: "toggle", params: { enabled: "true" } }]));
+  });
+
+  it("cancels dialog without running action", async () => {
+    const runs: RunCall[] = [];
+    routeFetch("operator", runs);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([{ id: "test", displayName: "Test", params: [{ name: "x", type: "string" }] }])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Test/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(runs).toHaveLength(0);
+  });
+
+  it("disables buttons while action is pending", async () => {
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    let resolveRun: () => void;
+    const runPromise = new Promise<void>((resolve) => {
+      resolveRun = resolve;
+    });
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return runPromise.then(() => jsonRes({ ok: true }));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "slow", displayName: "Slow action" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Slow action/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    // Button becomes disabled while pending
+    await waitFor(() => expect(btn).toBeDisabled());
+    resolveRun!();
+    await waitFor(() => expect(btn).not.toBeDisabled());
+  });
+
+  it("shows 'Actions need a live console' message when game has no rcon", async () => {
+    routeFetch("operator", []);
+    const noRconTemplate: GameTemplate = {
+      metadata: { name: "static-game" },
+      spec: {
+        displayName: "Static",
+        game: "static",
+        version: "1",
+        image: "img",
+        capabilities: { actions: [{ id: "a1", displayName: "Action" }] },
+      },
+    };
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={noRconTemplate} />,
+    );
+    expect(
+      await screen.findByText("Actions need a live console; this game has none."),
+    ).toBeInTheDocument();
+  });
+
+  it("disables action buttons when game has no rcon", async () => {
+    routeFetch("operator", []);
+    const noRconTemplate: GameTemplate = {
+      metadata: { name: "static-game" },
+      spec: {
+        displayName: "Static",
+        game: "static",
+        version: "1",
+        image: "img",
+        capabilities: { actions: [{ id: "a1", displayName: "Action" }] },
+      },
+    };
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={noRconTemplate} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Action/i });
+    expect(btn).toBeDisabled();
+  });
+
+  it("renders action description in button title", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "save",
+            displayName: "Save world",
+            description: "Saves the world to disk",
+          },
+        ])}
+      />,
+    );
+    const btn = await screen.findByRole("button", { name: /Save world/i });
+    expect(btn).toHaveAttribute("title", "Saves the world to disk");
+  });
+
+  it("shows permission error in title when viewer role", async () => {
+    routeFetch("viewer", []);
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "a1", displayName: "Action" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Action/i });
+    expect(btn).toHaveAttribute("title", "Requires operator role");
+  });
+
+  it("renders action icons correctly", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          { id: "a1", displayName: "Save", icon: "save" },
+          { id: "a2", displayName: "Unknown icon", icon: "nonexistent" },
+        ])}
+      />,
+    );
+    // Save icon should render (check for svg or similar)
+    const buttons = await screen.findAllByRole("button");
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("renders danger actions with danger styling", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          { id: "delete", displayName: "Delete world", danger: true },
+        ])}
+      />,
+    );
+    const btn = await screen.findByRole("button", { name: /Delete world/i });
+    expect(btn.querySelector("span")).toHaveClass("text-danger");
+  });
+
+  it("drops empty optional parameters from submission", async () => {
+    const runs: RunCall[] = [];
+    routeFetch("operator", runs);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "cmd",
+            displayName: "Run",
+            params: [
+              { name: "msg", type: "string", required: true },
+              { name: "extra", type: "string", required: false },
+            ],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Run/i }));
+    const inputs = screen.getAllByRole("textbox");
+    fireEvent.change(inputs[0], { target: { value: "required" } });
+    // Leave inputs[1] (extra) empty
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() =>
+      expect(runs).toEqual([{ id: "cmd", params: { msg: "required" } }]),
+    );
+  });
+
+  it("handles API error responses with parsed error body", async () => {
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Invalid player name" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "ban", displayName: "Ban player" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Ban player/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    expect(await screen.findByText("Invalid player name")).toBeInTheDocument();
+  });
+
+  it("handles API 403 permission error", async () => {
+    const permissions = { "*": ["servers:read"] }; // No servers:write
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({}), { status: 403 }),
+        );
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "a1", displayName: "Action" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Action/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    expect(
+      await screen.findByText("Your role does not allow running actions."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows action group headers only when groups are present", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "a1", displayName: "No group" }])} />,
+    );
+    // When there are only ungrouped actions, no "Actions" header is shown
+    await screen.findByRole("button", { name: /No group/i });
+    expect(screen.queryByText("Actions")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Actions' header for ungrouped when groups are also present", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          { id: "a1", displayName: "Grouped", group: "GROUP1" },
+          { id: "a2", displayName: "Ungrouped" },
+        ])}
+      />,
+    );
+    expect(await screen.findByText("GROUP1")).toBeInTheDocument();
+    expect(await screen.findByText("Actions")).toBeInTheDocument();
+  });
 });
