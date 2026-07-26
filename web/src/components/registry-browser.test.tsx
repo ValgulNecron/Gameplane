@@ -20,7 +20,7 @@ const mockProject = (overrides: Partial<RegistryProject> = {}): RegistryProject 
 describe("RegistryBrowser", () => {
   it("renders no provider UI when only one provider is available", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([{ provider: "modrinth", available: true, mods: true, modpacks: false }]),
       ),
     );
@@ -38,11 +38,14 @@ describe("RegistryBrowser", () => {
 
   it("renders provider switcher when multiple providers available", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
           { provider: "curseforge", available: true, mods: true, modpacks: true },
         ]),
+      ),
+      http.get("/servers/test/mods/registry/search", () =>
+        HttpResponse.json([mockProject()]),
       ),
     );
     renderWithQuery(
@@ -59,11 +62,14 @@ describe("RegistryBrowser", () => {
 
   it("filters providers by type (modpacks only)", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: true },
           { provider: "curseforge", available: true, mods: true, modpacks: false },
         ]),
+      ),
+      http.get("/servers/test/mods/registry/search", () =>
+        HttpResponse.json([mockProject()]),
       ),
     );
     renderWithQuery(
@@ -81,7 +87,7 @@ describe("RegistryBrowser", () => {
 
   it("shows 'not available' message when no usable providers", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([]),
       ),
     );
@@ -100,12 +106,12 @@ describe("RegistryBrowser", () => {
 
   it("loads and displays results from default provider", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([mockProject({ title: "First Mod" })]),
       ),
     );
@@ -121,12 +127,12 @@ describe("RegistryBrowser", () => {
   it("debounces search input", async () => {
     let searchCalls = 0;
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () => {
+      http.get("/servers/test/mods/registry/search", () => {
         searchCalls++;
         return HttpResponse.json([mockProject()]);
       }),
@@ -143,7 +149,7 @@ describe("RegistryBrowser", () => {
     const initialCalls = searchCalls;
 
     // Type fast - should debounce
-    const input = screen.getByRole("textbox", { name: /search/i });
+    const input = screen.getByRole("textbox");
     await userEvent.type(input, "abc", { delay: 50 });
 
     // Wait for debounce
@@ -154,12 +160,12 @@ describe("RegistryBrowser", () => {
 
   it("disables sort when searching", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([mockProject()]),
       ),
     );
@@ -173,7 +179,7 @@ describe("RegistryBrowser", () => {
     const sortSelect = screen.getByRole("combobox", { name: /sort/i }) as HTMLSelectElement;
     expect(sortSelect).not.toBeDisabled();
 
-    const input = screen.getByRole("textbox", { name: /search/i });
+    const input = screen.getByRole("textbox");
     await userEvent.type(input, "test");
 
     // Sort should become disabled while searching
@@ -184,12 +190,12 @@ describe("RegistryBrowser", () => {
 
   it("renders category chips only for modrinth", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([mockProject()]),
       ),
     );
@@ -215,12 +221,12 @@ describe("RegistryBrowser", () => {
   it("filters by category", async () => {
     let lastRequest: any = null;
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", ({ request }) => {
+      http.get("/servers/test/mods/registry/search", ({ request }) => {
         lastRequest = Object.fromEntries(new URL(request.url).searchParams);
         return HttpResponse.json([mockProject()]);
       }),
@@ -247,12 +253,12 @@ describe("RegistryBrowser", () => {
 
   it("shows 'No results' when search finds nothing", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([]),
       ),
     );
@@ -270,12 +276,12 @@ describe("RegistryBrowser", () => {
 
   it("shows error on search failure", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json({ error: "Invalid search query" }, { status: 400 }),
       ),
     );
@@ -297,12 +303,12 @@ describe("RegistryBrowser", () => {
     );
     let callCount = 0;
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", ({ request }) => {
+      http.get("/servers/test/mods/registry/search", ({ request }) => {
         const url = new URL(request.url);
         const offset = parseInt(url.searchParams.get("offset") ?? "0");
         callCount++;
@@ -333,12 +339,12 @@ describe("RegistryBrowser", () => {
   it("keeps previous results while fetching new search", async () => {
     let isSlowRequest = false;
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", async () => {
+      http.get("/servers/test/mods/registry/search", async () => {
         if (isSlowRequest) {
           await new Promise((r) => setTimeout(r, 100));
         }
@@ -356,7 +362,7 @@ describe("RegistryBrowser", () => {
 
     // Trigger a slow search
     isSlowRequest = true;
-    const input = screen.getByRole("textbox", { name: /search/i });
+    const input = screen.getByRole("textbox");
     await userEvent.type(input, "new");
 
     // Old results should still be visible (keepPreviousData)
@@ -371,13 +377,13 @@ describe("RegistryBrowser", () => {
       />,
     );
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
           { provider: "curseforge", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([mockProject()]),
       ),
     );
@@ -387,7 +393,7 @@ describe("RegistryBrowser", () => {
 
     // Re-render with only one provider
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
@@ -407,12 +413,12 @@ describe("RegistryBrowser", () => {
   it("renders renderItem for each project with provider", async () => {
     const renderItem = vi.fn((p) => <div key={p.id}>{p.name}</div>);
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", () =>
+      http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([
           mockProject({ id: "1", title: "Mod 1" }),
           mockProject({ id: "2", title: "Mod 2" }),
@@ -440,13 +446,13 @@ describe("RegistryBrowser", () => {
 
   it("switches providers and resets pagination", async () => {
     server.use(
-      http.get("/servers/test/registry-providers", () =>
+      http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: false },
           { provider: "curseforge", available: true, mods: true, modpacks: false },
         ]),
       ),
-      http.get("/servers/test/registry/search", ({ request }) => {
+      http.get("/servers/test/mods/registry/search", ({ request }) => {
         const url = new URL(request.url);
         const provider = url.searchParams.get("provider") as ModRegistryProvider;
         return HttpResponse.json([
