@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   cn,
+  capitalize,
   describeStorageProvisioned,
   formatBytes,
   formatCores,
@@ -182,5 +183,110 @@ describe("formatUptime", () => {
   });
   it("days and hours", () => {
     expect(formatUptime("2026-05-05T09:00:00Z")).toBe("2d 3h");
+  });
+});
+
+describe("capitalize", () => {
+  it("capitalizes lowercase string", () => {
+    expect(capitalize("hello")).toBe("Hello");
+  });
+
+  it("leaves already capitalized string unchanged", () => {
+    expect(capitalize("Hello")).toBe("Hello");
+  });
+
+  it("capitalizes first char of sentence fragment", () => {
+    expect(capitalize("pulling the game image")).toBe("Pulling the game image");
+  });
+
+  it("handles single-character string", () => {
+    expect(capitalize("a")).toBe("A");
+    expect(capitalize("Z")).toBe("Z");
+  });
+
+  it("returns empty string unchanged", () => {
+    expect(capitalize("")).toBe("");
+  });
+
+  it("handles numbers and special chars", () => {
+    expect(capitalize("123abc")).toBe("123abc");
+    expect(capitalize("!hello")).toBe("!hello");
+  });
+});
+
+describe("formatRelative edge cases", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-07T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("handles the 0-second boundary", () => {
+    expect(formatRelative("2026-05-07T12:00:00Z")).toBe("0s ago");
+  });
+
+  it("handles the 59-second boundary", () => {
+    expect(formatRelative("2026-05-07T11:59:01Z")).toBe("59s ago");
+  });
+
+  it("handles exactly 1 minute", () => {
+    expect(formatRelative("2026-05-07T11:59:00Z")).toBe("1m ago");
+  });
+
+  it("handles exactly 1 hour", () => {
+    expect(formatRelative("2026-05-07T11:00:00Z")).toBe("1h ago");
+  });
+
+  it("handles exactly 1 day", () => {
+    expect(formatRelative("2026-05-06T12:00:00Z")).toBe("1d ago");
+  });
+});
+
+describe("formatBytes edge cases", () => {
+  it("formats exactly 1024 bytes", () => {
+    expect(formatBytes(1024)).toBe("1.0 KB");
+  });
+
+  it("formats values between 10 and 1024 of a unit", () => {
+    expect(formatBytes(10 * 1024)).toBe("10 KB");
+    expect(formatBytes(100 * 1024)).toBe("100 KB");
+    expect(formatBytes(1023 * 1024)).toBe("1023 KB");
+  });
+
+  it("handles the boundary at 10 units exactly", () => {
+    const tenMB = 10 * 1024 * 1024;
+    expect(formatBytes(tenMB)).toBe("10 MB");
+  });
+
+  it("handles fractional sub-unit values", () => {
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1536)).toBe("1.5 KB");
+  });
+});
+
+describe("parseQuantityToBytes edge cases", () => {
+  it("handles whitespace around the number", () => {
+    expect(parseQuantityToBytes("  5  ")).toBe(0); // regex expects tight format
+  });
+
+  it("handles mixed case suffixes", () => {
+    expect(parseQuantityToBytes("5gi")).toBe(5 * 1024 ** 3); // Uppercase internally
+    expect(parseQuantityToBytes("5GI")).toBe(5 * 1024 ** 3);
+  });
+
+  it("handles decimal values with binary suffixes", () => {
+    expect(parseQuantityToBytes("2.5Gi")).toBe(2.5 * 1024 ** 3);
+  });
+
+  it("returns 0 for invalid decimal formats", () => {
+    expect(parseQuantityToBytes("abc.def")).toBe(0);
+  });
+
+  it("handles the space between number and unit", () => {
+    expect(parseQuantityToBytes("5 Gi")).toBe(5 * 1024 ** 3);
+  });
+
+  it("handles very large numbers", () => {
+    expect(parseQuantityToBytes("1000Pi")).toBe(1000 * 1024 ** 5);
   });
 });
