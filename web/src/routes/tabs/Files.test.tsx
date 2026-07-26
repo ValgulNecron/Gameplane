@@ -176,7 +176,7 @@ describe("FilesTab", () => {
     expect(hasClass(aside, "flex")).toBe(true);
     expect(hasClass(main, "hidden")).toBe(true);
 
-    fireEvent.click(screen.getByText("server.properties"));
+    fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
 
     // Selecting a file switches the mobile pane to the editor.
@@ -662,7 +662,7 @@ describe("FilesTab", () => {
     // Back to tree pane
     fireEvent.click(screen.getByRole("button", { name: /back to files/i }));
     // Click the same file again
-    fireEvent.click(screen.getByText("server.properties"));
+    fireEvent.click(await screen.findByText("server.properties"));
     const main = container.querySelector("main") as HTMLElement;
     await waitFor(() => {
       const hasHidden = main.className.split(/\s+/).includes("hidden");

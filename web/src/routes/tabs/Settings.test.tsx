@@ -482,6 +482,8 @@ describe("SettingsTab", () => {
     render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
 
     // Version button should be in the nav
-    expect(screen.getByRole("button", { name: /^Version$/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^Version$/i })).toBeInTheDocument();
+    });
   });
 });

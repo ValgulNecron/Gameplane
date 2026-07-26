@@ -350,10 +350,12 @@ describe("parseMemQuantity promotion logic", () => {
 });
 
 describe("parseMemQuantity decimal SI fallback", () => {
-  it("chooses Ti for large decimal values", () => {
+  it("chooses Gi for large decimal values", () => {
+    // "1T" (decimal SI) = 10^12 bytes; since 10^12 / 2^40 ≈ 0.93 < 1,
+    // it doesn't qualify for Ti. But 10^12 / 2^30 ≈ 931, so it picks Gi.
     const result = parseMemQuantity("1T");
-    expect(result?.unit).toBe("Ti");
-    expect(result?.value).toBeCloseTo(0.9313, 1);
+    expect(result?.unit).toBe("Gi");
+    expect(result?.value).toBeCloseTo(931.32, 1);
   });
 
   it("chooses Ki for sub-1 values without binary suffix", () => {
