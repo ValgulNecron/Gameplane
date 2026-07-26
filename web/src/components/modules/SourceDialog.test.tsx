@@ -368,7 +368,10 @@ describe("SourceDialog", () => {
   });
 
   it("allows local and upload sources without URL", async () => {
-    let onConfirm = renderDialog();
+    let onConfirm = vi.fn();
+    let rendered = renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
+    );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "local-src" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
       target: { value: "local" },
@@ -376,13 +379,15 @@ describe("SourceDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
 
-    // Reset and test upload
-    const { unmount } = renderWithQuery(
-      <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={vi.fn()} />,
-    );
-    unmount();
+    // Unmount before re-rendering — otherwise both instances' "community"
+    // placeholder inputs are in the DOM at once and getByPlaceholderText
+    // throws on the ambiguity.
+    rendered.unmount();
 
-    onConfirm = renderDialog();
+    onConfirm = vi.fn();
+    rendered = renderWithQuery(
+      <SourceDialog open onOpenChange={() => undefined} source={null} onConfirm={onConfirm} />,
+    );
     fireEvent.change(screen.getByPlaceholderText("community"), { target: { value: "upload-src" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
       target: { value: "upload" },

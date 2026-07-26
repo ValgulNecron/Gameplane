@@ -365,6 +365,11 @@ describe("AccessSection", () => {
     server.use(
       http.put("/servers/test:collaborators", async ({ request }) => {
         await request.json();
+        // Hold the response open briefly so the pending window is wide
+        // enough for waitFor's polling to observe the disabled input —
+        // without this, the mutation can resolve between polls and the
+        // assertion never catches the transient state.
+        await new Promise((resolve) => setTimeout(resolve, 20));
         return new HttpResponse(null, { status: 204 });
       }),
     );

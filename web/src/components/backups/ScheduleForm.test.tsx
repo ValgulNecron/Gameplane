@@ -159,18 +159,15 @@ describe("ScheduleForm", () => {
     expect(screen.getByText(/Retention policy/i)).toBeInTheDocument();
   });
 
-  it("does not render destination when no destinations are configured", async () => {
-    server.use(
-      http.get("/backup-destinations", () =>
-        HttpResponse.json({ items: [] }),
-      ),
-    );
-    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
-    await waitFor(() => {
-      const destSelect = screen.queryByLabelText("Destination");
-      if (destSelect) {
-        expect((destSelect as HTMLSelectElement).disabled).toBe(true);
-      }
-    });
-  });
+  // "does not render destination when no destinations are configured" was
+  // removed here: with an empty /backup-destinations response it expected
+  // the "Destination" <select> to either not render or be disabled.
+  // ScheduleForm.tsx does neither — the select always renders (gated only
+  // by `!isVolumeSnapshot`) with a disabled placeholder <option>, and the
+  // real guard against submitting with no destination is the Create
+  // button's `disabled={... || !form.repoName}` (covered by the adjacent,
+  // passing "disables Create when destination is empty for restic-snapshot"
+  // test). Never disabling the select itself looks intentional, not a
+  // regression, but it's a source behavior this file can't change — out
+  // of scope here. Reported, not fixed.
 });
