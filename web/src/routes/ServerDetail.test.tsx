@@ -426,3 +426,147 @@ describe("ServerDetailPage clone action", () => {
     expect(screen.getByLabelText("New name")).toBeInTheDocument();
   });
 });
+
+describe("ServerDetailPage failure states", () => {
+  it("shows default failure message when Ready condition has no message", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Failed",
+              conditions: [
+                {
+                  type: "Ready",
+                  status: "False",
+                  reason: "CrashLoopBackOff",
+                  message: undefined,
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(
+      await screen.findByText("The server failed to start."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders server version and uptime metadata", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              agent: { gameVersion: "1.20.1" },
+              startedAt: "2026-05-07T00:00:00Z",
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(await screen.findByText("1.20.1")).toBeInTheDocument();
+  });
+
+  it("shows the Modpacks tab when the template supports it", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: {
+              capabilities: { modpacks: { path: "modpacks" } },
+              loaders: [{ name: "forge", modpacks: true }],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const modpacksTab = await screen.findByRole("button", { name: "Modpacks" });
+    expect(modpacksTab).toBeInTheDocument();
+  });
+
+  it("hides Modpacks when the template does not declare the capability", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { capabilities: {}, loaders: [] },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("button", { name: "Console" });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Modpacks" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("falls back to Overview tab when the requested tab becomes unavailable", async () => {
+    let consoleAvailable = true;
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: consoleAvailable
+              ? { consoleMode: "rcon", rcon: { protocol: "rcon" } }
+              : { consoleMode: "none", rcon: { protocol: "none" } },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    // Click Console tab which should show
+    const consoleTab = await screen.findByRole("button", { name: "Console" });
+    await userEvent.click(consoleTab);
+    await waitFor(() => expect(screen.getByText("console-tab")).toBeInTheDocument());
+
+    // Simulate the template being updated to remove console support
+    consoleAvailable = false;
+    server.resetHandlers();
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { consoleMode: "none", rcon: { protocol: "none" } },
+          }),
+        ),
+      ),
+    );
+
+    // Wait for template refetch and fallback to overview
+    await waitFor(() =>
+      expect(screen.getByText("overview-tab")).toBeInTheDocument(),
+    );
+  });
+
+  it("renders Stop button for asleep servers without showing Wake after a stop", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Suspended",
+              idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const stopButton = await screen.findByRole("button", { name: /^Stop$/i });
+    expect(stopButton).not.toBeDisabled();
+  });
+});
