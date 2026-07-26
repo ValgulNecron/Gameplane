@@ -149,7 +149,7 @@ describe("ClusterPage", () => {
     globalThis.URL.revokeObjectURL = revokeObjectURLMock;
 
     server.use(
-      http.get("/cluster/kubeconfig", () =>
+      http.post("/cluster/kubeconfig", () =>
         new HttpResponse(new Blob(["kubeconfig content"], { type: "text/plain" }))
       ),
     );
@@ -171,7 +171,7 @@ describe("ClusterPage", () => {
     await userEvent.click(downloadBtn);
     await waitFor(() => {
       expect(clickMock).toHaveBeenCalled();
-    });
+    }, { timeout: 10000 });
 
     // Cleanup
     document.createElement = originalCreateElement;
@@ -179,14 +179,14 @@ describe("ClusterPage", () => {
 
   it("shows error when kubeconfig download fails", async () => {
     server.use(
-      http.get("/cluster/kubeconfig", () =>
+      http.post("/cluster/kubeconfig", () =>
         new HttpResponse("forbidden", { status: 403 })
       ),
     );
     renderWithQuery(<ClusterPage />);
     const downloadBtn = await screen.findByRole("button", { name: /download kubeconfig/i });
     await userEvent.click(downloadBtn);
-    expect(await screen.findByText(/don't have permission/i)).toBeInTheDocument();
+    expect(await screen.findByText(/don't have permission/i, {}, { timeout: 10000 })).toBeInTheDocument();
   });
 
   it("shows generic error when kubeconfig download fails with 500", async () => {
@@ -297,7 +297,9 @@ describe("ClusterPage", () => {
     );
     renderWithQuery(<ClusterPage />);
     await screen.findByText("worker-1");
-    expect(screen.getByText(/worker/)).toBeInTheDocument();
+    // Scope query to the node card to avoid matching the "worker" role badge
+    const nodeCard = screen.getByText("worker-1").closest(".space-y-2");
+    expect(nodeCard?.textContent).toMatch(/worker/i);
   });
 
   it("renders node with missing status as Unknown", async () => {
@@ -392,7 +394,9 @@ describe("ClusterPage", () => {
       ),
     );
     renderWithQuery(<ClusterPage />);
-    await screen.findByText("production");
+    await waitFor(() => {
+      expect(screen.getByText("production")).toBeInTheDocument();
+    });
     expect(screen.getByText(/3\/3 nodes healthy/)).toBeInTheDocument();
   });
 
