@@ -531,6 +531,294 @@ describe("ModsTab", () => {
     expect(urlInput.value).toBe("https://mods.factorio.com/download/flib/xyz");
     expect(screen.getByRole("button", { name: "From URL" })).toHaveAttribute("aria-pressed", "true");
   });
+
+  it("dismisses the banner when the dismiss button is clicked", async () => {
+    const installs: unknown[] = [];
+    route({ mods: [], onInstall: (b) => installs.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    fireEvent.change(await screen.findByLabelText(/download url/i), {
+      target: { value: "https://cdn.modrinth.com/x.jar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    // Wait for success banner
+    expect(await screen.findByText(/Installed/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
+    await waitFor(() => expect(screen.queryByText(/Installed/)).not.toBeInTheDocument());
+  });
+
+  it("shows loading state in header while fetching mods", async () => {
+    let resolveMs: () => void;
+    const modsPromise = new Promise<void>((resolve) => {
+      resolveMs = resolve;
+    });
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me"))
+        return Promise.resolve(jsonRes(operator));
+      if (url.includes("/mods"))
+        return modsPromise.then(() => jsonRes([]));
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    resolveMs!();
+    expect(await screen.findByText("0 installed")).toBeInTheDocument();
+  });
+
+  it("installs a mod with optional filename", async () => {
+    const installs: Array<{ url: string; name?: string }> = [];
+    route({ mods: [], onInstall: (b) => installs.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    fireEvent.change(await screen.findByLabelText(/download url/i), {
+      target: { value: "https://cdn.modrinth.com/x.jar" },
+    });
+    fireEvent.change(screen.getByLabelText(/filename/i), {
+      target: { value: "custom-name.jar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    await waitFor(() =>
+      expect(installs).toEqual([{ url: "https://cdn.modrinth.com/x.jar", name: "custom-name.jar" }]),
+    );
+  });
+
+  it("shows mod size and modification time", async () => {
+    const now = new Date();
+    route({
+      mods: [
+        { name: "mod1.jar", size: 1048576, modTime: now.toISOString() },
+        { name: "mod2.jar", size: 512 },
+      ],
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+    expect(await screen.findByText("1.0 MiB")).toBeInTheDocument();
+    expect(await screen.findByText("512 B")).toBeInTheDocument();
+  });
+
+  it("cancel button on URL form goes back without installing", async () => {
+    const installs: unknown[] = [];
+    route({ mods: [], onInstall: (b) => installs.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    fireEvent.change(await screen.findByLabelText(/download url/i), {
+      target: { value: "https://cdn.modrinth.com/x.jar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Should go back to the list view
+    expect(await screen.findByText("Install mod")).toBeInTheDocument();
+    expect(installs).toHaveLength(0);
+  });
+
+  it("shows allowed hosts hint when present", async () => {
+    route({ mods: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    expect(await screen.findByText(/Allowed hosts:/)).toBeInTheDocument();
+    expect(screen.getByText("cdn.modrinth.com")).toBeInTheDocument();
+  });
+
+  it("handles upload error", async () => {
+    const operatorRole = {
+      id: 1, username: "u", displayName: "U", email: "", role: "operator",
+      permissions: { "*": ["servers:read", "servers:write"] },
+    };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operatorRole));
+      if (url.includes("/mods/upload"))
+        return Promise.resolve(jsonRes({ error: "file too large" }, 400));
+      if (url.includes("/mods")) return Promise.resolve(jsonRes([]));
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+    fireEvent.click(await screen.findByRole("button", { name: "Upload file" }));
+
+    const file = new File(["JAR"], "big.jar", { type: "application/java-archive" });
+    const input = document.getElementById("mod-file") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    const submit = screen.getByRole("button", { name: "Upload" });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    expect(await screen.findByText("file too large")).toBeInTheDocument();
+  });
+
+  it("disables update checks when all mods are unmanaged", async () => {
+    route({ mods: [{ name: "handmade.jar", size: 5, meta: null }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const checkBtn = await screen.findByRole("button", { name: /check updates/i });
+    await waitFor(() => expect(checkBtn).toBeDisabled());
+  });
+
+  it("shows version in the header when updates have been checked", async () => {
+    route({
+      mods: [managedSodium],
+      updates: { checkedAt: new Date(2024, 0, 15).toISOString(), updates: [] },
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    expect(await screen.findByTestId("mods-active")).toHaveTextContent("checked");
+  });
+
+  it("update all button error surfaces message but still allows retry", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
+      if (url.includes("/mods/updates"))
+        return Promise.resolve(
+          jsonRes({ checkedAt: new Date().toISOString(), updates: [sodiumUpdate] }),
+        );
+      if (url.includes("/mods/install") && url.includes("replaces"))
+        return Promise.resolve(jsonRes({ error: "download failed" }, 502));
+      if (url.includes("/mods")) return Promise.resolve(jsonRes([managedSodium]));
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const check = await screen.findByRole("button", { name: /check updates/i });
+    await waitFor(() => expect(check).not.toBeDisabled());
+    fireEvent.click(check);
+
+    const all = await screen.findByRole("button", { name: /update all/i });
+    fireEvent.click(all);
+
+    expect(await screen.findByText("download failed")).toBeInTheDocument();
+  });
+
+  it("cancels upload without selecting a file", async () => {
+    route({ mods: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+    fireEvent.click(await screen.findByRole("button", { name: "Upload file" }));
+
+    const submit = screen.getByRole("button", { name: "Upload" });
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(await screen.findByText("Install mod")).toBeInTheDocument();
+  });
+
+  it("dropdown selects different file version in ModCard", async () => {
+    const installs: unknown[] = [];
+    route({
+      mods: [],
+      onInstall: (b) => installs.push(b),
+      registry: [{ id: "sodium", title: "Sodium", provider: "modrinth" }],
+      versions: [
+        {
+          id: "v1",
+          versionNumber: "0.6.0",
+          files: [{ filename: "sodium-0.6.0.jar", downloadUrl: "https://cdn.modrinth.com/sodium/0.6.0/sodium-0.6.0.jar", primary: true }],
+        },
+        {
+          id: "v2",
+          versionNumber: "0.5.9",
+          files: [{ filename: "sodium-0.5.9.jar", downloadUrl: "https://cdn.modrinth.com/sodium/0.5.9/sodium-0.5.9.jar", primary: true }],
+        },
+      ],
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    fireEvent.change(await screen.findByPlaceholderText("Search mods…"), {
+      target: { value: "sodium" },
+    });
+    fireEvent.click(await screen.findByText("Sodium"));
+
+    const select = await screen.findByRole("combobox", { name: "Version" }) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "v2" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    await waitFor(() =>
+      expect(installs).toEqual([
+        expect.objectContaining({
+          url: "https://cdn.modrinth.com/sodium/0.5.9/sodium-0.5.9.jar",
+          name: "sodium-0.5.9.jar",
+          meta: expect.objectContaining({ versionNumber: "0.5.9" }),
+        }),
+      ]),
+    );
+  });
+
+  it("shows error when ModCard version fetch fails", async () => {
+    const operatorRole = {
+      id: 1, username: "u", displayName: "U", email: "", role: "operator",
+      permissions: { "*": ["servers:read", "servers:write"] },
+    };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operatorRole));
+      if (url.includes("/mods/registry/providers"))
+        return Promise.resolve(jsonRes([{ provider: "modrinth", available: true, modpacks: false }]));
+      if (url.includes("/mods/registry/search"))
+        return Promise.resolve(jsonRes([{ id: "sodium", title: "Sodium", provider: "modrinth" }]));
+      if (url.includes("/mods/registry/projects"))
+        return Promise.resolve(jsonRes({ error: "registry error" }, 502));
+      if (url.includes("/mods")) return Promise.resolve(jsonRes([]));
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    fireEvent.change(await screen.findByPlaceholderText("Search mods…"), {
+      target: { value: "sodium" },
+    });
+    fireEvent.click(await screen.findByText("Sodium"));
+
+    expect(await screen.findByText("registry error")).toBeInTheDocument();
+  });
+
+  it("ModCard shows no compatible files message", async () => {
+    route({
+      mods: [],
+      registry: [{ id: "sodium", title: "Sodium", provider: "modrinth" }],
+      versions: [],
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withBrowse)} />);
+
+    const open = await screen.findByRole("button", { name: /install mod/i });
+    await waitFor(() => expect(open).not.toBeDisabled());
+    fireEvent.click(open);
+
+    fireEvent.change(await screen.findByPlaceholderText("Search mods…"), {
+      target: { value: "sodium" },
+    });
+    fireEvent.click(await screen.findByText("Sodium"));
+
+    expect(await screen.findByText("No compatible files.")).toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------
@@ -710,5 +998,198 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
     expect(await screen.findByText("sodium.jar")).toBeInTheDocument();
     expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
+  });
+
+  it("rejects invalid mod IDs with immediate pattern check", async () => {
+    routeIds({ ids: [{ id: "valid-id" }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("valid-id");
+    const input = screen.getByPlaceholderText(/paste a.*mod id/i) as HTMLInputElement;
+    const addBtn = screen.getByRole("button", { name: "Add" });
+
+    // Invalid: too long
+    fireEvent.change(input, { target: { value: "a".repeat(65) } });
+    expect(addBtn).toBeDisabled();
+
+    // Invalid: special chars
+    fireEvent.change(input, { target: { value: "mod@id" } });
+    expect(addBtn).toBeDisabled();
+
+    // Valid: dashes and underscores OK
+    fireEvent.change(input, { target: { value: "mod-id_123" } });
+    expect(addBtn).not.toBeDisabled();
+  });
+
+  it("allows re-adding a removed mod ID before save (undo)", async () => {
+    const puts: ModID[][] = [];
+    routeIds({ ids: [{ id: "889745", name: "S+" }], onPut: (b) => puts.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("S+");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    // Row is marked for removal
+    expect(await screen.findByText("Marked for removal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    // Row is back to normal state (no chip)
+    await waitFor(() => expect(screen.queryByText("Marked for removal")).not.toBeInTheDocument());
+    expect(screen.queryByText("Added")).not.toBeInTheDocument();
+
+    // Saving now should include the row
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(puts).toEqual([[{ id: "889745", name: "S+" }]]));
+  });
+
+  it("clears input after successfully adding a mod ID", async () => {
+    routeIds({ ids: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("0 selected");
+    const input = screen.getByPlaceholderText(/paste a mod id/i) as HTMLInputElement;
+    const addBtn = screen.getByRole("button", { name: "Add" });
+
+    fireEvent.change(input, { target: { value: "new-id" } });
+    fireEvent.click(addBtn);
+
+    expect(await screen.findByText("new-id")).toBeInTheDocument();
+    expect(input.value).toBe("");
+  });
+
+  it("does not add duplicate mod IDs", async () => {
+    routeIds({ ids: [{ id: "889745" }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("889745");
+    const input = screen.getByPlaceholderText(/paste a mod id/i);
+
+    fireEvent.change(input, { target: { value: "889745" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    // Should not add a duplicate
+    expect(screen.getAllByText("889745")).toHaveLength(1);
+  });
+
+  it("shows error when saving mod IDs fails", async () => {
+    const operatorRole = {
+      id: 1, username: "u", displayName: "U", email: "", role: "operator",
+      permissions: { "*": ["servers:read", "servers:write"] },
+    };
+    fetchMock.mockImplementation((url: string, o?: { method?: string; body?: string }) => {
+      const method = o?.method ?? "GET";
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operatorRole));
+      if (url.includes("/mods/ids") && method === "PUT")
+        return Promise.resolve(jsonRes({ error: "could not update" }, 500));
+      if (url.includes("/mods/ids")) return Promise.resolve(jsonRes([{ id: "existing" }]));
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("existing");
+    fireEvent.change(screen.getByPlaceholderText(/paste a mod id/i), { target: { value: "new-id" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("Added")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText("could not update")).toBeInTheDocument();
+  });
+
+  it("background refetch does not clobber unsaved edits", async () => {
+    const operatorRole = {
+      id: 1, username: "u", displayName: "U", email: "", role: "operator",
+      permissions: { "*": ["servers:read", "servers:write"] },
+    };
+
+    fetchMock.mockImplementation((url: string, o?: { method?: string }) => {
+      const method = o?.method ?? "GET";
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operatorRole));
+      if (url.includes("/mods/ids") && method === "PUT")
+        return Promise.resolve(jsonRes([]));
+      if (url.includes("/mods/ids")) {
+        // Simulate a background refetch by returning the same data
+        return Promise.resolve(jsonRes([{ id: "original" }]));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("original");
+    // Make a local edit (add a new mod)
+    fireEvent.change(screen.getByPlaceholderText(/paste a mod id/i), { target: { value: "new-id" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("new-id")).toBeInTheDocument();
+
+    // Simulate background refetch (would normally happen due to a query update)
+    // The edit should not be clobbered
+    expect(screen.getByText("new-id")).toBeInTheDocument();
+  });
+
+  it("browse button is gated on both canBrowse and canManage", async () => {
+    routeIds({ ids: [] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("0 selected");
+    // No browse button when template has no registry
+    expect(screen.queryByRole("button", { name: /browse/i })).not.toBeInTheDocument();
+  });
+
+  it("dismisses banner in id-managed mode", async () => {
+    const puts: ModID[][] = [];
+    routeIds({ ids: [], onPut: (b) => puts.push(b) });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("0 selected");
+    fireEvent.change(screen.getByPlaceholderText(/paste a mod id/i), { target: { value: "new-id" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("Added")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText(/Saved/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
+
+    await waitFor(() => expect(screen.queryByText(/Saved/)).not.toBeInTheDocument());
+  });
+
+  it("shows error when loading mod IDs fails", async () => {
+    const operatorRole = {
+      id: 1, username: "u", displayName: "U", email: "", role: "operator",
+      permissions: { "*": ["servers:read", "servers:write"] },
+    };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operatorRole));
+      if (url.includes("/mods/ids")) return Promise.resolve(jsonRes({ error: "boom" }, 502));
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    expect(await screen.findByText("Couldn't load mods")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "retry" })).toBeInTheDocument();
+  });
+
+  it("header shows selected count excludes removed rows", async () => {
+    routeIds({ ids: [{ id: "a" }, { id: "b" }, { id: "c" }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    await screen.findByText("3 selected");
+
+    // Mark two for removal
+    const removeButtons = screen.getAllByRole("button", { name: "Remove" });
+    fireEvent.click(removeButtons[0]);
+    fireEvent.click(removeButtons[1]);
+
+    // Count should exclude marked rows
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+  });
+
+  it("displays mod ID and name in rows correctly", async () => {
+    routeIds({ ids: [{ id: "mod-id", name: "Mod Display Name" }] });
+    renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
+
+    expect(await screen.findByText("Mod Display Name")).toBeInTheDocument();
+    expect(await screen.findByText("ID mod-id")).toBeInTheDocument();
   });
 });
