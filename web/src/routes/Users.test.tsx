@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UsersPage } from "./Users";
+import { APIError } from "@/lib/api";
 import type { ExtendedUser } from "@/types";
 
 // The page calls Users.* and Roles.* from `@/lib/endpoints`. Stub the
@@ -272,7 +273,11 @@ describe("UsersPage audit quick-link", () => {
 
 describe("UsersPage error handling", () => {
   it("displays error when users list fails to load", async () => {
-    const error = new Error("Network error");
+    // The page's error banner only renders `error instanceof APIError`
+    // (see UsersPage) — a plain Error, unlike what Users.list() actually
+    // throws on a real failure, never renders it, so the page hung waiting
+    // for text that would never appear.
+    const error = new APIError(500, "");
     list.mockRejectedValue(error);
     renderPage();
     await screen.findByText(/Failed to load users/i);
@@ -373,7 +378,10 @@ describe("UsersPage user row display", () => {
     const resetItem = await screen.findByText("Reset password");
     const item = resetItem.closest("[role='menuitem']");
     expect(item).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByText("Account is OIDC-managed")).toBeInTheDocument();
+    // The hint only reaches the DOM as the native `title` attribute (see
+    // DropdownMenuItem's `title={hint}`), not as visible/accessible text,
+    // so getByText can never match it.
+    expect(item).toHaveAttribute("title", "Account is OIDC-managed");
   });
 });
 
@@ -476,10 +484,14 @@ describe("InviteModal", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: /Invite user/i }));
-    expect(await screen.findByText("Invite user")).toBeInTheDocument();
+    // The page's own "Invite user" button stays in the DOM behind the
+    // overlay, so an unscoped findByText("Invite user") matches both it and
+    // the dialog title — scope to the dialog itself.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Invite user")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Cancel/i }));
-    expect(screen.queryByText("Invite user")).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: /Cancel/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 
@@ -513,12 +525,22 @@ describe("EditUserModal", () => {
 
   it("blocks self-demotion from user management role", async () => {
     const user = userEvent.setup();
+    // useMe() and the users list must agree on root's role: EditUserModal
+    // seeds its role <select> from the clicked row's own `user.role` (from
+    // `list`), not from useMe(), so leaving `list` on the base ME (role
+    // "admin") meant the "operator" <select> the test looked for never
+    // rendered.
+    const meAsOperator = {
+      ...ME,
+      role: "operator",
+      permissions: { "*": ["users:manage"] },
+    };
     useMeMock.mockReturnValue({
-      data: { ...ME, role: "operator", permissions: { "*": ["users:manage"] } },
+      data: meAsOperator,
       error: null,
       isLoading: false,
     });
-    list.mockResolvedValue([ME, ALICE]);
+    list.mockResolvedValue([meAsOperator, ALICE]);
     renderPage();
     await user.click(await screen.findByLabelText("Actions for root"));
     await user.click(await screen.findByText("Edit user"));
@@ -554,8 +576,11 @@ describe("EditUserModal", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    expect(await screen.findByText("alice")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Cancel/i }));
+    // "alice" also still renders in the table row behind the overlay, so
+    // scope to the dialog to get a unique match.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("alice")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: /Cancel/i }));
 
     expect(screen.queryByDisplayValue("Alice")).not.toBeInTheDocument();
   });
@@ -605,16 +630,18 @@ describe("ResetPasswordModal", () => {
 });
 
 describe("DeleteUserDialog", () => {
-  it("shows warning when user tries to delete themselves", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await user.click(await screen.findByLabelText("Actions for root"));
-    await user.click(await screen.findByText("Delete user"));
-
-    expect(
-      await screen.findByText(/You can't delete your own account/i),
-    ).toBeInTheDocument();
-  });
+  // PRODUCT GAP: DeleteUserDialog has an `isMe` branch (Users.tsx, in
+  // DeleteUserDialog) that renders "You can't delete your own account.",
+  // but it can never be reached through the UI: UserRow disables the
+  // "Delete user" menu item for the current user (disabled={isMe}), and a
+  // disabled Radix DropdownMenu.Item's onSelect never fires — see "blocks
+  // self-delete via the menu" above, which asserts exactly that no-op (the
+  // menu click is a no-op, so `deleting` state, and thus this dialog, is
+  // never set). A test that clicks through expecting the dialog to open
+  // hangs forever. Deleting rather than weakening per instructions: fixing
+  // this needs a product decision (drop the dead isMe branch, or stop
+  // disabling the menu item and make the dialog the enforcement point
+  // instead), not a test change.
 
   it("displays error from API for other users", async () => {
     const user = userEvent.setup();
@@ -684,7 +711,11 @@ describe("UsersPage roles tab extended", () => {
       permissions: ["servers:read", "servers:write"],
     });
 
-    const editBtn = await screen.findByRole("button", { name: /Edit/ });
+    // Both non-admin roles (operator, viewer) render an "Edit" button, so
+    // an unscoped findByRole match is ambiguous — scope to the operator
+    // card specifically.
+    const operatorCard = (await screen.findByText("operator")).closest(".rounded-lg");
+    const editBtn = within(operatorCard as HTMLElement).getByRole("button", { name: /Edit/ });
     await user.click(editBtn);
     const descInput = await screen.findByDisplayValue("Manage servers.");
     await user.clear(descInput);
@@ -701,7 +732,10 @@ describe("UsersPage roles tab extended", () => {
 
   it("closes role editor on cancel", async () => {
     const user = await openRolesTab();
-    const editBtn = await screen.findByRole("button", { name: /Edit/ });
+    // Both non-admin roles render an "Edit" button; which one opens is
+    // immaterial here, so just take the first instead of an ambiguous
+    // findByRole match.
+    const editBtn = (await screen.findAllByRole("button", { name: /Edit/ }))[0];
     await user.click(editBtn);
 
     expect(await screen.findByText(/Edit role/i)).toBeInTheDocument();
@@ -724,8 +758,14 @@ describe("NamespaceGrants", () => {
     await user.click(await screen.findByText("Edit user"));
 
     expect(await screen.findByText("Namespace grants")).toBeInTheDocument();
-    expect(screen.getByText("operator")).toBeInTheDocument();
-    expect(screen.getByText("gameplane-games")).toBeInTheDocument();
+    // "operator" also matches the table's role badge and the two role
+    // <select> option lists on this page, so scope to the specific grant
+    // row instead of an ambiguous unscoped getByText.
+    const removeBtn = await screen.findByLabelText("Remove operator in gameplane-games");
+    const row = removeBtn.closest("li");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("operator")).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText("gameplane-games")).toBeInTheDocument();
   });
 
   it("displays error when removing binding fails", async () => {
@@ -786,7 +826,12 @@ describe("NamespaceGrants", () => {
     await user.click(await screen.findByLabelText("Actions for alice"));
     await user.click(await screen.findByText("Edit user"));
 
-    const select = await screen.findByDisplayValue("operator");
+    // The grant-role <select> here defaults to roles[0] ("admin"), not
+    // alice's own primary role ("operator") — the primary-role <select>
+    // also displays "operator" for alice, but selecting on THAT one would
+    // change her cluster-wide role instead of the per-namespace grant, and
+    // addBinding would never see roleName "viewer".
+    const select = await screen.findByDisplayValue("admin");
     await user.selectOptions(select, "viewer");
 
     const nsInput = await screen.findByPlaceholderText("namespace");
