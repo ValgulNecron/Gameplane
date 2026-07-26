@@ -1,15 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeBackup, makeRestore, makeDestination, makeSchedule } from "@/test/factories";
+import { makeBackup, makeRestore, makeDestination, makeSchedule, makeServer } from "@/test/factories";
 import { BackupsTab } from "./Backups";
 
 // The default MSW handlers already serve /backups (one Succeeded backup
 // for "alpha"), /schedules (one), /restores (empty) and
 // /backup-destinations (one). Tests override only what they need.
+
+beforeEach(() => {
+  // Ensure /servers/alpha is available for tests that query it
+  server.use(
+    http.get("/servers/alpha", () =>
+      HttpResponse.json(makeServer({ metadata: { name: "alpha" } }))
+    )
+  );
+});
 
 describe("BackupsTab", () => {
   it("renders schedules, backups, and enables 'Back up now' with one destination", async () => {
@@ -155,7 +164,7 @@ describe("BackupsTab", () => {
     renderWithQuery(<BackupsTab name="alpha" />);
     expect(await screen.findByText(/Last backup/i)).toBeInTheDocument();
     expect(screen.getByText(/Next backup/i)).toBeInTheDocument();
-    expect(screen.getByText(/Backups/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Backups/i })).toBeInTheDocument();
     expect(screen.getByText(/Total size/i)).toBeInTheDocument();
   });
 

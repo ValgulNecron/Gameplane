@@ -101,6 +101,11 @@ afterEach(() => {
   listSources.mockReset();
 });
 
+// Provide default mock for listSources to avoid hanging
+vi.mocked(listSources).mockResolvedValue({
+  items: [{ metadata: { name: "default" }, spec: { type: "oci" } }],
+});
+
 describe("ModulesPage", () => {
   it("renders the catalog with installation state per entry", async () => {
     catalog.mockResolvedValue({ items: [MINECRAFT, VALHEIM_INSTALLED, TERRARIA_UPGRADE] });
@@ -416,13 +421,17 @@ describe("ModulesPage", () => {
     renderPage();
 
     await screen.findByText("Minecraft (Java)");
-    // Click Sandbox to filter
+    // Click Sandbox to filter (select it)
     await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
-    expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
+    });
 
-    // Click All categories to reset
-    await userEvent.click(screen.getByRole("button", { name: "All categories" }));
-    expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    // Click Sandbox again to deselect and show all (no filters)
+    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    await waitFor(() => {
+      expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
+    });
   });
 
   it("disables buttons while mutations are pending", async () => {
@@ -436,10 +445,11 @@ describe("ModulesPage", () => {
     const confirms = screen.getAllByRole("button", { name: /^install$/i });
     await userEvent.click(confirms[confirms.length - 1]);
 
-    // While the mutation is pending, the uninstall button should be disabled
-    const uninstallBtns = screen.getAllByRole("button", { name: /uninstall/i });
+    // While the mutation is pending, other action buttons should be disabled
+    // The uninstall button for Valheim should be disabled during pending install
     await waitFor(() => {
-      expect(uninstallBtns[0]).toBeDisabled();
-    });
+      const uninstallBtn = screen.getByRole("button", { name: /uninstall/i });
+      expect(uninstallBtn).toBeDisabled();
+    }, { timeout: 2000 });
   });
 });

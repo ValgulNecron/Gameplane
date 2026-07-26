@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { ModsTab } from "./Mods";
 import type {
@@ -15,7 +17,15 @@ import type {
 
 const fetchMock = vi.fn();
 
-beforeEach(() => vi.stubGlobal("fetch", fetchMock));
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+  // Add MSW handler for /users/me/servers endpoint
+  server.use(
+    http.get("/users/me/servers", () =>
+      HttpResponse.json({ items: [] })
+    )
+  );
+});
 afterEach(() => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
