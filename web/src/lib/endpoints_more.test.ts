@@ -1,18 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Auth,
+  AuthProviders,
   BackupDestinations,
   Backups,
   Cluster,
   Logs,
+  ModRegistries,
   Modules,
   ModuleSources,
+  Notifications,
+  Players,
   Restores,
   Roles,
   Schedules,
   Servers,
   Templates,
   Users,
+  Audit,
 } from "./endpoints";
 
 const fetchMock = vi.fn();
@@ -196,5 +201,268 @@ describe("Modules / ModuleSources / Logs", () => {
   it("Logs stream paths are server-encoded", () => {
     expect(Logs.fileStreamPath("a b")).toBe("/ws/servers/a%20b/logs");
     expect(Logs.podStreamPath("a b")).toBe("/ws/servers/a%20b/logs/pod?from=start");
+  });
+});
+
+describe("Servers mods endpoints (uncovered branches)", () => {
+  it("modUpdates GETs the update check endpoint", async () => {
+    await expectCall(Servers.modUpdates("s1"), "/servers/s1/mods/updates");
+  });
+
+  it("modVersions with provider includes provider query param", async () => {
+    await Servers.modVersions("s1", "project1", "modrinth");
+    expect(last().url).toBe(
+      "/servers/s1/mods/registry/projects/project1/versions?provider=modrinth"
+    );
+  });
+
+  it("modVersions without provider omits provider query param", async () => {
+    await Servers.modVersions("s1", "project1");
+    expect(last().url).toBe("/servers/s1/mods/registry/projects/project1/versions");
+  });
+
+  it("modpackDeps with provider includes provider query param", async () => {
+    await Servers.modpackDeps("s1", "packname", "curseforge");
+    expect(last().url).toBe(
+      "/servers/s1/mods/registry/projects/packname/modpack?provider=curseforge"
+    );
+  });
+
+  it("modpackDeps without provider omits provider query param", async () => {
+    await Servers.modpackDeps("s1", "packname");
+    expect(last().url).toBe("/servers/s1/mods/registry/projects/packname/modpack");
+  });
+
+  it("installModpack with provider includes provider query param", async () => {
+    await Servers.installModpack("s1", { ref: "1.0" }, "modrinth");
+    expect(last().url).toBe("/servers/s1/modpack?provider=modrinth");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("installModpack without provider omits provider query param", async () => {
+    await Servers.installModpack("s1", { ref: "1.0" });
+    expect(last().url).toBe("/servers/s1/modpack");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("modIDs GETs the ids list endpoint", async () => {
+    await expectCall(Servers.modIDs("s1"), "/servers/s1/mods/ids");
+  });
+
+  it("setModIDs PUTs the ids list", async () => {
+    const ids = [{ id: "123" }, { id: "456" }];
+    // @ts-ignore - ids is simplified for test
+    await expectCall(Servers.setModIDs("s1", ids), "/servers/s1/mods/ids", "PUT");
+  });
+
+  it("registryProviders GETs the providers endpoint", async () => {
+    await expectCall(Servers.registryProviders("s1"), "/servers/s1/mods/registry/providers");
+  });
+
+  it("getMyServers GETs /users/me/servers", async () => {
+    await expectCall(Servers.getMyServers(), "/users/me/servers");
+  });
+
+  it("setCollaborators PUTs to the collaborators endpoint with ns", async () => {
+    await Servers.setCollaborators("s1", "games", { userIds: [1, 2] });
+    expect(last().url).toBe("/servers/s1:collaborators?namespace=games");
+    expect(last().init.method).toBe("PUT");
+  });
+
+  it("events GETs the server events", async () => {
+    await expectCall(Servers.events("s1"), "/servers/s1/events");
+  });
+
+  it("searchRegistry encodes project names", async () => {
+    await Servers.searchRegistry("s1", { q: "my mod" });
+    expect(last().url).toContain("q=my%20mod");
+  });
+
+  it("searchRegistry respects all optional parameters", async () => {
+    await Servers.searchRegistry("s1", {
+      q: "fabric",
+      provider: "modrinth",
+      type: "mod",
+      sort: "popularity",
+      category: "magic",
+      limit: 50,
+      offset: 10,
+    });
+    const url = last().url;
+    expect(url).toContain("q=fabric");
+    expect(url).toContain("provider=modrinth");
+    expect(url).toContain("type=mod");
+    expect(url).toContain("sort=popularity");
+    expect(url).toContain("category=magic");
+    expect(url).toContain("limit=50");
+    expect(url).toContain("offset=10");
+  });
+
+  it("searchRegistry with default limit only includes limit=24 when not specified", async () => {
+    await Servers.searchRegistry("s1", {});
+    expect(last().url).toContain("limit=24");
+  });
+});
+
+describe("Servers mods namespace variants", () => {
+  it("modUpdates with namespace appends &namespace=", async () => {
+    await Servers.modUpdates("s1", "team-a");
+    expect(last().url).toBe("/servers/s1/mods/updates?namespace=team-a");
+  });
+
+  it("installMod with namespace appends &namespace=", async () => {
+    await expectCall(
+      Servers.installMod("s1", { url: "http://example.com/mod.jar" }, "team-a"),
+      "/servers/s1/mods/install?namespace=team-a",
+      "POST"
+    );
+  });
+
+  it("registryProviders with namespace appends &namespace=", async () => {
+    await Servers.registryProviders("s1", "team-a");
+    expect(last().url).toBe("/servers/s1/mods/registry/providers?namespace=team-a");
+  });
+
+  it("modIDs with namespace appends &namespace=", async () => {
+    await Servers.modIDs("s1", "team-a");
+    expect(last().url).toBe("/servers/s1/mods/ids?namespace=team-a");
+  });
+});
+
+describe("Auth.oidcStartURL variants", () => {
+  it("returns legacy path when no name provided", () => {
+    expect(Auth.oidcStartURL()).toBe("/auth/oidc/start");
+  });
+
+  it("returns legacy path for 'helm' provider name", () => {
+    expect(Auth.oidcStartURL("helm")).toBe("/auth/oidc/start");
+  });
+
+  it("returns provider-specific path when name is non-helm", () => {
+    expect(Auth.oidcStartURL("okta")).toBe("/auth/oidc/okta/start");
+    expect(Auth.oidcStartURL("azure")).toBe("/auth/oidc/azure/start");
+  });
+
+  it("URL-encodes provider names", () => {
+    expect(Auth.oidcStartURL("provider@example")).toBe("/auth/oidc/provider%40example/start");
+  });
+});
+
+describe("Audit export filters", () => {
+  it("exportCsv with no filters includes format param only", async () => {
+    fetchMock.mockImplementation(async () => new Response(new Blob(), { status: 200 }));
+    await Audit.exportCsv({});
+    expect(last().url).toBe("/admin/audit/export?format=csv");
+  });
+
+  it("exportCsv with all filters includes all params", async () => {
+    fetchMock.mockImplementation(async () => new Response(new Blob(), { status: 200 }));
+    await Audit.exportCsv({ actor: "admin", method: "POST", status: "200" });
+    const url = last().url;
+    expect(url).toContain("format=csv");
+    expect(url).toContain("actor=admin");
+    expect(url).toContain("method=POST");
+    expect(url).toContain("status=200");
+  });
+
+  it("exportCsv omits empty filter values", async () => {
+    fetchMock.mockImplementation(async () => new Response(new Blob(), { status: 200 }));
+    await Audit.exportCsv({ actor: "alice", method: "", status: "404" });
+    const url = last().url;
+    expect(url).toContain("actor=alice");
+    expect(url).toContain("status=404");
+    expect(url).not.toContain("method=");
+  });
+});
+
+describe("Players moderate action branches", () => {
+  it("moderate kick action", async () => {
+    await Players.moderate("s1", "kick", { name: "player1", reason: "spam" });
+    expect(last().url).toBe("/servers/s1/players/kick");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("moderate ban action", async () => {
+    await Players.moderate("s1", "ban", { name: "player1", reason: "griefing" });
+    expect(last().url).toBe("/servers/s1/players/ban");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("moderate unban action", async () => {
+    await Players.moderate("s1", "unban", { name: "player1" });
+    expect(last().url).toBe("/servers/s1/players/unban");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("whitelist GETs the list", async () => {
+    await expectCall(Players.whitelist("s1"), "/servers/s1/players/whitelist");
+  });
+
+  it("whitelistAdd POSTs a player name", async () => {
+    await Players.whitelistAdd("s1", "newplayer");
+    expect(last().url).toBe("/servers/s1/players/whitelist/add");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("whitelistRemove POSTs to remove endpoint", async () => {
+    await Players.whitelistRemove("s1", "oldplayer");
+    expect(last().url).toBe("/servers/s1/players/whitelist/remove");
+    expect(last().init.method).toBe("POST");
+  });
+
+  it("whitelist with namespace appends &namespace=", async () => {
+    await Players.whitelist("s1", "team-ns");
+    expect(last().url).toBe("/servers/s1/players/whitelist?namespace=team-ns");
+  });
+
+  it("whitelistAdd with namespace appends &namespace=", async () => {
+    await Players.whitelistAdd("s1", "player1", "team-ns");
+    expect(last().url).toBe("/servers/s1/players/whitelist/add?namespace=team-ns");
+  });
+});
+
+describe("AuthProviders and Notifications secrets", () => {
+  it("AuthProviders.putSecret encodes provider name", async () => {
+    await AuthProviders.putSecret("oidc@example", { clientSecret: "secret123" });
+    expect(last().url).toContain("/admin/auth/providers/oidc%40example/secret");
+    expect(last().init.method).toBe("PUT");
+  });
+
+  it("AuthProviders.deleteSecret encodes provider name", async () => {
+    await AuthProviders.deleteSecret("oidc@example");
+    expect(last().url).toContain("/admin/auth/providers/oidc%40example/secret");
+    expect(last().init.method).toBe("DELETE");
+  });
+
+  it("Notifications.putSecret encodes sink name", async () => {
+    await Notifications.putSecret("discord-alerts", { kind: "discord", url: "https://webhook" });
+    expect(last().url).toContain("/admin/notifications/sinks/discord-alerts/secret");
+    expect(last().init.method).toBe("PUT");
+  });
+
+  it("Notifications.deleteSecret encodes sink name", async () => {
+    await Notifications.deleteSecret("discord-alerts");
+    expect(last().url).toContain("/admin/notifications/sinks/discord-alerts/secret");
+    expect(last().init.method).toBe("DELETE");
+  });
+
+  it("Notifications.test encodes sink name", async () => {
+    await Notifications.test("slack-notifier");
+    expect(last().url).toContain("/admin/notifications/sinks/slack-notifier/test");
+    expect(last().init.method).toBe("POST");
+  });
+});
+
+describe("ModRegistries secrets", () => {
+  it("ModRegistries.putSecret encodes provider", async () => {
+    await ModRegistries.putSecret("curseforge", "api-key-123");
+    expect(last().url).toBe("/admin/registries/curseforge/secret");
+    expect(last().init.method).toBe("PUT");
+  });
+
+  it("ModRegistries.deleteSecret encodes provider", async () => {
+    await ModRegistries.deleteSecret("nexus");
+    expect(last().url).toBe("/admin/registries/nexus/secret");
+    expect(last().init.method).toBe("DELETE");
   });
 });

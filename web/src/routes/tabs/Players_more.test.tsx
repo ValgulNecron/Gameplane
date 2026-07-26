@@ -157,4 +157,155 @@ describe("PlayersTab moderation actions", () => {
     renderWithQuery(<PlayersTab name="alpha" />);
     expect(await screen.findByText(/Nobody online/i)).toBeInTheDocument();
   });
+
+  it("Ban button opens confirmation panel with reason", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(
+          makePlayers({
+            players: ["alice"],
+            capabilities: { kick: true, ban: true, unban: true },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    await screen.findByText("alice");
+    await userEvent.click(screen.getByTitle("Ban"));
+    expect(await screen.findByPlaceholderText(/Reason/i)).toBeInTheDocument();
+  });
+
+  it("Ban action POSTs with player name and reason", async () => {
+    let bannedWith: { name: string; reason?: string } = { name: "" };
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(
+          makePlayers({
+            players: ["alice"],
+            capabilities: { kick: true, ban: true, unban: true },
+          }),
+        ),
+      ),
+      http.post("/servers/alpha/players/ban", async ({ request }) => {
+        const body = (await request.json()) as { name: string; reason?: string };
+        bannedWith = body;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    await screen.findByText("alice");
+    await userEvent.click(screen.getByTitle("Ban"));
+    const reasonInput = await screen.findByPlaceholderText(/Reason/i);
+    await userEvent.type(reasonInput, "griefing");
+    const confirmBtn = await waitFor(() => {
+      const all = screen.getAllByRole("button");
+      const m = all.filter((b) => b.textContent?.trim() === "Ban" || b.textContent?.trim() === "Banning…");
+      if (m.length === 0) throw new Error("confirm Ban not found");
+      return m[m.length - 1];
+    });
+    await userEvent.click(confirmBtn);
+    await waitFor(() => expect(bannedWith.reason).toBe("griefing"));
+  });
+
+  it("renders 'Players unknown' when online count is -1", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ online: -1, players: [] })),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    expect(await screen.findByText(/Players unknown/i)).toBeInTheDocument();
+  });
+
+  it("shows max player count when available", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ online: 3, max: 20, players: ["alice", "bob", "charlie"] })),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    // Should show "3 / 20 online" or similar format
+    expect(await screen.findByText(/3 \/ 20/)).toBeInTheDocument();
+  });
+
+  it("renders ban reason when available", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ players: [] })),
+      ),
+      http.get("/servers/alpha/players/banned", () =>
+        HttpResponse.json([
+          { name: "hacker", source: "Anti-cheat", reason: "suspicious activity" },
+          { name: "griefer", source: "Admin", reason: "" }, // no reason
+        ]),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    await userEvent.click(await screen.findByRole("button", { name: /Banned/i }));
+    expect(await screen.findByText("hacker")).toBeInTheDocument();
+    expect(screen.getByText(/suspicious activity/)).toBeInTheDocument();
+  });
+
+  it("renders source of ban", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ players: [] })),
+      ),
+      http.get("/servers/alpha/players/banned", () =>
+        HttpResponse.json([
+          { name: "player1", source: "Server", reason: "test" },
+          { name: "player2", source: "Anti-cheat", reason: "cheating" },
+        ]),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    await userEvent.click(await screen.findByRole("button", { name: /Banned/i }));
+    expect(await screen.findByText(/Server/)).toBeInTheDocument();
+    expect(screen.getByText(/Anti-cheat/)).toBeInTheDocument();
+  });
+
+  it("handles ban action error gracefully", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(
+          makePlayers({
+            players: ["alice"],
+            capabilities: { kick: true, ban: true, unban: true },
+          }),
+        ),
+      ),
+      http.post("/servers/alpha/players/ban", () =>
+        HttpResponse.text("connection failed", { status: 503 }),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    await screen.findByText("alice");
+    await userEvent.click(screen.getByTitle("Ban"));
+    const confirmBtn = await waitFor(() => {
+      const all = screen.getAllByRole("button");
+      const m = all.filter((b) => b.textContent?.trim() === "Ban" || b.textContent?.trim() === "Banning…");
+      return m[m.length - 1];
+    });
+    await userEvent.click(confirmBtn);
+    expect(await screen.findByText(/connection failed/i)).toBeInTheDocument();
+  });
+
+  it("handles unban action error gracefully", async () => {
+    server.use(
+      http.get("/servers/alpha/players", () =>
+        HttpResponse.json(makePlayers({ players: [] })),
+      ),
+      http.get("/servers/alpha/players/banned", () =>
+        HttpResponse.json([{ name: "griefer", source: "Server" }]),
+      ),
+      http.post("/servers/alpha/players/unban", () =>
+        HttpResponse.text("rcon error", { status: 502 }),
+      ),
+    );
+    renderWithQuery(<PlayersTab name="alpha" />);
+    await userEvent.click(await screen.findByRole("button", { name: /Banned/i }));
+    await screen.findByText("griefer");
+    await userEvent.click(screen.getByTitle("Unban"));
+    expect(await screen.findByText(/rcon error/i)).toBeInTheDocument();
+  });
 });
