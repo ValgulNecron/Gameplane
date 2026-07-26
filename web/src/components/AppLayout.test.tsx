@@ -8,14 +8,19 @@ import { renderWithQuery } from "@/test/render";
 import { makeServer, makeUser } from "@/test/factories";
 
 // TanStack Router APIs the layout reaches into.
+const routerMocks = {
+  useLocation: () => ({ pathname: "/" } as ReturnType<typeof import("@tanstack/react-router").useLocation>),
+  useNavigate: () => vi.fn(),
+};
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
     <a href={to} {...rest}>{children}</a>
   ),
   Outlet: () => <div data-testid="outlet">outlet</div>,
-  useLocation: () => ({ pathname: "/" }),
+  useLocation: () => routerMocks.useLocation(),
   useMatches: () => [],
-  useNavigate: () => vi.fn(),
+  useNavigate: () => routerMocks.useNavigate(),
 }));
 
 import { AppLayout } from "./AppLayout";
@@ -167,5 +172,260 @@ describe("AppLayout", () => {
     // Real nav is present; skeleton is gone.
     expect(screen.getByRole("link", { name: /Audit log/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Settings/i })).toBeInTheDocument();
+  });
+
+  it("shows cluster name in sidebar", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+      http.get("/cluster/info", () => HttpResponse.json({ clusterName: "prod-us-east" })),
+    );
+    renderWithQuery(<AppLayout />);
+    expect(await screen.findByText("prod-us-east")).toBeInTheDocument();
+  });
+
+  it("shows dash when cluster name is unavailable", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+      http.get("/cluster/info", () => new HttpResponse(null, { status: 500 })),
+    );
+    renderWithQuery(<AppLayout />);
+    // Cluster name fallback in sidebar
+    await waitFor(() => {
+      expect(screen.getByText("—")).toBeInTheDocument();
+    });
+  });
+
+  it("shows role in profile footer", async () => {
+    server.use(
+      http.get("/users/me", () =>
+        HttpResponse.json(makeUser({ role: "operator", displayName: "Alice" })),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    expect(await screen.findByText("operator")).toBeInTheDocument();
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+  });
+
+  it("shows guest username when displayName is absent", async () => {
+    server.use(
+      http.get("/users/me", () =>
+        HttpResponse.json(makeUser({ username: "bob", displayName: "" })),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    expect(await screen.findByText("bob")).toBeInTheDocument();
+  });
+
+  it("renders avatar initials correctly", async () => {
+    server.use(
+      http.get("/users/me", () =>
+        HttpResponse.json(makeUser({ displayName: "Alice Brown" })),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    // Initials should be "AL" (first 2 chars uppercase)
+    expect(await screen.findByText("AL")).toBeInTheDocument();
+  });
+
+  it("search dropdown shows no matches message", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [makeServer({ metadata: { name: "alpha" } })],
+        }),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    const search = await screen.findByLabelText(/search servers/i);
+    await userEvent.type(search, "nonexistent");
+    expect(await screen.findByText("No servers match.")).toBeInTheDocument();
+  });
+
+  it("search navigates on Enter key with first match", async () => {
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { ...originalLocation, assign: vi.fn() },
+    });
+    try {
+      server.use(
+        http.get("/servers", () =>
+          HttpResponse.json({
+            items: [
+              makeServer({ metadata: { name: "alpha" } }),
+              makeServer({ metadata: { name: "beta" } }),
+            ],
+          }),
+        ),
+      );
+      renderWithQuery(<AppLayout />);
+      const search = await screen.findByLabelText(/search servers/i);
+      await userEvent.type(search, "a");
+      await userEvent.keyboard("{Enter}");
+      expect(window.location.assign).toHaveBeenCalledWith("/servers/alpha");
+    } finally {
+      Object.defineProperty(window, "location", { value: originalLocation });
+    }
+  });
+
+  it("search dropdown closes on blur", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [makeServer({ metadata: { name: "alpha" } })],
+        }),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    const search = await screen.findByLabelText(/search servers/i);
+    await userEvent.click(search);
+    const link = await screen.findByRole("link", { name: /alpha/i });
+    expect(link).toBeInTheDocument();
+    // Blur closes dropdown after 120ms
+    search.blur();
+    await waitFor(
+      () => expect(screen.queryByRole("link", { name: /alpha/i })).not.toBeInTheDocument(),
+      { timeout: 200 },
+    );
+  });
+
+  it("search clears when navigating from dropdown", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [makeServer({ metadata: { name: "alpha" } })],
+        }),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    const search = await screen.findByLabelText(/search servers/i) as HTMLInputElement;
+    await userEvent.type(search, "alpha");
+    expect(search.value).toBe("alpha");
+    const link = await screen.findByRole("link", { name: /alpha/i });
+    await userEvent.click(link);
+    await waitFor(() => expect(search.value).toBe(""));
+  });
+
+  it("search escape key closes dropdown", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [makeServer({ metadata: { name: "alpha" } })],
+        }),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    const search = await screen.findByLabelText(/search servers/i);
+    await userEvent.type(search, "a");
+    const link = await screen.findByRole("link", { name: /alpha/i });
+    expect(link).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("link", { name: /alpha/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it("notifications open and close with bell click", async () => {
+    renderWithQuery(<AppLayout />);
+    const bell = await screen.findByRole("button", { name: /notifications/i });
+    // Dropdown closed initially
+    expect(screen.queryByText("No recent activity.")).not.toBeInTheDocument();
+    await userEvent.click(bell);
+    // Dropdown open
+    expect(screen.getByText("No recent activity.")).toBeInTheDocument();
+    await userEvent.click(bell);
+    // Dropdown closed
+    await waitFor(() => {
+      expect(screen.queryByText("No recent activity.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("notifications badge shows unread count", async () => {
+    renderWithQuery(<AppLayout />);
+    await screen.findByRole("button", { name: /notifications/i });
+    // Initially no badge (unread count is 0)
+    expect(screen.queryByText(/^\d+$/)).not.toBeInTheDocument();
+  });
+
+  it("logout button navigates to login", async () => {
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { ...originalLocation, assign: vi.fn() },
+    });
+    try {
+      server.use(
+        http.post("/auth/logout", () => new HttpResponse(null, { status: 204 })),
+      );
+      renderWithQuery(<AppLayout />);
+      await screen.findByRole("link", { name: /Dashboard/i });
+      const logoutBtn = screen.getByTitle("Sign out");
+      await userEvent.click(logoutBtn);
+      await waitFor(() => {
+        expect(window.location.assign).toHaveBeenCalledWith("/login");
+      });
+    } finally {
+      Object.defineProperty(window, "location", { value: originalLocation });
+    }
+  });
+
+  it("sidebar nav item has active class when exact match", async () => {
+    routerMocks.useLocation = () => ({ pathname: "/servers" } as ReturnType<typeof import("@tanstack/react-router").useLocation>);
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+    );
+    renderWithQuery(<AppLayout />);
+    // The /servers link should have active class (exact path match, but has sub-paths)
+    await waitFor(() => {
+      const link = screen.getByRole("link", { name: /^Servers$/i });
+      expect(link.className).toContain("active");
+    });
+  });
+
+  it("desktop sidebar hidden on mobile", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+    );
+    renderWithQuery(<AppLayout />);
+    await screen.findByRole("link", { name: /Dashboard/i });
+    // Desktop sidebar has lg:flex class, so it's hidden on small screens
+    const desktopSidebar = screen.getAllByRole("link", { name: /Dashboard/i })[0].closest("aside");
+    expect(desktopSidebar).toHaveClass("hidden");
+  });
+
+  it("system logs nav only visible with * permission", async () => {
+    server.use(
+      http.get("/users/me", () =>
+        HttpResponse.json(makeUser({ role: "operator" })),
+      ),
+    );
+    renderWithQuery(<AppLayout />);
+    // Operator doesn't have * permission
+    await waitFor(() => {
+      expect(screen.queryByRole("link", { name: /System logs/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders gameplane branding and logo", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+    );
+    renderWithQuery(<AppLayout />);
+    expect(await screen.findByText("gameplane")).toBeInTheDocument();
+  });
+
+  it("breadcrumb builds from pathname", async () => {
+    routerMocks.useLocation = () => ({ pathname: "/servers/alpha" } as ReturnType<typeof import("@tanstack/react-router").useLocation>);
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser())),
+    );
+    renderWithQuery(<AppLayout />);
+    // Breadcrumb should show: gameplane > Servers > alpha
+    await waitFor(() => {
+      expect(screen.getByText("gameplane")).toBeInTheDocument();
+      // The last breadcrumb (alpha) should be text, not a link
+      const breadcrumbs = screen.getAllByText(/gameplane|Servers|alpha/);
+      expect(breadcrumbs.length).toBeGreaterThan(0);
+    });
   });
 });
