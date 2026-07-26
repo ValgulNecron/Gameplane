@@ -150,7 +150,13 @@ describe("ClusterPage", () => {
 
     server.use(
       http.post("/cluster/kubeconfig", () =>
-        new HttpResponse(new Blob(["kubeconfig content"], { type: "text/plain" }))
+        // A raw `Blob` body throws inside msw's Response construction on this
+        // environment's jsdom (its Blob lacks `.stream()`, which msw's
+        // Response proxy calls while building the mocked Response) — use a
+        // string body instead. The client's `res.blob()` still round-trips it
+        // into a real Blob regardless of the original body shape (same fix
+        // as AuditLog.test.tsx's CSV export test).
+        new HttpResponse("kubeconfig content", { headers: { "Content-Type": "text/plain" } })
       ),
     );
 
@@ -171,7 +177,7 @@ describe("ClusterPage", () => {
     await userEvent.click(downloadBtn);
     await waitFor(() => {
       expect(clickMock).toHaveBeenCalled();
-    }, { timeout: 10000 });
+    });
 
     // Cleanup
     document.createElement = originalCreateElement;
@@ -297,8 +303,11 @@ describe("ClusterPage", () => {
     );
     renderWithQuery(<ClusterPage />);
     await screen.findByText("worker-1");
-    // Scope query to the node card to avoid matching the "worker" role badge
-    const nodeCard = screen.getByText("worker-1").closest(".space-y-2");
+    // Scope query to the node card to avoid matching the "worker" role badge.
+    // The card's own wrapper carries "space-y-4" (see NodeCard in Cluster.tsx)
+    // — "space-y-2" only wraps the inner meters block, which doesn't contain
+    // the node name, so `.closest(".space-y-2")` never matched.
+    const nodeCard = screen.getByText("worker-1").closest(".space-y-4");
     expect(nodeCard?.textContent).toMatch(/worker/i);
   });
 
@@ -395,7 +404,11 @@ describe("ClusterPage", () => {
     );
     renderWithQuery(<ClusterPage />);
     await waitFor(() => {
-      expect(screen.getByText("production")).toBeInTheDocument();
+      // The subtitle is one interpolated string ("production · v1.31.0 ·
+      // 3/3 nodes healthy"), so it renders as a single text node — an exact
+      // string match against just "production" can never succeed. Use a
+      // partial regex, like the other substring assertions in this file.
+      expect(screen.getByText(/production/)).toBeInTheDocument();
     });
     expect(screen.getByText(/3\/3 nodes healthy/)).toBeInTheDocument();
   });

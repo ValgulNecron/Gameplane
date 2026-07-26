@@ -205,6 +205,13 @@ describe("BackupsTab", () => {
   });
 
   it("clickinig restore button from table row opens dialog", async () => {
+    // The default /backups handler serves two backups (one Succeeded, one
+    // Failed) — every row renders its own "Restore" button, so an unscoped
+    // findByRole("button", {name: /^restore$/i}) is ambiguous ("found
+    // multiple elements") and never resolves. Narrow to one restorable
+    // backup, matching "opens the restore dialog from a restorable backup"
+    // above.
+    server.use(http.get("/backups", () => HttpResponse.json({ items: [makeBackup()] })));
     renderWithQuery(<BackupsTab name="alpha" />);
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreBtn);
@@ -213,6 +220,9 @@ describe("BackupsTab", () => {
   });
 
   it("stops propagation when restore button in table row is clicked", async () => {
+    // See the previous test — scope to a single backup so the Restore
+    // button query is unambiguous.
+    server.use(http.get("/backups", () => HttpResponse.json({ items: [makeBackup()] })));
     renderWithQuery(<BackupsTab name="alpha" />);
     // The table row click handler should not fire when clicking the restore button
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
@@ -222,6 +232,9 @@ describe("BackupsTab", () => {
   });
 
   it("closes restore dialog when onClose is called", async () => {
+    // See "clickinig restore button from table row opens dialog" — scope to
+    // a single backup so the Restore button query is unambiguous.
+    server.use(http.get("/backups", () => HttpResponse.json({ items: [makeBackup()] })));
     renderWithQuery(<BackupsTab name="alpha" />);
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreBtn);
