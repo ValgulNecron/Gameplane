@@ -136,4 +136,218 @@ describe("RestoreDialog", () => {
     await userEvent.click(restoreBtn);
     await waitFor(() => expect(screen.getByText(/boom/)).toBeInTheDocument());
   });
+
+  it("shows restic restore warning message", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "alpha-restic" },
+          spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" },
+        })}
+        defaultServer="alpha"
+        onClose={() => {}}
+      />,
+    );
+    await screen.findByText(/will be suspended/i);
+    expect(screen.getByText(/overwrite all data/i)).toBeInTheDocument();
+  });
+
+  it("closes dialog on Escape", async () => {
+    const onClose = vi.fn();
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({ metadata: { name: "alpha-1" } })}
+        onClose={onClose}
+      />,
+    );
+    await screen.findByText(/Restore from backup/i);
+    // Radix dialog closes on Escape, which triggers onOpenChange(false) -> onClose()
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("disables Restore button while mutation is pending", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+      http.post("/restores", async () => {
+        // Simulate slow request
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({ metadata: { name: "alpha-1" } })}
+        defaultServer="alpha"
+        onClose={() => {}}
+      />,
+    );
+    const restoreBtn = await screen.findByRole("button", { name: /Restore$/ });
+    await userEvent.click(restoreBtn);
+    expect(restoreBtn).toBeDisabled();
+  });
+
+  it("volume-snapshot prefills server name with -restored suffix", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "alpha-vs" },
+          spec: { serverRef: { name: "prod-server" }, strategy: "volume-snapshot" },
+        })}
+        onClose={() => {}}
+      />,
+    );
+    const input = await screen.findByPlaceholderText(/my-restored-server/i);
+    await waitFor(() => {
+      expect((input as HTMLInputElement).value).toBe("prod-server-restored");
+    });
+  });
+
+  it("restic restore uses defaultServer when provided", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            makeServer({ metadata: { name: "alpha" } }),
+            makeServer({ metadata: { name: "beta" } }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "backup-1" },
+          spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" as const },
+        })}
+        defaultServer="beta"
+        onClose={() => {}}
+      />,
+    );
+    const select = await screen.findByDisplayValue("beta");
+    expect((select as HTMLSelectElement).value).toBe("beta");
+  });
+
+  it("shows danger variant for restic restore button", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "alpha-1" },
+          spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" as const },
+        })}
+        defaultServer="alpha"
+        onClose={() => {}}
+      />,
+    );
+    const buttons = screen.getAllByRole("button");
+    const restoreBtn = buttons.find((b) => /Restore$/.test(b.textContent ?? ""));
+    expect(restoreBtn?.className).toContain("danger");
+  });
+
+  it("shows default variant for volume-snapshot restore button", async () => {
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "alpha-vs" },
+          spec: { serverRef: { name: "alpha" }, strategy: "volume-snapshot" },
+        })}
+        onClose={() => {}}
+      />,
+    );
+    const restoreBtn = await screen.findByRole("button", { name: /restore to new server/i });
+    expect(restoreBtn.className).not.toContain("danger");
+  });
+
+  it("updates target when backup changes", async () => {
+    const onClose = vi.fn();
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    const { rerender } = renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "backup-1" },
+          spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" },
+        })}
+        defaultServer="alpha"
+        onClose={onClose}
+      />,
+    );
+
+    // Rerender with a different backup
+    rerender(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "backup-2" },
+          spec: { serverRef: { name: "beta" }, strategy: "volume-snapshot" },
+        })}
+        defaultServer="alpha"
+        onClose={onClose}
+      />,
+    );
+
+    // Target should be updated to new server name with suffix
+    const input = await screen.findByPlaceholderText(/my-restored-server/i);
+    await waitFor(() => {
+      expect((input as HTMLInputElement).value).toBe("beta-restored");
+    });
+  });
+
+  it("clears target when backup is set to null", async () => {
+    const onClose = vi.fn();
+    server.use(
+      http.get("/servers", () =>
+        HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
+      ),
+    );
+    const { rerender } = renderWithQuery(
+      <RestoreDialog
+        backup={makeBackup({
+          metadata: { name: "backup-1" },
+          spec: { serverRef: { name: "alpha" }, strategy: "restic-snapshot" },
+        })}
+        defaultServer="alpha"
+        onClose={onClose}
+      />,
+    );
+
+    rerender(
+      <RestoreDialog
+        backup={null}
+        defaultServer="alpha"
+        onClose={onClose}
+      />,
+    );
+
+    // Dialog should not be visible
+    expect(screen.queryByText(/Restore from backup/i)).not.toBeInTheDocument();
+  });
 });
