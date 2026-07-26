@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeServer, makeBackup, makeAudit, makeClusterView, makeClusterStats, makeUser } from "@/test/factories";
@@ -259,8 +259,12 @@ describe("DashboardPage", () => {
       http.get("/cluster", () => HttpResponse.json({})),
     );
     renderWithQuery(<DashboardPage />);
-    await screen.findByText("vCPUs");
-    expect(screen.getByText("—")).toBeInTheDocument();
+    const label = await screen.findByText("vCPUs");
+    // Several stat cards fall back to the same "—" placeholder when their
+    // data is missing, so scope the assertion to the vCPUs card itself.
+    const card = label.closest("div.rounded-lg");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText("—")).toBeInTheDocument();
   });
 
   it("renders nodes section only when nodes exist", async () => {
@@ -306,7 +310,14 @@ describe("DashboardPage", () => {
     );
     renderWithQuery(<DashboardPage />);
     await screen.findByText("partial-node");
-    expect(screen.getByText("—")).toBeInTheDocument();
+    // Multiple placeholders can render "—" for missing metrics (vCPUs card,
+    // per-node cpu/mem cells); scope to the vCPUs stat card specifically,
+    // since a node with no cpu.capacity keeps the cluster-wide vcpus sum
+    // at zero.
+    const label = screen.getByText("vCPUs");
+    const card = label.closest("div.rounded-lg");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText("—")).toBeInTheDocument();
   });
 
   it("sorts backups by startTime descending", async () => {
@@ -355,9 +366,14 @@ describe("DashboardPage", () => {
       ),
     );
     renderWithQuery(<DashboardPage />);
-    await screen.findByText("srv");
-    // Should not crash; size just doesn't render
-    expect(screen.queryByText(/GiB|MiB|B$/)).not.toBeInTheDocument();
+    const backupName = await screen.findByText("srv");
+    // Should not crash; size just doesn't render. Scope to this backup's
+    // row — the unrelated Storage provisioned stat card legitimately
+    // renders a "233 GB" / "3.7 GB / 15 GB" string elsewhere on the page,
+    // which would otherwise false-match the same regex.
+    const row = backupName.closest("div.flex.items-center.gap-3");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).queryByText(/GiB|MiB|B$/)).not.toBeInTheDocument();
   });
 
   it("describes audit events for PATCH requests", async () => {

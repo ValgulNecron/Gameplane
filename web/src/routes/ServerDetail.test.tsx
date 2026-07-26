@@ -479,6 +479,11 @@ describe("ServerDetailPage failure states", () => {
           makeTemplate({
             metadata: { name: String(params.name) },
             spec: {
+              // serverHasModpacks gates on the active version's loader
+              // being modpack-capable (fabric/forge/neoforge/quilt) — a
+              // template with no versions[] has no resolvable loader, so
+              // a default forge version is required for the tab to show.
+              versions: [{ id: "forge", displayName: "Forge", loader: "forge", default: true }],
               capabilities: {
                 mods: {
                   loaders: {
@@ -538,7 +543,7 @@ describe("ServerDetailPage failure states", () => {
         ),
       ),
     );
-    renderWithQuery(<ServerDetailPage />);
+    const { client } = renderWithQuery(<ServerDetailPage />);
     // Click Console tab which should show
     const consoleTab = await screen.findByRole("button", { name: "Console" });
     await userEvent.click(consoleTab);
@@ -558,6 +563,10 @@ describe("ServerDetailPage failure states", () => {
         ),
       ),
     );
+    // The template query has no polling interval of its own (unlike the
+    // server query's 5s refetchInterval), so nothing re-fetches it after
+    // swapping handlers — invalidate it explicitly to simulate the refetch.
+    await client.invalidateQueries({ queryKey: ["template"] });
 
     // Wait for template refetch and fallback to overview
     await waitFor(() =>
@@ -579,7 +588,12 @@ describe("ServerDetailPage failure states", () => {
       ),
     );
     renderWithQuery(<ServerDetailPage />);
-    const stopButton = await screen.findByRole("button", { name: /^Stop$/i });
-    expect(stopButton).not.toBeDisabled();
+    // The Stop button renders (disabled) before /servers/alpha resolves —
+    // findByRole can resolve during that initial disabled render, so wait
+    // for the loaded, asleep-aware disabled state like the other lifecycle
+    // button tests in this file do.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Stop$/i })).not.toBeDisabled(),
+    );
   });
 });

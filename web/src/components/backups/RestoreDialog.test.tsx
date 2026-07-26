@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeBackup, makeServer } from "@/test/factories";
@@ -291,7 +292,7 @@ describe("RestoreDialog", () => {
         HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
       ),
     );
-    const { rerender } = renderWithQuery(
+    const { client, rerender } = renderWithQuery(
       <RestoreDialog
         backup={makeBackup({
           metadata: { name: "backup-1" },
@@ -302,16 +303,22 @@ describe("RestoreDialog", () => {
       />,
     );
 
-    // Rerender with a different backup
+    // Rerender with a different backup. RTL's `rerender` replaces the whole
+    // previously-rendered tree (renderWithQuery wraps the initial element
+    // manually rather than via RenderOptions.wrapper), so the
+    // QueryClientProvider ancestor must be reapplied here or the dialog's
+    // useQueryClient() call throws.
     rerender(
-      <RestoreDialog
-        backup={makeBackup({
-          metadata: { name: "backup-2" },
-          spec: { serverRef: { name: "beta" }, strategy: "volume-snapshot" },
-        })}
-        defaultServer="alpha"
-        onClose={onClose}
-      />,
+      <QueryClientProvider client={client}>
+        <RestoreDialog
+          backup={makeBackup({
+            metadata: { name: "backup-2" },
+            spec: { serverRef: { name: "beta" }, strategy: "volume-snapshot" },
+          })}
+          defaultServer="alpha"
+          onClose={onClose}
+        />
+      </QueryClientProvider>,
     );
 
     // Target should be updated to new server name with suffix
@@ -328,7 +335,7 @@ describe("RestoreDialog", () => {
         HttpResponse.json({ items: [makeServer({ metadata: { name: "alpha" } })] }),
       ),
     );
-    const { rerender } = renderWithQuery(
+    const { client, rerender } = renderWithQuery(
       <RestoreDialog
         backup={makeBackup({
           metadata: { name: "backup-1" },
@@ -339,12 +346,16 @@ describe("RestoreDialog", () => {
       />,
     );
 
+    // See "updates target when backup changes" above — rerender must
+    // reapply the QueryClientProvider wrapper itself.
     rerender(
-      <RestoreDialog
-        backup={null}
-        defaultServer="alpha"
-        onClose={onClose}
-      />,
+      <QueryClientProvider client={client}>
+        <RestoreDialog
+          backup={null}
+          defaultServer="alpha"
+          onClose={onClose}
+        />
+      </QueryClientProvider>,
     );
 
     // Dialog should not be visible

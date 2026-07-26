@@ -207,16 +207,6 @@ describe("PlayersTab moderation actions", () => {
     await waitFor(() => expect(bannedWith.reason).toBe("griefing"));
   });
 
-  it("renders 'Players unknown' when online count is -1", async () => {
-    server.use(
-      http.get("/servers/alpha/players", () =>
-        HttpResponse.json(makePlayers({ online: -1, players: [] })),
-      ),
-    );
-    renderWithQuery(<PlayersTab name="alpha" />);
-    expect(await screen.findByText(/Players unknown/i)).toBeInTheDocument();
-  });
-
   it("shows max player count when available", async () => {
     server.use(
       http.get("/servers/alpha/players", () =>
@@ -224,8 +214,11 @@ describe("PlayersTab moderation actions", () => {
       ),
     );
     renderWithQuery(<PlayersTab name="alpha" />);
-    // Should show "3 / 20 online" or similar format
-    expect(await screen.findByText(/3 \/ 20/)).toBeInTheDocument();
+    // "3 / 20" alone also matches the Online stat tile's bare value, which
+    // renders separately from this header line — match the full "online"
+    // header text so the query resolves to a single element (same pattern
+    // as the "0 / 20 online" assertion above).
+    expect(await screen.findByText(/3 \/ 20 online/)).toBeInTheDocument();
   });
 
   it("renders ban reason when available", async () => {

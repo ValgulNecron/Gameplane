@@ -123,12 +123,21 @@ describe("GeneralSection", () => {
 
   it("allows multiple labels", async () => {
     const onChange = vi.fn();
-    render(<GeneralSection draft={makeServer()} onChange={onChange} />);
+    // GeneralSection is a controlled component: `labels` is derived purely
+    // from the `draft` prop, so adding a second label has to happen against
+    // the draft the first onChange produced — otherwise the second Add call
+    // still sees the original (empty) labels and overwrites rather than
+    // merges. Settings.tsx (the real parent) re-renders with the updated
+    // draft on every onChange; simulate that with rerender.
+    const { rerender } = render(<GeneralSection draft={makeServer()} onChange={onChange} />);
     const inputs = screen.getAllByPlaceholderText(/key|value/);
 
     await userEvent.type(inputs[0], "team");
     await userEvent.type(inputs[1], "ops");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    const afterFirst = onChange.mock.calls.at(-1)![0];
+    rerender(<GeneralSection draft={afterFirst} onChange={onChange} />);
 
     // Add another label
     const newInputs = screen.getAllByPlaceholderText(/key|value/);
@@ -182,7 +191,12 @@ describe("GeneralSection", () => {
       metadata: { name: "alpha", labels: { team: "ops", env: "prod" } },
     });
     const onChange = vi.fn();
-    render(<GeneralSection draft={draft} onChange={onChange} />);
+    // Calling the top-level `render` a second time mounts an *additional*
+    // tree alongside the first instead of updating it, leaving both
+    // "Remove label" buttons in the DOM — use `rerender` on the same
+    // instance instead, mirroring how the real parent (Settings.tsx) feeds
+    // each onChange's draft back in.
+    const { rerender } = render(<GeneralSection draft={draft} onChange={onChange} />);
 
     const removeButtons = screen.getAllByTitle(/Remove label/i);
     await userEvent.click(removeButtons[0]);
@@ -190,9 +204,7 @@ describe("GeneralSection", () => {
     // After removing one, we should have one left
     expect(Object.keys(lastCall.metadata.labels)).toHaveLength(1);
 
-    render(
-      <GeneralSection draft={lastCall} onChange={onChange} />,
-    );
+    rerender(<GeneralSection draft={lastCall} onChange={onChange} />);
 
     // Remove the last one
     const lastRemoveBtn = screen.getByTitle(/Remove label/i);

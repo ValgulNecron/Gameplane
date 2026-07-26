@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -223,8 +223,12 @@ describe("AppLayout", () => {
       ),
     );
     renderWithQuery(<AppLayout />);
-    // Initials should be "AL" (first 2 chars uppercase)
-    expect(await screen.findByText("AL")).toBeInTheDocument();
+    // Initials should be "AL" (first 2 chars uppercase). The same initials
+    // also render in the desktop sidebar's profile footer (present in the
+    // DOM even though it's visually hidden below `lg`), so scope to the
+    // Topbar (the page's <header>, role "banner") to keep the match unique.
+    const header = await screen.findByRole("banner");
+    expect(await within(header).findByText("AL")).toBeInTheDocument();
   });
 
   it("search dropdown shows no matches message", async () => {
@@ -279,6 +283,9 @@ describe("AppLayout", () => {
     renderWithQuery(<AppLayout />);
     const search = await screen.findByLabelText(/search servers/i);
     await userEvent.click(search);
+    // The matches dropdown only renders once a query is typed (empty query
+    // shows nothing to blur-close), so type before looking for the match.
+    await userEvent.type(search, "a");
     const link = await screen.findByRole("link", { name: /alpha/i });
     expect(link).toBeInTheDocument();
     // Blur closes dropdown after 120ms
@@ -388,9 +395,10 @@ describe("AppLayout", () => {
     );
     renderWithQuery(<AppLayout />);
     await screen.findByRole("link", { name: /Dashboard/i });
-    // Desktop sidebar has lg:flex class, so it's hidden on small screens
+    // The "hidden lg:flex" classes live on the wrapping <div> around the
+    // desktop <aside>, not on the <aside> itself — assert on that ancestor.
     const desktopSidebar = screen.getAllByRole("link", { name: /Dashboard/i })[0].closest("aside");
-    expect(desktopSidebar).toHaveClass("hidden");
+    expect(desktopSidebar?.parentElement).toHaveClass("hidden");
   });
 
   it("system logs nav only visible with * permission", async () => {
