@@ -127,4 +127,161 @@ describe("InstallDialog", () => {
     fireEvent.change(nameInput, { target: { value: "MyServer" } });
     expect(nameInput.value).toBe("myserver");
   });
+
+  it("shows multiple version options in a select when available", () => {
+    render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ sources: [{ name: "src", type: "oci" }], versions: ["2.0", "1.5", "1.0"], latestVersion: "2.0" })}
+        onConfirm={() => {}}
+      />,
+    );
+    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    // Should have 1 select for versions
+    expect(selects.length).toBeGreaterThan(0);
+    const versionSelect = selects[selects.length - 1];
+    expect(versionSelect.value).toBe("2.0");
+  });
+
+  it("shows multiple source options in a select when available", () => {
+    render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({
+          sources: [
+            { name: "upstream", type: "oci" },
+            { name: "community", type: "git" },
+          ],
+          versions: ["1.0"],
+          latestVersion: "1.0",
+        })}
+        onConfirm={() => {}}
+      />,
+    );
+    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    // Should have 1 select for sources
+    expect(selects.length).toBeGreaterThan(0);
+    expect(screen.getByText(/upstream.*oci/)).toBeInTheDocument();
+    expect(screen.getByText(/community.*git/)).toBeInTheDocument();
+  });
+
+  it("resets form when entry changes", async () => {
+    const { rerender } = render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ name: "first", sources: [{ name: "a", type: "oci" }], versions: ["1.0"], latestVersion: "1.0" })}
+        onConfirm={() => {}}
+      />,
+    );
+    let nameInput = screen.getByPlaceholderText("first") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "custom-first" } });
+    expect(nameInput.value).toBe("custom-first");
+
+    // Change entry
+    rerender(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ name: "second", sources: [{ name: "b", type: "oci" }], versions: ["2.0"], latestVersion: "2.0" })}
+        onConfirm={() => {}}
+      />,
+    );
+    nameInput = screen.getByPlaceholderText("second") as HTMLInputElement;
+    expect(nameInput.value).toBe("second");
+  });
+
+  it("handles entry with only latestVersion (no versions array)", () => {
+    render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({
+          name: "single",
+          sources: [{ name: "src", type: "oci" }],
+          versions: undefined,
+          latestVersion: "1.0",
+        })}
+        onConfirm={() => {}}
+      />,
+    );
+    expect(screen.getByText("1.0")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /Version/i })).not.toBeInTheDocument();
+  });
+
+  it("clears error when dialog re-opens", async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new APIError(500, "server error"));
+    const { rerender } = render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ name: "x", sources: [{ name: "s", type: "oci" }], versions: ["1"], latestVersion: "1" })}
+        onConfirm={onConfirm}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Install/i }));
+    await screen.findByText(/server error/);
+
+    // Simulate close and reopen
+    rerender(
+      <InstallDialog
+        open={false}
+        onOpenChange={() => {}}
+        entry={null}
+        onConfirm={onConfirm}
+      />,
+    );
+    rerender(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ name: "y", sources: [{ name: "t", type: "oci" }], versions: ["2"], latestVersion: "2" })}
+        onConfirm={onConfirm}
+      />,
+    );
+    expect(screen.queryByText(/server error/)).not.toBeInTheDocument();
+  });
+
+  it("changes version when user selects different version", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ name: "multi", sources: [{ name: "src", type: "oci" }], versions: ["3.0", "2.0", "1.0"], latestVersion: "3.0" })}
+        onConfirm={onConfirm}
+      />,
+    );
+    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    const versionSelect = selects[selects.length - 1];
+    fireEvent.change(versionSelect, { target: { value: "1.0" } });
+
+    await userEvent.click(screen.getByRole("button", { name: /Install/i }));
+    await waitFor(() =>
+      expect(onConfirm).toHaveBeenCalledWith({
+        source: "src",
+        version: "1.0",
+        name: "multi",
+      }),
+    );
+  });
+
+  it("disables buttons while mutation is pending", async () => {
+    const onConfirm = vi.fn().mockImplementation(() => new Promise(() => {})); // never resolves
+    render(
+      <InstallDialog
+        open
+        onOpenChange={() => {}}
+        entry={makeCatalog({ name: "x", sources: [{ name: "s", type: "oci" }], versions: ["1"], latestVersion: "1" })}
+        onConfirm={onConfirm}
+        busy
+      />,
+    );
+    const installBtn = screen.getByRole("button", { name: /Install/i });
+    const cancelBtn = screen.getByRole("button", { name: /Cancel/i });
+    expect(installBtn).toBeDisabled();
+    expect(cancelBtn).toBeDisabled();
+  });
 });
