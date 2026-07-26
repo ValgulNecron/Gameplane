@@ -59,4 +59,138 @@ describe("BackupDetailDrawer", () => {
     await screen.findByText(/Backup details/i);
     await waitFor(() => expect(screen.getByText(/not found/)).toBeInTheDocument());
   });
+
+  it("calls onRestore when Restore button clicked", async () => {
+    const onRestore = vi.fn();
+    server.use(
+      http.get("/backups/alpha-1", () =>
+        HttpResponse.json(
+          makeBackup({
+            metadata: { name: "alpha-1" },
+            status: {
+              phase: "Succeeded",
+              snapshotID: "abc123",
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(
+      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={onRestore} />,
+    );
+    const restoreBtn = await screen.findByRole("button", { name: /Restore/i });
+    await userEvent.click(restoreBtn);
+    await waitFor(() => {
+      expect(onRestore).toHaveBeenCalled();
+    });
+  });
+
+  it("disables Restore button when backup is not Succeeded or missing snapshotID", async () => {
+    server.use(
+      http.get("/backups/alpha-1", () =>
+        HttpResponse.json(
+          makeBackup({
+            metadata: { name: "alpha-1" },
+            status: {
+              phase: "Running",
+              snapshotID: "abc123",
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(
+      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+    );
+    const restoreBtn = await screen.findByRole("button", { name: /Restore/i });
+    expect(restoreBtn).toBeDisabled();
+  });
+
+  it("disables Restore button when snapshotID is missing", async () => {
+    server.use(
+      http.get("/backups/alpha-1", () =>
+        HttpResponse.json(
+          makeBackup({
+            metadata: { name: "alpha-1" },
+            status: {
+              phase: "Succeeded",
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(
+      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+    );
+    const restoreBtn = await screen.findByRole("button", { name: /Restore/i });
+    expect(restoreBtn).toBeDisabled();
+  });
+
+  it("deletes a backup", async () => {
+    const deleteHandler = vi.fn(() =>
+      HttpResponse.json({})
+    );
+    const onClose = vi.fn();
+    server.use(
+      http.get("/backups/alpha-1", () =>
+        HttpResponse.json(makeBackup({ metadata: { name: "alpha-1" } })),
+      ),
+      http.delete("/backups/alpha-1", deleteHandler),
+    );
+    renderWithQuery(
+      <BackupDetailDrawer name="alpha-1" onClose={onClose} onRestore={() => {}} />,
+    );
+    await screen.findByText(/Backup details/i);
+    const deleteBtn = screen.getByRole("button", { name: /Delete/i });
+    await userEvent.click(deleteBtn);
+    await waitFor(() => {
+      expect(deleteHandler).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error when delete fails", async () => {
+    server.use(
+      http.get("/backups/alpha-1", () =>
+        HttpResponse.json(makeBackup({ metadata: { name: "alpha-1" } })),
+      ),
+      http.delete("/backups/alpha-1", () =>
+        HttpResponse.text("delete failed", { status: 500 }),
+      ),
+    );
+    renderWithQuery(
+      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+    );
+    await screen.findByText(/Backup details/i);
+    const deleteBtn = screen.getByRole("button", { name: /Delete/i });
+    await userEvent.click(deleteBtn);
+    await waitFor(() => {
+      expect(screen.getByText(/delete failed/)).toBeInTheDocument();
+    });
+  });
+
+  it("renders backup timestamps", async () => {
+    server.use(
+      http.get("/backups/alpha-1", () =>
+        HttpResponse.json(
+          makeBackup({
+            metadata: { name: "alpha-1" },
+            status: {
+              phase: "Succeeded",
+              startTime: "2026-05-07T01:00:00Z",
+              completionTime: "2026-05-07T03:00:00Z",
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(
+      <BackupDetailDrawer name="alpha-1" onClose={() => {}} onRestore={() => {}} />,
+    );
+    await screen.findByText(/Backup details/i);
+    await waitFor(() => {
+      expect(screen.getByText(/2026-05-07T01:00:00Z/)).toBeInTheDocument();
+      expect(screen.getByText(/2026-05-07T03:00:00Z/)).toBeInTheDocument();
+    });
+  });
 });

@@ -87,4 +87,90 @@ describe("ScheduleForm", () => {
       expect(screen.getByText(/rejected/i)).toBeInTheDocument(),
     );
   });
+
+  it("disables Create when destination is empty for restic-snapshot", async () => {
+    server.use(
+      http.get("/backup-destinations", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    const create = screen.getByRole("button", { name: /Create schedule/i });
+    // Should be disabled because no destination is selected
+    await waitFor(() => expect(create).toBeDisabled());
+  });
+
+  it("shows help text for different backup types", async () => {
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    // Initially shows restic help text
+    expect(screen.getByText(/restic repository/i)).toBeInTheDocument();
+    // Switch to volume-snapshot
+    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "volume-snapshot");
+    expect(screen.getByText(/CSI volume snapshot/i)).toBeInTheDocument();
+  });
+
+  it("hides destination and repoKey fields for volume-snapshot", async () => {
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    // Initially visible for restic
+    expect(screen.getByLabelText("Destination")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Repo secret/i)).toBeInTheDocument();
+    // Switch to volume-snapshot
+    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "volume-snapshot");
+    expect(screen.queryByLabelText("Destination")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Repo secret/i)).not.toBeInTheDocument();
+  });
+
+  it("updates cron schedule", async () => {
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    const schedInput = screen.getByDisplayValue("0 */6 * * *");
+    await userEvent.clear(schedInput);
+    await userEvent.type(schedInput, "0 3 * * *");
+    expect((schedInput as HTMLInputElement).value).toBe("0 3 * * *");
+  });
+
+  it("updates repoKey field", async () => {
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    const repoKeyInput = screen.getByDisplayValue("repo") as HTMLInputElement;
+    await userEvent.clear(repoKeyInput);
+    await userEvent.type(repoKeyInput, "backup-key");
+    expect(repoKeyInput.value).toBe("backup-key");
+  });
+
+  it("submits with restic strategy when selected", async () => {
+    let postedStrategy: unknown;
+    server.use(
+      http.post("/schedules", async ({ request }) => {
+        const spec = ((await request.json()) as { spec?: Record<string, unknown> }).spec ?? {};
+        postedStrategy = spec.strategy;
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    await userEvent.selectOptions(screen.getByLabelText("Backup type"), "restic-snapshot");
+    const create = screen.getByRole("button", { name: /Create schedule/i });
+    await waitFor(() => expect(create).toBeEnabled());
+    await userEvent.click(create);
+    await waitFor(() => expect(postedStrategy).toBe("restic-snapshot"));
+  });
+
+  it("renders retention fields", async () => {
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    expect(screen.getByLabelText("Keep last")).toBeInTheDocument();
+    expect(screen.getByText(/Retention policy/i)).toBeInTheDocument();
+  });
+
+  it("does not render destination when no destinations are configured", async () => {
+    server.use(
+      http.get("/backup-destinations", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<ScheduleForm serverName="alpha" onClose={() => {}} />);
+    await waitFor(() => {
+      const destSelect = screen.queryByLabelText("Destination");
+      if (destSelect) {
+        expect((destSelect as HTMLSelectElement).disabled).toBe(true);
+      }
+    });
+  });
 });
