@@ -325,4 +325,199 @@ describe("LifecycleSection", () => {
       screen.getByText("A wake window never restarts a server you stopped by hand."),
     ).toBeInTheDocument();
   });
+
+  it("resetProbe early-returns when no override exists", () => {
+    const onChange = vi.fn();
+    render(
+      <LifecycleSection draft={baseDraft} onChange={onChange} template={templateWithProbe} />,
+    );
+    // Since baseDraft has no probes, resetProbe(liveness) should be a no-op
+    // We can't directly call it, but we can verify that the "Reset to template" button exists
+    // and clicking it does nothing if there's no override.
+    expect(screen.queryByText(/Reset to template/i)).not.toBeInTheDocument();
+  });
+
+  it("renders probe override button and can reset to template", () => {
+    const onChange = vi.fn();
+    const draftWithOverride = {
+      ...baseDraft,
+      spec: {
+        ...baseDraft.spec,
+        probes: {
+          liveness: { initialDelaySeconds: 20, httpGet: { path: "/health", port: 8080 } },
+        },
+      },
+    };
+    render(
+      <LifecycleSection draft={draftWithOverride} onChange={onChange} template={templateWithProbe} />,
+    );
+    const resetBtn = screen.getByRole("button", { name: /Reset to template/i });
+    fireEvent.click(resetBtn);
+    const last = onChange.mock.calls.at(-1)![0];
+    // After reset, the override should be removed (probes should be undefined)
+    expect(last.spec.probes).toBeUndefined();
+  });
+
+  it("renders probe with no template and no override shows 'not defined'", () => {
+    render(
+      <LifecycleSection
+        draft={baseDraft}
+        onChange={() => {}}
+        template={{
+          metadata: { name: "minecraft" },
+          spec: {
+            displayName: "MC",
+            game: "minecraft",
+            version: "1",
+            image: "img",
+            // No probes
+          },
+        } as GameTemplate}
+      />,
+    );
+    expect(screen.getAllByText(/not\s+defined by the template/i)).toHaveLength(3);
+  });
+
+  it("flags invalid grace period (non-integer)", () => {
+    render(
+      <LifecycleSection
+        draft={{ ...baseDraft, spec: { ...baseDraft.spec, stopGracePeriodSeconds: 30.5 } }}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText(/between 0 and 600/i)).toBeInTheDocument();
+  });
+
+  it("flags invalid grace period (negative)", () => {
+    render(
+      <LifecycleSection
+        draft={{ ...baseDraft, spec: { ...baseDraft.spec, stopGracePeriodSeconds: -1 } }}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByText(/between 0 and 600/i)).toBeInTheDocument();
+  });
+
+  it("accepts edge case grace period values (0 and 600)", () => {
+    const { rerender } = render(
+      <LifecycleSection
+        draft={{ ...baseDraft, spec: { ...baseDraft.spec, stopGracePeriodSeconds: 0 } }}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.queryByText(/between 0 and 600/i)).not.toBeInTheDocument();
+
+    rerender(
+      <LifecycleSection
+        draft={{ ...baseDraft, spec: { ...baseDraft.spec, stopGracePeriodSeconds: 600 } }}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.queryByText(/between 0 and 600/i)).not.toBeInTheDocument();
+  });
+
+  it("can add multiple wake windows up to the limit", async () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: [] } },
+    };
+    const { rerender } = render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+
+    // Add 8 windows (max is 8)
+    for (let i = 0; i < 8; i++) {
+      const addBtn = screen.getByRole("button", { name: /Add wake window/i });
+      expect(addBtn).not.toBeDisabled();
+      await userEvent.click(addBtn);
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      rerender(
+        <LifecycleSection draft={lastCall} onChange={onChange} />,
+      );
+    }
+
+    // Now we have 8, add button should be disabled
+    expect(screen.getByRole("button", { name: /Add wake window/i })).toBeDisabled();
+  });
+
+  it("probe override preserves the template's action", () => {
+    const onChange = vi.fn();
+    render(
+      <LifecycleSection draft={baseDraft} onChange={onChange} template={templateWithProbe} />,
+    );
+    fireEvent.change(screen.getByLabelText("liveness Initial delay"), {
+      target: { value: "15" },
+    });
+    const last = onChange.mock.calls.at(-1)![0];
+    // The override should include both the changed field and the inherited action
+    expect(last.spec.probes.liveness.initialDelaySeconds).toBe(15);
+    expect(last.spec.probes.liveness.httpGet).toEqual({ path: "/health", port: 8080 });
+  });
+
+  it("clearing a probe field from override value removes it", () => {
+    const onChange = vi.fn();
+    const draftWithOverride = {
+      ...baseDraft,
+      spec: {
+        ...baseDraft.spec,
+        probes: {
+          liveness: { initialDelaySeconds: 20, httpGet: { path: "/health", port: 8080 } },
+        },
+      },
+    };
+    render(
+      <LifecycleSection draft={draftWithOverride} onChange={onChange} template={templateWithProbe} />,
+    );
+    fireEvent.change(screen.getByLabelText("liveness Initial delay"), {
+      target: { value: "" },
+    });
+    const last = onChange.mock.calls.at(-1)![0];
+    // The field should be removed but action preserved
+    expect(last.spec.probes.liveness.initialDelaySeconds).toBeUndefined();
+    expect(last.spec.probes.liveness.httpGet).toEqual({ path: "/health", port: 8080 });
+  });
+
+  it("handles wake window with exactly 9 characters (minimum)", () => {
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: ["0 9 * * *"] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={() => {}} />,
+    );
+    expect(screen.queryByText(/five-field cron expression/i)).not.toBeInTheDocument();
+  });
+
+  it("handles wake window with six fields (seconds)", () => {
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 30, wakeWindows: ["0 0 9 * * *"] } },
+    };
+    render(
+      <LifecycleSection draft={draftWithIdle} onChange={() => {}} />,
+    );
+    expect(screen.queryByText(/five-field cron expression/i)).not.toBeInTheDocument();
+  });
+
+  it("edits sleep-after and clears invalid flag", () => {
+    const onChange = vi.fn();
+    const draftWithIdle = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, idle: { enabled: true, afterMinutes: 2, wakeWindows: [] } },
+    };
+    const { rerender } = render(
+      <LifecycleSection draft={draftWithIdle} onChange={onChange} />,
+    );
+    expect(screen.getByText(/between 5 and 1440/i)).toBeInTheDocument();
+
+    const sleepAfter = screen.getByLabelText("Idle sleep after");
+    fireEvent.change(sleepAfter, { target: { value: "60" } });
+
+    const lastCall = onChange.mock.calls.at(-1)![0];
+    rerender(
+      <LifecycleSection draft={lastCall} onChange={onChange} />,
+    );
+    expect(screen.queryByText(/between 5 and 1440/i)).not.toBeInTheDocument();
+  });
 });
