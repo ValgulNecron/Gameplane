@@ -161,6 +161,7 @@ describe("AdminSettingsPage", () => {
     server.use(
       http.get("/admin/config", () =>
         HttpResponse.json({
+          general: { instanceName: "", externalURL: "", defaultNamespace: "" },
           telemetry: { sendMetrics: false },
         }),
       ),
@@ -260,6 +261,7 @@ describe("AdminSettingsPage", () => {
     server.use(
       http.get("/admin/config", () =>
         HttpResponse.json({
+          general: { instanceName: "", externalURL: "", defaultNamespace: "" },
           notifications: {
             sinks: [
               {
@@ -368,6 +370,9 @@ describe("AdminSettingsPage", () => {
 
   it("navigates to Backup Destinations section", async () => {
     server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({}),
+      ),
       http.get("/admin/backup-destinations", () =>
         HttpResponse.json({
           items: [
@@ -388,6 +393,9 @@ describe("AdminSettingsPage", () => {
 
   it("shows error when backup destinations fail to load", async () => {
     server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({}),
+      ),
       http.get("/admin/backup-destinations", () =>
         new HttpResponse("Server error", { status: 500 }),
       ),
@@ -399,6 +407,9 @@ describe("AdminSettingsPage", () => {
 
   it("shows empty state for backup destinations", async () => {
     server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({}),
+      ),
       http.get("/admin/backup-destinations", () =>
         HttpResponse.json({ items: [] }),
       ),

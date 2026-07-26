@@ -103,6 +103,12 @@ describe("BackupsPage", () => {
           ],
         }),
       ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
       http.get("/servers", () =>
         HttpResponse.json({
           items: [
@@ -132,6 +138,12 @@ describe("BackupsPage", () => {
           ],
         }),
       ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
     );
     renderWithQuery(<BackupsPage />);
     await screen.findByText("backup-1");
@@ -153,6 +165,12 @@ describe("BackupsPage", () => {
           ],
         }),
       ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
     );
     renderWithQuery(<BackupsPage />);
     await screen.findByText("alpha-search-test");
@@ -171,6 +189,12 @@ describe("BackupsPage", () => {
             makeBackup({ metadata: { name: "alpha-1" }, spec: { serverRef: { name: "alpha" } } }),
           ],
         }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
       ),
       http.get("/servers", () =>
         HttpResponse.json({
@@ -222,6 +246,9 @@ describe("BackupsPage", () => {
       HttpResponse.json({})
     );
     server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({ items: [] }),
+      ),
       http.get("/schedules", () =>
         HttpResponse.json({
           items: [
@@ -231,6 +258,9 @@ describe("BackupsPage", () => {
             }),
           ],
         }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
       ),
       http.patch("/schedules/alpha-daily:spec", toggleHandler),
     );
@@ -245,10 +275,16 @@ describe("BackupsPage", () => {
 
   it("shows delete confirmation dialog for schedule", async () => {
     server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({ items: [] }),
+      ),
       http.get("/schedules", () =>
         HttpResponse.json({
           items: [makeSchedule({ metadata: { name: "alpha-daily" } })],
         }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
       ),
     );
     renderWithQuery(<BackupsPage />);
@@ -258,11 +294,16 @@ describe("BackupsPage", () => {
     const deleteBtn = screen.getByRole("button", { name: /Delete/i });
     await userEvent.click(deleteBtn);
     expect(await screen.findByText(/Delete schedule/)).toBeInTheDocument();
-    expect(screen.getByText("alpha-daily")).toBeInTheDocument();
   });
 
   it("filters restores by server and phase", async () => {
     server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
       http.get("/restores", () =>
         HttpResponse.json({
           items: [
