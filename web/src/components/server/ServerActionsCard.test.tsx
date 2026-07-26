@@ -670,4 +670,146 @@ describe("ServerActionsCard", () => {
     expect(await screen.findByText("GROUP1")).toBeInTheDocument();
     expect(await screen.findByText("Actions")).toBeInTheDocument();
   });
+
+  it("handles action with no rcon but stdin transport specified", async () => {
+    const runs: RunCall[] = [];
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        runs.push(JSON.parse(opts?.body ?? "{}") as RunCall);
+        return Promise.resolve(jsonRes({ ok: true }));
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    const noRconTemplate: GameTemplate = {
+      metadata: { name: "static-game" },
+      spec: {
+        displayName: "Static",
+        game: "static",
+        version: "1",
+        image: "img",
+        capabilities: { actions: [{ id: "stdin-action", displayName: "Send", transport: "stdin" }] },
+      },
+    };
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={noRconTemplate} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Send/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    await waitFor(() => expect(screen.getByText("Send sent")).toBeInTheDocument());
+  });
+
+  it("displays API error without parsed error field fallback to body", async () => {
+    const permissions = { "*": ["servers:read", "servers:write"] };
+    fetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/users/me")) {
+        return Promise.resolve(
+          jsonRes({ id: 1, username: "u", displayName: "U", email: "", role: "operator", permissions }),
+        );
+      }
+      if (url.endsWith("/actions/run")) {
+        return Promise.resolve(
+          new Response("Internal server error", { status: 500 }),
+        );
+      }
+      return Promise.resolve(jsonRes({}));
+    });
+    renderWithQuery(
+      <ServerActionsCard name="s1" tmpl={tmpl([{ id: "fail", displayName: "Fail" }])} />,
+    );
+    const btn = await screen.findByRole("button", { name: /Fail/i });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    fireEvent.click(btn);
+    expect(await screen.findByText("Internal server error")).toBeInTheDocument();
+  });
+
+  it("defaults to false for bool parameters when no default provided", async () => {
+    const runs: RunCall[] = [];
+    routeFetch("operator", runs);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "toggle",
+            displayName: "Toggle",
+            params: [{ name: "flag", type: "bool" }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Toggle/i }));
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).not.toBeChecked(); // Default is false
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    // When bool is false (default), it should not be included in params
+    await waitFor(() => expect(runs).toEqual([{ id: "toggle" }]));
+  });
+
+  it("includes parameter with displayName in dialog labels", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "custom",
+            displayName: "Custom action",
+            params: [
+              { name: "count", type: "int", displayName: "Item count", required: true },
+            ],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Custom action/i }));
+    expect(await screen.findByLabelText("Item count")).toBeInTheDocument();
+  });
+
+  it("shows parameter description when provided", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "cmd",
+            displayName: "Run command",
+            params: [
+              { name: "cmd", type: "string", description: "The command to execute" },
+            ],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Run command/i }));
+    expect(await screen.findByText("The command to execute")).toBeInTheDocument();
+  });
+
+  it("validates negative integers", async () => {
+    routeFetch("operator", []);
+    renderWithQuery(
+      <ServerActionsCard
+        name="s1"
+        tmpl={tmpl([
+          {
+            id: "set",
+            displayName: "Set value",
+            params: [{ name: "val", type: "int" }],
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Set value/i }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "-42" } });
+    // Negative integers should be valid
+    await waitFor(() => expect(screen.queryByText("Must be a whole number")).not.toBeInTheDocument());
+  });
 });
