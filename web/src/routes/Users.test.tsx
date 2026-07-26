@@ -728,6 +728,24 @@ describe("NamespaceGrants", () => {
     expect(screen.getByText("gameplane-games")).toBeInTheDocument();
   });
 
+  it("displays error when removing binding fails", async () => {
+    const user = userEvent.setup();
+    const binding = {
+      roleName: "viewer",
+      namespace: "prod",
+    };
+    bindings.mockResolvedValue([binding]);
+    removeBinding.mockRejectedValue(new Error("Permission denied"));
+    renderPage();
+    await user.click(await screen.findByLabelText("Actions for alice"));
+    await user.click(await screen.findByText("Edit user"));
+
+    const removeBtn = await screen.findByLabelText(/Remove viewer in prod/);
+    await user.click(removeBtn);
+
+    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
+  });
+
   it("shows message when no namespace grants exist", async () => {
     const user = userEvent.setup();
     bindings.mockResolvedValue([]);
