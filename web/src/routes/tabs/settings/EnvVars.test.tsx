@@ -176,8 +176,10 @@ describe("EnvVarsSection", () => {
       },
     });
     render(<EnvVarsSection draft={draft} onChange={() => {}} />);
-    // The Lock icon should be rendered
-    expect(screen.getByText(/Secret/i)).toBeInTheDocument();
+    // The Lock icon should be rendered. Exact match (not /Secret/i) —
+    // the "Add from secret" button's own text also contains "secret"
+    // and would make a case-insensitive substring query ambiguous.
+    expect(screen.getByText("Secret")).toBeInTheDocument();
   });
 
   it("type icon renders for literal vars", () => {

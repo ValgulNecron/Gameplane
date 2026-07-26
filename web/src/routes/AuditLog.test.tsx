@@ -310,7 +310,10 @@ describe("AuditLogPage", () => {
     });
 
     render(withClient(<AuditLogPage />));
-    await screen.findByText("Created server");
+    // alice's and bob's POST /servers rows both render "Created server" —
+    // findAllByText tolerates the duplicate label instead of findByText,
+    // which never settles on a single match and times out the test.
+    await screen.findAllByText("Created server");
 
     const methodSelect = screen.getByDisplayValue("All methods");
     fireEvent.change(methodSelect, { target: { value: "POST" } });

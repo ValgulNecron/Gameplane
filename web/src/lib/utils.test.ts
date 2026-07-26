@@ -266,7 +266,10 @@ describe("formatBytes edge cases", () => {
 
 describe("parseQuantityToBytes edge cases", () => {
   it("handles whitespace around the number", () => {
-    expect(parseQuantityToBytes("  5  ")).toBe(0); // regex expects tight format
+    // The regex (`^\s*([0-9.]+)\s*([A-Za-z]*)\s*$`) explicitly wraps the
+    // number and unit in \s*, so surrounding whitespace is tolerated and
+    // parses as a plain byte count — it doesn't fall back to 0.
+    expect(parseQuantityToBytes("  5  ")).toBe(5);
   });
 
   it("handles mixed case suffixes", () => {

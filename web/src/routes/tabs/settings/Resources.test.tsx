@@ -140,13 +140,16 @@ describe("ResourcesSection", () => {
     expect(screen.getByDisplayValue("fast-ssd")).toBeInTheDocument();
   });
 
-  it("CPU slider to 0 sets 0", () => {
+  it("CPU slider to 0 clamps to the 100m floor", () => {
     const onChange = vi.fn();
     render(<ResourcesSection draft={makeServer()} onChange={onChange} />);
     const cpuSlider = screen.getAllByRole("slider")[0];
+    // ResourceInput's CPU_DEFAULTS floors the slider at 0.1 cores (100m) —
+    // a raw DOM value of "0" (below the slider's own min) still gets
+    // clamped there by emitBase, it never reaches true zero.
     fireEvent.change(cpuSlider, { target: { value: "0" } });
     const lastCall = onChange.mock.calls.at(-1)![0];
-    expect(lastCall.spec.resources.requests.cpu).toBe("0");
+    expect(lastCall.spec.resources.requests.cpu).toBe("100m");
   });
 
   it("memory slider min value", () => {

@@ -119,6 +119,11 @@ describe("UploadModuleDialog", () => {
   });
 
   it("clears state when dialog closes and reopens", async () => {
+    server.use(
+      http.post("/modules/sources/uploads/upload", () =>
+        HttpResponse.json(previewBody, { status: 200 }),
+      ),
+    );
     const { rerender } = renderWithQuery(
       <UploadModuleDialog open onOpenChange={() => undefined} sources={["uploads"]} onUploaded={() => undefined} />,
     );

@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/server";
 import { BackupsSection } from "./Backups";
-import { makeServer } from "@/test/factories";
+import { makeServer, makeDestination } from "@/test/factories";
 
 const baseDraft = makeServer();
 
@@ -237,13 +239,20 @@ describe("BackupsSection", () => {
         },
       },
     };
+    // The default MSW handler only returns a destination named "default" —
+    // override it so a "backup-repo" option exists for the select to match.
+    server.use(
+      http.get("/backup-destinations", () =>
+        HttpResponse.json({ items: [makeDestination({ name: "backup-repo" })] }),
+      ),
+    );
     const onChange = vi.fn();
     renderWithQuery(
       <BackupsSection draft={draftWithPolicy} onChange={onChange} />,
     );
 
     // The Select component value should be "backup-repo"
-    const select = screen.getByDisplayValue("backup-repo");
+    const select = await screen.findByDisplayValue("backup-repo");
     expect(select).toBeInTheDocument();
   });
 
