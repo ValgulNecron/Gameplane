@@ -5,16 +5,15 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { RegistryBrowser, providerLabel, compactNum } from "./registry-browser";
-import type { RegistryProject } from "@/types";
+import type { RegistryProject, ModRegistryProvider } from "@/types";
 
 const mockProject = (overrides: Partial<RegistryProject> = {}): RegistryProject => ({
   id: "proj-1",
-  name: "Example Mod",
+  title: "Example Mod",
   slug: "example-mod",
   provider: "modrinth",
   downloads: 1500,
-  updated: "2026-01-15T00:00:00Z",
-  icon_url: "https://example.com/icon.png",
+  iconUrl: "https://example.com/icon.png",
   ...overrides,
 });
 
@@ -29,7 +28,7 @@ describe("RegistryBrowser", () => {
       <RegistryBrowser
         name="test"
         type="mod"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
     await waitFor(() => {
@@ -49,7 +48,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
     await waitFor(() => {
@@ -71,7 +70,7 @@ describe("RegistryBrowser", () => {
       <RegistryBrowser
         name="test"
         type="modpack"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
     await waitFor(() => {
@@ -89,7 +88,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
     await waitFor(() => {
@@ -107,13 +106,13 @@ describe("RegistryBrowser", () => {
         ]),
       ),
       http.get("/servers/test/registry/search", () =>
-        HttpResponse.json([mockProject({ name: "First Mod" })]),
+        HttpResponse.json([mockProject({ title: "First Mod" })]),
       ),
     );
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
     expect(await screen.findByText("First Mod")).toBeInTheDocument();
@@ -135,7 +134,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -167,7 +166,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -202,7 +201,7 @@ describe("RegistryBrowser", () => {
       <RegistryBrowser
         name="test"
         categories={categories}
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -233,7 +232,7 @@ describe("RegistryBrowser", () => {
       <RegistryBrowser
         name="test"
         categories={categories}
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -260,7 +259,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -283,7 +282,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -294,7 +293,7 @@ describe("RegistryBrowser", () => {
 
   it("handles pagination with Load more button", async () => {
     const projects = Array.from({ length: 30 }, (_, i) =>
-      mockProject({ name: `Mod ${i + 1}` }),
+      mockProject({ title: `Mod ${i + 1}` }),
     );
     let callCount = 0;
     server.use(
@@ -314,7 +313,7 @@ describe("RegistryBrowser", () => {
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -343,13 +342,13 @@ describe("RegistryBrowser", () => {
         if (isSlowRequest) {
           await new Promise((r) => setTimeout(r, 100));
         }
-        return HttpResponse.json([mockProject({ name: "Result" })]);
+        return HttpResponse.json([mockProject({ title: "Result" })]);
       }),
     );
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -368,7 +367,7 @@ describe("RegistryBrowser", () => {
     const { rerender } = renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
     server.use(
@@ -397,7 +396,7 @@ describe("RegistryBrowser", () => {
     rerender(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 
@@ -415,8 +414,8 @@ describe("RegistryBrowser", () => {
       ),
       http.get("/servers/test/registry/search", () =>
         HttpResponse.json([
-          mockProject({ id: "1", name: "Mod 1" }),
-          mockProject({ id: "2", name: "Mod 2" }),
+          mockProject({ id: "1", title: "Mod 1" }),
+          mockProject({ id: "2", title: "Mod 2" }),
         ]),
       ),
     );
@@ -449,16 +448,16 @@ describe("RegistryBrowser", () => {
       ),
       http.get("/servers/test/registry/search", ({ request }) => {
         const url = new URL(request.url);
-        const provider = url.searchParams.get("provider");
+        const provider = url.searchParams.get("provider") as ModRegistryProvider;
         return HttpResponse.json([
-          mockProject({ provider, name: `${provider} Result` }),
+          mockProject({ provider, title: `${provider} Result` }),
         ]);
       }),
     );
     renderWithQuery(
       <RegistryBrowser
         name="test"
-        renderItem={(p) => <div>{p.name}</div>}
+        renderItem={(p) => <div>{p.title}</div>}
       />,
     );
 

@@ -19,6 +19,7 @@ import {
   Users,
   Audit,
 } from "./endpoints";
+import type { ModID } from "@/types";
 
 const fetchMock = vi.fn();
 
@@ -250,8 +251,7 @@ describe("Servers mods endpoints (uncovered branches)", () => {
   });
 
   it("setModIDs PUTs the ids list", async () => {
-    const ids = [{ id: "123" }, { id: "456" }];
-    // @ts-ignore - ids is simplified for test
+    const ids: ModID[] = [{ id: "123" }, { id: "456" }];
     await expectCall(Servers.setModIDs("s1", ids), "/servers/s1/mods/ids", "PUT");
   });
 

@@ -145,8 +145,8 @@ describe("ClusterPage", () => {
     const revokeObjectURLMock = vi.fn();
     const clickMock = vi.fn();
 
-    global.URL.createObjectURL = createObjectURLMock;
-    global.URL.revokeObjectURL = revokeObjectURLMock;
+    globalThis.URL.createObjectURL = createObjectURLMock;
+    globalThis.URL.revokeObjectURL = revokeObjectURLMock;
 
     server.use(
       http.get("/cluster/kubeconfig", () =>

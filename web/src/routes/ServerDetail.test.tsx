@@ -479,8 +479,21 @@ describe("ServerDetailPage failure states", () => {
           makeTemplate({
             metadata: { name: String(params.name) },
             spec: {
-              capabilities: { modpacks: { path: "modpacks" } },
-              loaders: [{ name: "forge", modpacks: true }],
+              capabilities: {
+                mods: {
+                  loaders: {
+                    forge: { path: "modpacks" },
+                  },
+                  registry: {
+                    providers: [
+                      {
+                        provider: "modrinth",
+                        modpacks: { refEnv: "MODRINTH_MODPACK" },
+                      },
+                    ],
+                  },
+                },
+              },
             },
           }),
         ),
@@ -498,7 +511,7 @@ describe("ServerDetailPage failure states", () => {
         HttpResponse.json(
           makeTemplate({
             metadata: { name: String(params.name) },
-            spec: { capabilities: {}, loaders: [] },
+            spec: { capabilities: {} },
           }),
         ),
       ),
