@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -352,15 +352,20 @@ describe("ModulesPage", () => {
   it("shows install error on the page", async () => {
     catalog.mockResolvedValue({ items: [MINECRAFT] });
     install.mockRejectedValue(new Error("network timeout"));
-    renderPage();
+    const { container } = renderPage();
 
     await screen.findByText("Minecraft (Java)");
     await userEvent.click(screen.getByRole("button", { name: /install/i }));
     const confirms = screen.getAllByRole("button", { name: /^install$/i });
     await userEvent.click(confirms[confirms.length - 1]);
 
+    // The install error surfaces both inside the still-open InstallDialog
+    // (local validation-style error) and in the page-level banner — the
+    // dialog is portaled to document.body, so scope to the render's own
+    // container to assert on the page banner specifically and avoid a
+    // "multiple elements" match against the dialog's copy.
     await waitFor(() =>
-      expect(screen.getByText(/network timeout/)).toBeInTheDocument(),
+      expect(within(container).getByText(/network timeout/)).toBeInTheDocument(),
     );
   });
 
@@ -396,14 +401,19 @@ describe("ModulesPage", () => {
     catalog.mockResolvedValue({ items: [MINECRAFT] });
     install.mockRejectedValueOnce(new Error("first attempt failed"))
       .mockResolvedValueOnce({});
-    renderPage();
+    const { container } = renderPage();
 
     await screen.findByText("Minecraft (Java)");
     await userEvent.click(screen.getByRole("button", { name: /install/i }));
     let confirms = screen.getAllByRole("button", { name: /^install$/i });
     await userEvent.click(confirms[confirms.length - 1]);
 
-    await screen.findByText(/first attempt failed/);
+    // Same duplicate-rendering issue as "shows install error on the page":
+    // scope to the render's own container so this matches only the
+    // page-level banner, not the InstallDialog's portaled copy.
+    await waitFor(() =>
+      expect(within(container).getByText(/first attempt failed/)).toBeInTheDocument(),
+    );
 
     // Try again; error should clear on success
     await userEvent.click(screen.getByRole("button", { name: /install/i }));
@@ -411,24 +421,28 @@ describe("ModulesPage", () => {
     await userEvent.click(confirms[confirms.length - 1]);
 
     await waitFor(() =>
-      expect(screen.queryByText(/first attempt failed/)).not.toBeInTheDocument(),
+      expect(within(container).queryByText(/first attempt failed/)).not.toBeInTheDocument(),
     );
   });
 
   it("filters 'All categories' clears the category set", async () => {
+    // Minecraft is Sandbox-only; Valheim is Survival-only, so selecting
+    // Survival hides Minecraft (matchesAnyCategory requires overlap).
+    // Clicking the "All categories" chip itself — not re-toggling Survival
+    // — must reset the filter regardless of what's currently selected.
     const mc = { ...MINECRAFT, categories: ["Sandbox"] };
-    catalog.mockResolvedValue({ items: [mc] });
+    const val = { ...VALHEIM_INSTALLED, categories: ["Survival"] };
+    catalog.mockResolvedValue({ items: [mc, val] });
     renderPage();
 
     await screen.findByText("Minecraft (Java)");
-    // Click Sandbox to filter (select it)
-    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    await userEvent.click(screen.getByRole("button", { name: "Survival" }));
     await waitFor(() => {
       expect(screen.queryByText("Minecraft (Java)")).not.toBeInTheDocument();
     });
 
-    // Click Sandbox again to deselect and show all (no filters)
-    await userEvent.click(screen.getByRole("button", { name: "Sandbox" }));
+    // Click "All categories" to clear the filter (not a re-toggle).
+    await userEvent.click(screen.getByRole("button", { name: "All categories" }));
     await waitFor(() => {
       expect(screen.getByText("Minecraft (Java)")).toBeInTheDocument();
     });
@@ -445,10 +459,13 @@ describe("ModulesPage", () => {
     const confirms = screen.getAllByRole("button", { name: /^install$/i });
     await userEvent.click(confirms[confirms.length - 1]);
 
-    // While the mutation is pending, other action buttons should be disabled
-    // The uninstall button for Valheim should be disabled during pending install
+    // While the mutation is pending, other action buttons should be disabled.
+    // The uninstall button for Valheim should be disabled during pending
+    // install — the pending InstallDialog stays open the whole time (it
+    // never resolves), and Radix marks the rest of the page aria-hidden
+    // while it's open, so this must opt in to hidden elements to find it.
     await waitFor(() => {
-      const uninstallBtn = screen.getByRole("button", { name: /uninstall/i });
+      const uninstallBtn = screen.getByRole("button", { name: /uninstall/i, hidden: true });
       expect(uninstallBtn).toBeDisabled();
     }, { timeout: 2000 });
   });

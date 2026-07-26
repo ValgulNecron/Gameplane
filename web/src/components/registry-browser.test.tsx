@@ -61,11 +61,18 @@ describe("RegistryBrowser", () => {
   });
 
   it("filters providers by type (modpacks only)", async () => {
+    // The provider switcher only renders once more than one *usable*
+    // provider remains after filtering (RegistryBrowser gates it on
+    // `available.length > 1`) — so a second modpack-capable provider is
+    // needed here to actually exercise the switcher and prove curseforge
+    // (modpacks: false) got filtered out rather than the switcher being
+    // hidden entirely for having only one usable entry.
     server.use(
       http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
           { provider: "modrinth", available: true, mods: true, modpacks: true },
           { provider: "curseforge", available: true, mods: true, modpacks: false },
+          { provider: "thunderstore", available: true, mods: true, modpacks: true },
         ]),
       ),
       http.get("/servers/test/mods/registry/search", () =>
@@ -98,8 +105,10 @@ describe("RegistryBrowser", () => {
       />,
     );
     await waitFor(() => {
+      // The component renders a curly apostrophe ("isn’t"); match on the
+      // surrounding text only so this doesn't depend on that character.
       expect(
-        screen.getByText(/In-app browse isn't available/),
+        screen.getByText(/In-app browse isn.t available/),
       ).toBeInTheDocument();
     });
   });
@@ -370,12 +379,12 @@ describe("RegistryBrowser", () => {
   });
 
   it("falls back to first available provider when pick is no longer available", async () => {
-    const { rerender } = renderWithQuery(
-      <RegistryBrowser
-        name="test"
-        renderItem={(p) => <div>{p.title}</div>}
-      />,
-    );
+    // Handlers must be registered before the first render fires the
+    // providers query — registering them afterward (as this test
+    // previously did) leaves that first request unhandled, which under
+    // this suite's onUnhandledRequest:"error" config errors it out and
+    // the component never gets data to recover from since react-query
+    // doesn't retry (retry: false) or auto-refetch on a later server.use.
     server.use(
       http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
@@ -386,6 +395,12 @@ describe("RegistryBrowser", () => {
       http.get("/servers/test/mods/registry/search", () =>
         HttpResponse.json([mockProject()]),
       ),
+    );
+    const { rerender } = renderWithQuery(
+      <RegistryBrowser
+        name="test"
+        renderItem={(p) => <div>{p.title}</div>}
+      />,
     );
 
     // Initial render with both providers
@@ -411,7 +426,7 @@ describe("RegistryBrowser", () => {
   });
 
   it("renders renderItem for each project with provider", async () => {
-    const renderItem = vi.fn((p) => <div key={p.id}>{p.name}</div>);
+    const renderItem = vi.fn((p) => <div key={p.id}>{p.title}</div>);
     server.use(
       http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
@@ -432,13 +447,15 @@ describe("RegistryBrowser", () => {
       />,
     );
 
+    // RegistryProject's display field is `title`, not `name` — mockProject
+    // never sets `name`, so asserting on it could never match.
     await waitFor(() => {
       expect(renderItem).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "1", name: "Mod 1" }),
+        expect.objectContaining({ id: "1", title: "Mod 1" }),
         "modrinth",
       );
       expect(renderItem).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "2", name: "Mod 2" }),
+        expect.objectContaining({ id: "2", title: "Mod 2" }),
         "modrinth",
       );
     });
