@@ -556,10 +556,15 @@ describe("ModsTab", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Install" }));
 
-    // Wait for success banner
-    expect(await screen.findByText(/Installed/)).toBeInTheDocument();
+    // Wait for success banner. The install page's own "‹ Installed mods"
+    // back-nav label also matches a bare /Installed/, so match the
+    // filename-bearing banner text specifically (route()'s install mock
+    // defaults to naming the installed file "fetched.jar").
+    expect(await screen.findByText(/Installed fetched\.jar/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
-    await waitFor(() => expect(screen.queryByText(/Installed/)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/Installed fetched\.jar/)).not.toBeInTheDocument(),
+    );
   });
 
   it("shows loading state in header while fetching mods", async () => {
@@ -611,7 +616,10 @@ describe("ModsTab", () => {
       ],
     });
     renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
-    expect(await screen.findByText("1.0 MiB")).toBeInTheDocument();
+    // formatBytes labels with decimal-SI units (KB/MB/GB) even though it
+    // computes on base-1024 — see lib/utils.test.ts, which locks in
+    // formatBytes(5 * 1024 * 1024) === "5.0 MB" as the intended output.
+    expect(await screen.findByText("1.0 MB")).toBeInTheDocument();
     expect(await screen.findByText("512 B")).toBeInTheDocument();
   });
 
@@ -691,18 +699,33 @@ describe("ModsTab", () => {
     });
     renderWithQuery(<ModsTab name="s1" tmpl={tmpl(withInstall)} />);
 
+    // The update check is on-demand (useQuery enabled: false) — mocking
+    // the /mods/updates route isn't enough, the button must be clicked
+    // for updates.data to populate and the "checked …" text to appear.
+    const check = await screen.findByRole("button", { name: /check updates/i });
+    await waitFor(() => expect(check).not.toBeDisabled());
+    fireEvent.click(check);
+
     expect(await screen.findByTestId("mods-active")).toHaveTextContent("checked");
   });
 
   it("update all button error surfaces message but still allows retry", async () => {
-    fetchMock.mockImplementation((url: string) => {
+    // installMod POSTs to a fixed /mods/install path with `replaces` in the
+    // JSON body, not the URL — url.includes("replaces") can never match, so
+    // this fell through to the /mods branch (200 OK) and the mutation never
+    // errored. Inspect the body instead, mirroring how route()'s onInstall
+    // does it elsewhere in this file.
+    fetchMock.mockImplementation((url: string, opts?: { method?: string; body?: string }) => {
       if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operator));
       if (url.includes("/mods/updates"))
         return Promise.resolve(
           jsonRes({ checkedAt: new Date().toISOString(), updates: [sodiumUpdate] }),
         );
-      if (url.includes("/mods/install") && url.includes("replaces"))
-        return Promise.resolve(jsonRes({ error: "download failed" }, 502));
+      if (url.includes("/mods/install")) {
+        const body = JSON.parse(opts?.body ?? "{}") as { replaces?: string };
+        if (body.replaces) return Promise.resolve(jsonRes({ error: "download failed" }, 502));
+        return Promise.resolve(jsonRes({ name: "sodium-0.6.13.jar", size: 10 }));
+      }
       if (url.includes("/mods")) return Promise.resolve(jsonRes([managedSodium]));
       return Promise.resolve(jsonRes({}));
     });
@@ -1048,9 +1071,24 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     await waitFor(() => expect(screen.queryByText("Marked for removal")).not.toBeInTheDocument());
     expect(screen.queryByText("Added")).not.toBeInTheDocument();
 
-    // Saving now should include the row
+    // The undo alone reverts the row to exactly its saved state — there is
+    // nothing dirty to save, so Save changes is correctly disabled (same
+    // gating covered by "disables Save changes and Discard when there are
+    // no pending edits"). Clicking a disabled button doesn't fire onClick
+    // at all, so asserting a PUT here without a real subsequent edit could
+    // never pass.
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(puts).toHaveLength(0);
+
+    // A genuine follow-up edit makes the list dirty again; saving must
+    // still include the undone row alongside the new one — proving undo
+    // didn't silently drop it from the save payload.
+    fireEvent.change(screen.getByPlaceholderText(/paste a mod id/i), { target: { value: "new-id" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    await waitFor(() => expect(puts).toEqual([[{ id: "889745", name: "S+" }]]));
+    await waitFor(() =>
+      expect(puts).toEqual([[{ id: "889745", name: "S+" }, { id: "new-id" }]]),
+    );
   });
 
   it("clears input after successfully adding a mod ID", async () => {
@@ -1176,7 +1214,11 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     });
     renderWithQuery(<ModsTab name="s1" tmpl={idTmpl()} />);
 
-    expect(await screen.findByText("Couldn't load mods")).toBeInTheDocument();
+    // "Couldn't load mods" is FileModsTab's static header string (a
+    // different component). idTmpl() declares idList, so this renders
+    // ModsByIdTab, whose error path instead shows errMsg(listError) — the
+    // mocked body's "boom" — next to a "retry" button.
+    expect(await screen.findByText("boom")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "retry" })).toBeInTheDocument();
   });
 
