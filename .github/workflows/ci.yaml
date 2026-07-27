@@ -62,8 +62,8 @@ jobs:
       weblive: ${{ steps.combine.outputs.weblive }}
       images: ${{ steps.combine.outputs.images }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -139,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/build-e2e-images
 
   # Same as build-images but on an arm64 runner, producing the e2e-images-arm64
@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/build-e2e-images
         with:
           arch: arm64
@@ -174,14 +174,14 @@ jobs:
         module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server]
         arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         # setup-go's built-in cache keys off a repo-root go.sum, which this
         # go.work workspace doesn't have — use an explicit per-module cache
         # instead so each matrix leg saves its own build cache.
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -206,13 +206,13 @@ jobs:
             -coverprofile=coverage/unit.out ./...
       - name: setup-envtest binary cache
         if: matrix.module == 'operator' || matrix.module == 'api'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/go/bin/setup-envtest
           key: setup-envtest-bin-release-0.19-${{ runner.os }}-${{ runner.arch }}
       - name: envtest assets cache
         if: matrix.module == 'operator' || matrix.module == 'api'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.local/share/kubebuilder-envtest
           key: envtest-1.31.0-${{ runner.os }}-${{ runner.arch }}
@@ -236,9 +236,9 @@ jobs:
     timeout-minutes: 15
     defaults: { run: { working-directory: web } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - run: npm run build
       - run: npm run test:cover
@@ -262,7 +262,7 @@ jobs:
       - name: upload web coverage
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-web
           path: web/coverage
@@ -277,12 +277,12 @@ jobs:
     defaults: { run: { working-directory: web } }
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
       - run: npm ci
       - name: playwright browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
@@ -293,7 +293,7 @@ jobs:
         run: npm run test:e2e:mock
       - name: upload playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-mock
           path: web/playwright-report
@@ -307,8 +307,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
       - run: helm lint charts/gameplane
 
   chart-template:
@@ -318,8 +318,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
       - run: helm template gameplane charts/gameplane > /tmp/rendered.yaml
       - name: sanity-check rendered manifests
         run: |
@@ -371,11 +371,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -406,7 +406,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: verify buckets are disjoint + exhaustive
         run: ./test/e2e/buckets.sh verify
 
@@ -458,11 +458,11 @@ jobs:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -470,7 +470,7 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
             go-${{ runner.os }}-${{ runner.arch }}-e2e-
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: install kind
         uses: helm/kind-action@v1
         with:
@@ -531,11 +531,11 @@ jobs:
       CTX: kind-gameplane-e2e
       CTX_B: kind-gameplane-e2e-b
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -543,7 +543,7 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
             go-${{ runner.os }}-${{ runner.arch }}-e2e-
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: install kind
         uses: helm/kind-action@v1
         with:
@@ -607,11 +607,11 @@ jobs:
       # never published — its chart and images 404 on GHCR).
       GAMEPLANE_UPGRADE_FROM: 0.2.0-beta.5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -619,7 +619,7 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
             go-${{ runner.os }}-${{ runner.arch }}-e2e-
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: install kind
         uses: helm/kind-action@v1
         with:
@@ -661,11 +661,11 @@ jobs:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -673,9 +673,9 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
             go-${{ runner.os }}-${{ runner.arch }}-e2e-
-      - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "npm", cache-dependency-path: web/package-lock.json }
-      - uses: azure/setup-helm@v4
+      - uses: actions/setup-node@v7
+        with: { node-version: "24", cache: "npm", cache-dependency-path: web/package-lock.json }
+      - uses: azure/setup-helm@v5
       - name: install kind
         uses: helm/kind-action@v1
         with:
@@ -696,7 +696,7 @@ jobs:
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             go test -tags=e2e -timeout 5m -v -run '^TestAPI_BootstrapAndLogin$' ./...
       - name: playwright browser cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
@@ -717,7 +717,7 @@ jobs:
           kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
       - name: upload playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-live
           path: web/playwright-report
@@ -740,11 +740,11 @@ jobs:
       CLUSTER: gameplane-e2e
       CTX: kind-gameplane-e2e
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26", cache: false }
       - name: go module + build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/go/pkg/mod
@@ -752,7 +752,7 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-e2e-${{ hashFiles('**/go.sum', 'go.work.sum') }}
           restore-keys: |
             go-${{ runner.os }}-${{ runner.arch }}-e2e-
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: install kind
         uses: helm/kind-action@v1
         with:

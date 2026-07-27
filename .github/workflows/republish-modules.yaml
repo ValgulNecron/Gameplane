@@ -22,7 +22,7 @@ jobs:
       # The module bundles live in the gameplane-module submodule at modules/,
       # so this job needs a recursive checkout to read their source. The
       # submodule is public, so the default GITHUB_TOKEN clones it (no PAT).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       # Signing is mandatory: fail rather than publish unsigned bundles (or
@@ -36,15 +36,15 @@ jobs:
             exit 1
           fi
       - name: install oras
-        uses: oras-project/setup-oras@v1
+        uses: oras-project/setup-oras@v2
       - name: install cosign
         uses: sigstore/cosign-installer@v4.1.2
         with:
-          cosign-release: 'v3.0.6'
+          cosign-release: 'v3.1.2'
       - name: refresh sigstore trust root
         run: cosign initialize
       - name: login to registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
