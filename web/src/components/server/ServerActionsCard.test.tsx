@@ -410,7 +410,11 @@ describe("ServerActionsCard", () => {
     await waitFor(() => expect(openBtn).not.toBeDisabled());
     fireEvent.click(openBtn);
     const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "hello\nworld" } }); // LF is control char
+    // jsdom (like real browsers) runs the HTML value-sanitization algorithm
+    // on single-line text inputs, which strips \n/\r before onChange ever
+    // sees them — so LF can't be used to exercise this path. ESC (0x1B) is
+    // still a control character but isn't stripped.
+    fireEvent.change(input, { target: { value: "hello\x1bworld" } });
     expect(
       await screen.findByText("No control characters"),
     ).toBeInTheDocument();
@@ -785,7 +789,10 @@ describe("ServerActionsCard", () => {
     const openBtn = await screen.findByRole("button", { name: /Custom action/i });
     await waitFor(() => expect(openBtn).not.toBeDisabled());
     fireEvent.click(openBtn);
-    expect(await screen.findByLabelText("Item count")).toBeInTheDocument();
+    // The param is required, so ParamField appends a " *" suffix to the
+    // label text — match on the displayName as a substring rather than
+    // the exact label text.
+    expect(await screen.findByLabelText(/Item count/)).toBeInTheDocument();
   });
 
   it("shows parameter description when provided", async () => {
