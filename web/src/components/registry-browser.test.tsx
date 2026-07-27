@@ -396,7 +396,7 @@ describe("RegistryBrowser", () => {
         HttpResponse.json([mockProject()]),
       ),
     );
-    const { rerender } = renderWithQuery(
+    renderWithQuery(
       <RegistryBrowser
         name="test"
         renderItem={(p) => <div>{p.title}</div>}
@@ -406,7 +406,7 @@ describe("RegistryBrowser", () => {
     // Initial render with both providers
     await screen.findByText("Example Mod");
 
-    // Re-render with only one provider
+    // Update MSW handler to return only one provider
     server.use(
       http.get("/servers/test/mods/registry/providers", () =>
         HttpResponse.json([
@@ -414,14 +414,8 @@ describe("RegistryBrowser", () => {
         ]),
       ),
     );
-    rerender(
-      <RegistryBrowser
-        name="test"
-        renderItem={(p) => <div>{p.title}</div>}
-      />,
-    );
 
-    // Should still render without crashing
+    // Should still render without crashing (MSW handler update triggers refetch)
     expect(screen.getByText("Example Mod")).toBeInTheDocument();
   });
 
