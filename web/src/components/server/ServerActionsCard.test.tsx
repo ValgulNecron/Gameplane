@@ -36,6 +36,9 @@ function routeFetch(role: "operator" | "viewer", runs: RunCall[]) {
         jsonRes({ id: 1, username: "u", displayName: "U", email: "", role, permissions }),
       );
     }
+    if (url.endsWith("/users/me/servers")) {
+      return Promise.resolve(jsonRes({ items: [] }));
+    }
     if (url.endsWith("/actions/run")) {
       runs.push(JSON.parse(opts?.body ?? "{}") as RunCall);
       return Promise.resolve(jsonRes({ ok: true, raw: "done" }));
