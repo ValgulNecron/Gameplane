@@ -255,9 +255,15 @@ describe("BackupsPage", () => {
   });
 
   it("toggles schedule suspend status", async () => {
-    const toggleHandler = vi.fn(() =>
-      HttpResponse.json({})
-    );
+    const toggleHandler = vi.fn(({ request }) => {
+      // patchSpec does GET then PUT; return a valid schedule with suspend toggled
+      return HttpResponse.json(
+        makeSchedule({
+          metadata: { name: "alpha-daily" },
+          spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", suspend: true },
+        }),
+      );
+    });
     server.use(
       http.get("/backups", () =>
         HttpResponse.json({ items: [] }),
@@ -275,7 +281,7 @@ describe("BackupsPage", () => {
       http.get("/restores", () =>
         HttpResponse.json({ items: [] }),
       ),
-      http.patch("/schedules/alpha-daily:spec", toggleHandler),
+      http.put("/schedules/alpha-daily", toggleHandler),
     );
     renderWithQuery(<BackupsPage />);
     const schedTab = screen.getByRole("button", { name: /Schedules/i });

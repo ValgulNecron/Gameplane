@@ -524,7 +524,7 @@ describe("EditUserModal", () => {
   });
 
   it("blocks self-demotion from user management role", async () => {
-    const user = userEvent.setup();
+    const user = await userEvent.setup();
     // useMe() and the users list must agree on root's role: EditUserModal
     // seeds its role <select> from the clicked row's own `user.role` (from
     // `list`), not from useMe(), so leaving `list` on the base ME (role
