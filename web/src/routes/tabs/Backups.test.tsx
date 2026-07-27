@@ -239,11 +239,11 @@ describe("BackupsTab", () => {
     const restoreBtn = await screen.findByRole("button", { name: /^restore$/i });
     await userEvent.click(restoreBtn);
     await screen.findByText(/Restore from backup/i);
-    // Click outside the dialog to close it (via Radix dialog's onOpenChange)
-    const backdrop = screen.getByText(/Restore from backup/i).closest("[role=dialog]");
-    if (backdrop?.parentElement) {
-      await userEvent.click(backdrop.parentElement);
-    }
+    // Press Escape to close the dialog (via Radix dialog's onOpenChange)
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByText(/Restore from backup/i)).not.toBeInTheDocument();
+    });
   });
 
   it("closes backup detail drawer when onClose is called", async () => {

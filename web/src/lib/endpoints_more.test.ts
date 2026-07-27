@@ -281,7 +281,8 @@ describe("Servers mods endpoints (uncovered branches)", () => {
       }),
     );
     await Servers.searchRegistry("s1", { q: "my mod" });
-    expect(last().url).toContain("q=my%20mod");
+    // URLSearchParams encodes spaces as +, which is valid for query parameters
+    expect(last().url).toContain("q=my+mod");
   });
 
   it("searchRegistry respects all optional parameters", async () => {
@@ -357,7 +358,7 @@ describe("Auth.oidcStartURL variants", () => {
 describe("Audit export filters", () => {
   it("exportCsv with no filters includes format param only", async () => {
     fetchMock.mockImplementation(
-      async () => new Response(new Blob(["test"], { type: "text/csv" }), { status: 200 })
+      async () => new Response("test", { status: 200, headers: { "Content-Type": "text/csv" } })
     );
     await Audit.exportCsv({});
     expect(last().url).toBe("/admin/audit/export?format=csv");
@@ -365,7 +366,7 @@ describe("Audit export filters", () => {
 
   it("exportCsv with all filters includes all params", async () => {
     fetchMock.mockImplementation(
-      async () => new Response(new Blob(["test"], { type: "text/csv" }), { status: 200 })
+      async () => new Response("test", { status: 200, headers: { "Content-Type": "text/csv" } })
     );
     await Audit.exportCsv({ actor: "admin", method: "POST", status: "200" });
     const url = last().url;
@@ -377,7 +378,7 @@ describe("Audit export filters", () => {
 
   it("exportCsv omits empty filter values", async () => {
     fetchMock.mockImplementation(
-      async () => new Response(new Blob(["test"], { type: "text/csv" }), { status: 200 })
+      async () => new Response("test", { status: 200, headers: { "Content-Type": "text/csv" } })
     );
     await Audit.exportCsv({ actor: "alice", method: "", status: "404" });
     const url = last().url;

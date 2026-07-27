@@ -64,6 +64,9 @@ function route(r: Routes) {
     if (url.endsWith("/users/me")) {
       return Promise.resolve(jsonRes({ id: 1, username: "u", displayName: "U", email: "", role, permissions }));
     }
+    if (url.endsWith("/users/me/servers")) {
+      return Promise.resolve(jsonRes({ items: [] }));
+    }
     // Registry browse routes contain "/mods" — match them before the
     // generic /mods list handler below.
     if (url.includes("/mods/registry/providers")) {
@@ -900,6 +903,9 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
           }),
         );
       }
+      if (url.endsWith("/users/me/servers")) {
+        return Promise.resolve(jsonRes({ items: [] }));
+      }
       if (url.includes("/mods/registry/providers")) {
         return Promise.resolve(
           jsonRes(opts.providers ?? [{ provider: "curseforge", available: true, modpacks: false }]),
@@ -1209,6 +1215,7 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     };
     fetchMock.mockImplementation((url: string) => {
       if (url.endsWith("/users/me")) return Promise.resolve(jsonRes(operatorRole));
+      if (url.endsWith("/users/me/servers")) return Promise.resolve(jsonRes({ items: [] }));
       if (url.includes("/mods/ids")) return Promise.resolve(jsonRes({ error: "boom" }, 502));
       return Promise.resolve(jsonRes({}));
     });
