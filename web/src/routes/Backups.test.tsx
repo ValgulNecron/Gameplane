@@ -255,7 +255,7 @@ describe("BackupsPage", () => {
   });
 
   it("toggles schedule suspend status", async () => {
-    const toggleHandler = vi.fn(({ request }) => {
+    const toggleHandler = vi.fn(() => {
       // patchSpec does GET then PUT; return a valid schedule with suspend toggled
       return HttpResponse.json(
         makeSchedule({
@@ -280,6 +280,18 @@ describe("BackupsPage", () => {
       ),
       http.get("/restores", () =>
         HttpResponse.json({ items: [] }),
+      ),
+      // patchSpec's GET-before-PUT read step targets the single-schedule
+      // route, not the list route above — without this, the request falls
+      // through to the base handler and the mutation never reaches
+      // toggleHandler in time.
+      http.get("/schedules/alpha-daily", () =>
+        HttpResponse.json(
+          makeSchedule({
+            metadata: { name: "alpha-daily" },
+            spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", suspend: false },
+          }),
+        ),
       ),
       http.put("/schedules/alpha-daily", toggleHandler),
     );

@@ -524,7 +524,7 @@ describe("EditUserModal", () => {
   });
 
   it("blocks self-demotion from user management role", async () => {
-    const user = await userEvent.setup();
+    const user = userEvent.setup();
     // useMe() and the users list must agree on root's role: EditUserModal
     // seeds its role <select> from the clicked row's own `user.role` (from
     // `list`), not from useMe(), so leaving `list` on the base ME (role
@@ -548,8 +548,12 @@ describe("EditUserModal", () => {
     const select = await screen.findByDisplayValue("operator");
     await user.selectOptions(select, "viewer");
 
+    // The component renders a typographic apostrophe ("can’t", U+2019), not
+    // a straight one — match on the surrounding text instead of the
+    // apostrophe-adjacent word so this doesn't depend on which quote glyph
+    // the copy uses.
     expect(
-      await screen.findByText(/can't remove your own ability to manage users/i),
+      await screen.findByText(/remove your own ability to manage users/i),
     ).toBeInTheDocument();
     const button = screen.getByRole("button", { name: /Save changes/i });
     expect(button).toBeDisabled();

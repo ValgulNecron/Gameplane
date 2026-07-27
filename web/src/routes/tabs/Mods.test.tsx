@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
-import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { ModsTab } from "./Mods";
 import type {
@@ -19,12 +17,6 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
-  // Add MSW handler for /users/me/servers endpoint
-  server.use(
-    http.get("/users/me/servers", () =>
-      HttpResponse.json({ items: [] })
-    )
-  );
 });
 afterEach(() => {
   fetchMock.mockReset();
@@ -622,7 +614,10 @@ describe("ModsTab", () => {
     // formatBytes labels with decimal-SI units (KB/MB/GB) even though it
     // computes on base-1024 — see lib/utils.test.ts, which locks in
     // formatBytes(5 * 1024 * 1024) === "5.0 MB" as the intended output.
-    expect(await screen.findByText("1.0 MB")).toBeInTheDocument();
+    // mod1's row renders "{bytes}{ · relative-time}" as sibling text nodes
+    // in the same element, so its own text is "1.0 MB · <time ago>", not
+    // "1.0 MB" alone — match as a substring instead of exact text.
+    expect(await screen.findByText(/1\.0 MB/)).toBeInTheDocument();
     expect(await screen.findByText("512 B")).toBeInTheDocument();
   });
 
@@ -1224,8 +1219,11 @@ describe("ModsTab — id-managed mods (capabilities.mods.idList)", () => {
     // "Couldn't load mods" is FileModsTab's static header string (a
     // different component). idTmpl() declares idList, so this renders
     // ModsByIdTab, whose error path instead shows errMsg(listError) — the
-    // mocked body's "boom" — next to a "retry" button.
-    expect(await screen.findByText("boom")).toBeInTheDocument();
+    // mocked body's "boom" — next to a "retry" button. The error text and
+    // the retry button are siblings inside the same element ("{errMsg} ·
+    // {retryButton}"), so the element's own text is "boom ·", not "boom"
+    // alone — match as a substring instead of exact text.
+    expect(await screen.findByText(/boom/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "retry" })).toBeInTheDocument();
   });
 
