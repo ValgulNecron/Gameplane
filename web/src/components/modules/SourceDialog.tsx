@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -154,12 +154,21 @@ export function SourceDialog({ open, onOpenChange, source, onConfirm, busy }: So
   const [f, setF] = useState<form>(emptyForm);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    setName(source?.metadata.name ?? "");
-    setF(source ? formFrom(source) : emptyForm);
-  }, [open, source]);
+  // Reset the form whenever the dialog (re)opens or the source being edited
+  // changes. Adjusted directly during render (not in an effect), gated on
+  // the previously-seen (open, source) pair.
+  const [resetFor, setResetFor] = useState<{ open: boolean; source: ModuleSource | null }>({
+    open: false,
+    source,
+  });
+  if (open !== resetFor.open || source !== resetFor.source) {
+    setResetFor({ open, source });
+    if (open) {
+      setError(null);
+      setName(source?.metadata.name ?? "");
+      setF(source ? formFrom(source) : emptyForm);
+    }
+  }
 
   const set = (patch: Partial<form>) => setF((prev) => ({ ...prev, ...patch }));
 

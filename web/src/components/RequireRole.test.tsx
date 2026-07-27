@@ -145,4 +145,54 @@ describe("RequirePermission", () => {
     expect(screen.getByText("Can't reach the control plane")).toBeInTheDocument();
     expect(screen.queryByText("Access denied")).toBeNull();
   });
+
+  it("shows HTTP status in error message", () => {
+    useMeMock.mockReturnValue({
+      data: undefined,
+      error: new APIError(502, "bad gateway"),
+      isLoading: false,
+      refetch: refetchMock,
+    });
+    renderPerm("users:manage");
+    expect(screen.getByText(/HTTP 502/)).toBeInTheDocument();
+  });
+
+  it("works with multiple roles in RequireRole", () => {
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "o", displayName: "O", email: "", role: "operator" },
+      error: null,
+      isLoading: false,
+    });
+    render(
+      <RequireRole roles={["admin", "operator"]}>
+        <div>allowed</div>
+      </RequireRole>,
+    );
+    expect(screen.getByText("allowed")).toBeInTheDocument();
+  });
+
+  it("renders 401 as skeleton to avoid UI flicker", () => {
+    useMeMock.mockReturnValue({
+      data: undefined,
+      error: new APIError(401, "unauth"),
+      isLoading: false,
+    });
+    const { container } = renderGuard(["admin"]);
+    // 401 shows skeleton, not Forbidden or error UI
+    expect(container.querySelector(".animate-pulse")).not.toBeNull();
+  });
+
+  it("RequirePermission redirects 401 to login", () => {
+    useMeMock.mockReturnValue({
+      data: undefined,
+      error: new APIError(401, "unauth"),
+      isLoading: false,
+    });
+    render(
+      <RequirePermission perm="users:manage">
+        <div>secret</div>
+      </RequirePermission>,
+    );
+    expect(assignMock).toHaveBeenCalledWith("/login");
+  });
 });

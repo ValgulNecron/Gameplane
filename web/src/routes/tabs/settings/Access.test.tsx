@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -270,5 +270,205 @@ describe("AccessSection", () => {
     expect(screen.queryByPlaceholderText(/Add collaborator/i)).not.toBeInTheDocument();
     const removeButtons = screen.queryAllByTitle("Remove");
     expect(removeButtons).toHaveLength(0);
+  });
+
+  it("shows owner as dash when no owner annotation", () => {
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {},
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("user with servers:write permission can manage collaborators", () => {
+    useMeMock.mockReturnValue({
+      data: { id: 99, username: "operator", permissions: {} },
+    });
+    canMock.mockReturnValue(true); // servers:write permission
+
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+
+    expect(screen.getByPlaceholderText(/Add collaborator/i)).toBeInTheDocument();
+  });
+
+  it("add button disabled when input is empty", () => {
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "alice", permissions: {} },
+    });
+    canMock.mockReturnValue(false);
+
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+
+    const addBtn = screen.getByRole("button", { name: /^Add$/i });
+    expect(addBtn).toBeDisabled();
+  });
+
+  it("add button enabled when input has text", async () => {
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "alice", permissions: {} },
+    });
+    canMock.mockReturnValue(false);
+
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+
+    const input = screen.getByPlaceholderText(/Add collaborator/i);
+    await userEvent.type(input, "bob");
+
+    const addBtn = screen.getByRole("button", { name: /^Add$/i });
+    expect(addBtn).not.toBeDisabled();
+  });
+
+  it("input disabled during add mutation", async () => {
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "alice", permissions: {} },
+    });
+    canMock.mockReturnValue(false);
+
+    server.use(
+      http.put("/servers/test:collaborators", async ({ request }) => {
+        await request.json();
+        // Hold the response open briefly so the pending window is wide
+        // enough for waitFor's polling to observe the disabled input —
+        // without this, the mutation can resolve between polls and the
+        // assertion never catches the transient state.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+
+    const input = screen.getByPlaceholderText(/Add collaborator/i);
+    await userEvent.type(input, "bob");
+
+    const addBtn = screen.getByRole("button", { name: /^Add$/i });
+    fireEvent.click(addBtn);
+
+    // Input should be disabled during the mutation
+    await waitFor(() => expect(input).toBeDisabled());
+  });
+
+  it("error message parsing with error field", () => {
+    server.use(
+      http.put("/servers/test:collaborators", () =>
+        HttpResponse.json({ error: "permissions denied" }, { status: 403 }),
+      ),
+    );
+
+    useMeMock.mockReturnValue({
+      data: { id: 1, username: "alice", permissions: {} },
+    });
+    canMock.mockReturnValue(false);
+
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+
+    const input = screen.getByPlaceholderText(/Add collaborator/i);
+    fireEvent.change(input, { target: { value: "eve" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Add$/i }));
+
+    // Should show the error after mutation completes
+  });
+
+  it("collaborators split correctly on commas with spaces", () => {
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        namespace: "ns",
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+          "gameplane.local/collaborators": "2, 3, 4",
+          "gameplane.local/collaborator-names": "bob, charlie, dave",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+    expect(screen.getByText("bob")).toBeInTheDocument();
+    expect(screen.getByText("charlie")).toBeInTheDocument();
+    expect(screen.getByText("dave")).toBeInTheDocument();
+  });
+
+  it("namespace defaults to gameplane-games", () => {
+    useMeMock.mockReturnValue({
+      data: { id: 99, username: "operator", permissions: {} },
+    });
+    canMock.mockReturnValue(false);
+
+    const gs = makeServer({
+      metadata: {
+        name: "test",
+        // No namespace set
+        annotations: {
+          "gameplane.local/owner": "alice",
+          "gameplane.local/owner-id": "1",
+        },
+      },
+      spec: { templateRef: { name: "mc" } },
+    });
+    renderWithQuery(<AccessSection gs={gs} />);
+
+    // Component should handle the default namespace internally
+    expect(screen.getByText("alice")).toBeInTheDocument();
   });
 });

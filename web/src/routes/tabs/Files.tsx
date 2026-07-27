@@ -64,19 +64,22 @@ export function FilesTab({ name, ns }: { name: string; ns?: string }) {
   useEffect(() => {
     if (!selected || selected.dir) return;
     let aborted = false;
-    setLoadError(null);
-    Files.read(name, selected.path, ns)
-      .then((text) => {
+    const load = async () => {
+      // Clear any stale error as the first step of a fresh load.
+      setLoadError(null);
+      try {
+        const text = await Files.read(name, selected.path, ns);
         if (aborted) return;
         setServerContent(text);
         setEditorValue(text);
-      })
-      .catch((err: Error) => {
+      } catch (err) {
         if (aborted) return;
         setServerContent(null);
         setEditorValue("");
-        setLoadError(err.message);
-      });
+        setLoadError((err as Error).message);
+      }
+    };
+    void load();
     return () => {
       aborted = true;
     };
@@ -478,9 +481,14 @@ function NamePromptDialog({
   onSubmit,
 }: NamePromptProps) {
   const [value, setValue] = useState("");
-  useEffect(() => {
+  // Clear the input whenever the dialog transitions to open. Adjusted
+  // directly during render (not in an effect), gated on the previous
+  // `open` value tracked in state.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) setValue("");
-  }, [open]);
+  }
   const trimmed = value.trim();
   // Reject empty, slashes, and dot-only names — keeps the prompt aligned with
   // what the agent's resolve() will accept anyway, so users get instant feedback.

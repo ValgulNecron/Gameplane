@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeBackup, makeSchedule } from "@/test/factories";
+import { makeBackup, makeSchedule, makeRestore } from "@/test/factories";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
@@ -16,6 +16,16 @@ vi.mock("@tanstack/react-router", () => ({
 import { BackupsPage } from "./Backups";
 
 describe("BackupsPage", () => {
+  // BackupsPage reads its initial tab from the URL (readTab()) and pushes
+  // the active tab into it via history.replaceState. jsdom's window is
+  // shared across tests in this file, so a prior test that switched tabs
+  // (e.g. "switches to the Restores tab") otherwise leaks its ?tab= param
+  // into the next test's initial render, silently mounting the wrong
+  // panel and starving that test's own MSW handlers.
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
   it("renders the Backups tab and loads rows", async () => {
     server.use(
       http.get("/backups", () =>
@@ -91,5 +101,341 @@ describe("BackupsPage", () => {
     // Empty restore list — page should still render the panel header
     // without crashing.
     await waitFor(() => expect(tab.className).toContain("border-primary"));
+  });
+
+  it("filters backups by server name", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({
+          items: [
+            makeBackup({ metadata: { name: "alpha-1" }, spec: { serverRef: { name: "alpha" } } }),
+            makeBackup({ metadata: { name: "beta-1" }, spec: { serverRef: { name: "beta" } } }),
+          ],
+        }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            { metadata: { name: "alpha" } },
+            { metadata: { name: "beta" } },
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    await screen.findByText("alpha-1");
+    // Select beta server filter. BackupFilters' server select defaults to
+    // "All servers" (a filter with no selection means "show everything"),
+    // unlike the "Back up now" dialog's forced-choice "Select a server…".
+    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
+    await userEvent.selectOptions(serverSelect, "beta");
+    // Only beta-1 should be visible
+    expect(screen.getByText("beta-1")).toBeInTheDocument();
+    expect(screen.queryByText("alpha-1")).not.toBeInTheDocument();
+  });
+
+  it("filters backups by phase", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({
+          items: [
+            makeBackup({ metadata: { name: "backup-1" }, status: { phase: "Succeeded" } }),
+            makeBackup({ metadata: { name: "backup-2" }, status: { phase: "Failed" } }),
+          ],
+        }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    await screen.findByText("backup-1");
+    // Phase select defaults to "All phases" (same "no selection = show
+    // everything" convention as the server filter, so neither filter
+    // select's display value is the empty string).
+    const phaseSelect = screen.getByDisplayValue("All phases") as HTMLSelectElement;
+    await userEvent.selectOptions(phaseSelect, "Succeeded");
+    expect(screen.getByText("backup-1")).toBeInTheDocument();
+    expect(screen.queryByText("backup-2")).not.toBeInTheDocument();
+  });
+
+  it("searches backups by name", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({
+          items: [
+            makeBackup({ metadata: { name: "alpha-search-test" }, spec: { serverRef: { name: "alpha" } } }),
+            makeBackup({ metadata: { name: "beta-other" }, spec: { serverRef: { name: "beta" } } }),
+          ],
+        }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    await screen.findByText("alpha-search-test");
+    // Search for "search"
+    const searchInput = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
+    await userEvent.type(searchInput, "search");
+    expect(screen.getByText("alpha-search-test")).toBeInTheDocument();
+    expect(screen.queryByText("beta-other")).not.toBeInTheDocument();
+  });
+
+  it("shows empty state when no backups match filters", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({
+          items: [
+            makeBackup({ metadata: { name: "alpha-1" }, spec: { serverRef: { name: "alpha" } } }),
+          ],
+        }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [{ metadata: { name: "beta" } }],
+        }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    await screen.findByText("alpha-1");
+    // Filter to beta server (which has no backups)
+    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
+    await userEvent.selectOptions(serverSelect, "beta");
+    expect(screen.getByText(/No backups match the current filters/)).toBeInTheDocument();
+  });
+
+  it("shows error when BackupNow dialog fails to create backup", async () => {
+    server.use(
+      http.post("/backups", () =>
+        HttpResponse.text("backup failed", { status: 500 }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("option", { name: "alpha" });
+    await userEvent.selectOptions(within(dialog).getByRole("combobox"), "alpha");
+    const run = within(dialog).getByRole("button", { name: /Run snapshot/i });
+    await waitFor(() => expect(run).toBeEnabled());
+    await userEvent.click(run);
+    await waitFor(() => expect(screen.getByText(/backup failed/)).toBeInTheDocument());
+  });
+
+  it("disables BackupNow button when no destination configured", async () => {
+    server.use(
+      http.get("/backup-destinations", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Back up now/i }));
+    const dialog = await screen.findByRole("dialog");
+    const run = within(dialog).getByRole("button", { name: /Run snapshot/i });
+    await waitFor(() => expect(run).toBeDisabled());
+    expect(screen.getByText(/No backup destinations configured/)).toBeInTheDocument();
+  });
+
+  it("toggles schedule suspend status", async () => {
+    const toggleHandler = vi.fn(() => {
+      // patchSpec does GET then PUT; return a valid schedule with suspend toggled
+      return HttpResponse.json(
+        makeSchedule({
+          metadata: { name: "alpha-daily" },
+          spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", suspend: true },
+        }),
+      );
+    });
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({
+          items: [
+            makeSchedule({
+              metadata: { name: "alpha-daily" },
+              spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", suspend: false },
+            }),
+          ],
+        }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      // patchSpec's GET-before-PUT read step targets the single-schedule
+      // route, not the list route above — without this, the request falls
+      // through to the base handler and the mutation never reaches
+      // toggleHandler in time.
+      http.get("/schedules/alpha-daily", () =>
+        HttpResponse.json(
+          makeSchedule({
+            metadata: { name: "alpha-daily" },
+            spec: { serverRef: { name: "alpha" }, schedule: "0 3 * * *", suspend: false },
+          }),
+        ),
+      ),
+      http.put("/schedules/alpha-daily", toggleHandler),
+    );
+    renderWithQuery(<BackupsPage />);
+    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    await userEvent.click(schedTab);
+    await screen.findByText("alpha-daily");
+    // The schedule-active Switch renders role="switch" (a <button>), not
+    // a native checkbox.
+    const switchBtn = screen.getByRole("switch");
+    await userEvent.click(switchBtn);
+    await waitFor(() => expect(toggleHandler).toHaveBeenCalled());
+  });
+
+  it("shows delete confirmation dialog for schedule", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({
+          items: [makeSchedule({ metadata: { name: "alpha-daily" } })],
+        }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    await userEvent.click(schedTab);
+    await screen.findByText("alpha-daily");
+    const deleteBtn = screen.getByRole("button", { name: /Delete/i });
+    await userEvent.click(deleteBtn);
+    expect(await screen.findByText(/Delete schedule/)).toBeInTheDocument();
+  });
+
+  it("filters restores by server and phase", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/schedules", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+      http.get("/restores", () =>
+        HttpResponse.json({
+          items: [
+            makeRestore({
+              metadata: { name: "restore-1" },
+              spec: { serverRef: { name: "alpha" }, backupRef: { name: "backup-1" } },
+              status: { phase: "Succeeded" },
+            }),
+            makeRestore({
+              metadata: { name: "restore-2" },
+              spec: { serverRef: { name: "beta" }, backupRef: { name: "backup-2" } },
+              status: { phase: "Failed" },
+            }),
+          ],
+        }),
+      ),
+      http.get("/servers", () =>
+        HttpResponse.json({
+          items: [
+            { metadata: { name: "alpha" } },
+            { metadata: { name: "beta" } },
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    const restoresTab = screen.getByRole("button", { name: /Restores/i });
+    await userEvent.click(restoresTab);
+    await screen.findByText("restore-1");
+    // Filter by alpha server (RestoresTabPanel reuses BackupFilters, so
+    // same "All servers" default as the Backups tab's server filter).
+    const serverSelect = screen.getByDisplayValue("All servers") as HTMLSelectElement;
+    await userEvent.selectOptions(serverSelect, "alpha");
+    expect(screen.getByText("restore-1")).toBeInTheDocument();
+    expect(screen.queryByText("restore-2")).not.toBeInTheDocument();
+  });
+
+  it("shows empty restores state", async () => {
+    server.use(
+      http.get("/restores", () =>
+        HttpResponse.json({ items: [] }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    const restoresTab = screen.getByRole("button", { name: /Restores/i });
+    await userEvent.click(restoresTab);
+    expect(await screen.findByText(/No restores have been run/)).toBeInTheDocument();
+  });
+
+  it("searches restores by name", async () => {
+    server.use(
+      http.get("/restores", () =>
+        HttpResponse.json({
+          items: [
+            makeRestore({
+              metadata: { name: "search-restore-1" },
+              spec: { serverRef: { name: "alpha" }, backupRef: { name: "backup-1" } },
+            }),
+            makeRestore({
+              metadata: { name: "other-restore" },
+              spec: { serverRef: { name: "beta" }, backupRef: { name: "backup-2" } },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<BackupsPage />);
+    const restoresTab = screen.getByRole("button", { name: /Restores/i });
+    await userEvent.click(restoresTab);
+    await screen.findByText("search-restore-1");
+    const searchInput = screen.getByPlaceholderText(/search/i) as HTMLInputElement;
+    await userEvent.type(searchInput, "search");
+    expect(screen.getByText("search-restore-1")).toBeInTheDocument();
+    expect(screen.queryByText("other-restore")).not.toBeInTheDocument();
+  });
+
+  it("deletes a schedule", async () => {
+    const deleteHandler = vi.fn(() =>
+      HttpResponse.json({})
+    );
+    server.use(
+      http.get("/schedules", () =>
+        HttpResponse.json({
+          items: [makeSchedule({ metadata: { name: "alpha-daily" } })],
+        }),
+      ),
+      http.delete("/schedules/alpha-daily", deleteHandler),
+    );
+    renderWithQuery(<BackupsPage />);
+    const schedTab = screen.getByRole("button", { name: /Schedules/i });
+    await userEvent.click(schedTab);
+    await screen.findByText("alpha-daily");
+    const deleteBtn = screen.getByRole("button", { name: /Delete/i });
+    await userEvent.click(deleteBtn);
+    await screen.findByText(/Delete schedule/);
+    const typeInput = screen.getByRole("textbox") as HTMLInputElement;
+    await userEvent.type(typeInput, "alpha-daily");
+    const confirmBtn = screen.getByRole("button", { name: /Delete$/ });
+    await userEvent.click(confirmBtn);
+    await waitFor(() => expect(deleteHandler).toHaveBeenCalled());
   });
 });

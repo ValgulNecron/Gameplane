@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { FileArchive, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,13 +26,22 @@ export function UploadModuleDialog({ open, onOpenChange, sources, onUploaded }: 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    setSource(sources[0] ?? "");
-    setFile(null);
-    setPreview(null);
-    setError(null);
-  }, [open, sources]);
+  // Reset the form whenever the dialog (re)opens or the available sources
+  // list changes. Adjusted directly during render (not in an effect),
+  // gated on the previously-seen (open, sources) pair.
+  const [resetFor, setResetFor] = useState<{ open: boolean; sources: string[] }>({
+    open: false,
+    sources,
+  });
+  if (open !== resetFor.open || sources !== resetFor.sources) {
+    setResetFor({ open, sources });
+    if (open) {
+      setSource(sources[0] ?? "");
+      setFile(null);
+      setPreview(null);
+      setError(null);
+    }
+  }
 
   async function pick(f: File | null) {
     setFile(f);

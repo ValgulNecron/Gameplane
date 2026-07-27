@@ -64,9 +64,13 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          monaco: ["@monaco-editor/react", "monaco-editor"],
-          xterm: ["@xterm/xterm", "@xterm/addon-fit"],
+        manualChunks: (id: string) => {
+          if (id.includes("@monaco-editor") || id.includes("monaco-editor")) {
+            return "monaco";
+          }
+          if (id.includes("@xterm")) {
+            return "xterm";
+          }
         },
       },
     },

@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type ComponentType, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -17,7 +17,6 @@ import {
   Puzzle,
   RefreshCcw,
   ShieldCheck,
-  Slack,
   Activity,
   Trash2,
   Webhook,
@@ -29,6 +28,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SlackIcon } from "@/components/ui/slack-icon";
 import { cn, formatRelative } from "@/lib/utils";
 import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
 import type { ClusterInfo } from "@/types";
@@ -88,7 +88,7 @@ export function AdminSettingsPage() {
               onClick={() => setSection(key)}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary",
                 section === key
                   ? "bg-surface text-fg"
                   : "text-muted hover:bg-surface/60 hover:text-fg",
@@ -960,9 +960,13 @@ const defaultOnEvents: NotifEventType[] = [
   "restore.failed",
 ];
 
-const sinkIcons: Record<SinkKind, typeof Bell> = {
+// SlackIcon (a plain function component) is mixed in alongside lucide-react's
+// forwardRef-based icons; the only prop this map's consumer relies on is
+// `className`, so type the map to that shared contract rather than the full
+// LucideIcon (ForwardRefExoticComponent) shape.
+const sinkIcons: Record<SinkKind, ComponentType<{ className?: string }>> = {
   discord: MessagesSquare,
-  slack: Slack,
+  slack: SlackIcon,
   smtp: Mail,
   webhook: Webhook,
   ntfy: BellRing,

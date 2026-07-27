@@ -195,12 +195,12 @@ function BackupNowDialog({ onClose }: { onClose: () => void }) {
   const { data: destinations = [] } = useBackupDestinations();
 
   // When destinations resolve, default to the first one. The user can
-  // still pick a different one if more than one exists.
-  useEffect(() => {
-    if (!createDest && destinations.length > 0) {
-      setCreateDest(destinations[0].name);
-    }
-  }, [destinations, createDest]);
+  // still pick a different one if more than one exists. Adjusted directly
+  // during render (not in an effect) — the condition becomes false as soon
+  // as createDest is set, so this can't loop.
+  if (!createDest && destinations.length > 0) {
+    setCreateDest(destinations[0].name);
+  }
 
   const createNow = useMutation({
     mutationFn: () =>

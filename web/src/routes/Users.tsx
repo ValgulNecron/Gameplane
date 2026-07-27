@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   useMutation,
   useQuery,
@@ -302,7 +302,7 @@ function UserRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="rounded p-1 text-muted hover:bg-border hover:text-fg focus:outline-none focus:ring-1 focus:ring-primary"
+              className="rounded p-1 text-muted hover:bg-border hover:text-fg focus:outline-hidden focus:ring-1 focus:ring-primary"
               aria-label={`Actions for ${u.username}`}
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -497,12 +497,16 @@ function EditUserModal({
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [email, setEmail] = useState(user.email ?? "");
   const [role, setRole] = useState<string>(user.role);
-
-  useEffect(() => {
+  // Re-sync the form if `user` changes identity while mounted. Adjusted
+  // directly during render (not in an effect), gated on the previously-seen
+  // `user` reference.
+  const [resetFor, setResetFor] = useState(user);
+  if (user !== resetFor) {
+    setResetFor(user);
     setDisplayName(user.displayName ?? "");
     setEmail(user.email ?? "");
     setRole(user.role);
-  }, [user]);
+  }
 
   const dirty: UserUpdate = useMemo(() => {
     const out: UserUpdate = {};

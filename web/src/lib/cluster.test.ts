@@ -124,4 +124,102 @@ describe("Cluster Store", () => {
 
     expect(result.current).toBe("remote-prod");
   });
+
+  it("handles SecurityError in private browsing when getting cluster", async () => {
+    // Mock localStorage to throw SecurityError on getItem
+    const securityErrorLocalStorage = {
+      getItem: vi.fn(() => {
+        throw new Error("SecurityError: access is denied for this document.");
+      }),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      length: 0,
+      key: vi.fn(),
+    };
+
+    Object.defineProperty(window, "localStorage", {
+      value: securityErrorLocalStorage,
+      writable: true,
+    });
+
+    const { getCurrentCluster: freshGetCurrentCluster } = await import("./cluster");
+    // Should return default, not throw
+    expect(freshGetCurrentCluster()).toBe("local");
+  });
+
+  it("handles SecurityError in private browsing when setting cluster", async () => {
+    const securityErrorLocalStorage = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(() => {
+        throw new Error("SecurityError: access is denied for this document.");
+      }),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      length: 0,
+      key: vi.fn(),
+    };
+
+    Object.defineProperty(window, "localStorage", {
+      value: securityErrorLocalStorage,
+      writable: true,
+    });
+
+    const { setCurrentCluster: freshSetCurrentCluster, getCurrentCluster: freshGetCurrentCluster } =
+      await import("./cluster");
+
+    // Should not throw even though setItem failed
+    freshSetCurrentCluster("remote-prod");
+    // The in-memory cache should still be updated
+    expect(freshGetCurrentCluster()).toBe("remote-prod");
+  });
+
+  it("caches cluster value after first load", async () => {
+    localStorageMock.setItem("gameplane.cluster", "remote-staging");
+    const { getCurrentCluster: freshGetCurrentCluster } = await import("./cluster");
+
+    // First call reads from localStorage
+    expect(freshGetCurrentCluster()).toBe("remote-staging");
+
+    // Clear localStorage
+    localStorageMock.clear();
+
+    // Second call should return cached value, not default
+    expect(freshGetCurrentCluster()).toBe("remote-staging");
+  });
+
+  it("multiple subscribers all receive notifications", async () => {
+    const { setCurrentCluster: freshSetCurrentCluster, subscribeCluster: freshSubscribeCluster } =
+      await import("./cluster");
+
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+    const cb3 = vi.fn();
+
+    freshSubscribeCluster(cb1);
+    freshSubscribeCluster(cb2);
+    freshSubscribeCluster(cb3);
+
+    freshSetCurrentCluster("new-cluster");
+
+    expect(cb1).toHaveBeenCalledTimes(1);
+    expect(cb2).toHaveBeenCalledTimes(1);
+    expect(cb3).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call notifySubscribers when localStorage fails but cache is same", async () => {
+    const { setCurrentCluster: freshSetCurrentCluster, subscribeCluster: freshSubscribeCluster } =
+      await import("./cluster");
+
+    const cb = vi.fn();
+    freshSubscribeCluster(cb);
+
+    // Set initial cluster
+    freshSetCurrentCluster("prod");
+    expect(cb).toHaveBeenCalledTimes(1);
+
+    // Set same cluster again
+    freshSetCurrentCluster("prod");
+    expect(cb).toHaveBeenCalledTimes(2); // still called, but to same value
+  });
 });

@@ -87,4 +87,105 @@ describe("openEventStream with EventSource", () => {
     dispose();
     expect(FakeEventSource.instances[1].closed).toBe(true);
   });
+
+  it("sends withCredentials flag for auth", () => {
+    vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
+    vi.useFakeTimers();
+
+    const dispose = openEventStream({ onEvent: vi.fn() });
+    const es = FakeEventSource.instances[0];
+    expect(es.opts).toEqual({ withCredentials: true });
+
+    dispose();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("does not reconnect when the stream is already closed via dispose", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
+
+    const dispose = openEventStream({ onEvent: vi.fn() });
+    const es = FakeEventSource.instances[0];
+    dispose();
+
+    // Trigger error after dispose
+    es.readyState = FakeEventSource.CLOSED;
+    es.onerror?.();
+
+    // Should not have created a second instance due to reconnect
+    vi.advanceTimersByTime(3000);
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("does not reconnect when error fires on an open stream", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
+
+    const dispose = openEventStream({ onEvent: vi.fn() });
+    const es = FakeEventSource.instances[0];
+
+    // readyState is CONNECTING (0) when open, so error doesn't trigger reconnect
+    es.readyState = 0;
+    es.onerror?.();
+
+    vi.advanceTimersByTime(3000);
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    dispose();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("does not reconnect after dispose", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
+
+    const dispose = openEventStream({ onEvent: vi.fn() });
+    dispose();
+
+    const es = FakeEventSource.instances[0];
+    es.readyState = FakeEventSource.CLOSED;
+    es.onerror?.();
+
+    vi.advanceTimersByTime(3000);
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("handles events with metadata paths", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
+
+    const events: GameplaneEvent[] = [];
+    const dispose = openEventStream({
+      onEvent: (e) => events.push(e),
+    });
+
+    const es = FakeEventSource.instances[0];
+    es.onmessage?.({
+      data: JSON.stringify({
+        kind: "servers",
+        eventType: "MODIFIED",
+        object: {
+          metadata: {
+            name: "mc-server",
+            namespace: "default",
+          },
+        },
+      }),
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].object.metadata?.name).toBe("mc-server");
+
+    dispose();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 });

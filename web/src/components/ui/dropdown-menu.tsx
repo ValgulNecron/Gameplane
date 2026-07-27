@@ -63,7 +63,7 @@ export function DropdownMenuItem({
       disabled={disabled}
       title={hint}
       className={cn(
-        "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-none",
+        "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-hidden",
         destructive ? "text-danger" : "text-fg",
         disabled
           ? "opacity-50 cursor-not-allowed"
@@ -84,7 +84,7 @@ export const DropdownMenuCheckboxItem = forwardRef<
     ref={ref}
     checked={checked}
     className={cn(
-      "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-none text-fg",
+      "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 outline-hidden text-fg",
       "data-[highlighted]:bg-surface/70",
       className,
     )}

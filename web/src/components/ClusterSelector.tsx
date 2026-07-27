@@ -83,7 +83,7 @@ export function ClusterSelector() {
                 key={cluster.name}
                 onSelect={() => handleSelectCluster(cluster.name)}
                 className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none",
+                  "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-hidden",
                   "text-fg data-[highlighted]:bg-surface/70",
                 )}
               >
@@ -100,7 +100,7 @@ export function ClusterSelector() {
             <Menu.Item
               onSelect={handleAddCluster}
               className={cn(
-                "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none",
+                "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-hidden",
                 "text-fg data-[highlighted]:bg-surface/70",
               )}
             >

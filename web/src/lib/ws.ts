@@ -56,7 +56,7 @@ export function openWS(path: string, opts: WSOptions) {
   connect();
 
   return {
-    send(data: string | ArrayBufferLike | Blob | ArrayBufferView) { sock?.send(data); },
+    send(data: string | Blob | BufferSource) { sock?.send(data); },
     close() { closedByUser = true; sock?.close(); },
   };
 }

@@ -27,28 +27,29 @@ const STATUS_LABEL: Record<WSStatus, string> = {
 // xterm host, and a dedicated command-input bar. All behavior comes from the
 // useConsoleTerminal handle; this component is presentation + local input.
 export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
+  const { hostRef, status, clear, download, toggleFullscreen, sendCommand } = handle;
   const [cmd, setCmd] = useState("");
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <span className="inline-flex items-center gap-1.5 font-mono text-xs">
-          <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[handle.status])} aria-hidden />
-          {STATUS_LABEL[handle.status]}
+          <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[status])} aria-hidden />
+          {STATUS_LABEL[status]}
         </span>
         <div className="ml-auto flex flex-wrap gap-1">
-          <Button variant="outline" size="sm" onClick={handle.clear}>
+          <Button variant="outline" size="sm" onClick={clear}>
             <Eraser className="h-3 w-3" /> Clear
           </Button>
-          <Button variant="outline" size="sm" onClick={handle.download}>
+          <Button variant="outline" size="sm" onClick={download}>
             <Download className="h-3 w-3" /> Download
           </Button>
-          <Button variant="outline" size="sm" onClick={handle.toggleFullscreen}>
+          <Button variant="outline" size="sm" onClick={toggleFullscreen}>
             <Maximize2 className="h-3 w-3" /> Fullscreen
           </Button>
         </div>
       </div>
       <div className="flex-1 p-4">
-        <div ref={handle.hostRef} className="h-full rounded-lg border border-border bg-[#0b0b0d] p-2" />
+        <div ref={hostRef} className="h-full rounded-lg border border-border bg-[#0b0b0d] p-2" />
       </div>
       <form
         className="flex items-center gap-2 border-t border-border px-4 py-2"
@@ -56,7 +57,7 @@ export function ConsoleShell({ handle }: { handle: ConsoleHandle }) {
           e.preventDefault();
           const line = cmd.trim();
           if (!line) return;
-          handle.sendCommand(line);
+          sendCommand(line);
           setCmd("");
         }}
       >

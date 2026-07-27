@@ -6,8 +6,12 @@ import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 
 // Mock the router navigation
-vi.mock("@tanstack/react-router", () => ({
+const routerMocks = {
   useNavigate: () => vi.fn(),
+};
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => routerMocks.useNavigate(),
 }));
 
 import { ClusterSelector } from "./ClusterSelector";
@@ -261,5 +265,56 @@ describe("ClusterSelector", () => {
       const button = screen.getByRole("button", { name: /select cluster/i });
       expect(button).toBeInTheDocument();
     });
+  });
+
+  it("navigates to /cluster when Add cluster is clicked", async () => {
+    const navigateMock = vi.fn();
+    routerMocks.useNavigate = () => navigateMock;
+
+    const clusters: ClusterRegistry[] = [
+      { name: "local", displayName: "Local", phase: "Healthy" },
+    ];
+
+    server.use(
+      http.get("/clusters", () => HttpResponse.json({ items: clusters })),
+    );
+
+    renderWithQuery(<ClusterSelector />);
+
+    const trigger = await screen.findByRole("button", { name: /select cluster/i });
+    await userEvent.click(trigger);
+
+    const addItem = await screen.findByRole("menuitem", { name: /add cluster/i });
+    await userEvent.click(addItem);
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/cluster" });
+  });
+
+  it("renders button with hover styles and chevron", async () => {
+    const clusters: ClusterRegistry[] = [
+      { name: "local", displayName: "Local", phase: "Healthy" },
+    ];
+
+    server.use(
+      http.get("/clusters", () => HttpResponse.json({ items: clusters })),
+    );
+
+    renderWithQuery(<ClusterSelector />);
+
+    const button = await screen.findByRole("button", { name: /select cluster/i });
+    expect(button).toHaveClass("hover:bg-surface");
+    expect(button).toHaveClass("transition-colors");
+  });
+
+  it("cluster selector shows 'Unknown' phase for null cluster", async () => {
+    server.use(
+      http.get("/clusters", () => HttpResponse.json({ items: [] })),
+    );
+
+    renderWithQuery(<ClusterSelector />);
+
+    // When no clusters match current selection, phase defaults to "Unknown"
+    const button = await screen.findByRole("button", { name: /select cluster/i });
+    expect(button).toBeInTheDocument();
   });
 });

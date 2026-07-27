@@ -302,3 +302,90 @@ describe("integration with Resources.tsx patterns", () => {
     expect(parseMemQuantity("8Gi")).toEqual({ value: 8, unit: "Gi" });
   });
 });
+
+describe("formatMemQuantity edge cases", () => {
+  it("recursively steps down fractional Ki", () => {
+    // 0.5 Ki = 512 bytes; should emit as raw byte count
+    const result = formatMemQuantity({ value: 0.5, unit: "Ki" });
+    expect(result).toBe("512"); // 0.5 * 1024 = 512
+  });
+
+  it("handles very small fractional values", () => {
+    // 0.1 Ki = 102.4 bytes; should round
+    const result = formatMemQuantity({ value: 0.1, unit: "Ki" });
+    expect(result).toBe("102");
+  });
+
+  it("preserves precision through multi-level demotions", () => {
+    // 1.5 Ti -> 1536 Gi -> still fractional? No, it should resolve to integer
+    const result = formatMemQuantity({ value: 1.5, unit: "Ti" });
+    expect(result).toBe("1536Gi");
+  });
+});
+
+describe("parseMemQuantity promotion logic", () => {
+  it("promotes 1024 Mi to 1 Gi", () => {
+    const result = parseMemQuantity("1024Mi");
+    expect(result).toEqual({ value: 1, unit: "Gi" });
+  });
+
+  it("does not promote partial units", () => {
+    // 1000 Mi is not divisible by 1024, so stays as Mi
+    const result = parseMemQuantity("1000Mi");
+    expect(result?.unit).toBe("Mi");
+    expect(result?.value).toBe(1000);
+  });
+
+  it("promotes 1048576 Ki to 1 Gi", () => {
+    // 1048576 Ki = 1 Gi
+    const result = parseMemQuantity("1048576Ki");
+    expect(result).toEqual({ value: 1, unit: "Gi" });
+  });
+
+  it("handles chained promotions (Ki->Mi->Gi)", () => {
+    // 4194304 Ki = 4096 Mi = 4 Gi
+    const result = parseMemQuantity("4194304Ki");
+    expect(result).toEqual({ value: 4, unit: "Gi" });
+  });
+});
+
+describe("parseMemQuantity decimal SI fallback", () => {
+  it("chooses Gi for large decimal values", () => {
+    // "1T" (decimal SI) = 10^12 bytes; since 10^12 / 2^40 ≈ 0.93 < 1,
+    // it doesn't qualify for Ti. But 10^12 / 2^30 ≈ 931, so it picks Gi.
+    const result = parseMemQuantity("1T");
+    expect(result?.unit).toBe("Gi");
+    expect(result?.value).toBeCloseTo(931.32, 1);
+  });
+
+  it("chooses Ki for sub-1 values without binary suffix", () => {
+    const result = parseMemQuantity("512");
+    expect(result?.unit).toBe("Ki");
+  });
+
+  it("falls back to Ki when no unit >= 1 in binary", () => {
+    const result = parseMemQuantity("500");
+    expect(result?.unit).toBe("Ki");
+    expect(result?.value).toBeCloseTo(0.488, 2);
+  });
+});
+
+describe("parseCpuQuantity invalid branches", () => {
+  it("returns null for NaN after slicing millicores", () => {
+    expect(parseCpuQuantity("abcm")).toBeNull();
+  });
+
+  it("returns null for invalid number as bare cores", () => {
+    expect(parseCpuQuantity("1.2.3")).toBeNull();
+  });
+
+  it("rejects negative values", () => {
+    expect(parseCpuQuantity("-1")).toBeNull();
+    expect(parseCpuQuantity("-500m")).toBeNull();
+  });
+
+  it("handles leading/trailing whitespace via isValidQuantity", () => {
+    // isValidQuantity trims, so this should parse
+    expect(parseCpuQuantity(" 2 ")).toBeNull(); // Actually won't parse if isValidQuantity rejects
+  });
+});

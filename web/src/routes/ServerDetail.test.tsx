@@ -426,3 +426,174 @@ describe("ServerDetailPage clone action", () => {
     expect(screen.getByLabelText("New name")).toBeInTheDocument();
   });
 });
+
+describe("ServerDetailPage failure states", () => {
+  it("shows default failure message when Ready condition has no message", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Failed",
+              conditions: [
+                {
+                  type: "Ready",
+                  status: "False",
+                  reason: "CrashLoopBackOff",
+                  message: undefined,
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(
+      await screen.findByText("The server failed to start."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders server version and uptime metadata", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              agent: { gameVersion: "1.20.1" },
+              startedAt: "2026-05-07T00:00:00Z",
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    expect(await screen.findByText("1.20.1")).toBeInTheDocument();
+  });
+
+  it("shows the Modpacks tab when the template supports it", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: {
+              // serverHasModpacks gates on the active version's loader
+              // being modpack-capable (fabric/forge/neoforge/quilt) — a
+              // template with no versions[] has no resolvable loader, so
+              // a default forge version is required for the tab to show.
+              versions: [{ id: "forge", displayName: "Forge", loader: "forge", default: true }],
+              capabilities: {
+                mods: {
+                  loaders: {
+                    forge: { path: "modpacks" },
+                  },
+                  registry: {
+                    providers: [
+                      {
+                        provider: "modrinth",
+                        modpacks: { refEnv: "MODRINTH_MODPACK" },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const modpacksTab = await screen.findByRole("button", { name: "Modpacks" });
+    expect(modpacksTab).toBeInTheDocument();
+  });
+
+  it("hides Modpacks when the template does not declare the capability", async () => {
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { capabilities: {} },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    await screen.findByRole("button", { name: "Console" });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Modpacks" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("falls back to Overview tab when the requested tab becomes unavailable", async () => {
+    let consoleAvailable = true;
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: consoleAvailable
+              ? { consoleMode: "rcon", rcon: { protocol: "rcon" } }
+              : { consoleMode: "none", rcon: { protocol: "none" } },
+          }),
+        ),
+      ),
+    );
+    const { client } = renderWithQuery(<ServerDetailPage />);
+    // Click Console tab which should show
+    const consoleTab = await screen.findByRole("button", { name: "Console" });
+    await userEvent.click(consoleTab);
+    await waitFor(() => expect(screen.getByText("console-tab")).toBeInTheDocument());
+
+    // Simulate the template being updated to remove console support
+    consoleAvailable = false;
+    server.resetHandlers();
+    server.use(
+      http.get("/servers/alpha", () => HttpResponse.json(makeServer())),
+      http.get("/templates/:name", ({ params }) =>
+        HttpResponse.json(
+          makeTemplate({
+            metadata: { name: String(params.name) },
+            spec: { consoleMode: "none", rcon: { protocol: "none" } },
+          }),
+        ),
+      ),
+    );
+    // The template query has no polling interval of its own (unlike the
+    // server query's 5s refetchInterval), so nothing re-fetches it after
+    // swapping handlers — invalidate it explicitly to simulate the refetch.
+    await client.invalidateQueries({ queryKey: ["template"] });
+
+    // Wait for template refetch and fallback to overview
+    await waitFor(() =>
+      expect(screen.getByText("overview-tab")).toBeInTheDocument(),
+    );
+  });
+
+  it("renders Stop button for asleep servers without showing Wake after a stop", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            status: {
+              phase: "Suspended",
+              idle: { asleep: true, asleepSince: "2026-05-07T12:00:00Z" },
+            },
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    // The Stop button renders (disabled) before /servers/alpha resolves —
+    // findByRole can resolve during that initial disabled render, so wait
+    // for the loaded, asleep-aware disabled state like the other lifecycle
+    // button tests in this file do.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Stop$/i })).not.toBeDisabled(),
+    );
+  });
+});
