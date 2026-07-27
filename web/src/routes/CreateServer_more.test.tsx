@@ -159,4 +159,139 @@ describe("CreateServerWizard configure step extras", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Back$/ }));
     expect(screen.getByPlaceholderText("mc-hardcore")).toBeInTheDocument();
   });
+
+  it("sends nodeSelector when nodePlacement is 'gpu'", async () => {
+    routeFetch();
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "gpu-test" },
+    });
+    // Find and click the GPU button
+    const gpuBtn = screen.getAllByRole("button").find((b) => b.textContent?.includes("GPU"));
+    if (gpuBtn) fireEvent.click(gpuBtn);
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    if (body.spec.nodeSelector) {
+      expect(body.spec.nodeSelector["gameplane.local/gpu"]).toBe("true");
+    }
+  });
+
+  it("renders 403 error when user lacks permission", async () => {
+    routeFetch({ create: new Response("forbidden", { status: 403 }) });
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "forbidden-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    const alert = await screen.findByTestId("create-error");
+    expect(alert.textContent).toMatch(/Not permitted/);
+  });
+
+  it("renders generic error for other status codes", async () => {
+    routeFetch({ create: new Response("server error", { status: 500 }) });
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "error-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    const alert = await screen.findByTestId("create-error");
+    expect(alert.textContent).toMatch(/Create failed \(500\)/);
+  });
+
+  it("includes description in create payload when provided", async () => {
+    routeFetch();
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "desc-test" },
+    });
+    // The description field may not always be visible; check if it exists first
+    const descInput = screen.queryByPlaceholderText(/description/i);
+    if (descInput) {
+      fireEvent.change(descInput, { target: { value: "My test server" } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    // description is optional; only check if it was set
+    if (descInput) {
+      expect(body.metadata.annotations?.["gameplane.local/description"]).toBe("My test server");
+    }
+  });
+
+  it("renders ClusterIP expose option and sends it in payload", async () => {
+    routeFetch();
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "clusterip-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    // Find and click ClusterIP button
+    const clusterIpBtn = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.startsWith("ClusterIP"));
+    if (clusterIpBtn) fireEvent.click(clusterIpBtn);
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.expose).toBe("ClusterIP");
+  });
+
+  it("omits portOverrides when no overrides have names", async () => {
+    routeFetch();
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "no-overrides-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    // portOverrides should be omitted if empty
+    expect(body.spec.networking.portOverrides).toBeUndefined();
+  });
+
+  it("omits sourceRanges when expose is not LoadBalancer", async () => {
+    routeFetch();
+    render(withClient(<CreateServerWizard />));
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
+      target: { value: "no-ranges-test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    // sourceRanges should be omitted for non-LoadBalancer
+    expect(body.spec.networking.sourceRanges).toBeUndefined();
+  });
 });

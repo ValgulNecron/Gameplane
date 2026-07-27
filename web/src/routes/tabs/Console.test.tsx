@@ -38,34 +38,44 @@ const mocks = vi.hoisted(() => {
   return { terms, fits, wsCalls, wsHandle };
 });
 
+// Vitest 4 tightened `new`-validation on vi.fn() mocks: a plain
+// `vi.fn().mockImplementation(...)` used via `new Terminal(...)` now throws
+// "is not a constructor" instead of silently working (it inspects the
+// function's own shape, and a factory arrow fails that check even though
+// mockImplementation's return value is what actually gets used for `new`
+// in most mocking libs). A real `class` is a legitimate constructor, so it
+// passes the check; the constructor body pushes the same recorded instance
+// shape the tests already key off via `mocks.terms`/`mocks.fits`.
 vi.mock("@xterm/xterm", () => ({
-  Terminal: vi.fn().mockImplementation(() => {
-    const inst = {
-      open: vi.fn(),
-      write: vi.fn(),
-      writeln: vi.fn(),
-      clear: vi.fn(),
-      onData: vi.fn(() => ({ dispose: vi.fn() })),
-      onResize: vi.fn(() => ({ dispose: vi.fn() })),
-      dispose: vi.fn(),
-      loadAddon: vi.fn(),
-      element: { isConnected: true },
-      buffer: {
-        active: { length: 2, getLine: (i: number) => ({ translateToString: () => `line ${i}` }) },
-      },
-      cols: 100,
-      rows: 30,
+  Terminal: class {
+    open = vi.fn();
+    write = vi.fn();
+    writeln = vi.fn();
+    clear = vi.fn();
+    onData = vi.fn(() => ({ dispose: vi.fn() }));
+    onResize = vi.fn(() => ({ dispose: vi.fn() }));
+    dispose = vi.fn();
+    loadAddon = vi.fn();
+    element = { isConnected: true };
+    buffer = {
+      active: { length: 2, getLine: (i: number) => ({ translateToString: () => `line ${i}` }) },
     };
-    mocks.terms.push(inst);
-    return inst;
-  }),
+    cols = 100;
+    rows = 30;
+
+    constructor() {
+      mocks.terms.push(this);
+    }
+  },
 }));
 vi.mock("@xterm/addon-fit", () => ({
-  FitAddon: vi.fn().mockImplementation(() => {
-    const inst = { fit: vi.fn() };
-    mocks.fits.push(inst);
-    return inst;
-  }),
+  FitAddon: class {
+    fit = vi.fn();
+
+    constructor() {
+      mocks.fits.push(this);
+    }
+  },
 }));
 vi.mock("@xterm/xterm/css/xterm.css", () => ({}));
 vi.mock("@/lib/ws", () => ({

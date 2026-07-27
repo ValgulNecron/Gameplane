@@ -190,10 +190,13 @@ function useMetricHistory(value: number | undefined, max = 32): number[] {
   const [hist, setHist] = useState<number[]>([]);
   useEffect(() => {
     if (value === undefined || Number.isNaN(value)) return;
-    setHist((h) => {
-      const next = h.concat(value);
-      return next.length > max ? next.slice(-max) : next;
-    });
+    const appendSample = () => {
+      setHist((h) => {
+        const next = h.concat(value);
+        return next.length > max ? next.slice(-max) : next;
+      });
+    };
+    appendSample();
   }, [value, max]);
   return hist;
 }

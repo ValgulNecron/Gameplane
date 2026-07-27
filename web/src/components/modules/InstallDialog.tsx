@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,14 +27,22 @@ export function InstallDialog({ open, onOpenChange, entry, onConfirm, busy }: In
   const [error, setError] = useState<string | null>(null);
 
   // When the entry changes (or the dialog re-opens), reset to its
-  // defaults: first source, latest version, canonical name.
-  useEffect(() => {
-    if (!open || !entry) return;
-    setError(null);
-    setSource(entry.sources[0]?.name ?? "");
-    setVersion(entry.latestVersion ?? entry.versions?.[0] ?? "");
-    setName(entry.name);
-  }, [open, entry]);
+  // defaults: first source, latest version, canonical name. Adjusted
+  // directly during render (not in an effect), gated on the
+  // previously-seen (open, entry) pair.
+  const [resetFor, setResetFor] = useState<{ open: boolean; entry: CatalogEntry | null }>({
+    open: false,
+    entry,
+  });
+  if (open !== resetFor.open || entry !== resetFor.entry) {
+    setResetFor({ open, entry });
+    if (open && entry) {
+      setError(null);
+      setSource(entry.sources[0]?.name ?? "");
+      setVersion(entry.latestVersion ?? entry.versions?.[0] ?? "");
+      setName(entry.name);
+    }
+  }
 
   if (!entry) return null;
 

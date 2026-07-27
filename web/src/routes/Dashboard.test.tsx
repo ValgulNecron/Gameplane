@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeServer, makeBackup, makeAudit, makeClusterView, makeClusterStats, makeUser } from "@/test/factories";
@@ -241,5 +241,162 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("Recent activity")).not.toBeInTheDocument();
     // Viewer lacks servers:write → no "View cluster" link either.
     expect(screen.queryByRole("link", { name: /view cluster/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the View cluster link to users with servers:write permission", async () => {
+    server.use(
+      http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))),
+    );
+    const { client } = renderWithQuery(<DashboardPage />);
+    await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
+    await screen.findByText("Cluster resources");
+    const viewClusterLink = screen.getByRole("link", { name: /view cluster/i });
+    expect(viewClusterLink).toHaveAttribute("href", "/cluster");
+  });
+
+  it("renders vcpus as — when no node data is available", async () => {
+    server.use(
+      http.get("/cluster", () => HttpResponse.json({})),
+    );
+    renderWithQuery(<DashboardPage />);
+    const label = await screen.findByText("vCPUs");
+    // Several stat cards fall back to the same "—" placeholder when their
+    // data is missing, so scope the assertion to the vCPUs card itself.
+    const card = label.closest("div.rounded-lg");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText("—")).toBeInTheDocument();
+  });
+
+  it("renders nodes section only when nodes exist", async () => {
+    server.use(
+      http.get("/cluster", () =>
+        HttpResponse.json(makeClusterView({ nodes: [] })),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("Cluster resources");
+    expect(screen.queryByText("Nodes")).not.toBeInTheDocument();
+  });
+
+  it("renders node status indicators correctly", async () => {
+    server.use(
+      http.get("/cluster", () =>
+        HttpResponse.json(
+          makeClusterView({
+            nodes: [
+              { name: "ready-node", status: "Ready", cpu: { capacity: 8 }, memory: { capacity: 16000000000 } },
+              { name: "not-ready-node", status: "NotReady", cpu: { capacity: 4 }, memory: { capacity: 8000000000 } },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("ready-node");
+    expect(screen.getByText("not-ready-node")).toBeInTheDocument();
+  });
+
+  it("handles partially missing node metrics gracefully", async () => {
+    server.use(
+      http.get("/cluster", () =>
+        HttpResponse.json(
+          makeClusterView({
+            nodes: [
+              { name: "partial-node", status: "Ready" }, // no cpu/memory/pods
+            ],
+          }),
+        ),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("partial-node");
+    // Multiple placeholders can render "—" for missing metrics (vCPUs card,
+    // per-node cpu/mem cells); scope to the vCPUs stat card specifically,
+    // since a node with no cpu.capacity keeps the cluster-wide vcpus sum
+    // at zero.
+    const label = screen.getByText("vCPUs");
+    const card = label.closest("div.rounded-lg");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText("—")).toBeInTheDocument();
+  });
+
+  it("sorts backups by startTime descending", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({
+          items: [
+            makeBackup({
+              metadata: { name: "backup-1" },
+              spec: { serverRef: { name: "srv-1" } },
+              status: { startTime: "2026-05-07T01:00:00Z" },
+            }),
+            makeBackup({
+              metadata: { name: "backup-2" },
+              spec: { serverRef: { name: "srv-2" } },
+              status: { startTime: "2026-05-07T03:00:00Z" },
+            }),
+            makeBackup({
+              metadata: { name: "backup-3" },
+              spec: { serverRef: { name: "srv-3" } },
+              status: { startTime: "2026-05-07T02:00:00Z" },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    const rows = await screen.findAllByText(/srv-/);
+    expect(rows[0]).toHaveTextContent("srv-2");
+    expect(rows[1]).toHaveTextContent("srv-3");
+    expect(rows[2]).toHaveTextContent("srv-1");
+  });
+
+  it("renders backup without size gracefully", async () => {
+    server.use(
+      http.get("/backups", () =>
+        HttpResponse.json({
+          items: [
+            makeBackup({
+              metadata: { name: "no-size-backup" },
+              spec: { serverRef: { name: "srv" } },
+              status: { phase: "Pending", startTime: "2026-05-07T03:00:00Z" },
+            }),
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    const backupName = await screen.findByText("srv");
+    // Should not crash; size just doesn't render. Scope to this backup's
+    // row — the unrelated Storage provisioned stat card legitimately
+    // renders a "233 GB" / "3.7 GB / 15 GB" string elsewhere on the page,
+    // which would otherwise false-match the same regex.
+    const row = backupName.closest("div.flex.items-center.gap-3");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).queryByText(/GiB|MiB|B$/)).not.toBeInTheDocument();
+  });
+
+  it("describes audit events for PATCH requests", async () => {
+    server.use(
+      http.get("/admin/audit", () =>
+        HttpResponse.json([
+          makeAudit({ id: 1, actor: "alice", method: "PATCH", path: "/api/v1/servers/mc", target: "mc" }),
+        ]),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    await screen.findByText("alice updated mc");
+  });
+
+  it("renders audit event without target gracefully", async () => {
+    server.use(
+      http.get("/admin/audit", () =>
+        HttpResponse.json([
+          makeAudit({ id: 1, actor: "bob", method: "POST", path: "/api/v1/servers", target: undefined }),
+        ]),
+      ),
+    );
+    renderWithQuery(<DashboardPage />);
+    expect(await screen.findByText(/bob created/)).toBeInTheDocument();
   });
 });

@@ -96,7 +96,7 @@ export function ServersPage() {
       const key = `${s.metadata.namespace ?? "gameplane-games"}/${s.metadata.name}`;
       return !serverKeys.has(key);
     });
-  }, [servers, myServers?.items]);
+  }, [servers, myServers]);
   const counts = useMemo(() => countByState(servers), [servers]);
   const vcpus = (clusterView?.nodes ?? []).reduce((s, n) => s + (n.cpu?.capacity ?? 0), 0);
   const storage = describeStorageProvisioned(cluster?.usedStorageBytes, cluster?.totalStorageBytes);

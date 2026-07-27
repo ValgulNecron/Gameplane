@@ -183,4 +183,16 @@ describe("EventsTab", () => {
 
     expect(screen.getByText("No warnings or errors.")).toBeInTheDocument();
   });
+
+  it("shows empty state when no events are returned", async () => {
+    fetchMock.mockImplementation((path: string) => {
+      if (String(path).includes("/events")) {
+        return Promise.resolve(jsonRes([]));
+      }
+      return Promise.reject(new Error("unexpected fetch"));
+    });
+
+    render(withClient(<EventsTab name="s1" />));
+    expect(await screen.findByText(/No events yet/i)).toBeInTheDocument();
+  });
 });

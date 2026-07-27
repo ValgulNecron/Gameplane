@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,10 +28,15 @@ export function ConfirmDialog({
   busy,
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState("");
-
-  useEffect(() => {
+  // Clear the typed confirmation whenever the dialog transitions to open.
+  // Adjusted directly during render (not in an effect) — the React-endorsed
+  // pattern for resetting state on a prop change, gated on the previous
+  // `open` value tracked in state.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) setTyped("");
-  }, [open]);
+  }
 
   const matches = !confirmPhrase || typed === confirmPhrase;
 

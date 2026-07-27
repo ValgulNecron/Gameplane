@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: restic
-          image: restic/rest-server:0.13.0
+          image: restic/rest-server:0.14.0
           # The image's default CMD ("rest-server") gets clobbered if we
           # only set args; reinstate it explicitly so --no-auth lands as
           # a flag rather than as the executable.

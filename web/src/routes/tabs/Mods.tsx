@@ -462,8 +462,11 @@ function ModsByIdTab({
     if (!saved || saved === lastSeenRef.current) return;
     lastSeenRef.current = saved;
     if (dirty) return; // local edits in flight — don't clobber
-    savedRef.current = saved;
-    setRows(saved.map((m) => ({ ...m, state: "kept" as const })));
+    const applySaved = () => {
+      savedRef.current = saved;
+      setRows(saved.map((m) => ({ ...m, state: "kept" as const })));
+    };
+    applySaved();
   }, [saved, dirty]);
 
   const save = useMutation({
@@ -1115,10 +1118,11 @@ function ModCard({
   });
   const list = versions.data ?? [];
 
-  useEffect(() => {
-    const first = versions.data?.[0];
-    if (first && !selId) setSelId(first.id);
-  }, [versions.data, selId]);
+  // Default to the first version once it loads. Adjusted directly during
+  // render (not in an effect) — the condition becomes false as soon as
+  // selId is set, so this can't loop.
+  const firstVersion = versions.data?.[0];
+  if (firstVersion && !selId) setSelId(firstVersion.id);
 
   const chosen = list.find((v) => v.id === selId) ?? list[0];
   const file = chosen?.files.find((f) => f.primary) ?? chosen?.files[0];

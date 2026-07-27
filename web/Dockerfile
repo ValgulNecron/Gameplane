@@ -5,7 +5,7 @@
 # Everything this stage needs lives under web/, so only web/ is copied in.
 
 # ---- build the SPA ----
-FROM node:22-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 WORKDIR /src/web
 
 # Install deps first (cached until the lockfile changes), then build.
@@ -19,7 +19,7 @@ RUN npm run build
 # ---- serve with a non-root nginx ----
 # nginx-unprivileged listens on 8080 and runs as uid 101 (nginx), so it needs
 # no root and satisfies runAsNonRoot/readOnlyRootFilesystem in the chart.
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.30-alpine
 
 # The publish/release workflows pass --build-arg VERSION=…; consume it as a
 # provenance label (and to avoid a BuildKit "unconsumed build arg" warning).

@@ -529,7 +529,7 @@ function GlobalSearch() {
             location.assign(`/servers/${matches[0].metadata.name}`);
           }
         }}
-        className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-none"
+        className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-fg placeholder:text-muted focus:border-primary focus:outline-hidden"
       />
       {open && query.length > 0 && (
         <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
