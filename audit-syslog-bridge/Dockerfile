@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 
 COPY audit-syslog-bridge/go.mod audit-syslog-bridge/go.sum* ./audit-syslog-bridge/

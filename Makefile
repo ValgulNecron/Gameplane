@@ -44,7 +44,7 @@ GO_UNIT_MODULES := $(GO_MODULES) test/e2e
 GO_BUILDFLAGS  ?= -trimpath
 
 # Pinned versions of coverage tooling — pulled via `go run` so no install step.
-GO_TEST_COVERAGE_PKG := github.com/vladopajic/go-test-coverage/v2@v2.11.0
+GO_TEST_COVERAGE_PKG := github.com/vladopajic/go-test-coverage/v2@v2.18.9
 GOCOVMERGE_PKG       := github.com/wadey/gocovmerge@latest
 
 # -------- help --------
@@ -152,12 +152,12 @@ cover-ratchet: ## Print measured-vs-threshold delta per module to spot ratchet h
 	done
 
 # -------- integration tier (envtest) --------
-ENVTEST_K8S_VERSION ?= 1.31.0
+ENVTEST_K8S_VERSION ?= 1.36.2
 ENVTEST_BIN          := $(shell pwd)/operator/bin/setup-envtest
 
 .PHONY: envtest-bin
 envtest-bin: ## Install setup-envtest binary into operator/bin
-	GOBIN=$(shell pwd)/operator/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
+	GOBIN=$(shell pwd)/operator/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.24
 
 .PHONY: test-integration
 test-integration: envtest-bin ## Run envtest-tagged integration tests

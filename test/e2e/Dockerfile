@@ -10,7 +10,7 @@
 # status queries before it will accept a login, so a single attempt races world
 # generation. Retrying in the probe (rather than in the test) keeps the Job a
 # one-shot pass/fail.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY test/e2e/ ./
 # Per-game probes import only the stdlib plus this module's bot packages, so
