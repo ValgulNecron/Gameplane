@@ -255,7 +255,7 @@ describe("BackupsPage", () => {
   });
 
   it("toggles schedule suspend status", async () => {
-    const toggleHandler = vi.fn(({ request }) => {
+    const toggleHandler = vi.fn(() => {
       // patchSpec does GET then PUT; return a valid schedule with suspend toggled
       return HttpResponse.json(
         makeSchedule({
