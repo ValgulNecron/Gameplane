@@ -1271,7 +1271,7 @@ func buildAgentContainer(
 		if rc.passwordFile != "" {
 			args = append(args, "--rcon-password-file="+path.Join(mountPath, rc.passwordFile))
 		} else {
-			args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
+			args = append(args, "--rcon-password-file="+rconAuthMountPath+"/password")
 		}
 		args = append(args, "--rcon-port="+strconv.FormatInt(int64(rc.port), 10))
 	}
