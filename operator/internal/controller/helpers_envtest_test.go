@@ -412,6 +412,31 @@ func deleteCleanup(t *testing.T, obj client.Object) {
 // patchJobStatus fetches the named Job, runs mut on its Status, and
 // posts back via the status subresource. mut should set Active /
 // Succeeded / Failed / StartTime / CompletionTime as needed.
+//
+// envtest's apiserver enforces Kubernetes 1.36's strengthened Job status
+// transition validation (gated by the JobManagedBy feature, enabled by
+// default): a Job whose status flips into a terminal state in a single
+// update must carry the condition pairs the real Job controller always
+// emits together, and any finished Job must have a StartTime. Faked
+// fixtures here only set the counters/timestamps a reconciler cares
+// about, so this backfills the rest to keep the status subresource
+// Update from being rejected:
+//
+//   - Succeeded > 0 (job_controller.go's newSuccessCondition /
+//     enactJobFinished always append SuccessCriteriaMet=True before
+//     transforming it into Complete=True) requires both
+//     Complete=True and SuccessCriteriaMet=True, plus StartTime and
+//     CompletionTime.
+//   - Failed > 0 (mirroring newFailureCondition /
+//     newFailedConditionForFailureTarget, which always transitions
+//     FailureTarget=True into Failed=True) requires both Failed=True
+//     and FailureTarget=True, plus StartTime. The real controller
+//     never sets CompletionTime for a failed Job, so this doesn't
+//     either.
+//
+// Every current caller sets Succeeded/Failed only when the fixture is
+// genuinely terminal (none fake a still-retrying Failed>0 alongside
+// Active>0), so gating on the counters alone is safe here.
 func patchJobStatus(t *testing.T, ns, name string, mut func(s *batchv1.JobStatus)) {
 	t.Helper()
 	var job batchv1.Job
@@ -419,9 +444,53 @@ func patchJobStatus(t *testing.T, ns, name string, mut func(s *batchv1.JobStatus
 		t.Fatalf("get job %s/%s: %v", ns, name, err)
 	}
 	mut(&job.Status)
+
+	now := metav1.Now()
+
+	switch {
+	case job.Status.Succeeded > 0:
+		if job.Status.CompletionTime == nil {
+			job.Status.CompletionTime = &now
+		}
+		if job.Status.StartTime == nil {
+			job.Status.StartTime = job.Status.CompletionTime
+		}
+		job.Status.Conditions = upsertJobCondition(job.Status.Conditions, batchv1.JobSuccessCriteriaMet)
+		job.Status.Conditions = upsertJobCondition(job.Status.Conditions, batchv1.JobComplete)
+	case job.Status.Failed > 0:
+		if job.Status.StartTime == nil {
+			job.Status.StartTime = &now
+		}
+		job.Status.Conditions = upsertJobCondition(job.Status.Conditions, batchv1.JobFailureTarget)
+		job.Status.Conditions = upsertJobCondition(job.Status.Conditions, batchv1.JobFailed)
+	}
+
 	if err := k8sClient.Status().Update(context.Background(), &job); err != nil {
 		t.Fatalf("status update job %s/%s: %v", ns, name, err)
 	}
+}
+
+// upsertJobCondition sets/replaces the JobCondition of type t to
+// Status: True in conds, returning the updated slice. Unlike
+// upsertCondition (helpers.go), which operates on the CRD condition
+// type metav1.Condition, this operates on batchv1.JobCondition — a
+// distinct type with different fields (LastProbeTime/LastTransitionTime
+// instead of ObservedGeneration, and corev1.ConditionStatus instead of
+// metav1.ConditionStatus) used by the Job status subresource.
+func upsertJobCondition(conds []batchv1.JobCondition, t batchv1.JobConditionType) []batchv1.JobCondition {
+	now := metav1.Now()
+	for i := range conds {
+		if conds[i].Type == t {
+			conds[i].Status = corev1.ConditionTrue
+			conds[i].LastTransitionTime = now
+			return conds
+		}
+	}
+	return append(conds, batchv1.JobCondition{
+		Type:               t,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: now,
+	})
 }
 
 // setDeploymentReady fakes a Deployment's status in envtest, which runs no
