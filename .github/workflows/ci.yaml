@@ -228,6 +228,53 @@ jobs:
       - name: merge profiles + threshold gate
         run: make cover-go-merge && make cover-go-check
 
+  lint:
+    name: lint (${{ matrix.module }})
+    needs: [changes]
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, test/e2e]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "1.26", cache: false }
+      - name: go module cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ runner.arch }}-lint-${{ matrix.module }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-lint-${{ matrix.module }}-
+      - name: go mod download
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+      - name: lint (operator/api - envtest build tags)
+        if: matrix.module == 'operator' || matrix.module == 'api'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}
+          args: --build-tags=envtest
+      - name: lint (test/e2e - e2e build tags)
+        if: matrix.module == 'test/e2e'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}
+          args: --build-tags=e2e
+      - name: lint (other modules - no build tags)
+        if: matrix.module != 'operator' && matrix.module != 'api' && matrix.module != 'test/e2e'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}
+
   web:
     name: web
     needs: [changes]
