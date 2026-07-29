@@ -10,6 +10,7 @@ import (
 // +kubebuilder:validation:Enum=Pending;Starting;Running;Stopping;Stopped;Suspended;Failed
 type GameServerPhase string
 
+// GameServerPhase constants define the possible values for a GameServer's phase.
 const (
 	GameServerPhasePending   GameServerPhase = "Pending"
 	GameServerPhaseStarting  GameServerPhase = "Starting"

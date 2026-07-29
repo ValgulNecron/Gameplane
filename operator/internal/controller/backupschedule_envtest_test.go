@@ -107,7 +107,7 @@ func TestSchedule_NextScheduleTimeUpdated(t *testing.T) {
 		if s.Status.NextScheduleTime == nil {
 			return false, "NextScheduleTime not yet set"
 		}
-		if !s.Status.NextScheduleTime.Time.After(time.Now().Add(-time.Minute)) {
+		if !s.Status.NextScheduleTime.After(time.Now().Add(-time.Minute)) {
 			return false, "NextScheduleTime is in the past: " + s.Status.NextScheduleTime.String()
 		}
 		return true, ""

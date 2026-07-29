@@ -29,7 +29,7 @@ func TestSetPhase_ReadyConditionCarriesObservedGeneration(t *testing.T) {
 		Build()
 	r := &GameServerReconciler{Client: cl}
 
-	if err := r.setPhase(context.Background(), gs, gameplanev1alpha1.GameServerPhaseFailed, "boom"); err != nil {
+	if err := r.setPhase(context.Background(), gs, "boom"); err != nil {
 		t.Fatalf("setPhase: %v", err)
 	}
 

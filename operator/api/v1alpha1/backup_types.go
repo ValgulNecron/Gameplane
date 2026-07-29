@@ -9,6 +9,7 @@ import (
 // +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed
 type BackupPhase string
 
+// BackupPhase constants define the possible values for a Backup's phase.
 const (
 	BackupPhasePending   BackupPhase = "Pending"
 	BackupPhaseRunning   BackupPhase = "Running"

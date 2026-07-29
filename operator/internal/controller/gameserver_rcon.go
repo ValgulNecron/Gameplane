@@ -14,9 +14,9 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
-// rconPasswordPath is where the resolved RCON password is mounted into
+// rconAuthMountPath is where the resolved RCON password is mounted into
 // the agent sidecar; the agent reads it via --rcon-password-file.
-const rconPasswordPath = "/etc/gameplane/rcon"
+const rconAuthMountPath = "/etc/gameplane/rcon"
 
 // rconSecretName is the operator-managed Secret holding a generated RCON
 // password when the template doesn't reference an external one.
@@ -125,7 +125,7 @@ func agentVolumeMounts(gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1
 	rc := resolveRCON(gs, tmpl)
 	if rc.enabled && rc.passwordFile == "" {
 		mounts = append(mounts, corev1.VolumeMount{
-			Name: "rcon-password", MountPath: rconPasswordPath, ReadOnly: true,
+			Name: "rcon-password", MountPath: rconAuthMountPath, ReadOnly: true,
 		})
 	}
 	if m := modVolumeMount(tmpl, ver); m != nil {

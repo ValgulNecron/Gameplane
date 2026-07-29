@@ -8,6 +8,7 @@ import (
 // +kubebuilder:validation:Enum=Pending;Suspending;Running;Resuming;Succeeded;Failed
 type RestorePhase string
 
+// RestorePhase constants define the possible values for a Restore's phase.
 const (
 	RestorePhasePending    RestorePhase = "Pending"
 	RestorePhaseSuspending RestorePhase = "Suspending"

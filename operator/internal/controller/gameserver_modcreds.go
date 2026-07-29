@@ -8,10 +8,10 @@ import (
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
 
-// modCredsBasePath is where resolved mod-portal credentials are mounted
+// modAuthBaseMountPath is where resolved mod-portal credentials are mounted
 // into the agent sidecar as subdirectories per provider. Must stay in
 // lockstep with the agent's copy in agent/internal/mods/mods.go.
-const modCredsBasePath = "/etc/gameplane/mod-creds"
+const modAuthBaseMountPath = "/etc/gameplane/mod-creds"
 
 // resolvedModCreds describes the mod-portal credentials for a GameServer.
 type resolvedModCreds struct {
@@ -35,7 +35,7 @@ func resolveModCreds(tmpl *gameplanev1alpha1.GameTemplate) resolvedModCreds {
 }
 
 // modCredVolumeMounts returns the agent sidecar volume mounts for
-// mod-portal credentials, mounted as subdirectories under modCredsBasePath.
+// mod-portal credentials, mounted as subdirectories under modAuthBaseMountPath.
 func modCredVolumeMounts(creds resolvedModCreds) []corev1.VolumeMount {
 	if len(creds.providers) == 0 {
 		return nil
@@ -44,7 +44,7 @@ func modCredVolumeMounts(creds resolvedModCreds) []corev1.VolumeMount {
 	for provider := range creds.providers {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      modCredsVolumeName(provider),
-			MountPath: fmt.Sprintf("%s/%s", modCredsBasePath, provider),
+			MountPath: fmt.Sprintf("%s/%s", modAuthBaseMountPath, provider),
 			ReadOnly:  true,
 		})
 	}

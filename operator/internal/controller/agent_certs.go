@@ -1,3 +1,4 @@
+// Package controller contains the reconciliation logic for Gameplane CRDs.
 package controller
 
 import (
