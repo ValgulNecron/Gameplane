@@ -596,18 +596,15 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			// records stay consistent when the middleware is absent (e.g., in tests).
 			clientIP := middleware.GetClientIP(req.Context())
 			if clientIP == "" {
-				// Fallback: extract host from RemoteAddr. Split on the rightmost
-				// colon to handle IPv6 addresses.
-				i := len(req.RemoteAddr) - 1
-				for ; i >= 0; i-- {
-					if req.RemoteAddr[i] == ':' {
-						clientIP = req.RemoteAddr[:i]
-						break
-					}
-				}
-				if i < 0 {
-					// No port found; use the whole thing.
+				// Fallback: extract host from RemoteAddr. net.SplitHostPort handles
+				// both IPv4:port and [IPv6]:port forms correctly; for bare addresses
+				// (no port), it returns an error and we use the original.
+				host, _, err := net.SplitHostPort(req.RemoteAddr)
+				if err != nil {
+					// No port separator found, use the whole RemoteAddr as the client IP.
 					clientIP = req.RemoteAddr
+				} else {
+					clientIP = host
 				}
 			}
 
