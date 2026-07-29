@@ -397,7 +397,8 @@ func run(ctx context.Context, cfg Config, w wakeRequester) error {
 			continue
 		}
 
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", port.ContainerPort))
+		lc := &net.ListenConfig{}
+		l, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", port.ContainerPort))
 		if err != nil {
 			return fmt.Errorf("listen tcp :%d: %w", port.ContainerPort, err)
 		}
@@ -468,7 +469,11 @@ func serveTCP(ctx context.Context, l net.Listener, port PortConfig, w wakeReques
 // drive them directly against a loopback listener standing in for the game
 // pod.
 func handleTCPConnection(ctx context.Context, conn net.Conn, port PortConfig, w wakeRequester, cfg Config) {
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("close connection: %v", err)
+		}
+	}()
 
 	addr := gameDirectAddr(cfg, port)
 	switch port.WakeProtocol {
@@ -618,7 +623,11 @@ func handleJoin(ctx context.Context, conn net.Conn, br *bufio.Reader, w wakeRequ
 		}
 		return
 	}
-	defer upstream.Close()
+	defer func() {
+		if err := upstream.Close(); err != nil {
+			log.Printf("close upstream connection: %v", err)
+		}
+	}()
 
 	if len(p.consumed) > 0 {
 		if _, err := upstream.Write(p.consumed); err != nil {
