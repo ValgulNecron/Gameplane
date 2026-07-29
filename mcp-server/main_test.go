@@ -288,14 +288,15 @@ func TestRunIdleReturnsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	done := make(chan error, 1)
-	go func() { done <- runIdle(ctx) }()
+	done := make(chan struct{}, 1)
+	go func() {
+		runIdle(ctx)
+		done <- struct{}{}
+	}()
 
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("runIdle: %v", err)
-		}
+	case <-done:
+		// runIdle returned successfully
 	case <-time.After(2 * time.Second):
 		t.Fatal("runIdle did not return after context cancellation")
 	}
