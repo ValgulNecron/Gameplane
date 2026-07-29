@@ -165,7 +165,7 @@ func main() {
 	go kube.WatchClusters(ctx, k8s, reg, cfg.namespace)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.Recoverer, middleware.RealIP)
+	r.Use(middleware.RequestID, middleware.Recoverer, clientIPMiddleware)
 	r.Use(secureHeaders)
 	r.Use(requestTimeout(60 * time.Second))
 	r.Use(bodyLimit(1 << 20)) // 1 MiB default; upload proxy raises its own ceiling
@@ -445,6 +445,34 @@ func bodyLimit(maxBytes int64) func(http.Handler) http.Handler {
 func isUploadPath(path string) bool {
 	// /servers/{name}/files/upload
 	return strings.HasSuffix(path, "/files/upload") && strings.HasPrefix(path, "/servers/")
+}
+
+// clientIPMiddleware extracts the real client IP using chi's safe
+// ClientIPFromHeader (reading X-Real-IP, which nginx-ingress unconditionally
+// overwrites). It stores the IP in context via chi's GetClientIP and also
+// sets r.RemoteAddr for backward compatibility with existing code
+// (rate limiter, audit log) that reads RemoteAddr directly.
+//
+// This replaces the deprecated middleware.RealIP which unconditionally
+// trusted forwarded headers without proxy validation, enabling IP spoofing.
+// See chi's deprecation notice: GHSA-3fxj-6jh8-hvhx.
+func clientIPMiddleware(next http.Handler) http.Handler {
+	innerMW := middleware.ClientIPFromHeader("X-Real-IP")
+	return innerMW(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// chi's ClientIPFromHeader stores the IP in context but does not
+		// mutate r.RemoteAddr. Extract it and set RemoteAddr for backward
+		// compatibility with callers (LoginLimiter, audit.Middleware) that
+		// still read req.RemoteAddr.
+		if clientIP := middleware.GetClientIP(req.Context()); clientIP != "" {
+			// Preserve the original port if present, or append a dummy port.
+			if idx := strings.LastIndexByte(req.RemoteAddr, ':'); idx >= 0 {
+				req.RemoteAddr = clientIP + req.RemoteAddr[idx:]
+			} else {
+				req.RemoteAddr = clientIP + ":0"
+			}
+		}
+		next.ServeHTTP(w, req)
+	}))
 }
 
 // secureHeaders sets hardening response headers on every API reply. The
