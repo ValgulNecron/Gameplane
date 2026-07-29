@@ -150,8 +150,9 @@ func readTerrariaString(r *bytes.Reader) (string, error) {
 		return "", fmt.Errorf("negative string length: %d", length)
 	}
 
-	if length > int32(r.Len()) {
-		return "", fmt.Errorf("string length %d exceeds remaining %d", length, r.Len())
+	rlen := r.Len()
+	if rlen < 0 || length > int32(rlen) {
+		return "", fmt.Errorf("string length %d exceeds remaining %d", length, rlen)
 	}
 
 	buf := make([]byte, length)
@@ -164,7 +165,11 @@ func readTerrariaString(r *bytes.Reader) (string, error) {
 
 // writeTerrariaString writes a .NET BinaryWriter style 7-bit-encoded string.
 func writeTerrariaString(w *bytes.Buffer, s string) error {
-	if err := writeTerrafia7BitEncodedInt(w, int32(len(s))); err != nil {
+	slen := len(s)
+	if slen > 0x7fffffff {
+		return fmt.Errorf("string length %d out of int32 range", slen)
+	}
+	if err := writeTerrafia7BitEncodedInt(w, int32(slen)); err != nil {
 		return err
 	}
 	w.WriteString(s)
@@ -189,6 +194,9 @@ func readTerrafia7BitEncodedInt(r *bytes.Reader) (int32, error) {
 
 // writeTerrafia7BitEncodedInt writes a 7-bit-encoded integer.
 func writeTerrafia7BitEncodedInt(w *bytes.Buffer, v int32) error {
+	if v < 0 {
+		return fmt.Errorf("cannot encode negative value %d as 7-bit-encoded int", v)
+	}
 	uv := uint32(v)
 	for {
 		b := byte(uv & 0x7f)

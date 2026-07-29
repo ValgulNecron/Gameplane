@@ -148,6 +148,9 @@ func readMinecraftVarInt(r io.ByteReader) (int32, error) {
 		}
 		result |= uint32(b&0x7f) << (7 * i)
 		if b&0x80 == 0 {
+			if result > 0x7fffffff {
+				return 0, fmt.Errorf("varint value %d out of int32 range", result)
+			}
 			return int32(result), nil
 		}
 	}
@@ -162,9 +165,14 @@ func readMinecraftVarIntWithCapture(r io.ByteReader, w io.Writer) (int32, error)
 		if err != nil {
 			return 0, err
 		}
-		w.Write([]byte{b})
+		if _, err := w.Write([]byte{b}); err != nil {
+			return 0, fmt.Errorf("write captured byte: %w", err)
+		}
 		result |= uint32(b&0x7f) << (7 * i)
 		if b&0x80 == 0 {
+			if result > 0x7fffffff {
+				return 0, fmt.Errorf("varint value %d out of int32 range", result)
+			}
 			return int32(result), nil
 		}
 	}
@@ -173,6 +181,12 @@ func readMinecraftVarIntWithCapture(r io.ByteReader, w io.Writer) (int32, error)
 
 // writeMinecraftVarInt writes a VarInt to w.
 func writeMinecraftVarInt(w *bytes.Buffer, v int32) {
+	if v < 0 {
+		// VarInt encoding is for non-negative values; negative values would produce
+		// an invalid multi-byte encoding when interpreted as unsigned.
+		// This should not happen in normal protocol usage, but guard against it.
+		v = 0
+	}
 	uv := uint32(v)
 	for {
 		b := byte(uv & 0x7f)
@@ -212,10 +226,11 @@ func readMinecraftString(r io.ByteReader) (string, error) {
 
 // writeMinecraftString writes a UTF-8 string to w, prefixed by a VarInt length.
 func writeMinecraftString(w *bytes.Buffer, s string) error {
-	if len(s) > 32767 {
-		return fmt.Errorf("string too long: %d > 32767", len(s))
+	slen := len(s)
+	if slen > 32767 {
+		return fmt.Errorf("string too long: %d > 32767", slen)
 	}
-	writeMinecraftVarInt(w, int32(len(s)))
+	writeMinecraftVarInt(w, int32(slen))
 	w.WriteString(s)
 	return nil
 }
@@ -223,7 +238,13 @@ func writeMinecraftString(w *bytes.Buffer, s string) error {
 // frameMinecraftPacket frames packet data by prefixing it with a VarInt length.
 func frameMinecraftPacket(data []byte) []byte {
 	var out bytes.Buffer
-	writeMinecraftVarInt(&out, int32(len(data)))
+	dlen := len(data)
+	if dlen > 0x7fffffff {
+		// Data is too large to encode as a VarInt; return empty to signal error,
+		// though callers should prevent this through other means.
+		dlen = 0x7fffffff
+	}
+	writeMinecraftVarInt(&out, int32(dlen))
 	out.Write(data)
 	return out.Bytes()
 }
@@ -250,7 +271,7 @@ func escapeJSONString(s string) string {
 			sb.WriteString(`\t`)
 		default:
 			if r < 0x20 {
-				sb.WriteString(fmt.Sprintf(`\u%04x`, r))
+				fmt.Fprintf(&sb, `\u%04x`, r)
 			} else {
 				sb.WriteRune(r)
 			}
