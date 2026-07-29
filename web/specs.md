@@ -1,6 +1,6 @@
 # web — Specification
 
-**Status:** beta (v0.2.0-beta.7)  
+**Status:** beta (v0.2.0-beta.8)  
 **Module / package:** @gameplane/web  
 **Build:** Vite 5.4 + React 18.3 + TypeScript 5.6 (strict)
 
@@ -95,7 +95,7 @@ tsconfig.json               # TS strict, noUnusedLocals, noUnusedParameters, noF
 vitest.config.ts            # Coverage gates (lines 92 / functions 76 / branches 82 / statements 92)
 playwright.config.ts        # Mock + live test modes, serial execution (login state is shared)
 eslint.config.js            # Flat config: @typescript-eslint (strict), react-hooks, no-floating-promises
-package.json                # @gameplane/web v0.2.0-beta.7; dev: vite, npm scripts for build/test/lint
+package.json                # @gameplane/web v0.2.0-beta.8; dev: vite, npm scripts for build/test/lint
 ```
 
 ## Routing & Pages

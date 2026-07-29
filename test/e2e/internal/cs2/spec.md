@@ -1,6 +1,6 @@
 # cs2 — E2E Probe Specification
 
-**Status:** beta (v0.2.0-beta.7); probe depth measured: **QUERY** (A2S query success)  
+**Status:** beta (v0.2.0-beta.8); probe depth measured: **QUERY** (A2S query success)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/cs2`  
 **Dependencies:** stdlib only (Go 1.25+); tested against CS2 Image 4.0.1 (joedwards32/cs2); image pin required (floating tag drifts)  
 **Heavy game (never runs in CI):** See "Why CS2 is heavy and never in CI" section below

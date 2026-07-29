@@ -1,6 +1,6 @@
 # e2e game-bot harness — Specification
 
-**Status:** beta (v0.2.0-beta.7), in-progress (fast set JOINED, heavy set not yet implemented)  
+**Status:** beta (v0.2.0-beta.8), in-progress (fast set JOINED, heavy set not yet implemented)  
 **Module / package:** `test/e2e/internal/{probe,protocol,<game>}` — per-game protocol clients and the shared probe harness  
 **Dependencies:** stdlib only (Go 1.25+) — per-game binaries build against `test/e2e/go.mod` with `GOWORK=off`, dragging zero Kubernetes or external modules into the probe image
 

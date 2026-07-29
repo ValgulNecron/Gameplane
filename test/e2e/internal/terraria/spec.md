@@ -1,6 +1,6 @@
 # terraria — Specification
 
-**Status:** beta (v0.2.0-beta.7)  
+**Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/terraria`  
 **Dependencies:** stdlib only (Go 1.25+)
 
