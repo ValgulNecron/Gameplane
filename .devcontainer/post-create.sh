@@ -47,20 +47,13 @@ if ! command -v oras >/dev/null 2>&1; then
 fi
 
 # ---------- golangci-lint ----------
-# The Go devcontainer feature pre-installs golangci-lint at /go/bin, but
-# pulls v2 by default — and the project's .golangci.yml is v1 format
-# (`disable-all`, `enable:` list). We force v1.
-#
-# Additionally, the *release binary* of v1.64.8 is built with Go 1.24,
-# which makes it refuse to lint this repo's Go 1.25.0 module ("Go
-# language version used to build golangci-lint is lower than the
-# targeted Go version"). Building from source with the in-container
-# Go toolchain sidesteps that — same trick the host uses.
-GOLANGCI_VERSION="v1.64.8"
+# v2 release binaries work with the in-container Go version. The
+# .golangci.yml has been migrated from v1 to v2 schema (v2 introduces new
+# linters and removes deprecated ones).
+GOLANGCI_VERSION="v2.12.2"
 GOLANGCI_BIN="/go/bin/golangci-lint"
-if ! "$GOLANGCI_BIN" --version 2>/dev/null | grep -qE 'version v?1\.6[4-9]\.' \
-		|| "$GOLANGCI_BIN" --version 2>/dev/null | grep -q 'built with go1\.2[0-4]\.'; then
-	log "installing golangci-lint ${GOLANGCI_VERSION} (built from source with Go $(go env GOVERSION))"
+if ! "$GOLANGCI_BIN" --version 2>/dev/null | grep -qE 'version v?2\.'; then
+	log "installing golangci-lint ${GOLANGCI_VERSION}"
 	GOBIN=/go/bin go install \
 		"github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_VERSION}"
 fi
