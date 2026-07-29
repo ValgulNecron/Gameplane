@@ -725,7 +725,8 @@ func closeWrite(conn net.Conn) {
 // a wake; the packet itself is simply dropped either way, since forwarding
 // it anywhere useful would require the game pod to already be up.
 func serveUDP(ctx context.Context, port PortConfig, w wakeRequester, cfg Config, errCh chan<- error) {
-	pc, err := net.ListenUDP("udp", &net.UDPAddr{Port: port.ContainerPort})
+	lc := &net.ListenConfig{}
+	pc, err := lc.ListenPacket(ctx, "udp", fmt.Sprintf(":%d", port.ContainerPort))
 	if err != nil {
 		select {
 		case errCh <- fmt.Errorf("listen udp :%d: %w", port.ContainerPort, err):

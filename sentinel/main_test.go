@@ -1098,7 +1098,8 @@ func freeTCPPort(t *testing.T) int {
 
 func freeUDPPort(t *testing.T) int {
 	t.Helper()
-	pc, err := net.ListenUDP("udp", &net.UDPAddr{})
+	lc := &net.ListenConfig{}
+	pc, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
