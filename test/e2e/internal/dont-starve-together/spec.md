@@ -1,6 +1,6 @@
 # dont-starve-together — E2E Probe Specification
 
-**Status:** beta (v0.2.0-beta.7)  
+**Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/dont-starve-together`  
 **Dependencies:** stdlib + shared `protocol/a2s` (Go 1.25+); tested against jamesits/dst-server:vanilla (query-port assertion UNMEASURED against a real server — see "Measured connectivity")
 

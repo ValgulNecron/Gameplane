@@ -1,15 +1,15 @@
 go 1.26.0
 
 use (
-	./netguard
+	./agent
+	./api
+	./audit-syslog-bridge
 	./gameaction
 	./gameproto
-	./operator
-	./api
-	./agent
-	./audit-syslog-bridge
-	./telemetry-receiver
-	./sentinel
 	./mcp-server
+	./netguard
+	./operator
+	./sentinel
+	./telemetry-receiver
 	./test/e2e
 )

@@ -38,6 +38,42 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   necessarily the manifest — a layer digest printed in full would have been
   signed instead (operator verification unchanged).
 
+## [0.2.0-beta.8] — 2026-07-29
+
+A dependency sweep: all Go modules bumped to latest available versions,
+web dependencies updated, and CI image pins aligned to current stable releases.
+
+### Changed
+
+- **Go dependencies:** telemetry-receiver, sentinel, and mcp-server updated
+  to latest go-openapi versions (`github.com/go-openapi/{jsonpointer,jsonreference,swag}`
+  v0.2x → v1.x); operator updated with 50+ indirect dependency bumps (go-git
+  v5.19.1 → v5.19.2); api's `modernc.org/sqlite` v1.54.0 → v1.55.0; agent and
+  e2e test suite indirect dependencies (k8s.io, golang.org/x packages) brought
+  current.
+- **Web dependencies:** `@tanstack/react-virtual` v3.14.8 → v3.14.9,
+  `lucide-react` v1.26.0 → v1.27.0, `@types/node` v26.1.1 → v26.1.2,
+  `globals` v17.7.0 → v17.8.0, `jsdom` v29.1.1 → v30.0.1, `postcss` v8.5.23 →
+  v8.5.25.
+- **CI image pins:** `setup-envtest` release-0.19 → release-0.24, Kubernetes
+  (envtest) 1.31.0 → 1.36.2 (now in sync with the Makefile), and `kind` v0.24.0 →
+  v0.32.0.
+- **Container image defaults:** restic/restic 0.18.1 → 0.19.1 (charts/gameplane/values.yaml operator.resticImage default) and nginxinc/nginx-unprivileged 1.30-alpine → 1.31-alpine (web/Dockerfile base image).
+
+### Notes
+
+- **TypeScript held at 6.x:** `@typescript-eslint/parser@8.65.0` declares
+  `peerDependencies: typescript >=4.8.4 <6.1.0`, so upgrading to TS 7.x would
+  break type-aware linting. Reevaluate when `@typescript-eslint/parser` publishes
+  a v8.x major that supports TS 7+.
+- **ESLint held at 9.x:** `eslint-plugin-react@7.37.5` declares no `^10` peer
+  range, so upgrading to ESLint 10.x would break React linting. Reevaluate when
+  `eslint-plugin-react` publishes a v8+ major or a 7.x patch that widens the
+  peer range.
+- **Prometheus client_golang:** `telemetry-receiver`'s
+  `github.com/prometheus/client_golang` v1.24.1 is at latest; no update
+  available.
+
 ## [0.2.0-beta.7] — 2026-07-18
 
 A stabilization release: a full audit of code, the live dashboard, the API, and
@@ -613,7 +649,8 @@ testing. Not yet recommended for unattended production workloads — see
   runner (retry + longer readiness window), eliminating a cascade of flaky
   API e2e failures.
 
-[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.7...HEAD
+[Unreleased]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.8...HEAD
+[0.2.0-beta.8]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.7...v0.2.0-beta.8
 [0.2.0-beta.7]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.6...v0.2.0-beta.7
 [0.2.0-beta.6]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.5...v0.2.0-beta.6
 [0.2.0-beta.5]: https://github.com/ValgulNecron/gameplane/compare/v0.2.0-beta.4...v0.2.0-beta.5

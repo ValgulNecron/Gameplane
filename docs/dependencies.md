@@ -23,7 +23,9 @@ to find call sites (or `go mod why -m <path>` from inside the module). For
 Toolchain versions come from `Makefile`, `.github/workflows/*.yaml`, and
 `.devcontainer/post-create.sh`.
 
-Accurate as of **2026-07-18**, repo state `v0.2.0-beta.7`.
+Accurate as of **2026-07-29**, repo state `v0.2.0-beta.8`.
+
+> **Note:** The dependency versions listed in the table below reflect the state at v0.2.0-beta.8. For the most current versions, refer to [CHANGELOG.md](../CHANGELOG.md).
 
 ## At a glance
 
@@ -221,7 +223,7 @@ on that guarantee; it's purely the protocol transport.
 ### web
 
 React 18 + TypeScript strict + Vite dashboard (`web/package.json` version
-`0.2.0-beta.7`, matching the repo version):
+`0.2.0-beta.8`, matching the repo version):
 
 **Framework / core**
 - `react` `^18.3.1`, `react-dom` `^18.3.1` — base UI framework, rendered via `createRoot` in `src/main.tsx`, used throughout every component.

@@ -1,6 +1,6 @@
 # Satisfactory — e2e protocol probe specification
 
-**Status:** beta (v0.2.0-beta.7), in-progress (QUERY depth measured; in-game claim gate blocks authentication)
+**Status:** beta (v0.2.0-beta.8), in-progress (QUERY depth measured; in-game claim gate blocks authentication)
 
 ## Purpose
 

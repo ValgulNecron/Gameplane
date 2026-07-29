@@ -1,6 +1,6 @@
 # v-rising — E2E Probe Specification
 
-**Status:** beta (v0.2.0-beta.7)  
+**Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/v-rising`  
 **Dependencies:** stdlib + shared protocol family `a2s` (Go 1.25+); tested against trueosiris/vrising:2026-04-23-1036 (UNMEASURED against a real server — see "Measured connectivity")
 

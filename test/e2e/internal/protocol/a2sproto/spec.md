@@ -1,6 +1,6 @@
 # A2S (Valve Source Query) Protocol
 
-**Status:** beta (v0.2.0-beta.7)  
+**Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `test/e2e/internal/protocol/a2s`  
 **Dependencies:** stdlib only (Go 1.25+)
 

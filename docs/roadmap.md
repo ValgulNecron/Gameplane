@@ -1,6 +1,6 @@
 # Roadmap to v1
 
-Gameplane is currently **`v0.2.0-beta.7`**. The CRDs, operator, API, agent, and
+Gameplane is currently **`v0.2.0-beta.8`**. The CRDs, operator, API, agent, and
 dashboard are feature-complete for the v1 scope and stabilized for external
 testing, but the project is not yet recommended for unattended production. This
 page tracks what stands between beta and a v1 GA release.

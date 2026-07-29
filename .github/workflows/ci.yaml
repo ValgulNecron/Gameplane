@@ -209,19 +209,19 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin/setup-envtest
-          key: setup-envtest-bin-release-0.19-${{ runner.os }}-${{ runner.arch }}
+          key: setup-envtest-bin-release-0.24-${{ runner.os }}-${{ runner.arch }}
       - name: envtest assets cache
         if: matrix.module == 'operator' || matrix.module == 'api'
         uses: actions/cache@v6
         with:
           path: ~/.local/share/kubebuilder-envtest
-          key: envtest-1.31.0-${{ runner.os }}-${{ runner.arch }}
+          key: envtest-1.36.2-${{ runner.os }}-${{ runner.arch }}
       - name: integration (envtest) test + coverage
         if: matrix.module == 'operator' || matrix.module == 'api'
         working-directory: ${{ matrix.module }}
         run: |
-          [ -x "$HOME/go/bin/setup-envtest" ] || go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.19
-          export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.31.0 -p path)
+          [ -x "$HOME/go/bin/setup-envtest" ] || go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.24
+          export KUBEBUILDER_ASSETS=$("$HOME"/go/bin/setup-envtest use 1.36.2 -p path)
           go test -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/envtest.out ./...

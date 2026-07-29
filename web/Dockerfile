@@ -19,7 +19,7 @@ RUN npm run build
 # ---- serve with a non-root nginx ----
 # nginx-unprivileged listens on 8080 and runs as uid 101 (nginx), so it needs
 # no root and satisfies runAsNonRoot/readOnlyRootFilesystem in the chart.
-FROM nginxinc/nginx-unprivileged:1.30-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 
 # The publish/release workflows pass --build-arg VERSION=…; consume it as a
 # provenance label (and to avoid a BuildKit "unconsumed build arg" warning).
