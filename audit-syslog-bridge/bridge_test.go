@@ -298,10 +298,10 @@ func TestForwarder_ReusesConnection(t *testing.T) {
 	}()
 
 	f := newForwarder("tcp", ln.Addr().String(), false, time.Second)
-	if err := f.send([]byte("one")); err != nil {
+	if err := f.send(context.Background(), []byte("one")); err != nil {
 		t.Fatalf("send one: %v", err)
 	}
-	if err := f.send([]byte("two")); err != nil {
+	if err := f.send(context.Background(), []byte("two")); err != nil {
 		t.Fatalf("send two: %v", err)
 	}
 	select {
