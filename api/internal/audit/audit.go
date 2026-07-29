@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -589,7 +590,28 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			// Stamp once so the DB row, stdout line, and webhook payload all
 			// agree on the event time.
 			ts := time.Now().UTC().Format(time.RFC3339)
-			if err := a.insertChained(req.Context(), ts, actor, req.Method, req.URL.Path, target, rw.status, req.RemoteAddr); err != nil {
+
+			// Extract the client IP from context (set by ClientIPFromXFF middleware).
+			// Fall back to the host portion of RemoteAddr if not set, so audit
+			// records stay consistent when the middleware is absent (e.g., in tests).
+			clientIP := middleware.GetClientIP(req.Context())
+			if clientIP == "" {
+				// Fallback: extract host from RemoteAddr. Split on the rightmost
+				// colon to handle IPv6 addresses.
+				i := len(req.RemoteAddr) - 1
+				for ; i >= 0; i-- {
+					if req.RemoteAddr[i] == ':' {
+						clientIP = req.RemoteAddr[:i]
+						break
+					}
+				}
+				if i < 0 {
+					// No port found; use the whole thing.
+					clientIP = req.RemoteAddr
+				}
+			}
+
+			if err := a.insertChained(req.Context(), ts, actor, req.Method, req.URL.Path, target, rw.status, clientIP); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",
@@ -598,18 +620,18 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			if a.sink != nil {
 				a.sink.Info("audit",
 					"actor", actor, "method", req.Method, "path", req.URL.Path,
-					"target", target, "status", rw.status, "ip", req.RemoteAddr)
+					"target", target, "status", rw.status, "ip", clientIP)
 			}
 			if a.webhook != nil {
 				a.webhook.Enqueue(Event{
 					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
-					Target: target, Status: rw.status, IP: req.RemoteAddr,
+					Target: target, Status: rw.status, IP: clientIP,
 				})
 			}
 			if a.s3 != nil {
 				a.s3.Enqueue(Event{
 					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
-					Target: target, Status: rw.status, IP: req.RemoteAddr,
+					Target: target, Status: rw.status, IP: clientIP,
 				})
 			}
 		})

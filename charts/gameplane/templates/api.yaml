@@ -290,6 +290,7 @@ spec:
             {{- end }}
             {{- end }}
             - --update-channel={{ $channel }}
+            - --trusted-proxies={{ .Values.api.trustedProxies }}
           env:
             - name: GAMEPLANE_NAMESPACE
               valueFrom:
