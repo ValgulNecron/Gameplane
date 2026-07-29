@@ -159,7 +159,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	line := buildSyslog(s.pri, time.Now(), s.hostname, s.appName, msg)
-	if err := s.fwd.send(frameFor(s.network, line)); err != nil {
+	if err := s.fwd.send(r.Context(), frameFor(s.network, line)); err != nil {
 		slog.Error("forward to syslog failed", "err", err)
 		http.Error(w, "syslog forward failed", http.StatusBadGateway)
 		return
@@ -212,17 +212,17 @@ func newForwarder(network, addr string, useTLS bool, dialTimeout time.Duration) 
 	return &forwarder{network: network, addr: addr, useTLS: useTLS, dialTimeout: dialTimeout}
 }
 
-func (f *forwarder) dial() error {
+func (f *forwarder) dial(ctx context.Context) error {
 	var (
 		c   net.Conn
 		err error
 	)
 	if f.useTLS && f.network == "tcp" {
 		d := &tls.Dialer{NetDialer: &net.Dialer{Timeout: f.dialTimeout}, Config: &tls.Config{MinVersion: tls.VersionTLS12}}
-		c, err = d.DialContext(context.Background(), "tcp", f.addr)
+		c, err = d.DialContext(ctx, "tcp", f.addr)
 	} else {
 		d := &net.Dialer{Timeout: f.dialTimeout}
-		c, err = d.DialContext(context.Background(), f.network, f.addr)
+		c, err = d.DialContext(ctx, f.network, f.addr)
 	}
 	if err != nil {
 		return fmt.Errorf("dial %s/%s: %w", f.network, f.addr, err)
@@ -231,11 +231,11 @@ func (f *forwarder) dial() error {
 	return nil
 }
 
-func (f *forwarder) send(frame []byte) error {
+func (f *forwarder) send(ctx context.Context, frame []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.conn == nil {
-		if err := f.dial(); err != nil {
+		if err := f.dial(ctx); err != nil {
 			return err
 		}
 	}
@@ -243,7 +243,7 @@ func (f *forwarder) send(frame []byte) error {
 		// The collector may have dropped a long-idle connection; reconnect once.
 		_ = f.conn.Close()
 		f.conn = nil
-		if err := f.dial(); err != nil {
+		if err := f.dial(ctx); err != nil {
 			return err
 		}
 		if err := f.write(frame); err != nil {
