@@ -218,10 +218,11 @@ func (f *forwarder) dial() error {
 		err error
 	)
 	if f.useTLS && f.network == "tcp" {
-		d := &net.Dialer{Timeout: f.dialTimeout}
-		c, err = tls.DialWithDialer(d, "tcp", f.addr, &tls.Config{MinVersion: tls.VersionTLS12})
+		d := &tls.Dialer{NetDialer: &net.Dialer{Timeout: f.dialTimeout}, Config: &tls.Config{MinVersion: tls.VersionTLS12}}
+		c, err = d.DialContext(context.Background(), "tcp", f.addr)
 	} else {
-		c, err = net.DialTimeout(f.network, f.addr, f.dialTimeout)
+		d := &net.Dialer{Timeout: f.dialTimeout}
+		c, err = d.DialContext(context.Background(), f.network, f.addr)
 	}
 	if err != nil {
 		return fmt.Errorf("dial %s/%s: %w", f.network, f.addr, err)

@@ -101,7 +101,8 @@ func TestNewServer_Validation(t *testing.T) {
 // reads. Returns its address and a channel delivering the received bytes.
 func tcpSyslogSink(t *testing.T) (string, <-chan string) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -134,7 +135,12 @@ func TestHandle_ForwardsToTCPSyslog(t *testing.T) {
 	defer srv.Close()
 
 	body := strings.NewReader(`{"actor":"admin","path":"/api/v1/servers"}`)
-	resp, err := http.Post(srv.URL+"/", "application/json", body)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/", body)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -165,7 +171,8 @@ func TestHandle_ForwardsToTCPSyslog(t *testing.T) {
 }
 
 func TestHandle_ForwardsToUDPSyslog(t *testing.T) {
-	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	pc, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
@@ -187,7 +194,7 @@ func TestHandle_ForwardsToUDPSyslog(t *testing.T) {
 		t.Fatalf("newServer: %v", err)
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"k":"v"}`))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{"k":"v"}`))
 	s.handle(rr, req)
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", rr.Code)
@@ -208,7 +215,7 @@ func TestHandle_AuthRequired(t *testing.T) {
 
 	t.Run("missing token", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{}`))
 		s.handle(rr, req)
 		if rr.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401", rr.Code)
@@ -216,7 +223,7 @@ func TestHandle_AuthRequired(t *testing.T) {
 	})
 	t.Run("wrong token", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{}`))
 		req.Header.Set("Authorization", "Bearer nope")
 		s.handle(rr, req)
 		if rr.Code != http.StatusUnauthorized {
@@ -230,14 +237,14 @@ func TestHandle_MethodAndBody(t *testing.T) {
 
 	t.Run("GET rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		s.handle(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+		s.handle(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
 		if rr.Code != http.StatusMethodNotAllowed {
 			t.Errorf("status = %d, want 405", rr.Code)
 		}
 	})
 	t.Run("empty body", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		s.handle(rr, httptest.NewRequest(http.MethodPost, "/", strings.NewReader("   ")))
+		s.handle(rr, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("   ")))
 		if rr.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400", rr.Code)
 		}
@@ -249,14 +256,15 @@ func TestHandle_ForwardFailureIs502(t *testing.T) {
 	s := &server{network: "tcp", appName: "x", hostname: "h",
 		fwd: newForwarder("tcp", "127.0.0.1:1", false, 200*time.Millisecond)}
 	rr := httptest.NewRecorder()
-	s.handle(rr, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"k":"v"}`)))
+	s.handle(rr, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(`{"k":"v"}`)))
 	if rr.Code != http.StatusBadGateway {
 		t.Errorf("status = %d, want 502", rr.Code)
 	}
 }
 
 func TestForwarder_ReusesConnection(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -309,7 +317,7 @@ func TestForwarder_ReusesConnection(t *testing.T) {
 func TestHealthz(t *testing.T) {
 	s := &server{network: "tcp", fwd: newForwarder("tcp", "127.0.0.1:1", false, time.Second)}
 	rr := httptest.NewRecorder()
-	s.routes().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	s.routes().ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("healthz status = %d", rr.Code)
 	}
