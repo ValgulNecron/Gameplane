@@ -146,11 +146,13 @@ func readMinecraftVarInt(r io.ByteReader) (int32, error) {
 		if err != nil {
 			return 0, err
 		}
+		// Check for overflow: on the 5th byte (i=4), only 4 bits are valid (bits 28-31).
+		// If b&0x7f > 0x0F, we're trying to set bits beyond bit 31.
+		if i == 4 && (b&0x7f) > 0x0f {
+			return 0, fmt.Errorf("varint value out of range for int32")
+		}
 		result |= uint32(b&0x7f) << (7 * i)
 		if b&0x80 == 0 {
-			if result > 0x7fffffff {
-				return 0, fmt.Errorf("varint value %d out of int32 range", result)
-			}
 			return int32(result), nil
 		}
 	}
@@ -168,11 +170,13 @@ func readMinecraftVarIntWithCapture(r io.ByteReader, w io.Writer) (int32, error)
 		if _, err := w.Write([]byte{b}); err != nil {
 			return 0, fmt.Errorf("write captured byte: %w", err)
 		}
+		// Check for overflow: on the 5th byte (i=4), only 4 bits are valid (bits 28-31).
+		// If b&0x7f > 0x0F, we're trying to set bits beyond bit 31.
+		if i == 4 && (b&0x7f) > 0x0f {
+			return 0, fmt.Errorf("varint value out of range for int32")
+		}
 		result |= uint32(b&0x7f) << (7 * i)
 		if b&0x80 == 0 {
-			if result > 0x7fffffff {
-				return 0, fmt.Errorf("varint value %d out of int32 range", result)
-			}
 			return int32(result), nil
 		}
 	}
@@ -181,12 +185,8 @@ func readMinecraftVarIntWithCapture(r io.ByteReader, w io.Writer) (int32, error)
 
 // writeMinecraftVarInt writes a VarInt to w.
 func writeMinecraftVarInt(w *bytes.Buffer, v int32) {
-	if v < 0 {
-		// VarInt encoding is for non-negative values; negative values would produce
-		// an invalid multi-byte encoding when interpreted as unsigned.
-		// This should not happen in normal protocol usage, but guard against it.
-		v = 0
-	}
+	// Minecraft VarInts are signed 32-bit integers using two's complement.
+	// Negative values are encoded as their unsigned bit representation.
 	uv := uint32(v)
 	for {
 		b := byte(uv & 0x7f)

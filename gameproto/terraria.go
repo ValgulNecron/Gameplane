@@ -151,7 +151,7 @@ func readTerrariaString(r *bytes.Reader) (string, error) {
 	}
 
 	rlen := r.Len()
-	if rlen < 0 || length > int32(rlen) {
+	if rlen < 0 || int64(length) > int64(rlen) {
 		return "", fmt.Errorf("string length %d exceeds remaining %d", length, rlen)
 	}
 
