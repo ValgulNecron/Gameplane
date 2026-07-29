@@ -56,9 +56,9 @@ web dependencies updated, and CI image pins aligned to current stable releases.
   `globals` v17.7.0 → v17.8.0, `jsdom` v29.1.1 → v30.0.1, `postcss` v8.5.23 →
   v8.5.25.
 - **CI image pins:** `setup-envtest` release-0.19 → release-0.24, Kubernetes
-  (envtest) 1.31.0 → 1.36.2 (now in sync with the Makefile), `kind` v0.24.0 →
-  v0.32.0, `restic` 0.18.1 → 0.19.1, `nginx-unprivileged` 1.30-alpine →
-  1.31-alpine.
+  (envtest) 1.31.0 → 1.36.2 (now in sync with the Makefile), and `kind` v0.24.0 →
+  v0.32.0.
+- **Container image defaults:** restic/restic 0.18.1 → 0.19.1 (charts/gameplane/values.yaml operator.resticImage default) and nginxinc/nginx-unprivileged 1.30-alpine → 1.31-alpine (web/Dockerfile base image).
 
 ### Notes
 
