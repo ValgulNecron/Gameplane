@@ -26,7 +26,7 @@ if [ -f .gitmodules ]; then
 fi
 
 # ---------- kind ----------
-KIND_VERSION="v0.24.0"
+KIND_VERSION="v0.32.0"
 if ! command -v kind >/dev/null 2>&1; then
 	log "installing kind ${KIND_VERSION}"
 	curl -fsSL -o /tmp/kind \
@@ -72,8 +72,8 @@ if [ ! -x "$GOBIN_DIR/setup-envtest" ]; then
 	log "installing setup-envtest"
 	GOBIN="$GOBIN_DIR" go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 fi
-log "fetching envtest binaries for K8s 1.31.0"
-"$GOBIN_DIR/setup-envtest" use 1.31.0 >/dev/null
+log "fetching envtest binaries for K8s 1.36.2"
+"$GOBIN_DIR/setup-envtest" use 1.36.2 >/dev/null
 
 # ---------- Go module cache warmup ----------
 for m in operator api agent test/e2e; do
