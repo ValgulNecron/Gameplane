@@ -324,10 +324,10 @@ func (r *GameServerReconciler) reconcileTunnel(
 
 		dep.Spec.Template.Spec.Volumes = volumes
 		dep.Spec.Template.Spec.Containers = []corev1.Container{{
-			Name:  "tunnel",
-			Image: image,
-			Env:   envVars,
-			Ports: ports,
+			Name:         "tunnel",
+			Image:        image,
+			Env:          envVars,
+			Ports:        ports,
 			VolumeMounts: volumeMounts,
 			SecurityContext: &corev1.SecurityContext{
 				RunAsNonRoot:             &nonRoot,
