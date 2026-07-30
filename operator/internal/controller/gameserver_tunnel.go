@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	tunnelLabel              = "app.kubernetes.io/name"
-	tunnelValue              = "gameplane-tunnel"
-	tunnelCredentialsVolume  = "tunnel-credentials"
-	tunnelCredentialsMountPath = "/etc/gameplane/tunnel-credentials"
+	tunnelLabel        = "app.kubernetes.io/name"
+	tunnelValue        = "gameplane-tunnel"
+	tunnelAuthVolume   = "tunnel-auth"
+	tunnelAuthMountDir = "/etc/gameplane/tunnel-auth"
 )
 
 // tunnelPlan is one reconcile pass's decision about the tunnel pod:
@@ -307,7 +307,7 @@ func (r *GameServerReconciler) reconcileTunnel(
 
 		if tunnel.CredentialsSecretRef != nil {
 			volumes = append(volumes, corev1.Volume{
-				Name: tunnelCredentialsVolume,
+				Name: tunnelAuthVolume,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName: tunnel.CredentialsSecretRef.Name,
@@ -316,8 +316,8 @@ func (r *GameServerReconciler) reconcileTunnel(
 				},
 			})
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      tunnelCredentialsVolume,
-				MountPath: tunnelCredentialsMountPath,
+				Name:      tunnelAuthVolume,
+				MountPath: tunnelAuthMountDir,
 				ReadOnly:  true,
 			})
 		}
