@@ -69,6 +69,9 @@ func main() {
 		configInitImage        string
 		resticImage            string
 		sentinelImage          string
+		tunnelFrpImage         string
+		tunnelTailscaleImage   string
+		tunnelPlayitImage      string
 		agentLogLevel          string
 		agentCABundle          string
 		agentClientCert        string
@@ -101,6 +104,15 @@ func main() {
 			"Point at a private registry mirror for air-gapped installs.")
 	flag.StringVar(&sentinelImage, "sentinel-image", controller.DefaultSentinelImage,
 		"Image for the wake sentinel pod that holds advertised ports while a server is asleep. "+
+			"Point at a private registry mirror for air-gapped installs.")
+	flag.StringVar(&tunnelFrpImage, "tunnel-frp-image", controller.DefaultTunnelFrpImage,
+		"Image for the frp tunnel relay pod that routes players through an frp server. "+
+			"Point at a private registry mirror for air-gapped installs.")
+	flag.StringVar(&tunnelTailscaleImage, "tunnel-tailscale-image", controller.DefaultTunnelTailscaleImage,
+		"Image for the Tailscale tunnel relay pod that routes players through a Tailscale tailnet. "+
+			"Point at a private registry mirror for air-gapped installs.")
+	flag.StringVar(&tunnelPlayitImage, "tunnel-playit-image", controller.DefaultTunnelPlayitImage,
+		"Image for the Playit tunnel relay pod that routes players through a Playit tunnel. "+
 			"Point at a private registry mirror for air-gapped installs.")
 	flag.StringVar(&agentLogLevel, "agent-log-level", "",
 		"Log level (debug, info, warn, or error) injected into agent sidecars as GAMEPLANE_LOG_LEVEL. "+
@@ -197,6 +209,9 @@ func main() {
 		AgentImagePullPolicy:   agentImagePullPolicy,
 		ConfigInitImage:        configInitImage,
 		SentinelImage:          sentinelImage,
+		TunnelFrpImage:         tunnelFrpImage,
+		TunnelTailscaleImage:   tunnelTailscaleImage,
+		TunnelPlayitImage:      tunnelPlayitImage,
 		AgentLogLevel:          agentLogLevel,
 		AgentCASecretName:      agentCASecretName,
 		AgentCASecretNamespace: agentCASecretNamespace,
