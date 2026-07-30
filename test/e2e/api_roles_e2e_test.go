@@ -138,7 +138,7 @@ func TestAPI_BuiltinRole_Immutable(t *testing.T) {
 	admin := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer admin.Close()
 
-	r, _, _ = admin.Patch("/roles/admin", map[string]any{
+	r, _, _ := admin.Patch("/roles/admin", map[string]any{
 		"permissions": []string{"servers:read"},
 	})
 	if r != nil {
@@ -190,7 +190,7 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 			"spec":     map[string]any{"templateRef": map[string]any{"name": tmplName}},
 		}
 	}
-	r, _, _ = v1.Post("/servers", gsSpec("e2e-binding-denied"))
+	r, _, _ := v1.Post("/servers", gsSpec("e2e-binding-denied"))
 	if r != nil {
 		defer func() { _ = r.Body.Close() }()
 	}
