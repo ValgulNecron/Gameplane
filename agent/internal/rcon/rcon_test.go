@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"context"
 	"encoding/binary"
 	"io"
 	"net"
@@ -14,7 +15,8 @@ import (
 // back as a RESPONSE_VALUE containing "<cmd>: ok".
 func fakeServer(t *testing.T, password string) (addr string, cleanup func()) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}

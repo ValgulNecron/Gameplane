@@ -31,6 +31,7 @@ type handler struct {
 	root string
 }
 
+// Mount registers the file-browser HTTP handlers on the supplied router.
 func Mount(r chi.Router, root string) {
 	h := &handler{root: filepath.Clean(root)}
 	r.Route("/files", func(r chi.Router) {
@@ -205,8 +206,8 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		h.badRequest(w, err)
 		return
 	}
-	defer req.Body.Close()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	defer func() { _ = req.Body.Close() }()
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}
@@ -215,7 +216,7 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		httpErr(w, err)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.Copy(f, http.MaxBytesReader(w, req.Body, maxWriteBytes)); err != nil {
 		httpErr(w, err)
 		return
@@ -233,7 +234,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		h.badRequest(w, err)
 		return
 	}
-	if err := os.MkdirAll(p, 0o755); err != nil {
+	if err := os.MkdirAll(p, 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}
@@ -264,7 +265,7 @@ func saveMultipart(dir string, fh *multipart.FileHeader) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 	// Sanitize filename — reject anything that would climb out of dir.
 	name := filepath.Base(fh.Filename)
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
@@ -274,7 +275,7 @@ func saveMultipart(dir string, fh *multipart.FileHeader) error {
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 	// Even with Size checked above, cap the copy so a lying multipart
 	// header can't bypass it.
 	_, err = io.Copy(dst, io.LimitReader(src, maxUploadFileBytes))
@@ -287,7 +288,7 @@ func (h *handler) mkdir(w http.ResponseWriter, req *http.Request) {
 		h.badRequest(w, err)
 		return
 	}
-	if err := os.MkdirAll(p, 0o755); err != nil {
+	if err := os.MkdirAll(p, 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}

@@ -151,6 +151,7 @@ func (r *Reader) readCPU(s *Sample) {
 			// went backwards (a process set changing under proc mode, or a
 			// counter reset) which would otherwise yield a wild rate.
 			if dWall > 0 && usageUsec >= r.prevUsageUsec {
+				// Safe: difference is guaranteed positive by the check above.
 				dUsage := int64(usageUsec - r.prevUsageUsec)
 				s.CPUMillicores = dUsage * 1000 / dWall
 				s.CPUKnown = true
@@ -183,6 +184,7 @@ func (r *Reader) cpuUsageUsec() (uint64, bool) {
 		if !ok {
 			return 0, false
 		}
+		// Safe: clkTck is always positive (default 100), never exceeds int32.
 		return ticks * 1_000_000 / uint64(r.cfg.clkTck), true
 	}
 	return r.cgroupCPUUsageUsec()
@@ -243,12 +245,14 @@ func (r *Reader) readMemory(s *Sample) {
 		return
 	}
 	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.current")); ok {
+		// Safe: actual memory usage never exceeds int64.Max in practice.
 		s.MemoryBytes = int64(v)
 		s.MemoryKnown = true
 	}
 	// memory.max is "max" when unlimited, which fails to parse — exactly
 	// the "unknown limit" we want to report.
 	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.max")); ok {
+		// Safe: actual memory limits never exceed int64.Max in practice.
 		s.MemoryLimitBytes = int64(v)
 		s.MemoryLimitKnown = true
 	}
@@ -322,13 +326,13 @@ func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
 		return 0, 0, false
 	}
 	s := string(b)
-	close := strings.LastIndexByte(s, ')')
-	if close < 0 || close+2 > len(s) {
+	closeParen := strings.LastIndexByte(s, ')')
+	if closeParen < 0 || closeParen+2 > len(s) {
 		return 0, 0, false
 	}
 	// Fields after comm; field 3 (state) is index 0 here, so stat field N is
 	// index N-3: ppid=4→[1], utime=14→[11], stime=15→[12].
-	f := strings.Fields(s[close+1:])
+	f := strings.Fields(s[closeParen+1:])
 	if len(f) < 13 {
 		return 0, 0, false
 	}
@@ -377,6 +381,7 @@ func (r *Reader) readDisk(s *Sample) {
 	if bsize == 0 {
 		return
 	}
+	// Safe: block counts and sizes are always positive and bounded by filesystem limits.
 	s.DiskTotalBytes = int64(st.Blocks * bsize)
 	s.DiskUsedBytes = int64((st.Blocks - st.Bfree) * bsize)
 	s.DiskKnown = true

@@ -55,6 +55,7 @@
 // server silence, Exec retransmits the exact same command packet (same
 // sequence number, so a merely-delayed original reply still satisfies
 // the same waiter) once after a short ack window before giving up.
+
 package rcon
 
 import (
@@ -222,7 +223,7 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 
 	pkt := buildCommandPacket(seq, cmd)
 	if _, err := conn.Write(pkt); err != nil {
-		c.dropLocked()
+		_ = c.dropLocked()
 		return "", fmt.Errorf("battleye rcon exec %q: %w", cmd, err)
 	}
 
@@ -245,7 +246,7 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 			// otherwise write successfully into a socket nobody reads
 			// from and stall for the full execDeadline before finally
 			// redialing (see DEFECT 1 in the review that added this).
-			c.dropLocked()
+			_ = c.dropLocked()
 			return "", fmt.Errorf("battleye rcon exec %q: %w", cmd, r.err)
 		}
 		return r.body, nil
@@ -260,7 +261,7 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 		// retrying beyond this single retransmit; a server that's still
 		// silent after that is treated as unreachable.
 		if _, err := conn.Write(pkt); err != nil {
-			c.dropLocked()
+			_ = c.dropLocked()
 			return "", fmt.Errorf("battleye rcon exec %q (retransmit): %w", cmd, err)
 		}
 		remaining := execDeadline - ackTimeout
@@ -272,7 +273,7 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 			if r.err != nil {
 				// Same reasoning as the r.err branch above: failAll
 				// firing means readLoop is gone and this conn is dead.
-				c.dropLocked()
+				_ = c.dropLocked()
 				return "", fmt.Errorf("battleye rcon exec %q: %w", cmd, r.err)
 			}
 			return r.body, nil
@@ -282,7 +283,7 @@ func (c *BattlEye) Exec(cmd string) (string, error) {
 			// not just one lost packet. Drop the connection so the next
 			// Exec re-logs-in from a clean state rather than piling more
 			// unanswered commands onto a socket that may never recover.
-			c.dropLocked()
+			_ = c.dropLocked()
 			return "", fmt.Errorf("battleye rcon exec %q: timed out waiting for reply", cmd)
 		}
 	}
@@ -305,7 +306,7 @@ func (c *BattlEye) ensureLocked() error {
 			// idle, with no Exec in flight for failAll to notify (see
 			// DEFECT 1 in the review). Tear it down so we redial below
 			// instead of handing the caller a socket nobody reads from.
-			c.dropLocked()
+			_ = c.dropLocked()
 		default:
 			return nil
 		}
@@ -350,7 +351,7 @@ func (c *BattlEye) ensureLocked() error {
 	go c.readLoop(conn, readDone)
 
 	if _, err := conn.Write(buildPacket(beTypeLogin, []byte(pw))); err != nil {
-		c.dropLocked()
+		_ = c.dropLocked()
 		return fmt.Errorf("battleye rcon: send login: %w", err)
 	}
 
@@ -361,16 +362,16 @@ func (c *BattlEye) ensureLocked() error {
 	select {
 	case res := <-loginCh:
 		if res.err != nil {
-			c.dropLocked()
+			_ = c.dropLocked()
 			return fmt.Errorf("battleye rcon: login: %w", res.err)
 		}
 		if !res.ok {
-			c.dropLocked()
+			_ = c.dropLocked()
 			c.lastAuthFailure = time.Now()
 			return fmt.Errorf("battleye rcon: %w", ErrAuth)
 		}
 	case <-time.After(dialTimeout):
-		c.dropLocked()
+		_ = c.dropLocked()
 		return fmt.Errorf("battleye rcon: login timed out after %s (no reply — RCon may not be enabled on the server)", dialTimeout)
 	}
 

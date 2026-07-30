@@ -25,6 +25,7 @@ type handler struct {
 	path string
 }
 
+// Mount registers the log-streaming WebSocket endpoints on the supplied router.
 func Mount(r chi.Router, path string) {
 	h := &handler{path: path}
 	r.Get("/logs/tail", h.tail)
@@ -63,7 +64,7 @@ func (h *handler) tail(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
 	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()

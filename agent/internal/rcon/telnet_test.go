@@ -3,6 +3,7 @@ package rcon
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -34,7 +35,8 @@ func shrinkDeadlines(c *TelnetClient) {
 // at all, exercising the no-output/response-deadline path.
 func fakeTelnetServer(t *testing.T, password, banner string) (addr string, cleanup func()) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -78,7 +80,8 @@ func fakeTelnetServer(t *testing.T, password, banner string) (addr string, clean
 // anything, as opposed to fakeTelnetServer's "Incorrect password." line.
 func fakeTelnetServerSilentReject(t *testing.T, password string) (addr string, cleanup func()) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -255,7 +258,8 @@ func TestTelnetClient_ReusesConnectionAcrossCalls(t *testing.T) {
 // an absolute deadline — the quiet-gap check alone never fires.
 func fakeChatterServer(t *testing.T, password string) (addr string, cleanup func()) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -332,7 +336,8 @@ func TestTelnetClient_ExecReturnsOnContinuousStream(t *testing.T) {
 // bound. readQuiet is set longer than the whole burst so only the buffer
 // cap — not the quiet gap — can be what ends the read early.
 func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -440,7 +445,8 @@ func TestTelnetClient_ReadReplyBoundsBufferSize(t *testing.T) {
 // so a caller hammering Exec on a fixed timer (heartbeat, players) doesn't
 // re-dial and resend the same known-bad password every tick.
 func TestTelnetClient_AuthFailureCooldown(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -509,7 +515,8 @@ func TestTelnetClient_AuthFailureCooldown(t *testing.T) {
 // must CLEAR it — otherwise a password that gets fixed would keep being
 // throttled by a stale failure long after the cause is gone.
 func TestTelnetClient_AuthFailureCooldownClearsOnSuccess(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}

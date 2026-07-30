@@ -74,6 +74,7 @@
 // to THIS client's own http.Transport (built fresh in NewSatisfactory, never
 // http.DefaultTransport or http.DefaultClient) so no other HTTP caller in
 // the agent inherits it.
+
 package rcon
 
 import (
@@ -422,7 +423,7 @@ func (c *Satisfactory) doRequestLocked(body []byte, token string) (int, []byte, 
 	if err != nil {
 		return 0, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, satisfactoryMaxResponseBytes))
 	if err != nil {

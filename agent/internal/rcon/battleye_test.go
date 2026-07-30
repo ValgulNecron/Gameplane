@@ -2,6 +2,7 @@ package rcon
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -44,7 +45,8 @@ func beFakeAddr(t *testing.T, pc net.PacketConn) (string, int) {
 
 func newBEFakeServer(t *testing.T) net.PacketConn {
 	t.Helper()
-	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	pc, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
