@@ -18,12 +18,14 @@ package rcon
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,16 +38,19 @@ const (
 	typeRespValue    = 0
 )
 
+// PassFn resolves the RCON password on demand (allowing rotation without restart).
 type PassFn func() (string, error)
 
 // PasswordFromFile returns a password resolver that reads from disk
 // on each call (so rotated Secrets are picked up without a restart).
 func PasswordFromFile(path string) PassFn {
+	// Normalize the path at creation time to prevent directory traversal.
+	cleanPath := filepath.Clean(path)
 	return func() (string, error) {
-		if path == "" {
+		if cleanPath == "" || cleanPath == "." {
 			return "", errors.New("no rcon password file configured")
 		}
-		b, err := os.ReadFile(path)
+		b, err := os.ReadFile(cleanPath)
 		if err != nil {
 			return "", err
 		}
@@ -103,6 +108,7 @@ const defaultAuthFailureCooldown = 15 * time.Second
 // packet has been read.
 const responseGrace = 400 * time.Millisecond
 
+// New returns a new lazy RCON client for the given host and port.
 func New(host string, port int, pw PassFn) *Client {
 	return &Client{
 		addr:                net.JoinHostPort(host, fmt.Sprint(port)),
@@ -216,7 +222,8 @@ func (c *Client) ensureLocked() error {
 	if err != nil {
 		return err
 	}
-	conn, err := net.DialTimeout("tcp", c.addr, 5*time.Second)
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	conn, err := dialer.DialContext(context.Background(), "tcp", c.addr)
 	if err != nil {
 		return err
 	}
@@ -318,4 +325,5 @@ var ErrDisabled = errors.New("rcon disabled for this game")
 // Disabled returns an Exec-er whose every call fails with ErrDisabled.
 type Disabled struct{}
 
+// Exec always returns ErrDisabled.
 func (Disabled) Exec(string) (string, error) { return "", ErrDisabled }

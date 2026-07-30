@@ -27,6 +27,7 @@ import (
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
+// Rcon is the interface to the game's remote console.
 type Rcon interface {
 	Exec(cmd string) (string, error)
 }
@@ -45,6 +46,7 @@ type handler struct {
 	lastErr    error
 }
 
+// Capabilities indicates which moderation commands are supported.
 type Capabilities struct {
 	Kick      bool `json:"kick"`
 	Ban       bool `json:"ban"`
@@ -52,6 +54,7 @@ type Capabilities struct {
 	Whitelist bool `json:"whitelist"`
 }
 
+// Snapshot is a player list query result.
 type Snapshot struct {
 	Online       int          `json:"online"`
 	Max          int          `json:"max"`
@@ -60,6 +63,7 @@ type Snapshot struct {
 	Capabilities Capabilities `json:"capabilities"`
 }
 
+// BannedPlayer is a banned player entry.
 type BannedPlayer struct {
 	Name   string `json:"name"`
 	Reason string `json:"reason,omitempty"`
@@ -350,14 +354,14 @@ func matchList(raw string) []string {
 // "list" response. ok is false when the response matches no known format, in
 // which case the caller should treat both counts as unknown. It exists so the
 // heartbeat can reuse this parser instead of duplicating the formats.
-func ParseCounts(raw string) (online, max int, ok bool) {
+func ParseCounts(raw string) (online, maxPlayers int, ok bool) {
 	m := matchList(raw)
 	if m == nil {
 		return 0, 0, false
 	}
 	online, _ = strconv.Atoi(m[1])
-	max, _ = strconv.Atoi(m[2])
-	return online, max, true
+	maxPlayers, _ = strconv.Atoi(m[2])
+	return online, maxPlayers, true
 }
 
 func parseList(raw string) Snapshot {
