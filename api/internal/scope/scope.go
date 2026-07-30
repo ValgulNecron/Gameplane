@@ -19,6 +19,7 @@ import (
 	"strings"
 )
 
+// DefaultNamespace is the primary namespace the API will operate in.
 const DefaultNamespace = "gameplane-games"
 
 // AllowedNamespaces returns the list of namespaces the API will act in.

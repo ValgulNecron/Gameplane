@@ -190,7 +190,7 @@ func TestHandleCallback_HappyPath(t *testing.T) {
 	}
 	// User row created with email-derived username.
 	var u User
-	err = store.DB.QueryRow(`SELECT id, username, email, role FROM users WHERE email = ?`, idp.email).
+	err = store.DB.QueryRowContext(context.Background(), `SELECT id, username, email, role FROM users WHERE email = ?`, idp.email).
 		Scan(&u.ID, &u.Username, &u.Email, &u.Role)
 	if err != nil {
 		t.Fatalf("user not created: %v", err)
@@ -200,7 +200,7 @@ func TestHandleCallback_HappyPath(t *testing.T) {
 	}
 	// oidc_link row ties (issuer,subject) to the user.
 	var linked int
-	_ = store.DB.QueryRow(`SELECT COUNT(*) FROM oidc_links WHERE issuer = ? AND subject = ?`,
+	_ = store.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM oidc_links WHERE issuer = ? AND subject = ?`,
 		idp.issuer(), idp.subject).Scan(&linked)
 	if linked != 1 {
 		t.Fatalf("oidc_link rows = %d", linked)

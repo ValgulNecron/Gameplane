@@ -66,7 +66,7 @@ func (h *roleHandler) loadRoles(req *http.Request) ([]roleDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	byName := map[string]*roleDTO{}
 	out := []roleDTO{}
 	for rows.Next() {
@@ -91,7 +91,7 @@ func (h *roleHandler) loadRoles(req *http.Request) ([]roleDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer pRows.Close()
+	defer func() { _ = pRows.Close() }()
 	for pRows.Next() {
 		var name, perm string
 		if err := pRows.Scan(&name, &perm); err != nil {

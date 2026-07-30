@@ -92,7 +92,7 @@ func main() {
 		logger.Error("open db", "err", err)
 		os.Exit(1)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		logger.Error("migrate", "err", err)
 		os.Exit(1)

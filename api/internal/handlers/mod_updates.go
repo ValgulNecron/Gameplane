@@ -228,13 +228,13 @@ func (h *modUpdatesHandler) updates(w http.ResponseWriter, req *http.Request) {
 	)
 	for key := range groups {
 		wg.Add(1)
-		go func(key modUpdateKey) {
+		go func(key modUpdateKey, ctx context.Context) {
 			defer wg.Done()
-			latest, err := h.latestFor(req.Context(), key)
+			latest, err := h.latestFor(ctx, key)
 			rm.Lock()
 			results[key] = lookup{latest: latest, err: err}
 			rm.Unlock()
-		}(key)
+		}(key, req.Context())
 	}
 	wg.Wait()
 

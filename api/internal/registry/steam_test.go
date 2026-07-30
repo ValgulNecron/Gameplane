@@ -122,7 +122,7 @@ func TestSteamSearchModpackUsesCollectionsFiletype(t *testing.T) {
 // QueryFiles field names) — so a resolved item must still surface a
 // description via that field.
 func TestSteamResolveByIDUsesDescriptionFallback(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
 			{"publishedfileid":"1","result":1,"title":"Wiremod","consumer_app_id":4000,"description":"A wiring mod"}
 		]}}`))
@@ -184,7 +184,7 @@ func TestSteamSearchDigitTermUsesGetPublishedFileDetails(t *testing.T) {
 }
 
 func TestSteamSearchDigitTermCrossAppMismatch(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
 			{"publishedfileid":"1","result":1,"consumer_app_id":730}
 		]}}`))
@@ -203,7 +203,7 @@ func TestSteamSearchDigitTermCrossAppMismatch(t *testing.T) {
 }
 
 func TestSteamSearchDigitTermNotFound(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
 			{"publishedfileid":"1","result":9}
 		]}}`))
@@ -227,7 +227,7 @@ func TestSteamSearchDigitTermNotFound(t *testing.T) {
 // populated version dropdown next to a permanently-disabled Install
 // button; the dashboard's empty state is keyed on zero *versions*.
 func TestSteamVersionsAlwaysEmpty(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
 			{"publishedfileid":"555","result":1,"title":"Wiremod","consumer_app_id":4000}
 		]}}`))
@@ -245,7 +245,7 @@ func TestSteamVersionsAlwaysEmpty(t *testing.T) {
 }
 
 func TestSteamVersionsUnknownID(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"response":{"result":1,"resultcount":1,"publishedfiledetails":[
 			{"publishedfileid":"1","result":9}
 		]}}`))

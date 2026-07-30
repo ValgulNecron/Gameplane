@@ -40,7 +40,7 @@ func WatchClusters(ctx context.Context, home *Client, reg *Registry, ns string) 
 				slog.Warn("cluster watch: failed to load cluster", "cluster", name, "err", err)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj any) {
+		UpdateFunc: func(_, newObj any) {
 			u, ok := newObj.(*unstructured.Unstructured)
 			if !ok {
 				return

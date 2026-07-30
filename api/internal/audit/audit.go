@@ -460,7 +460,7 @@ func (a *Auditor) Verify(ctx context.Context) (VerifyResult, error) {
 	if err != nil {
 		return VerifyResult{}, fmt.Errorf("query audit chain: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var checked int64
 	for rows.Next() {
@@ -608,7 +608,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 				}
 			}
 
-			if err := a.insertChained(req.Context(), ts, actor, req.Method, req.URL.Path, target, rw.status, clientIP); err != nil {
+			if err := a.insertChained(context.WithoutCancel(req.Context()), ts, actor, req.Method, req.URL.Path, target, rw.status, clientIP); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",
@@ -710,7 +710,7 @@ func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, err
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make([]Event, 0, limit)
 	for rows.Next() {
 		var e Event
@@ -768,7 +768,7 @@ func (a *Auditor) Stream(ctx context.Context, f StreamFilter, fn func(Event) err
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var e Event
 		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP); err != nil {

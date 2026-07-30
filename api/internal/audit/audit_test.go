@@ -145,7 +145,7 @@ func TestMiddleware_StdoutSink(t *testing.T) {
 	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
-	req := httptest.NewRequest("POST", "/api/v1/servers?name=alpha", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/servers?name=alpha", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Username: "admin"}))
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -170,7 +170,7 @@ func TestMiddleware_NoSinkByDefault(t *testing.T) {
 	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := httptest.NewRequest("POST", "/api/v1/x", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/x", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req) // must not panic without a sink
 	if got := countEvents(t, s); got != 1 {
 		t.Errorf("db events = %d, want 1", got)
@@ -194,7 +194,7 @@ func TestShouldLog(t *testing.T) {
 		{"PUT", "/api/v1/users/admin", true},
 	}
 	for _, tc := range cases {
-		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
 		if got := shouldLog(req); got != tc.want {
 			t.Errorf("shouldLog(%s %s)=%v want %v", tc.method, tc.path, got, tc.want)
 		}
@@ -209,11 +209,11 @@ func TestMiddleware_RecordsMutatingRequest(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 
-	req := httptest.NewRequest("POST", "/api/v1/servers?name=alpha", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/servers?name=alpha", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Username: "admin"}))
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
-	rows, err := s.DB.Query(`SELECT actor, method, path, target, status FROM audit_events`)
+	rows, err := s.DB.QueryContext(context.Background(), `SELECT actor, method, path, target, status FROM audit_events`)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -243,10 +243,10 @@ func TestMiddleware_AnonymousActorWhenNoUser(t *testing.T) {
 	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := httptest.NewRequest("POST", "/api/v1/anything", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/anything", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	var actor string
-	if err := s.DB.QueryRow(`SELECT actor FROM audit_events`).Scan(&actor); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT actor FROM audit_events`).Scan(&actor); err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if actor != "anonymous" {
@@ -258,10 +258,10 @@ func TestMiddleware_SkipsReads(t *testing.T) {
 	s := newStore(t)
 	a := New(s)
 	h := Middleware(a)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
-	req := httptest.NewRequest("GET", "/api/v1/servers", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/servers", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	var n int
-	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM audit_events`).Scan(&n)
+	_ = s.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM audit_events`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("expected no rows, got %d", n)
 	}
@@ -271,13 +271,13 @@ func TestPage(t *testing.T) {
 	s := newStore(t)
 	a := New(s)
 	for i := 0; i < 5; i++ {
-		_, err := s.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
+		_, err := s.DB.ExecContext(context.Background(), `INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
 			VALUES (?, ?, 'POST', '/x', '', 201, '')`, "2026-01-0"+itoa(i+1)+"T00:00:00Z", "u")
 		if err != nil {
 			t.Fatalf("insert: %v", err)
 		}
 	}
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 
 	t.Run("default limit", func(t *testing.T) {
 		got, err := a.Page(req, 0, 0) // limit<=0 → defaulted to 100
@@ -383,7 +383,7 @@ func TestStream_StatusFilterSentinel(t *testing.T) {
 // ---- tamper-evidence (hash chain) ----
 
 func postEvent(h http.Handler) {
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/api/v1/servers", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/servers", nil))
 }
 
 // TestInsertChained_LinksConsecutiveRows checks that each row's prev_hash
@@ -397,14 +397,14 @@ func TestInsertChained_LinksConsecutiveRows(t *testing.T) {
 		postEvent(h)
 	}
 
-	rows, err := s.DB.Query(
+	rows, err := s.DB.QueryContext(context.Background(),
 		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''),
 		        COALESCE(prev_hash,''), COALESCE(hash,'')
 		 FROM audit_events ORDER BY id ASC`)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	expectedPrev := "" // genesis
 	count := 0
@@ -440,7 +440,7 @@ func TestInsertChained_RestartsChainAfterLegacyRow(t *testing.T) {
 	postEvent(h)
 
 	var prevHash string
-	if err := s.DB.QueryRow(
+	if err := s.DB.QueryRowContext(context.Background(),
 		`SELECT COALESCE(prev_hash,'') FROM audit_events ORDER BY id DESC LIMIT 1`,
 	).Scan(&prevHash); err != nil {
 		t.Fatalf("query: %v", err)
@@ -487,7 +487,7 @@ func TestVerify_DetectsUpdatedRow(t *testing.T) {
 		postEvent(h)
 	}
 
-	if _, err := s.DB.Exec(`UPDATE audit_events SET actor = 'attacker' WHERE id = 2`); err != nil {
+	if _, err := s.DB.ExecContext(context.Background(), `UPDATE audit_events SET actor = 'attacker' WHERE id = 2`); err != nil {
 		t.Fatalf("tamper: %v", err)
 	}
 
@@ -513,7 +513,7 @@ func TestVerify_DetectsDeletedRow(t *testing.T) {
 		postEvent(h)
 	}
 
-	if _, err := s.DB.Exec(`DELETE FROM audit_events WHERE id = 2`); err != nil {
+	if _, err := s.DB.ExecContext(context.Background(), `DELETE FROM audit_events WHERE id = 2`); err != nil {
 		t.Fatalf("tamper: %v", err)
 	}
 
@@ -611,7 +611,7 @@ func TestVerify_DetectsDeletedTailRow(t *testing.T) {
 		t.Fatalf("pre-tamper verify = %+v, err=%v, want OK", result, err)
 	}
 
-	if _, err := s.DB.Exec(`DELETE FROM audit_events WHERE id > 2`); err != nil {
+	if _, err := s.DB.ExecContext(context.Background(), `DELETE FROM audit_events WHERE id > 2`); err != nil {
 		t.Fatalf("tamper: %v", err)
 	}
 
@@ -657,7 +657,7 @@ func TestInsertChained_WritesAndUpdatesHead(t *testing.T) {
 	}
 
 	var wantHash string
-	if err := s.DB.QueryRow(`SELECT hash FROM audit_events WHERE id = 1`).Scan(&wantHash); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT hash FROM audit_events WHERE id = 1`).Scan(&wantHash); err != nil {
 		t.Fatalf("query row 1 hash: %v", err)
 	}
 	if head.Hash != wantHash {
@@ -676,7 +676,7 @@ func TestInsertChained_WritesAndUpdatesHead(t *testing.T) {
 	if head.LastID != 2 {
 		t.Fatalf("head.LastID = %d, want 2 after a second insert", head.LastID)
 	}
-	if err := s.DB.QueryRow(`SELECT hash FROM audit_events WHERE id = 2`).Scan(&wantHash); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT hash FROM audit_events WHERE id = 2`).Scan(&wantHash); err != nil {
 		t.Fatalf("query row 2 hash: %v", err)
 	}
 	if head.Hash != wantHash {

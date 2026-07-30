@@ -113,6 +113,7 @@ func TestDestinations_PasswordIsRedacted(t *testing.T) {
 		if strings.Contains(body, pw) {
 			t.Errorf("response body for %s leaks password: %s", path, body)
 		}
+		_ = r.Body.Close()
 	}
 }
 
@@ -142,18 +143,21 @@ func TestDestinations_HidesUnlabeledSecrets(t *testing.T) {
 	if strings.Contains(body, name) {
 		t.Errorf("list exposed unlabeled secret %q: %s", name, body)
 	}
+	_ = resp.Body.Close()
 
 	// GET must return 404 even though the Secret exists.
 	resp = doJSON(t, http.MethodGet, "/backup-destinations/"+name, nil)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("GET unlabeled = %d, want 404", resp.StatusCode)
 	}
+	resp.Body.Close()
 
 	// DELETE must also refuse to nuke the foreign secret.
 	resp = doJSON(t, http.MethodDelete, "/backup-destinations/"+name, nil)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("DELETE unlabeled = %d, want 404", resp.StatusCode)
 	}
+	resp.Body.Close()
 	if _, err := kubeC.Typed.CoreV1().Secrets(scope.DefaultNamespace).
 		Get(context.Background(), name, metav1.GetOptions{}); apierrors.IsNotFound(err) {
 		t.Errorf("foreign secret was deleted via /backup-destinations DELETE")

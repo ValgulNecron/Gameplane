@@ -282,8 +282,6 @@ func joinNames(in []string) string {
 	return out
 }
 
-// catalog merges:
-//   - every ModuleSource's status.modules (catalog)
 // readyConditionReason returns the machine-readable reason of the Module's
 // Ready condition (e.g. "VersionUnavailable"), or "" if absent.
 func readyConditionReason(obj map[string]any) string {

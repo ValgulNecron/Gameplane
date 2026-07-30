@@ -31,19 +31,6 @@ func insertUser(t *testing.T, s *Store, username, role string) int64 {
 	return id
 }
 
-func assertBinding(t *testing.T, s *Store, uid int64, ns, wantRole string) {
-	t.Helper()
-	var got string
-	err := s.DB.QueryRow(
-		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND namespace = ?`, uid, ns).Scan(&got)
-	if err != nil {
-		t.Fatalf("binding for ns=%q missing: %v", ns, err)
-	}
-	if got != wantRole {
-		t.Fatalf("ns=%q role=%q, want %q", ns, got, wantRole)
-	}
-}
-
 func assertBindingCluster(t *testing.T, s *Store, uid int64, cluster, ns, wantRole string) {
 	t.Helper()
 	var got string

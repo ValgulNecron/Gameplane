@@ -272,9 +272,7 @@ func parseServerPath(path string) (string, string, bool) {
 	// Normalize to remove leading /
 	trimmed := strings.TrimPrefix(path, "/")
 	// Handle /ws/servers/... → servers/...
-	if strings.HasPrefix(trimmed, "ws/") {
-		trimmed = strings.TrimPrefix(trimmed, "ws/")
-	}
+	trimmed = strings.TrimPrefix(trimmed, "ws/")
 	// Must start with servers/
 	if !strings.HasPrefix(trimmed, "servers/") {
 		return "", "", false

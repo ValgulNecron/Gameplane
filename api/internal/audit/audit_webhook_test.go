@@ -119,7 +119,7 @@ func TestWebhookSink_MiddlewareFanout(t *testing.T) {
 	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
-	req := httptest.NewRequest("POST", "/api/v1/servers?name=beta", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/servers?name=beta", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Username: "root"}))
 	h.ServeHTTP(httptest.NewRecorder(), req)
 

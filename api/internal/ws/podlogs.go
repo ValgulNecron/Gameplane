@@ -68,7 +68,7 @@ func (h *podLogProxy) handle(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
 	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()
@@ -149,7 +149,7 @@ func (h *podLogProxy) streamContainer(ctx context.Context, conn *websocket.Conn,
 	if err != nil {
 		return err
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	sc := bufio.NewScanner(stream)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)

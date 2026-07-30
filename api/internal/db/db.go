@@ -26,11 +26,15 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
+// Store wraps the database connection and driver name, providing methods
+// for migrations and access to user/session/audit data.
 type Store struct {
 	DB     *sql.DB
 	Driver string
 }
 
+// Open connects to a database using the specified driver and DSN.
+// Supported drivers are "sqlite" and "postgres".
 func Open(ctx context.Context, driver, dsn string) (*Store, error) {
 	switch driver {
 	case "sqlite":
@@ -58,6 +62,7 @@ func Open(ctx context.Context, driver, dsn string) (*Store, error) {
 	}
 }
 
+// Close closes the database connection.
 func (s *Store) Close() error { return s.DB.Close() }
 
 // Migrate applies every .sql file under migrations/ in order. Each
@@ -148,9 +153,7 @@ func splitStatements(s string) []string {
 // Handles DSN formats like "file:/path/db.db?_pragma=..." and bare "/path/db.db".
 func sqlitePath(dsn string) string {
 	// Strip the "file:" prefix if present.
-	if strings.HasPrefix(dsn, "file:") {
-		dsn = dsn[5:]
-	}
+	dsn = strings.TrimPrefix(dsn, "file:")
 
 	// If it's a memory database, return empty.
 	if dsn == ":memory:" || strings.HasPrefix(dsn, ":memory:") {
