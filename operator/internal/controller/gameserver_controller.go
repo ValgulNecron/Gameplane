@@ -72,6 +72,14 @@ type GameServerReconciler struct {
 	// Empty falls back to DefaultSentinelImage.
 	SentinelImage string
 
+	// TunnelFrpImage, TunnelTailscaleImage, TunnelPlayitImage are the images
+	// for the tunnel relay pods. Set from operator flags so air-gapped installs
+	// can point at a private registry mirror. Empty falls back to the per-
+	// provider defaults.
+	TunnelFrpImage       string
+	TunnelTailscaleImage string
+	TunnelPlayitImage    string
+
 	// AgentCASecretName / AgentCASecretNamespace point at the cluster-
 	// wide Secret holding `ca.crt` + `ca.key` used to sign the
 	// per-GameServer agent server cert. Provisioned by the chart
@@ -275,6 +283,19 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "reconcile game-direct Service")
 		return ctrl.Result{}, err
 	}
+
+	// planTunnel decides whether the tunnel pod should exist and what endpoints
+	// it will advertise. Like planSentinel, this is computed once per pass so
+	// there is a single source of truth (see planTunnel's doc comment).
+	tunnelPlan := r.planTunnel(ctx, &gs, &tmpl)
+	if err := r.reconcileTunnel(ctx, &gs, &tmpl, tunnelPlan.wantTunnel); err != nil {
+		logger.Error(err, "reconcile tunnel")
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileTunnelNetworkPolicy(ctx, &gs, &tmpl, tunnelPlan); err != nil {
+		logger.Error(err, "reconcile tunnel NetworkPolicy")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileService(ctx, &gs, &tmpl, plan.routeToSentinel); err != nil {
 		logger.Error(err, "reconcile Service")
 		return ctrl.Result{}, err
@@ -303,7 +324,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus)
+	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

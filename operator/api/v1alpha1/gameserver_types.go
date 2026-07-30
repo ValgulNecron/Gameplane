@@ -266,6 +266,13 @@ type GameServerNetworking struct {
 	// +listType=atomic
 	// +optional
 	SourceRanges []string `json:"sourceRanges,omitempty"`
+
+	// Tunnel routes players through a relay instead of relying on cluster
+	// ingress, for installs with no public IP and no ability to port-forward.
+	// It layers over the backing Service rather than replacing it, so it
+	// composes with idle auto-sleep and wake-on-connect.
+	// +optional
+	Tunnel *GameServerTunnel `json:"tunnel,omitempty"`
 }
 
 // PortOverride pins or remaps one of the template's declared ports.
@@ -284,6 +291,98 @@ type PortOverride struct {
 	// +kubebuilder:validation:Maximum=32767
 	// +optional
 	NodePort int32 `json:"nodePort,omitempty"`
+}
+
+// GameServerTunnel configures relay-based connectivity for a server.
+// +kubebuilder:validation:XValidation:rule="!self.enabled || has(self.credentialsSecretRef)",message="credentialsSecretRef is required when tunnel is enabled"
+// +kubebuilder:validation:XValidation:rule="!self.enabled || self.provider != 'frp' || has(self.frp)",message="frp config is required when provider is frp"
+type GameServerTunnel struct {
+	// Enabled turns the tunnel on for this server.
+	// +kubebuilder:default=false
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Provider selects which tunnel backend to use.
+	// +kubebuilder:validation:Enum=frp;tailscale;playit
+	Provider string `json:"provider"`
+
+	// CredentialsSecretRef references a Secret in the GameServer's
+	// namespace containing provider-specific credentials. The Secret's key
+	// shape is documented in docs/tunnels.md per provider.
+	// +optional
+	CredentialsSecretRef *SecretNameRef `json:"credentialsSecretRef,omitempty"`
+
+	// Frp configures an frp relay tunnel (static public address).
+	// +optional
+	Frp *FrpTunnelSpec `json:"frp,omitempty"`
+
+	// Tailscale configures a Tailscale tunnel (private tailnet only).
+	// +optional
+	Tailscale *TailscaleTunnelSpec `json:"tailscale,omitempty"`
+
+	// Playit configures a Playit tunnel (dynamic public address).
+	// +optional
+	Playit *PlayitTunnelSpec `json:"playit,omitempty"`
+}
+
+// FrpTunnelSpec configures frp relay tunnel settings.
+type FrpTunnelSpec struct {
+	// ServerAddr is the hostname or IP of the frps server.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	ServerAddr string `json:"serverAddr"`
+
+	// ServerPort is the frps listening port.
+	// +kubebuilder:default=7000
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	// +optional
+	ServerPort int32 `json:"serverPort,omitempty"`
+
+	// RemotePorts maps advertised template ports to ports on the frps host.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=16
+	RemotePorts []RemotePortMapping `json:"remotePorts"`
+}
+
+// RemotePortMapping associates a template port name with its remote port.
+type RemotePortMapping struct {
+	// Name is the advertised port name from the GameTemplate.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	Name string `json:"name"`
+
+	// RemotePort is the port on the frps host.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	RemotePort int32 `json:"remotePort"`
+}
+
+// TailscaleTunnelSpec configures Tailscale tunnel settings.
+type TailscaleTunnelSpec struct {
+	// Hostname is the MagicDNS device name. If empty, defaults to the
+	// GameServer name. Must be an RFC 1123 label: 1-63 alphanumeric
+	// characters or hyphens, no leading/trailing hyphen.
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$`
+	// +optional
+	Hostname string `json:"hostname,omitempty"`
+
+	// Tags are Tailscale ACL tags applied at device registration.
+	// +kubebuilder:validation:MaxItems=8
+	// +optional
+	Tags []string `json:"tags,omitempty"`
+}
+
+// PlayitTunnelSpec configures Playit tunnel settings.
+// The assigned public address is reported into status.endpoints by the
+// tunnel pod, not configured here.
+type PlayitTunnelSpec struct {
+	// TunnelName is an optional label used when creating the tunnel via
+	// the Playit API.
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	TunnelName string `json:"tunnelName,omitempty"`
 }
 
 // InlineBackupPolicy is the subset of BackupScheduleSpec a user can
@@ -389,6 +488,17 @@ type GameServerEndpoint struct {
 	Port int32  `json:"port"`
 	// +optional
 	Protocol corev1.Protocol `json:"protocol,omitempty"`
+
+	// Private indicates the endpoint is reachable only from a private mesh
+	// (e.g. Tailscale), not the public internet. The dashboard must label
+	// it accordingly.
+	// +optional
+	Private bool `json:"private,omitempty"`
+
+	// TunnelProvider is set when this endpoint is served by a tunnel
+	// provider (frp, tailscale, playit) rather than the backing Service.
+	// +optional
+	TunnelProvider string `json:"tunnelProvider,omitempty"`
 }
 
 // AgentStatus is runtime state the sidecar reports via status updates.

@@ -56,6 +56,14 @@ operator:
     limits:   { cpu: 500m, memory: 256Mi }
   agentImage: ""   # defaults to {image.registry}/agent:{image.tag}
   sentinelImage: ""   # defaults to {image.registry}/sentinel:{image.tag}
+  # Tunnel provider images: relay binaries wrapped in OCI images for reaching
+  # players through relay services when the cluster has no public IP or port-
+  # forwarding. Each wraps a third-party relay binary (frpc, tailscaled, playit)
+  # and is cosign-signed like other Gameplane images.
+  tunnelImages:
+    frp: ""   # defaults to {image.registry}/tunnel-frp:{image.tag}
+    tailscale: ""   # defaults to {image.registry}/tunnel-tailscale:{image.tag}
+    playit: ""   # defaults to {image.registry}/tunnel-playit:{image.tag}
   # Images the operator injects into game/backup pods. Retag these to a
   # private registry mirror for air-gapped installs (Docker Hub blocked).
   configInitImage: busybox:1.38.0

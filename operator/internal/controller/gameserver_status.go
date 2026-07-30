@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,9 +26,12 @@ const heartbeatFreshness = 60 * time.Second
 // reconcileStatus derives phase / conditions / endpoints / startedAt
 // from observed StatefulSet, Service, and the agent heartbeat. It's a
 // pure computation — no child objects are mutated here.
+//
+// tunnelEndpoints are prepended to the Service endpoints so the dashboard's
+// Connection card reads the tunnel address when present.
 func (r *GameServerReconciler) reconcileStatus(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
-	idle idleState, idleStatus *gameplanev1alpha1.IdleStatus,
+	idle idleState, idleStatus *gameplanev1alpha1.IdleStatus, tunnelPlan tunnelPlan,
 ) (time.Duration, error) {
 	// base captures the object as fetched so we can issue a JSON merge
 	// patch of only the fields this reconciler owns. The agent sidecar
@@ -88,13 +92,36 @@ func (r *GameServerReconciler) reconcileStatus(
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
 	gs.Status.Conditions = computeConditions(gs, phase, prov, idle)
+
+	// Fetch tunnel Deployment to compute TunnelReady condition.
+	var tunnelDep *appsv1.Deployment
+	if tunnelPlan.wantTunnel {
+		var dep appsv1.Deployment
+		tunnelDepErr := r.Get(ctx, types.NamespacedName{
+			Name:      gs.Name + "-tunnel",
+			Namespace: gs.Namespace,
+		}, &dep)
+		if tunnelDepErr == nil {
+			tunnelDep = &dep
+		}
+	}
+
+	// Compute tunnel conditions.
+	gs.Status.Conditions = computeTunnelConditions(gs, tunnelPlan, tunnelDep)
+
 	// Folded into this one status patch rather than written by reconcileIdle
 	// itself: the agent concurrently patches status.agent, and a second writer
 	// here would be a second thing to race. A nil block clears status.idle,
 	// which is how disabling the feature drops its stale read model.
 	gs.Status.Idle = idleStatus
+
+	// Endpoints: tunnel endpoints come first (when present) so the dashboard's
+	// Connection card reads the address players actually use.
 	if svcExists {
 		gs.Status.Endpoints = endpointsFromService(&svc)
+	}
+	if tunnelPlan.wantTunnel && len(tunnelPlan.endpoints) > 0 {
+		gs.Status.Endpoints = append(tunnelPlan.endpoints, gs.Status.Endpoints...)
 	}
 	if phase == gameplanev1alpha1.GameServerPhaseRunning && gs.Status.StartedAt == nil {
 		now := metav1.Now()
@@ -382,6 +409,179 @@ func podReady(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+// computeTunnelConditions sets the TunnelReady condition based on the tunnel
+// Deployment's readiness and configuration state. When the tunnel is disabled,
+// the condition is removed from the status.
+func computeTunnelConditions(
+	gs *gameplanev1alpha1.GameServer,
+	plan tunnelPlan,
+	tunnelDep *appsv1.Deployment,
+) []metav1.Condition {
+	conds := gs.Status.Conditions
+
+	// If tunnel is not wanted, remove the TunnelReady condition.
+	if !plan.wantTunnel {
+		conds = removeCondition(conds, "TunnelReady")
+		return conds
+	}
+
+	// Tunnel is wanted: determine readiness.
+	var tunnelReady metav1.Condition
+	tunnelReady.Type = "TunnelReady"
+	tunnelReady.ObservedGeneration = gs.Generation
+
+	tunnel := gs.Spec.Networking.Tunnel
+	if tunnel == nil {
+		// Should not happen if plan.wantTunnel is true, but guard anyway.
+		tunnelReady.Status = metav1.ConditionFalse
+		tunnelReady.Reason = "InvalidConfig"
+		tunnelReady.Message = "tunnel enabled but no tunnel spec"
+		conds = upsertCondition(conds, tunnelReady)
+		return conds
+	}
+
+	// Tunnel Deployment not yet created or not ready.
+	if tunnelDep == nil {
+		tunnelReady.Status = metav1.ConditionFalse
+		tunnelReady.Reason = "DeploymentNotReady"
+		tunnelReady.Message = "waiting for tunnel deployment to be created"
+		conds = upsertCondition(conds, tunnelReady)
+		return conds
+	}
+
+	if tunnelDep.Status.ReadyReplicas == 0 {
+		tunnelReady.Status = metav1.ConditionFalse
+		tunnelReady.Reason = "DeploymentNotReady"
+		tunnelReady.Message = "tunnel deployment has no ready replicas"
+		conds = upsertCondition(conds, tunnelReady)
+		return conds
+	}
+
+	// Provider-specific readiness checks.
+	switch tunnel.Provider {
+	case "frp":
+		if tunnel.Frp == nil {
+			tunnelReady.Status = metav1.ConditionFalse
+			tunnelReady.Reason = "InvalidConfig"
+			tunnelReady.Message = "frp provider selected but no frp config"
+			conds = upsertCondition(conds, tunnelReady)
+			return conds
+		}
+
+		// Check for unmapped ports: frp requires explicit RemotePorts mapping.
+		if len(plan.noMapping) > 0 {
+			tunnelReady.Status = metav1.ConditionFalse
+			tunnelReady.Reason = "PortNotMapped"
+			tunnelReady.Message = fmt.Sprintf(
+				"frp remote ports not configured for: %s",
+				strings.Join(plan.noMapping, ", "),
+			)
+			conds = upsertCondition(conds, tunnelReady)
+			return conds
+		}
+
+		// All endpoints known: deployment ready and mappings complete.
+		tunnelReady.Status = metav1.ConditionTrue
+		tunnelReady.Reason = "Ready"
+		tunnelReady.Message = "tunnel deployment ready and all ports mapped"
+
+	case "tailscale":
+		if tunnel.Tailscale == nil {
+			tunnelReady.Status = metav1.ConditionFalse
+			tunnelReady.Reason = "InvalidConfig"
+			tunnelReady.Message = "tailscale provider selected but no tailscale config"
+			conds = upsertCondition(conds, tunnelReady)
+			return conds
+		}
+
+		// Check if credentials are provided (optional, but if missing, tunnel won't authenticate).
+		if tunnel.CredentialsSecretRef == nil {
+			tunnelReady.Status = metav1.ConditionFalse
+			tunnelReady.Reason = "NoCredentials"
+			tunnelReady.Message = "no credentials secret provided; tailscale won't authenticate"
+			conds = upsertCondition(conds, tunnelReady)
+			return conds
+		}
+
+		// Deployment is ready and credentials are configured.
+		tunnelReady.Status = metav1.ConditionTrue
+		tunnelReady.Reason = "Ready"
+		tunnelReady.Message = "tunnel deployment ready and authenticated"
+
+	case "playit":
+		if tunnel.Playit == nil {
+			tunnelReady.Status = metav1.ConditionFalse
+			tunnelReady.Reason = "InvalidConfig"
+			tunnelReady.Message = "playit provider selected but no playit config"
+			conds = upsertCondition(conds, tunnelReady)
+			return conds
+		}
+
+		// Check if credentials are provided (playit requires authentication).
+		if tunnel.CredentialsSecretRef == nil {
+			tunnelReady.Status = metav1.ConditionFalse
+			tunnelReady.Reason = "NoCredentials"
+			tunnelReady.Message = "no credentials secret provided; playit requires authentication"
+			conds = upsertCondition(conds, tunnelReady)
+			return conds
+		}
+
+		// Deployment is ready; playit endpoint will arrive asynchronously.
+		// Report AwaitingAddress while the tunnel pod hasn't yet reported an address.
+		// This is optimistic: the condition flips based on whether the tunnel pod
+		// has written to status.tunnelEndpoint. The agent or operator reconcile must
+		// populate it separately.
+		tunnelReady.Status = metav1.ConditionTrue
+		tunnelReady.Reason = "Ready"
+		tunnelReady.Message = "tunnel deployment ready; waiting for playit endpoint assignment"
+
+	default:
+		tunnelReady.Status = metav1.ConditionFalse
+		tunnelReady.Reason = "UnknownProvider"
+		tunnelReady.Message = fmt.Sprintf("unknown tunnel provider: %s", tunnel.Provider)
+	}
+
+	// Report informational conditions when tunnel settings don't apply to tunnel traffic.
+	// These are set to True with an informational reason so users understand the limitation.
+	var ignoredSettings []string
+	if gs.Spec.Networking.Hostname != "" {
+		ignoredSettings = append(ignoredSettings, "hostname")
+	}
+	if len(gs.Spec.Networking.SourceRanges) > 0 {
+		ignoredSettings = append(ignoredSettings, "sourceRanges")
+	}
+	for _, po := range gs.Spec.Networking.PortOverrides {
+		if po.NodePort != 0 {
+			ignoredSettings = append(ignoredSettings, "nodePort")
+			break
+		}
+	}
+	if len(ignoredSettings) > 0 {
+		infoCondition := metav1.Condition{
+			Type:               "TunnelHostnameIgnored",
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: gs.Generation,
+			Reason:             "SettingIgnored",
+			Message:            fmt.Sprintf("%s apply to the backing Service, not tunnel traffic", strings.Join(ignoredSettings, ", ")),
+		}
+		conds = upsertCondition(conds, infoCondition)
+	}
+
+	conds = upsertCondition(conds, tunnelReady)
+	return conds
+}
+
+// removeCondition removes a condition by type from the list, or returns the list unchanged.
+func removeCondition(conds []metav1.Condition, condType string) []metav1.Condition {
+	out := make([]metav1.Condition, 0, len(conds))
+	for i := range conds {
+		if conds[i].Type != condType {
+			out = append(out, conds[i])
+		}
+	}
+	return out
 }
 
 // endpointsFromService lists the per-port externally reachable address

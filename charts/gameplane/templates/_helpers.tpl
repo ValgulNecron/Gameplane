@@ -44,6 +44,30 @@ track a rolling channel.
 {{- end -}}
 {{- end -}}
 
+{{- define "gameplane.tunnelFrpImage" -}}
+{{- if .Values.operator.tunnelImages.frp -}}
+{{- .Values.operator.tunnelImages.frp -}}
+{{- else -}}
+{{- printf "%s/tunnel-frp:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "gameplane.tunnelTailscaleImage" -}}
+{{- if .Values.operator.tunnelImages.tailscale -}}
+{{- .Values.operator.tunnelImages.tailscale -}}
+{{- else -}}
+{{- printf "%s/tunnel-tailscale:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "gameplane.tunnelPlayitImage" -}}
+{{- if .Values.operator.tunnelImages.playit -}}
+{{- .Values.operator.tunnelImages.playit -}}
+{{- else -}}
+{{- printf "%s/tunnel-playit:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "gameplane.mcpServerImage" -}}
 {{- printf "%s/mcp-server:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
 {{- end -}}
