@@ -261,14 +261,25 @@ func writeProc(t *testing.T, procRoot string, pid, ppid int, comm string, ticks 
 	writeFile(t, dir, "statm", fmt.Sprintf("1000 %d 0 0 0 0 0\n", rssPages))
 }
 
+// writeProcFile creates a pid subdirectory and writes a stat or statm file inside it.
+// This mirrors the /proc/<pid>/stat and /proc/<pid>/statm layout that the readers expect.
+func writeProcFile(t *testing.T, procRoot, pidName, filename, content string) {
+	t.Helper()
+	dir := filepath.Join(procRoot, pidName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", pidName, err)
+	}
+	writeFile(t, dir, filename, content)
+}
+
 // TestRead_ProcMode covers the shared-PID-namespace path: CPU/memory are
 // summed across the game process(es), excluding pid 1 (pause) and the agent's
 // own subtree, and the CPU/memory limits come from the operator's hints.
 func TestRead_ProcMode(t *testing.T) {
 	proc := t.TempDir()
 	const self = 50
-	writeProc(t, proc, 1, 0, "pause", 999, 999)       // excluded (pid 1)
-	writeProc(t, proc, self, 1, "agent", 500, 500)    // excluded (selfPID)
+	writeProc(t, proc, 1, 0, "pause", 999, 999)         // excluded (pid 1)
+	writeProc(t, proc, self, 1, "agent", 500, 500)      // excluded (selfPID)
 	writeProc(t, proc, 60, self, "agent-tls", 300, 300) // excluded (agent subtree)
 	writeProc(t, proc, 100, 1, "javaserver", 100, 10)   // counted
 	writeProc(t, proc, 101, 100, "java-gc", 0, 5)       // counted (child of game)
@@ -336,46 +347,189 @@ func TestReadProcStat(t *testing.T) {
 	dir := t.TempDir()
 	// A comm with spaces and nested parens must not confuse field parsing —
 	// the reader keys off the final ')'.
-	writeFile(t, dir, "ok", "100 (my (weird) game) S 7 0 0 0 0 0 0 0 0 0 11 4 0 0\n")
-	if ppid, ticks, ok := readProcStat(filepath.Join(dir, "ok")); !ok || ppid != 7 || ticks != 15 {
+	writeProcFile(t, dir, "ok", "stat", "100 (my (weird) game) S 7 0 0 0 0 0 0 0 0 0 11 4 0 0\n")
+	if ppid, ticks, ok := readProcStat(dir, "ok"); !ok || ppid != 7 || ticks != 15 {
 		t.Fatalf("readProcStat ok = (%d,%d,%v), want (7,15,true)", ppid, ticks, ok)
 	}
-	writeFile(t, dir, "short", "100 (x) S 1 2 3\n") // too few fields after comm
-	if _, _, ok := readProcStat(filepath.Join(dir, "short")); ok {
+	writeProcFile(t, dir, "short", "stat", "100 (x) S 1 2 3\n") // too few fields after comm
+	if _, _, ok := readProcStat(dir, "short"); ok {
 		t.Fatalf("short stat should not parse")
 	}
-	writeFile(t, dir, "noparen", "100 x S 1\n") // no closing paren
-	if _, _, ok := readProcStat(filepath.Join(dir, "noparen")); ok {
+	writeProcFile(t, dir, "noparen", "stat", "100 x S 1\n") // no closing paren
+	if _, _, ok := readProcStat(dir, "noparen"); ok {
 		t.Fatalf("missing ) should not parse")
 	}
-	writeFile(t, dir, "badppid", "100 (x) S z 0 0 0 0 0 0 0 0 0 1 1 0 0\n")
-	if _, _, ok := readProcStat(filepath.Join(dir, "badppid")); ok {
+	writeProcFile(t, dir, "badppid", "stat", "100 (x) S z 0 0 0 0 0 0 0 0 0 1 1 0 0\n")
+	if _, _, ok := readProcStat(dir, "badppid"); ok {
 		t.Fatalf("non-numeric ppid should not parse")
 	}
-	writeFile(t, dir, "badtime", "100 (x) S 7 0 0 0 0 0 0 0 0 0 a b 0 0\n")
-	if _, _, ok := readProcStat(filepath.Join(dir, "badtime")); ok {
+	writeProcFile(t, dir, "badtime", "stat", "100 (x) S 7 0 0 0 0 0 0 0 0 0 a b 0 0\n")
+	if _, _, ok := readProcStat(dir, "badtime"); ok {
 		t.Fatalf("non-numeric times should not parse")
 	}
-	if _, _, ok := readProcStat(filepath.Join(dir, "absent")); ok {
+	if _, _, ok := readProcStat(dir, "absent"); ok {
 		t.Fatalf("absent stat should not parse")
 	}
 }
 
 func TestReadProcStatmRSS(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "ok", "1000 42 7 0 0 0 0\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "ok")); got != 42 {
+	writeProcFile(t, dir, "ok", "statm", "1000 42 7 0 0 0 0\n")
+	if got := readProcStatmRSS(dir, "ok"); got != 42 {
 		t.Fatalf("rss = %d, want 42", got)
 	}
-	writeFile(t, dir, "short", "1000\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "short")); got != 0 {
+	writeProcFile(t, dir, "short", "statm", "1000\n")
+	if got := readProcStatmRSS(dir, "short"); got != 0 {
 		t.Fatalf("short statm rss = %d, want 0", got)
 	}
-	writeFile(t, dir, "bad", "1000 notanum\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "bad")); got != 0 {
+	writeProcFile(t, dir, "bad", "statm", "1000 notanum\n")
+	if got := readProcStatmRSS(dir, "bad"); got != 0 {
 		t.Fatalf("bad statm rss = %d, want 0", got)
 	}
-	if got := readProcStatmRSS(filepath.Join(dir, "absent")); got != 0 {
+	if got := readProcStatmRSS(dir, "absent"); got != 0 {
 		t.Fatalf("absent statm rss = %d, want 0", got)
+	}
+}
+
+func TestReadProcStat_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	_, _, ok := readProcStat(dir, "../escape")
+	if ok {
+		t.Fatal("directory traversal should be rejected")
+	}
+}
+
+func TestReadProcStatmRSS_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	got := readProcStatmRSS(dir, "../escape")
+	if got != 0 {
+		t.Fatalf("directory traversal should return 0, got %d", got)
+	}
+}
+
+func TestReadUintFile_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	_, ok := readUintFile(dir, "../escape")
+	if ok {
+		t.Fatal("directory traversal should be rejected")
+	}
+}
+
+func TestReadCgroupFile_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	_, err := readCgroupFile(dir, "../escape")
+	if err != os.ErrPermission {
+		t.Fatalf("directory traversal should return ErrPermission, got %v", err)
+	}
+}
+
+func TestRead_CPUOverflow(t *testing.T) {
+	// Test the guard where CPU diff exceeds math.MaxInt64.
+	dir := t.TempDir()
+	clock := &fakeClock{t: time.Unix(100, 0)}
+
+	// Start at 0.
+	writeFile(t, dir, "cpu.stat", "usage_usec 0\n")
+	r := New(Config{Root: dir, now: clock.now})
+	r.Read() // seed prev at 0
+
+	clock.t = clock.t.Add(time.Second)
+	// Jump to a value > MaxInt64, making the diff also > MaxInt64.
+	writeFile(t, dir, "cpu.stat", fmt.Sprintf("usage_usec %d\n", uint64(math.MaxInt64)+1000))
+	s := r.Read()
+	// When diff exceeds MaxInt64, CPU should not be reported as known.
+	if s.CPUKnown {
+		t.Fatal("CPU overflow should leave CPU unknown")
+	}
+}
+
+func TestCpuUsageUsec_BadClkTck(t *testing.T) {
+	// Test the guard where clkTck <= 0.
+	proc := t.TempDir()
+	writeProc(t, proc, 100, 1, "game", 100, 10)
+
+	r := New(Config{
+		ProcMode: true,
+		ProcRoot: proc,
+		selfPID:  50,
+		clkTck:   0, // invalid clkTck
+	})
+	s := r.Read()
+	if s.CPUKnown {
+		t.Fatal("invalid clkTck should leave CPU unknown")
+	}
+}
+
+func TestRead_MemoryOverflow(t *testing.T) {
+	dir := t.TempDir()
+	// memory.current that exceeds math.MaxInt64 should be clamped.
+	writeFile(t, dir, "memory.current", fmt.Sprintf("%d\n", uint64(math.MaxInt64)+1))
+	s := New(Config{Root: dir}).Read()
+	if !s.MemoryKnown || s.MemoryBytes != math.MaxInt64 {
+		t.Fatalf("overflow should be clamped: got %d known=%v", s.MemoryBytes, s.MemoryKnown)
+	}
+}
+
+func TestRead_MemoryLimitOverflow(t *testing.T) {
+	dir := t.TempDir()
+	// memory.max that exceeds math.MaxInt64 should leave limit unknown.
+	writeFile(t, dir, "memory.current", "1024\n")
+	writeFile(t, dir, "memory.max", fmt.Sprintf("%d\n", uint64(math.MaxInt64)+1))
+	s := New(Config{Root: dir}).Read()
+	if s.MemoryLimitKnown {
+		t.Fatal("limit overflow should leave MemoryLimitKnown false")
+	}
+}
+
+func TestRead_DiskBlockSizeZero(t *testing.T) {
+	// Test the redundant bsize == 0 guard (line 417-419).
+	r := New(Config{
+		Root:    t.TempDir(),
+		DataDir: "/data",
+		statfs: func(_ string, st *unix.Statfs_t) error {
+			st.Bsize = 0
+			return nil
+		},
+	})
+	if r.Read().DiskKnown {
+		t.Fatal("zero block size should leave disk unknown")
+	}
+}
+
+func TestRead_DiskTotalOverflow(t *testing.T) {
+	r := New(Config{
+		Root:    t.TempDir(),
+		DataDir: "/data",
+		statfs: func(_ string, st *unix.Statfs_t) error {
+			st.Bsize = 2
+			// Use a value that when multiplied by 2 exceeds MaxInt64.
+			st.Blocks = math.MaxInt64/2 + 1000
+			st.Bfree = 0
+			return nil
+		},
+	})
+	if r.Read().DiskKnown {
+		t.Fatal("total disk overflow should leave disk unknown")
+	}
+}
+
+func TestRead_DiskUsedOverflow(t *testing.T) {
+	r := New(Config{
+		Root:    t.TempDir(),
+		DataDir: "/data",
+		statfs: func(_ string, st *unix.Statfs_t) error {
+			st.Bsize = 2
+			st.Blocks = math.MaxInt64/2 + 1000
+			// usedBlocks = Blocks - Bfree will be large enough to overflow
+			st.Bfree = 1
+			return nil
+		},
+	})
+	if r.Read().DiskKnown {
+		t.Fatal("used disk overflow should leave disk unknown")
 	}
 }

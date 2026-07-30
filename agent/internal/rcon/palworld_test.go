@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -441,7 +442,8 @@ func TestPalworld500IsNotAuthAndDoesNotArmCooldown(t *testing.T) {
 // TestPalworldConnectionRefused covers required case 9: a dead port fails
 // fast with a wrapped, non-auth error.
 func TestPalworldConnectionRefused(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("reserve a port: %v", err)
 	}

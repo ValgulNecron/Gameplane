@@ -76,6 +76,7 @@ func VerifyDummy(pw string) {
 	_, _ = VerifyPassword(pw, dummyHash())
 }
 
+// HashPassword hashes a password using argon2id.
 func HashPassword(pw string) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
@@ -90,6 +91,7 @@ func HashPassword(pw string) (string, error) {
 	), nil
 }
 
+// VerifyPassword verifies a password against an argon2id hash.
 func VerifyPassword(pw, encoded string) (bool, error) {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {

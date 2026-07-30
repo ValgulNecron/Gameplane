@@ -16,11 +16,11 @@ import (
 func TestVarIntRoundTrip(t *testing.T) {
 	t.Parallel()
 	tests := []int32{
-		0, 1, 127,                          // single byte
-		128, 255, 16383,                    // two bytes
-		16384, 1<<20 - 1, 1<<21 - 1,        // three bytes
-		1 << 21, 1<<27 - 1, 1<<28 - 1,      // four bytes
-		1 << 28, (1 << 31) - 1, -1, -128,   // five bytes and negatives
+		0, 1, 127, // single byte
+		128, 255, 16383, // two bytes
+		16384, 1<<20 - 1, 1<<21 - 1, // three bytes
+		1 << 21, 1<<27 - 1, 1<<28 - 1, // four bytes
+		1 << 28, (1 << 31) - 1, -1, -128, // five bytes and negatives
 	}
 	for _, v := range tests {
 		t.Run(fmt.Sprintf("%d", v), func(t *testing.T) {
@@ -80,7 +80,8 @@ func TestStringRoundTrip(t *testing.T) {
 func TestPingWithFakeServer(t *testing.T) {
 	t.Parallel()
 	// Start a fake server that echoes a well-formed status response.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen failed: %v", err)
 	}
@@ -185,7 +186,8 @@ func TestLoginConnectFailure(t *testing.T) {
 // TestTruncatedPacketError tests that a truncated response produces an error.
 func TestTruncatedPacketError(t *testing.T) {
 	t.Parallel()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen failed: %v", err)
 	}
@@ -223,7 +225,8 @@ func TestTruncatedPacketError(t *testing.T) {
 // TestGarbageResponseError tests that garbage data produces an error.
 func TestGarbageResponseError(t *testing.T) {
 	t.Parallel()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen failed: %v", err)
 	}
@@ -262,7 +265,8 @@ func TestGarbageResponseError(t *testing.T) {
 // TestContextDeadlineEnforced tests that the context deadline is respected.
 func TestContextDeadlineEnforced(t *testing.T) {
 	t.Parallel()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen failed: %v", err)
 	}

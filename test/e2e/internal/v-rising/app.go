@@ -1,3 +1,4 @@
+// Package main implements the V Rising join depth probe.
 package main
 
 import (
@@ -60,7 +61,7 @@ func probeVRising(ctx context.Context, addr string) (probe.Depth, error) {
 		// timeout (the shared probe deadline is expired by this point).
 		// Silence is itself a measurement: future readers need to know a raw
 		// probe was attempted and what (if anything) came back.
-		diagCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		diagCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 		defer cancel()
 		logRawDiagnostic(diagCtx, addr)
 		return "", fmt.Errorf("a2s query on query port %s never succeeded: %w", addr, err)
@@ -81,7 +82,7 @@ func logRawDiagnostic(ctx context.Context, addr string) {
 		log.Printf("raw-diagnostic: dial %s failed: %v", addr, err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	deadline := time.Now().Add(2 * time.Second)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {

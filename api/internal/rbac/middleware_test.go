@@ -132,7 +132,7 @@ type fakeFetcher struct {
 	err error
 }
 
-func (f *fakeFetcher) GetServer(ctx context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
+func (f *fakeFetcher) GetServer(_ context.Context, _ string, _, name string) (*unstructured.Unstructured, error) {
 	return f.obj, f.err
 }
 
@@ -250,7 +250,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 	t.Run("collaborator denied on DELETE", func(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: newServerWithAnnotations(1, []int64{2}),
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -268,7 +268,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 	t.Run("collaborator denied on :transfer", func(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: newServerWithAnnotations(1, []int64{2}),
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -286,7 +286,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 	t.Run("collaborator denied on :collaborators", func(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: newServerWithAnnotations(1, []int64{2}),
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -304,7 +304,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 	t.Run("collaborator denied on :wipe-data", func(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: newServerWithAnnotations(1, []int64{2}),
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -364,7 +364,7 @@ func TestMiddleware_OwnershipFallback_InvalidPath(t *testing.T) {
 	t.Run("invalid path with trailing segments after verb fails closed", func(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: newServerWithAnnotations(1, []int64{}),
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -384,7 +384,7 @@ func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
 	t.Run("fetch error fails closed", func(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			err: context.DeadlineExceeded,
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -403,7 +403,7 @@ func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: nil,
 			err: nil,
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -436,7 +436,7 @@ func TestFirstSegment(t *testing.T) {
 // fakeServerFetcher mocks the ServerFetcher for tests.
 type fakeServerFetcher map[string]*unstructured.Unstructured
 
-func (f fakeServerFetcher) GetServer(ctx context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
+func (f fakeServerFetcher) GetServer(_ context.Context, _ string, ns, name string) (*unstructured.Unstructured, error) {
 	if obj, ok := f[ns+"/"+name]; ok {
 		return obj, nil
 	}

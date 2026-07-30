@@ -7,11 +7,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/coder/websocket"
@@ -86,6 +89,27 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	r.Delete("/servers/{name}/mods", rejectRemoteCluster(p.httpProxy("/mods")))
 }
 
+// isDNS1123Label reports whether name is a valid DNS-1123 label (valid
+// Kubernetes resource name component). A label must consist of lower-case
+// alphanumerics and hyphens, start and end with an alphanumeric, and be
+// at most 63 characters long.
+func isDNS1123Label(name string) bool {
+	if len(name) == 0 || len(name) > 63 {
+		return false
+	}
+	for i, r := range name {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
+			return false
+		}
+		if i == 0 || i == len(name)-1 {
+			if r == '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // rejectRemoteCluster wraps a handler that can only ever act on the LOCAL
 // cluster. Every route in this package either proxies straight to the
 // agent sidecar (mTLS material is provisioned only for the home cluster)
@@ -146,14 +170,27 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 			httperr.Write(w, req, err)
 			return
 		}
+		// Validate namespace and pod name are valid DNS-1123 labels before
+		// constructing the URL to prevent SSRF injection.
+		if !isDNS1123Label(ns) || !isDNS1123Label(name) {
+			httperr.WriteCode(w, req, http.StatusBadRequest,
+				errors.New("invalid namespace or pod name"))
+			return
+		}
 		host := p.agentHost(name, ns)
-		upstream := "wss://" + host + agentPath
+		// Construct URL using url.URL to prevent injection.
+		u := &url.URL{
+			Scheme: "wss",
+			Host:   host,
+			Path:   agentPath,
+		}
+		upstream := u.String()
 
 		downConn, err := websocket.Accept(w, req, nil)
 		if err != nil {
 			return
 		}
-		defer downConn.Close(websocket.StatusNormalClosure, "")
+		defer func() { _ = downConn.Close(websocket.StatusNormalClosure, "") }()
 
 		upConn, upResp, err := websocket.Dial(req.Context(), upstream, &websocket.DialOptions{
 			HTTPClient: p.http,
@@ -172,7 +209,7 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 			_ = downConn.Close(websocket.StatusBadGateway, "agent dial failed")
 			return
 		}
-		defer upConn.Close(websocket.StatusNormalClosure, "")
+		defer func() { _ = upConn.Close(websocket.StatusNormalClosure, "") }()
 
 		// Bidirectional copy.
 		errCh := make(chan error, 2)
@@ -215,11 +252,22 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 			httperr.Write(w, req, err)
 			return
 		}
-		host := p.agentHost(name, ns)
-		upstream := "https://" + host + agentPath
-		if req.URL.RawQuery != "" {
-			upstream += "?" + req.URL.RawQuery
+		// Validate namespace and pod name are valid DNS-1123 labels before
+		// constructing the URL to prevent SSRF injection.
+		if !isDNS1123Label(ns) || !isDNS1123Label(name) {
+			httperr.WriteCode(w, req, http.StatusBadRequest,
+				errors.New("invalid namespace or pod name"))
+			return
 		}
+		host := p.agentHost(name, ns)
+		// Construct URL using url.URL to prevent injection.
+		u := &url.URL{
+			Scheme:   "https",
+			Host:     host,
+			Path:     agentPath,
+			RawQuery: req.URL.RawQuery,
+		}
+		upstream := u.String()
 
 		upReq, err := http.NewRequestWithContext(
 			req.Context(), req.Method, upstream,
@@ -240,7 +288,7 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 			writeUpstreamErr(w, req, err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		copyResponseHeaders(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
@@ -316,7 +364,12 @@ func agentTLSConfig(caFile, certFile, keyFile string) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	ca, err := os.ReadFile(caFile)
+	clean := filepath.Clean(caFile)
+	// Reject paths containing ".." to prevent directory traversal.
+	if strings.Contains(clean, "..") {
+		return nil, fmt.Errorf("invalid CA bundle path: %q", caFile)
+	}
+	ca, err := os.ReadFile(clean)
 	if err != nil {
 		return nil, err
 	}

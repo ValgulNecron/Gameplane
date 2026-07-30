@@ -27,7 +27,10 @@ func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
 
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-rbac-vmatrix")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + viewerID)
+		delResp, _, _ := admin.Delete("/users/" + viewerID)
+		if delResp != nil {
+			_ = delResp.Body.Close()
+		}
 	})
 
 	viewer := envInstance.APIClient(t, viewerName, viewerPW)
@@ -86,14 +89,17 @@ func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		resp, body, err := viewer.Do(tc.method, tc.path, tc.body)
-		if err != nil {
-			t.Errorf("%s: do: %v", tc.name, err)
-			continue
-		}
-		if resp.StatusCode != tc.want {
-			t.Errorf("%s: status=%d want=%d body=%s", tc.name, resp.StatusCode, tc.want, string(body))
-		}
+		func() {
+			resp, body, err := viewer.Do(tc.method, tc.path, tc.body)
+			if err != nil {
+				t.Errorf("%s: do: %v", tc.name, err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != tc.want {
+				t.Errorf("%s: status=%d want=%d body=%s", tc.name, resp.StatusCode, tc.want, string(body))
+			}
+		}()
 	}
 }
 
@@ -110,7 +116,10 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 
 	opName, opPW, opID := envInstance.CreateUser(t, admin, "operator", "e2e-rbac-op")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + opID)
+		delResp, _, _ := admin.Delete("/users/" + opID)
+		if delResp != nil {
+			_ = delResp.Body.Close()
+		}
 	})
 
 	op := envInstance.APIClient(t, opName, opPW)
@@ -136,6 +145,9 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
 		"spec":       map[string]any{"templateRef": map[string]any{"name": tmplName}},
 	})
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		t.Fatalf("operator POST /servers: %v", err)
 	}
@@ -167,14 +179,17 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 		}, http.StatusForbidden},
 	}
 	for _, tc := range denied {
-		r, b, err := op.Do(tc.method, tc.path, tc.body)
-		if err != nil {
-			t.Errorf("%s: do: %v", tc.name, err)
-			continue
-		}
-		if r.StatusCode != tc.want {
-			t.Errorf("%s: status=%d want=%d body=%s", tc.name, r.StatusCode, tc.want, string(b))
-		}
+		func() {
+			r, b, err := op.Do(tc.method, tc.path, tc.body)
+			if err != nil {
+				t.Errorf("%s: do: %v", tc.name, err)
+				return
+			}
+			defer func() { _ = r.Body.Close() }()
+			if r.StatusCode != tc.want {
+				t.Errorf("%s: status=%d want=%d body=%s", tc.name, r.StatusCode, tc.want, string(b))
+			}
+		}()
 	}
 }
 
@@ -194,7 +209,10 @@ func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
 
 	opName, opPW, opID := envInstance.CreateUser(t, admin, "operator", "e2e-rbac-op-invite")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + opID)
+		delResp, _, _ := admin.Delete("/users/" + opID)
+		if delResp != nil {
+			_ = delResp.Body.Close()
+		}
 	})
 
 	op := envInstance.APIClient(t, opName, opPW)
@@ -205,6 +223,9 @@ func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
 		"password": "irrelevant-pw-1234567",
 		"role":     "viewer",
 	})
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		t.Fatalf("operator POST /users: %v", err)
 	}
@@ -237,13 +258,16 @@ func TestAPI_RBAC_AdminCanReachAll(t *testing.T) {
 		{"GET /backup-destinations", "/backup-destinations"},
 	}
 	for _, c := range checks {
-		resp, body, err := admin.Get(c.path)
-		if err != nil {
-			t.Errorf("%s: do: %v", c.name, err)
-			continue
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("%s: status=%d body=%s", c.name, resp.StatusCode, string(body))
-		}
+		func() {
+			resp, body, err := admin.Get(c.path)
+			if err != nil {
+				t.Errorf("%s: do: %v", c.name, err)
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("%s: status=%d body=%s", c.name, resp.StatusCode, string(body))
+			}
+		}()
 	}
 }

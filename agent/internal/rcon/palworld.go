@@ -71,6 +71,7 @@
 // cooldown; doing so would freeze every poller on what might be a one-off
 // transient failure. This exact confusion (transient error misread as bad
 // password) has bitten three earlier clients in this package.
+
 package rcon
 
 import (

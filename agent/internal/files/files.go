@@ -30,6 +30,7 @@ type handler struct {
 	root string
 }
 
+// Mount registers the file-browser HTTP handlers on the supplied router.
 func Mount(r chi.Router, root string) {
 	h := &handler{root: filepath.Clean(root)}
 	r.Route("/files", func(r chi.Router) {
@@ -204,17 +205,24 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		h.badRequest(w, err)
 		return
 	}
-	defer req.Body.Close()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	defer func() { _ = req.Body.Close() }()
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}
-	f, err := os.Create(p)
+	// Validate p is within root directory (resolve() already checked this,
+	// but explicit validation is needed to satisfy gosec's path analysis).
+	pClean := filepath.Clean(p)
+	if !strings.HasPrefix(pClean, h.root+string(os.PathSeparator)) && pClean != h.root {
+		httpErr(w, errPathOutOfRoot)
+		return
+	}
+	f, err := os.Create(pClean)
 	if err != nil {
 		httpErr(w, err)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := io.Copy(f, http.MaxBytesReader(w, req.Body, maxWriteBytes)); err != nil {
 		httpErr(w, err)
 		return
@@ -223,7 +231,9 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
-	if err := req.ParseMultipartForm(64 << 20); err != nil {
+	// Wrap request body to prevent unbounded multipart parsing.
+	req.Body = http.MaxBytesReader(w, req.Body, maxUploadFileBytes)
+	if err := req.ParseMultipartForm(maxUploadFileBytes); err != nil {
 		h.badRequest(w, err)
 		return
 	}
@@ -232,7 +242,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		h.badRequest(w, err)
 		return
 	}
-	if err := os.MkdirAll(p, 0o755); err != nil {
+	if err := os.MkdirAll(p, 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}
@@ -263,17 +273,24 @@ func saveMultipart(dir string, fh *multipart.FileHeader) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 	// Sanitize filename — reject anything that would climb out of dir.
 	name := filepath.Base(fh.Filename)
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
-	dst, err := os.Create(filepath.Join(dir, name))
+	// Validate destination path is within dir to prevent zip-slip-like attacks.
+	dstPath := filepath.Join(dir, name)
+	dstClean := filepath.Clean(dstPath)
+	dirClean := filepath.Clean(dir)
+	if dstClean != dirClean && !strings.HasPrefix(dstClean, dirClean+string(os.PathSeparator)) {
+		return errors.New("path escape attempt")
+	}
+	dst, err := os.Create(dstClean)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer func() { _ = dst.Close() }()
 	// Even with Size checked above, cap the copy so a lying multipart
 	// header can't bypass it.
 	_, err = io.Copy(dst, io.LimitReader(src, maxUploadFileBytes))
@@ -286,7 +303,7 @@ func (h *handler) mkdir(w http.ResponseWriter, req *http.Request) {
 		h.badRequest(w, err)
 		return
 	}
-	if err := os.MkdirAll(p, 0o755); err != nil {
+	if err := os.MkdirAll(p, 0o750); err != nil {
 		httpErr(w, err)
 		return
 	}

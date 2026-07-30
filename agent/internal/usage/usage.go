@@ -21,6 +21,7 @@
 package usage
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -151,7 +152,13 @@ func (r *Reader) readCPU(s *Sample) {
 			// went backwards (a process set changing under proc mode, or a
 			// counter reset) which would otherwise yield a wild rate.
 			if dWall > 0 && usageUsec >= r.prevUsageUsec {
-				dUsage := int64(usageUsec - r.prevUsageUsec)
+				// Bound check: uint64 difference must fit in int64.
+				dUsageUint := usageUsec - r.prevUsageUsec
+				if dUsageUint > math.MaxInt64 {
+					r.mu.Unlock()
+					return // Skip reporting a pathologically large diff
+				}
+				dUsage := int64(dUsageUint)
 				s.CPUMillicores = dUsage * 1000 / dWall
 				s.CPUKnown = true
 			}
@@ -183,6 +190,10 @@ func (r *Reader) cpuUsageUsec() (uint64, bool) {
 		if !ok {
 			return 0, false
 		}
+		// clkTck must be positive; guard against misconfiguration.
+		if r.cfg.clkTck <= 0 {
+			return 0, false
+		}
 		return ticks * 1_000_000 / uint64(r.cfg.clkTck), true
 	}
 	return r.cgroupCPUUsageUsec()
@@ -191,7 +202,7 @@ func (r *Reader) cpuUsageUsec() (uint64, bool) {
 // cgroupCPUUsageUsec reads the first "usage_usec" line of cgroup v2's
 // cpu.stat.
 func (r *Reader) cgroupCPUUsageUsec() (uint64, bool) {
-	b, err := os.ReadFile(filepath.Join(r.cfg.Root, "cpu.stat"))
+	b, err := readCgroupFile(r.cfg.Root, "cpu.stat")
 	if err != nil {
 		return 0, false
 	}
@@ -211,7 +222,7 @@ func (r *Reader) cgroupCPUUsageUsec() (uint64, bool) {
 // cpuLimitMillicores parses cgroup v2's cpu.max ("quota period"). A quota
 // of "max" means no limit, which we report as unknown.
 func (r *Reader) cpuLimitMillicores() (int64, bool) {
-	b, err := os.ReadFile(filepath.Join(r.cfg.Root, "cpu.max"))
+	b, err := readCgroupFile(r.cfg.Root, "cpu.max")
 	if err != nil {
 		return 0, false
 	}
@@ -242,15 +253,23 @@ func (r *Reader) readMemory(s *Sample) {
 		}
 		return
 	}
-	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.current")); ok {
+	if v, ok := readUintFile(r.cfg.Root, "memory.current"); ok {
+		// Bound check: uint64 value must fit in int64.
+		if v > math.MaxInt64 {
+			v = math.MaxInt64 // clamp to max representable value
+		}
 		s.MemoryBytes = int64(v)
 		s.MemoryKnown = true
 	}
 	// memory.max is "max" when unlimited, which fails to parse — exactly
-	// the "unknown limit" we want to report.
-	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.max")); ok {
-		s.MemoryLimitBytes = int64(v)
-		s.MemoryLimitKnown = true
+	// the "unknown limit" we want to report. If it parses to a very large value,
+	// it's the unlimited sentinel; skip reporting it.
+	if v, ok := readUintFile(r.cfg.Root, "memory.max"); ok {
+		// Bound check: uint64 value must fit in int64.
+		if v <= math.MaxInt64 {
+			s.MemoryLimitBytes = int64(v)
+			s.MemoryLimitKnown = true
+		}
 	}
 }
 
@@ -274,11 +293,11 @@ func (r *Reader) procUsage() (cpuTicks uint64, rssBytes int64, ok bool) {
 		if err != nil {
 			continue // not a pid dir
 		}
-		ppid, ticks, sok := readProcStat(filepath.Join(r.cfg.ProcRoot, e.Name(), "stat"))
+		ppid, ticks, sok := readProcStat(r.cfg.ProcRoot, e.Name())
 		if !sok {
 			continue // process exited between ReadDir and read
 		}
-		rss := readProcStatmRSS(filepath.Join(r.cfg.ProcRoot, e.Name(), "statm"))
+		rss := readProcStatmRSS(r.cfg.ProcRoot, e.Name())
 		recs[pid] = rec{ppid: ppid, ticks: ticks, rssPages: rss}
 	}
 	if len(recs) == 0 {
@@ -316,19 +335,28 @@ func (r *Reader) procUsage() (cpuTicks uint64, rssBytes int64, ok bool) {
 // readProcStat parses ppid and utime+stime (jiffies) from /proc/<pid>/stat.
 // The comm field (2nd) is wrapped in parens and may contain spaces and
 // parens, so fields are taken relative to the final ')'.
-func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
-	b, err := os.ReadFile(path)
+func readProcStat(base, pidName string) (ppid int, ticks uint64, ok bool) {
+	path := filepath.Join(base, pidName, "stat")
+	clean := filepath.Clean(path)
+	cleanBase := filepath.Clean(base)
+
+	// Bound check: verify path is within base directory.
+	if !strings.HasPrefix(clean, cleanBase+string(os.PathSeparator)) {
+		return 0, 0, false
+	}
+
+	b, err := os.ReadFile(clean)
 	if err != nil {
 		return 0, 0, false
 	}
 	s := string(b)
-	close := strings.LastIndexByte(s, ')')
-	if close < 0 || close+2 > len(s) {
+	closeParen := strings.LastIndexByte(s, ')')
+	if closeParen < 0 || closeParen+2 > len(s) {
 		return 0, 0, false
 	}
 	// Fields after comm; field 3 (state) is index 0 here, so stat field N is
 	// index N-3: ppid=4→[1], utime=14→[11], stime=15→[12].
-	f := strings.Fields(s[close+1:])
+	f := strings.Fields(s[closeParen+1:])
 	if len(f) < 13 {
 		return 0, 0, false
 	}
@@ -346,8 +374,17 @@ func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
 
 // readProcStatmRSS returns the resident set size in pages (field 2 of
 // /proc/<pid>/statm), or 0 when unreadable.
-func readProcStatmRSS(path string) int64 {
-	b, err := os.ReadFile(path)
+func readProcStatmRSS(base, pidName string) int64 {
+	path := filepath.Join(base, pidName, "statm")
+	clean := filepath.Clean(path)
+	cleanBase := filepath.Clean(base)
+
+	// Bound check: verify path is within base directory.
+	if !strings.HasPrefix(clean, cleanBase+string(os.PathSeparator)) {
+		return 0
+	}
+
+	b, err := os.ReadFile(clean)
 	if err != nil {
 		return 0
 	}
@@ -372,19 +409,42 @@ func (r *Reader) readDisk(s *Sample) {
 	}
 	// Bsize's Go type varies by arch (int64 on amd64/arm64); convert via
 	// uint64 so the arithmetic is correct everywhere and no conversion is
-	// redundant.
+	// redundant. Bound check: Bsize must not be negative.
+	if st.Bsize <= 0 {
+		return
+	}
 	bsize := uint64(st.Bsize)
 	if bsize == 0 {
 		return
 	}
-	s.DiskTotalBytes = int64(st.Blocks * bsize)
-	s.DiskUsedBytes = int64((st.Blocks - st.Bfree) * bsize)
+	// Bound checks: verify block-count multiplications fit in int64.
+	// st.Blocks and st.Bfree are uint64; their products with bsize must fit in int64.
+	totalBlockBytes := st.Blocks * bsize
+	if totalBlockBytes > math.MaxInt64 {
+		return // overflow: total blocks exceed int64.Max bytes
+	}
+	usedBlocks := st.Blocks - st.Bfree
+	usedBlockBytes := usedBlocks * bsize
+	if usedBlockBytes > math.MaxInt64 {
+		return // overflow: used blocks exceed int64.Max bytes
+	}
+	s.DiskTotalBytes = int64(totalBlockBytes)
+	s.DiskUsedBytes = int64(usedBlockBytes)
 	s.DiskKnown = true
 }
 
 // readUintFile parses a cgroup file holding a single unsigned integer.
-func readUintFile(path string) (uint64, bool) {
-	b, err := os.ReadFile(path)
+func readUintFile(base, filename string) (uint64, bool) {
+	path := filepath.Join(base, filename)
+	clean := filepath.Clean(path)
+	cleanBase := filepath.Clean(base)
+
+	// Bound check: verify path is within base directory.
+	if !strings.HasPrefix(clean, cleanBase+string(os.PathSeparator)) {
+		return 0, false
+	}
+
+	b, err := os.ReadFile(clean)
 	if err != nil {
 		return 0, false
 	}
@@ -393,4 +453,18 @@ func readUintFile(path string) (uint64, bool) {
 		return 0, false
 	}
 	return v, true
+}
+
+// readCgroupFile reads the entire contents of a cgroup file, with path validation.
+func readCgroupFile(base, filename string) ([]byte, error) {
+	path := filepath.Join(base, filename)
+	clean := filepath.Clean(path)
+	cleanBase := filepath.Clean(base)
+
+	// Bound check: verify path is within base directory.
+	if !strings.HasPrefix(clean, cleanBase+string(os.PathSeparator)) {
+		return nil, os.ErrPermission
+	}
+
+	return os.ReadFile(clean)
 }

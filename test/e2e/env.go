@@ -187,19 +187,6 @@ var crdGVR = schema.GroupVersionResource{
 	Resource: "customresourcedefinitions",
 }
 
-// notFoundOrError unwraps an apierrors.NotFound into a typed (false, nil),
-// for use in conditions where "the object isn't there yet" is expected.
-func notFoundOrError(err error) (bool, error) {
-	switch {
-	case err == nil:
-		return true, nil
-	case apierrors.IsNotFound(err):
-		return false, nil
-	default:
-		return false, err
-	}
-}
-
 // ensureCluster verifies the e2e cluster is reachable. Used at TestMain
 // time before launching tests so failures are fast and clear.
 func (e *Env) ensureCluster() error {
@@ -365,8 +352,11 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 	// runner to establish the forward.
 	deadline := time.Now().Add(45 * time.Second)
 	streak := 0
+	dialer := &net.Dialer{Timeout: 500 * time.Millisecond}
 	for time.Now().Before(deadline) {
-		c, derr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", local), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		c, derr := dialer.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", local))
+		cancel()
 		if derr == nil {
 			_ = c.Close()
 			streak++
@@ -387,11 +377,12 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 // small race between releasing the port and kubectl binding it, but in
 // practice the window is too short to matter for e2e tests.
 func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	cfg := &net.ListenConfig{}
+	l, err := cfg.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, fmt.Errorf("listen for free port: %w", err)
 	}
-	defer l.Close()
+	defer func() { _ = l.Close() }()
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
@@ -434,7 +425,9 @@ func (j *insecureCookieJar) Cookies(_ *url.URL) []*http.Cookie {
 	return out
 }
 
-// middleware demands; reads pass through unchanged.
+// APIClient is a minimal authenticated session against the API service.
+// Mutations attach the X-Gameplane-CSRF header that the session cookie jar
+// manages. Reads pass through unchanged.
 type APIClient struct {
 	BaseURL string
 	CSRF    string
@@ -475,7 +468,7 @@ func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 	delay := 2 * time.Second
 	const maxDelay = 30 * time.Second
 	for attempt := 0; attempt < 7; attempt++ {
-		req, rerr := http.NewRequest(http.MethodPost, base+"/auth/login", bytes.NewReader(body))
+		req, rerr := http.NewRequestWithContext(context.Background(), http.MethodPost, base+"/auth/login", bytes.NewReader(body))
 		if rerr != nil {
 			stop()
 			t.Fatalf("new login request: %v", rerr)
@@ -530,7 +523,7 @@ func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, e
 		}
 		br = bytes.NewReader(b)
 	}
-	req, err := http.NewRequest(method, c.BaseURL+path, br)
+	req, err := http.NewRequestWithContext(context.Background(), method, c.BaseURL+path, br)
 	if err != nil {
 		return nil, nil, fmt.Errorf("new request: %w", err)
 	}
@@ -544,21 +537,31 @@ func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, e
 	if err != nil {
 		return nil, nil, fmt.Errorf("do %s %s: %w", method, path, err)
 	}
-	defer resp.Body.Close()
-	rb, _ := io.ReadAll(resp.Body)
+	rb, err := io.ReadAll(resp.Body)
+	if err != nil {
+		_ = resp.Body.Close()
+		return nil, nil, fmt.Errorf("read response body: %w", err)
+	}
+	_ = resp.Body.Close()
 	return resp, rb, nil
 }
 
-// Get/Post/Patch/Delete are method-bound shortcuts for Do.
+// Get performs a GET request.
 func (c *APIClient) Get(path string) (*http.Response, []byte, error) {
 	return c.Do(http.MethodGet, path, nil)
 }
+
+// Post performs a POST request.
 func (c *APIClient) Post(path string, body any) (*http.Response, []byte, error) {
 	return c.Do(http.MethodPost, path, body)
 }
+
+// Patch performs a PATCH request.
 func (c *APIClient) Patch(path string, body any) (*http.Response, []byte, error) {
 	return c.Do(http.MethodPatch, path, body)
 }
+
+// Delete performs a DELETE request.
 func (c *APIClient) Delete(path string) (*http.Response, []byte, error) {
 	return c.Do(http.MethodDelete, path, nil)
 }
@@ -623,7 +626,7 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, password, id string) {
 	t.Helper()
 	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	password = "e2e-created-user-password-1234"
+	password = getenvOr("E2E_USER_PASSWORD", "e2e-created-user-password-1234")
 	resp, body, err := admin.Post("/users", map[string]string{
 		"username": username,
 		"password": password,
@@ -632,6 +635,7 @@ func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (u
 	if err != nil {
 		t.Fatalf("CreateUser post: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("CreateUser %s/%s %d: %s", role, prefix, resp.StatusCode, string(body))
 	}

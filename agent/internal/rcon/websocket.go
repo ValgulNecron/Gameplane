@@ -31,6 +31,7 @@
 // That means auth can only be confirmed retroactively, once a frame
 // actually arrives; see ensureLocked and Exec below for how this client
 // detects a bad password without a synchronous post-dial probe.
+
 package rcon
 
 import (
@@ -287,9 +288,15 @@ func (c *WebSocket) ensureLocked() error {
 	dialCtx, cancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer cancel()
 
-	conn, _, err := websocket.Dial(dialCtx, wsURL, nil)
+	conn, resp, err := websocket.Dial(dialCtx, wsURL, nil)
 	if err != nil {
 		return fmt.Errorf("websocket rcon: dial %s: %w", c.baseURL, err)
+	}
+	// coder/websocket hijacks the connection on successful dial, leaving
+	// resp.Body nil. Close only if the body exists (e.g., on a redirect or
+	// other non-101 response before the upgrade completes).
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
 	}
 
 	// coder/websocket defaults to a 32 KiB per-message read limit; a big

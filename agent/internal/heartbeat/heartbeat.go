@@ -30,6 +30,7 @@ import (
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
+// Rcon is the interface to the game's remote console.
 type Rcon interface {
 	Exec(cmd string) (string, error)
 }
@@ -41,6 +42,7 @@ type UsageReader interface {
 	Read() usage.Sample
 }
 
+// Config holds the configuration for the heartbeat process.
 type Config struct {
 	ServerName   string
 	Namespace    string
@@ -176,12 +178,12 @@ func nullable(v int64, known bool) any {
 
 // queryPlayerCounts issues an RCON command and derives the online count
 // and, when the response is in a recognized Minecraft format, the configured
-// maximum (max is 0 when no maximum is reported). The command and optional
+// maximum (maxPlayers is 0 when no maximum is reported). The command and optional
 // regex come from cfg.PlayerList; defaults to "list" with a loose parse.
 // When EntryRegex is configured, the online count is the number of regex
 // matches. err is non-nil only when RCON fails or no online count can be
 // parsed at all.
-func queryPlayerCounts(cfg Config) (online, max int, err error) {
+func queryPlayerCounts(cfg Config) (online, maxPlayers int, err error) {
 	cmd := "list"
 	if cfg.PlayerList != nil && cfg.PlayerList.Command != "" {
 		cmd = cfg.PlayerList.Command
@@ -191,7 +193,7 @@ func queryPlayerCounts(cfg Config) (online, max int, err error) {
 		return 0, 0, err
 	}
 
-	// If a custom regex is configured, count matches for online and set max to -1.
+	// If a custom regex is configured, count matches for online and set maxPlayers to -1.
 	if cfg.PlayerListRE != nil {
 		online = players.CountWithRegex(raw, cfg.PlayerListRE)
 		return online, -1, nil
@@ -199,7 +201,7 @@ func queryPlayerCounts(cfg Config) (online, max int, err error) {
 
 	// Default behavior: use ParseCounts for Minecraft, loose first-number parse for online.
 	if _, m, ok := players.ParseCounts(raw); ok {
-		max = m
+		maxPlayers = m
 	}
 	// Very loose parse for online — we only care about the first number.
 	for i := 0; i < len(raw); i++ {
@@ -211,9 +213,9 @@ func queryPlayerCounts(cfg Config) (online, max int, err error) {
 			n = n*10 + int(raw[i]-'0')
 			i++
 		}
-		return n, max, nil
+		return n, maxPlayers, nil
 	}
-	return 0, max, fmt.Errorf("no player count in %q", raw)
+	return 0, maxPlayers, fmt.Errorf("no player count in %q", raw)
 }
 
 // readNamespace reads the SA-projected namespace file written into

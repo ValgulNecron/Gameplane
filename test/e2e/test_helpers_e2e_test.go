@@ -244,36 +244,6 @@ func waitStatefulSetReplicas(t *testing.T, ns, name string, want int32, timeout 
 	})
 }
 
-// waitPodReady polls until the named pod has Ready=True. The agent
-// sidecar takes a noticeable while on first run because the operator
-// has to mint mTLS certs and mount them; allow the caller to set a
-// generous timeout.
-func waitPodReady(t *testing.T, ns, podName string, timeout time.Duration) {
-	t.Helper()
-	ctx := context.Background()
-	envInstance.Eventually(t, timeout, func() (bool, string) {
-		ok, err := envInstance.PodIsReady(ctx, ns, podName)
-		if err != nil {
-			return false, "pod " + podName + ": " + err.Error()
-		}
-		if ok {
-			return true, ""
-		}
-		return false, "pod " + podName + " not ready"
-	})
-}
-
-// getStatefulSetPod returns the canonical pod-0 for a StatefulSet.
-func getStatefulSetPod(t *testing.T, ns, ssName string) *corev1.Pod {
-	t.Helper()
-	ctx := context.Background()
-	pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, ssName+"-0", metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("get pod %s-0 in %s: %v", ssName, ns, err)
-	}
-	return pod
-}
-
 // applyBusyboxPTYTemplate creates (or reuses) a cluster-scoped GameTemplate
 // with consoleMode=pty and command=["sh"]. The operator surfaces this as
 // tty=true + stdin=true on the game container, which is what /ws/servers/
@@ -486,7 +456,7 @@ func resticWarmup() error {
 			return fmt.Errorf("resolve %s: %w", fixture, err)
 		}
 		if out, err := e.Kubectl("apply", "-f", abs); err != nil {
-			return fmt.Errorf("apply %s: %v\n%s", fixture, err, out)
+			return fmt.Errorf("apply %s: %w\n%s", fixture, err, out)
 		}
 	}
 	jobAbs, err := filepath.Abs(filepath.Join("fixtures", "restic-warmup-job.yaml"))
@@ -505,7 +475,7 @@ func resticWarmup() error {
 	for attempt := 1; attempt <= 3; attempt++ {
 		if out, err := e.Kubectl("rollout", "status", "-n", "gameplane-system",
 			"deploy/gameplane-test-restic", "--timeout=90s"); err != nil {
-			lastErr = fmt.Errorf("restic server rollout: %v\n%s", err, out)
+			lastErr = fmt.Errorf("restic server rollout: %w\n%s", err, out)
 			continue
 		}
 		runErr := runResticWarmupJob(e, jobAbs)
@@ -529,10 +499,10 @@ func runResticWarmupJob(e *Env, jobAbs string) error {
 	ctx := context.Background()
 	if out, err := e.Kubectl("delete", "job", "-n", "gameplane-games",
 		"e2e-restic-warmup", "--ignore-not-found"); err != nil {
-		return fmt.Errorf("delete old warm-up job: %v\n%s", err, out)
+		return fmt.Errorf("delete old warm-up job: %w\n%s", err, out)
 	}
 	if out, err := e.Kubectl("apply", "-f", jobAbs); err != nil {
-		return fmt.Errorf("apply restic-warmup-job.yaml: %v\n%s", err, out)
+		return fmt.Errorf("apply restic-warmup-job.yaml: %w\n%s", err, out)
 	}
 	deadline := time.Now().Add(120 * time.Second)
 	for {

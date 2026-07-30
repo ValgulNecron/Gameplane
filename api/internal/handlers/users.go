@@ -19,6 +19,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
+// MountUsers registers the user management routes on r.
 func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore, clusters scope.ClusterLister) {
 	h := &userHandler{db: store, sessions: sessions, clusters: clusters}
 	r.Route("/users", func(r chi.Router) {
@@ -75,7 +76,7 @@ func (h *userHandler) list(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []userDTO{}
 	for rows.Next() {
 		var u userDTO
@@ -415,7 +416,7 @@ func (h *userHandler) listBindings(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := []bindingDTO{}
 	for rows.Next() {
 		var b bindingDTO
@@ -508,7 +509,7 @@ func (h *userHandler) addBinding(w http.ResponseWriter, req *http.Request) {
 	}
 	h.invalidateSessions(req, id, "role binding added")
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, bindingDTO{RoleName: body.RoleName, Namespace: body.Namespace, Cluster: body.Cluster})
+	writeJSON(w, bindingDTO(body))
 }
 
 func (h *userHandler) deleteBinding(w http.ResponseWriter, req *http.Request) {

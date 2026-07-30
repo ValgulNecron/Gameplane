@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -40,7 +41,7 @@ func (f *fakeRcon) calls() []string {
 
 func post(t *testing.T, h http.Handler, path string) response {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, path, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, path, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

@@ -121,7 +121,7 @@ func TestComputeRole(t *testing.T) {
 func callbackViaIDP(t *testing.T, o *OIDC, sessions *SessionStore, nonce string) *httptest.ResponseRecorder {
 	t.Helper()
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: nonce})
 	o.HandleCallback(sessions)(rr, req)
@@ -151,7 +151,7 @@ func TestHandleCallback_RoleMappingFirstLogin(t *testing.T) {
 		t.Fatalf("code=%d body=%q", rr.Code, rr.Body)
 	}
 	var role string
-	if err := store.DB.QueryRow(
+	if err := store.DB.QueryRowContext(context.Background(),
 		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
 		t.Fatalf("user not created: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestHandleCallback_RoleMappingFirstLogin(t *testing.T) {
 		t.Fatalf("role=%q want admin", role)
 	}
 	var bindingRole string
-	if err := store.DB.QueryRow(`
+	if err := store.DB.QueryRowContext(context.Background(), `
 		SELECT b.role_name FROM user_role_bindings b
 		JOIN users u ON u.id = b.user_id
 		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
@@ -195,7 +195,7 @@ func TestHandleCallback_RoleMappingResync(t *testing.T) {
 
 	// With a second user-manager present, demoting the OIDC user can't
 	// strip the install's last admin, so the resync applies.
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(context.Background(),
 		`INSERT INTO users(username, display_name, email, role) VALUES ('root2', 'Root Two', 'root2@x', 'admin')`,
 	); err != nil {
 		t.Fatalf("seed second admin: %v", err)
@@ -214,10 +214,10 @@ func TestHandleCallback_RoleMappingResync(t *testing.T) {
 	}
 
 	var role, bindingRole string
-	if err := store.DB.QueryRow(`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+	if err := store.DB.QueryRowContext(context.Background(), `SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
 		t.Fatalf("user: %v", err)
 	}
-	if err := store.DB.QueryRow(`
+	if err := store.DB.QueryRowContext(context.Background(), `
 		SELECT b.role_name FROM user_role_bindings b
 		JOIN users u ON u.id = b.user_id
 		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
@@ -228,7 +228,7 @@ func TestHandleCallback_RoleMappingResync(t *testing.T) {
 	}
 	// Exactly one cluster-wide binding — resync must repoint, not stack.
 	var n int
-	if err := store.DB.QueryRow(`
+	if err := store.DB.QueryRowContext(context.Background(), `
 		SELECT COUNT(*) FROM user_role_bindings b
 		JOIN users u ON u.id = b.user_id
 		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&n); err != nil {
@@ -259,7 +259,7 @@ func TestHandleCallback_NoMappingKeepsManualPromotion(t *testing.T) {
 	}
 
 	// Manual promotion, as the users handler would do it.
-	if _, err := store.DB.Exec(`UPDATE users SET role = 'admin' WHERE email = ?`, idp.email); err != nil {
+	if _, err := store.DB.ExecContext(context.Background(), `UPDATE users SET role = 'admin' WHERE email = ?`, idp.email); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
 
@@ -268,7 +268,7 @@ func TestHandleCallback_NoMappingKeepsManualPromotion(t *testing.T) {
 		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
 	}
 	var role string
-	if err := store.DB.QueryRow(`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+	if err := store.DB.QueryRowContext(context.Background(), `SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
 		t.Fatalf("user: %v", err)
 	}
 	if role != "admin" {
@@ -312,10 +312,10 @@ func TestHandleCallback_ResyncKeepsLastUserManager(t *testing.T) {
 	}
 
 	var role, bindingRole string
-	if err := store.DB.QueryRow(`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+	if err := store.DB.QueryRowContext(context.Background(), `SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
 		t.Fatalf("user: %v", err)
 	}
-	if err := store.DB.QueryRow(`
+	if err := store.DB.QueryRowContext(context.Background(), `
 		SELECT b.role_name FROM user_role_bindings b
 		JOIN users u ON u.id = b.user_id
 		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
@@ -353,7 +353,7 @@ func TestHandleCallback_ResyncDemotesWhenAnotherManagerExists(t *testing.T) {
 	}
 
 	// A second user-manager exists, so the guard must not fire.
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(context.Background(),
 		`INSERT INTO users(username, display_name, email, role) VALUES ('root2', 'Root Two', 'root2@x', 'admin')`,
 	); err != nil {
 		t.Fatalf("seed second admin: %v", err)
@@ -366,10 +366,10 @@ func TestHandleCallback_ResyncDemotesWhenAnotherManagerExists(t *testing.T) {
 	}
 
 	var role, bindingRole string
-	if err := store.DB.QueryRow(`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+	if err := store.DB.QueryRowContext(context.Background(), `SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
 		t.Fatalf("user: %v", err)
 	}
-	if err := store.DB.QueryRow(`
+	if err := store.DB.QueryRowContext(context.Background(), `
 		SELECT b.role_name FROM user_role_bindings b
 		JOIN users u ON u.id = b.user_id
 		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
@@ -406,7 +406,7 @@ func TestHandleCallback_DefaultRoleDeny(t *testing.T) {
 		t.Fatalf("body=%q", rr.Body.String())
 	}
 	var n int
-	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
+	if err := store.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM users`).Scan(&n); err != nil {
 		t.Fatalf("count users: %v", err)
 	}
 	if n != 0 {
@@ -425,7 +425,7 @@ func TestHandleStart_ExtraScopesInAuthCodeURL(t *testing.T) {
 		t.Fatalf("NewOIDCWithPolicy: %v", err)
 	}
 	rr := httptest.NewRecorder()
-	o.HandleStart()(rr, httptest.NewRequest("GET", "/auth/oidc/start", nil))
+	o.HandleStart()(rr, httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/start", nil))
 	if rr.Code != http.StatusFound {
 		t.Fatalf("code=%d", rr.Code)
 	}

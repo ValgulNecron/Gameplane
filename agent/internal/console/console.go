@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// Rcon is the interface to the game's remote console.
 type Rcon interface {
 	Exec(cmd string) (string, error)
 }
@@ -29,6 +30,7 @@ type handler struct {
 	rcon Rcon
 }
 
+// Mount registers the console WebSocket endpoint on the supplied router.
 func Mount(r chi.Router, rc Rcon) {
 	h := &handler{rcon: rc}
 	r.Get("/console", h.serve)
@@ -47,7 +49,7 @@ func (h *handler) serve(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
 	ctx := req.Context()
 	for {

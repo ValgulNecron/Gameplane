@@ -35,7 +35,7 @@ func TestWithActorHolder_SetActor(t *testing.T) {
 	}
 }
 
-func TestSetActor_NoHolderInContext(t *testing.T) {
+func TestSetActor_NoHolderInContext(_ *testing.T) {
 	// A context without a holder makes SetActor a no-op (the resolved
 	// holder is nil, and *ActorHolder.Set is nil-safe).
 	SetActor(context.Background(), "nobody") // must not panic

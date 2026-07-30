@@ -2,6 +2,7 @@ package files
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -554,7 +555,7 @@ func makeFileHeader(t *testing.T, name, body string) *multipart.FileHeader {
 	fw, _ := mw.CreateFormFile("files", name)
 	_, _ = fw.Write([]byte(body))
 	_ = mw.Close()
-	req := httptest.NewRequest("POST", "/", &buf)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	if err := req.ParseMultipartForm(1 << 20); err != nil {
 		t.Fatalf("parse: %v", err)

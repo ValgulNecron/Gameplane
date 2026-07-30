@@ -177,7 +177,7 @@ func TestHandleCallback_HappyPath(t *testing.T) {
 	sessions := NewSessionStore(store)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "nonce-abc"})
 	o.HandleCallback(sessions)(rr, req)
@@ -190,7 +190,7 @@ func TestHandleCallback_HappyPath(t *testing.T) {
 	}
 	// User row created with email-derived username.
 	var u User
-	err = store.DB.QueryRow(`SELECT id, username, email, role FROM users WHERE email = ?`, idp.email).
+	err = store.DB.QueryRowContext(context.Background(), `SELECT id, username, email, role FROM users WHERE email = ?`, idp.email).
 		Scan(&u.ID, &u.Username, &u.Email, &u.Role)
 	if err != nil {
 		t.Fatalf("user not created: %v", err)
@@ -200,7 +200,7 @@ func TestHandleCallback_HappyPath(t *testing.T) {
 	}
 	// oidc_link row ties (issuer,subject) to the user.
 	var linked int
-	_ = store.DB.QueryRow(`SELECT COUNT(*) FROM oidc_links WHERE issuer = ? AND subject = ?`,
+	_ = store.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM oidc_links WHERE issuer = ? AND subject = ?`,
 		idp.issuer(), idp.subject).Scan(&linked)
 	if linked != 1 {
 		t.Fatalf("oidc_link rows = %d", linked)
@@ -223,7 +223,7 @@ func TestHandleCallback_NonceMismatch(t *testing.T) {
 	sessions := NewSessionStore(store)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "from-cookie"})
 	o.HandleCallback(sessions)(rr, req)
@@ -246,7 +246,7 @@ func TestHandleCallback_ExchangeFailure(t *testing.T) {
 	}
 	sessions := NewSessionStore(newAuthDB(t))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=wrong-code", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=wrong-code", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "n"})
 	o.HandleCallback(sessions)(rr, req)
@@ -267,7 +267,7 @@ func TestHandleCallback_NoNonceCookie(t *testing.T) {
 	}
 	sessions := NewSessionStore(newAuthDB(t))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	o.HandleCallback(sessions)(rr, req)
 	if rr.Code != http.StatusBadRequest {

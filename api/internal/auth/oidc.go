@@ -33,6 +33,7 @@ type ProviderPolicy struct {
 	DefaultRole  string
 }
 
+// OIDC handles OpenID Connect authentication.
 type OIDC struct {
 	provider *oidc.Provider
 	verifier *oidc.IDTokenVerifier
@@ -151,8 +152,10 @@ func computeRole(groups []string, pol *ProviderPolicy) (role string, deny bool) 
 	}
 }
 
+// AttachStore attaches a database store to the OIDC handler.
 func (o *OIDC) AttachStore(s *db.Store) { o.db = s }
 
+// HandleStart returns an HTTP handler for starting an OIDC authorization flow.
 func (o *OIDC) HandleStart() http.HandlerFunc {
 	return o.HandleStartAt("/")
 }
@@ -182,6 +185,7 @@ func (o *OIDC) HandleStartAt(cookiePath string) http.HandlerFunc {
 	}
 }
 
+// HandleCallback returns an HTTP handler for OIDC authorization callbacks.
 func (o *OIDC) HandleCallback(sessions *SessionStore) http.HandlerFunc {
 	return o.HandleCallbackAt(sessions, "/")
 }

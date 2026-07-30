@@ -1,3 +1,4 @@
+// Package main implements the Rust join depth probe.
 package main
 
 import (

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -88,7 +89,7 @@ func TestUsers_Delete_SuccessCleansBindings(t *testing.T) {
 	// Two managers so deleting one doesn't trip the last-manager guard.
 	_ = seedUser(t, store, "keepadmin", "admin", "longenoughpw1")
 	victim := seedUser(t, store, "goner", "admin", "longenoughpw1")
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(t.Context(),
 		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, 'viewer', 'team-a')`, victim); err != nil {
 		t.Fatalf("seed binding: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestUsers_Delete_SuccessCleansBindings(t *testing.T) {
 		t.Fatalf("status=%d body=%s want 204", status, body)
 	}
 	var n int
-	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_role_bindings WHERE user_id=?`, victim).Scan(&n); err != nil {
+	if err := store.DB.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM user_role_bindings WHERE user_id=?`, victim).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if n != 0 {

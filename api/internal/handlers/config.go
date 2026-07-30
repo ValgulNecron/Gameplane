@@ -53,7 +53,7 @@ func (h *configHandler) getAll(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := map[string]json.RawMessage{}
 	for rows.Next() {

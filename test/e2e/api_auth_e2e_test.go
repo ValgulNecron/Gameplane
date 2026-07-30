@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -39,6 +40,7 @@ func TestAPI_BootstrapAndLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("/users/me: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("/users/me %d: %s", resp.StatusCode, string(body))
 	}
@@ -80,7 +82,7 @@ func TestAPI_LoginPrivacy(t *testing.T) {
 	}
 	bodies := make([]string, 0, len(tries))
 	for _, tc := range tries {
-		req, err := http.NewRequest(http.MethodPost, cli.BaseURL+"/auth/login", strings.NewReader(tc.body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cli.BaseURL+"/auth/login", strings.NewReader(tc.body))
 		if err != nil {
 			t.Fatalf("%s: build request: %v", tc.name, err)
 		}
@@ -136,6 +138,7 @@ func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create viewer: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("create viewer %d: %s", resp.StatusCode, string(body))
 	}
@@ -149,6 +152,7 @@ func TestAPI_RBAC_ViewerCannotMutate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("viewer POST :start: %v", err)
 	}
+	defer mResp.Body.Close()
 	if mResp.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d body=%q", mResp.StatusCode, string(mBody))
 	}
@@ -175,6 +179,7 @@ func TestAPI_AuditEmitsOnMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("/users/me: %v", err)
 	}
+	defer getMe.Body.Close()
 	if getMe.StatusCode != http.StatusOK {
 		t.Fatalf("/users/me %d: %s", getMe.StatusCode, string(body))
 	}
@@ -190,6 +195,7 @@ func TestAPI_AuditEmitsOnMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("patch user displayName: %v", err)
 	}
+	defer rResp.Body.Close()
 	if rResp.StatusCode != http.StatusOK {
 		t.Fatalf("patch user displayName %d: %s", rResp.StatusCode, string(rBody))
 	}
@@ -198,6 +204,7 @@ func TestAPI_AuditEmitsOnMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("/admin/audit: %v", err)
 	}
+	defer aResp.Body.Close()
 	if aResp.StatusCode != http.StatusOK {
 		t.Fatalf("/admin/audit %d: %s", aResp.StatusCode, string(aBody))
 	}
@@ -236,11 +243,17 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	// Whatever happens below, leave the install with local login enabled —
 	// every other test in this job depends on it.
 	t.Cleanup(func() {
-		_, _, _ = cli.Do(http.MethodPut, "/admin/config/auth",
+		resp, _, _ := cli.Do(http.MethodPut, "/admin/config/auth",
 			map[string]any{"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			}})
-		_, _, _ = cli.Do(http.MethodDelete, "/admin/auth/providers/e2e-sso/secret", nil)
+		if resp != nil {
+			resp.Body.Close()
+		}
+		resp, _, _ = cli.Do(http.MethodDelete, "/admin/auth/providers/e2e-sso/secret", nil)
+		if resp != nil {
+			resp.Body.Close()
+		}
 	})
 
 	// The redirect URL derives from General → External URL.
@@ -248,6 +261,8 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 		"instanceName": "e2e", "externalURL": "https://gameplane.e2e.example", "defaultNamespace": "gameplane-games",
 	}); err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("set general config: %v %s", err, string(body))
+	} else {
+		resp.Body.Close()
 	}
 
 	// Store the provider's clientSecret — this exercises the managed
@@ -255,6 +270,8 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	if resp, body, err := cli.Do(http.MethodPut, "/admin/auth/providers/e2e-sso/secret",
 		map[string]string{"clientSecret": "e2e-client-secret"}); err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("put provider secret: %v %s", err, string(body))
+	} else {
+		resp.Body.Close()
 	}
 
 	// Add the provider. The issuer is unreachable on purpose: listing and
@@ -268,12 +285,18 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	}
 	if resp, body, err := cli.Do(http.MethodPut, "/admin/config/auth", authCfg(true)); err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("save auth config: %v %s", err, string(body))
+	} else {
+		resp.Body.Close()
 	}
 
 	raw := &http.Client{Timeout: cli.HTTP.Timeout}
 
 	// Pre-auth listing reflects the save immediately.
-	resp, err := raw.Get(cli.BaseURL + "/auth/providers")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, cli.BaseURL+"/auth/providers", nil)
+	if err != nil {
+		t.Fatalf("build GET providers request: %v", err)
+	}
+	resp, err := raw.Do(req)
 	if err != nil {
 		t.Fatalf("get providers: %v", err)
 	}
@@ -291,7 +314,11 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	// The start route exists and resolves the provider. Discovery against
 	// the invalid issuer fails, so a detail-free 502 is the expected
 	// terminal state — the point is it is NOT a 404.
-	resp, err = raw.Get(cli.BaseURL + "/auth/oidc/e2e-sso/start")
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, cli.BaseURL+"/auth/oidc/e2e-sso/start", nil)
+	if err != nil {
+		t.Fatalf("build GET start request: %v", err)
+	}
+	resp, err = raw.Do(req)
 	if err != nil {
 		t.Fatalf("get start: %v", err)
 	}
@@ -308,11 +335,13 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	// minted above keeps working for the re-enable.
 	if resp2, body, err := cli.Do(http.MethodPut, "/admin/config/auth", authCfg(false)); err != nil || resp2.StatusCode != http.StatusOK {
 		t.Fatalf("disable local: %v %s", err, string(body))
+	} else {
+		resp2.Body.Close()
 	}
 	// The raw login below shares the job-wide rate-limit budget; retry
 	// through 429s so neighbors' drained buckets can't flake this.
 	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
-		req, _ := http.NewRequest(http.MethodPost, cli.BaseURL+"/auth/login",
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, cli.BaseURL+"/auth/login",
 			strings.NewReader(`{"username":"`+adminUsername+`","password":"`+adminPassword+`"}`))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := raw.Do(req)
@@ -333,9 +362,11 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	// Re-enable and confirm the gate lifts without a restart.
 	if resp2, body, err := cli.Do(http.MethodPut, "/admin/config/auth", authCfg(true)); err != nil || resp2.StatusCode != http.StatusOK {
 		t.Fatalf("re-enable local: %v %s", err, string(body))
+	} else {
+		resp2.Body.Close()
 	}
 	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
-		req, _ := http.NewRequest(http.MethodPost, cli.BaseURL+"/auth/login",
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, cli.BaseURL+"/auth/login",
 			strings.NewReader(`{"username":"`+adminUsername+`","password":"`+adminPassword+`"}`))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := raw.Do(req)

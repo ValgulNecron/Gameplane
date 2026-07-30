@@ -1,3 +1,4 @@
+// Package main is the Terraria probe.
 package main
 
 import (
@@ -39,7 +40,7 @@ func probeTerraria(ctx context.Context, addr string) (probe.Depth, error) {
 	}
 
 	// After successful Connect, request world data with its own timeout.
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	worldDataCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := conn.RequestWorldData(worldDataCtx); err != nil {

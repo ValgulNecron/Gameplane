@@ -54,7 +54,7 @@ func TestBootstrap_Insert(t *testing.T) {
 
 	s := mustOpen(t, dsn)
 	var role, hash, display, email string
-	err = s.DB.QueryRow(`SELECT role, pw_hash, display_name, email FROM users WHERE username='admin'`).
+	err = s.DB.QueryRowContext(context.Background(), `SELECT role, pw_hash, display_name, email FROM users WHERE username='admin'`).
 		Scan(&role, &hash, &display, &email)
 	if err != nil {
 		t.Fatalf("select: %v", err)
@@ -85,7 +85,7 @@ func TestBootstrap_PasswordStdin(t *testing.T) {
 	}
 	s := mustOpen(t, dsn)
 	var hash string
-	if err := s.DB.QueryRow(`SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	ok, _ := auth.VerifyPassword("fromstdin-password", hash)
@@ -103,7 +103,7 @@ func TestBootstrap_PasswordEnv(t *testing.T) {
 	}
 	s := mustOpen(t, dsn)
 	var hash string
-	if err := s.DB.QueryRow(`SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	ok, _ := auth.VerifyPassword("env-supplied-pass", hash)
@@ -164,7 +164,7 @@ func TestBootstrap_RefusesOverwriteWithoutForce(t *testing.T) {
 	// Original hash must be untouched.
 	s := mustOpen(t, dsn)
 	var hash string
-	if err := s.DB.QueryRow(`SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(t.Context(), `SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	ok, _ := auth.VerifyPassword("correct-horse-battery", hash)
@@ -192,7 +192,7 @@ func TestBootstrap_ForceUpdatesPassword(t *testing.T) {
 
 	s := mustOpen(t, dsn)
 	var hash string
-	if err := s.DB.QueryRow(`SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(t.Context(), `SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	if ok, _ := auth.VerifyPassword("original-correct-horse", hash); ok {
@@ -212,7 +212,7 @@ func TestBootstrap_ForcePromotesToAdmin(t *testing.T) {
 	if err := s.Migrate(context.Background()); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if _, err := s.DB.Exec(
+	if _, err := s.DB.ExecContext(context.Background(),
 		`INSERT INTO users(username, display_name, email, role, pw_hash) VALUES (?,?,?,?,?)`,
 		"alice", "Alice", "alice@example.com", "viewer", "placeholder",
 	); err != nil {
@@ -226,7 +226,7 @@ func TestBootstrap_ForcePromotesToAdmin(t *testing.T) {
 		t.Fatalf("force bootstrap: %v", err)
 	}
 	var role string
-	if err := s.DB.QueryRow(`SELECT role FROM users WHERE username='alice'`).Scan(&role); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT role FROM users WHERE username='alice'`).Scan(&role); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	if role != "admin" {
@@ -244,7 +244,7 @@ func TestBootstrap_EnableLocalLoginAlone(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 	seed := `{"providers":[{"name":"local","kind":"local","enabled":false},{"name":"corp","kind":"oidc","enabled":true,"issuer":"https://idp.example","clientID":"g"}]}`
-	if _, err := s.DB.Exec(`INSERT INTO config(key, value) VALUES ('auth', ?)`, seed); err != nil {
+	if _, err := s.DB.ExecContext(context.Background(), `INSERT INTO config(key, value) VALUES ('auth', ?)`, seed); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestBootstrap_EnableLocalLoginAlone(t *testing.T) {
 	}
 
 	var raw string
-	if err := s.DB.QueryRow(`SELECT value FROM config WHERE key='auth'`).Scan(&raw); err != nil {
+	if err := s.DB.QueryRowContext(context.Background(), `SELECT value FROM config WHERE key='auth'`).Scan(&raw); err != nil {
 		t.Fatalf("read back: %v", err)
 	}
 	if !strings.Contains(raw, `"enabled":true`) || !strings.Contains(raw, `"kind":"local"`) {

@@ -1,3 +1,4 @@
+// Package main implements the ARK: Survival Ascended join depth probe.
 package main
 
 import (
@@ -57,7 +58,7 @@ func probeARK(ctx context.Context, addr string) (probe.Depth, error) {
 		if err != nil {
 			return fmt.Errorf("dial tcp 27020: %w", err)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		log.Printf("connectivity-probe: successfully connected to RCON port (TCP 27020)")
 		return nil

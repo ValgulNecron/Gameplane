@@ -139,9 +139,9 @@ func randToken(n int) (string, error) {
 // caCertHash returns the "sha256:<hex>" hash of the cluster CA's public
 // key (the format kubeadm's --discovery-token-ca-cert-hash expects).
 func caCertHash(cfg *rest.Config) (string, error) {
-	pemBytes := cfg.TLSClientConfig.CAData
-	if len(pemBytes) == 0 && cfg.TLSClientConfig.CAFile != "" {
-		b, err := os.ReadFile(cfg.TLSClientConfig.CAFile)
+	pemBytes := cfg.CAData
+	if len(pemBytes) == 0 && cfg.CAFile != "" {
+		b, err := os.ReadFile(cfg.CAFile)
 		if err != nil {
 			return "", fmt.Errorf("read CA file: %w", err)
 		}
@@ -200,9 +200,9 @@ func (h *clusterActions) kubeconfig(w http.ResponseWriter, req *http.Request) {
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
-	caPEM := h.k.Config.TLSClientConfig.CAData
-	if len(caPEM) == 0 && h.k.Config.TLSClientConfig.CAFile != "" {
-		caPEM, _ = os.ReadFile(h.k.Config.TLSClientConfig.CAFile)
+	caPEM := h.k.Config.CAData
+	if len(caPEM) == 0 && h.k.Config.CAFile != "" {
+		caPEM, _ = os.ReadFile(h.k.Config.CAFile)
 	}
 	kubeconfig := renderKubeconfig(h.k.Config.Host, caPEM, certPEM, keyPEM, username)
 

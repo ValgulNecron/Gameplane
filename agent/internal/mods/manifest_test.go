@@ -364,3 +364,49 @@ func TestLoadManifest_NullModsMap(t *testing.T) {
 		t.Fatal("Mods map must be non-nil after load")
 	}
 }
+
+func TestLoadManifest_ReadError(t *testing.T) {
+	// Test the error path where ReadFile fails with a non-ErrNotExist error.
+	// Use a directory as the manifest path to trigger a permission/type error.
+	dir := t.TempDir()
+	manifestDir := filepath.Join(dir, manifestName)
+	if err := os.Mkdir(manifestDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// loadManifest should log the error and return empty, not crash.
+	got := loadManifest(dir)
+	if got.Version != 1 || len(got.Mods) != 0 {
+		t.Fatalf("loadManifest with read error should return empty, got %+v", got)
+	}
+}
+
+func TestManifest_SaveWriteError(t *testing.T) {
+	// Test the error path where Write fails.
+	// We create a manifest and try to save it to a read-only directory.
+	dir := t.TempDir()
+	m := &manifest{Version: 1, Mods: map[string]*ModMeta{
+		"test.jar": {Provider: "test", ProjectID: "p1"},
+	}}
+	// Make the directory read-only so Write will fail.
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(dir, 0o755) // restore for cleanup
+	})
+	err := m.save(dir)
+	if err == nil {
+		t.Fatal("save to read-only directory should error")
+	}
+}
+
+func TestManifest_SaveCreateTempError(t *testing.T) {
+	// Test the error path where CreateTemp fails.
+	// Use a non-existent directory that can't be created.
+	dir := filepath.Join(t.TempDir(), "nonexistent", "nested")
+	m := &manifest{Version: 1, Mods: map[string]*ModMeta{}}
+	err := m.save(dir)
+	if err == nil {
+		t.Fatal("save to non-existent directory should error")
+	}
+}

@@ -61,6 +61,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -112,7 +113,7 @@ func ensureClusterB(t *testing.T) (envB *Env, name string) {
 func podReachableKubeconfig(t *testing.T, clusterName string) []byte {
 	t.Helper()
 
-	raw, err := exec.Command("kind", "get", "kubeconfig", "--internal", "--name", clusterName).Output()
+	raw, err := exec.CommandContext(context.Background(), "kind", "get", "kubeconfig", "--internal", "--name", clusterName).Output()
 	if err != nil {
 		t.Fatalf("kind get kubeconfig --internal --name %s: %v", clusterName, exitErr(err))
 	}
@@ -126,7 +127,7 @@ func podReachableKubeconfig(t *testing.T, clusterName string) []byte {
 	// or another docker-compose network on a shared runner). Every kind node
 	// is guaranteed to be on "kind" (see the package doc above), so name it
 	// explicitly.
-	ipOut, err := exec.Command("docker", "inspect", "-f",
+	ipOut, err := exec.CommandContext(context.Background(), "docker", "inspect", "-f",
 		`{{(index .NetworkSettings.Networks "kind").IPAddress}}`, containerName).Output()
 	if err != nil {
 		t.Fatalf("docker inspect %s: %v", containerName, exitErr(err))
@@ -163,7 +164,8 @@ func podReachableKubeconfig(t *testing.T, clusterName string) []byte {
 // exitErr enriches an *exec.ExitError with its captured stderr, which
 // exec.Command's default Output() error otherwise discards.
 func exitErr(err error) error {
-	if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && len(ee.Stderr) > 0 {
 		return fmt.Errorf("%w: %s", err, string(ee.Stderr))
 	}
 	return err

@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"math"
@@ -107,7 +108,8 @@ func TestEnsureLocked_DialError(t *testing.T) {
 // (some servers do this) followed by typeAuthResponse, exercising the
 // ensureLocked loop's "skip non-auth packet" branch.
 func TestEnsureLocked_PreambleBeforeAuth(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -176,7 +178,8 @@ func TestExec_WriteAfterClose(t *testing.T) {
 // password every tick — which on Source-engine games risks tripping
 // sv_rcon_maxfailures.
 func TestClient_AuthFailureCooldown(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -244,7 +247,8 @@ func TestClient_AuthFailureCooldown(t *testing.T) {
 // CLEAR it — otherwise a password that gets fixed would keep being
 // throttled by a stale failure long after the cause is gone.
 func TestClient_AuthFailureCooldownClearsOnSuccess(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}

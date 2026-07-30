@@ -119,7 +119,7 @@ func TestWebhookSink_MiddlewareFanout(t *testing.T) {
 	h := Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
-	req := httptest.NewRequest("POST", "/api/v1/servers?name=beta", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/servers?name=beta", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{Username: "root"}))
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -168,7 +168,7 @@ func TestWebhookSink_CountsConnectionFailure(t *testing.T) {
 
 	s := NewWebhookSink(url, "")
 	before := counterValue(t, "failed")
-	s.post(Event{Actor: "x", TS: "2026-06-30T00:00:00Z"})
+	s.post(context.Background(), Event{Actor: "x", TS: "2026-06-30T00:00:00Z"})
 	if delta := counterValue(t, "failed") - before; delta != 1 {
 		t.Errorf("failed delta = %v, want 1", delta)
 	}
@@ -182,7 +182,7 @@ func TestWebhookSink_CountsNon2xx(t *testing.T) {
 
 	s := NewWebhookSink(srv.URL, "")
 	before := counterValue(t, "failed")
-	s.post(Event{Actor: "x"})
+	s.post(context.Background(), Event{Actor: "x"})
 	if delta := counterValue(t, "failed") - before; delta != 1 {
 		t.Errorf("failed delta = %v, want 1", delta)
 	}
@@ -201,7 +201,7 @@ func TestWebhookSink_DrainDeliversBuffered(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		s.Enqueue(Event{Actor: "x"})
 	}
-	s.drain()
+	s.drain(context.Background())
 	if len(got) != 3 {
 		t.Errorf("delivered %d events on drain, want 3", len(got))
 	}

@@ -63,7 +63,7 @@ func TestClusterActions_KubeconfigHappyPath(t *testing.T) {
 	MountClusterActions(r, k, true)
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/cluster/kubeconfig", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/kubeconfig", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}
@@ -97,7 +97,7 @@ func TestClusterActions_KubeconfigCSRCreateError(t *testing.T) {
 	MountClusterActions(r, k, true)
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/cluster/kubeconfig", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cluster/kubeconfig", nil))
 	if rr.Code == http.StatusOK {
 		t.Fatalf("expected an error status when CSR creation fails, got 200: %s", rr.Body.String())
 	}

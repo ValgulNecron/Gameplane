@@ -52,10 +52,10 @@ func TestReadStringErrors(t *testing.T) {
 		input []byte
 	}{
 		{"empty", []byte{}},
-		{"truncated_length", []byte{0x80}}, // High bit set but no continuation
-		{"truncated_data", []byte{0x05, 0x68, 0x69}}, // Says 5 bytes but only has 2
+		{"truncated_length", []byte{0x80}},                       // High bit set but no continuation
+		{"truncated_data", []byte{0x05, 0x68, 0x69}},             // Says 5 bytes but only has 2
 		{"overflow_shift", []byte{0x80, 0x80, 0x80, 0x80, 0x01}}, // Shift > 21
-		{"length_exceeds_buffer", []byte{0x0a, 0x61}}, // Says 10 bytes but buffer is short
+		{"length_exceeds_buffer", []byte{0x0a, 0x61}},            // Says 10 bytes but buffer is short
 	}
 
 	for _, tt := range tests {
@@ -115,7 +115,7 @@ func TestReadMessageErrors(t *testing.T) {
 		{"empty", []byte{}},
 		{"incomplete_header", []byte{0x01, 0x00}},
 		{"bad_frame_length_too_small", []byte{0x01, 0x00, 0x01}}, // Length 1 < 3
-		{"truncated_body", []byte{0x05, 0x00, 0x01, 0x02}}, // Says 5 bytes but only has 3
+		{"truncated_body", []byte{0x05, 0x00, 0x01, 0x02}},       // Says 5 bytes but only has 3
 	}
 
 	for _, tt := range tests {
@@ -134,7 +134,8 @@ func TestConnectHandshakeSuccess(t *testing.T) {
 	t.Parallel()
 
 	// Create a listener that simulates a Terraria server.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -190,7 +191,8 @@ func TestConnectHandshakeSuccess(t *testing.T) {
 func TestConnectPasswordRequired(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -223,7 +225,8 @@ func TestConnectPasswordRequired(t *testing.T) {
 func TestConnectVersionMismatch(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -284,7 +287,8 @@ func TestConnectVersionMismatch(t *testing.T) {
 func TestConnectVersionMismatchNoVersion(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -457,7 +461,7 @@ func TestParseNetworkTextTruncated(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Best-effort: these should not panic.
 			text, subs := parseNetworkText(tt.input)
 			_ = text

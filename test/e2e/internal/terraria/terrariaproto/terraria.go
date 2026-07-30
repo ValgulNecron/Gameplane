@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"regexp"
 	"time"
@@ -52,6 +53,7 @@ type Conn struct {
 	c net.Conn
 }
 
+// Close closes the Terraria connection.
 func (c *Conn) Close() error { return c.c.Close() }
 
 // Connect dials addr and completes the ConnectRequest handshake. On a
@@ -168,6 +170,9 @@ func (c *Conn) RequestWorldData(ctx context.Context) error {
 // writeMessage frames and sends one message.
 func writeMessage(w io.Writer, typ byte, payload []byte) error {
 	total := 2 + 1 + len(payload)
+	if total > math.MaxUint16 {
+		return fmt.Errorf("terraria: message too large: %d bytes exceeds maximum frame size %d", total, math.MaxUint16)
+	}
 	buf := make([]byte, 0, total)
 	buf = binary.LittleEndian.AppendUint16(buf, uint16(total))
 	buf = append(buf, typ)
@@ -274,11 +279,11 @@ func parseNetworkTextReader(r *bytes.Reader) (string, error) {
 	}
 	count, err := r.ReadByte()
 	if err != nil {
-		return text, nil
+		return text, err
 	}
 	for i := 0; i < int(count); i++ {
 		if _, err := parseNetworkTextReader(r); err != nil {
-			return text, nil
+			return text, err
 		}
 	}
 	return text, nil

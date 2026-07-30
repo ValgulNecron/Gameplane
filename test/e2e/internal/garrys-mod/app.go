@@ -1,3 +1,4 @@
+// Package main implements the Garry's Mod join depth probe.
 package main
 
 import (
@@ -76,34 +77,34 @@ func probeGarrysMod(ctx context.Context, addr string) (probe.Depth, error) {
 		// Source protocol attempt failed (network, protocol error, etc.).
 		// This is NOT fatal; A2S already proved QUERY depth.
 		// No additional logging needed here; errors were logged in the retry callback.
-		return probe.Query, nil
-	}
-
-	// Connect succeeded; decode and log the response for evidence.
-	// Extract response type (byte 4, after the 0xFFFFFFFF header) for diagnosis.
-	var respType string
-	if len(connectResult.Raw) >= 5 {
-		respType = fmt.Sprintf("0x%02x", connectResult.Raw[4])
+		log.Printf("connect-probe: source protocol attempt error (non-fatal): %v", err)
 	} else {
-		respType = "truncated"
-	}
+		// Connect succeeded; decode and log the response for evidence.
+		// Extract response type (byte 4, after the 0xFFFFFFFF header) for diagnosis.
+		var respType string
+		if len(connectResult.Raw) >= 5 {
+			respType = fmt.Sprintf("0x%02x", connectResult.Raw[4])
+		} else {
+			respType = "truncated"
+		}
 
-	// Log outcome: either accepted or rejection reason.
-	if connectResult.Accepted {
-		log.Printf("connect-probe: response type %s — ACCEPTED (new client)", respType)
-	} else if connectResult.RejectMsg != "" {
-		// Log rejection reason; if it contains #GameUI_ token, extract and highlight it.
-		log.Printf("connect-probe: response type %s — REJECTED: %s", respType, connectResult.RejectMsg)
-	} else {
-		log.Printf("connect-probe: response type %s — rejected (no reason provided)", respType)
-	}
+		// Log outcome: either accepted or rejection reason.
+		if connectResult.Accepted {
+			log.Printf("connect-probe: response type %s — ACCEPTED (new client)", respType)
+		} else if connectResult.RejectMsg != "" {
+			// Log rejection reason; if it contains #GameUI_ token, extract and highlight it.
+			log.Printf("connect-probe: response type %s — REJECTED: %s", respType, connectResult.RejectMsg)
+		} else {
+			log.Printf("connect-probe: response type %s — rejected (no reason provided)", respType)
+		}
 
-	// Also log raw hex for diagnosis, bounded to ~256 bytes to prevent log flooding.
-	rawHex := hex.EncodeToString(connectResult.Raw)
-	if len(rawHex) > 512 {
-		rawHex = rawHex[:512] + "... (truncated)"
+		// Also log raw hex for diagnosis, bounded to ~256 bytes to prevent log flooding.
+		rawHex := hex.EncodeToString(connectResult.Raw)
+		if len(rawHex) > 512 {
+			rawHex = rawHex[:512] + "... (truncated)"
+		}
+		log.Printf("connect-probe: raw response (%d bytes): %s", len(connectResult.Raw), rawHex)
 	}
-	log.Printf("connect-probe: raw response (%d bytes): %s", len(connectResult.Raw), rawHex)
 
 	// Regardless of connect outcome, return QUERY because that is what A2S proved.
 	// The connect attempt was diagnostic; evidence is in the logs above.

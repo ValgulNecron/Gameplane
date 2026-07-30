@@ -24,6 +24,8 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
+// Reporter periodically sends anonymous usage telemetry to a configured
+// endpoint when enabled via the admin toggle.
 type Reporter struct {
 	store    *db.Store
 	k        *kube.Client
@@ -126,7 +128,7 @@ func (r *Reporter) reportOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("telemetry endpoint returned %d", resp.StatusCode)
 	}

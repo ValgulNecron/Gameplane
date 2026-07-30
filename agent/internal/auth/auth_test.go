@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -69,7 +70,7 @@ func TestMiddleware_MTLS(t *testing.T) {
 
 	t.Run("plain HTTP rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		a.Middleware(next).ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", rr.Code)
@@ -78,7 +79,7 @@ func TestMiddleware_MTLS(t *testing.T) {
 
 	t.Run("TLS without verified chains rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.TLS = &tls.ConnectionState{}
 		a.Middleware(next).ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
@@ -88,7 +89,7 @@ func TestMiddleware_MTLS(t *testing.T) {
 
 	t.Run("TLS with verified chain passes", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.TLS = &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{}}}}
 		a.Middleware(next).ServeHTTP(rr, req)
 		if rr.Code != http.StatusOK {
@@ -116,7 +117,7 @@ func TestMiddleware_Token(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 			if tc.header != "" {
 				req.Header.Set("Authorization", tc.header)
 			}
@@ -257,4 +258,48 @@ func writeKeypair(t *testing.T) (certPath, keyPath string) {
 		t.Fatalf("write key: %v", err)
 	}
 	return certPath, keyPath
+}
+
+func TestValidateConfigPath_EmptyPath(t *testing.T) {
+	_, err := validateConfigPath("", "")
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("empty path should error, got %v", err)
+	}
+}
+
+func TestValidateConfigPath_RelativePath(t *testing.T) {
+	_, err := validateConfigPath("relative/path", "")
+	if err == nil || !strings.Contains(err.Error(), "absolute") {
+		t.Fatalf("relative path should error, got %v", err)
+	}
+}
+
+func TestValidateConfigPath_EscapesBase(t *testing.T) {
+	// Attempt directory traversal outside the base directory.
+	_, err := validateConfigPath("../../../etc/passwd", "/etc/gameplane")
+	if err == nil || !strings.Contains(err.Error(), "escapes") {
+		t.Fatalf("escape attempt should error, got %v", err)
+	}
+}
+
+func TestValidateConfigPath_WithinBase(t *testing.T) {
+	// Valid absolute path within base should succeed.
+	got, err := validateConfigPath("/etc/gameplane/config.json", "/etc/gameplane")
+	if err != nil {
+		t.Fatalf("valid path should succeed, got %v", err)
+	}
+	if !strings.Contains(got, "config.json") {
+		t.Fatalf("returned path should be cleaned: %s", got)
+	}
+}
+
+func TestValidateConfigPath_AbsoluteNoBase(t *testing.T) {
+	// Absolute path with no base configured should succeed.
+	got, err := validateConfigPath("/etc/gameplane/ca.pem", "")
+	if err != nil {
+		t.Fatalf("absolute path with no base should succeed, got %v", err)
+	}
+	if !strings.HasPrefix(got, "/etc") {
+		t.Fatalf("returned path should be absolute: %s", got)
+	}
 }

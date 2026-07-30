@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +26,7 @@ func TestIsStreamingRequest(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
 			if tc.header != "" {
 				req.Header.Set("Upgrade", tc.header)
 			}
@@ -43,10 +44,10 @@ func TestIsStreamingRequest(t *testing.T) {
 func TestRequestTimeout_NormalRequestCarriesDeadline(t *testing.T) {
 	mw := requestTimeout(30 * time.Second)
 	var sawDeadline bool
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		_, sawDeadline = r.Context().Deadline()
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/servers/alpha", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	if !sawDeadline {
 		t.Fatal("normal request context has no deadline, want chi.Timeout applied")
@@ -66,7 +67,7 @@ func TestRequestTimeout_NormalRequestExpires(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/servers/alpha", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusGatewayTimeout {
@@ -92,10 +93,10 @@ func TestRequestTimeout_StreamingRequestHasNoDeadline(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mw := requestTimeout(10 * time.Millisecond)
 			var hasDeadline bool
-			h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				_, hasDeadline = r.Context().Deadline()
 			}))
-			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
 			if tc.header != "" {
 				req.Header.Set("Upgrade", tc.header)
 			}
@@ -113,11 +114,11 @@ func TestRequestTimeout_StreamingRequestHasNoDeadline(t *testing.T) {
 // connections killed every 60s).
 func TestRequestTimeout_StreamingRequestOutlivesTimeout(t *testing.T) {
 	mw := requestTimeout(10 * time.Millisecond)
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(50 * time.Millisecond) // well past the configured deadline
 		w.WriteHeader(http.StatusOK)
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/events", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {

@@ -84,7 +84,7 @@ func TestNexusSearchTextFiltersTrending(t *testing.T) {
 }
 
 func TestNexusSearchEmptyTermReturnsWholeTrendingPage(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`[
 			{"mod_id":1,"name":"SMAPI"},
 			{"mod_id":2,"name":"Content Patcher"}
@@ -104,7 +104,7 @@ func TestNexusSearchEmptyTermReturnsWholeTrendingPage(t *testing.T) {
 
 func TestNexusSearchModpackReturnsEmptyWithoutRequest(t *testing.T) {
 	hit := false
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hit = true
 		_, _ = w.Write([]byte(`[]`))
 	}))
@@ -131,7 +131,7 @@ func TestNexusSearchModpackReturnsEmptyWithoutRequest(t *testing.T) {
 // populated version dropdown next to a permanently-disabled Install
 // button; the dashboard's empty state is keyed on zero *versions*.
 func TestNexusVersionsAlwaysEmpty(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"mod_id":42,"name":"SMAPI","version":"4.0.0"}`))
 	}))
 	defer srv.Close()

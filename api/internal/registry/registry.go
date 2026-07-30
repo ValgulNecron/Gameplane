@@ -112,7 +112,7 @@ type KeyFunc func(ctx context.Context, provider string) string
 // StaticKeys wraps a map of static API keys for use with NewSet. Useful for
 // command-line flag initialization where the keys don't change at runtime.
 func StaticKeys(keys map[string]string) KeyFunc {
-	return func(ctx context.Context, provider string) string {
+	return func(_ context.Context, provider string) string {
 		return keys[provider]
 	}
 }
@@ -315,7 +315,11 @@ func (s *Set) curseforgeLazy(ctx context.Context) (*Curseforge, error) {
 	if e == nil || err != nil {
 		return nil, err
 	}
-	return e.(*Curseforge), nil
+	cf, ok := e.(*Curseforge)
+	if !ok {
+		return nil, errors.New("unexpected engine type for curseforge")
+	}
+	return cf, nil
 }
 
 // steamLazy resolves and lazily builds the Steam engine.
@@ -326,7 +330,11 @@ func (s *Set) steamLazy(ctx context.Context) (*Steam, error) {
 	if e == nil || err != nil {
 		return nil, err
 	}
-	return e.(*Steam), nil
+	st, ok := e.(*Steam)
+	if !ok {
+		return nil, errors.New("unexpected engine type for steam")
+	}
+	return st, nil
 }
 
 // nexusLazy resolves and lazily builds the Nexus engine.
@@ -337,7 +345,11 @@ func (s *Set) nexusLazy(ctx context.Context) (*Nexus, error) {
 	if e == nil || err != nil {
 		return nil, err
 	}
-	return e.(*Nexus), nil
+	nx, ok := e.(*Nexus)
+	if !ok {
+		return nil, errors.New("unexpected engine type for nexus")
+	}
+	return nx, nil
 }
 
 // resolveKey returns provider's API key. Concurrent calls for the same
@@ -355,7 +367,10 @@ func (s *Set) resolveKey(ctx context.Context, provider string) string {
 	v, _, _ := s.keyGroup.Do(provider, func() (any, error) {
 		return s.keyFunc(ctx, provider), nil
 	})
-	return v.(string)
+	if key, ok := v.(string); ok {
+		return key
+	}
+	return ""
 }
 
 // keyedLazy resolves provider's key (via resolveKey, which coalesces
@@ -424,7 +439,7 @@ func httpGetJSON(ctx context.Context, client *http.Client, userAgent, rawURL str
 	if err != nil {
 		return sanitizeUpstreamErr("registry GET", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("registry GET: upstream status %d", resp.StatusCode)
 	}

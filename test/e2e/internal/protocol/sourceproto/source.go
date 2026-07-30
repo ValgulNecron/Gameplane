@@ -1,4 +1,4 @@
-// Package source implements the Source engine connectionless protocol for
+// Package sourceproto implements the Source engine connectionless protocol for
 // player-join probing. This supports both Source 1 (Half-Life 2, Garry's Mod,
 // GoldSrc) and Source 2 (CS:GO post-2018, CS2).
 //
@@ -111,7 +111,7 @@ func Challenge(ctx context.Context, addr string) (uint32, error) {
 	if err != nil {
 		return 0, fmt.Errorf("source: dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Send A2S_GETCHALLENGE.
 	req := make([]byte, 9)
@@ -174,7 +174,7 @@ func Connect(ctx context.Context, addr string, challenge uint32, name string, pr
 	if err != nil {
 		return nil, fmt.Errorf("source: dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Build C2S_CONNECT packet.
 	// Layout (per Valve's net_ws.cpp):

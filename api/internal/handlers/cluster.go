@@ -32,8 +32,8 @@ func MountCluster(r chi.Router, k *kube.Client, store *db.Store, gameplaneVersio
 }
 
 type clusterHandler struct {
-	k              *kube.Client
-	store          *db.Store
+	k                *kube.Client
+	store            *db.Store
 	gameplaneVersion string
 	clusterOps       bool
 	updateChannel    string
@@ -72,8 +72,8 @@ type clusterView struct {
 }
 
 type clusterInfo struct {
-	ClusterName    string `json:"clusterName,omitempty"`
-	Version        string `json:"version,omitempty"`        // Kubernetes server version
+	ClusterName      string `json:"clusterName,omitempty"`
+	Version          string `json:"version,omitempty"`          // Kubernetes server version
 	GameplaneVersion string `json:"gameplaneVersion,omitempty"` // Gameplane control-plane build
 	// ClusterOps mirrors the --cluster-ops flag so the dashboard can
 	// grey out node-join / kubeconfig actions instead of letting every
@@ -223,8 +223,8 @@ func (h *clusterHandler) fetchNodeUsage(ctx context.Context) map[string]nodeUsag
 
 func (h *clusterHandler) info(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, clusterInfo{
-		ClusterName:    h.clusterName(req.Context()),
-		Version:        h.serverVersion(),
+		ClusterName:      h.clusterName(req.Context()),
+		Version:          h.serverVersion(),
 		GameplaneVersion: h.gameplaneVersion,
 		ClusterOps:       h.clusterOps,
 		UpdateChannel:    h.updateChannel,
