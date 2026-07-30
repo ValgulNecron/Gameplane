@@ -2654,3 +2654,141 @@ func TestGameServer_TemplateAdvertiseFalseSurvivesTypedRoundTrip(t *testing.T) {
 		t.Fatalf("non-advertised RCON port 25575 leaked into policy after a typed-client round trip: %+v", np.Spec.Ingress[0].Ports)
 	}
 }
+
+// TestGameServer_TunnelCreatesDeploymentAndPolicy tests that tunnel configuration
+// creates a tunnel Deployment and the corresponding NetworkPolicy for egress.
+func TestGameServer_TunnelCreatesDeploymentAndPolicy(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconciler(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("tunnel-test"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gs := buildGameServer(ns, "tunnel-gs", tmpl.Name)
+	// Enable frp tunnel
+	gs.Spec.Networking.Tunnel = &gameplanev1alpha1.TunnelSpec{
+		Enabled:  true,
+		Provider: "frp",
+		Frp: &gameplanev1alpha1.FrpTunnelSpec{
+			ServerAddr:  "tunnel.example.com",
+			ServerPort:  7000,
+			RemotePorts: []gameplanev1alpha1.FrpRemotePort{{Name: "default", RemotePort: 25565}},
+		},
+	}
+
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	// Verify tunnel Deployment is created
+	eventually(t, func() (bool, string) {
+		var dep appsv1.Deployment
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "tunnel-gs-tunnel"}, &dep); err != nil {
+			return false, "tunnel deployment: " + err.Error()
+		}
+		if len(dep.Spec.Template.Spec.Containers) == 0 {
+			return false, "tunnel deployment has no containers"
+		}
+		if dep.Spec.Template.Spec.Containers[0].Name != "tunnel" {
+			return false, "container name is not 'tunnel'"
+		}
+		return true, ""
+	})
+
+	// Verify tunnel NetworkPolicy is created
+	eventually(t, func() (bool, string) {
+		var np networkingv1.NetworkPolicy
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "tunnel-gs-tunnel-egress"}, &np); err != nil {
+			return false, "tunnel network policy: " + err.Error()
+		}
+		if len(np.Spec.Egress) == 0 {
+			return false, "tunnel policy has no egress rules"
+		}
+		return true, ""
+	})
+}
+
+// TestGameServer_PlanTunnelComputes verifies that planTunnel correctly
+// computes endpoints for frp tunnel provider.
+func TestGameServer_PlanTunnelComputes(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-gs", Namespace: "default"},
+		Spec: gameplanev1alpha1.GameServerSpec{
+			TemplateRef: "test-tmpl",
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Tunnel: &gameplanev1alpha1.TunnelSpec{
+					Enabled:  true,
+					Provider: "frp",
+					Frp: &gameplanev1alpha1.FrpTunnelSpec{
+						ServerAddr: "tunnel.example.com",
+						ServerPort: 7000,
+						RemotePorts: []gameplanev1alpha1.FrpRemotePort{
+							{Name: "default", RemotePort: 25565},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tmpl := &gameplanev1alpha1.GameTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-tmpl"},
+		Spec: gameplanev1alpha1.GameTemplateSpec{
+			Ports: []gameplanev1alpha1.GamePort{
+				{Name: "default", ContainerPort: 25565, Protocol: corev1.ProtocolTCP, Advertise: true},
+			},
+		},
+	}
+
+	r := &GameServerReconciler{}
+	plan := r.planTunnel(context.Background(), gs, tmpl)
+
+	if !plan.wantTunnel {
+		t.Fatal("expected wantTunnel to be true")
+	}
+	if len(plan.endpoints) != 1 {
+		t.Fatalf("expected 1 endpoint, got %d", len(plan.endpoints))
+	}
+	if plan.endpoints[0].Host != "tunnel.example.com" {
+		t.Fatalf("expected host to be 'tunnel.example.com', got %q", plan.endpoints[0].Host)
+	}
+	if plan.endpoints[0].Port != 25565 {
+		t.Fatalf("expected port to be 25565, got %d", plan.endpoints[0].Port)
+	}
+}
+
+// TestGameServer_PlanTunnelDisabledReturnsEmpty verifies that planTunnel
+// returns an empty plan when tunnel is disabled.
+func TestGameServer_PlanTunnelDisabledReturnsEmpty(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-gs", Namespace: "default"},
+		Spec: gameplanev1alpha1.GameServerSpec{
+			TemplateRef: "test-tmpl",
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Tunnel: nil,
+			},
+		},
+	}
+
+	tmpl := &gameplanev1alpha1.GameTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-tmpl"},
+		Spec: gameplanev1alpha1.GameTemplateSpec{
+			Ports: []gameplanev1alpha1.GamePort{},
+		},
+	}
+
+	r := &GameServerReconciler{}
+	plan := r.planTunnel(context.Background(), gs, tmpl)
+
+	if plan.wantTunnel {
+		t.Fatal("expected wantTunnel to be false")
+	}
+	if len(plan.endpoints) != 0 {
+		t.Fatalf("expected no endpoints, got %d", len(plan.endpoints))
+	}
+}

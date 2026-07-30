@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	tunnelLabel = "app.kubernetes.io/name"
-	tunnelValue = "gameplane-tunnel"
+	tunnelLabel              = "app.kubernetes.io/name"
+	tunnelValue              = "gameplane-tunnel"
+	tunnelCredentialsVolume  = "tunnel-credentials"
+	tunnelCredentialsMountPath = "/etc/gameplane/tunnel-credentials"
 )
 
 // tunnelPlan is one reconcile pass's decision about the tunnel pod:
@@ -43,10 +45,10 @@ type tunnelPlan struct {
 // public address so a player's connection attempt to the tunnel can trigger
 // wake-on-connect. The tunnel pod stays running across the full lifecycle.
 func (r *GameServerReconciler) planTunnel(
-	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
-) (tunnelPlan, error) {
+	_ context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
+) tunnelPlan {
 	if gs.Spec.Networking.Tunnel == nil || !gs.Spec.Networking.Tunnel.Enabled {
-		return tunnelPlan{}, nil
+		return tunnelPlan{}
 	}
 
 	tunnel := gs.Spec.Networking.Tunnel
@@ -57,7 +59,7 @@ func (r *GameServerReconciler) planTunnel(
 	case "frp":
 		// For frp, compute endpoints from the RemotePorts mapping.
 		if tunnel.Frp == nil {
-			return tunnelPlan{}, nil
+			return tunnelPlan{}
 		}
 
 		for _, p := range tmpl.Spec.Ports {
@@ -94,7 +96,7 @@ func (r *GameServerReconciler) planTunnel(
 	case "tailscale":
 		// For Tailscale, use the specified hostname (or the GameServer name as default).
 		if tunnel.Tailscale == nil {
-			return tunnelPlan{}, nil
+			return tunnelPlan{}
 		}
 
 		hostname := tunnel.Tailscale.Hostname
@@ -122,7 +124,7 @@ func (r *GameServerReconciler) planTunnel(
 		// For Playit, the address is assigned at runtime by the tunnel pod and
 		// arrives via a later change. No endpoint is computed here.
 		if tunnel.Playit == nil {
-			return tunnelPlan{}, nil
+			return tunnelPlan{}
 		}
 		// TODO(tunnel): playit endpoint arrives via the gameservers/status subresource
 	}
@@ -131,7 +133,7 @@ func (r *GameServerReconciler) planTunnel(
 		wantTunnel: true,
 		endpoints:  endpoints,
 		noMapping:  noMapping,
-	}, nil
+	}
 }
 
 // reconcileTunnel maintains a 1-replica Deployment `<gs>-tunnel` that runs
@@ -168,12 +170,12 @@ func (r *GameServerReconciler) reconcileTunnel(
 		dep.Spec.Replicas = &replicas
 		dep.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				tunnelLabel:                tunnelValue,
+				tunnelLabel:               tunnelValue,
 				"app.kubernetes.io/instance": gs.Name,
 			},
 		}
 		dep.Spec.Template.Labels = map[string]string{
-			tunnelLabel:                tunnelValue,
+			tunnelLabel:               tunnelValue,
 			"app.kubernetes.io/instance": gs.Name,
 		}
 
@@ -236,7 +238,7 @@ func (r *GameServerReconciler) reconcileTunnel(
 				{Name: "FRP_SERVER_ADDR", Value: tunnel.Frp.ServerAddr},
 				{Name: "FRP_SERVER_PORT", Value: fmt.Sprintf("%d", serverPort)},
 				{Name: "BACKING_SERVICE_DNS", Value: backingServiceDNS},
-				{Name: "BACKING_SERVICE_PORT", Value: buildFrpRemotePortsConfig(tunnel.Frp, tmpl)},
+				{Name: "BACKING_SERVICE_PORT", Value: buildFrpRemotePortsConfig(tunnel.Frp)},
 			}
 
 		case "tailscale":
@@ -304,9 +306,8 @@ func (r *GameServerReconciler) reconcileTunnel(
 		var volumeMounts []corev1.VolumeMount
 
 		if tunnel.CredentialsSecretRef != nil {
-			credVolumeName := "tunnel-credentials"
 			volumes = append(volumes, corev1.Volume{
-				Name: credVolumeName,
+				Name: tunnelCredentialsVolume,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName: tunnel.CredentialsSecretRef.Name,
@@ -315,8 +316,8 @@ func (r *GameServerReconciler) reconcileTunnel(
 				},
 			})
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      credVolumeName,
-				MountPath: "/etc/gameplane/tunnel-credentials",
+				Name:      tunnelCredentialsVolume,
+				MountPath: tunnelCredentialsMountPath,
 				ReadOnly:  true,
 			})
 		}
@@ -503,7 +504,7 @@ func (r *GameServerReconciler) deleteTunnel(ctx context.Context, namespace, gsNa
 
 // buildFrpRemotePortsConfig constructs the BACKING_SERVICE_PORT env var for frp.
 // Format: "port_name:remote_port,..." e.g. "java:25565,bedrock:19133"
-func buildFrpRemotePortsConfig(frp *gameplanev1alpha1.FrpTunnelSpec, tmpl *gameplanev1alpha1.GameTemplate) string {
+func buildFrpRemotePortsConfig(frp *gameplanev1alpha1.FrpTunnelSpec) string {
 	if frp == nil {
 		return ""
 	}

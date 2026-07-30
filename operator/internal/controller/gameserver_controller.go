@@ -287,11 +287,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// planTunnel decides whether the tunnel pod should exist and what endpoints
 	// it will advertise. Like planSentinel, this is computed once per pass so
 	// there is a single source of truth (see planTunnel's doc comment).
-	tunnelPlan, err := r.planTunnel(ctx, &gs, &tmpl)
-	if err != nil {
-		logger.Error(err, "plan tunnel")
-		return ctrl.Result{}, err
-	}
+	tunnelPlan := r.planTunnel(ctx, &gs, &tmpl)
 	if err := r.reconcileTunnel(ctx, &gs, &tmpl, tunnelPlan.wantTunnel); err != nil {
 		logger.Error(err, "reconcile tunnel")
 		return ctrl.Result{}, err
