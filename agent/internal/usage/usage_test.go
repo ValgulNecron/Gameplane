@@ -453,10 +453,10 @@ func TestCpuUsageUsec_BadClkTck(t *testing.T) {
 	writeProc(t, proc, 100, 1, "game", 100, 10)
 
 	r := New(Config{
-		ProcMode:  true,
-		ProcRoot:  proc,
-		selfPID:   50,
-		clkTck:    0, // invalid clkTck
+		ProcMode: true,
+		ProcRoot: proc,
+		selfPID:  50,
+		clkTck:   0, // invalid clkTck
 	})
 	s := r.Read()
 	if s.CPUKnown {
