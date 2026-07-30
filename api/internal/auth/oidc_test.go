@@ -52,7 +52,7 @@ func stubOIDC() *OIDC {
 func TestHandleStart_SetsCookiesAndRedirects(t *testing.T) {
 	o := stubOIDC()
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/start", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/start", nil)
 	o.HandleStart()(rr, req)
 	if rr.Code != http.StatusFound {
 		t.Fatalf("code=%d", rr.Code)
@@ -81,7 +81,7 @@ func TestHandleCallback_StateMismatch(t *testing.T) {
 
 	t.Run("no cookie", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc", nil)
 		o.HandleCallback(store)(rr, req)
 		if rr.Code != http.StatusBadRequest {
 			t.Fatalf("code=%d", rr.Code)
@@ -90,7 +90,7 @@ func TestHandleCallback_StateMismatch(t *testing.T) {
 
 	t.Run("cookie mismatch", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc", nil)
 		req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "different"})
 		o.HandleCallback(store)(rr, req)
 		if rr.Code != http.StatusBadRequest {
@@ -100,7 +100,7 @@ func TestHandleCallback_StateMismatch(t *testing.T) {
 
 	t.Run("empty cookie", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc", nil)
 		req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: ""})
 		o.HandleCallback(store)(rr, req)
 		if rr.Code != http.StatusBadRequest {

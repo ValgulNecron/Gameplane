@@ -38,7 +38,7 @@ func TestHandleCallback_NoIDToken(t *testing.T) {
 	o, _ := NewOIDC(context.Background(), idp.issuer(), "client-1", "secret", "https://app/cb")
 	o.AttachStore(newAuthDB(t))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	o.HandleCallback(NewSessionStore(newAuthDB(t)))(rr, req)
 	if rr.Code != http.StatusBadRequest {
@@ -69,7 +69,7 @@ func TestHandleCallback_InvalidIDToken(t *testing.T) {
 	o, _ := NewOIDC(context.Background(), idp.issuer(), "client-1", "secret", "https://app/cb")
 	o.AttachStore(newAuthDB(t))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	o.HandleCallback(NewSessionStore(newAuthDB(t)))(rr, req)
 	if rr.Code != http.StatusUnauthorized {
@@ -89,7 +89,7 @@ func TestHandleCallback_ResolveStoreError(t *testing.T) {
 	o, _ := NewOIDC(context.Background(), idp.issuer(), "client-1", "secret", "https://app/cb")
 	o.AttachStore(store)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "n"})
 	o.HandleCallback(NewSessionStore(store))(rr, req)
@@ -110,7 +110,7 @@ func TestHandleCallback_SessionCreateError(t *testing.T) {
 		t.Fatalf("drop: %v", err)
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "n"})
 	o.HandleCallback(NewSessionStore(store))(rr, req)

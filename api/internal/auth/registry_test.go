@@ -287,7 +287,7 @@ func TestLogin_DisabledByRegistry(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	body, _ := json.Marshal(map[string]string{"username": "registry-alice", "password": "correct-horse-battery"})
-	req := httptest.NewRequest("POST", "/login", strings.NewReader(string(body)))
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/login", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), reg).ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -300,7 +300,7 @@ func TestLogin_DisabledByRegistry(t *testing.T) {
 	// Re-enabling in the row takes effect on the next request.
 	seedConfigRow(t, s, "auth", `{"providers":[{"name":"local","kind":"local","enabled":true}]}`)
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/login", strings.NewReader(string(body)))
+	req = httptest.NewRequestWithContext(t.Context(), "POST", "/login", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), reg).ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {

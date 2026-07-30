@@ -19,6 +19,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
 
+// MountUsers registers the user management routes on r.
 func MountUsers(r chi.Router, store *db.Store, sessions *auth.SessionStore, clusters scope.ClusterLister) {
 	h := &userHandler{db: store, sessions: sessions, clusters: clusters}
 	r.Route("/users", func(r chi.Router) {
