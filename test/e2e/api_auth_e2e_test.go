@@ -292,7 +292,11 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	raw := &http.Client{Timeout: cli.HTTP.Timeout}
 
 	// Pre-auth listing reflects the save immediately.
-	resp, err := raw.Get(cli.BaseURL + "/auth/providers")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, cli.BaseURL+"/auth/providers", nil)
+	if err != nil {
+		t.Fatalf("build GET providers request: %v", err)
+	}
+	resp, err := raw.Do(req)
 	if err != nil {
 		t.Fatalf("get providers: %v", err)
 	}
@@ -310,7 +314,11 @@ func TestAPI_DynamicAuthProviders(t *testing.T) {
 	// The start route exists and resolves the provider. Discovery against
 	// the invalid issuer fails, so a detail-free 502 is the expected
 	// terminal state — the point is it is NOT a 404.
-	resp, err = raw.Get(cli.BaseURL + "/auth/oidc/e2e-sso/start")
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, cli.BaseURL+"/auth/oidc/e2e-sso/start", nil)
+	if err != nil {
+		t.Fatalf("build GET start request: %v", err)
+	}
+	resp, err = raw.Do(req)
 	if err != nil {
 		t.Fatalf("get start: %v", err)
 	}

@@ -16,11 +16,11 @@ import (
 func TestVarIntRoundTrip(t *testing.T) {
 	t.Parallel()
 	tests := []int32{
-		0, 1, 127,                          // single byte
-		128, 255, 16383,                    // two bytes
-		16384, 1<<20 - 1, 1<<21 - 1,        // three bytes
-		1 << 21, 1<<27 - 1, 1<<28 - 1,      // four bytes
-		1 << 28, (1 << 31) - 1, -1, -128,   // five bytes and negatives
+		0, 1, 127, // single byte
+		128, 255, 16383, // two bytes
+		16384, 1<<20 - 1, 1<<21 - 1, // three bytes
+		1 << 21, 1<<27 - 1, 1<<28 - 1, // four bytes
+		1 << 28, (1 << 31) - 1, -1, -128, // five bytes and negatives
 	}
 	for _, v := range tests {
 		t.Run(fmt.Sprintf("%d", v), func(t *testing.T) {

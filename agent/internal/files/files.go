@@ -210,7 +210,14 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		httpErr(w, err)
 		return
 	}
-	f, err := os.Create(p)
+	// Validate p is within root directory (resolve() already checked this,
+	// but explicit validation is needed to satisfy gosec's path analysis).
+	pClean := filepath.Clean(p)
+	if !strings.HasPrefix(pClean, h.root+string(os.PathSeparator)) && pClean != h.root {
+		httpErr(w, errPathOutOfRoot)
+		return
+	}
+	f, err := os.Create(pClean)
 	if err != nil {
 		httpErr(w, err)
 		return
@@ -224,6 +231,8 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
+	// Wrap request body to prevent unbounded multipart parsing.
+	req.Body = http.MaxBytesReader(w, req.Body, 64<<20)
 	if err := req.ParseMultipartForm(64 << 20); err != nil {
 		h.badRequest(w, err)
 		return
@@ -270,7 +279,14 @@ func saveMultipart(dir string, fh *multipart.FileHeader) error {
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
-	dst, err := os.Create(filepath.Join(dir, name))
+	// Validate destination path is within dir to prevent zip-slip-like attacks.
+	dstPath := filepath.Join(dir, name)
+	dstClean := filepath.Clean(dstPath)
+	dirClean := filepath.Clean(dir)
+	if dstClean != dirClean && !strings.HasPrefix(dstClean, dirClean+string(os.PathSeparator)) {
+		return errors.New("path escape attempt")
+	}
+	dst, err := os.Create(dstClean)
 	if err != nil {
 		return err
 	}

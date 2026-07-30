@@ -348,7 +348,16 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	} else {
-		finalPath := filepath.Join(h.dir, name)
+		dirClean := filepath.Clean(h.dir)
+		finalPath := filepath.Join(dirClean, name)
+		finalPath = filepath.Clean(finalPath)
+		// Ensure finalPath stays within h.dir (name is pre-validated by safeName).
+		if finalPath != dirClean && !strings.HasPrefix(finalPath, dirClean+string(os.PathSeparator)) {
+			_ = os.Remove(tmpName)
+			slog.Warn("mod upload path escape attempt", "path", finalPath)
+			writeErr(w, http.StatusInternalServerError, "could not store the upload")
+			return
+		}
 		if err := os.Rename(tmpName, finalPath); err != nil {
 			_ = os.Remove(tmpName)
 			slog.Warn("mod upload rename", "err", err)
@@ -522,7 +531,9 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			_ = rc.Close()
 			return errors.New("zip-slip attempt")
 		}
-		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		// Use 0o640 to allow group read access (mods are meant to be read by
+		// the game process) while maintaining restricted permissions.
+		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o640)
 		if err != nil {
 			_ = rc.Close()
 			return err

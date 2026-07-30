@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -82,6 +83,10 @@ func (h *handler) tail(w http.ResponseWriter, req *http.Request) {
 // Reopens the file on rotation (ENOENT or inode change) with a short
 // backoff so logrotate-style setups keep working.
 func streamFile(ctx context.Context, conn *websocket.Conn, path string, fromEnd bool) error {
+	// Validate log file path to prevent directory traversal.
+	if err := validateLogPath(path); err != nil {
+		return err
+	}
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -168,4 +173,16 @@ func sleep(ctx context.Context, d time.Duration) error {
 	case <-t.C:
 		return nil
 	}
+}
+
+// validateLogPath ensures a log file path does not escape expected
+// directories via directory traversal. Paths are validated to be clean
+// (no ".." components).
+func validateLogPath(path string) error {
+	clean := filepath.Clean(path)
+	// Reject paths with ".." that survived cleaning (indicates upward traversal).
+	if strings.Contains(clean, "..") {
+		return errors.New("log path contains directory traversal")
+	}
+	return nil
 }

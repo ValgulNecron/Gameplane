@@ -30,11 +30,11 @@ type Depth string
 
 const (
 	// Joined indicates the server accepted the client as a player.
-	Joined  Depth = "JOINED"
+	Joined Depth = "JOINED"
 	// Partial indicates the client spoke the real protocol, then hit a credential gate CI can't mint.
 	Partial Depth = "PARTIAL"
 	// Query indicates even a partial join was impossible; only the query/status protocol was spoken.
-	Query   Depth = "QUERY"
+	Query Depth = "QUERY"
 )
 
 // retryInterval is the pause between attempts. The overall deadline, not the
