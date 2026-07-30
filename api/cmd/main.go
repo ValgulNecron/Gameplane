@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/netip"
 	"os"
