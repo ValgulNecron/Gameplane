@@ -362,12 +362,42 @@ export interface PortOverride {
   nodePort?: number;
 }
 
+export interface RemotePortMapping {
+  name: string;
+  remotePort: number;
+}
+
+export interface FrpTunnelSpec {
+  serverAddr: string;
+  serverPort?: number;
+  remotePorts: RemotePortMapping[];
+}
+
+export interface TailscaleTunnelSpec {
+  hostname?: string;
+  tags?: string[];
+}
+
+export interface PlayitTunnelSpec {
+  tunnelName?: string;
+}
+
+export interface GameServerTunnel {
+  enabled?: boolean;
+  provider: "frp" | "tailscale" | "playit";
+  credentialsSecretRef?: { name: string };
+  frp?: FrpTunnelSpec;
+  tailscale?: TailscaleTunnelSpec;
+  playit?: PlayitTunnelSpec;
+}
+
 export interface GameServerNetworking {
   expose?: Expose;
   hostname?: string;
   serviceAnnotations?: Record<string, string>;
   portOverrides?: PortOverride[];
   sourceRanges?: string[];
+  tunnel?: GameServerTunnel;
 }
 
 export interface GameServerStorage {
@@ -402,6 +432,16 @@ export interface InlineBackupPolicy {
     keepYearly?: number;
   };
   suspend?: boolean;
+}
+
+export interface GameServerEndpoint {
+  name: string;
+  host: string;
+  port: number;
+  protocol?: string;
+  // Tailscale endpoints are tailnet-private only, not reachable from the internet.
+  private?: boolean;
+  tunnelProvider?: string;
 }
 
 export interface GameServer {
@@ -439,7 +479,7 @@ export interface GameServer {
   };
   status?: {
     phase?: GameServerPhase;
-    endpoints?: Array<{ name: string; host: string; port: number; protocol?: string }>;
+    endpoints?: GameServerEndpoint[];
     agent?: {
       lastHeartbeat?: string;
       // null/absent means "unknown" (agent couldn't query the game, or
