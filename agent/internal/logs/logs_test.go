@@ -253,3 +253,29 @@ func TestSleep_Elapses(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestValidateLogPath_EmptyPath(t *testing.T) {
+	_, err := validateLogPath("", "")
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("empty path should error, got %v", err)
+	}
+}
+
+func TestValidateLogPath_EscapesBase(t *testing.T) {
+	// Attempt directory traversal outside the base directory.
+	_, err := validateLogPath("../../../etc/passwd", "/var/log")
+	if err == nil || !strings.Contains(err.Error(), "escapes") {
+		t.Fatalf("escape attempt should error, got %v", err)
+	}
+}
+
+func TestValidateLogPath_WithinBase(t *testing.T) {
+	// Valid path within base should succeed.
+	got, err := validateLogPath("/var/log/game/latest.log", "/var/log")
+	if err != nil {
+		t.Fatalf("valid path should succeed, got %v", err)
+	}
+	if !strings.Contains(got, "latest.log") {
+		t.Fatalf("returned path should be cleaned: %s", got)
+	}
+}

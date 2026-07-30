@@ -532,8 +532,12 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			_ = rc.Close()
 			return errors.New("zip-slip attempt")
 		}
-		// Use 0o640 to allow group read access (mods are meant to be read by
-		// the game process) while maintaining restricted permissions.
+		// Group-readable on purpose: the agent writes mods, the game container
+		// reads them, and they are different UIDs. A GameTemplate's
+		// spec.securityContext.fsGroup lands on the pod, giving both containers
+		// that GID as a supplementary group, so 0o640 is what makes the mods
+		// readable to the game. 0o600 would silently break mod loading.
+		// gosec G302 wants 0600 or less and is knowingly not satisfied here.
 		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o640)
 		if err != nil {
 			_ = rc.Close()

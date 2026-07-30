@@ -23,7 +23,7 @@ func TestRejectRemoteCluster_TableDriven(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/servers/alpha/mods/ids"+tc.query, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/servers/alpha/mods/ids"+tc.query, nil)
 			rr := httptest.NewRecorder()
 			got := rejectRemoteCluster(rr, req)
 			if got != tc.wantRejected {

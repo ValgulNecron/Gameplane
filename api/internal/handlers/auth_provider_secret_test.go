@@ -26,9 +26,10 @@ func providerSecretRouter(secrets ...runtime.Object) (chi.Router, *kube.Client) 
 	return r, k
 }
 
-func putProviderSecret(h http.Handler, name string, body any) *httptest.ResponseRecorder {
+func putProviderSecret(t *testing.T, h http.Handler, name string, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	b, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/admin/auth/providers/"+name+"/secret", bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/admin/auth/providers/"+name+"/secret", bytes.NewReader(b))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
@@ -36,7 +37,7 @@ func putProviderSecret(h http.Handler, name string, body any) *httptest.Response
 
 func TestProviderSecret_Create(t *testing.T) {
 	r, k := providerSecretRouter()
-	rr := putProviderSecret(r, "corp", map[string]string{"clientSecret": "s3cret"})
+	rr := putProviderSecret(t, r, "corp", map[string]string{"clientSecret": "s3cret"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rr.Code, rr.Body)
 	}
@@ -69,7 +70,7 @@ func TestProviderSecret_Validation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if rr := putProviderSecret(r, tc.provider, tc.body); rr.Code != http.StatusUnprocessableEntity {
+			if rr := putProviderSecret(t, r, tc.provider, tc.body); rr.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("status = %d body=%s, want 422", rr.Code, rr.Body)
 			}
 		})
@@ -89,12 +90,12 @@ func TestProviderSecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 	r, k := providerSecretRouter(foreign, userOwned)
 
 	// Upsert onto an unlabelled same-named Secret is refused.
-	if rr := putProviderSecret(r, "corp", map[string]string{"clientSecret": "x"}); rr.Code != http.StatusConflict {
+	if rr := putProviderSecret(t, r, "corp", map[string]string{"clientSecret": "x"}); rr.Code != http.StatusConflict {
 		t.Fatalf("foreign upsert: status = %d, want 409", rr.Code)
 	}
 
 	del := func(name string) int {
-		req := httptest.NewRequest(http.MethodDelete, "/admin/auth/providers/"+name+"/secret", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/admin/auth/providers/"+name+"/secret", nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		return rr.Code
@@ -104,7 +105,7 @@ func TestProviderSecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 		t.Fatalf("delete user-owned: %d, want 404", code)
 	}
 	// API-managed: create then delete round-trips.
-	if rr := putProviderSecret(r, "mine", map[string]string{"clientSecret": "x"}); rr.Code != http.StatusOK {
+	if rr := putProviderSecret(t, r, "mine", map[string]string{"clientSecret": "x"}); rr.Code != http.StatusOK {
 		t.Fatalf("create mine: %d", rr.Code)
 	}
 	if code := del("mine"); code != http.StatusNoContent {

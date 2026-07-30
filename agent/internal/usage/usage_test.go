@@ -390,3 +390,146 @@ func TestReadProcStatmRSS(t *testing.T) {
 		t.Fatalf("absent statm rss = %d, want 0", got)
 	}
 }
+
+func TestReadProcStat_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	_, _, ok := readProcStat(dir, "../escape")
+	if ok {
+		t.Fatal("directory traversal should be rejected")
+	}
+}
+
+func TestReadProcStatmRSS_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	got := readProcStatmRSS(dir, "../escape")
+	if got != 0 {
+		t.Fatalf("directory traversal should return 0, got %d", got)
+	}
+}
+
+func TestReadUintFile_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	_, ok := readUintFile(dir, "../escape")
+	if ok {
+		t.Fatal("directory traversal should be rejected")
+	}
+}
+
+func TestReadCgroupFile_PathEscape(t *testing.T) {
+	dir := t.TempDir()
+	// Attempt directory traversal — the path containment check should reject it.
+	_, err := readCgroupFile(dir, "../escape")
+	if err != os.ErrPermission {
+		t.Fatalf("directory traversal should return ErrPermission, got %v", err)
+	}
+}
+
+func TestRead_CPUOverflow(t *testing.T) {
+	// Test the guard where CPU diff exceeds math.MaxInt64.
+	dir := t.TempDir()
+	clock := &fakeClock{t: time.Unix(100, 0)}
+
+	// Start at 0.
+	writeFile(t, dir, "cpu.stat", "usage_usec 0\n")
+	r := New(Config{Root: dir, now: clock.now})
+	r.Read() // seed prev at 0
+
+	clock.t = clock.t.Add(time.Second)
+	// Jump to a value > MaxInt64, making the diff also > MaxInt64.
+	writeFile(t, dir, "cpu.stat", fmt.Sprintf("usage_usec %d\n", uint64(math.MaxInt64)+1000))
+	s := r.Read()
+	// When diff exceeds MaxInt64, CPU should not be reported as known.
+	if s.CPUKnown {
+		t.Fatal("CPU overflow should leave CPU unknown")
+	}
+}
+
+func TestCpuUsageUsec_BadClkTck(t *testing.T) {
+	// Test the guard where clkTck <= 0.
+	proc := t.TempDir()
+	writeProc(t, proc, 100, 1, "game", 100, 10)
+
+	r := New(Config{
+		ProcMode:  true,
+		ProcRoot:  proc,
+		selfPID:   50,
+		clkTck:    0, // invalid clkTck
+	})
+	s := r.Read()
+	if s.CPUKnown {
+		t.Fatal("invalid clkTck should leave CPU unknown")
+	}
+}
+
+func TestRead_MemoryOverflow(t *testing.T) {
+	dir := t.TempDir()
+	// memory.current that exceeds math.MaxInt64 should be clamped.
+	writeFile(t, dir, "memory.current", fmt.Sprintf("%d\n", uint64(math.MaxInt64)+1))
+	s := New(Config{Root: dir}).Read()
+	if !s.MemoryKnown || s.MemoryBytes != math.MaxInt64 {
+		t.Fatalf("overflow should be clamped: got %d known=%v", s.MemoryBytes, s.MemoryKnown)
+	}
+}
+
+func TestRead_MemoryLimitOverflow(t *testing.T) {
+	dir := t.TempDir()
+	// memory.max that exceeds math.MaxInt64 should leave limit unknown.
+	writeFile(t, dir, "memory.current", "1024\n")
+	writeFile(t, dir, "memory.max", fmt.Sprintf("%d\n", uint64(math.MaxInt64)+1))
+	s := New(Config{Root: dir}).Read()
+	if s.MemoryLimitKnown {
+		t.Fatal("limit overflow should leave MemoryLimitKnown false")
+	}
+}
+
+func TestRead_DiskBlockSizeZero(t *testing.T) {
+	// Test the redundant bsize == 0 guard (line 417-419).
+	r := New(Config{
+		Root:    t.TempDir(),
+		DataDir: "/data",
+		statfs: func(_ string, st *unix.Statfs_t) error {
+			st.Bsize = 0
+			return nil
+		},
+	})
+	if r.Read().DiskKnown {
+		t.Fatal("zero block size should leave disk unknown")
+	}
+}
+
+func TestRead_DiskTotalOverflow(t *testing.T) {
+	r := New(Config{
+		Root:    t.TempDir(),
+		DataDir: "/data",
+		statfs: func(_ string, st *unix.Statfs_t) error {
+			st.Bsize = 2
+			// Use a value that when multiplied by 2 exceeds MaxInt64.
+			st.Blocks = math.MaxInt64/2 + 1000
+			st.Bfree = 0
+			return nil
+		},
+	})
+	if r.Read().DiskKnown {
+		t.Fatal("total disk overflow should leave disk unknown")
+	}
+}
+
+func TestRead_DiskUsedOverflow(t *testing.T) {
+	r := New(Config{
+		Root:    t.TempDir(),
+		DataDir: "/data",
+		statfs: func(_ string, st *unix.Statfs_t) error {
+			st.Bsize = 2
+			st.Blocks = math.MaxInt64/2 + 1000
+			// usedBlocks = Blocks - Bfree will be large enough to overflow
+			st.Bfree = 1
+			return nil
+		},
+	})
+	if r.Read().DiskKnown {
+		t.Fatal("used disk overflow should leave disk unknown")
+	}
+}

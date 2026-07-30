@@ -661,7 +661,7 @@ func TestWebSocketReconnectAfterError(t *testing.T) {
 		first := conns == 1
 		mu.Unlock()
 
-		ctx := t.Context()
+		ctx := context.WithoutCancel(r.Context())
 		for {
 			var req WebSocketMessage
 			if err := readJSON(ctx, conn, &req); err != nil {

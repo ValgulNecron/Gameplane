@@ -243,7 +243,7 @@ func doJSON(t *testing.T, method, path string, body any) *http.Response {
 		}
 		rdr = bytes.NewReader(buf)
 	}
-	req, err := http.NewRequest(method, apiBase+path, rdr)
+	req, err := http.NewRequestWithContext(t.Context(), method, apiBase+path, rdr)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
