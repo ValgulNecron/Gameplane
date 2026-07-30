@@ -170,12 +170,12 @@ func (r *GameServerReconciler) reconcileTunnel(
 		dep.Spec.Replicas = &replicas
 		dep.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				tunnelLabel:               tunnelValue,
+				tunnelLabel:                  tunnelValue,
 				"app.kubernetes.io/instance": gs.Name,
 			},
 		}
 		dep.Spec.Template.Labels = map[string]string{
-			tunnelLabel:               tunnelValue,
+			tunnelLabel:                  tunnelValue,
 			"app.kubernetes.io/instance": gs.Name,
 		}
 
@@ -376,7 +376,7 @@ func (r *GameServerReconciler) reconcileTunnelNetworkPolicy(
 		// Select the tunnel pod's labels.
 		np.Spec.PodSelector = metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				tunnelLabel:                tunnelValue,
+				tunnelLabel:                  tunnelValue,
 				"app.kubernetes.io/instance": gs.Name,
 			},
 		}
