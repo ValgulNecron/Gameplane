@@ -233,8 +233,8 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	// Wrap request body to prevent unbounded multipart parsing.
-	req.Body = http.MaxBytesReader(w, req.Body, 64<<20)
-	if err := req.ParseMultipartForm(64 << 20); err != nil {
+	req.Body = http.MaxBytesReader(w, req.Body, maxUploadFileBytes)
+	if err := req.ParseMultipartForm(maxUploadFileBytes); err != nil {
 		h.badRequest(w, err)
 		return
 	}

@@ -23,12 +23,17 @@ import (
 )
 
 type handler struct {
-	path string
+	path    string
+	baseDir string
 }
 
 // Mount registers the log-streaming WebSocket endpoints on the supplied router.
 func Mount(r chi.Router, path string) {
-	h := &handler{path: path}
+	var baseDir string
+	if path != "" {
+		baseDir = filepath.Dir(filepath.Clean(path))
+	}
+	h := &handler{path: path, baseDir: baseDir}
 	r.Get("/logs/tail", h.tail)
 	r.Get("/logs/download", h.download)
 }
@@ -74,7 +79,7 @@ func (h *handler) tail(w http.ResponseWriter, req *http.Request) {
 	from := req.URL.Query().Get("from")
 	fromEnd := from != "start"
 
-	if err := streamFile(ctx, conn, h.path, fromEnd); err != nil && !errors.Is(err, context.Canceled) {
+	if err := streamFile(ctx, conn, h.path, h.baseDir, fromEnd); err != nil && !errors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 	}
 }
@@ -82,16 +87,17 @@ func (h *handler) tail(w http.ResponseWriter, req *http.Request) {
 // streamFile tails path, delivering each full line as a text WS frame.
 // Reopens the file on rotation (ENOENT or inode change) with a short
 // backoff so logrotate-style setups keep working.
-func streamFile(ctx context.Context, conn *websocket.Conn, path string, fromEnd bool) error {
+func streamFile(ctx context.Context, conn *websocket.Conn, path string, baseDir string, fromEnd bool) error {
 	// Validate log file path to prevent directory traversal.
-	if err := validateLogPath(path); err != nil {
+	cleanPath, err := validateLogPath(path, baseDir)
+	if err != nil {
 		return err
 	}
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		f, err := os.Open(path)
+		f, err := os.Open(cleanPath)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				if sleep(ctx, time.Second) != nil {
@@ -176,13 +182,21 @@ func sleep(ctx context.Context, d time.Duration) error {
 }
 
 // validateLogPath ensures a log file path does not escape expected
-// directories via directory traversal. Paths are validated to be clean
-// (no ".." components).
-func validateLogPath(path string) error {
-	clean := filepath.Clean(path)
-	// Reject paths with ".." that survived cleaning (indicates upward traversal).
-	if strings.Contains(clean, "..") {
-		return errors.New("log path contains directory traversal")
+// directories via directory traversal. Returns the cleaned path for use
+// in file operations. If base is empty, only the path is cleaned.
+func validateLogPath(path string, base string) (string, error) {
+	if path == "" {
+		return "", errors.New("log path is empty")
 	}
-	return nil
+	clean := filepath.Clean(path)
+	if base == "" {
+		// No base directory configured; just return the cleaned path.
+		return clean, nil
+	}
+	base = filepath.Clean(base)
+	// Ensure the path is within the base directory (game data volume).
+	if clean != base && !strings.HasPrefix(clean, base+string(os.PathSeparator)) {
+		return "", errors.New("log path escapes game data root")
+	}
+	return clean, nil
 }

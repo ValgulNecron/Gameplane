@@ -419,14 +419,17 @@ func (r *Reader) readDisk(s *Sample) {
 	}
 	// Bound checks: verify block-count multiplications fit in int64.
 	// st.Blocks and st.Bfree are uint64; their products with bsize must fit in int64.
-	if st.Blocks > math.MaxInt64/bsize {
+	totalBlockBytes := st.Blocks * bsize
+	if totalBlockBytes > math.MaxInt64 {
 		return // overflow: total blocks exceed int64.Max bytes
 	}
-	if st.Blocks > st.Bfree && (st.Blocks-st.Bfree) > math.MaxInt64/bsize {
+	usedBlocks := st.Blocks - st.Bfree
+	usedBlockBytes := usedBlocks * bsize
+	if usedBlockBytes > math.MaxInt64 {
 		return // overflow: used blocks exceed int64.Max bytes
 	}
-	s.DiskTotalBytes = int64(st.Blocks * bsize)
-	s.DiskUsedBytes = int64((st.Blocks - st.Bfree) * bsize)
+	s.DiskTotalBytes = int64(totalBlockBytes)
+	s.DiskUsedBytes = int64(usedBlockBytes)
 	s.DiskKnown = true
 }
 

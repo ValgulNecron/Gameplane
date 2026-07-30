@@ -19,6 +19,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
+// MountSystemLogs registers the system log retrieval routes on r.
 func MountSystemLogs(r chi.Router, k *kube.Client, namespace string) {
 	r.Get("/admin/system-logs/{component}", func(w http.ResponseWriter, req *http.Request) {
 		component := chi.URLParam(req, "component")

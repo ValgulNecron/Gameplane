@@ -1,3 +1,4 @@
+// Package main implements the HTTP API gateway for the Gameplane dashboard.
 package main
 
 import (

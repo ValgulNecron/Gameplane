@@ -46,10 +46,11 @@ func New(cfg Config) (*Authenticator, error) {
 		return &Authenticator{mode: "mtls"}, nil
 	case cfg.TokenFile != "":
 		// Validate token file path to prevent directory traversal.
-		if err := validateConfigPath(cfg.TokenFile); err != nil {
+		tokenFilePath, err := validateConfigPath(cfg.TokenFile, "")
+		if err != nil {
 			return nil, fmt.Errorf("invalid token file path: %w", err)
 		}
-		b, err := os.ReadFile(cfg.TokenFile)
+		b, err := os.ReadFile(tokenFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("read token file: %w", err)
 		}
@@ -92,15 +93,28 @@ func bearer(h string) string {
 }
 
 // validateConfigPath ensures a config file path does not escape expected
-// directories via directory traversal. Paths are validated to be clean
-// (no ".." components) and relative or within safe absolute directories.
-func validateConfigPath(path string) error {
-	clean := filepath.Clean(path)
-	// Reject paths with ".." that survived cleaning (indicates upward traversal).
-	if strings.Contains(clean, "..") {
-		return errors.New("path contains directory traversal")
+// directories via directory traversal. It accepts absolute paths and
+// optionally validates they remain within a specified base directory.
+// If base is empty, the path is only cleaned (G304 may fire if paths are untrusted).
+func validateConfigPath(path string, base string) (string, error) {
+	if path == "" {
+		return "", errors.New("path is empty")
 	}
-	return nil
+	clean := filepath.Clean(path)
+	if !filepath.IsAbs(clean) {
+		return "", errors.New("config path must be absolute")
+	}
+	if base == "" {
+		// No base directory configured; these are operator-injected paths.
+		// G304 may fire here, but the caller ensures the paths are trusted.
+		return clean, nil
+	}
+	base = filepath.Clean(base)
+	// Ensure the path is within the base directory.
+	if clean != base && !strings.HasPrefix(clean, base+string(os.PathSeparator)) {
+		return "", errors.New("path escapes config root")
+	}
+	return clean, nil
 }
 
 // ServerTLS builds a tls.Config enforcing client-cert verification
@@ -113,10 +127,11 @@ func ServerTLS(certFile, keyFile, clientCAFile string) (*tls.Config, error) {
 	pool := x509.NewCertPool()
 	if clientCAFile != "" {
 		// Validate client CA file path to prevent directory traversal.
-		if err := validateConfigPath(clientCAFile); err != nil {
+		caFilePath, err := validateConfigPath(clientCAFile, "")
+		if err != nil {
 			return nil, fmt.Errorf("invalid client CA path: %w", err)
 		}
-		ca, err := os.ReadFile(clientCAFile)
+		ca, err := os.ReadFile(caFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("read client CA: %w", err)
 		}

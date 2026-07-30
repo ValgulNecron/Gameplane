@@ -39,6 +39,9 @@ var webhookEvents = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help: "Audit-event webhook deliveries by result (sent, failed, dropped).",
 }, []string{"result"})
 
+// Auditor records every mutating request to the API for later review.
+// It writes to three optional sinks (database, stdout, webhook) and maintains
+// a tamper-evident hash chain across all recorded events.
 type Auditor struct {
 	db      *db.Store
 	sink    *slog.Logger // structured stdout sink; nil disables it
@@ -128,22 +131,22 @@ func (s *WebhookSink) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.drain()
+			s.drain(ctx)
 			return
 		case e := <-s.ch:
-			s.post(e)
+			s.post(ctx, e)
 		}
 	}
 }
 
 // drain ships already-buffered events on shutdown, bounded by a short deadline
 // so a wedged endpoint can't stall process exit.
-func (s *WebhookSink) drain() {
+func (s *WebhookSink) drain(ctx context.Context) {
 	deadline := time.After(2 * time.Second)
 	for {
 		select {
 		case e := <-s.ch:
-			s.post(e)
+			s.post(ctx, e)
 		case <-deadline:
 			return
 		default:
@@ -152,12 +155,17 @@ func (s *WebhookSink) drain() {
 	}
 }
 
-// post delivers one event. It deliberately uses a detached context (bounded by
-// the client's own timeout) rather than the worker's lifecycle context: at
-// shutdown the select in Start can still pick a buffered event after ctx is
-// cancelled, and a cancelled context would fail that delivery even though the
-// event could have been shipped. The client timeout still bounds each attempt.
-func (s *WebhookSink) post(e Event) {
+// post delivers one event. It derives a detached context (not cancelled if the
+// parent is) from the provided ctx, bounded by a 5-second timeout. This is
+// necessary because at shutdown the select in Start can still pick a buffered
+// event after the parent ctx is cancelled, and a cancelled context would fail
+// that delivery even though the event could have been shipped. Deriving from
+// the parent (rather than using context.Background) preserves trace IDs and
+// other inherited values.
+func (s *WebhookSink) post(ctx context.Context, e Event) {
+	postCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+
 	body, err := json.Marshal(webhookPayload{
 		TS: e.TS, Actor: e.Actor, Method: e.Method, Path: e.Path,
 		Target: e.Target, Status: e.Status, IP: e.IP,
@@ -167,7 +175,7 @@ func (s *WebhookSink) post(e Event) {
 		slog.Warn("audit webhook marshal failed", "err", err)
 		return
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(postCtx, http.MethodPost, s.url, bytes.NewReader(body))
 	if err != nil {
 		webhookEvents.WithLabelValues("failed").Inc()
 		slog.Warn("audit webhook build request failed", "err", err)
@@ -206,6 +214,8 @@ type webhookPayload struct {
 	IP     string `json:"ip,omitempty"`
 }
 
+// New creates a new Auditor that records events to the given database.
+// Options may configure additional sinks (stdout, webhook, S3).
 func New(store *db.Store, opts ...Option) *Auditor {
 	a := &Auditor{db: store}
 	for _, o := range opts {
@@ -708,6 +718,8 @@ func (r *responseRecorder) Flush() {
 
 // ---- query API ----
 
+// Event is an immutable record of a mutating request to the API.
+// Its fields are part of the audit trail schema and must not be renamed or reordered.
 type Event struct {
 	ID     int64  `json:"id"`
 	TS     string `json:"ts"`

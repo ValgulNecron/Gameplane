@@ -132,7 +132,7 @@ type fakeFetcher struct {
 	err error
 }
 
-func (f *fakeFetcher) GetServer(_ context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
+func (f *fakeFetcher) GetServer(_ context.Context, _ string, ns, name string) (*unstructured.Unstructured, error) {
 	return f.obj, f.err
 }
 
@@ -403,7 +403,7 @@ func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: nil,
 			err: nil,
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 
@@ -436,7 +436,7 @@ func TestFirstSegment(t *testing.T) {
 // fakeServerFetcher mocks the ServerFetcher for tests.
 type fakeServerFetcher map[string]*unstructured.Unstructured
 
-func (f fakeServerFetcher) GetServer(_ context.Context, cluster, ns, name string) (*unstructured.Unstructured, error) {
+func (f fakeServerFetcher) GetServer(_ context.Context, _ string, ns, name string) (*unstructured.Unstructured, error) {
 	if obj, ok := f[ns+"/"+name]; ok {
 		return obj, nil
 	}

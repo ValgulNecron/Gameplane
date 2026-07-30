@@ -34,7 +34,7 @@ func TestOpen_SQLiteAndMigrate(t *testing.T) {
 	}
 	// Schema is in place.
 	var n int
-	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
+	if err := s.DB.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if n < 3 {
@@ -55,7 +55,7 @@ func TestMigrate_SeedsBuiltinRoles(t *testing.T) {
 	// The three built-in roles exist and are flagged builtin.
 	for _, name := range []string{"admin", "operator", "viewer"} {
 		var builtin int
-		if err := s.DB.QueryRow(`SELECT builtin FROM roles WHERE name = ?`, name).Scan(&builtin); err != nil {
+		if err := s.DB.QueryRowContext(t.Context(), `SELECT builtin FROM roles WHERE name = ?`, name).Scan(&builtin); err != nil {
 			t.Fatalf("role %q missing: %v", name, err)
 		}
 		if builtin != 1 {
@@ -73,7 +73,7 @@ func TestMigrate_SeedsBuiltinRoles(t *testing.T) {
 		{"viewer", "servers:read"},
 	} {
 		var got int
-		if err := s.DB.QueryRow(
+		if err := s.DB.QueryRowContext(t.Context(),
 			`SELECT COUNT(*) FROM role_permissions WHERE role_name = ? AND permission = ?`,
 			tc.role, tc.perm).Scan(&got); err != nil {
 			t.Fatalf("query %s/%s: %v", tc.role, tc.perm, err)
@@ -85,7 +85,7 @@ func TestMigrate_SeedsBuiltinRoles(t *testing.T) {
 
 	// viewer must not hold any write/admin permission.
 	var writes int
-	if err := s.DB.QueryRow(
+	if err := s.DB.QueryRowContext(t.Context(),
 		`SELECT COUNT(*) FROM role_permissions WHERE role_name = 'viewer'
 		   AND permission NOT LIKE '%:read'`).Scan(&writes); err != nil {
 		t.Fatalf("viewer writes query: %v", err)
@@ -185,10 +185,10 @@ func TestAdoptLegacySQLite_TargetAbsentLegacyPresent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create legacy db: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE TABLE test_data (id INTEGER, name TEXT)`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE test_data (id INTEGER, name TEXT)`); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
-	if _, err := legacyDB.Exec(`INSERT INTO test_data VALUES (1, 'alice')`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `INSERT INTO test_data VALUES (1, 'alice')`); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 	legacyDB.Close()
@@ -218,7 +218,7 @@ func TestAdoptLegacySQLite_TargetAbsentLegacyPresent(t *testing.T) {
 	defer targetDB.Close()
 	var id int
 	var name string
-	if err := targetDB.QueryRow(`SELECT id, name FROM test_data WHERE id = 1`).Scan(&id, &name); err != nil {
+	if err := targetDB.QueryRowContext(t.Context(), `SELECT id, name FROM test_data WHERE id = 1`).Scan(&id, &name); err != nil {
 		t.Fatalf("query target: %v", err)
 	}
 	if id != 1 || name != "alice" {
@@ -238,7 +238,7 @@ func TestAdoptLegacySQLite_Sidecars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create legacy: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE TABLE t (id INTEGER)`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE t (id INTEGER)`); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
 	legacyDB.Close()
@@ -328,10 +328,10 @@ func TestAdoptLegacySQLite_TargetExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create legacy: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE TABLE legacy_data (value TEXT)`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE legacy_data (value TEXT)`); err != nil {
 		t.Fatalf("create legacy table: %v", err)
 	}
-	if _, err := legacyDB.Exec(`INSERT INTO legacy_data VALUES ('from_legacy')`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `INSERT INTO legacy_data VALUES ('from_legacy')`); err != nil {
 		t.Fatalf("insert legacy: %v", err)
 	}
 	legacyDB.Close()
@@ -340,10 +340,10 @@ func TestAdoptLegacySQLite_TargetExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create target: %v", err)
 	}
-	if _, err := targetDB.Exec(`CREATE TABLE target_data (value TEXT)`); err != nil {
+	if _, err := targetDB.ExecContext(t.Context(), `CREATE TABLE target_data (value TEXT)`); err != nil {
 		t.Fatalf("create target table: %v", err)
 	}
-	if _, err := targetDB.Exec(`INSERT INTO target_data VALUES ('from_target')`); err != nil {
+	if _, err := targetDB.ExecContext(t.Context(), `INSERT INTO target_data VALUES ('from_target')`); err != nil {
 		t.Fatalf("insert target: %v", err)
 	}
 	targetDB.Close()
@@ -361,7 +361,7 @@ func TestAdoptLegacySQLite_TargetExists(t *testing.T) {
 	}
 	defer targetDB.Close()
 	var val string
-	if err := targetDB.QueryRow(`SELECT value FROM target_data WHERE value = 'from_target'`).Scan(&val); err != nil {
+	if err := targetDB.QueryRowContext(t.Context(), `SELECT value FROM target_data WHERE value = 'from_target'`).Scan(&val); err != nil {
 		t.Fatalf("target data lost: %v", err)
 	}
 
@@ -389,7 +389,7 @@ func TestAdoptLegacySQLite_NeitherPresent(t *testing.T) {
 	defer db.Close()
 
 	// Verify we can create a table in the fresh database.
-	if _, err := db.Exec(`CREATE TABLE test (id INTEGER)`); err != nil {
+	if _, err := db.ExecContext(t.Context(), `CREATE TABLE test (id INTEGER)`); err != nil {
 		t.Fatalf("create table in fresh db: %v", err)
 	}
 }
@@ -426,7 +426,7 @@ func TestMigrate_AddsAuditChainColumns(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if _, err := s.DB.Exec(
+	if _, err := s.DB.ExecContext(t.Context(),
 		`INSERT INTO audit_events(ts, actor, method, path, status, prev_hash, hash)
 		 VALUES (?, 'a', 'POST', '/x', 200, 'p', 'h')`,
 		"2026-01-01T00:00:00Z",
@@ -434,7 +434,7 @@ func TestMigrate_AddsAuditChainColumns(t *testing.T) {
 		t.Fatalf("insert with chain columns: %v", err)
 	}
 	var prevHash, hash string
-	if err := s.DB.QueryRow(`SELECT prev_hash, hash FROM audit_events LIMIT 1`).Scan(&prevHash, &hash); err != nil {
+	if err := s.DB.QueryRowContext(t.Context(), `SELECT prev_hash, hash FROM audit_events LIMIT 1`).Scan(&prevHash, &hash); err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if prevHash != "p" || hash != "h" {
@@ -459,19 +459,19 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 		t.Fatalf("create legacy: %v", err)
 	}
 	// Create the schema_migrations table so Open/Migrate recognizes it as initialized.
-	if _, err := legacyDB.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
 		t.Fatalf("create schema_migrations: %v", err)
 	}
-	if _, err := legacyDB.Exec(`INSERT INTO schema_migrations VALUES ('001_init.sql', datetime('now'))`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `INSERT INTO schema_migrations VALUES ('001_init.sql', datetime('now'))`); err != nil {
 		t.Fatalf("seed migration: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'viewer')`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'viewer')`); err != nil {
 		t.Fatalf("create users: %v", err)
 	}
-	if _, err := legacyDB.Exec(`INSERT INTO users(id, username, role) VALUES (1, 'Alice', 'admin')`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `INSERT INTO users(id, username, role) VALUES (1, 'Alice', 'admin')`); err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE TABLE audit_events (
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE TABLE audit_events (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     ts         TEXT NOT NULL DEFAULT (datetime('now')),
     actor      TEXT NOT NULL,
@@ -483,7 +483,7 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 )`); err != nil {
 		t.Fatalf("create audit_events: %v", err)
 	}
-	if _, err := legacyDB.Exec(`CREATE INDEX idx_audit_ts ON audit_events(ts DESC)`); err != nil {
+	if _, err := legacyDB.ExecContext(t.Context(), `CREATE INDEX idx_audit_ts ON audit_events(ts DESC)`); err != nil {
 		t.Fatalf("create audit_events index: %v", err)
 	}
 	legacyDB.Close()
@@ -499,7 +499,7 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 
 	// Verify data from legacy survives.
 	var username string
-	if err := store.DB.QueryRow(`SELECT username FROM users WHERE id = 1`).Scan(&username); err != nil {
+	if err := store.DB.QueryRowContext(t.Context(), `SELECT username FROM users WHERE id = 1`).Scan(&username); err != nil {
 		t.Fatalf("query user: %v", err)
 	}
 	if username != "Alice" {
@@ -513,7 +513,7 @@ func TestOpen_AdoptsLegacySQLite(t *testing.T) {
 
 	// Verify the migrations table has entries.
 	var count int
-	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
+	if err := store.DB.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("query migrations: %v", err)
 	}
 	if count == 0 {

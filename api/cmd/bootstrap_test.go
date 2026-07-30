@@ -164,7 +164,7 @@ func TestBootstrap_RefusesOverwriteWithoutForce(t *testing.T) {
 	// Original hash must be untouched.
 	s := mustOpen(t, dsn)
 	var hash string
-	if err := s.DB.QueryRow(`SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(t.Context(), `SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	ok, _ := auth.VerifyPassword("correct-horse-battery", hash)
@@ -192,7 +192,7 @@ func TestBootstrap_ForceUpdatesPassword(t *testing.T) {
 
 	s := mustOpen(t, dsn)
 	var hash string
-	if err := s.DB.QueryRow(`SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
+	if err := s.DB.QueryRowContext(t.Context(), `SELECT pw_hash FROM users WHERE username='admin'`).Scan(&hash); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	if ok, _ := auth.VerifyPassword("original-correct-horse", hash); ok {

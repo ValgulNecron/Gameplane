@@ -7,9 +7,9 @@ import (
 
 func TestConfigValue(t *testing.T) {
 	s := newRBACStore(t) // migrated store helper (rbac_test.go)
-	ctx := context.Background()
+	ctx := t.Context()
 	const want = `{"instanceName":"gameplane"}`
-	if _, err := s.DB.Exec(`INSERT INTO config(key, value) VALUES ('general', ?)`, want); err != nil {
+	if _, err := s.DB.ExecContext(ctx, `INSERT INTO config(key, value) VALUES ('general', ?)`, want); err != nil {
 		t.Fatalf("insert config: %v", err)
 	}
 
