@@ -1,3 +1,4 @@
+// Package main implements the 7 Days to Die join depth probe.
 package main
 
 import (
@@ -98,7 +99,7 @@ func probeSevenDaysToDay(ctx context.Context, addr string) (probe.Depth, error) 
 		if derr != nil {
 			return fmt.Errorf("tcp dial: %w", derr)
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		log.Printf("tcp-connectivity: connection established to %s", addr)
 		return nil
 	})
@@ -111,6 +112,6 @@ func probeSevenDaysToDay(ctx context.Context, addr string) (probe.Depth, error) 
 		return probe.Query, nil
 	}
 
-	return "", fmt.Errorf("7dtd server not reachable (a2s query on %s failed: %v; tcp dial to %s failed: %w)",
+	return "", fmt.Errorf("7dtd server not reachable (a2s query on %s failed: %w; tcp dial to %s failed: %w)",
 		queryAddr, a2sErr, addr, tcpErr)
 }

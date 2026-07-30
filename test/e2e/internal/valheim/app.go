@@ -1,3 +1,4 @@
+// Package main implements the Valheim join depth probe.
 package main
 
 import (
@@ -94,7 +95,7 @@ func fetchStatus(ctx context.Context, addr string) (*statusResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch status.json: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check HTTP status code.
 	if resp.StatusCode != http.StatusOK {

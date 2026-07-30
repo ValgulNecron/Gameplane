@@ -134,7 +134,8 @@ func TestConnectHandshakeSuccess(t *testing.T) {
 	t.Parallel()
 
 	// Create a listener that simulates a Terraria server.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -190,7 +191,8 @@ func TestConnectHandshakeSuccess(t *testing.T) {
 func TestConnectPasswordRequired(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -223,7 +225,8 @@ func TestConnectPasswordRequired(t *testing.T) {
 func TestConnectVersionMismatch(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -284,7 +287,8 @@ func TestConnectVersionMismatch(t *testing.T) {
 func TestConnectVersionMismatchNoVersion(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
@@ -457,7 +461,7 @@ func TestParseNetworkTextTruncated(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Best-effort: these should not panic.
 			text, subs := parseNetworkText(tt.input)
 			_ = text

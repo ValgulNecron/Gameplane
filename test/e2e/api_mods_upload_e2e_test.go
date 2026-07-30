@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -58,7 +59,7 @@ func TestAPI_ModUpload(t *testing.T) {
 		t.Fatalf("close multipart: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload", &buf)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload", &buf)
 	if err != nil {
 		t.Fatalf("build upload req: %v", err)
 	}

@@ -1,3 +1,4 @@
+// Package main implements the DayZ join depth probe.
 package main
 
 import (
@@ -94,7 +95,7 @@ func probeGamePort(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set a read deadline so we don't block forever.
 	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {

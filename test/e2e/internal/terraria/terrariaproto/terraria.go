@@ -52,6 +52,7 @@ type Conn struct {
 	c net.Conn
 }
 
+// Close closes the Terraria connection.
 func (c *Conn) Close() error { return c.c.Close() }
 
 // Connect dials addr and completes the ConnectRequest handshake. On a
@@ -274,11 +275,11 @@ func parseNetworkTextReader(r *bytes.Reader) (string, error) {
 	}
 	count, err := r.ReadByte()
 	if err != nil {
-		return text, nil
+		return text, err
 	}
 	for i := 0; i < int(count); i++ {
 		if _, err := parseNetworkTextReader(r); err != nil {
-			return text, nil
+			return text, err
 		}
 	}
 	return text, nil
