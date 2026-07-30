@@ -1375,6 +1375,124 @@ spec:
                     x-kubernetes-validations:
                     - message: each sourceRange must be a CIDR, e.g. 203.0.113.0/24
                       rule: self.all(c, c.contains('/'))
+                  tunnel:
+                    description: |-
+                      Tunnel routes players through a relay instead of relying on cluster
+                      ingress, for installs with no public IP and no ability to port-forward.
+                      It layers over the backing Service rather than replacing it, so it
+                      composes with idle auto-sleep and wake-on-connect.
+                    properties:
+                      credentialsSecretRef:
+                        description: |-
+                          CredentialsSecretRef references a Secret in the GameServer's
+                          namespace containing provider-specific credentials. The Secret's key
+                          shape is documented in docs/tunnels.md per provider.
+                        properties:
+                          name:
+                            maxLength: 253
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      enabled:
+                        default: false
+                        description: Enabled turns the tunnel on for this server.
+                        type: boolean
+                      frp:
+                        description: Frp configures an frp relay tunnel (static public
+                          address).
+                        properties:
+                          remotePorts:
+                            description: RemotePorts maps advertised template ports
+                              to ports on the frps host.
+                            items:
+                              description: RemotePortMapping associates a template
+                                port name with its remote port.
+                              properties:
+                                name:
+                                  description: Name is the advertised port name from
+                                    the GameTemplate.
+                                  maxLength: 63
+                                  minLength: 1
+                                  type: string
+                                remotePort:
+                                  description: RemotePort is the port on the frps
+                                    host.
+                                  format: int32
+                                  maximum: 65535
+                                  minimum: 1
+                                  type: integer
+                              required:
+                              - name
+                              - remotePort
+                              type: object
+                            maxItems: 16
+                            minItems: 1
+                            type: array
+                          serverAddr:
+                            description: ServerAddr is the hostname or IP of the frps
+                              server.
+                            maxLength: 253
+                            minLength: 1
+                            type: string
+                          serverPort:
+                            default: 7000
+                            description: ServerPort is the frps listening port.
+                            format: int32
+                            maximum: 65535
+                            minimum: 1
+                            type: integer
+                        required:
+                        - remotePorts
+                        - serverAddr
+                        type: object
+                      playit:
+                        description: Playit configures a Playit tunnel (dynamic public
+                          address).
+                        properties:
+                          tunnelName:
+                            description: |-
+                              TunnelName is an optional label used when creating the tunnel via
+                              the Playit API.
+                            maxLength: 63
+                            type: string
+                        type: object
+                      provider:
+                        description: Provider selects which tunnel backend to use.
+                        enum:
+                        - frp
+                        - tailscale
+                        - playit
+                        type: string
+                      tailscale:
+                        description: Tailscale configures a Tailscale tunnel (private
+                          tailnet only).
+                        properties:
+                          hostname:
+                            description: |-
+                              Hostname is the MagicDNS device name. If empty, defaults to the
+                              GameServer name. Must be an RFC 1123 label: 1-63 alphanumeric
+                              characters or hyphens, no leading/trailing hyphen.
+                            maxLength: 63
+                            pattern: ^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)?$
+                            type: string
+                          tags:
+                            description: Tags are Tailscale ACL tags applied at device
+                              registration.
+                            items:
+                              type: string
+                            maxItems: 8
+                            type: array
+                        type: object
+                    required:
+                    - provider
+                    type: object
+                    x-kubernetes-validations:
+                    - message: credentialsSecretRef is required when tunnel is enabled
+                      rule: '!self.enabled || has(self.credentialsSecretRef)'
+                    - message: frp config is required when provider is frp
+                      rule: '!self.enabled || self.provider != ''frp'' || has(self.frp)'
                 type: object
               nodeSelector:
                 additionalProperties:
@@ -2246,9 +2364,20 @@ spec:
                     port:
                       format: int32
                       type: integer
+                    private:
+                      description: |-
+                        Private indicates the endpoint is reachable only from a private mesh
+                        (e.g. Tailscale), not the public internet. The dashboard must label
+                        it accordingly.
+                      type: boolean
                     protocol:
                       description: Protocol defines network protocols supported for
                         things like container ports.
+                      type: string
+                    tunnelProvider:
+                      description: |-
+                        TunnelProvider is set when this endpoint is served by a tunnel
+                        provider (frp, tailscale, playit) rather than the backing Service.
                       type: string
                   required:
                   - host
