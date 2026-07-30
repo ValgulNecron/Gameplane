@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"regexp"
 	"time"
@@ -169,6 +170,9 @@ func (c *Conn) RequestWorldData(ctx context.Context) error {
 // writeMessage frames and sends one message.
 func writeMessage(w io.Writer, typ byte, payload []byte) error {
 	total := 2 + 1 + len(payload)
+	if total > math.MaxUint16 {
+		return fmt.Errorf("terraria: message too large: %d bytes exceeds maximum frame size %d", total, math.MaxUint16)
+	}
 	buf := make([]byte, 0, total)
 	buf = binary.LittleEndian.AppendUint16(buf, uint16(total))
 	buf = append(buf, typ)

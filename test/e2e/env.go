@@ -204,7 +204,6 @@ var crdGVR = schema.GroupVersionResource{
 	Resource: "customresourcedefinitions",
 }
 
-
 // ensureCluster verifies the e2e cluster is reachable. Used at TestMain
 // time before launching tests so failures are fast and clear.
 func (e *Env) ensureCluster() error {
@@ -555,8 +554,12 @@ func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, e
 	if err != nil {
 		return nil, nil, fmt.Errorf("do %s %s: %w", method, path, err)
 	}
-	defer resp.Body.Close()
-	rb, _ := io.ReadAll(resp.Body)
+	rb, err := io.ReadAll(resp.Body)
+	if err != nil {
+		_ = resp.Body.Close()
+		return nil, nil, fmt.Errorf("read response body: %w", err)
+	}
+	_ = resp.Body.Close()
 	return resp, rb, nil
 }
 
@@ -640,7 +643,7 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, password, id string) {
 	t.Helper()
 	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	password = "e2e-created-user-password-1234"
+	password = getenvOr("E2E_USER_PASSWORD", "e2e-created-user-password-1234")
 	resp, body, err := admin.Post("/users", map[string]string{
 		"username": username,
 		"password": password,
@@ -649,6 +652,7 @@ func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (u
 	if err != nil {
 		t.Fatalf("CreateUser post: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("CreateUser %s/%s %d: %s", role, prefix, resp.StatusCode, string(body))
 	}

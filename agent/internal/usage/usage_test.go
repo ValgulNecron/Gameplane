@@ -261,17 +261,28 @@ func writeProc(t *testing.T, procRoot string, pid, ppid int, comm string, ticks 
 	writeFile(t, dir, "statm", fmt.Sprintf("1000 %d 0 0 0 0 0\n", rssPages))
 }
 
+// writeProcFile creates a pid subdirectory and writes a stat or statm file inside it.
+// This mirrors the /proc/<pid>/stat and /proc/<pid>/statm layout that the readers expect.
+func writeProcFile(t *testing.T, procRoot, pidName, filename, content string) {
+	t.Helper()
+	dir := filepath.Join(procRoot, pidName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", pidName, err)
+	}
+	writeFile(t, dir, filename, content)
+}
+
 // TestRead_ProcMode covers the shared-PID-namespace path: CPU/memory are
 // summed across the game process(es), excluding pid 1 (pause) and the agent's
 // own subtree, and the CPU/memory limits come from the operator's hints.
 func TestRead_ProcMode(t *testing.T) {
 	proc := t.TempDir()
 	const self = 50
-	writeProc(t, proc, 1, 0, "pause", 999, 999)        // excluded (pid 1)
-	writeProc(t, proc, self, 1, "agent", 500, 500)     // excluded (selfPID)
+	writeProc(t, proc, 1, 0, "pause", 999, 999)         // excluded (pid 1)
+	writeProc(t, proc, self, 1, "agent", 500, 500)      // excluded (selfPID)
 	writeProc(t, proc, 60, self, "agent-tls", 300, 300) // excluded (agent subtree)
-	writeProc(t, proc, 100, 1, "javaserver", 100, 10)    // counted
-	writeProc(t, proc, 101, 100, "java-gc", 0, 5)        // counted (child of game)
+	writeProc(t, proc, 100, 1, "javaserver", 100, 10)   // counted
+	writeProc(t, proc, 101, 100, "java-gc", 0, 5)       // counted (child of game)
 
 	clock := &fakeClock{t: time.Unix(100, 0)}
 	r := New(Config{
@@ -336,46 +347,46 @@ func TestReadProcStat(t *testing.T) {
 	dir := t.TempDir()
 	// A comm with spaces and nested parens must not confuse field parsing —
 	// the reader keys off the final ')'.
-	writeFile(t, dir, "ok", "100 (my (weird) game) S 7 0 0 0 0 0 0 0 0 0 11 4 0 0\n")
-	if ppid, ticks, ok := readProcStat(filepath.Join(dir, "ok")); !ok || ppid != 7 || ticks != 15 {
+	writeProcFile(t, dir, "ok", "stat", "100 (my (weird) game) S 7 0 0 0 0 0 0 0 0 0 11 4 0 0\n")
+	if ppid, ticks, ok := readProcStat(dir, "ok"); !ok || ppid != 7 || ticks != 15 {
 		t.Fatalf("readProcStat ok = (%d,%d,%v), want (7,15,true)", ppid, ticks, ok)
 	}
-	writeFile(t, dir, "short", "100 (x) S 1 2 3\n") // too few fields after comm
-	if _, _, ok := readProcStat(filepath.Join(dir, "short")); ok {
+	writeProcFile(t, dir, "short", "stat", "100 (x) S 1 2 3\n") // too few fields after comm
+	if _, _, ok := readProcStat(dir, "short"); ok {
 		t.Fatalf("short stat should not parse")
 	}
-	writeFile(t, dir, "noparen", "100 x S 1\n") // no closing paren
-	if _, _, ok := readProcStat(filepath.Join(dir, "noparen")); ok {
+	writeProcFile(t, dir, "noparen", "stat", "100 x S 1\n") // no closing paren
+	if _, _, ok := readProcStat(dir, "noparen"); ok {
 		t.Fatalf("missing ) should not parse")
 	}
-	writeFile(t, dir, "badppid", "100 (x) S z 0 0 0 0 0 0 0 0 0 1 1 0 0\n")
-	if _, _, ok := readProcStat(filepath.Join(dir, "badppid")); ok {
+	writeProcFile(t, dir, "badppid", "stat", "100 (x) S z 0 0 0 0 0 0 0 0 0 1 1 0 0\n")
+	if _, _, ok := readProcStat(dir, "badppid"); ok {
 		t.Fatalf("non-numeric ppid should not parse")
 	}
-	writeFile(t, dir, "badtime", "100 (x) S 7 0 0 0 0 0 0 0 0 0 a b 0 0\n")
-	if _, _, ok := readProcStat(filepath.Join(dir, "badtime")); ok {
+	writeProcFile(t, dir, "badtime", "stat", "100 (x) S 7 0 0 0 0 0 0 0 0 0 a b 0 0\n")
+	if _, _, ok := readProcStat(dir, "badtime"); ok {
 		t.Fatalf("non-numeric times should not parse")
 	}
-	if _, _, ok := readProcStat(filepath.Join(dir, "absent")); ok {
+	if _, _, ok := readProcStat(dir, "absent"); ok {
 		t.Fatalf("absent stat should not parse")
 	}
 }
 
 func TestReadProcStatmRSS(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "ok", "1000 42 7 0 0 0 0\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "ok")); got != 42 {
+	writeProcFile(t, dir, "ok", "statm", "1000 42 7 0 0 0 0\n")
+	if got := readProcStatmRSS(dir, "ok"); got != 42 {
 		t.Fatalf("rss = %d, want 42", got)
 	}
-	writeFile(t, dir, "short", "1000\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "short")); got != 0 {
+	writeProcFile(t, dir, "short", "statm", "1000\n")
+	if got := readProcStatmRSS(dir, "short"); got != 0 {
 		t.Fatalf("short statm rss = %d, want 0", got)
 	}
-	writeFile(t, dir, "bad", "1000 notanum\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "bad")); got != 0 {
+	writeProcFile(t, dir, "bad", "statm", "1000 notanum\n")
+	if got := readProcStatmRSS(dir, "bad"); got != 0 {
 		t.Fatalf("bad statm rss = %d, want 0", got)
 	}
-	if got := readProcStatmRSS(filepath.Join(dir, "absent")); got != 0 {
+	if got := readProcStatmRSS(dir, "absent"); got != 0 {
 		t.Fatalf("absent statm rss = %d, want 0", got)
 	}
 }

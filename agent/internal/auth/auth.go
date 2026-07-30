@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -44,6 +45,10 @@ func New(cfg Config) (*Authenticator, error) {
 		// mTLS is enforced by the TLS layer; no token needed.
 		return &Authenticator{mode: "mtls"}, nil
 	case cfg.TokenFile != "":
+		// Validate token file path to prevent directory traversal.
+		if err := validateConfigPath(cfg.TokenFile); err != nil {
+			return nil, fmt.Errorf("invalid token file path: %w", err)
+		}
 		b, err := os.ReadFile(cfg.TokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("read token file: %w", err)
@@ -86,6 +91,18 @@ func bearer(h string) string {
 	return strings.TrimSpace(h[len(prefix):])
 }
 
+// validateConfigPath ensures a config file path does not escape expected
+// directories via directory traversal. Paths are validated to be clean
+// (no ".." components) and relative or within safe absolute directories.
+func validateConfigPath(path string) error {
+	clean := filepath.Clean(path)
+	// Reject paths with ".." that survived cleaning (indicates upward traversal).
+	if strings.Contains(clean, "..") {
+		return errors.New("path contains directory traversal")
+	}
+	return nil
+}
+
 // ServerTLS builds a tls.Config enforcing client-cert verification
 // against the supplied CA bundle.
 func ServerTLS(certFile, keyFile, clientCAFile string) (*tls.Config, error) {
@@ -95,6 +112,10 @@ func ServerTLS(certFile, keyFile, clientCAFile string) (*tls.Config, error) {
 	}
 	pool := x509.NewCertPool()
 	if clientCAFile != "" {
+		// Validate client CA file path to prevent directory traversal.
+		if err := validateConfigPath(clientCAFile); err != nil {
+			return nil, fmt.Errorf("invalid client CA path: %w", err)
+		}
 		ca, err := os.ReadFile(clientCAFile)
 		if err != nil {
 			return nil, fmt.Errorf("read client CA: %w", err)

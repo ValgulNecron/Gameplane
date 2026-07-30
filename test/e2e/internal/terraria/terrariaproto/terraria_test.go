@@ -52,10 +52,10 @@ func TestReadStringErrors(t *testing.T) {
 		input []byte
 	}{
 		{"empty", []byte{}},
-		{"truncated_length", []byte{0x80}}, // High bit set but no continuation
-		{"truncated_data", []byte{0x05, 0x68, 0x69}}, // Says 5 bytes but only has 2
+		{"truncated_length", []byte{0x80}},                       // High bit set but no continuation
+		{"truncated_data", []byte{0x05, 0x68, 0x69}},             // Says 5 bytes but only has 2
 		{"overflow_shift", []byte{0x80, 0x80, 0x80, 0x80, 0x01}}, // Shift > 21
-		{"length_exceeds_buffer", []byte{0x0a, 0x61}}, // Says 10 bytes but buffer is short
+		{"length_exceeds_buffer", []byte{0x0a, 0x61}},            // Says 10 bytes but buffer is short
 	}
 
 	for _, tt := range tests {
@@ -115,7 +115,7 @@ func TestReadMessageErrors(t *testing.T) {
 		{"empty", []byte{}},
 		{"incomplete_header", []byte{0x01, 0x00}},
 		{"bad_frame_length_too_small", []byte{0x01, 0x00, 0x01}}, // Length 1 < 3
-		{"truncated_body", []byte{0x05, 0x00, 0x01, 0x02}}, // Says 5 bytes but only has 3
+		{"truncated_body", []byte{0x05, 0x00, 0x01, 0x02}},       // Says 5 bytes but only has 3
 	}
 
 	for _, tt := range tests {
