@@ -88,6 +88,11 @@ func (h *handler) tail(w http.ResponseWriter, req *http.Request) {
 // Reopens the file on rotation (ENOENT or inode change) with a short
 // backoff so logrotate-style setups keep working.
 func streamFile(ctx context.Context, conn *websocket.Conn, path string, baseDir string, fromEnd bool) error {
+	// baseDir must be set for path validation to be effective; called only from
+	// tail(), which ensures h.path is not empty, which ensures h.baseDir is set.
+	if baseDir == "" {
+		return errors.New("log base directory not configured")
+	}
 	// Validate log file path to prevent directory traversal.
 	cleanPath, err := validateLogPath(path, baseDir)
 	if err != nil {

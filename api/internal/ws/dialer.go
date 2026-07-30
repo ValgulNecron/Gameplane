@@ -98,7 +98,7 @@ func isDNS1123Label(name string) bool {
 		return false
 	}
 	for i, r := range name {
-		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return false
 		}
 		if i == 0 || i == len(name)-1 {
@@ -178,7 +178,13 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 			return
 		}
 		host := p.agentHost(name, ns)
-		upstream := "wss://" + host + agentPath
+		// Construct URL using url.URL to prevent injection.
+		u := &url.URL{
+			Scheme: "wss",
+			Host:   host,
+			Path:   agentPath,
+		}
+		upstream := u.String()
 
 		downConn, err := websocket.Accept(w, req, nil)
 		if err != nil {

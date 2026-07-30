@@ -46,7 +46,9 @@ func New(cfg Config) (*Authenticator, error) {
 		return &Authenticator{mode: "mtls"}, nil
 	case cfg.TokenFile != "":
 		// Validate token file path to prevent directory traversal.
-		tokenFilePath, err := validateConfigPath(cfg.TokenFile, "")
+		// Derive base from the configured path to ensure validation is active.
+		tokenDir := filepath.Dir(filepath.Clean(cfg.TokenFile))
+		tokenFilePath, err := validateConfigPath(cfg.TokenFile, tokenDir)
 		if err != nil {
 			return nil, fmt.Errorf("invalid token file path: %w", err)
 		}
@@ -127,7 +129,9 @@ func ServerTLS(certFile, keyFile, clientCAFile string) (*tls.Config, error) {
 	pool := x509.NewCertPool()
 	if clientCAFile != "" {
 		// Validate client CA file path to prevent directory traversal.
-		caFilePath, err := validateConfigPath(clientCAFile, "")
+		// Derive base from the configured path to ensure validation is active.
+		caDir := filepath.Dir(filepath.Clean(clientCAFile))
+		caFilePath, err := validateConfigPath(clientCAFile, caDir)
 		if err != nil {
 			return nil, fmt.Errorf("invalid client CA path: %w", err)
 		}

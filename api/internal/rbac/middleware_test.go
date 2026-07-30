@@ -132,7 +132,7 @@ type fakeFetcher struct {
 	err error
 }
 
-func (f *fakeFetcher) GetServer(_ context.Context, _ string, ns, name string) (*unstructured.Unstructured, error) {
+func (f *fakeFetcher) GetServer(_ context.Context, _ string, _, name string) (*unstructured.Unstructured, error) {
 	return f.obj, f.err
 }
 
