@@ -218,7 +218,7 @@ func TestModuleSourceAndModule(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-				Delete(context.Background(), gs, metav1.DeleteOptions{})
+				Delete(context.WithoutCancel(ctx), gs, metav1.DeleteOptions{})
 		})
 
 		envInstance.Eventually(t, 90*time.Second, func() (bool, string) {

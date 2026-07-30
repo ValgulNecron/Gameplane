@@ -1,3 +1,4 @@
+// Package main is the Minecraft Java probe.
 package main
 
 import (

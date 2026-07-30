@@ -1,3 +1,4 @@
+// Package main implements the Palworld join depth probe.
 package main
 
 import (

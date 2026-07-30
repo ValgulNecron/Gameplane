@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -94,7 +95,7 @@ func TestAPI_LoginRateLimit(t *testing.T) {
 
 	got429 := false
 	for attempt := 0; attempt < 12; attempt++ {
-		req, err := http.NewRequest(http.MethodPost, cli.BaseURL+"/auth/login",
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, cli.BaseURL+"/auth/login",
 			strings.NewReader(badPW))
 		if err != nil {
 			t.Fatalf("build login request: %v", err)

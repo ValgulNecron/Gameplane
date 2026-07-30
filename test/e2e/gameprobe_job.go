@@ -40,13 +40,13 @@ func (e *Env) probeImage() string {
 
 // GameProbe describes one in-cluster probe run.
 type GameProbe struct {
-	GameNS      string        // namespace holding the GameServer
-	GSName      string        // GameServer name (its Service is dialled)
-	Game        string        // module dir name; selects the /probe/<Game> binary
-	Port        int
-	Deadline    time.Duration
-	ExpectDepth string        // JOINED | PARTIAL | QUERY — asserted by the probe itself
-	Args        []string      // extra per-game flags, e.g. []string{"-user", "bot"}
+	GameNS		string		// namespace holding the GameServer
+	GSName		string		// GameServer name (its Service is dialled)
+	Game		string		// module dir name; selects the /probe/<Game> binary
+	Port		int
+	Deadline	time.Duration
+	ExpectDepth	string		// JOINED | PARTIAL | QUERY — asserted by the probe itself
+	Args		[]string	// extra per-game flags, e.g. []string{"-user", "bot"}
 }
 
 // RunGameProbe runs the headless protocol bot as a Job inside the cluster,

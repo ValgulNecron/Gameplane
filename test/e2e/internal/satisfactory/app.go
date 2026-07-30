@@ -1,3 +1,4 @@
+// Package main is the Satisfactory probe.
 package main
 
 import (
@@ -60,7 +61,7 @@ func probeSatisfactory(ctx context.Context, addr string) (probe.Depth, error) {
 		if err != nil {
 			return err
 		}
-		conn.Close()
+		defer func() { _ = conn.Close() }()
 		return nil
 	}); err == nil {
 		log.Printf("tcp-connect: success (endpoint reachable but API call failed)")
@@ -114,7 +115,7 @@ func queryServerState(ctx context.Context, addr string) error {
 	if err != nil {
 		return fmt.Errorf("http request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Log the status and any response body (bounded to avoid log flooding).
 	body := make([]byte, 4096)

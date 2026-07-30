@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -71,7 +72,7 @@ func runBootstrap(action string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(script, action)
+	cmd := exec.CommandContext(context.Background(), script, action)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

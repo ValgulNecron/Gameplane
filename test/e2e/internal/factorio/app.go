@@ -1,3 +1,4 @@
+// Package main is the Factorio probe.
 package main
 
 import (
@@ -42,11 +43,12 @@ func probeFactorio(ctx context.Context, addr string) (probe.Depth, error) {
 	// Attempt to establish a TCP connection to the RCON port (27015).
 	// A successful TCP accept proves the server is listening and responsive.
 	if err := probe.Retry(ctx, "factorio-rcon-probe", 15*time.Second, func(actx context.Context) error {
-		conn, err := net.Dial("tcp", rconAddr)
+		d := net.Dialer{Timeout: 10 * time.Second}
+		conn, err := d.DialContext(actx, "tcp", rconAddr)
 		if err != nil {
 			return fmt.Errorf("dial tcp %s: %w", rconAddr, err)
 		}
-		conn.Close()
+		defer func() { _ = conn.Close() }()
 		return nil
 	}); err != nil {
 		// TCP connect failed; RCON port is not accepting connections.
@@ -58,7 +60,7 @@ func probeFactorio(ctx context.Context, addr string) (probe.Depth, error) {
 	// Optionally attempt a diagnostic UDP probe on the game port to log any response.
 	// This does not affect the depth result; it is purely informational.
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if response, err := sendConnectionRequestUDP(ctx, addr); err == nil {
 			responseHex := hex.EncodeToString(response)
@@ -103,7 +105,7 @@ func sendConnectionRequestUDP(ctx context.Context, addr string) ([]byte, error) 
 	if err != nil {
 		return nil, fmt.Errorf("dial udp %s: %w", addr, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set a short read deadline for the response. UDP is connectionless, so we
 	// cannot distinguish "server is sending" from "server rejected the packet

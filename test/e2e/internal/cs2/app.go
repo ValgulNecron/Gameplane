@@ -1,3 +1,4 @@
+// Package main implements the CS2 join depth probe.
 package main
 
 import (
@@ -101,7 +102,7 @@ func connectProbe(ctx context.Context, addr string) {
 	}
 
 	// Log the connect response bytes for debugging.
-	if result.Raw != nil && len(result.Raw) > 0 {
+	if len(result.Raw) > 0 {
 		hexStr := hex.EncodeToString(result.Raw)
 		// Bound to avoid huge logs; truncate if necessary.
 		if len(hexStr) > 256 {
