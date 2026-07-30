@@ -12,7 +12,6 @@ rules:
   - pods
   - pods/log
   - secrets
-  - serviceaccounts
   - services
   verbs:
   - get
@@ -25,6 +24,17 @@ rules:
   verbs:
   - create
   - patch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - apps
   resources:
@@ -131,8 +141,11 @@ rules:
   - rolebindings
   - roles
   verbs:
+  - create
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - snapshot.storage.k8s.io

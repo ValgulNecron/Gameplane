@@ -166,8 +166,8 @@ const (
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
-// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
@@ -234,6 +234,16 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	if err := r.reconcileAgentRBAC(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile agent RBAC")
+		return ctrl.Result{}, err
+	}
+	// Tunnel RBAC is only needed for playit, which requires a grant to patch
+	// status with the assigned address. Scope it to playit to keep the API
+	// surface minimal when playit is not in use.
+	needPlayitRBAC := gs.Spec.Networking.Tunnel != nil &&
+		gs.Spec.Networking.Tunnel.Enabled &&
+		gs.Spec.Networking.Tunnel.Provider == "playit"
+	if err := r.reconcileTunnelRBAC(ctx, &gs, needPlayitRBAC); err != nil {
+		logger.Error(err, "reconcile tunnel RBAC")
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileConfigSecret(ctx, &gs, mc); err != nil {
@@ -324,7 +334,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan)
+	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan, &tmpl)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
