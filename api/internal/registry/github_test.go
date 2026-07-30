@@ -112,7 +112,7 @@ func TestGitHubVersionsSkipsAssetsWithNoURL(t *testing.T) {
 }
 
 func TestGitHubRateLimitedClassic403(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.WriteHeader(http.StatusForbidden)
 	}))
@@ -128,7 +128,7 @@ func TestGitHubRateLimitedClassic403(t *testing.T) {
 }
 
 func TestGitHubRateLimitedSecondary429(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))
 	defer srv.Close()
@@ -142,7 +142,7 @@ func TestGitHubRateLimitedSecondary429(t *testing.T) {
 func TestGitHubForbiddenWithQuotaLeftIsNotRateLimit(t *testing.T) {
 	// A 403 with remaining quota > 0 is a real permission error (e.g. a
 	// private repo), not a rate limit — must not be misreported as one.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-RateLimit-Remaining", "42")
 		w.WriteHeader(http.StatusForbidden)
 	}))

@@ -41,10 +41,12 @@ type User struct {
 	Perms map[string]map[string]map[string]struct{}
 }
 
+// SessionStore manages session lifecycle for authenticated users.
 type SessionStore struct {
 	db *db.Store
 }
 
+// NewSessionStore returns a new SessionStore.
 func NewSessionStore(store *db.Store) *SessionStore { return &SessionStore{db: store} }
 
 // Create writes a new session row for the given user and returns the
@@ -181,6 +183,7 @@ func (s *SessionStore) HandleLogout() http.HandlerFunc {
 	}
 }
 
+// UserFromContext returns the authenticated user from a context, or nil.
 func UserFromContext(ctx context.Context) *User {
 	u, _ := ctx.Value(userCtxKey).(*User)
 	return u

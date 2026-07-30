@@ -116,6 +116,7 @@ func (f *Factorio) mods(ctx context.Context) ([]factMod, error) {
 	return out, nil
 }
 
+// Search searches the Factorio mod portal for mods matching the query.
 func (f *Factorio) Search(ctx context.Context, q SearchQuery) ([]Project, error) {
 	// The portal has no modpack concept — the modpacks browser is empty.
 	if q.modpack() {
@@ -169,6 +170,7 @@ func (f *Factorio) Search(ctx context.Context, q SearchQuery) ([]Project, error)
 	return out, nil
 }
 
+// Versions lists the versions of a Factorio mod.
 func (f *Factorio) Versions(ctx context.Context, projectID string, filter Filter) ([]Version, error) {
 	var resp struct {
 		Releases []struct {

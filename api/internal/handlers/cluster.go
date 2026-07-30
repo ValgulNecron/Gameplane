@@ -32,8 +32,8 @@ func MountCluster(r chi.Router, k *kube.Client, store *db.Store, gameplaneVersio
 }
 
 type clusterHandler struct {
-	k              *kube.Client
-	store          *db.Store
+	k                *kube.Client
+	store            *db.Store
 	gameplaneVersion string
 	clusterOps       bool
 	updateChannel    string

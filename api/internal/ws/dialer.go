@@ -153,7 +153,7 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 		if err != nil {
 			return
 		}
-		defer downConn.Close(websocket.StatusNormalClosure, "")
+		defer func() { _ = downConn.Close(websocket.StatusNormalClosure, "") }()
 
 		upConn, upResp, err := websocket.Dial(req.Context(), upstream, &websocket.DialOptions{
 			HTTPClient: p.http,
@@ -172,7 +172,7 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 			_ = downConn.Close(websocket.StatusBadGateway, "agent dial failed")
 			return
 		}
-		defer upConn.Close(websocket.StatusNormalClosure, "")
+		defer func() { _ = upConn.Close(websocket.StatusNormalClosure, "") }()
 
 		// Bidirectional copy.
 		errCh := make(chan error, 2)
@@ -240,7 +240,7 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 			writeUpstreamErr(w, req, err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		copyResponseHeaders(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)

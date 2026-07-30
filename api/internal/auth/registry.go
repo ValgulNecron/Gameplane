@@ -29,9 +29,9 @@ const ProviderSecretLabel = "gameplane.local/auth-provider"
 // and rejected as a DB provider name by validateAuth.
 const HelmProviderName = "helm"
 
-// providerSecretPrefix derives the default Secret name for a provider's
+// authProviderPrefix derives the default Secret name for a provider's
 // clientSecret when the config row carries no explicit configRef.
-const providerSecretPrefix = "gameplane-auth-"
+const authProviderPrefix = "gameplane-auth-"
 
 // ErrUnknownProvider covers "no such provider", "disabled", and "not an
 // OIDC kind" alike — route handlers map it to one neutral 404 so probing
@@ -265,7 +265,7 @@ func (r *Registry) OIDCFor(ctx context.Context, name string) (*OIDC, error) {
 func (r *Registry) build(ctx context.Context, p Provider) (*OIDC, error) {
 	secretName := p.ConfigRef
 	if secretName == "" {
-		secretName = providerSecretPrefix + p.Name
+		secretName = authProviderPrefix + p.Name
 	}
 	data, err := r.secrets(ctx, secretName)
 	if err != nil {

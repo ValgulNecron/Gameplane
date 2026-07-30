@@ -363,7 +363,7 @@ func gateStaleAgent(obj *unstructured.Unstructured) {
 const maxBodyBytes = 1 << 20 // 1 MiB
 
 func decode(r io.ReadCloser) (*unstructured.Unstructured, error) {
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	dec := json.NewDecoder(io.LimitReader(r, maxBodyBytes))
 	var raw map[string]any
 	if err := dec.Decode(&raw); err != nil {

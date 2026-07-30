@@ -15,7 +15,7 @@ func (s *Store) ConfigValue(ctx context.Context, key string) (string, bool, erro
 	if err != nil {
 		return "", false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {
@@ -35,7 +35,7 @@ func ConfigValueTx(ctx context.Context, tx *sql.Tx, key string) (string, bool, e
 	if err != nil {
 		return "", false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var k, v string
 		if err := rows.Scan(&k, &v); err != nil {

@@ -31,7 +31,7 @@ func s3CounterValue(t *testing.T, result string) float64 {
 // counter, so a test that lets its worker goroutine outlive the test (still
 // retrying PutObject against an already-closed httptest server) pollutes the
 // counter deltas read by every later test in this file.
-func startSink(sink *S3Sink, ctx context.Context) <-chan struct{} {
+func startSink(ctx context.Context, sink *S3Sink) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		sink.Start(ctx)
@@ -83,7 +83,7 @@ func TestS3Sink_FlushOnCountThreshold(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 	defer func() {
 		cancel()
 		<-done
@@ -153,7 +153,7 @@ func TestS3Sink_FlushOnByteThreshold(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 	defer func() {
 		cancel()
 		<-done
@@ -180,7 +180,7 @@ func TestS3Sink_FlushOnByteThreshold(t *testing.T) {
 // TestS3Sink_FlushOnInterval flushes after 5 seconds even with few events.
 func TestS3Sink_FlushOnInterval(t *testing.T) {
 	received := make(chan struct{}, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		recordFlush(received, struct{}{})
 		w.Header().Set("ETag", "test")
 		w.WriteHeader(http.StatusOK)
@@ -200,7 +200,7 @@ func TestS3Sink_FlushOnInterval(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 	defer func() {
 		cancel()
 		<-done
@@ -245,7 +245,7 @@ func TestS3Sink_NDJSONFormat(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 	defer func() {
 		cancel()
 		<-done
@@ -313,7 +313,7 @@ func TestS3Sink_ObjectKeyFormat(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 	defer func() {
 		cancel()
 		<-done
@@ -357,7 +357,7 @@ func TestS3Sink_ObjectKeyFormatNoPrefix(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 	defer func() {
 		cancel()
 		<-done
@@ -419,7 +419,7 @@ func TestS3Sink_DropsWhenBufferFull(t *testing.T) {
 // TestS3Sink_RetryAndFail verifies retry logic and failure counting.
 func TestS3Sink_RetryAndFail(t *testing.T) {
 	failures := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		failures++
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -438,7 +438,7 @@ func TestS3Sink_RetryAndFail(t *testing.T) {
 	}
 
 	before := s3CounterValue(t, "failed")
-	sink.pushBatch([]Event{
+	sink.pushBatch(context.Background(), []Event{
 		{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200},
 		{TS: "2026-06-30T00:00:01Z", Actor: "user", Method: "DELETE", Path: "/api", Status: 204},
 	})
@@ -486,7 +486,7 @@ func TestS3Sink_DrainOnShutdown(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := startSink(sink, ctx)
+	done := startSink(ctx, sink)
 
 	for i := 0; i < 10; i++ {
 		sink.Enqueue(Event{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200})
@@ -514,7 +514,7 @@ func TestS3Sink_DrainOnShutdown(t *testing.T) {
 func TestS3Sink_RetryThenSucceed(t *testing.T) {
 	attempts := 0
 	received := make(chan struct{}, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		attempts++
 		if attempts == 1 {
 			// First attempt: transient error
@@ -541,7 +541,7 @@ func TestS3Sink_RetryThenSucceed(t *testing.T) {
 	}
 
 	before := s3CounterValue(t, "sent")
-	sink.pushBatch([]Event{
+	sink.pushBatch(context.Background(), []Event{
 		{TS: "2026-06-30T00:00:00Z", Actor: "admin", Method: "POST", Path: "/", Status: 200},
 	})
 

@@ -74,7 +74,7 @@ func (a *attachProxy) handle(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		return
 	}
-	defer wsConn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = wsConn.Close(websocket.StatusNormalClosure, "") }()
 
 	// Bound the lifetime of the attach + the I/O goroutines to the WS.
 	// Closing wsConn cancels Read; cancelling ctx tears down the SPDY

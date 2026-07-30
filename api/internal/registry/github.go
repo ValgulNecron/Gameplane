@@ -150,7 +150,7 @@ func (g *GitHub) get(ctx context.Context, rawURL string, v any) error {
 	if err != nil {
 		return fmt.Errorf("github GET: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch {
 	case resp.StatusCode == http.StatusTooManyRequests:

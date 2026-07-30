@@ -124,7 +124,7 @@ func TestSourceCreate(t *testing.T) {
 				"key":     map[string]any{"name": "k"},
 				"keyless": map[string]any{"issuer": "i", "identity": "d"},
 			}},
-			{"name": "x", "type": "oci", "oci": validOCI, "verify": map[string]any{}},                     // neither key nor keyless
+			{"name": "x", "type": "oci", "oci": validOCI, "verify": map[string]any{}},                        // neither key nor keyless
 			{"name": "x", "type": "oci", "oci": validOCI, "verify": map[string]any{"key": map[string]any{}}}, // key without name
 			{"name": "x", "type": "oci", "oci": validOCI, "verify": map[string]any{ // keyless missing identity
 				"keyless": map[string]any{"issuer": "i"},
