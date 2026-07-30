@@ -20,7 +20,7 @@ func (s *SessionStore) LoadPerms(ctx context.Context, userID int64) (map[string]
 	if err != nil {
 		return nil, fmt.Errorf("load permissions for user %d: %w", userID, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	perms := map[string]map[string]map[string]struct{}{}
 	for rows.Next() {

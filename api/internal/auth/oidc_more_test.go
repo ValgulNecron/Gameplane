@@ -83,7 +83,7 @@ func TestHandleCallback_ResolveStoreError(t *testing.T) {
 	idp := newFakeIDP(t, "client-1")
 	idp.nonce = "n"
 	store := newAuthDB(t)
-	if _, err := store.DB.Exec(`DROP TABLE users`); err != nil {
+	if _, err := store.DB.ExecContext(context.Background(), `DROP TABLE users`); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
 	o, _ := NewOIDC(context.Background(), idp.issuer(), "client-1", "secret", "https://app/cb")
@@ -106,7 +106,7 @@ func TestHandleCallback_SessionCreateError(t *testing.T) {
 	store := newAuthDB(t)
 	o, _ := NewOIDC(context.Background(), idp.issuer(), "client-1", "secret", "https://app/cb")
 	o.AttachStore(store)
-	if _, err := store.DB.Exec(`DROP TABLE sessions`); err != nil {
+	if _, err := store.DB.ExecContext(context.Background(), `DROP TABLE sessions`); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
 	rr := httptest.NewRecorder()

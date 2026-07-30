@@ -111,7 +111,7 @@ func (h *modIDsHandler) put(w http.ResponseWriter, req *http.Request) {
 	// cap, sized for small single-field bodies): 200 ids at the CRD's
 	// MaxLength=64/128 could serialize past 4 KiB. The global bodyLimit
 	// middleware (main.go, 1 MiB) still bounds it.
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 	var ids []ModID
 	if err := json.NewDecoder(req.Body).Decode(&ids); err != nil {
 		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("invalid body"))

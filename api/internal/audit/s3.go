@@ -111,7 +111,7 @@ func (s *S3Sink) Start(ctx context.Context) {
 		if len(buffer) == 0 {
 			return
 		}
-		s.pushBatch(buffer)
+		s.pushBatch(ctx, buffer)
 		buffer = buffer[:0]
 		bufferBytes = 0
 	}
@@ -119,7 +119,7 @@ func (s *S3Sink) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.drain(buffer)
+			s.drain(ctx, buffer)
 			return
 		case e := <-s.ch:
 			buffer = append(buffer, e)
@@ -136,24 +136,24 @@ func (s *S3Sink) Start(ctx context.Context) {
 }
 
 // drain ships already-buffered events on shutdown, bounded by a short deadline.
-func (s *S3Sink) drain(buffer []Event) {
+func (s *S3Sink) drain(ctx context.Context, buffer []Event) {
 	deadline := time.After(2 * time.Second)
 	for {
 		select {
 		case e := <-s.ch:
 			buffer = append(buffer, e)
 			if len(buffer) >= s3FlushCountSize {
-				s.pushBatch(buffer)
+				s.pushBatch(ctx, buffer)
 				buffer = buffer[:0]
 			}
 		case <-deadline:
 			if len(buffer) > 0 {
-				s.pushBatch(buffer)
+				s.pushBatch(ctx, buffer)
 			}
 			return
 		default:
 			if len(buffer) > 0 {
-				s.pushBatch(buffer)
+				s.pushBatch(ctx, buffer)
 			}
 			return
 		}
@@ -162,7 +162,7 @@ func (s *S3Sink) drain(buffer []Event) {
 
 // pushBatch ships a batch of events. It retries 3 times (immediate, +2s, +8s)
 // on transient errors; on final failure or success, counts each event accordingly.
-func (s *S3Sink) pushBatch(events []Event) {
+func (s *S3Sink) pushBatch(parentCtx context.Context, events []Event) {
 	if len(events) == 0 {
 		return
 	}
@@ -179,7 +179,7 @@ func (s *S3Sink) pushBatch(events []Event) {
 			time.Sleep(delay)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), 10*time.Second)
 		_, err := s.client.PutObject(ctx, s.bucket, key,
 			bytes.NewReader(body), int64(len(body)),
 			minio.PutObjectOptions{

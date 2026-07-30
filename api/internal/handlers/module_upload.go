@@ -320,7 +320,7 @@ func extractUploadArchive(body []byte) (map[string][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		tr := tar.NewReader(gz)
 		for {
 			hdr, err := tr.Next()

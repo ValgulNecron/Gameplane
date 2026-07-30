@@ -13,9 +13,9 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 )
 
-// providerSecretPrefix mirrors the registry's default configRef naming
+// authProviderPrefix mirrors the registry's default configRef naming
 // (auth.Registry resolves an empty configRef to this prefix + name).
-const providerSecretPrefix = "gameplane-auth-"
+const authProviderPrefix = "gameplane-auth-"
 
 // MountAuthProviderSecrets exposes the managed clientSecret Secret behind
 // an identity provider: the Add-provider form PUTs the value here, then
@@ -37,9 +37,9 @@ func (h authProviderSecretHandler) secretName(w http.ResponseWriter, name string
 		http.Error(w, "provider name must be a lowercase DNS label (and not the reserved \"helm\")", http.StatusUnprocessableEntity)
 		return "", false
 	}
-	secretName := providerSecretPrefix + name
+	secretName := authProviderPrefix + name
 	if len(secretName) > 63 {
-		http.Error(w, fmt.Sprintf("provider name too long: %q must fit a DNS label with the %q prefix", name, providerSecretPrefix), http.StatusUnprocessableEntity)
+		http.Error(w, fmt.Sprintf("provider name too long: %q must fit a DNS label with the %q prefix", name, authProviderPrefix), http.StatusUnprocessableEntity)
 		return "", false
 	}
 	return secretName, true

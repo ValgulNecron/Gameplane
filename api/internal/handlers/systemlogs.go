@@ -132,7 +132,7 @@ func MountSystemLogs(r chi.Router, k *kube.Client, namespace string) {
 			httperr.Write(w, req, fmt.Errorf("open log stream: %w", err))
 			return
 		}
-		defer logStream.Close()
+		defer func() { _ = logStream.Close() }()
 
 		// Stream logs to client with flushing
 		flusher, ok := w.(http.Flusher)

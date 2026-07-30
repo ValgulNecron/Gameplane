@@ -11,10 +11,12 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
+// Local handles local (username/password) authentication.
 type Local struct {
 	db *db.Store
 }
 
+// NewLocal returns a new Local auth handler.
 func NewLocal(store *db.Store) *Local { return &Local{db: store} }
 
 type loginReq struct {

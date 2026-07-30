@@ -214,7 +214,7 @@ func (s *Steam) getDetails(ctx context.Context, id string) (steamWorkshopItem, b
 		// were ever added to it later without this guard in place.
 		return steamWorkshopItem{}, false, sanitizeUpstreamErr("steam GET", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return steamWorkshopItem{}, false, fmt.Errorf("steam GET: upstream status %d", resp.StatusCode)
 	}

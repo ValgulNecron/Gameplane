@@ -134,7 +134,7 @@ func TestUmodVersionsFallsBackToLatestWhenHistoryEmpty(t *testing.T) {
 // dead Install button instead of the dashboard's zero-versions empty
 // state).
 func TestUmodVersionsHistoryDropsFilelessEntries(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"data":[
 			{"version":"2.1.4","version_formatted":"v2.1.4","download_url":"https://umod.org/plugins/Vanish.cs?version=2.1.4"},
 			{"version":"2.1.3","version_formatted":"v2.1.3","download_url":""}

@@ -13,6 +13,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+// Client wraps the Kubernetes dynamic and typed clients, providing access
+// to both custom CRDs and standard Kubernetes resources.
 type Client struct {
 	Dynamic dynamic.Interface
 	Typed   kubernetes.Interface
@@ -46,6 +48,7 @@ var (
 	GVRModuleSource = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modulesources"}
 )
 
+// New creates a Kubernetes client from the given rest.Config.
 func New(cfg *rest.Config) (*Client, error) {
 	dyn, err := dynamic.NewForConfig(cfg)
 	if err != nil {

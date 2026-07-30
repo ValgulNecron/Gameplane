@@ -31,7 +31,7 @@ func seedUser(t *testing.T, s *db.Store, username, pw, role string) {
 	if err != nil {
 		t.Fatalf("hash: %v", err)
 	}
-	_, err = s.DB.Exec(
+	_, err = s.DB.ExecContext(context.Background(),
 		`INSERT INTO users(username, display_name, email, role, pw_hash) VALUES (?,?,?,?,?)`,
 		username, username, username+"@example.com", role, hash,
 	)
@@ -45,7 +45,7 @@ func TestLogin_RejectsNonJSONContentType(t *testing.T) {
 	l := NewLocal(s)
 	ss := NewSessionStore(s)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", strings.NewReader("user=alice"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", strings.NewReader("user=alice"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	l.HandleLogin(ss, nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnsupportedMediaType {
@@ -56,7 +56,7 @@ func TestLogin_RejectsNonJSONContentType(t *testing.T) {
 func TestLogin_BadJSON(t *testing.T) {
 	s := newAuthDB(t)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", strings.NewReader("not json"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
@@ -68,7 +68,7 @@ func TestLogin_UnknownUser_TimingPath(t *testing.T) {
 	s := newAuthDB(t)
 	body := strings.NewReader(`{"username":"ghost","password":"hunter2"}`)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", body)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
@@ -81,7 +81,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	seedUser(t, s, "alice", "rightpw", "admin")
 	body := strings.NewReader(`{"username":"alice","password":"wrong"}`)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", body)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
@@ -93,14 +93,14 @@ func TestLogin_Success_SetsCookies(t *testing.T) {
 	s := newAuthDB(t)
 	seedUser(t, s, "alice", "hunter2", "admin")
 	// Seed a cluster-wide viewer role binding so perms actually load.
-	if _, err := s.DB.Exec(
+	if _, err := s.DB.ExecContext(context.Background(),
 		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (1, 'viewer', 'local', '*')`,
 	); err != nil {
 		t.Fatalf("seed binding: %v", err)
 	}
 	body := strings.NewReader(`{"username":"alice","password":"hunter2"}`)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", body)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
@@ -167,7 +167,7 @@ func TestLogin_PerUserRateLimit(t *testing.T) {
 	}
 	body := strings.NewReader(`{"username":"alice","password":"hunter2"}`)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", body)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", body)
 	req.Header.Set("Content-Type", "application/json")
 	NewLocal(s).HandleLogin(NewSessionStore(s), nil).ServeHTTP(rr, req)
 	if rr.Code != http.StatusTooManyRequests {

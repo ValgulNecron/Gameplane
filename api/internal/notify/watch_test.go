@@ -184,7 +184,7 @@ func TestRunWatchers(t *testing.T) {
 	}
 	got := map[EventType]bool{}
 	deadline := time.After(5 * time.Second)
-	for !(got[EventServerUnhealthy] && got[EventBackupFailed]) {
+	for !got[EventServerUnhealthy] || !got[EventBackupFailed] {
 		select {
 		case e := <-n.ch:
 			if e.Namespace != ns {

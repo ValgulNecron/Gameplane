@@ -188,7 +188,7 @@ func (n *Nexus) get(ctx context.Context, rawURL string, v any) error {
 	if err != nil {
 		return fmt.Errorf("nexus GET: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return errNexusNotFound
 	}

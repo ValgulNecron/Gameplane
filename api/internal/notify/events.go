@@ -11,6 +11,7 @@ package notify
 // off it, so adding a type means touching all three.
 type EventType string
 
+// Event type constants for server and backup/restore status transitions.
 const (
 	EventServerUnhealthy  EventType = "server.unhealthy"
 	EventServerRecovered  EventType = "server.recovered"
