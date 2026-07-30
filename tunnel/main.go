@@ -72,14 +72,14 @@ type Config struct {
 	TunnelType          string // "frp", "tailscale", or "playit"
 
 	// FRP-specific
-	FrpServerAddr     string
-	FrpServerPort     int
-	BackingServiceDNS string
+	FrpServerAddr      string
+	FrpServerPort      int
+	BackingServiceDNS  string
 	BackingServicePort string // "name:port,..." format
 
 	// Tailscale-specific
-	TailscaleHostname string
-	TailscaleTags    string // comma-separated
+	TailscaleHostname   string
+	TailscaleTags       string // comma-separated
 	BackingServicePorts string // "name:port,..." format
 
 	// Playit-specific

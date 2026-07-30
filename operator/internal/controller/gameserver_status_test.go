@@ -284,11 +284,11 @@ func TestValidatePlayitEndpoint(t *testing.T) {
 
 func TestValidatePlayitEndpoints(t *testing.T) {
 	tests := []struct {
-		name              string
-		endpoints         []gameplanev1alpha1.GameServerEndpoint
-		advertisedPorts   []string
-		expectValid       []string // expected port names in valid result
-		expectErrorPart   string
+		name            string
+		endpoints       []gameplanev1alpha1.GameServerEndpoint
+		advertisedPorts []string
+		expectValid     []string // expected port names in valid result
+		expectErrorPart string
 	}{
 		{
 			name: "single valid endpoint",

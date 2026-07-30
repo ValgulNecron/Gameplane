@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,13 +20,13 @@ func stubEnv(vars map[string]string) func(string) string {
 
 func TestLoadConfigFrp(t *testing.T) {
 	cfg, err := loadConfig(stubEnv(map[string]string{
-		"GAMESERVER_NAME":       "my-server",
-		"GAMESERVER_NAMESPACE":  "games",
-		"TUNNEL_TYPE":           "frp",
-		"FRP_SERVER_ADDR":       "frp.example.com",
-		"FRP_SERVER_PORT":       "7000",
-		"BACKING_SERVICE_DNS":   "my-server.games.svc",
-		"BACKING_SERVICE_PORT":  "game:25565",
+		"GAMESERVER_NAME":      "my-server",
+		"GAMESERVER_NAMESPACE": "games",
+		"TUNNEL_TYPE":          "frp",
+		"FRP_SERVER_ADDR":      "frp.example.com",
+		"FRP_SERVER_PORT":      "7000",
+		"BACKING_SERVICE_DNS":  "my-server.games.svc",
+		"BACKING_SERVICE_PORT": "game:25565",
 	}))
 	if err != nil {
 		t.Fatalf("loadConfig() error = %v", err)
@@ -65,13 +64,13 @@ func TestLoadConfigFrpDefaultPort(t *testing.T) {
 
 func TestLoadConfigTailscale(t *testing.T) {
 	cfg, err := loadConfig(stubEnv(map[string]string{
-		"GAMESERVER_NAME":        "my-server",
-		"GAMESERVER_NAMESPACE":   "games",
-		"TUNNEL_TYPE":            "tailscale",
-		"TAILSCALE_HOSTNAME":     "my-game",
-		"TAILSCALE_TAGS":         "tag:gameplane,tag:game",
-		"BACKING_SERVICE_DNS":    "my-server.games.svc",
-		"BACKING_SERVICE_PORTS":  "game:25565",
+		"GAMESERVER_NAME":       "my-server",
+		"GAMESERVER_NAMESPACE":  "games",
+		"TUNNEL_TYPE":           "tailscale",
+		"TAILSCALE_HOSTNAME":    "my-game",
+		"TAILSCALE_TAGS":        "tag:gameplane,tag:game",
+		"BACKING_SERVICE_DNS":   "my-server.games.svc",
+		"BACKING_SERVICE_PORTS": "game:25565",
 	}))
 	if err != nil {
 		t.Fatalf("loadConfig() error = %v", err)
@@ -180,9 +179,9 @@ func TestLoadConfigFrpMissingPortMapping(t *testing.T) {
 
 func TestLoadConfigInvalidFrpPort(t *testing.T) {
 	tests := []struct {
-		name     string
-		portVal  string
-		wantErr  bool
+		name    string
+		portVal string
+		wantErr bool
 	}{
 		{"valid", "7000", false},
 		{"out of range", "70000", true},
@@ -416,7 +415,7 @@ func TestReadCredentialsFromFile(t *testing.T) {
 
 func TestReadCredentialsKeyNames(t *testing.T) {
 	tests := []struct {
-		tunnelType string
+		tunnelType  string
 		expectedKey string
 	}{
 		{"frp", "token"},
@@ -446,8 +445,8 @@ func TestReadCredentialsKeyNames(t *testing.T) {
 
 func TestEscapeTomlString(t *testing.T) {
 	tests := []struct {
-		input  string
-		want   string
+		input string
+		want  string
 	}{
 		{"simple", "simple"},
 		{"with\"quote", "with\\\"quote"},
@@ -538,9 +537,9 @@ func TestExponentialBackoffCap(t *testing.T) {
 
 func TestIsUnrecoverable(t *testing.T) {
 	tests := []struct {
-		name    string
-		err     error
-		want    bool
+		name string
+		err  error
+		want bool
 	}{
 		{"nil", nil, false},
 		{"permission denied", errors.New("permission denied"), true},

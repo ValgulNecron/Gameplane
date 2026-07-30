@@ -732,26 +732,21 @@ func validatePlayitHost(host string) error {
 		return fmt.Errorf("host too long (%d > 253 characters)", len(host))
 	}
 
-	// Reject control characters and whitespace.
+	// Reject control characters and whitespace. Whitespace is checked first
+	// since tab/newline/CR are also control characters (< 32); the more
+	// specific "whitespace" message should win for those.
 	for _, ch := range host {
-		if ch < 32 || ch == 127 {
-			return fmt.Errorf("host contains control character")
-		}
 		if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
 			return fmt.Errorf("host contains whitespace")
+		}
+		if ch < 32 || ch == 127 {
+			return fmt.Errorf("host contains control character")
 		}
 	}
 
 	// Reject embedded schemes (http://, https://, etc).
-	if strings.Contains(host, "://") || strings.Contains(host, "://") {
+	if strings.Contains(host, "://") {
 		return fmt.Errorf("host contains embedded scheme")
-	}
-	if strings.HasPrefix(host, ":") || strings.Count(host, ":") > 1 {
-		// Reject bare port or malformed addresses
-		// Single : is allowed for IPv6
-		if strings.Count(host, ":") > 1 && !strings.HasPrefix(host, "[") {
-			// IPv6 without brackets — still valid
-		}
 	}
 
 	// Try to parse as an IP address (v4 or v6).
