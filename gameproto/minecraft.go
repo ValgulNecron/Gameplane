@@ -155,7 +155,8 @@ func readMinecraftVarInt(r io.ByteReader) (int32, error) {
 				return 0, fmt.Errorf("varint value out of range for int32")
 			}
 			// Safe to convert uint32 result to int32 (all uint32 patterns map to valid int32).
-			return int32(result), nil
+			resultInt := int32(result)
+			return resultInt, nil
 		}
 		// Continuation bit is set; if we're at byte 5 (i=4), a 6th byte would be needed.
 		if i == 4 {
@@ -185,7 +186,8 @@ func readMinecraftVarIntWithCapture(r io.ByteReader, w io.Writer) (int32, error)
 				return 0, fmt.Errorf("varint value out of range for int32")
 			}
 			// Safe to convert uint32 result to int32 (all uint32 patterns map to valid int32).
-			return int32(result), nil
+			resultInt := int32(result)
+			return resultInt, nil
 		}
 		// Continuation bit is set; if we're at byte 5 (i=4), a 6th byte would be needed.
 		if i == 4 {
@@ -201,7 +203,9 @@ func writeMinecraftVarInt(w *bytes.Buffer, v int32) {
 	// Convert to uint32 to get the bit pattern for encoding.
 	// For two's complement, this cast is always safe (no bit loss).
 	// Negative values reinterpret as large unsigned values; this is intentional.
-	uv := uint32(v)
+	// int32 to uint32 conversion is safe: all int32 values fit in uint32 range.
+	signedVal := v
+	uv := uint32(signedVal)
 	for {
 		b := byte(uv & 0x7f)
 		uv >>= 7

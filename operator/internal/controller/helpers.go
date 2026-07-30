@@ -25,7 +25,10 @@ func upsertCondition(conds []metav1.Condition, c metav1.Condition) []metav1.Cond
 		} else {
 			c.LastTransitionTime = conds[i].LastTransitionTime
 		}
-		conds[i] = c
+		// Bounds check: i is guaranteed to be valid from the range loop
+		if i < len(conds) {
+			conds[i] = c
+		}
 		return conds
 	}
 	if c.LastTransitionTime.IsZero() {
