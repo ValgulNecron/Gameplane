@@ -2669,13 +2669,14 @@ func TestGameServer_TunnelCreatesDeploymentAndPolicy(t *testing.T) {
 
 	gs := buildGameServer(ns, "tunnel-gs", tmpl.Name)
 	// Enable frp tunnel
-	gs.Spec.Networking.Tunnel = &gameplanev1alpha1.TunnelSpec{
-		Enabled:  true,
-		Provider: "frp",
+	gs.Spec.Networking.Tunnel = &gameplanev1alpha1.GameServerTunnel{
+		Enabled:              true,
+		Provider:             "frp",
+		CredentialsSecretRef: &gameplanev1alpha1.SecretNameRef{Name: "tunnel-gs-tunnel-creds"},
 		Frp: &gameplanev1alpha1.FrpTunnelSpec{
 			ServerAddr:  "tunnel.example.com",
 			ServerPort:  7000,
-			RemotePorts: []gameplanev1alpha1.FrpRemotePort{{Name: "default", RemotePort: 25565}},
+			RemotePorts: []gameplanev1alpha1.RemotePortMapping{{Name: "default", RemotePort: 25565}},
 		},
 	}
 
@@ -2719,15 +2720,15 @@ func TestGameServer_PlanTunnelComputes(t *testing.T) {
 	gs := &gameplanev1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-gs", Namespace: "default"},
 		Spec: gameplanev1alpha1.GameServerSpec{
-			TemplateRef: "test-tmpl",
+			TemplateRef: gameplanev1alpha1.GameTemplateRef{Name: "test-tmpl"},
 			Networking: gameplanev1alpha1.GameServerNetworking{
-				Tunnel: &gameplanev1alpha1.TunnelSpec{
+				Tunnel: &gameplanev1alpha1.GameServerTunnel{
 					Enabled:  true,
 					Provider: "frp",
 					Frp: &gameplanev1alpha1.FrpTunnelSpec{
 						ServerAddr: "tunnel.example.com",
 						ServerPort: 7000,
-						RemotePorts: []gameplanev1alpha1.FrpRemotePort{
+						RemotePorts: []gameplanev1alpha1.RemotePortMapping{
 							{Name: "default", RemotePort: 25565},
 						},
 					},
@@ -2768,7 +2769,7 @@ func TestGameServer_PlanTunnelDisabledReturnsEmpty(t *testing.T) {
 	gs := &gameplanev1alpha1.GameServer{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-gs", Namespace: "default"},
 		Spec: gameplanev1alpha1.GameServerSpec{
-			TemplateRef: "test-tmpl",
+			TemplateRef: gameplanev1alpha1.GameTemplateRef{Name: "test-tmpl"},
 			Networking: gameplanev1alpha1.GameServerNetworking{
 				Tunnel: nil,
 			},
