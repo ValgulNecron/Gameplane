@@ -65,7 +65,7 @@ func newHTTP(ctx context.Context, c client.Client, namespace string, spec *gamep
 		if err != nil {
 			return nil, "", fmt.Errorf("fetch %s: %w", srcURL, err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return nil, "", fmt.Errorf("fetch %s: HTTP %s", srcURL, resp.Status)
 		}
@@ -168,7 +168,7 @@ func extractTarGz(data []byte) (fs.FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	out := fstest.MapFS{}
 	var total int64
 	tr := tar.NewReader(gz)

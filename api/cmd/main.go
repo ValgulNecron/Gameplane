@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strconv"
@@ -70,6 +71,21 @@ func main() {
 	}
 	logger = newLogger(cfg.logLevel)
 	slog.SetDefault(logger)
+
+	// Validate and trim trusted proxies CIDR list.
+	validProxies := []string{}
+	for _, p := range cfg.trustedProxies {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if _, err := netip.ParsePrefix(p); err != nil {
+			logger.Error("invalid trusted proxy CIDR", "cidr", p, "err", err)
+			os.Exit(1)
+		}
+		validProxies = append(validProxies, p)
+	}
+	cfg.trustedProxies = validProxies
 
 	store, err := db.Open(ctx, cfg.dbDriver, cfg.dbDSN)
 	if err != nil {
@@ -165,7 +181,11 @@ func main() {
 	go kube.WatchClusters(ctx, k8s, reg, cfg.namespace)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.Recoverer, middleware.RealIP)
+	r.Use(middleware.RequestID, middleware.Recoverer)
+	// Client IP middleware runs before rate limiting and audit so the determined
+	// IP is used for rate-limit buckets and audit records. Trusted proxy networks
+	// come from explicit operator configuration (default: private ranges).
+	r.Use(middleware.ClientIPFromXFF(cfg.trustedProxies...))
 	r.Use(secureHeaders)
 	r.Use(requestTimeout(60 * time.Second))
 	r.Use(bodyLimit(1 << 20)) // 1 MiB default; upload proxy raises its own ceiling
@@ -340,7 +360,8 @@ type config struct {
 	agentClientCert string
 	agentClientKey  string
 
-	namespace string
+	namespace      string
+	trustedProxies []string
 }
 
 func (c *config) bindFlags(fs *flag.FlagSet) {
@@ -382,6 +403,21 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
 	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "gameplane-system"),
 		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
+
+	// Trusted proxy networks for client IP extraction. Comma-separated CIDRs.
+	// Default: loopback + private ranges, which work out-of-the-box for
+	// in-cluster ingress. In Kubernetes the ingress/load balancer sits in
+	// one of these ranges, so this default is explicit and allows the API to
+	// determine the real client IP via X-Forwarded-For without spoofing risk.
+	trustedProxiesStr := envOr("GAMEPLANE_TRUSTED_PROXIES",
+		"127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,::1/128,fc00::/7,fe80::/10")
+	fs.StringVar(&trustedProxiesStr, "trusted-proxies", trustedProxiesStr,
+		"comma-separated list of CIDR blocks for trusted reverse proxies; client IP is extracted from X-Forwarded-For only from these ranges")
+
+	// Parse and validate the trusted proxies list after flags are parsed.
+	// This must happen in main() after flag parsing, not here, so we can
+	// apply error handling.
+	c.trustedProxies = strings.Split(trustedProxiesStr, ",")
 }
 
 func envOr(key, fallback string) string {

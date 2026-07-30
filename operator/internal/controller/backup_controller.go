@@ -141,7 +141,7 @@ func (r *BackupReconciler) failUnrestorable(
 	ctx context.Context, b *gameplanev1alpha1.Backup,
 ) (ctrl.Result, error) {
 	res, err := r.runUnquiesce(ctx, b)
-	if err != nil || res.RequeueAfter > 0 || res.Requeue {
+	if err != nil || res.RequeueAfter > 0 {
 		return res, err
 	}
 	return r.fail(ctx, b, snapshotUnavailableMsg)
@@ -432,7 +432,7 @@ func (r *BackupReconciler) mirrorJobStatus(
 		// A Succeeded Backup whose snapshot id we still couldn't read isn't
 		// restorable yet — keep requeuing to retry the scrape (runUnquiesce
 		// asks for no requeue on success).
-		if snapshotMissing && res.RequeueAfter == 0 && !res.Requeue {
+		if snapshotMissing && res.RequeueAfter == 0 {
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 		return res, nil
@@ -574,7 +574,7 @@ func (r *BackupReconciler) readResticSummary(ctx context.Context, b *gameplanev1
 	if err != nil {
 		return nil, fmt.Errorf("read restic logs: %w", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	return ParseResticSummary(rc)
 }
 

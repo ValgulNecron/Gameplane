@@ -335,7 +335,8 @@ func TestUDPHeuristicSweepLoopExitsOnContextCancel(t *testing.T) {
 // -----------------------------------------------------------------------
 
 func TestWaitForUpstreamSucceedsImmediately(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -358,7 +359,8 @@ func TestWaitForUpstreamPollsUntilAvailable(t *testing.T) {
 	// Reserve a free port, then release it immediately: Listen+Close
 	// without ever accepting a connection releases the port right away (no
 	// TIME_WAIT, which only applies to established connections).
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -372,7 +374,8 @@ func TestWaitForUpstreamPollsUntilAvailable(t *testing.T) {
 	start := time.Now()
 	go func() {
 		time.Sleep(80 * time.Millisecond)
-		l, err := net.Listen("tcp", addr)
+		lc := &net.ListenConfig{}
+		l, err := lc.Listen(context.Background(), "tcp", addr)
 		if err != nil {
 			// Environment couldn't reuse the port fast enough; nothing
 			// more this goroutine can do. waitForUpstream will then hit
@@ -399,7 +402,8 @@ func TestWaitForUpstreamPollsUntilAvailable(t *testing.T) {
 
 func TestWaitForUpstreamDeadlineExpires(t *testing.T) {
 	// Reserve and release a port so nothing is listening on it.
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -418,7 +422,8 @@ func TestWaitForUpstreamDeadlineExpires(t *testing.T) {
 }
 
 func TestWaitForUpstreamRespectsParentContext(t *testing.T) {
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -450,7 +455,8 @@ func TestWaitForUpstreamRespectsParentContext(t *testing.T) {
 // net.Pipe's in-memory implementation does not support.
 func tcpPipe(t *testing.T) (server, client net.Conn) {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -462,7 +468,8 @@ func tcpPipe(t *testing.T) (server, client net.Conn) {
 		serverCh <- c
 	}()
 
-	client, err = net.Dial("tcp", l.Addr().String())
+	dialer := &net.Dialer{}
+	client, err = dialer.DialContext(context.Background(), "tcp", l.Addr().String())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -699,7 +706,7 @@ func newCountingWaker(err error) *countingWaker {
 	return &countingWaker{err: err}
 }
 
-func (c *countingWaker) RequestWake(ctx context.Context) error {
+func (c *countingWaker) RequestWake(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
@@ -746,7 +753,8 @@ func TestHandleMinecraftStatusDoesNotWake(t *testing.T) {
 }
 
 func TestHandleMinecraftJoinWakesAndReplaysHandshake(t *testing.T) {
-	upstream, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	upstream, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -821,7 +829,8 @@ func TestHandleMinecraftJoinWakesAndReplaysHandshake(t *testing.T) {
 
 func TestHandleMinecraftJoinBouncesOnDeadline(t *testing.T) {
 	// Reserve and release a port so nothing is listening on it.
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -860,7 +869,8 @@ func TestHandleMinecraftJoinBouncesOnDeadline(t *testing.T) {
 }
 
 func TestHandleTerrariaJoinWakes(t *testing.T) {
-	upstream, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	upstream, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -912,7 +922,8 @@ func TestHandleTerrariaJoinWakes(t *testing.T) {
 
 func TestHandleTerrariaJoinBouncesOnDeadline(t *testing.T) {
 	// Reserve and release a port so nothing is listening on it.
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -975,7 +986,8 @@ func TestHandleTerrariaNonJoinDoesNotWake(t *testing.T) {
 }
 
 func TestHandleGenericWakesOnConnect(t *testing.T) {
-	upstream, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	upstream, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -1021,7 +1033,8 @@ func TestHandleGenericWakesOnConnect(t *testing.T) {
 }
 
 func TestHandleGenericClosesSilentlyOnDeadline(t *testing.T) {
-	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	probe, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -1074,7 +1087,8 @@ func TestHandleTCPConnectionDispatchesByWakeProtocol(t *testing.T) {
 
 func freeTCPPort(t *testing.T) int {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -1084,7 +1098,8 @@ func freeTCPPort(t *testing.T) int {
 
 func freeUDPPort(t *testing.T) int {
 	t.Helper()
-	pc, err := net.ListenUDP("udp", &net.UDPAddr{})
+	lc := &net.ListenConfig{}
+	pc, err := lc.ListenPacket(context.Background(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
@@ -1132,7 +1147,8 @@ func TestRunShutsDownOnContextCancel(t *testing.T) {
 }
 
 func TestRunReturnsErrorOnListenFailure(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -1159,7 +1175,8 @@ func TestRunReturnsErrorOnListenFailure(t *testing.T) {
 // a second connection's handler cannot start running (i.e. cannot request
 // a wake) until the first one's deadline has elapsed and it has exited.
 func TestServeTCPBoundsConcurrentHandlers(t *testing.T) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -1180,12 +1197,13 @@ func TestServeTCPBoundsConcurrentHandlers(t *testing.T) {
 
 	go serveTCP(ctx, l, port, cw, cfg, sem, errCh)
 
-	c1, err := net.Dial("tcp", l.Addr().String())
+	dialer := &net.Dialer{}
+	c1, err := dialer.DialContext(context.Background(), "tcp", l.Addr().String())
 	if err != nil {
 		t.Fatalf("dial 1: %v", err)
 	}
 	defer c1.Close()
-	c2, err := net.Dial("tcp", l.Addr().String())
+	c2, err := dialer.DialContext(context.Background(), "tcp", l.Addr().String())
 	if err != nil {
 		t.Fatalf("dial 2: %v", err)
 	}

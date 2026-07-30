@@ -44,6 +44,12 @@ linters:
       - path: (^|/)internal/controller/
         linters: [revive]
         text: "exported:"
+      # Minecraft VarInt encoding/decoding requires lossless reinterpretation between uint32
+      # and int32 (two's complement). All 32 bits are preserved; length and range overflow
+      # are still checked explicitly in the code. G115 remains active everywhere else.
+      - path: (gameproto/)?minecraft\.go$
+        linters: [gosec]
+        text: "G115"
 
 formatters:
   enable:

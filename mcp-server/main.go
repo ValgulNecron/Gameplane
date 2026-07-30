@@ -78,7 +78,7 @@ func main() {
 	var err error
 	switch cmd {
 	case "idle":
-		err = runIdle(ctx)
+		runIdle(ctx)
 	case "serve":
 		err = runServe(ctx)
 	default:
@@ -95,11 +95,10 @@ func main() {
 // opens no client, so the Deployment's steady-state replica carries no
 // standing credentials use beyond existing — real reads happen only inside
 // a `serve` session.
-func runIdle(ctx context.Context) error {
+func runIdle(ctx context.Context) {
 	slog.Info("mcp-server idle: waiting for `kubectl exec -i ... -- /mcp-server serve` sessions", "version", Version)
 	<-ctx.Done()
 	slog.Info("mcp-server idle: shutting down")
-	return nil
 }
 
 // runServe builds a cluster client and runs one MCP session over stdio

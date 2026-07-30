@@ -173,7 +173,7 @@ func serve(ctx context.Context, cfg config) error {
 	case err := <-errCh:
 		return fmt.Errorf("listen on %s: %w", cfg.listen, err)
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}

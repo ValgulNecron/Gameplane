@@ -30,13 +30,16 @@ func post(t *testing.T, srv *httptest.Server, body string, headers map[string]st
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
-	t.Cleanup(func() { _ = resp.Body.Close() })
 	return resp
 }
 
 func metrics(t *testing.T, srv *httptest.Server) string {
 	t.Helper()
-	resp, err := http.Get(srv.URL + "/metrics")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/metrics", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get metrics: %v", err)
 	}
@@ -48,6 +51,7 @@ func metrics(t *testing.T, srv *httptest.Server) string {
 func TestIngestCountsReport(t *testing.T) {
 	srv := testServer(t, config{})
 	resp := post(t, srv, `{"version":"0.2.0-beta.5","servers":3,"templates":7}`, nil)
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
@@ -66,10 +70,14 @@ func TestIngestCountsReport(t *testing.T) {
 func TestIngestSanitizesVersionLabel(t *testing.T) {
 	srv := testServer(t, config{})
 	// A hostile version string must not become a raw label value.
-	if resp := post(t, srv, `{"version":"<script>alert(1)</script>","servers":0,"templates":0}`, nil); resp.StatusCode != http.StatusNoContent {
+	resp := post(t, srv, `{"version":"<script>alert(1)</script>","servers":0,"templates":0}`, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
-	if resp := post(t, srv, `{"version":"`+strings.Repeat("x", 200)+`","servers":0,"templates":0}`, nil); resp.StatusCode != http.StatusNoContent {
+	resp2 := post(t, srv, `{"version":"`+strings.Repeat("x", 200)+`","servers":0,"templates":0}`, nil)
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusNoContent {
 		t.Fatalf("long version: status not 204")
 	}
 	m := metrics(t, srv)
@@ -96,7 +104,9 @@ func TestIngestRejects(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if resp := post(t, srv, tc.body, nil); resp.StatusCode != tc.want {
+			resp := post(t, srv, tc.body, nil)
+			defer resp.Body.Close()
+			if resp.StatusCode != tc.want {
 				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.want)
 			}
 		})
@@ -109,7 +119,11 @@ func TestIngestRejects(t *testing.T) {
 
 func TestIngestMethodNotAllowed(t *testing.T) {
 	srv := testServer(t, config{})
-	resp, err := http.Get(srv.URL + "/ingest")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/ingest", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -122,20 +136,30 @@ func TestIngestMethodNotAllowed(t *testing.T) {
 func TestIngestAuth(t *testing.T) {
 	srv := testServer(t, config{authToken: "Bearer s3cret"})
 	body := `{"version":"1.0.0","servers":1,"templates":1}`
-	if resp := post(t, srv, body, nil); resp.StatusCode != http.StatusUnauthorized {
+	resp := post(t, srv, body, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("no auth: status = %d, want 401", resp.StatusCode)
 	}
-	if resp := post(t, srv, body, map[string]string{"Authorization": "Bearer wrong"}); resp.StatusCode != http.StatusUnauthorized {
+	resp = post(t, srv, body, map[string]string{"Authorization": "Bearer wrong"})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("bad auth: status = %d, want 401", resp.StatusCode)
 	}
-	if resp := post(t, srv, body, map[string]string{"Authorization": "Bearer s3cret"}); resp.StatusCode != http.StatusNoContent {
+	resp = post(t, srv, body, map[string]string{"Authorization": "Bearer s3cret"})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("good auth: status = %d, want 204", resp.StatusCode)
 	}
 }
 
 func TestHealthz(t *testing.T) {
 	srv := testServer(t, config{})
-	resp, err := http.Get(srv.URL + "/healthz")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/healthz", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

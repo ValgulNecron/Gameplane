@@ -186,7 +186,7 @@ func (r *GameServerReconciler) reconcileSentinel(
 				"app.kubernetes.io/instance": gs.Name,
 			},
 		}
-		dep.Spec.Template.ObjectMeta.Labels = map[string]string{
+		dep.Spec.Template.Labels = map[string]string{
 			sentinelLabel:                sentinelValue,
 			"app.kubernetes.io/instance": gs.Name,
 		}

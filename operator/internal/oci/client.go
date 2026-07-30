@@ -100,7 +100,7 @@ func (c *Client) Pull(ctx context.Context, ref, reference string) (string, map[s
 	if err != nil {
 		return "", nil, fmt.Errorf("fetch %s@%s: %w", ref, reference, err)
 	}
-	defer manifestRC.Close()
+	defer func() { _ = manifestRC.Close() }()
 
 	manifestBytes, err := io.ReadAll(manifestRC)
 	if err != nil {
@@ -136,6 +136,6 @@ func readBlob(ctx context.Context, r *remote.Repository, desc ocispec.Descriptor
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	return io.ReadAll(rc)
 }

@@ -134,7 +134,7 @@ func (c *Client) callQuiesce(ctx context.Context, namespace, server, path string
 	if err != nil {
 		return fmt.Errorf("agent: %s: %w", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
 
 	if resp.StatusCode != http.StatusOK {
@@ -174,7 +174,7 @@ func (c *Client) Stop(ctx context.Context, namespace, server string) error {
 	if err != nil {
 		return fmt.Errorf("agent: /lifecycle/stop: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 16<<10))
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("agent: /lifecycle/stop: status %d", resp.StatusCode)

@@ -111,7 +111,7 @@ func TestAgentVolumeMounts(t *testing.T) {
 	withRCON := agentVolumeMounts(gs, rconTmpl(&gameplanev1alpha1.RCONSpec{Protocol: "source"}), nil, "/data")
 	found := false
 	for _, m := range withRCON {
-		if m.Name == "rcon-password" && m.MountPath == rconPasswordPath {
+		if m.Name == "rcon-password" && m.MountPath == rconAuthMountPath {
 			found = true
 		}
 	}

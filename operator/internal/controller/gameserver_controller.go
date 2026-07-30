@@ -176,7 +176,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	var tmpl gameplanev1alpha1.GameTemplate
 	if err := r.Get(ctx, types.NamespacedName{Name: gs.Spec.TemplateRef.Name}, &tmpl); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ctrl.Result{}, r.setPhase(ctx, &gs, gameplanev1alpha1.GameServerPhaseFailed,
+			return ctrl.Result{}, r.setPhase(ctx, &gs,
 				fmt.Sprintf("GameTemplate %q not found", gs.Spec.TemplateRef.Name))
 		}
 		return ctrl.Result{}, err
@@ -188,7 +188,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// silently ignores what the user asked for.
 	mc, err := materializeConfig(&gs, &tmpl)
 	if err != nil {
-		return ctrl.Result{}, r.setPhase(ctx, &gs, gameplanev1alpha1.GameServerPhaseFailed,
+		return ctrl.Result{}, r.setPhase(ctx, &gs,
 			fmt.Sprintf("invalid config: %v", err))
 	}
 
@@ -197,7 +197,7 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// like an invalid config, rather than silently falling back.
 	ver, err := resolveVersion(&gs, &tmpl)
 	if err != nil {
-		return ctrl.Result{}, r.setPhase(ctx, &gs, gameplanev1alpha1.GameServerPhaseFailed, err.Error())
+		return ctrl.Result{}, r.setPhase(ctx, &gs, err.Error())
 	}
 
 	if err := r.reconcilePVC(ctx, &gs, &tmpl); err != nil {
@@ -846,7 +846,9 @@ func (r *GameServerReconciler) softStop(
 	// (readiness going to zero, handled above, scales us down sooner).
 	requestedAt, perr := time.Parse(time.RFC3339, gs.Annotations[stopRequestedAtAnnotation])
 	if perr != nil {
-		return 0, 0, nil // unparseable stamp — don't hang, just scale down
+		// unparseable stamp — don't hang, just scale down
+		ctrl.LoggerFrom(ctx).Error(perr, "unparseable stop-requested-at annotation; scaling down immediately")
+		return 0, 0, nil
 	}
 	if remaining := grace - time.Since(requestedAt); remaining > 0 {
 		return 1, remaining, nil
@@ -910,10 +912,10 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		ss.Spec.Replicas = &replicas
 		ss.Spec.ServiceName = gs.Name
 		ss.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
-		ss.Spec.Template.ObjectMeta.Labels = labels
+		ss.Spec.Template.Labels = labels
 		// Stamp (or clear) the config fingerprint without touching
 		// annotations other actors may have set on the pod template.
-		ann := ss.Spec.Template.ObjectMeta.Annotations
+		ann := ss.Spec.Template.Annotations
 		if mc.hash != "" {
 			if ann == nil {
 				ann = map[string]string{}
@@ -922,7 +924,7 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 		} else {
 			delete(ann, configHashAnnotation)
 		}
-		ss.Spec.Template.ObjectMeta.Annotations = ann
+		ss.Spec.Template.Annotations = ann
 		ss.Spec.Template.Spec.Containers = []corev1.Container{
 			buildGameContainer(gs, tmpl, image, ver, mc),
 			buildAgentContainer(gs, tmpl, ver, r.AgentImage, r.AgentLogLevel, r.AgentImagePullPolicy),
@@ -1269,7 +1271,7 @@ func buildAgentContainer(
 		if rc.passwordFile != "" {
 			args = append(args, "--rcon-password-file="+path.Join(mountPath, rc.passwordFile))
 		} else {
-			args = append(args, "--rcon-password-file="+rconPasswordPath+"/password")
+			args = append(args, "--rcon-password-file="+rconAuthMountPath+"/password")
 		}
 		args = append(args, "--rcon-port="+strconv.FormatInt(int64(rc.port), 10))
 	}
@@ -1375,11 +1377,12 @@ func (r *GameServerReconciler) reconcileBackupSchedule(
 }
 
 func (r *GameServerReconciler) setPhase(
-	ctx context.Context, gs *gameplanev1alpha1.GameServer, phase gameplanev1alpha1.GameServerPhase, msg string,
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, msg string,
 ) error {
 	// Patch (not Update) so we don't carry/revert the agent's concurrently
 	// written status.agent — see reconcileStatus for the full rationale.
 	base := gs.DeepCopy()
+	phase := gameplanev1alpha1.GameServerPhaseFailed
 	gs.Status.Phase = phase
 	gs.Status.Conditions = upsertCondition(gs.Status.Conditions, metav1.Condition{
 		Type:               "Ready",

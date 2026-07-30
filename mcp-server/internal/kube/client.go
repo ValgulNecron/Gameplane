@@ -148,16 +148,16 @@ func NewFrom(typed kubernetes.Interface, dyn dynamic.Interface, scheme *runtime.
 
 // resourceInterface returns the dynamic client scoped to kind's GVR (and to
 // namespace, when kind is namespaced and namespace is non-empty).
-func (c *Client) resourceInterface(kind, namespace string) (dynamic.ResourceInterface, CRDKind, error) {
+func (c *Client) resourceInterface(kind, namespace string) (dynamic.ResourceInterface, error) {
 	k, ok := CRDKinds[kind]
 	if !ok {
-		return nil, CRDKind{}, fmt.Errorf("%w: %q (known: %s)", errUnknownKind, kind, knownKindsList())
+		return nil, fmt.Errorf("%w: %q (known: %s)", errUnknownKind, kind, knownKindsList())
 	}
 	ri := c.dynamic.Resource(k.GVR)
 	if k.Namespaced && namespace != "" {
-		return ri.Namespace(namespace), k, nil
+		return ri.Namespace(namespace), nil
 	}
-	return ri, k, nil
+	return ri, nil
 }
 
 func knownKindsList() string {
@@ -175,7 +175,7 @@ func knownKindsList() string {
 // cluster-scoped kinds; an empty namespace on a namespaced kind lists across
 // all namespaces. labelSelector is passed through verbatim to the API server.
 func (c *Client) ListCRD(ctx context.Context, kind, namespace, labelSelector string) (*unstructured.UnstructuredList, error) {
-	ri, _, err := c.resourceInterface(kind, namespace)
+	ri, err := c.resourceInterface(kind, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (c *Client) GetCRD(ctx context.Context, kind, namespace, name string) (*uns
 	if k.Namespaced && namespace == "" {
 		return nil, fmt.Errorf("%s is namespace-scoped: namespace is required", kind)
 	}
-	ri, _, err := c.resourceInterface(kind, namespace)
+	ri, err := c.resourceInterface(kind, namespace)
 	if err != nil {
 		return nil, err
 	}

@@ -384,6 +384,7 @@ func TestClassifyMinecraftInvalidState(t *testing.T) {
 	// But the result should still be populated.
 	if result == nil {
 		t.Errorf("expected result to be populated")
+		return
 	}
 	if result.NextState != 99 {
 		t.Errorf("expected next state 99, got %d", result.NextState)

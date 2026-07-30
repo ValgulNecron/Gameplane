@@ -62,7 +62,7 @@ func TestRecordServerBackupTime_DoesNotRewind(t *testing.T) {
 	newer := metav1.NewTime(time.Now().Truncate(time.Second))
 	gs := gameServer("srv")
 	gs.Status.LastBackupTime = &newer
-	b := succeededBackupFor("srv", newer.Time.Add(-time.Hour))
+	b := succeededBackupFor("srv", newer.Add(-time.Hour))
 	r := lastBackupReconciler(t, gs, b)
 
 	if err := r.recordServerBackupTime(context.Background(), b); err != nil {

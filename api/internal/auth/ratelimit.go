@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // tokenBucket is a minimal per-key rate limiter: each key has a bucket
@@ -72,15 +74,27 @@ func (t *tokenBucket) Allow(key string) bool {
 	return true
 }
 
-// Middleware enforces the bucket against the client IP. `RealIP` upstream
-// must rewrite RemoteAddr to the real client (chi's middleware does this).
+// Middleware enforces the bucket against the client IP. The client IP must
+// be set in the request context via chi's ClientIPFromXFF or similar middleware.
 func (t *tokenBucket) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		host, _, err := net.SplitHostPort(req.RemoteAddr)
-		if err != nil {
-			host = req.RemoteAddr
+		// Read the client IP from context set by the ClientIPFromXFF middleware.
+		// If not set, fall back to the host portion of RemoteAddr for graceful
+		// degradation (e.g., in unit tests that don't run the middleware chain).
+		clientIP := middleware.GetClientIP(req.Context())
+		if clientIP == "" {
+			// Fallback: extract host from RemoteAddr if the middleware wasn't applied.
+			// net.SplitHostPort handles both IPv4:port and [IPv6]:port forms correctly;
+			// for bare addresses (no port), it returns an error and we use the original.
+			host, _, err := net.SplitHostPort(req.RemoteAddr)
+			if err != nil {
+				// No port separator found, use the whole RemoteAddr as the client IP.
+				clientIP = req.RemoteAddr
+			} else {
+				clientIP = host
+			}
 		}
-		if !t.Allow(host) {
+		if !t.Allow(clientIP) {
 			w.Header().Set("Retry-After", "30")
 			http.Error(w, "too many requests", http.StatusTooManyRequests)
 			return

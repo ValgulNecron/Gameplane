@@ -159,6 +159,48 @@ jobs:
   # Unit tests, envtest integration (operator/api), and the coverage
   # gate run in ONE job per module: the gate reads the profiles it just
   # produced, with no cross-job artifact hand-off.
+  lint:
+    name: lint (${{ matrix.module }})
+    needs: [changes]
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # api, agent, and test/e2e are deliberately excluded pending lint backlog
+      # cleanup (wave 2). They carry ~493 findings queued for the next wave.
+      matrix:
+        module: [netguard, gameaction, gameproto, operator, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "1.26", cache: false }
+      - name: go module cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ runner.arch }}-lint-${{ matrix.module }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-lint-${{ matrix.module }}-
+      - name: go mod download
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+      - name: lint (operator - envtest build tags)
+        if: matrix.module == 'operator'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}
+          args: --build-tags=envtest
+      - name: lint (other modules - no build tags)
+        if: matrix.module != 'operator'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}
+
   go:
     name: go (${{ matrix.module }} / ${{ matrix.arch }})
     needs: [changes]

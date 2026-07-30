@@ -58,6 +58,40 @@ kubectl -n gameplane-system exec deploy/gameplane-api -- \
 It force-enables the local provider in the auth config row (preserving
 everything else) and takes effect on the next login attempt.
 
+### Client IP extraction from forwarded headers
+
+The API determines the real client IP from the `X-Forwarded-For` header
+to power login rate limiting and audit records. This is configurable via
+`api.trustedProxies` (default: private/loopback ranges `127.0.0.0/8`,
+`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`,
+`::1/128`, `fc00::/7`, `fe80::/10`).
+
+**In a normal Kubernetes install** (API behind nginx-ingress, ALB, etc.),
+the default works out-of-the-box: the ingress sits in one of the default
+ranges and sets `X-Forwarded-For` unconditionally, so the API extracts the
+true client IP safely. The API **only** trusts `X-Forwarded-For` from
+requests originating within the configured CIDR blocks, defeating IP
+spoofing.
+
+**When the API is directly exposed** (no proxy), the default is correct:
+`X-Forwarded-For` is ignored, and rate limiting uses the TCP peer's
+address as the true client IP — which is already authoritative. If you
+place a proxy in front of the API, add that proxy's address(es) to
+`api.trustedProxies` so the API can extract the real client IP from
+`X-Forwarded-For`.
+
+Example for direct exposure behind a specific proxy at `203.0.113.1`:
+
+```yaml
+api:
+  trustedProxies: "203.0.113.1/32"
+```
+
+The client IP is used for login rate limiting (per-IP caps) and audit
+records, so misconfigurating this can either hide the real attacker's IP
+in logs or prevent legitimate users from logging in if they're grouped
+behind a proxy the API doesn't trust.
+
 ## Authorization
 
 RBAC is **permission-based**. A *permission* is a fixed `resource:action`

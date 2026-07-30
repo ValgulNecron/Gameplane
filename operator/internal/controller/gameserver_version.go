@@ -102,15 +102,15 @@ func dnsSafe(s string) string {
 	return strings.ToLower(strings.NewReplacer(".", "-", "_", "-").Replace(s))
 }
 
-// truncateDNS keeps names within max, appending a short content hash so
+// truncateDNS keeps names within maxLen, appending a short content hash so
 // distinct keys don't collide after truncation.
-func truncateDNS(s string, max int) string {
-	if len(s) <= max {
+func truncateDNS(s string, maxLen int) string {
+	if len(s) <= maxLen {
 		return s
 	}
 	sum := sha256.Sum256([]byte(s))
 	suffix := "-" + hex.EncodeToString(sum[:])[:8]
-	return strings.TrimRight(s[:max-len(suffix)], "-") + suffix
+	return strings.TrimRight(s[:maxLen-len(suffix)], "-") + suffix
 }
 
 // modVolumeName is the pod volume name for a mod combo (DNS-1123 label).
