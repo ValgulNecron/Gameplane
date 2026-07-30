@@ -6414,6 +6414,94 @@
                               "children": [
                                 {
                                   "type": "frame",
+                                  "id": "wbQsH",
+                                  "name": "Tunnel Address Row",
+                                  "width": "fill_container",
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 8,
+                                  "stroke": "$c:--primary",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    10,
+                                    14
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "R379Q6",
+                                      "name": "left",
+                                      "gap": 10,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "icon",
+                                          "id": "qc41k",
+                                          "name": "tunnelIcon",
+                                          "width": 16,
+                                          "height": 16,
+                                          "icon": "route",
+                                          "library": "lucide",
+                                          "fill": "$c:--primary"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "nRspE",
+                                          "name": "text stack",
+                                          "layout": "vertical",
+                                          "gap": 2,
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "d0ybX",
+                                              "name": "eyebrow",
+                                              "fill": "$c:--muted-foreground",
+                                              "content": "TUNNEL · FRP",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 11,
+                                              "fontWeight": "600",
+                                              "letterSpacing": 1
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "dgeHd",
+                                              "name": "address",
+                                              "fill": "$c:--foreground",
+                                              "content": "mc.frp.gameplane.dev:25565",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 14,
+                                              "fontWeight": "500"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "icon",
+                                      "id": "fHIeE",
+                                      "name": "copy",
+                                      "width": 14,
+                                      "height": 14,
+                                      "icon": "copy",
+                                      "library": "lucide",
+                                      "fill": "$c:--muted-foreground"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "Y4uN0B",
+                                  "name": "Cluster Address Label",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "CLUSTER ADDRESS",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "600",
+                                  "letterSpacing": 1
+                                },
+                                {
+                                  "type": "frame",
                                   "id": "CkHhE",
                                   "width": "fill_container",
                                   "fill": "$c:--muted",
@@ -17451,7 +17539,7 @@
       },
       "clip": true,
       "width": 1440,
-      "height": 900,
+      "height": 1300,
       "fill": "$c:--background",
       "children": [
         {
@@ -17969,7 +18057,7 @@
                                           "id": "s1oQWe",
                                           "name": "t",
                                           "fill": "#F5F5F5",
-                                          "content": "Expose",
+                                          "content": "Expose (backing service)",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 14,
                                           "fontWeight": "normal"
@@ -17981,7 +18069,7 @@
                                           "fill": "#949494",
                                           "textGrowth": "fixed-width",
                                           "width": 200,
-                                          "content": "Service type fronting the game pod.",
+                                          "content": "Service type fronting the pod. Still applies when a tunnel is enabled — the tunnel connects through this service internally.",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 12,
                                           "fontWeight": "normal"
@@ -18234,6 +18322,443 @@
                                             },
                                             "UNxoy": {
                                               "content": "Add override"
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "mxfJ6",
+                                  "name": "Field Tunnel",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "AURrt",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Y0Skyk",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Tunnel",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "n8H0lH",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Route players through a relay (frp, Tailscale, or playit.gg) — no port-forwarding or public IP needed.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "V5u0JR",
+                                      "name": "ctrl",
+                                      "width": "fill_container",
+                                      "height": 28,
+                                      "gap": 12,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "L2de4o",
+                                          "name": "toggle ON",
+                                          "width": 36,
+                                          "height": 20,
+                                          "fill": "$c:--primary",
+                                          "cornerRadius": 999,
+                                          "padding": [
+                                            0,
+                                            2
+                                          ],
+                                          "justifyContent": "end",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "nqgad",
+                                              "name": "knob",
+                                              "fill": "#FFFFFF",
+                                              "width": 16,
+                                              "height": 16
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "YqGaq",
+                                          "name": "state",
+                                          "fill": "#949494",
+                                          "content": "Enabled",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "AbJF1",
+                                  "name": "Field Tunnel Provider",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "Y14Cu2",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "DUChm",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Provider",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "cqpvH",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Relay used to reach players.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "gAADH",
+                                      "name": "select",
+                                      "width": "fill_container",
+                                      "height": 36,
+                                      "fill": "#171717",
+                                      "cornerRadius": 6,
+                                      "stroke": "$c:--border",
+                                      "strokeWidth": 1,
+                                      "strokeAlignment": "inner",
+                                      "gap": 8,
+                                      "padding": [
+                                        0,
+                                        12
+                                      ],
+                                      "justifyContent": "space_between",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ioMZe",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "frp",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "RGcan",
+                                          "name": "chev",
+                                          "width": 14,
+                                          "height": 14,
+                                          "icon": "chevron-down",
+                                          "library": "lucide",
+                                          "fill": "#949494"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "id": "p076c",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert Tailscale tailnet-only",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "Tailscale is tailnet-only"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "If you select Tailscale as the provider, this server is reachable only from devices on your tailnet — never from the public internet."
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "t7GCQp",
+                                  "name": "Field Tunnel Credentials",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "rQHJz",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "T3j1K",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Credentials Secret",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "Q0sP8d",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Kubernetes Secret in this namespace holding the provider's auth token(s).",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "fDJ8g",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "frp-tunnel-credentials",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "RCwXr",
+                                  "name": "Field Tunnel Server Address",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "sC8vi",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Pa6vC",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Server address",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "DvZhn",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Public frps host this game server dials out to.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "smvAa",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "tunnel.example.com",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "bq76r",
+                                  "name": "Field Tunnel Server Port",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "wmvEb",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "eHkyc",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Server port",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "nCIWj",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "frps control port. Defaults to 7000.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "GE82I",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "7000",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "kWmwj",
+                                  "name": "Field Tunnel Remote Ports",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "he57o",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "H8bgZ",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Remote ports",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "xDLd7",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Maps a named template port to a remote port on the frp server.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "ax9zA",
+                                      "name": "ctrl",
+                                      "width": "fill_container",
+                                      "gap": 8,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "id": "nd762",
+                                          "type": "ref",
+                                          "ref": "D0cDM",
+                                          "name": "Input",
+                                          "width": "fill_container",
+                                          "descendants": {
+                                            "PJERm": {
+                                              "content": "game",
+                                              "fill": "#5C5C5C"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "id": "HStHP",
+                                          "type": "ref",
+                                          "ref": "D0cDM",
+                                          "name": "Input",
+                                          "width": "fill_container",
+                                          "descendants": {
+                                            "PJERm": {
+                                              "content": "25565",
+                                              "fill": "#5C5C5C"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "id": "V9VdkJ",
+                                          "type": "ref",
+                                          "ref": "LMIom",
+                                          "name": "Btn Add",
+                                          "descendants": {
+                                            "mmaZ3": {
+                                              "enabled": false
+                                            },
+                                            "xE9i0": {
+                                              "content": "Add"
                                             }
                                           }
                                         }
@@ -67295,6 +67820,526 @@
                   ]
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "x7MJI",
+      "x": 1600,
+      "y": 4960,
+      "name": "Gameplane/Connection Card — Tunnel States (reference)",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "clip": true,
+      "fill": "$c:--background",
+      "gap": 24,
+      "padding": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "aAPWT",
+          "name": "col1",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "u9bCb",
+              "name": "caption",
+              "fill": "$c:--muted-foreground",
+              "content": "Tailscale — private (tailnet only)",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "id": "GN3ni",
+              "type": "ref",
+              "ref": "c:ERkuB",
+              "name": "Connection Card (Tailscale)",
+              "width": 399,
+              "descendants": {
+                "c:4zoFt": {
+                  "height": "fit_content",
+                  "justifyContent": "start",
+                  "padding": [
+                    20,
+                    24,
+                    12,
+                    24
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CGDUl",
+                      "fill": "$c:--muted-foreground",
+                      "content": "CONNECTION",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 11,
+                      "fontWeight": "600",
+                      "letterSpacing": 1
+                    }
+                  ]
+                },
+                "c:QMHOm": {
+                  "padding": [
+                    0,
+                    24,
+                    20,
+                    24
+                  ],
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "zjymb",
+                      "name": "Tunnel Address Row",
+                      "width": "fill_container",
+                      "fill": "$c:--muted",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--color-warning",
+                      "strokeWidth": 1,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "T153Iw",
+                          "name": "left",
+                          "width": "fill_container",
+                          "gap": 10,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "Jq3Hd",
+                              "name": "tunnelIcon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "lock",
+                              "library": "lucide",
+                              "fill": "$c:--color-warning"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "fbFk8",
+                              "name": "text stack",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 4,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "tTsbW",
+                                  "name": "eyebrow",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "TUNNEL · TAILSCALE",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "600",
+                                  "letterSpacing": 1
+                                },
+                                {
+                                  "id": "stzsn",
+                                  "type": "ref",
+                                  "ref": "c:7Fif0",
+                                  "name": "Badge Tailnet only",
+                                  "padding": [
+                                    4,
+                                    8
+                                  ],
+                                  "gap": 4,
+                                  "descendants": {
+                                    "c:rMf5x": {
+                                      "type": "icon",
+                                      "id": "yVKvO",
+                                      "width": 12,
+                                      "height": 12,
+                                      "icon": "lock",
+                                      "library": "lucide",
+                                      "fill": "$c:--color-warning-foreground"
+                                    },
+                                    "c:glumS": {
+                                      "content": "Tailnet only — not public",
+                                      "fontSize": 11,
+                                      "fontWeight": "600"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "uq16G",
+                                  "name": "address",
+                                  "fill": "$c:--foreground",
+                                  "content": "mc-survival.tail4e2a.ts.net:25565",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 14,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "icon",
+                          "id": "cA1VC",
+                          "name": "copy",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "copy",
+                          "library": "lucide",
+                          "fill": "$c:--muted-foreground"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "wT7p7",
+                      "name": "Cluster Address Label",
+                      "fill": "$c:--muted-foreground",
+                      "content": "CLUSTER ADDRESS",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 11,
+                      "fontWeight": "600",
+                      "letterSpacing": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "tWEy4",
+                      "name": "Host Row",
+                      "width": "fill_container",
+                      "fill": "$c:--muted",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "B8m13K",
+                          "fill": "$c:--muted-foreground",
+                          "content": "Host",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "IOxuM",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "tZDPh",
+                              "fill": "$c:--foreground",
+                              "content": "10.107.129.58",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "FNhb2",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "copy",
+                              "library": "lucide",
+                              "fill": "$c:--muted-foreground"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "n0rynH",
+                      "name": "Port Row",
+                      "width": "fill_container",
+                      "fill": "$c:--muted",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "K4xhiE",
+                          "fill": "$c:--muted-foreground",
+                          "content": "Port",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "RJoAS",
+                          "fill": "$c:--foreground",
+                          "content": "30845",
+                          "fontFamily": "$c:--font-primary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "c:tiojM": {
+                  "enabled": false
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "B3x43y",
+          "name": "col2",
+          "layout": "vertical",
+          "gap": 8,
+          "children": [
+            {
+              "type": "text",
+              "id": "z7Xfpm",
+              "name": "caption",
+              "fill": "$c:--muted-foreground",
+              "content": "playit.gg — tunnel connecting, no address yet",
+              "fontFamily": "$c:--font-secondary",
+              "fontSize": 12,
+              "fontWeight": "600"
+            },
+            {
+              "id": "AWAjU",
+              "type": "ref",
+              "ref": "c:ERkuB",
+              "name": "Connection Card (playit connecting)",
+              "width": 399,
+              "descendants": {
+                "c:4zoFt": {
+                  "height": "fit_content",
+                  "justifyContent": "start",
+                  "padding": [
+                    20,
+                    24,
+                    12,
+                    24
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "E9xw2f",
+                      "fill": "$c:--muted-foreground",
+                      "content": "CONNECTION",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 11,
+                      "fontWeight": "600",
+                      "letterSpacing": 1
+                    }
+                  ]
+                },
+                "c:QMHOm": {
+                  "padding": [
+                    0,
+                    24,
+                    20,
+                    24
+                  ],
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "YbjOG",
+                      "name": "Tunnel Address Row",
+                      "width": "fill_container",
+                      "fill": "$c:--muted",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "IIDJg",
+                          "name": "left",
+                          "width": "fill_container",
+                          "gap": 10,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "WHBRz",
+                              "name": "tunnelIcon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "loader-circle",
+                              "library": "lucide",
+                              "fill": "$c:--muted-foreground"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "f296N",
+                              "name": "text stack",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "J6E82",
+                                  "name": "eyebrow",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "TUNNEL · PLAYIT.GG",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "600",
+                                  "letterSpacing": 1
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "ZmHpp",
+                                  "name": "address",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "Waiting for tunnel address…",
+                                  "fontFamily": "$c:--font-primary",
+                                  "fontSize": 14,
+                                  "fontWeight": "normal",
+                                  "fontStyle": "italic"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "RfbOQ",
+                      "name": "Cluster Address Label",
+                      "fill": "$c:--muted-foreground",
+                      "content": "CLUSTER ADDRESS",
+                      "fontFamily": "$c:--font-secondary",
+                      "fontSize": 11,
+                      "fontWeight": "600",
+                      "letterSpacing": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "CA1Zv",
+                      "name": "Host Row",
+                      "width": "fill_container",
+                      "fill": "$c:--muted",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Qupfz",
+                          "fill": "$c:--muted-foreground",
+                          "content": "Host",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "gNtCT",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "H4pMB",
+                              "fill": "$c:--foreground",
+                              "content": "10.107.130.11",
+                              "fontFamily": "$c:--font-primary",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "G0uROO",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "copy",
+                              "library": "lucide",
+                              "fill": "$c:--muted-foreground"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "oyd1p",
+                      "name": "Port Row",
+                      "width": "fill_container",
+                      "fill": "$c:--muted",
+                      "cornerRadius": 8,
+                      "stroke": "$c:--border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        10,
+                        14
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "dY6xY",
+                          "fill": "$c:--muted-foreground",
+                          "content": "Port",
+                          "fontFamily": "$c:--font-secondary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "d1VFwt",
+                          "fill": "$c:--foreground",
+                          "content": "31022",
+                          "fontFamily": "$c:--font-primary",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "c:tiojM": {
+                  "enabled": false
+                }
+              }
             }
           ]
         }
