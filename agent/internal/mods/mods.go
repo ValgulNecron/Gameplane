@@ -293,7 +293,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		writeErr(w, http.StatusBadRequest, `multipart form with a "file" field is required`)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	name, err := safeName(hdr.Filename)
 	if err != nil {
@@ -305,7 +305,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := os.MkdirAll(h.dir, 0o755); err != nil {
+	if err := os.MkdirAll(h.dir, 0o750); err != nil {
 		slog.Warn("mod upload mkdir", "err", err)
 		writeErr(w, http.StatusInternalServerError, "could not store the upload")
 		return
@@ -320,7 +320,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	n, err := io.Copy(tmp, io.LimitReader(file, maxBytes+1))
 	closeErr := tmp.Close()
 	if err != nil || closeErr != nil || n > maxBytes {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		if n > maxBytes {
 			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
 			return
@@ -334,7 +334,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	if h.extract {
 		installName = archiveFolderName(name)
 		swapErr := h.swapInArchive(tmpName, installName, maxBytes)
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		switch {
 		case errors.Is(swapErr, errBadArchive):
 			writeErr(w, http.StatusBadRequest, "uploaded file is not a valid archive")
@@ -347,11 +347,14 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "could not unpack the upload")
 			return
 		}
-	} else if err := os.Rename(tmpName, filepath.Join(h.dir, name)); err != nil {
-		os.Remove(tmpName)
-		slog.Warn("mod upload rename", "err", err)
-		writeErr(w, http.StatusInternalServerError, "could not store the upload")
-		return
+	} else {
+		finalPath := filepath.Join(h.dir, name)
+		if err := os.Rename(tmpName, finalPath); err != nil {
+			_ = os.Remove(tmpName)
+			slog.Warn("mod upload rename", "err", err)
+			writeErr(w, http.StatusInternalServerError, "could not store the upload")
+			return
+		}
 	}
 
 	meta := &ModMeta{
@@ -367,7 +370,13 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 // removeEntry deletes an installed mod by name — the whole folder for
 // extract loaders, a single file otherwise.
 func (h *handler) removeEntry(name string) error {
-	target := filepath.Join(h.dir, name)
+	dirClean := filepath.Clean(h.dir)
+	target := filepath.Join(dirClean, name)
+	target = filepath.Clean(target)
+	// Ensure target stays within h.dir (name is pre-validated by safeName).
+	if target != dirClean && !strings.HasPrefix(target, dirClean+string(os.PathSeparator)) {
+		return errors.New("path escape attempt")
+	}
 	if h.extract {
 		return os.RemoveAll(target)
 	}
@@ -378,7 +387,7 @@ func (h *handler) removeEntry(name string) error {
 // the size cap. The caller owns the returned path (rename it into place or
 // unpack it), and must remove it.
 func (h *handler) downloadTemp(ctx context.Context, url string) (string, int64, error) {
-	if err := os.MkdirAll(h.dir, 0o755); err != nil {
+	if err := os.MkdirAll(h.dir, 0o750); err != nil {
 		return "", 0, fmt.Errorf("mkdir mods: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -389,7 +398,7 @@ func (h *handler) downloadTemp(ctx context.Context, url string) (string, int64, 
 	if err != nil {
 		return "", 0, redactURLErr(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", 0, fmt.Errorf("upstream status %d", resp.StatusCode)
 	}
@@ -407,7 +416,7 @@ func (h *handler) downloadTemp(ctx context.Context, url string) (string, int64, 
 	n, err := io.Copy(tmp, io.LimitReader(resp.Body, h.maxBytes+1))
 	closeErr := tmp.Close()
 	if err != nil || closeErr != nil || n > h.maxBytes {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		switch {
 		case err != nil:
 			return "", 0, err
@@ -427,7 +436,7 @@ func (h *handler) download(ctx context.Context, url, name string) (int64, error)
 		return 0, err
 	}
 	if err := os.Rename(tmpName, filepath.Join(h.dir, name)); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return 0, err
 	}
 	return n, nil
@@ -440,7 +449,7 @@ func (h *handler) installArchive(ctx context.Context, url, folder string) (int64
 	if err != nil {
 		return 0, err
 	}
-	defer os.Remove(tmpZip)
+	defer func() { _ = os.Remove(tmpZip) }()
 	if err := h.swapInArchive(tmpZip, folder, h.maxBytes); err != nil {
 		return 0, err
 	}
@@ -455,16 +464,23 @@ func (h *handler) swapInArchive(tmpZip, folder string, maxBytes int64) error {
 		return err
 	}
 	if err := unzipInto(tmpZip, staging, maxBytes); err != nil {
-		os.RemoveAll(staging)
+		_ = os.RemoveAll(staging)
 		return err
 	}
-	final := filepath.Join(h.dir, folder)
+	dirClean := filepath.Clean(h.dir)
+	final := filepath.Join(dirClean, folder)
+	final = filepath.Clean(final)
+	// Ensure final stays within h.dir (folder is pre-validated by archiveFolderName(safeName)).
+	if final != dirClean && !strings.HasPrefix(final, dirClean+string(os.PathSeparator)) {
+		_ = os.RemoveAll(staging)
+		return errors.New("path escape attempt")
+	}
 	if err := os.RemoveAll(final); err != nil {
-		os.RemoveAll(staging)
+		_ = os.RemoveAll(staging)
 		return err
 	}
 	if err := os.Rename(staging, final); err != nil {
-		os.RemoveAll(staging)
+		_ = os.RemoveAll(staging)
 		return err
 	}
 	return nil
@@ -475,9 +491,9 @@ func (h *handler) swapInArchive(tmpZip, folder string, maxBytes int64) error {
 func unzipInto(zipPath, dst string, maxBytes int64) error {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return fmt.Errorf("%w: %v", errBadArchive, err)
+		return fmt.Errorf("%w: %w", errBadArchive, err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 
 	dstClean := filepath.Clean(dst)
 	var total int64
@@ -488,25 +504,31 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			continue
 		}
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, 0o755); err != nil {
+			if err := os.MkdirAll(target, 0o750); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 			return err
 		}
 		rc, err := f.Open()
 		if err != nil {
 			return err
 		}
-		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		targetClean := filepath.Clean(target)
+		// Re-validate target after cleaning to ensure it stays within dst.
+		if targetClean != dstClean && !strings.HasPrefix(targetClean, dstClean+string(os.PathSeparator)) {
+			_ = rc.Close()
+			return errors.New("zip-slip attempt")
+		}
+		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
-			rc.Close()
+			_ = rc.Close()
 			return err
 		}
 		n, err := io.Copy(out, io.LimitReader(rc, maxBytes-total+1))
-		rc.Close()
+		_ = rc.Close()
 		closeErr := out.Close()
 		if err != nil {
 			return err
@@ -558,7 +580,9 @@ func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	target := filepath.Join(h.dir, name)
+	dirClean := filepath.Clean(h.dir)
+	target := filepath.Join(dirClean, name)
+	target = filepath.Clean(target)
 	if _, statErr := os.Stat(target); errors.Is(statErr, os.ErrNotExist) {
 		writeErr(w, http.StatusNotFound, "no such mod")
 		return
@@ -615,12 +639,12 @@ func safeName(name string) (string, error) {
 // hostAllowed matches host against the allowlist: an exact hostname, or a
 // leading-dot suffix (".example.com") matching that domain and any
 // subdomain. Comparison is case-insensitive.
-// modCredsBasePath is where mod-portal credentials are mounted, organized
+// modPortalPath is where mod-portal credentials are mounted, organized
 // by provider. The agent tries to read username and token files for the
 // requested provider; missing files are treated gracefully. Must stay in
 // lockstep with the operator's copy in gameserver_modcreds.go.
 // Package var so tests can override it.
-var modCredsBasePath = "/etc/gameplane/mod-creds"
+var modPortalPath = "/etc/gameplane/mod-creds"
 
 // redactURLErr strips the query from the URL embedded in a *url.Error so
 // credentials injected for mod-portal downloads can never reach logs.
@@ -659,7 +683,7 @@ func injectModCreds(urlStr, provider string) string {
 		return urlStr
 	}
 
-	credsPath := fmt.Sprintf("%s/%s", modCredsBasePath, provider)
+	credsPath := fmt.Sprintf("%s/%s", modPortalPath, provider)
 	username, err := os.ReadFile(fmt.Sprintf("%s/username", credsPath))
 	if err != nil {
 		// Credentials not available; download without auth.

@@ -27,9 +27,9 @@ func TestInjectModCreds_FactorioWithCredentials(t *testing.T) {
 		t.Fatalf("write token: %v", err)
 	}
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://mods.factorio.com/api/v2/mods/MyMod/downloads/latest?version=1.1"
 	result := injectModCreds(testURL, "factorio")
@@ -64,9 +64,9 @@ func TestInjectModCreds_FactorioMissingUsername(t *testing.T) {
 		t.Fatalf("write token: %v", err)
 	}
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://mods.factorio.com/api/v2/mods/MyMod/downloads/latest"
 	result := injectModCreds(testURL, "factorio")
@@ -89,9 +89,9 @@ func TestInjectModCreds_FactorioMissingToken(t *testing.T) {
 	}
 	// No token file.
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://mods.factorio.com/api/v2/mods/MyMod/downloads/latest"
 	result := injectModCreds(testURL, "factorio")
@@ -116,9 +116,9 @@ func TestInjectModCreds_FactorioEmptyCredentials(t *testing.T) {
 		t.Fatalf("write token: %v", err)
 	}
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://mods.factorio.com/api/v2/mods/MyMod/downloads/latest"
 	result := injectModCreds(testURL, "factorio")
@@ -143,9 +143,9 @@ func TestInjectModCreds_NonFactorioProvider(t *testing.T) {
 		t.Fatalf("write token: %v", err)
 	}
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://cdn.modrinth.com/data/abc/versions/xyz/MyMod.jar"
 	result := injectModCreds(testURL, "modrinth")
@@ -181,9 +181,9 @@ func TestInjectModCreds_CredentialsWithWhitespace(t *testing.T) {
 		t.Fatalf("write token: %v", err)
 	}
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://mods.factorio.com/api/v2/mods/MyMod/downloads/latest"
 	result := injectModCreds(testURL, "factorio")
@@ -216,9 +216,9 @@ func TestInjectModCreds_TokenNotInError(t *testing.T) {
 		t.Fatalf("write token: %v", err)
 	}
 
-	oldBasePath := modCredsBasePath
-	modCredsBasePath = tmpDir
-	defer func() { modCredsBasePath = oldBasePath }()
+	oldBasePath := modPortalPath
+	modPortalPath = tmpDir
+	defer func() { modPortalPath = oldBasePath }()
 
 	testURL := "https://mods.factorio.com/api/v2/mods/MyMod/downloads/latest"
 	result := injectModCreds(testURL, "factorio")
@@ -261,7 +261,7 @@ func TestModMetaProvider(t *testing.T) {
 // never be exposed in logs.
 func TestDownloadTemp_CredentialsNotLeaked(t *testing.T) {
 	// Create a server that immediately closes the connection on any request.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Hijack the connection to force a client-side error.
 		hj, ok := w.(http.Hijacker)
 		if !ok {
@@ -318,7 +318,7 @@ func TestDownloadTemp_CredentialsNotLeaked(t *testing.T) {
 // an empty token is used in a credentialed URL, the error doesn't leak it.
 func TestDownloadTemp_EmptyTokenNotLeaked(t *testing.T) {
 	// Create a server that immediately closes the connection.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hj, ok := w.(http.Hijacker)
 		if !ok {
 			t.Fatal("http.ResponseWriter does not support hijack")

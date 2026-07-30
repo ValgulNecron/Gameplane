@@ -25,16 +25,19 @@ import (
 	"strings"
 )
 
+// Config holds the configuration for setting up the authenticator.
 type Config struct {
 	ClientCAFile string // mTLS CA bundle
 	TokenFile    string // shared-secret fallback
 }
 
+// Authenticator implements request authentication via mTLS or shared token.
 type Authenticator struct {
 	mode  string
 	token []byte
 }
 
+// New creates a new Authenticator from the supplied configuration.
 func New(cfg Config) (*Authenticator, error) {
 	switch {
 	case cfg.ClientCAFile != "":
@@ -55,6 +58,7 @@ func New(cfg Config) (*Authenticator, error) {
 	}
 }
 
+// Middleware returns an HTTP middleware that enforces authentication.
 func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch a.mode {

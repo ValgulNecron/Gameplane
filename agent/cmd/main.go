@@ -1,3 +1,4 @@
+// Package main runs the Gameplane agent sidecar.
 package main
 
 import (

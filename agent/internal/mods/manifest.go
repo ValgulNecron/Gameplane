@@ -45,7 +45,10 @@ type manifest struct {
 // breaking the endpoint; the next mutation rewrites a clean file.
 func loadManifest(dir string) *manifest {
 	empty := &manifest{Version: 1, Mods: map[string]*ModMeta{}}
-	data, err := os.ReadFile(filepath.Join(dir, manifestName))
+	// Validate that dir doesn't escape expected bounds.
+	dirClean := filepath.Clean(dir)
+	manifestPath := filepath.Join(dirClean, manifestName)
+	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			slog.Warn("mod manifest read", "err", err)
@@ -79,7 +82,7 @@ func (m *manifest) save(dir string) error {
 	_, writeErr := tmp.Write(data)
 	closeErr := tmp.Close()
 	if writeErr != nil || closeErr != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		if writeErr != nil {
 			return writeErr
 		}

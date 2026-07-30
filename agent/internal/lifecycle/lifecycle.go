@@ -51,7 +51,7 @@ type response struct {
 }
 
 // Mount registers POST /lifecycle/stop on r.
-func Mount(r chi.Router, rc Rcon, game string, spec *caps.Lifecycle) {
+func Mount(r chi.Router, rc Rcon, _ string, spec *caps.Lifecycle) {
 	s := Pick(spec)
 	r.Post("/lifecycle/stop", func(w http.ResponseWriter, _ *http.Request) {
 		if !s.Supported() {
