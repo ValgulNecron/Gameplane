@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -209,6 +210,58 @@ func TestLoadConfigInvalidFrpPort(t *testing.T) {
 	}
 }
 
+func TestLoadConfigTailscaleMissingHostname(t *testing.T) {
+	_, err := loadConfig(stubEnv(map[string]string{
+		"GAMESERVER_NAME":       "my-server",
+		"GAMESERVER_NAMESPACE":  "games",
+		"TUNNEL_TYPE":           "tailscale",
+		"BACKING_SERVICE_DNS":   "my-server.games.svc",
+		"BACKING_SERVICE_PORTS": "game:25565",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "TAILSCALE_HOSTNAME") {
+		t.Errorf("loadConfig() error = %v, want it to mention TAILSCALE_HOSTNAME", err)
+	}
+}
+
+func TestLoadConfigTailscaleMissingBackingServicePorts(t *testing.T) {
+	_, err := loadConfig(stubEnv(map[string]string{
+		"GAMESERVER_NAME":      "my-server",
+		"GAMESERVER_NAMESPACE": "games",
+		"TUNNEL_TYPE":          "tailscale",
+		"TAILSCALE_HOSTNAME":   "my-game",
+		"BACKING_SERVICE_DNS":  "my-server.games.svc",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "BACKING_SERVICE_PORTS") {
+		t.Errorf("loadConfig() error = %v, want it to mention BACKING_SERVICE_PORTS", err)
+	}
+}
+
+func TestLoadConfigPlayitMissingTunnelName(t *testing.T) {
+	_, err := loadConfig(stubEnv(map[string]string{
+		"GAMESERVER_NAME":       "my-server",
+		"GAMESERVER_NAMESPACE":  "games",
+		"TUNNEL_TYPE":           "playit",
+		"BACKING_SERVICE_DNS":   "my-server.games.svc",
+		"BACKING_SERVICE_PORTS": "game:25565",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "PLAYIT_TUNNEL_NAME") {
+		t.Errorf("loadConfig() error = %v, want it to mention PLAYIT_TUNNEL_NAME", err)
+	}
+}
+
+func TestLoadConfigPlayitMissingBackingServicePorts(t *testing.T) {
+	_, err := loadConfig(stubEnv(map[string]string{
+		"GAMESERVER_NAME":      "my-server",
+		"GAMESERVER_NAMESPACE": "games",
+		"TUNNEL_TYPE":          "playit",
+		"PLAYIT_TUNNEL_NAME":   "my-tunnel",
+		"BACKING_SERVICE_DNS":  "my-server.games.svc",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "BACKING_SERVICE_PORTS") {
+		t.Errorf("loadConfig() error = %v, want it to mention BACKING_SERVICE_PORTS", err)
+	}
+}
+
 func TestLoadConfigUnsupportedTunnelType(t *testing.T) {
 	_, err := loadConfig(stubEnv(map[string]string{
 		"GAMESERVER_NAME":      "my-server",
@@ -259,6 +312,20 @@ func TestRenderFrpConfig(t *testing.T) {
 	}
 	if !strings.Contains(content, "localIP = \"my-server.games.svc\"") {
 		t.Errorf("config missing backing service DNS")
+	}
+}
+
+func TestRenderFrpConfigInvalidPortMapping(t *testing.T) {
+	cfg := Config{
+		FrpServerAddr:      "frp.example.com",
+		FrpServerPort:      7000,
+		BackingServiceDNS:  "my-server.games.svc",
+		BackingServicePort: "not-a-valid-mapping",
+	}
+
+	_, err := renderFrpConfig(cfg, "token")
+	if err == nil || !strings.Contains(err.Error(), "invalid port mapping") {
+		t.Errorf("renderFrpConfig() error = %v, want invalid port mapping error", err)
 	}
 }
 
@@ -404,6 +471,13 @@ func TestRenderConfigDispatchesByType(t *testing.T) {
 	}
 }
 
+func TestRenderConfigUnknownType(t *testing.T) {
+	_, err := renderConfig(Config{TunnelType: "bogus"}, "cred")
+	if err == nil || !strings.Contains(err.Error(), "unknown tunnel type") {
+		t.Errorf("renderConfig() error = %v, want unknown tunnel type error", err)
+	}
+}
+
 // -----------------------------------------------------------------------
 // readCredentials tests
 // -----------------------------------------------------------------------
@@ -524,68 +598,12 @@ func TestEscapeTomlString(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------
-// relayBinaryDefault / validateRelayBinary tests
-// -----------------------------------------------------------------------
-
-func TestRelayBinaryDefault(t *testing.T) {
-	tests := []struct {
-		tunnelType string
-		want       string
-	}{
-		{"frp", "/usr/local/bin/frpc"},
-		{"tailscale", "/usr/local/bin/tailscaled"},
-		{"playit", "/usr/local/bin/playitd"},
-		{"unknown", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.tunnelType, func(t *testing.T) {
-			got := relayBinaryDefault(tt.tunnelType)
-			if got != tt.want {
-				t.Errorf("relayBinaryDefault(%q) = %q, want %q", tt.tunnelType, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestValidateRelayBinary(t *testing.T) {
-	tests := []struct {
-		name       string
-		tunnelType string
-		path       string
-		wantPath   string
-		wantErr    bool
-	}{
-		{"frp allowed", "frp", "/usr/local/bin/frpc", "/usr/local/bin/frpc", false},
-		{"tailscale allowed", "tailscale", "/usr/local/bin/tailscaled", "/usr/local/bin/tailscaled", false},
-		{"playit allowed", "playit", "/usr/local/bin/playitd", "/usr/local/bin/playitd", false},
-		{"cleaned path still matches", "frp", "/usr/local/bin/../bin/frpc", "/usr/local/bin/frpc", false},
-		{"wrong binary for provider", "frp", "/usr/local/bin/tailscaled", "", true},
-		{"arbitrary path rejected", "frp", "/tmp/evil", "", true},
-		{"relative path rejected", "frp", "frpc", "", true},
-		{"unknown tunnel type", "bogus", "/usr/local/bin/frpc", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := validateRelayBinary(tt.tunnelType, tt.path)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("validateRelayBinary(%q, %q) error = %v, wantErr %v", tt.tunnelType, tt.path, err, tt.wantErr)
-			}
-			if !tt.wantErr && got != tt.wantPath {
-				t.Errorf("validateRelayBinary(%q, %q) = %q, want %q", tt.tunnelType, tt.path, got, tt.wantPath)
-			}
-		})
-	}
-}
-
-// -----------------------------------------------------------------------
 // buildCommand tests
 // -----------------------------------------------------------------------
 
 func TestBuildCommandFrp(t *testing.T) {
 	cfg := Config{TunnelType: "frp"}
-	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/frpc", "/tmp/frpc.toml")
+	cmd := buildCommand(context.Background(), cfg)
 	if cmd == nil {
 		t.Fatal("buildCommand() returned nil")
 	}
@@ -594,7 +612,7 @@ func TestBuildCommandFrp(t *testing.T) {
 	}
 	// frpc's real config flag, confirmed against fatedier/frp's
 	// cmd/frpc/sub/root.go, is "-c"/"--config".
-	wantArgs := []string{"/usr/local/bin/frpc", "-c", "/tmp/frpc.toml"}
+	wantArgs := []string{"/usr/local/bin/frpc", "-c", frpConfigPath}
 	if !equalArgs(cmd.Args, wantArgs) {
 		t.Errorf("Args = %v, want %v", cmd.Args, wantArgs)
 	}
@@ -602,14 +620,14 @@ func TestBuildCommandFrp(t *testing.T) {
 
 func TestBuildCommandPlayit(t *testing.T) {
 	cfg := Config{TunnelType: "playit"}
-	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/playitd", "/tmp/playit-secret")
+	cmd := buildCommand(context.Background(), cfg)
 	if cmd == nil {
 		t.Fatal("buildCommand() returned nil")
 	}
 	// playitd (not playit-cli) takes --secret-path and --platform-docker,
 	// confirmed against playit-cloud/playit-agent's playitd.rs and its
 	// official Dockerfile/entrypoint.sh.
-	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", "/tmp/playit-secret", "--platform-docker"}
+	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", playitSecretPath, "--platform-docker"}
 	if !equalArgs(cmd.Args, wantArgs) {
 		t.Errorf("Args = %v, want %v", cmd.Args, wantArgs)
 	}
@@ -617,7 +635,7 @@ func TestBuildCommandPlayit(t *testing.T) {
 
 func TestBuildCommandTailscale(t *testing.T) {
 	cfg := Config{TunnelType: "tailscale", TailscaleHostname: "my-game"}
-	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/tailscaled", "/tmp/tailscaled-config.json")
+	cmd := buildCommand(context.Background(), cfg)
 	if cmd == nil {
 		t.Fatal("buildCommand() returned nil")
 	}
@@ -631,8 +649,8 @@ func TestBuildCommandTailscale(t *testing.T) {
 	// Hostname and auth key travel via the declarative --config file (see
 	// tailscaledConfig / renderTailscaleConfig), not a flag or env var:
 	// tailscaled has no --hostname flag and does not read TS_AUTHKEY itself.
-	if !containsArg(cmd.Args, "--config=/tmp/tailscaled-config.json") {
-		t.Errorf("Args = %v, missing --config=/tmp/tailscaled-config.json", cmd.Args)
+	if !containsArg(cmd.Args, "--config="+tailscaleConfigPath) {
+		t.Errorf("Args = %v, missing --config=%s", cmd.Args, tailscaleConfigPath)
 	}
 	if containsArg(cmd.Args, "--hostname=my-game") {
 		t.Errorf("Args = %v, should not pass --hostname (not a real tailscaled flag)", cmd.Args)
@@ -644,7 +662,7 @@ func TestBuildCommandTailscale(t *testing.T) {
 
 func TestBuildCommandUnknownType(t *testing.T) {
 	cfg := Config{TunnelType: "bogus"}
-	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/frpc", "")
+	cmd := buildCommand(context.Background(), cfg)
 	if cmd != nil {
 		t.Errorf("buildCommand() for unknown type = %v, want nil", cmd)
 	}
@@ -774,16 +792,25 @@ func TestRunContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	// With a cancelled context, run should return nil (clean shutdown) even
-	// though it never gets far enough to actually exec anything -- pass ""
-	// so it resolves to the (allow-listed) default frpc binary rather than
-	// failing relay-binary validation first.
-	err := run(ctx, cfg, "")
+	// though it never gets far enough to actually exec anything: the loop's
+	// first ctx.Done() check fires before buildCommand is ever called.
+	err := run(ctx, cfg)
 	if err != nil {
 		t.Errorf("run with cancelled context = %v, want nil", err)
 	}
 }
 
-func TestRunUnrecoverableError(t *testing.T) {
+// TestRunTransientFailureBacksOffThenCancels drives run() past its initial
+// setup and into the supervision loop for real: buildCommand's relay binary
+// (/usr/local/bin/frpc) does not exist on the machine running this test (no
+// relay binaries are installed outside the shipped container image), so
+// runCommand's cmd.Start() deterministically fails with "no such file or
+// directory" -- a real, safe, side-effect-free exec attempt, not a mock.
+// That's treated as a transient failure (it doesn't match isUnrecoverable's
+// permission-denied/exit-126/127 patterns), so run() computes a backoff
+// delay (1s) and sleeps; the short context timeout here fires well before
+// that delay elapses, exercising the backoff select's ctx.Done() case.
+func TestRunTransientFailureBacksOffThenCancels(t *testing.T) {
 	tmpdir := t.TempDir()
 	withCredentialsDir(t, tmpdir)
 	if err := os.WriteFile(filepath.Join(tmpdir, "token"), []byte("test-token"), 0o600); err != nil {
@@ -803,14 +830,34 @@ func TestRunUnrecoverableError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// A relay-binary override outside the allow-list must be rejected before
-	// run() ever tries to exec anything.
-	err := run(ctx, cfg, "/nonexistent/path/binary")
-	if err == nil {
-		t.Error("run with a non-allow-listed relay binary should return an error")
+	err := run(ctx, cfg)
+	if err != nil {
+		t.Errorf("run() = %v, want nil (clean shutdown once the context times out)", err)
 	}
-	if !strings.Contains(err.Error(), "relay binary") {
-		t.Errorf("run() error = %v, want it to mention relay binary validation", err)
+}
+
+func TestRunRenderConfigFailure(t *testing.T) {
+	tmpdir := t.TempDir()
+	withCredentialsDir(t, tmpdir)
+	if err := os.WriteFile(filepath.Join(tmpdir, "token"), []byte("test-token"), 0o600); err != nil {
+		t.Fatalf("write test credential: %v", err)
+	}
+
+	cfg := Config{
+		GameServerName:      "test",
+		GameServerNamespace: "games",
+		TunnelType:          "frp",
+		FrpServerAddr:       "localhost",
+		FrpServerPort:       7000,
+		BackingServiceDNS:   "test.games.svc",
+		// Not a "name:port" pair, so renderFrpConfig fails before run() ever
+		// reaches the supervision loop.
+		BackingServicePort: "not-a-valid-mapping",
+	}
+
+	err := run(context.Background(), cfg)
+	if err == nil || !strings.Contains(err.Error(), "render config") {
+		t.Errorf("run() error = %v, want a render-config error", err)
 	}
 }
 
@@ -826,7 +873,7 @@ func TestRunReadCredentialsFailure(t *testing.T) {
 		BackingServicePorts: "game:25565",
 	}
 
-	err := run(context.Background(), cfg, "")
+	err := run(context.Background(), cfg)
 	if err == nil || !strings.Contains(err.Error(), "read credentials") {
 		t.Errorf("run() error = %v, want a read-credentials error", err)
 	}
@@ -849,13 +896,72 @@ func TestRunPlayitConfigDispatch(t *testing.T) {
 	}
 
 	// Cancel up front: run() should still walk readCredentials -> renderConfig
-	// -> relay binary resolution for the playit branch before observing the
-	// cancellation, and return cleanly.
+	// for the playit branch before observing the cancellation, and return
+	// cleanly.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := run(ctx, cfg, "")
+	err := run(ctx, cfg)
 	if err != nil {
 		t.Errorf("run() for playit with cancelled context = %v, want nil", err)
+	}
+}
+
+// -----------------------------------------------------------------------
+// runCommand tests
+//
+// These use real, standard Linux utilities (true/false/sleep) rather than
+// the provider relay binaries: runCommand itself is provider-agnostic, and
+// exercising it directly with well-known, always-present system binaries
+// lets these assert real process-exit and cancellation behavior without
+// touching any gosec-relevant exec call in main.go (this file is exempt
+// from gosec per .golangci.yml, and none of these paths are variable
+// binaries the production code would ever pass through).
+// -----------------------------------------------------------------------
+
+func TestRunCommandSuccess(t *testing.T) {
+	cmd := exec.CommandContext(context.Background(), "true")
+	if err := runCommand(context.Background(), cmd); err != nil {
+		t.Errorf("runCommand() = %v, want nil", err)
+	}
+}
+
+func TestRunCommandNonZeroExit(t *testing.T) {
+	cmd := exec.CommandContext(context.Background(), "false")
+	err := runCommand(context.Background(), cmd)
+	if err == nil {
+		t.Error("runCommand() = nil, want a non-zero-exit error")
+	}
+}
+
+func TestRunCommandStartError(t *testing.T) {
+	cmd := exec.CommandContext(context.Background(), "/nonexistent/binary/gameplane-tunnel-test")
+	err := runCommand(context.Background(), cmd)
+	if err == nil || !strings.Contains(err.Error(), "start relay") {
+		t.Errorf("runCommand() error = %v, want a start-relay error", err)
+	}
+}
+
+func TestRunCommandContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "sleep", "5")
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	err := runCommand(ctx, cmd)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("runCommand() error = %v, want context.Canceled", err)
+	}
+	// cmd.Cancel sends SIGTERM (see runCommand), which "sleep" honors
+	// immediately, so this should return well before the 5s sleep would
+	// have finished on its own and well before the 10s WaitDelay fallback.
+	if elapsed > 4*time.Second {
+		t.Errorf("runCommand() took %v after cancellation, want well under the sleep's 5s duration", elapsed)
 	}
 }
