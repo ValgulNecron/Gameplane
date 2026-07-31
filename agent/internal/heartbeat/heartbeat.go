@@ -143,11 +143,14 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 	// -2). null/absent is the contract for "unknown" — a JSON merge patch
 	// with null clears any prior value. playersMax stays null when the game
 	// reports an online count but no maximum, so the dashboard shows "—"
-	// rather than a bogus cap of 0. playersMax is known when maxN != 0:
-	// -1 for unlimited (custom regex), or positive for a finite limit.
+	// rather than a bogus cap of 0.
 	if online, maxN, err := queryPlayerCounts(cfg); err == nil {
 		agent["playersOnline"] = online
-		agent["playersMax"] = nullable(int64(maxN), maxN != 0)
+		// Status patch: playersMax is only emitted when maxN > 0 (a real
+		// finite limit). Unknown (maxN=0) and unlimited (maxN=-1) both patch
+		// to null, since -1 is an internal metric-only sentinel and the
+		// dashboard must distinguish "unknown" from "no limit".
+		agent["playersMax"] = nullable(int64(maxN), maxN > 0)
 		// Update metrics with player counts. maxN is emitted when known: -1 for
 		// unlimited, positive for a finite limit. Absent (PlayersMaxKnown=false)
 		// when unknown (maxN=0).
