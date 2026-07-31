@@ -139,7 +139,6 @@ func shareReq(t *testing.T, h http.Handler, method, path string, body any, user 
 // TestShareCreateReturnsTokenOnce verifies that the token is returned in the
 // create response but never in list responses.
 func TestShareCreateReturnsTokenOnce(t *testing.T) {
-	t.Parallel()
 	store := newTestStore(t)
 	ownerID := insertShareTestUser(t, store, "owner-create")
 	reg := kube.NewRegistry("local")
@@ -182,7 +181,6 @@ func TestShareCreateReturnsTokenOnce(t *testing.T) {
 // and returns the server's public view, going through the real handler and
 // cluster resolution (the path that a `reg.Get("")` bug would 404 on).
 func TestShareResolveValidToken(t *testing.T) {
-	t.Parallel()
 	store := newTestStore(t)
 	ownerID := insertShareTestUser(t, store, "owner-resolve")
 	reg := kube.NewRegistry("local")
@@ -236,7 +234,6 @@ func TestShareResolveValidToken(t *testing.T) {
 // handler (not just the getPublicAddress helper directly), that a
 // private/tailnet-only endpoint is never handed to an anonymous caller.
 func TestShareResolvePrivateEndpointOmitted(t *testing.T) {
-	t.Parallel()
 	store := newTestStore(t)
 	ownerID := insertShareTestUser(t, store, "owner-private")
 	reg := kube.NewRegistry("local")
@@ -270,7 +267,6 @@ func TestShareResolvePrivateEndpointOmitted(t *testing.T) {
 // TestShareResolveInvalidToken verifies that unknown, expired, and revoked
 // tokens are indistinguishable: identical status code AND identical body.
 func TestShareResolveInvalidToken(t *testing.T) {
-	t.Parallel()
 	store := newTestStore(t)
 	ownerID := insertShareTestUser(t, store, "owner-invalid")
 	reg := kube.NewRegistry("local")
@@ -331,7 +327,6 @@ func TestShareResolveInvalidToken(t *testing.T) {
 // 404 as an invalid token (not 403, not a distinguishable body), while
 // canStart=true wakes the server by stamping the idle-wake annotation.
 func TestShareStartCanStartGate(t *testing.T) {
-	t.Parallel()
 	store := newTestStore(t)
 	ownerID := insertShareTestUser(t, store, "owner-start")
 	reg := kube.NewRegistry("local")
@@ -380,6 +375,7 @@ func TestShareStartCanStartGate(t *testing.T) {
 // TestSharePublicPayloadSafe verifies that the public response contains no
 // forbidden fields (no namespace, cluster, version, owner, etc.).
 func TestSharePublicPayloadSafe(t *testing.T) {
+	t.Parallel()
 	// Create a mock GameServer object with all possible fields.
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -476,6 +472,7 @@ func TestSharePublicPayloadSafe(t *testing.T) {
 // TestSharePrivateEndpointNotReturned verifies that private/tailnet-only endpoints
 // are never returned to anonymous callers.
 func TestSharePrivateEndpointNotReturned(t *testing.T) {
+	t.Parallel()
 	// Create a mock server with only private endpoints.
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -532,7 +529,6 @@ func TestSharePrivateEndpointNotReturned(t *testing.T) {
 // link, and that revocation actually takes effect: the token stops
 // resolving afterwards.
 func TestShareRevokeOwnerOnly(t *testing.T) {
-	t.Parallel()
 	store := newTestStore(t)
 	ownerID := insertShareTestUser(t, store, "owner-revoke")
 	strangerID := insertShareTestUser(t, store, "stranger-revoke")
