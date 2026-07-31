@@ -608,26 +608,30 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 				}
 			}
 
-			if err := a.insertChained(req.Context(), ts, actor, req.Method, req.URL.Path, target, rw.status, clientIP); err != nil {
+			// Redact share link tokens from the path for audit logging.
+			// Share tokens are credentials; record the request structure without the token.
+			path := redactShareToken(req.URL.Path)
+
+			if err := a.insertChained(req.Context(), ts, actor, req.Method, path, target, rw.status, clientIP); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",
-					"err", err, "actor", actor, "method", req.Method, "path", req.URL.Path)
+					"err", err, "actor", actor, "method", req.Method, "path", path)
 			}
 			if a.sink != nil {
 				a.sink.Info("audit",
-					"actor", actor, "method", req.Method, "path", req.URL.Path,
+					"actor", actor, "method", req.Method, "path", path,
 					"target", target, "status", rw.status, "ip", clientIP)
 			}
 			if a.webhook != nil {
 				a.webhook.Enqueue(Event{
-					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
+					TS: ts, Actor: actor, Method: req.Method, Path: path,
 					Target: target, Status: rw.status, IP: clientIP,
 				})
 			}
 			if a.s3 != nil {
 				a.s3.Enqueue(Event{
-					TS: ts, Actor: actor, Method: req.Method, Path: req.URL.Path,
+					TS: ts, Actor: actor, Method: req.Method, Path: path,
 					Target: target, Status: rw.status, IP: clientIP,
 				})
 			}
@@ -649,6 +653,25 @@ func shouldLog(req *http.Request) bool {
 		return false
 	}
 	return true
+}
+
+// redactShareToken replaces the share link token in paths like /shares/{token}
+// and /shares/{token}/start with a placeholder, so audit logs record the
+// request structure without exposing the credential.
+func redactShareToken(path string) string {
+	if !strings.HasPrefix(path, "/shares/") {
+		return path
+	}
+	// Extract everything after /shares/ (the token and any trailing path).
+	rest := strings.TrimPrefix(path, "/shares/")
+	// Find the first / to separate token from trailing path.
+	slashIdx := strings.IndexByte(rest, '/')
+	if slashIdx < 0 {
+		// No trailing path, just /shares/{token}
+		return "/shares/<token>"
+	}
+	// /shares/{token}/something — preserve the trailing path
+	return "/shares/<token>" + rest[slashIdx:]
 }
 
 type responseRecorder struct {
