@@ -73,9 +73,9 @@ describe("NetworkingSection tunnel configuration", () => {
     const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select Tailscale provider
-    const tailscaleButton = await screen.findByRole("button", { name: "Tailscale" });
-    await user.click(tailscaleButton);
+    // Select Tailscale provider (a native <select>, not a button)
+    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
+    await user.selectOptions(providerSelect, "Tailscale");
 
     // Check for warning
     await waitFor(() => {
@@ -124,9 +124,9 @@ describe("NetworkingSection tunnel configuration", () => {
     const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select playit provider
-    const playitButton = await screen.findByRole("button", { name: "playit.gg" });
-    await user.click(playitButton);
+    // Select playit provider (a native <select>, not a button)
+    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
+    await user.selectOptions(providerSelect, "playit.gg");
 
     // Check for playit-specific note
     await waitFor(() => {
@@ -169,6 +169,13 @@ describe("NetworkingSection tunnel configuration", () => {
     // Enable tunnel
     const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
+
+    // Select Tailscale so credentials are the only thing this test needs to
+    // fill in — frp additionally requires a server address and a port
+    // mapping, which would keep Save disabled for reasons unrelated to what
+    // this test is checking.
+    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
+    await user.selectOptions(providerSelect, "Tailscale");
 
     // Check that validation error is shown
     await waitFor(() => {
@@ -315,9 +322,9 @@ describe("NetworkingSection tunnel configuration", () => {
     const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select Tailscale provider
-    const tailscaleButton = await screen.findByRole("button", { name: "Tailscale" });
-    await user.click(tailscaleButton);
+    // Select Tailscale provider (a native <select>, not a button)
+    const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
+    await user.selectOptions(providerSelect, "Tailscale");
 
     // Fill in credentials secret only
     const secretInput = screen.getByPlaceholderText("tunnel-secret");

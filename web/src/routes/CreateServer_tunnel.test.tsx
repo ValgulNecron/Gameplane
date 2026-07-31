@@ -101,15 +101,31 @@ describe("CreateServerWizard tunnel configuration", () => {
     await user.type(nameInput, "test-server");
     await user.click(screen.getByRole("button", { name: /Continue/i }));
 
-    // Enable tunnel and select provider
+    // Enable tunnel (defaults to frp) and fill the fields frp requires
     const tunnelToggle = screen.getByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
+    const credsInput = screen.getByTestId("tunnel-credentials-input") as HTMLInputElement;
+    await user.type(credsInput, "my-creds");
+
+    const addrInput = screen.getByTestId("frp-server-addr") as HTMLInputElement;
+    await user.type(addrInput, "relay.example.com");
+
+    const addBtn = screen.getByTestId("tunnel-port-add");
+    await user.click(addBtn);
+
+    const nameField = screen.getByTestId("tunnel-port-name-0") as HTMLInputElement;
+    await user.type(nameField, "game");
+
+    const portField = screen.getByTestId("tunnel-port-number-0") as HTMLInputElement;
+    await user.clear(portField);
+    await user.type(portField, "25565");
+
     // Continue to Review
-    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(screen.getByRole("button", { name: /Continue to Review/i }));
 
     // Check review shows tunnel
-    expect(screen.getByText("Tunnel")).toBeInTheDocument();
+    expect(screen.getByText("Tunnel provider")).toBeInTheDocument();
     expect(screen.getByText("frp")).toBeInTheDocument();
   });
 
@@ -237,7 +253,7 @@ describe("CreateServerWizard tunnel configuration", () => {
     // Try to continue - should be blocked because no port mappings
     const continueBtn = screen.getByRole("button", { name: /Continue to Review/i });
     expect(continueBtn).toBeDisabled();
-    expect(screen.getByText(/frp requires at least one port mapping/)).toBeInTheDocument();
+    expect(screen.getByText(/frp requires at least one complete port mapping/)).toBeInTheDocument();
   });
 
   it("includes complete frp tunnel config in create payload with credentialsSecretRef and frp block", async () => {

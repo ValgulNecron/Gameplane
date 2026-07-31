@@ -21,7 +21,7 @@ describe("OverviewTab tunnel connection", () => {
     });
     renderWithQuery(<OverviewTab gs={gs} name="test-server" />);
     expect(screen.getByText("frp tunnel")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("tunnel.example.com")).toBeInTheDocument();
+    expect(screen.getByText("tunnel.example.com")).toBeInTheDocument();
   });
 
   it("displays Tailnet warning badge when Tailscale endpoint is private", async () => {
@@ -63,7 +63,7 @@ describe("OverviewTab tunnel connection", () => {
     renderWithQuery(<OverviewTab gs={gs} name="test-server" />);
     expect(screen.getByText("Cluster address")).toBeInTheDocument();
     // The cluster address should still be visible
-    expect(screen.getByDisplayValue("10.0.0.5")).toBeInTheDocument();
+    expect(screen.getByText("10.0.0.5")).toBeInTheDocument();
   });
 
   it("shows waiting message when tunnel is awaiting address", async () => {
@@ -132,7 +132,7 @@ describe("OverviewTab tunnel connection", () => {
     // Should not have tunnel provider label
     expect(screen.queryByText("frp tunnel")).not.toBeInTheDocument();
     expect(screen.queryByText("tailscale tunnel")).not.toBeInTheDocument();
-    expect(screen.getByDisplayValue("mc.internal")).toBeInTheDocument();
+    expect(screen.getByText("mc.internal")).toBeInTheDocument();
   });
 
   it("has copy button for tunnel endpoint", async () => {

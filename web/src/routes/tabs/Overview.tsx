@@ -82,6 +82,13 @@ export function OverviewTab({
   );
   const endpoints = status.endpoints ?? [];
   const primary = endpoints[0];
+  // The operator prepends tunnel endpoints ahead of the cluster-native ones
+  // (see gameserver_status.go), so when a tunnel is active `endpoints[0]` is
+  // the tunnel endpoint — the cluster address is the first entry after it
+  // that isn't itself tunnel-provided.
+  const clusterEndpoint = primary?.tunnelProvider
+    ? endpoints.find((e) => !e.tunnelProvider)
+    : primary;
   const tunnelReady = status.conditions?.find((c) => c.type === "TunnelReady");
 
   return (
@@ -190,7 +197,7 @@ export function OverviewTab({
                   <div className="border-t border-border pt-3">
                     <div className="text-xs text-muted mb-3">Cluster address</div>
                     <InfoRow label="Host">
-                      <span className="truncate font-mono">{endpoints[0]?.host ?? "—"}</span>
+                      <span className="truncate font-mono">{clusterEndpoint?.host ?? "—"}</span>
                     </InfoRow>
                   </div>
                 </>

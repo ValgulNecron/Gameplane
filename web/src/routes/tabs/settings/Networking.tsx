@@ -202,7 +202,7 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                   <Field label="Server port" hint="frp server port (default 7000).">
                     <Input
                       type="number"
-                      value={tunnel.frp?.serverPort ?? ""}
+                      value={tunnel.frp?.serverPort ?? 7000}
                       onChange={(e) =>
                         setNet({
                           ...net,
