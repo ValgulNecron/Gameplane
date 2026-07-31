@@ -9,21 +9,26 @@
 //   - Env: GAMESERVER_NAME, GAMESERVER_NAMESPACE, TUNNEL_TYPE (frp|tailscale|playit).
 //   - frp: FRP_SERVER_ADDR, FRP_SERVER_PORT, BACKING_SERVICE_DNS, BACKING_SERVICE_PORT.
 //   - tailscale: TAILSCALE_HOSTNAME, TAILSCALE_TAGS, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS.
-//   - playit: PLAYIT_TUNNEL_NAME, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS.
+//   - playit: PLAYIT_TUNNEL_NAME, BACKING_SERVICE_DNS, BACKING_SERVICE_PORTS. Validated for the
+//     operator contract (and as a label for the future playit address-discovery reporter, see the
+//     TODO on renderConfig below), but NOT passed to playitd: playitd has no local config file for
+//     port forwards -- those are managed against the account tied to the secret key via the
+//     playit.gg dashboard/API, not by this supervisor.
 //   - Credentials Secret is mounted read-only at /etc/gameplane/tunnel-auth.
 //   - Credential key names: frp uses "token", tailscale uses "authKey", playit uses "secretKey".
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,6 +42,39 @@ var Version = "dev"
 const (
 	tunnelAuthMountDir = "/etc/gameplane/tunnel-auth"
 )
+
+// credentialsDir is the directory holding the mounted Secret's credential
+// files. It defaults to the real mount point; it is a package-level
+// variable, rather than a constant, solely so tests can repoint it at a
+// t.TempDir() and exercise readCredentials' real success/error paths
+// without depending on the container filesystem. Production code never
+// changes it from tunnelAuthMountDir.
+var credentialsDir = tunnelAuthMountDir
+
+// allowedRelayBinaries is the closed set of relay binary paths the
+// supervisor is permitted to exec, keyed by TUNNEL_TYPE. This defends
+// against a poisoned -relay-binary flag (or future env-driven override)
+// causing the supervisor to exec an arbitrary path.
+// Note on "playit": the daemon binary is playitd (confirmed against
+// playit-cloud/playit-agent's own Dockerfile, which installs it at exactly
+// this path and execs it in the foreground as "playitd --secret ...
+// --platform-docker"). playit-cli (historically installed here as "playit")
+// is a *service manager* around playitd -- it has no flag to run a tunnel
+// in the foreground under this file's exec+Wait supervision model, so it is
+// not a viable relayBinary for this supervisor.
+var allowedRelayBinaries = map[string]string{
+	"frp":       "/usr/local/bin/frpc",
+	"tailscale": "/usr/local/bin/tailscaled",
+	"playit":    "/usr/local/bin/playitd",
+}
+
+// allowedCredentialKeys is the closed set of credential file names the
+// supervisor will read, keyed by TUNNEL_TYPE.
+var allowedCredentialKeys = map[string]string{
+	"frp":       "token",
+	"tailscale": "authKey",
+	"playit":    "secretKey",
+}
 
 func main() {
 	relayBinary := flag.String("relay-binary", "", "path to the relay binary (defaults per provider)")
@@ -187,6 +225,10 @@ func run(ctx context.Context, cfg Config, relayBinaryOverride string) error {
 	if relayBinary == "" {
 		relayBinary = relayBinaryDefault(cfg.TunnelType)
 	}
+	relayBinary, err = validateRelayBinary(cfg.TunnelType, relayBinary)
+	if err != nil {
+		return fmt.Errorf("relay binary: %w", err)
+	}
 
 	// Supervise the relay process with exponential backoff on exit.
 	backoff := &exponentialBackoff{}
@@ -197,7 +239,7 @@ func run(ctx context.Context, cfg Config, relayBinaryOverride string) error {
 		default:
 		}
 
-		cmd := buildCommand(cfg, relayBinary, configFile, creds)
+		cmd := buildCommand(ctx, cfg, relayBinary, configFile)
 		log.Printf("starting %s relay process", cfg.TunnelType)
 
 		err := runCommand(ctx, cmd)
@@ -228,19 +270,22 @@ func run(ctx context.Context, cfg Config, relayBinaryOverride string) error {
 
 // readCredentials reads the provider's credential from the mounted Secret directory.
 func readCredentials(cfg Config) (string, error) {
-	var keyName string
-	switch cfg.TunnelType {
-	case "frp":
-		keyName = "token"
-	case "tailscale":
-		keyName = "authKey"
-	case "playit":
-		keyName = "secretKey"
-	default:
+	keyName, ok := allowedCredentialKeys[cfg.TunnelType]
+	if !ok {
 		return "", fmt.Errorf("unknown tunnel type: %q", cfg.TunnelType)
 	}
 
-	path := fmt.Sprintf("%s/%s", tunnelAuthMountDir, keyName)
+	dir := filepath.Clean(credentialsDir)
+	path := filepath.Join(dir, keyName)
+
+	// Defense in depth: keyName is drawn from the closed set above, but
+	// confirm the resolved path did not escape the mount directory before
+	// opening it, so a variable can never be used to read an arbitrary file.
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", fmt.Errorf("credential path %q escapes mount directory %q", path, dir)
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		// Don't log the file contents; log only the path.
@@ -262,9 +307,9 @@ func renderConfig(cfg Config, credential string) (string, error) {
 	case "frp":
 		return renderFrpConfig(cfg, credential)
 	case "tailscale":
-		return renderTailscaleConfig(cfg, credential)
+		return renderTailscaleConfig(cfg.TailscaleHostname, credential)
 	case "playit":
-		return renderPlayitConfig(cfg, credential)
+		return renderPlayitConfig(credential)
 	default:
 		return "", fmt.Errorf("unknown tunnel type: %q", cfg.TunnelType)
 	}
@@ -276,7 +321,10 @@ func renderFrpConfig(cfg Config, token string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create frpc config file: %w", err)
 	}
-	defer f.Close()
+	path := f.Name()
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close frpc config file: %w", err)
+	}
 
 	// Build the frpc config: server address/port, auth token, and per-port proxies.
 	config := fmt.Sprintf(`
@@ -310,71 +358,91 @@ remotePort = %s
 `, name, cfg.BackingServiceDNS, port, port)
 	}
 
-	if _, err := f.WriteString(config); err != nil {
+	if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
 		return "", fmt.Errorf("write frpc config: %w", err)
 	}
 
-	return f.Name(), nil
+	return path, nil
 }
 
-// renderTailscaleConfig generates a Tailscale config/auth setup.
-// For Tailscale, we write the auth key to a temporary file that tailscaled
-// can read during initialization.
-func renderTailscaleConfig(cfg Config, authKey string) (string, error) {
-	f, err := os.CreateTemp("", "tailscale-auth-*")
-	if err != nil {
-		return "", fmt.Errorf("create tailscale auth file: %w", err)
-	}
-	defer f.Close()
-
-	// Tailscale expects the auth key to be written to a file.
-	// The tailscaled daemon reads this during startup and clears it afterward.
-	if _, err := f.WriteString(authKey); err != nil {
-		return "", fmt.Errorf("write tailscale auth key: %w", err)
-	}
-
-	return f.Name(), nil
+// tailscaledConfig mirrors (the subset we use of) tailscaled's own
+// ConfigVAlpha struct (ipn/conf.go in tailscale/tailscale), consumed via
+// `tailscaled --config=<path>`. This is tailscaled's documented declarative
+// config file (https://tailscale.com/docs/reference/tailscaled/tailescaled-config-file);
+// "alpha0" is the only version value it currently accepts, and the docs
+// note the schema may still change. It is what lets a bare `tailscaled`
+// process (no containerboot, no separate `tailscale up`) authenticate and
+// set its hostname in a single exec: containerboot's TS_AUTHKEY env var and
+// `tailscale up --hostname=` are containerboot/CLI conveniences that build
+// on top of this same mechanism, but neither is read by tailscaled itself,
+// which is why the previous TS_AUTHKEY env var and --hostname flag here
+// were both no-ops (the latter would have made tailscaled reject the flag
+// and exit immediately).
+type tailscaledConfig struct {
+	Version  string `json:"version"`
+	AuthKey  string `json:"authKey,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
 }
 
-// renderPlayitConfig generates a playit config file.
-func renderPlayitConfig(cfg Config, secretKey string) (string, error) {
-	f, err := os.CreateTemp("", "playit-*.toml")
+// renderTailscaleConfig generates tailscaled's declarative config file
+// (see tailscaledConfig) containing the auth key and, if set, the hostname.
+func renderTailscaleConfig(hostname, authKey string) (string, error) {
+	cfg := tailscaledConfig{
+		Version:  "alpha0",
+		AuthKey:  authKey,
+		Hostname: hostname,
+	}
+	data, err := json.Marshal(cfg)
 	if err != nil {
-		return "", fmt.Errorf("create playit config file: %w", err)
-	}
-	defer f.Close()
-
-	// Build the playit config with the secret key and port mappings.
-	config := fmt.Sprintf(`
-secretKey = "%s"
-tunnelName = "%s"
-`, escapeTomlString(secretKey), escapeTomlString(cfg.PlayitTunnelName))
-
-	// Parse BACKING_SERVICE_PORTS format: "name:port,name:port,..."
-	for _, entry := range strings.Split(cfg.BackingServicePorts, ",") {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		parts := strings.Split(entry, ":")
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid port mapping: %q", entry)
-		}
-		name := strings.TrimSpace(parts[0])
-		port := strings.TrimSpace(parts[1])
-
-		config += fmt.Sprintf(`
-[[portForward]]
-name = "%s"
-localPort = %s
-`, escapeTomlString(name), port)
+		return "", fmt.Errorf("marshal tailscaled config: %w", err)
 	}
 
-	if _, err := f.WriteString(config); err != nil {
-		return "", fmt.Errorf("write playit config: %w", err)
+	f, err := os.CreateTemp("", "tailscaled-config-*.json")
+	if err != nil {
+		return "", fmt.Errorf("create tailscaled config file: %w", err)
+	}
+	path := f.Name()
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close tailscaled config file: %w", err)
 	}
 
-	return f.Name(), nil
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return "", fmt.Errorf("write tailscaled config: %w", err)
+	}
+
+	return path, nil
+}
+
+// renderPlayitConfig writes the secret key to a file for playitd's
+// --secret-path flag.
+//
+// playitd (confirmed against playit-cloud/playit-agent's own source: the
+// playitd CLI in packages/playitd/src/bin/playitd.rs takes only --secret,
+// --secret-path, --socket-path, --log-path, --platform-docker, and
+// --version-overrides) has no local config file for port forwards or a
+// tunnel name -- those are configured against the account tied to this
+// secret key via the playit.gg dashboard/API, not by this supervisor. The
+// PlayitTunnelName and BackingServicePorts fields on Config are
+// intentionally not used here; see the package doc comment.
+//
+// --secret-path (rather than passing the key inline via --secret) is used
+// so the secret never appears in the process's argv, which is readable by
+// anything that can see /proc/<pid>/cmdline in the pod.
+func renderPlayitConfig(secretKey string) (string, error) {
+	f, err := os.CreateTemp("", "playit-secret-*")
+	if err != nil {
+		return "", fmt.Errorf("create playit secret file: %w", err)
+	}
+	path := f.Name()
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("close playit secret file: %w", err)
+	}
+
+	if err := os.WriteFile(path, []byte(secretKey), 0o600); err != nil {
+		return "", fmt.Errorf("write playit secret: %w", err)
+	}
+
+	return path, nil
 }
 
 // escapeTomlString escapes special characters in a TOML string value.
@@ -390,67 +458,97 @@ func escapeTomlString(s string) string {
 
 // relayBinaryDefault returns the default path for a relay binary by provider.
 func relayBinaryDefault(tunnelType string) string {
-	switch tunnelType {
-	case "frp":
-		return "/usr/local/bin/frpc"
-	case "tailscale":
-		return "/usr/local/bin/tailscaled"
-	case "playit":
-		return "/usr/local/bin/playit"
-	default:
-		return ""
-	}
+	return allowedRelayBinaries[tunnelType]
 }
 
-// buildCommand constructs the command to run the relay process.
-// For tailscale, the credential (auth key) must be passed via TS_AUTHKEY env var.
-func buildCommand(cfg Config, relayBinary, configFile, credential string) *exec.Cmd {
+// validateRelayBinary confirms path is the expected, allow-listed relay
+// binary for tunnelType, rejecting anything else. This is what stands
+// between a poisoned -relay-binary flag and an arbitrary exec: since the
+// supervisor only ever needs to run one of three known binaries, there is
+// no legitimate case where the resolved path should be anything else.
+func validateRelayBinary(tunnelType, path string) (string, error) {
+	want, ok := allowedRelayBinaries[tunnelType]
+	if !ok {
+		return "", fmt.Errorf("unknown tunnel type: %q", tunnelType)
+	}
+	clean := filepath.Clean(path)
+	if clean != want {
+		return "", fmt.Errorf("relay binary %q is not the allowed path for provider %q (want %q)", path, tunnelType, want)
+	}
+	return clean, nil
+}
+
+// buildCommand constructs the command to run the relay process. All three
+// providers take their secret via the rendered configFile (see
+// renderConfig) rather than a raw credential argument here -- frpc's TOML
+// embeds the token, tailscaled's declarative config JSON embeds the auth
+// key and hostname, and playitd's --secret-path points straight at the
+// secret file -- so buildCommand itself never needs the raw credential.
+//
+// The command is tied to ctx so cancellation stops the child (see
+// runCommand, which overrides the default Cancel behavior to signal
+// SIGTERM rather than SIGKILL).
+func buildCommand(ctx context.Context, cfg Config, relayBinary, configFile string) *exec.Cmd {
 	switch cfg.TunnelType {
 	case "frp":
-		return exec.Command(relayBinary, "-c", configFile)
+		// Confirmed against fatedier/frp's cmd/frpc/sub/root.go: "-c"/"--config"
+		// is frpc's real config-file flag.
+		return exec.CommandContext(ctx, relayBinary, "-c", configFile)
 	case "tailscale":
 		// Tailscale uses tailscaled (daemon) with flags rather than a config file.
 		// The pod's hardened securityContext (no NET_ADMIN, no /dev/net/tun device)
 		// requires userspace networking mode via --tun=userspace-networking flag.
-		cmd := exec.Command(relayBinary, "--tun=userspace-networking", "--state=/tmp/tailscale.state")
-		// Pass the auth key to tailscaled via the TS_AUTHKEY environment variable.
-		cmd.Env = append(os.Environ(), "TS_AUTHKEY="+credential)
-		return cmd
+		// --config points at the declarative config file (see tailscaledConfig)
+		// carrying the auth key and hostname. All three flags confirmed against
+		// tailscale/tailscale's cmd/tailscaled/tailscaled.go flag definitions.
+		return exec.CommandContext(ctx, relayBinary,
+			"--tun=userspace-networking",
+			"--state=/tmp/tailscale.state",
+			"--config="+configFile,
+		)
 	case "playit":
-		return exec.Command(relayBinary, "-c", configFile)
+		// Confirmed against playit-cloud/playit-agent's packages/playitd/src/bin/playitd.rs
+		// and its own Dockerfile/docker/entrypoint.sh, which exec exactly this
+		// (playitd --secret ... --platform-docker) as the foreground process in
+		// their official container image.
+		return exec.CommandContext(ctx, relayBinary, "--secret-path", configFile, "--platform-docker")
 	default:
 		return nil
 	}
 }
 
 // runCommand executes the relay command and waits for it to exit or ctx to cancel.
+//
+// cmd must have been built with exec.CommandContext against the same ctx
+// (see buildCommand). By default that arranges to SIGKILL the child the
+// instant ctx is done; that's too abrupt for a relay process, so this
+// overrides Cancel to send SIGTERM instead and gives it WaitDelay to exit
+// cleanly before exec falls back to a hard kill.
 func runCommand(ctx context.Context, cmd *exec.Cmd) error {
 	// Inherit stdio so relay logs flow through to the pod's stdout/stderr.
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
+	cmd.WaitDelay = 10 * time.Second
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start relay: %w", err)
 	}
 
-	// Wait for either the process to exit or ctx to cancel.
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		// Context cancelled; send SIGTERM to the child process and wait for it.
-		if cmd.Process != nil {
-			_ = cmd.Process.Signal(syscall.SIGTERM)
-		}
-		<-done // Wait for the process to actually exit after SIGTERM.
+	err := cmd.Wait()
+	if ctx.Err() != nil {
+		// Context was cancelled; cmd.Cancel already signalled the child and
+		// exec.Cmd waited (up to WaitDelay) for it to exit.
 		return ctx.Err()
 	}
+	return err
 }
 
 // isUnrecoverable reports whether an error is unrecoverable (e.g., bad config,
@@ -485,12 +583,17 @@ func (b *exponentialBackoff) next() time.Duration {
 	defer b.mu.Unlock()
 	b.retries++
 
-	// Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 5 minutes + jitter.
+	// Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 5 minutes.
+	//
+	// No jitter: jitter exists to spread out a thundering herd of many
+	// replicas reconnecting to the same endpoint at once. This supervisor
+	// runs as a single-replica Deployment per GameServer talking to its own
+	// dedicated relay connection, so there's no herd here to spread out,
+	// and adding one would only make restart timing less predictable to
+	// operators reading logs.
 	base := 1 << uint(b.retries-1)
 	if base > 300 {
 		base = 300
 	}
-	// Add jitter: ±10% to avoid thundering herd on mass restart.
-	jitter := time.Duration(rand.Intn(base/5 + 1))
-	return time.Duration(base)*time.Second + jitter - time.Duration(base/10)*time.Second
+	return time.Duration(base) * time.Second
 }

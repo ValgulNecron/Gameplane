@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -290,12 +291,7 @@ func TestRenderFrpConfigMultiplePorts(t *testing.T) {
 }
 
 func TestRenderTailscaleConfig(t *testing.T) {
-	cfg := Config{
-		TailscaleHostname: "my-game",
-		TailscaleTags:     "tag:gameplane",
-	}
-
-	path, err := renderTailscaleConfig(cfg, "test-auth-key")
+	path, err := renderTailscaleConfig("my-game", "test-auth-key")
 	if err != nil {
 		t.Fatalf("renderTailscaleConfig() error = %v", err)
 	}
@@ -306,20 +302,20 @@ func TestRenderTailscaleConfig(t *testing.T) {
 		t.Fatalf("read config file: %v", err)
 	}
 
-	if string(data) != "test-auth-key" {
-		t.Errorf("tailscale auth file content = %q, want %q", string(data), "test-auth-key")
+	var got tailscaledConfig
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("tailscaled config file is not valid JSON: %v (content: %s)", err, data)
+	}
+	want := tailscaledConfig{Version: "alpha0", AuthKey: "test-auth-key", Hostname: "my-game"}
+	if got != want {
+		t.Errorf("tailscaled config = %+v, want %+v", got, want)
 	}
 }
 
-func TestRenderPlayitConfig(t *testing.T) {
-	cfg := Config{
-		PlayitTunnelName:    "my-tunnel",
-		BackingServicePorts: "game:25565,query:19133",
-	}
-
-	path, err := renderPlayitConfig(cfg, "test-secret-key")
+func TestRenderTailscaleConfigNoHostname(t *testing.T) {
+	path, err := renderTailscaleConfig("", "test-auth-key")
 	if err != nil {
-		t.Fatalf("renderPlayitConfig() error = %v", err)
+		t.Fatalf("renderTailscaleConfig() error = %v", err)
 	}
 	defer os.Remove(path)
 
@@ -328,18 +324,36 @@ func TestRenderPlayitConfig(t *testing.T) {
 		t.Fatalf("read config file: %v", err)
 	}
 
-	content := string(data)
-	if !strings.Contains(content, "secretKey = \"test-secret-key\"") {
-		t.Errorf("config missing secretKey")
+	var got tailscaledConfig
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("tailscaled config file is not valid JSON: %v", err)
 	}
-	if !strings.Contains(content, "tunnelName = \"my-tunnel\"") {
-		t.Errorf("config missing tunnelName")
+	if got.Hostname != "" {
+		t.Errorf("Hostname = %q, want empty", got.Hostname)
 	}
-	if !strings.Contains(content, "name = \"game\"") {
-		t.Errorf("config missing game port")
+	if got.AuthKey != "test-auth-key" {
+		t.Errorf("AuthKey = %q, want %q", got.AuthKey, "test-auth-key")
 	}
-	if !strings.Contains(content, "name = \"query\"") {
-		t.Errorf("config missing query port")
+}
+
+// TestRenderPlayitConfig covers what renderPlayitConfig actually does: write
+// the raw secret to a file for playitd's --secret-path flag. playitd has no
+// local config file for tunnel name or port forwards (see the function's
+// doc comment), so there is nothing else to assert here.
+func TestRenderPlayitConfig(t *testing.T) {
+	path, err := renderPlayitConfig("test-secret-key")
+	if err != nil {
+		t.Fatalf("renderPlayitConfig() error = %v", err)
+	}
+	defer os.Remove(path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read secret file: %v", err)
+	}
+
+	if string(data) != "test-secret-key" {
+		t.Errorf("playit secret file content = %q, want %q", string(data), "test-secret-key")
 	}
 }
 
@@ -394,20 +408,56 @@ func TestRenderConfigDispatchesByType(t *testing.T) {
 // readCredentials tests
 // -----------------------------------------------------------------------
 
-func TestReadCredentialsFromFile(t *testing.T) {
-	tmpdir := t.TempDir()
+// withCredentialsDir repoints the package-level credentialsDir var at dir
+// for the duration of the test, restoring the original afterward. This is
+// what lets readCredentials be exercised end-to-end without touching the
+// real /etc/gameplane/tunnel-auth mount.
+func withCredentialsDir(t *testing.T, dir string) {
+	t.Helper()
+	orig := credentialsDir
+	credentialsDir = dir
+	t.Cleanup(func() { credentialsDir = orig })
+}
 
-	// Create a mock credentials directory
-	credPath := filepath.Join(tmpdir, "authKey")
-	if err := os.WriteFile(credPath, []byte("test-auth-key"), 0o600); err != nil {
-		t.Fatalf("write test credential: %v", err)
+func TestReadCredentialsSuccess(t *testing.T) {
+	tests := []struct {
+		tunnelType string
+		keyName    string
+	}{
+		{"frp", "token"},
+		{"tailscale", "authKey"},
+		{"playit", "secretKey"},
 	}
 
-	// Temporarily override tunnelAuthMountDir (can't be done from the test,
-	// so we test the logic directly by testing readCredentials behavior).
-	// This test verifies the error path when the credential file is missing.
-	cfg := Config{TunnelType: "tailscale"}
-	_, err := readCredentials(cfg)
+	for _, tt := range tests {
+		t.Run(tt.tunnelType, func(t *testing.T) {
+			tmpdir := t.TempDir()
+			withCredentialsDir(t, tmpdir)
+
+			credPath := filepath.Join(tmpdir, tt.keyName)
+			// Leading/trailing whitespace should be trimmed, as it commonly
+			// is when a Secret value ends in a trailing newline.
+			if err := os.WriteFile(credPath, []byte("  test-value\n"), 0o600); err != nil {
+				t.Fatalf("write test credential: %v", err)
+			}
+
+			got, err := readCredentials(Config{TunnelType: tt.tunnelType})
+			if err != nil {
+				t.Fatalf("readCredentials() error = %v", err)
+			}
+			if got != "test-value" {
+				t.Errorf("readCredentials() = %q, want %q", got, "test-value")
+			}
+		})
+	}
+}
+
+func TestReadCredentialsMissingFile(t *testing.T) {
+	tmpdir := t.TempDir() // empty; no credential files written
+
+	withCredentialsDir(t, tmpdir)
+
+	_, err := readCredentials(Config{TunnelType: "tailscale"})
 	if err == nil || !strings.Contains(err.Error(), "read credential") {
 		t.Errorf("readCredentials() error = %v, want credential read error", err)
 	}
@@ -423,19 +473,26 @@ func TestReadCredentialsKeyNames(t *testing.T) {
 		{"playit", "secretKey"},
 	}
 
+	tmpdir := t.TempDir() // empty; every lookup below is expected to fail
+	withCredentialsDir(t, tmpdir)
+
 	for _, tt := range tests {
 		t.Run(tt.tunnelType, func(t *testing.T) {
-			cfg := Config{TunnelType: tt.tunnelType}
-			// We expect this to fail (file not found in test), but verify
-			// the error mentions the expected key name.
-			_, err := readCredentials(cfg)
+			_, err := readCredentials(Config{TunnelType: tt.tunnelType})
 			if err == nil {
-				t.Skip("test environment does not have mounted credentials")
+				t.Fatal("expected error for missing credential file")
 			}
 			if !strings.Contains(err.Error(), tt.expectedKey) {
 				t.Errorf("error should mention key name %q, got %v", tt.expectedKey, err)
 			}
 		})
+	}
+}
+
+func TestReadCredentialsUnknownTunnelType(t *testing.T) {
+	_, err := readCredentials(Config{TunnelType: "bogus"})
+	if err == nil || !strings.Contains(err.Error(), "unknown tunnel type") {
+		t.Errorf("readCredentials() error = %v, want unknown tunnel type error", err)
 	}
 }
 
@@ -467,7 +524,7 @@ func TestEscapeTomlString(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------
-// relayBinaryDefault tests
+// relayBinaryDefault / validateRelayBinary tests
 // -----------------------------------------------------------------------
 
 func TestRelayBinaryDefault(t *testing.T) {
@@ -477,7 +534,7 @@ func TestRelayBinaryDefault(t *testing.T) {
 	}{
 		{"frp", "/usr/local/bin/frpc"},
 		{"tailscale", "/usr/local/bin/tailscaled"},
-		{"playit", "/usr/local/bin/playit"},
+		{"playit", "/usr/local/bin/playitd"},
 		{"unknown", ""},
 	}
 
@@ -489,6 +546,138 @@ func TestRelayBinaryDefault(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateRelayBinary(t *testing.T) {
+	tests := []struct {
+		name       string
+		tunnelType string
+		path       string
+		wantPath   string
+		wantErr    bool
+	}{
+		{"frp allowed", "frp", "/usr/local/bin/frpc", "/usr/local/bin/frpc", false},
+		{"tailscale allowed", "tailscale", "/usr/local/bin/tailscaled", "/usr/local/bin/tailscaled", false},
+		{"playit allowed", "playit", "/usr/local/bin/playitd", "/usr/local/bin/playitd", false},
+		{"cleaned path still matches", "frp", "/usr/local/bin/../bin/frpc", "/usr/local/bin/frpc", false},
+		{"wrong binary for provider", "frp", "/usr/local/bin/tailscaled", "", true},
+		{"arbitrary path rejected", "frp", "/tmp/evil", "", true},
+		{"relative path rejected", "frp", "frpc", "", true},
+		{"unknown tunnel type", "bogus", "/usr/local/bin/frpc", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := validateRelayBinary(tt.tunnelType, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateRelayBinary(%q, %q) error = %v, wantErr %v", tt.tunnelType, tt.path, err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.wantPath {
+				t.Errorf("validateRelayBinary(%q, %q) = %q, want %q", tt.tunnelType, tt.path, got, tt.wantPath)
+			}
+		})
+	}
+}
+
+// -----------------------------------------------------------------------
+// buildCommand tests
+// -----------------------------------------------------------------------
+
+func TestBuildCommandFrp(t *testing.T) {
+	cfg := Config{TunnelType: "frp"}
+	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/frpc", "/tmp/frpc.toml")
+	if cmd == nil {
+		t.Fatal("buildCommand() returned nil")
+	}
+	if cmd.Path != "/usr/local/bin/frpc" {
+		t.Errorf("Path = %q, want %q", cmd.Path, "/usr/local/bin/frpc")
+	}
+	// frpc's real config flag, confirmed against fatedier/frp's
+	// cmd/frpc/sub/root.go, is "-c"/"--config".
+	wantArgs := []string{"/usr/local/bin/frpc", "-c", "/tmp/frpc.toml"}
+	if !equalArgs(cmd.Args, wantArgs) {
+		t.Errorf("Args = %v, want %v", cmd.Args, wantArgs)
+	}
+}
+
+func TestBuildCommandPlayit(t *testing.T) {
+	cfg := Config{TunnelType: "playit"}
+	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/playitd", "/tmp/playit-secret")
+	if cmd == nil {
+		t.Fatal("buildCommand() returned nil")
+	}
+	// playitd (not playit-cli) takes --secret-path and --platform-docker,
+	// confirmed against playit-cloud/playit-agent's playitd.rs and its
+	// official Dockerfile/entrypoint.sh.
+	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", "/tmp/playit-secret", "--platform-docker"}
+	if !equalArgs(cmd.Args, wantArgs) {
+		t.Errorf("Args = %v, want %v", cmd.Args, wantArgs)
+	}
+}
+
+func TestBuildCommandTailscale(t *testing.T) {
+	cfg := Config{TunnelType: "tailscale", TailscaleHostname: "my-game"}
+	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/tailscaled", "/tmp/tailscaled-config.json")
+	if cmd == nil {
+		t.Fatal("buildCommand() returned nil")
+	}
+
+	// The pod has no NET_ADMIN and no /dev/net/tun, so tailscaled must run in
+	// userspace-networking mode -- this is load-bearing, not a style choice.
+	// Confirmed against tailscale/tailscale's cmd/tailscaled/tailscaled.go flags.
+	if !containsArg(cmd.Args, "--tun=userspace-networking") {
+		t.Errorf("Args = %v, missing --tun=userspace-networking", cmd.Args)
+	}
+	// Hostname and auth key travel via the declarative --config file (see
+	// tailscaledConfig / renderTailscaleConfig), not a flag or env var:
+	// tailscaled has no --hostname flag and does not read TS_AUTHKEY itself.
+	if !containsArg(cmd.Args, "--config=/tmp/tailscaled-config.json") {
+		t.Errorf("Args = %v, missing --config=/tmp/tailscaled-config.json", cmd.Args)
+	}
+	if containsArg(cmd.Args, "--hostname=my-game") {
+		t.Errorf("Args = %v, should not pass --hostname (not a real tailscaled flag)", cmd.Args)
+	}
+	if containsEnv(cmd.Env, "TS_AUTHKEY=test-auth-key") {
+		t.Errorf("Env = %v, should not set TS_AUTHKEY (bare tailscaled does not read it)", cmd.Env)
+	}
+}
+
+func TestBuildCommandUnknownType(t *testing.T) {
+	cfg := Config{TunnelType: "bogus"}
+	cmd := buildCommand(context.Background(), cfg, "/usr/local/bin/frpc", "")
+	if cmd != nil {
+		t.Errorf("buildCommand() for unknown type = %v, want nil", cmd)
+	}
+}
+
+func equalArgs(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func containsArg(args []string, want string) bool {
+	for _, a := range args {
+		if a == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEnv(env []string, want string) bool {
+	for _, e := range env {
+		if e == want {
+			return true
+		}
+	}
+	return false
 }
 
 // -----------------------------------------------------------------------
@@ -565,6 +754,12 @@ func TestIsUnrecoverable(t *testing.T) {
 // -----------------------------------------------------------------------
 
 func TestRunContextCancellation(t *testing.T) {
+	tmpdir := t.TempDir()
+	withCredentialsDir(t, tmpdir)
+	if err := os.WriteFile(filepath.Join(tmpdir, "token"), []byte("test-token"), 0o600); err != nil {
+		t.Fatalf("write test credential: %v", err)
+	}
+
 	cfg := Config{
 		GameServerName:      "test",
 		GameServerNamespace: "games",
@@ -578,14 +773,23 @@ func TestRunContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	// With a cancelled context, run should return nil (clean shutdown).
-	err := run(ctx, cfg, "nonexistent-binary")
+	// With a cancelled context, run should return nil (clean shutdown) even
+	// though it never gets far enough to actually exec anything -- pass ""
+	// so it resolves to the (allow-listed) default frpc binary rather than
+	// failing relay-binary validation first.
+	err := run(ctx, cfg, "")
 	if err != nil {
 		t.Errorf("run with cancelled context = %v, want nil", err)
 	}
 }
 
 func TestRunUnrecoverableError(t *testing.T) {
+	tmpdir := t.TempDir()
+	withCredentialsDir(t, tmpdir)
+	if err := os.WriteFile(filepath.Join(tmpdir, "token"), []byte("test-token"), 0o600); err != nil {
+		t.Fatalf("write test credential: %v", err)
+	}
+
 	cfg := Config{
 		GameServerName:      "test",
 		GameServerNamespace: "games",
@@ -599,9 +803,59 @@ func TestRunUnrecoverableError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// Pointing to a binary that doesn't exist (exit 127: command not found).
+	// A relay-binary override outside the allow-list must be rejected before
+	// run() ever tries to exec anything.
 	err := run(ctx, cfg, "/nonexistent/path/binary")
 	if err == nil {
-		t.Error("run with nonexistent binary should return an error")
+		t.Error("run with a non-allow-listed relay binary should return an error")
+	}
+	if !strings.Contains(err.Error(), "relay binary") {
+		t.Errorf("run() error = %v, want it to mention relay binary validation", err)
+	}
+}
+
+func TestRunReadCredentialsFailure(t *testing.T) {
+	withCredentialsDir(t, t.TempDir()) // empty dir; no credential file present
+
+	cfg := Config{
+		GameServerName:      "test",
+		GameServerNamespace: "games",
+		TunnelType:          "tailscale",
+		TailscaleHostname:   "my-game",
+		BackingServiceDNS:   "test.games.svc",
+		BackingServicePorts: "game:25565",
+	}
+
+	err := run(context.Background(), cfg, "")
+	if err == nil || !strings.Contains(err.Error(), "read credentials") {
+		t.Errorf("run() error = %v, want a read-credentials error", err)
+	}
+}
+
+func TestRunPlayitConfigDispatch(t *testing.T) {
+	tmpdir := t.TempDir()
+	withCredentialsDir(t, tmpdir)
+	if err := os.WriteFile(filepath.Join(tmpdir, "secretKey"), []byte("test-secret"), 0o600); err != nil {
+		t.Fatalf("write test credential: %v", err)
+	}
+
+	cfg := Config{
+		GameServerName:      "test",
+		GameServerNamespace: "games",
+		TunnelType:          "playit",
+		PlayitTunnelName:    "my-tunnel",
+		BackingServiceDNS:   "test.games.svc",
+		BackingServicePorts: "game:25565",
+	}
+
+	// Cancel up front: run() should still walk readCredentials -> renderConfig
+	// -> relay binary resolution for the playit branch before observing the
+	// cancellation, and return cleanly.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := run(ctx, cfg, "")
+	if err != nil {
+		t.Errorf("run() for playit with cancelled context = %v, want nil", err)
 	}
 }

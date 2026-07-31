@@ -24,8 +24,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS playit-stage
 ARG PLAYIT_VERSION=1.0.10
 ARG TARGETARCH
-ARG PLAYIT_SHA256_amd64=6fd54d147ae1d3232b22c1c1f4aa3d13cf16d889e840ca2d3f90b4f50a2e7301
-ARG PLAYIT_SHA256_aarch64=b126b4164c03838598c8f33f209d76f6acf1c257d07900c0af2d461b9647099f
+ARG PLAYIT_SHA256_amd64=2df7d9f10227ab312b1ad341853db4e8a8243df5cfcdbae58713a4271711c339
+ARG PLAYIT_SHA256_aarch64=4c0db3e7b3a8158e249441c2f0b73f54e83429395890c7b1ca45fd7a6303d763
 
 RUN apk add --no-cache curl
 WORKDIR /tmp
@@ -37,16 +37,16 @@ RUN mkdir -p /out && \
       PLAYIT_ARCH="amd64"; \
       PLAYIT_SHA256="$PLAYIT_SHA256_amd64"; \
     fi && \
-    curl -fsSL "https://github.com/playit-cloud/playit-agent/releases/download/v${PLAYIT_VERSION}/playit-cli-linux-${PLAYIT_ARCH}" \
+    curl -fsSL "https://github.com/playit-cloud/playit-agent/releases/download/v${PLAYIT_VERSION}/playit-linux-${PLAYIT_ARCH}" \
     -o playit && \
     echo "${PLAYIT_SHA256}  playit" | sha256sum -c - && \
-    mv playit /out/playit && \
-    chmod +x /out/playit
+    mv playit /out/playitd && \
+    chmod +x /out/playitd
 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=build /out/tunnel /tunnel
-COPY --from=playit-stage /out/playit /usr/local/bin/playit
+COPY --from=playit-stage /out/playitd /usr/local/bin/playitd
 USER 65532:65532
 EXPOSE 25565/tcp 25565/udp
 ENTRYPOINT ["/tunnel"]
