@@ -339,7 +339,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			return
 		}
 
-		obj, err := k.Dynamic.Resource(kube.GVRs["servers"]).
+		_, err = k.Dynamic.Resource(kube.GVRs["servers"]).
 			Namespace(link.Namespace).
 			Get(req.Context(), link.ServerName, metav1.GetOptions{})
 		if err != nil {
