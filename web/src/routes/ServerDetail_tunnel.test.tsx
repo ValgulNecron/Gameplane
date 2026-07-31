@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
-import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
 import { makeServer } from "@/test/factories";
 import type { GameServer } from "@/types";

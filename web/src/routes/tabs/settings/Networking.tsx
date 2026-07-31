@@ -23,6 +23,7 @@ const TUNNEL_PROVIDER_OPTIONS: { value: "frp" | "tailscale" | "playit"; label: s
 
 export function NetworkingSection({ draft, onChange, onValidityChange }: SectionProps) {
   const net = draft.spec.networking ?? {};
+  const tunnel = net.tunnel;
   const [validityError, setValidityError] = useState<string | null>(null);
 
   const setNet = (next: GameServerNetworking) => {
@@ -50,7 +51,6 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
 
   // Compute tunnel configuration validity.
   useEffect(() => {
-    const tunnel = net.tunnel;
     if (!tunnel?.enabled) {
       // Tunnel not enabled, no validation needed.
       setValidityError(null);
@@ -114,12 +114,12 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={net.tunnel?.enabled ?? false}
+                  checked={tunnel?.enabled ?? false}
                   onChange={(e) => {
-                    const tunnel: GameServerTunnel | undefined = e.target.checked
-                      ? { enabled: true, provider: net.tunnel?.provider ?? "frp" }
+                    const newTunnel: GameServerTunnel | undefined = e.target.checked
+                      ? { enabled: true, provider: tunnel?.provider ?? "frp" }
                       : undefined;
-                    setNet({ ...net, tunnel });
+                    setNet({ ...net, tunnel: newTunnel });
                   }}
                   className="h-4 w-4 rounded border border-border bg-surface accent-primary"
                 />
@@ -131,22 +131,22 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
             </div>
           </div>
 
-          {net.tunnel?.enabled && (
+          {tunnel?.enabled && tunnel && (
             <div className="space-y-4 rounded-lg border border-border bg-surface/40 p-4">
               <Field label="Provider" hint="">
                 <Select
-                  value={net.tunnel.provider}
+                  value={tunnel.provider}
                   options={TUNNEL_PROVIDER_OPTIONS}
                   onValueChange={(v) =>
                     setNet({
                       ...net,
-                      tunnel: { ...net.tunnel!, provider: v as "frp" | "tailscale" | "playit" },
+                      tunnel: { ...tunnel, provider: v as "frp" | "tailscale" | "playit" },
                     })
                   }
                 />
               </Field>
 
-              {net.tunnel.provider === "tailscale" && (
+              {tunnel.provider === "tailscale" && (
                 <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
                   <div className="flex gap-2">
                     <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
@@ -162,12 +162,12 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
 
               <Field label="Credentials Secret" hint="Name of a Kubernetes Secret holding tunnel credentials (never a value).">
                 <Input
-                  value={net.tunnel.credentialsSecretRef?.name ?? ""}
+                  value={tunnel.credentialsSecretRef?.name ?? ""}
                   onChange={(e) =>
                     setNet({
                       ...net,
                       tunnel: {
-                        ...net.tunnel!,
+                        ...tunnel,
                         credentialsSecretRef: e.target.value ? { name: e.target.value } : undefined,
                       },
                     })
@@ -177,20 +177,20 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                 />
               </Field>
 
-              {net.tunnel.provider === "frp" && (
+              {tunnel.provider === "frp" && (
                 <>
                   <Field label="Server address" hint="frp server address.">
                     <Input
-                      value={net.tunnel.frp?.serverAddr ?? ""}
+                      value={tunnel.frp?.serverAddr ?? ""}
                       onChange={(e) =>
                         setNet({
                           ...net,
                           tunnel: {
-                            ...net.tunnel!,
+                            ...tunnel,
                             frp: {
-                              ...net.tunnel.frp!,
+                              ...tunnel.frp!,
                               serverAddr: e.target.value,
-                              remotePorts: net.tunnel.frp?.remotePorts ?? [],
+                              remotePorts: tunnel.frp?.remotePorts ?? [],
                             },
                           },
                         })
@@ -202,17 +202,17 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                   <Field label="Server port" hint="frp server port (default 7000).">
                     <Input
                       type="number"
-                      value={net.tunnel.frp?.serverPort ?? ""}
+                      value={tunnel.frp?.serverPort ?? ""}
                       onChange={(e) =>
                         setNet({
                           ...net,
                           tunnel: {
-                            ...net.tunnel!,
+                            ...tunnel,
                             frp: {
-                              ...net.tunnel.frp!,
-                              serverAddr: net.tunnel.frp?.serverAddr ?? "",
+                              ...tunnel.frp!,
+                              serverAddr: tunnel.frp?.serverAddr ?? "",
                               serverPort: e.target.value ? Number(e.target.value) : undefined,
-                              remotePorts: net.tunnel.frp?.remotePorts ?? [],
+                              remotePorts: tunnel.frp?.remotePorts ?? [],
                             },
                           },
                         })
@@ -226,15 +226,15 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                     <div className="pt-1 text-xs text-muted">Name and remote port for each game port.</div>
                     <div className="pt-2">
                       <FrpPortMappingEditor
-                        values={net.tunnel.frp?.remotePorts ?? []}
+                        values={tunnel.frp?.remotePorts ?? []}
                         onChange={(v) =>
                           setNet({
                             ...net,
                             tunnel: {
-                              ...net.tunnel!,
+                              ...tunnel,
                               frp: {
-                                serverAddr: net.tunnel.frp?.serverAddr ?? "",
-                                serverPort: net.tunnel.frp?.serverPort,
+                                serverAddr: tunnel.frp?.serverAddr ?? "",
+                                serverPort: tunnel.frp?.serverPort,
                                 remotePorts: v,
                               },
                             },
@@ -246,20 +246,20 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                 </>
               )}
 
-              {net.tunnel.provider === "tailscale" && (
+              {tunnel.provider === "tailscale" && (
                 <>
                   <Field label="Hostname" hint="Hostname in your tailnet (optional).">
                     <Input
-                      value={net.tunnel.tailscale?.hostname ?? ""}
+                      value={tunnel.tailscale?.hostname ?? ""}
                       onChange={(e) =>
                         setNet({
                           ...net,
                           tunnel: {
-                            ...net.tunnel!,
+                            ...tunnel,
                             tailscale: {
-                              ...net.tunnel.tailscale,
+                              ...tunnel.tailscale,
                               hostname: e.target.value || undefined,
-                              tags: net.tunnel.tailscale?.tags,
+                              tags: tunnel.tailscale?.tags,
                             },
                           },
                         })
@@ -270,14 +270,14 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                   </Field>
                   <Field label="Tags" hint="Comma-separated tags (optional).">
                     <Input
-                      value={(net.tunnel.tailscale?.tags ?? []).join(", ")}
+                      value={(tunnel.tailscale?.tags ?? []).join(", ")}
                       onChange={(e) =>
                         setNet({
                           ...net,
                           tunnel: {
-                            ...net.tunnel!,
+                            ...tunnel,
                             tailscale: {
-                              hostname: net.tunnel.tailscale?.hostname,
+                              hostname: tunnel.tailscale?.hostname,
                               tags: e.target.value
                                 ? e.target.value
                                     .split(",")
@@ -295,15 +295,15 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                 </>
               )}
 
-              {net.tunnel.provider === "playit" && (
+              {tunnel.provider === "playit" && (
                 <Field label="Tunnel name" hint="Name of the tunnel on playit.gg.">
                   <Input
-                    value={net.tunnel.playit?.tunnelName ?? ""}
+                    value={tunnel.playit?.tunnelName ?? ""}
                     onChange={(e) =>
                       setNet({
                         ...net,
                         tunnel: {
-                          ...net.tunnel!,
+                          ...tunnel,
                           playit: {
                             tunnelName: e.target.value || undefined,
                           },
