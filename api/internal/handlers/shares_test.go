@@ -485,7 +485,7 @@ func TestSharePrivateEndpointNotReturned(t *testing.T) {
 					map[string]interface{}{
 						"name":     "tailscale",
 						"host":     "gameplane-srv.user.ts.net",
-						"port":     25565,
+						"port":     int64(25565),
 						"private":  true,
 						"protocol": "TCP",
 					},
@@ -505,14 +505,14 @@ func TestSharePrivateEndpointNotReturned(t *testing.T) {
 		map[string]interface{}{
 			"name":     "tailscale",
 			"host":     "gameplane-srv.user.ts.net",
-			"port":     25565,
+			"port":     int64(25565),
 			"private":  true,
 			"protocol": "TCP",
 		},
 		map[string]interface{}{
 			"name":           "tunnel",
 			"host":           "play.example.com",
-			"port":           25565,
+			"port":           int64(25565),
 			"private":        false,
 			"protocol":       "TCP",
 			"tunnelProvider": "frp",
