@@ -92,7 +92,7 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     const isValid = errors.length === 0;
     setValidityError(isValid ? null : errors[0]);
     onValidityChange?.(isValid);
-  }, [net.tunnel, onValidityChange]);
+  }, [tunnel, onValidityChange]);
 
   return (
     <div className="space-y-6">
@@ -188,8 +188,8 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                           tunnel: {
                             ...tunnel,
                             frp: {
-                              ...tunnel.frp!,
                               serverAddr: e.target.value,
+                              serverPort: tunnel.frp?.serverPort,
                               remotePorts: tunnel.frp?.remotePorts ?? [],
                             },
                           },
@@ -209,7 +209,6 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                           tunnel: {
                             ...tunnel,
                             frp: {
-                              ...tunnel.frp!,
                               serverAddr: tunnel.frp?.serverAddr ?? "",
                               serverPort: e.target.value ? Number(e.target.value) : undefined,
                               remotePorts: tunnel.frp?.remotePorts ?? [],
@@ -315,7 +314,7 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                   />
                 </Field>
               )}
-              {net.tunnel.provider === "playit" && (
+              {tunnel.provider === "playit" && (
                 <div className="rounded-md border-l-4 border-info bg-info/10 p-3 text-sm">
                   <div className="text-xs font-medium text-info">
                     Public address assigned at runtime
