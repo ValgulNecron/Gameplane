@@ -69,7 +69,7 @@ func (s *Store) CreateShareLink(ctx context.Context, ns, serverName string, crea
 	if canStart {
 		canStartInt = 1
 	}
-	_, err := s.DB.ExecContext(ctx,
+	_, err = s.DB.ExecContext(ctx,
 		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, ns, serverName, createdBy, canStartInt, tokenHash, expiresAt.Format(time.RFC3339))
