@@ -1,9 +1,9 @@
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
-import { useState } from "react";
-import type { Expose, GameServerNetworking } from "@/types";
+import { X, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { Expose, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
@@ -15,8 +15,15 @@ const EXPOSE_OPTIONS: { value: Expose; label: string }[] = [
   { value: "Hostport", label: "Hostport" },
 ];
 
-export function NetworkingSection({ draft, onChange }: SectionProps) {
+const TUNNEL_PROVIDER_OPTIONS: { value: "frp" | "tailscale" | "playit"; label: string }[] = [
+  { value: "frp", label: "frp" },
+  { value: "tailscale", label: "Tailscale" },
+  { value: "playit", label: "playit.gg" },
+];
+
+export function NetworkingSection({ draft, onChange, onValidityChange }: SectionProps) {
   const net = draft.spec.networking ?? {};
+  const [validityError, setValidityError] = useState<string | null>(null);
 
   const setNet = (next: GameServerNetworking) => {
     const cleaned: GameServerNetworking = {};
@@ -31,6 +38,7 @@ export function NetworkingSection({ draft, onChange }: SectionProps) {
     if (next.sourceRanges && next.sourceRanges.length) {
       cleaned.sourceRanges = next.sourceRanges;
     }
+    if (next.tunnel) cleaned.tunnel = next.tunnel;
     onChange({
       ...draft,
       spec: {
@@ -40,15 +48,295 @@ export function NetworkingSection({ draft, onChange }: SectionProps) {
     });
   };
 
+  // Compute tunnel configuration validity.
+  useEffect(() => {
+    const tunnel = net.tunnel;
+    if (!tunnel?.enabled) {
+      // Tunnel not enabled, no validation needed.
+      setValidityError(null);
+      onValidityChange?.(true);
+      return;
+    }
+
+    // Tunnel is enabled — check required fields.
+    const errors: string[] = [];
+
+    // Credentials secret is always required.
+    if (!tunnel.credentialsSecretRef?.name) {
+      errors.push("Credentials Secret name is required");
+    }
+
+    // Provider-specific validation.
+    if (tunnel.provider === "frp") {
+      if (!tunnel.frp?.serverAddr) {
+        errors.push("Server address is required for frp");
+      }
+      const ports = tunnel.frp?.remotePorts ?? [];
+      if (ports.length === 0) {
+        errors.push("At least one port mapping is required for frp");
+      } else {
+        // Check each port mapping is valid.
+        for (let i = 0; i < ports.length; i++) {
+          const p = ports[i];
+          if (!p.name) {
+            errors.push(`Port mapping ${i + 1}: name is required`);
+          }
+          if (!p.remotePort || p.remotePort < 1 || p.remotePort > 65535) {
+            errors.push(`Port mapping ${i + 1}: remote port must be 1–65535`);
+          }
+        }
+      }
+    }
+    // tailscale and playit have no additional required fields beyond credentials.
+
+    const isValid = errors.length === 0;
+    setValidityError(isValid ? null : errors[0]);
+    onValidityChange?.(isValid);
+  }, [net.tunnel, onValidityChange]);
+
   return (
     <div className="space-y-6">
-      <Field label="Expose" hint="Service type fronting the game pod.">
+      <Field
+        label="Expose"
+        hint="Service type fronting the game pod. Still applies when a tunnel is enabled.">
         <Select
           value={net.expose ?? "ClusterIP"}
           options={EXPOSE_OPTIONS}
           onValueChange={(v) => setNet({ ...net, expose: v as Expose })}
         />
       </Field>
+
+      {/* Tunnel section */}
+      <div className="border-t border-border pt-6">
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={net.tunnel?.enabled ?? false}
+                  onChange={(e) => {
+                    const tunnel: GameServerTunnel | undefined = e.target.checked
+                      ? { enabled: true, provider: net.tunnel?.provider ?? "frp" }
+                      : undefined;
+                    setNet({ ...net, tunnel });
+                  }}
+                  className="h-4 w-4 rounded border border-border bg-surface accent-primary"
+                />
+                <span className="text-sm font-medium">Enable tunnel</span>
+              </label>
+            </div>
+            <div className="pt-1 text-xs text-muted">
+              Route players through a relay so they can connect without port-forwarding or a public IP.
+            </div>
+          </div>
+
+          {net.tunnel?.enabled && (
+            <div className="space-y-4 rounded-lg border border-border bg-surface/40 p-4">
+              <Field label="Provider" hint="">
+                <Select
+                  value={net.tunnel.provider}
+                  options={TUNNEL_PROVIDER_OPTIONS}
+                  onValueChange={(v) =>
+                    setNet({
+                      ...net,
+                      tunnel: { ...net.tunnel!, provider: v as "frp" | "tailscale" | "playit" },
+                    })
+                  }
+                />
+              </Field>
+
+              {net.tunnel.provider === "tailscale" && (
+                <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+                    <div>
+                      <div className="font-medium text-warning">Tailnet only — not public</div>
+                      <div className="pt-0.5 text-xs text-warning/80">
+                        The server becomes reachable only from your Tailscale network, never from the public internet.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Field label="Credentials Secret" hint="Name of a Kubernetes Secret holding tunnel credentials (never a value).">
+                <Input
+                  value={net.tunnel.credentialsSecretRef?.name ?? ""}
+                  onChange={(e) =>
+                    setNet({
+                      ...net,
+                      tunnel: {
+                        ...net.tunnel!,
+                        credentialsSecretRef: e.target.value ? { name: e.target.value } : undefined,
+                      },
+                    })
+                  }
+                  placeholder="tunnel-secret"
+                  spellCheck={false}
+                />
+              </Field>
+
+              {net.tunnel.provider === "frp" && (
+                <>
+                  <Field label="Server address" hint="frp server address.">
+                    <Input
+                      value={net.tunnel.frp?.serverAddr ?? ""}
+                      onChange={(e) =>
+                        setNet({
+                          ...net,
+                          tunnel: {
+                            ...net.tunnel!,
+                            frp: {
+                              ...net.tunnel.frp!,
+                              serverAddr: e.target.value,
+                              remotePorts: net.tunnel.frp?.remotePorts ?? [],
+                            },
+                          },
+                        })
+                      }
+                      placeholder="relay.example.com"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Server port" hint="frp server port (default 7000).">
+                    <Input
+                      type="number"
+                      value={net.tunnel.frp?.serverPort ?? ""}
+                      onChange={(e) =>
+                        setNet({
+                          ...net,
+                          tunnel: {
+                            ...net.tunnel!,
+                            frp: {
+                              ...net.tunnel.frp!,
+                              serverAddr: net.tunnel.frp?.serverAddr ?? "",
+                              serverPort: e.target.value ? Number(e.target.value) : undefined,
+                              remotePorts: net.tunnel.frp?.remotePorts ?? [],
+                            },
+                          },
+                        })
+                      }
+                      placeholder="7000"
+                      inputMode="numeric"
+                    />
+                  </Field>
+                  <div>
+                    <div className="text-sm text-fg">Port mappings</div>
+                    <div className="pt-1 text-xs text-muted">Name and remote port for each game port.</div>
+                    <div className="pt-2">
+                      <FrpPortMappingEditor
+                        values={net.tunnel.frp?.remotePorts ?? []}
+                        onChange={(v) =>
+                          setNet({
+                            ...net,
+                            tunnel: {
+                              ...net.tunnel!,
+                              frp: {
+                                serverAddr: net.tunnel.frp?.serverAddr ?? "",
+                                serverPort: net.tunnel.frp?.serverPort,
+                                remotePorts: v,
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {net.tunnel.provider === "tailscale" && (
+                <>
+                  <Field label="Hostname" hint="Hostname in your tailnet (optional).">
+                    <Input
+                      value={net.tunnel.tailscale?.hostname ?? ""}
+                      onChange={(e) =>
+                        setNet({
+                          ...net,
+                          tunnel: {
+                            ...net.tunnel!,
+                            tailscale: {
+                              ...net.tunnel.tailscale,
+                              hostname: e.target.value || undefined,
+                              tags: net.tunnel.tailscale?.tags,
+                            },
+                          },
+                        })
+                      }
+                      placeholder="game-server"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Tags" hint="Comma-separated tags (optional).">
+                    <Input
+                      value={(net.tunnel.tailscale?.tags ?? []).join(", ")}
+                      onChange={(e) =>
+                        setNet({
+                          ...net,
+                          tunnel: {
+                            ...net.tunnel!,
+                            tailscale: {
+                              hostname: net.tunnel.tailscale?.hostname,
+                              tags: e.target.value
+                                ? e.target.value
+                                    .split(",")
+                                    .map((t) => t.trim())
+                                    .filter(Boolean)
+                                : undefined,
+                            },
+                          },
+                        })
+                      }
+                      placeholder="tag:server, tag:minecraft"
+                      spellCheck={false}
+                    />
+                  </Field>
+                </>
+              )}
+
+              {net.tunnel.provider === "playit" && (
+                <Field label="Tunnel name" hint="Name of the tunnel on playit.gg.">
+                  <Input
+                    value={net.tunnel.playit?.tunnelName ?? ""}
+                    onChange={(e) =>
+                      setNet({
+                        ...net,
+                        tunnel: {
+                          ...net.tunnel!,
+                          playit: {
+                            tunnelName: e.target.value || undefined,
+                          },
+                        },
+                      })
+                    }
+                    placeholder="my-server"
+                    spellCheck={false}
+                  />
+                </Field>
+              )}
+              {net.tunnel.provider === "playit" && (
+                <div className="rounded-md border-l-4 border-info bg-info/10 p-3 text-sm">
+                  <div className="text-xs font-medium text-info">
+                    Public address assigned at runtime
+                  </div>
+                  <div className="pt-0.5 text-xs text-info/80">
+                    The tunnel's public address will be assigned by playit.gg and displayed on the connection card.
+                  </div>
+                </div>
+              )}
+              {validityError && (
+                <div className="rounded-md border-l-4 border-danger bg-danger/10 p-3 text-sm">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-danger" />
+                    <div className="text-xs text-danger">{validityError}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       <Field label="Hostname" hint="Optional DNS name for ingress / external-dns annotations.">
         <Input
@@ -104,6 +392,96 @@ export function NetworkingSection({ draft, onChange }: SectionProps) {
           />
         </Field>
       )}
+    </div>
+  );
+}
+
+interface EditingPortMapping {
+  name: string;
+  remotePort?: number;
+}
+
+function FrpPortMappingEditor({
+  values,
+  onChange,
+}: {
+  values: RemotePortMapping[];
+  onChange: (v: RemotePortMapping[]) => void;
+}) {
+  const [editingValues, setEditingValues] = useState<EditingPortMapping[]>(
+    values.map((v) => ({ ...v })),
+  );
+
+  const update = (idx: number, patch: Partial<EditingPortMapping>) => {
+    const updated = editingValues.map((p, i) =>
+      i === idx ? { ...p, ...patch } : p,
+    );
+    setEditingValues(updated);
+    // Filter to only valid entries (both name and remotePort present).
+    const valid = updated.filter(
+      (p) => p.name && p.remotePort !== undefined && p.remotePort !== null,
+    ) as RemotePortMapping[];
+    onChange(valid);
+  };
+
+  const remove = (idx: number) => {
+    const updated = editingValues.filter((_, i) => i !== idx);
+    setEditingValues(updated);
+    const valid = updated.filter(
+      (p) => p.name && p.remotePort !== undefined && p.remotePort !== null,
+    ) as RemotePortMapping[];
+    onChange(valid);
+  };
+
+  const add = () => {
+    setEditingValues([...editingValues, { name: "", remotePort: undefined }]);
+  };
+
+  return (
+    <div className="space-y-2">
+      {editingValues.length > 0 && (
+        <div className="hidden gap-2 text-xs text-muted sm:grid sm:grid-cols-[1fr_120px_32px] sm:items-center">
+          <span>Port name</span>
+          <span>Remote port</span>
+          <span />
+        </div>
+      )}
+      {editingValues.map((p, idx) => (
+        <div
+          key={idx}
+          className="grid grid-cols-1 gap-2 rounded border border-border bg-surface/30 p-2 sm:grid-cols-[1fr_120px_32px] sm:items-center sm:border-0 sm:bg-transparent sm:p-0"
+        >
+          <Input
+            value={p.name}
+            onChange={(e) => update(idx, { name: e.target.value })}
+            placeholder="game"
+          />
+          <Input
+            type="number"
+            value={p.remotePort !== undefined ? p.remotePort.toString() : ""}
+            onChange={(e) =>
+              update(idx, {
+                remotePort: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            inputMode="numeric"
+            placeholder="8080"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-self-start sm:h-8 sm:w-8 sm:justify-self-auto sm:p-0"
+            title="Remove"
+            onClick={() => remove(idx)}
+          >
+            <X className="h-3 w-3" />
+            <span className="sm:hidden">Remove mapping</span>
+          </Button>
+        </div>
+      ))}
+      <Button size="sm" variant="outline" onClick={add}>
+        Add port mapping
+      </Button>
     </div>
   );
 }
