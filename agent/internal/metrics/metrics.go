@@ -9,8 +9,6 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
 
 // Snapshot holds the latest known resource and player state.
