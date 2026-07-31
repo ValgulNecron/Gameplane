@@ -222,6 +222,9 @@ func main() {
 			Get("/oidc/callback", handlers.OIDCCallbackLegacy(authRegistry, sessions))
 	})
 
+	// Public share link endpoints (unauthenticated, token-guessable)
+	handlers.MountPublicShares(r, reg, store, auth.ShareLimiter)
+
 	// Protected API
 	r.Group(func(p chi.Router) {
 		p.Use(sessions.Authenticate)
@@ -234,6 +237,7 @@ func main() {
 		handlers.MountResources(p, reg)
 		handlers.MountPodEvents(p, reg)
 		handlers.MountLifecycle(p, reg)
+		handlers.MountShareLinks(p, reg, store)
 		handlers.MountOwnership(p, reg, store)
 		handlers.MountUsers(p, store, sessions, reg)
 		handlers.MountRoles(p, store)

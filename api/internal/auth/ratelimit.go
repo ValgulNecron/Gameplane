@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// tokenBucket is a minimal per-key rate limiter: each key has a bucket
+// TokenBucket is a minimal per-key rate limiter: each key has a bucket
 // that refills at `rate` tokens per second up to `burst`. Every call to
 // Allow drains one token; denied calls return false without touching
 // the bucket.
@@ -18,7 +18,7 @@ import (
 // attackers will fire as fast as the argon2 cost allows. Keeping this
 // in-process is fine for single-replica deployments; HA setups with
 // multiple API pods should replace this with Redis later.
-type tokenBucket struct {
+type TokenBucket struct {
 	rate  float64 // tokens per second
 	burst float64
 
@@ -32,8 +32,8 @@ type bucket struct {
 	lastUpdate time.Time
 }
 
-func newTokenBucket(rate, burst float64) *tokenBucket {
-	return &tokenBucket{
+func newTokenBucket(rate, burst float64) *TokenBucket {
+	return &TokenBucket{
 		rate:    rate,
 		burst:   burst,
 		buckets: map[string]*bucket{},
@@ -41,7 +41,7 @@ func newTokenBucket(rate, burst float64) *tokenBucket {
 	}
 }
 
-func (t *tokenBucket) Allow(key string) bool {
+func (t *TokenBucket) Allow(key string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	now := time.Now()
@@ -76,7 +76,7 @@ func (t *tokenBucket) Allow(key string) bool {
 
 // Middleware enforces the bucket against the client IP. The client IP must
 // be set in the request context via chi's ClientIPFromXFF or similar middleware.
-func (t *tokenBucket) Middleware(next http.Handler) http.Handler {
+func (t *TokenBucket) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// Read the client IP from context set by the ClientIPFromXFF middleware.
 		// If not set, fall back to the host portion of RemoteAddr for graceful
@@ -132,7 +132,14 @@ var NotifyTestLimiter = newTokenBucket(12.0/60.0, 3)
 // database on a mass create/delete loop.
 var MutationLimiter = newTokenBucket(1.0, 60) // 60/min refill, 60 burst
 
+// ShareLimiter guards public (unauthenticated) share link endpoints.
+// Share links are token-guessable, so we need a tighter budget than general
+// mutations but higher than login attempts. 20/min with burst of 20 allows
+// legitimate players to retry connection attempts while keeping brute-force
+// costs reasonable.
+var ShareLimiter = newTokenBucket(20.0/60.0, 20)
+
 // AllowUser is a helper for rate-limit checks keyed on something other
 // than the IP (e.g. username). Returns the same bool as Middleware's
 // check but lets callers produce custom 429 responses.
-func (t *tokenBucket) AllowUser(key string) bool { return t.Allow(key) }
+func (t *TokenBucket) AllowUser(key string) bool { return t.Allow(key) }
