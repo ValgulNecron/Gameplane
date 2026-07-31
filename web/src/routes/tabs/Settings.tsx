@@ -205,7 +205,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
           {section === "general"    && <GeneralSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "version"    && <VersionSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "resources"  && <ResourcesSection  draft={draft} onChange={onChangeDraft} template={template} />}
-          {section === "networking" && <NetworkingSection draft={draft} onChange={onChangeDraft} template={template} />}
+          {section === "networking" && <NetworkingSection draft={draft} onChange={onChangeDraft} template={template} onValidityChange={setSectionValid} />}
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "lifecycle"  && <LifecycleSection  draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "backups"    && <BackupsSection    draft={draft} onChange={onChangeDraft} template={template} />}

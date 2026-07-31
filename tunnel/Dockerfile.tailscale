@@ -1,0 +1,35 @@
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+
+# gameaction is an in-repo module tunnel depends on via a local replace
+# (../gameaction); copy it first so `go mod download` and the build resolve
+# it. Mirrors sentinel/Dockerfile, api/Dockerfile, and agent/Dockerfile for the
+# same reason.
+COPY gameaction/ ./gameaction/
+COPY tunnel/go.mod tunnel/go.sum* ./tunnel/
+WORKDIR /src/tunnel
+RUN go mod download
+
+WORKDIR /src
+COPY tunnel/ ./tunnel/
+WORKDIR /src/tunnel
+
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w -X main.Version=${VERSION}" \
+    -o /out/tunnel .
+
+# Copy tailscale binaries from the official upstream image pinned by digest.
+# tailscale is distributed as official OCI images; pinning by digest
+# ensures reproducible builds. The image ships both tailscaled and tailscale CLI.
+FROM tailscale/tailscale:v1.98.10@sha256:cdf5612ded5be1344f1a704b8c5e53496db97376bb533e5e15f141e48bf60cc0 AS tailscale-stage
+
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=build /out/tunnel /tunnel
+COPY --from=tailscale-stage /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY --from=tailscale-stage /usr/local/bin/tailscale /usr/local/bin/tailscale
+USER 65532:65532
+EXPOSE 25565/tcp 25565/udp
+ENTRYPOINT ["/tunnel"]

@@ -4,6 +4,7 @@ export interface SectionProps {
   draft: GameServer;
   onChange: (next: GameServer) => void;
   template?: GameTemplate;
+  onValidityChange?: (valid: boolean) => void;
 }
 
 export const DESCRIPTION_ANNOTATION = "gameplane.local/description";

@@ -2447,6 +2447,47 @@ spec:
                   observed as Ready.
                 format: date-time
                 type: string
+              tunnelEndpoints:
+                description: |-
+                  TunnelEndpoints are the per-port addresses reported by the tunnel pod.
+                  For frp/tailscale these are computed from the spec at reconcile time;
+                  for playit they arrive asynchronously as the pod discovers assignments.
+                  This field is read-only; only the tunnel pod (via its per-server
+                  ServiceAccount) may patch it.
+                items:
+                  description: |-
+                    GameServerEndpoint is a single externally reachable (host, port)
+                    associated with a named template port.
+                  properties:
+                    host:
+                      type: string
+                    name:
+                      type: string
+                    port:
+                      format: int32
+                      type: integer
+                    private:
+                      description: |-
+                        Private indicates the endpoint is reachable only from a private mesh
+                        (e.g. Tailscale), not the public internet. The dashboard must label
+                        it accordingly.
+                      type: boolean
+                    protocol:
+                      description: Protocol defines network protocols supported for
+                        things like container ports.
+                      type: string
+                    tunnelProvider:
+                      description: |-
+                        TunnelProvider is set when this endpoint is served by a tunnel
+                        provider (frp, tailscale, playit) rather than the backing Service.
+                      type: string
+                  required:
+                  - host
+                  - name
+                  - port
+                  type: object
+                maxItems: 32
+                type: array
             type: object
         type: object
     served: true

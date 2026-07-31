@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server
+GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server tunnel
 GO_INTEGRATION_MODULES := operator api
 
 # test/e2e is a separate module (its own go.mod, excluded from the coverage
@@ -237,7 +237,7 @@ lint-web: ## Run web linters
 
 # -------- images --------
 .PHONY: images
-images: image-operator image-api image-web image-agent image-audit-syslog image-telemetry-receiver image-sentinel image-mcp-server ## Build all container images
+images: image-operator image-api image-web image-agent image-audit-syslog image-telemetry-receiver image-sentinel image-mcp-server image-tunnel-frp image-tunnel-tailscale image-tunnel-playit ## Build all container images
 
 image-operator: ## Build operator image
 	docker build -t $(REGISTRY)/operator:$(TAG) -f operator/Dockerfile .
@@ -262,6 +262,15 @@ image-sentinel: ## Build sentinel image
 
 image-mcp-server: ## Build mcp-server image
 	docker build -t $(REGISTRY)/mcp-server:$(TAG) -f mcp-server/Dockerfile .
+
+image-tunnel-frp: ## Build tunnel-frp image
+	docker build -t $(REGISTRY)/tunnel-frp:$(TAG) -f tunnel/Dockerfile.frp .
+
+image-tunnel-tailscale: ## Build tunnel-tailscale image
+	docker build -t $(REGISTRY)/tunnel-tailscale:$(TAG) -f tunnel/Dockerfile.tailscale .
+
+image-tunnel-playit: ## Build tunnel-playit image
+	docker build -t $(REGISTRY)/tunnel-playit:$(TAG) -f tunnel/Dockerfile.playit .
 
 # -------- codegen --------
 .PHONY: generate manifests module-schema module-pin

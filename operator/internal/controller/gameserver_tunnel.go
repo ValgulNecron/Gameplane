@@ -207,6 +207,13 @@ func (r *GameServerReconciler) reconcileTunnel(
 			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 		}
 
+		// ServiceAccountName: only playit needs the grant to patch status with
+		// the assigned address. Other providers (frp, tailscale) use static
+		// addresses configured beforehand, so they run as default.
+		if tunnel.Provider == "playit" {
+			dep.Spec.Template.Spec.ServiceAccountName = tunnelServiceAccountName(gs)
+		}
+
 		// Tunnel image selection and environment per provider.
 		var image string
 		var envVars []corev1.EnvVar

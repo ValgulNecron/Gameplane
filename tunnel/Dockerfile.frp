@@ -1,0 +1,53 @@
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+
+# gameaction is an in-repo module tunnel depends on via a local replace
+# (../gameaction); copy it first so `go mod download` and the build resolve
+# it. Mirrors sentinel/Dockerfile, api/Dockerfile, and agent/Dockerfile for the
+# same reason.
+COPY gameaction/ ./gameaction/
+COPY tunnel/go.mod tunnel/go.sum* ./tunnel/
+WORKDIR /src/tunnel
+RUN go mod download
+
+WORKDIR /src
+COPY tunnel/ ./tunnel/
+WORKDIR /src/tunnel
+
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w -X main.Version=${VERSION}" \
+    -o /out/tunnel .
+
+# Build stage to download and verify frp binary
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS frp-stage
+ARG FRP_VERSION=0.70.1
+ARG TARGETARCH
+ARG FRP_SHA256_amd64=333da23d1b9009d7c01638e9ba38cf4600f7d37d393f854e96ee1396adefa9a6
+ARG FRP_SHA256_arm64=3990f396a9a490ee7f0e5f355287750ed41520064ed999eab443b5e9a78d773d
+
+RUN apk add --no-cache curl tar
+WORKDIR /tmp
+RUN mkdir -p /out && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      FRP_ARCH="arm64"; \
+      FRP_SHA256="$FRP_SHA256_arm64"; \
+    else \
+      FRP_ARCH="amd64"; \
+      FRP_SHA256="$FRP_SHA256_amd64"; \
+    fi && \
+    curl -fsSL "https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/frp_${FRP_VERSION}_linux_${FRP_ARCH}.tar.gz" \
+    -o frp.tar.gz && \
+    echo "${FRP_SHA256}  frp.tar.gz" | sha256sum -c - && \
+    tar xzf frp.tar.gz && \
+    mv "frp_${FRP_VERSION}_linux_${FRP_ARCH}/frpc" /out/frpc && \
+    chmod +x /out/frpc
+
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=build /out/tunnel /tunnel
+COPY --from=frp-stage /out/frpc /usr/local/bin/frpc
+USER 65532:65532
+EXPOSE 25565/tcp 25565/udp
+ENTRYPOINT ["/tunnel"]

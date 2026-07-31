@@ -82,6 +82,14 @@ export function OverviewTab({
   );
   const endpoints = status.endpoints ?? [];
   const primary = endpoints[0];
+  // The operator prepends tunnel endpoints ahead of the cluster-native ones
+  // (see gameserver_status.go), so when a tunnel is active `endpoints[0]` is
+  // the tunnel endpoint — the cluster address is the first entry after it
+  // that isn't itself tunnel-provided.
+  const clusterEndpoint = primary?.tunnelProvider
+    ? endpoints.find((e) => !e.tunnelProvider)
+    : primary;
+  const tunnelReady = status.conditions?.find((c) => c.type === "TunnelReady");
 
   return (
     <div className="grid gap-5 p-6 lg:grid-cols-[1fr_320px]">
@@ -152,21 +160,68 @@ export function OverviewTab({
           <CardHeader><CardTitle>Connection</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3 text-sm">
-              <InfoRow label="Host">
-                <span className="truncate font-mono">{primary?.host ?? "—"}</span>
-                {primary?.host && (
-                  <button
-                    className="rounded p-1 text-muted hover:bg-border hover:text-fg"
-                    onClick={() => navigator.clipboard?.writeText(primary.host)}
-                    title="Copy"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </InfoRow>
-              <InfoRow label="Port">
-                <span className="font-mono">{primary?.port ?? "—"}</span>
-              </InfoRow>
+              {/* Show tunnel endpoint first if it exists */}
+              {primary?.tunnelProvider && (
+                <>
+                  <InfoRow label={`${primary.tunnelProvider} tunnel`}>
+                    {primary?.host ? (
+                      <>
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="truncate font-mono">{primary.host}</span>
+                          {primary?.private && (
+                            <span className="shrink-0 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-medium text-warning">
+                              Tailnet only — not public
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          className="rounded p-1 text-muted hover:bg-border hover:text-fg"
+                          onClick={() => navigator.clipboard?.writeText(primary.host)}
+                          title="Copy"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-muted italic">
+                        {tunnelReady?.message ?? "Waiting for tunnel address…"}
+                      </span>
+                    )}
+                  </InfoRow>
+                  {primary?.port !== undefined && (
+                    <InfoRow label="Port">
+                      <span className="font-mono">{primary.port}</span>
+                    </InfoRow>
+                  )}
+                  {/* Show cluster address below */}
+                  <div className="border-t border-border pt-3">
+                    <div className="text-xs text-muted mb-3">Cluster address</div>
+                    <InfoRow label="Host">
+                      <span className="truncate font-mono">{clusterEndpoint?.host ?? "—"}</span>
+                    </InfoRow>
+                  </div>
+                </>
+              )}
+              {/* No tunnel: show cluster address normally */}
+              {!primary?.tunnelProvider && (
+                <>
+                  <InfoRow label="Host">
+                    <span className="truncate font-mono">{primary?.host ?? "—"}</span>
+                    {primary?.host && (
+                      <button
+                        className="rounded p-1 text-muted hover:bg-border hover:text-fg"
+                        onClick={() => navigator.clipboard?.writeText(primary.host)}
+                        title="Copy"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </InfoRow>
+                  <InfoRow label="Port">
+                    <span className="font-mono">{primary?.port ?? "—"}</span>
+                  </InfoRow>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -445,6 +445,15 @@ type GameServerStatus struct {
 	// Idle reports the observed state of idle auto-sleep (spec.idle).
 	// +optional
 	Idle *IdleStatus `json:"idle,omitempty"`
+
+	// TunnelEndpoints are the per-port addresses reported by the tunnel pod.
+	// For frp/tailscale these are computed from the spec at reconcile time;
+	// for playit they arrive asynchronously as the pod discovers assignments.
+	// This field is read-only; only the tunnel pod (via its per-server
+	// ServiceAccount) may patch it.
+	// +kubebuilder:validation:MaxItems=32
+	// +optional
+	TunnelEndpoints []GameServerEndpoint `json:"tunnelEndpoints,omitempty"`
 }
 
 // IdleStatus is the observed state of idle auto-sleep. It is a read model:

@@ -19,7 +19,7 @@ import {
 import { parseCpuQuantity, cpuCores, parseMemQuantity, memBytes } from "@/lib/quantity";
 import { cn } from "@/lib/utils";
 import { resolveCategories, categoryFilters, matchesCategory } from "@/lib/games";
-import type { GameTemplate, PortOverride } from "@/types";
+import type { GameTemplate, PortOverride, GameServerTunnel } from "@/types";
 
 // Wizard steps are derived per-template: the "version" step only appears when
 // the template declares a version catalog (spec.versions). Templates without
@@ -55,6 +55,15 @@ interface WizardState {
   hostname: string;
   sourceRanges: string;
   portOverrides: PortOverride[];
+  tunnelEnabled: boolean;
+  tunnelProvider: "frp" | "tailscale" | "playit";
+  tunnelCredentialsSecretName: string;
+  frpServerAddr: string;
+  frpServerPort: string;
+  frpRemotePortMappings: Array<{ name: string; remotePort: number }>;
+  tailscaleHostname: string;
+  tailscaleTags: string;
+  playitTunnelName: string;
 }
 
 const initial: WizardState = {
@@ -64,6 +73,14 @@ const initial: WizardState = {
   storageSize: "20Gi", nodePlacement: "auto",
   expose: "NodePort", hostname: "", sourceRanges: "",
   portOverrides: [],
+  tunnelEnabled: false, tunnelProvider: "frp",
+  tunnelCredentialsSecretName: "",
+  frpServerAddr: "",
+  frpServerPort: "7000",
+  frpRemotePortMappings: [],
+  tailscaleHostname: "",
+  tailscaleTags: "",
+  playitTunnelName: "",
 };
 
 // Largest single-node capacity from the cluster view — the ceiling a pod
@@ -90,10 +107,50 @@ export function nonEmptyPortOverrides(overrides: PortOverride[]): PortOverride[]
   return overrides.filter((p) => p.name.trim() !== "");
 }
 
+// Drop rows whose name is blank or port is invalid (0 or unset) so an
+// incomplete mapping never pollutes the tunnel config payload.
+export function nonEmptyTunnelPortMappings(
+  mappings: Array<{ name: string; remotePort: number }>,
+): Array<{ name: string; remotePort: number }> {
+  return mappings.filter((m) => m.name.trim() && m.remotePort && m.remotePort > 0);
+}
+
 function buildCreateBody(state: WizardState): ServerCreate {
   let nodeSelector: Record<string, string> | undefined;
   if (state.nodePlacement === "pin") nodeSelector = { "gameplane.local/pinned": "true" };
   else if (state.nodePlacement === "gpu") nodeSelector = { "gameplane.local/gpu": "true" };
+
+  let tunnel: GameServerTunnel | undefined;
+  if (state.tunnelEnabled && state.tunnelCredentialsSecretName) {
+    const tunnelBase: GameServerTunnel = {
+      enabled: true,
+      provider: state.tunnelProvider,
+      credentialsSecretRef: { name: state.tunnelCredentialsSecretName },
+    };
+
+    if (state.tunnelProvider === "frp") {
+      tunnelBase.frp = {
+        serverAddr: state.frpServerAddr,
+        ...(state.frpServerPort && state.frpServerPort !== "0"
+          ? { serverPort: parseInt(state.frpServerPort, 10) }
+          : {}),
+        remotePorts: nonEmptyTunnelPortMappings(state.frpRemotePortMappings),
+      };
+    } else if (state.tunnelProvider === "tailscale") {
+      tunnelBase.tailscale = {
+        ...(state.tailscaleHostname ? { hostname: state.tailscaleHostname } : {}),
+        ...(state.tailscaleTags
+          ? { tags: state.tailscaleTags.split(/[\s,]+/).filter(Boolean) }
+          : {}),
+      };
+    } else if (state.tunnelProvider === "playit") {
+      tunnelBase.playit = {
+        ...(state.playitTunnelName ? { tunnelName: state.playitTunnelName } : {}),
+      };
+    }
+    tunnel = tunnelBase;
+  }
+
   return {
     name: state.name,
     description: state.description || undefined,
@@ -113,6 +170,7 @@ function buildCreateBody(state: WizardState): ServerCreate {
       ...(state.expose === "LoadBalancer" && parseSourceRanges(state.sourceRanges).length > 0
         ? { sourceRanges: parseSourceRanges(state.sourceRanges) }
         : {}),
+      ...(tunnel ? { tunnel } : {}),
     },
     resources: {
       // The create form uses Guaranteed QoS: requests == limits, so the pod
@@ -169,6 +227,39 @@ function validateStep(
     const cfgErrors = validateConfig(state.template?.spec.configSchema ?? [], state.config);
     if (cfgErrors.length > 0) {
       return { ok: false, reason: cfgErrors[0].message };
+    }
+    return { ok: true };
+  }
+  if (key === "network") {
+    if (state.tunnelEnabled) {
+      if (!state.tunnelCredentialsSecretName.trim()) {
+        return { ok: false, reason: "Tunnel requires a credentials secret name" };
+      }
+      if (state.tunnelProvider === "frp") {
+        if (!state.frpServerAddr.trim()) {
+          return { ok: false, reason: "frp requires a server address" };
+        }
+        // Filter out empty mappings and check that at least one remains
+        const nonEmptyMappings = state.frpRemotePortMappings.filter(
+          (m) => m.name.trim() && m.remotePort && m.remotePort > 0,
+        );
+        if (nonEmptyMappings.length === 0) {
+          return { ok: false, reason: "frp requires at least one complete port mapping" };
+        }
+        // Validate port numbers are in valid range
+        for (const mapping of nonEmptyMappings) {
+          const port = mapping.remotePort;
+          if (port < 1 || port > 65535) {
+            return { ok: false, reason: "Port numbers must be between 1 and 65535" };
+          }
+        }
+        if (state.frpServerPort) {
+          const serverPort = parseInt(state.frpServerPort, 10);
+          if (isNaN(serverPort) || serverPort < 1 || serverPort > 65535) {
+            return { ok: false, reason: "Server port must be between 1 and 65535" };
+          }
+        }
+      }
     }
     return { ok: true };
   }
@@ -679,6 +770,140 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
           ))}
         </div>
       </div>
+
+      <div className="space-y-1.5 border-t border-border pt-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={state.tunnelEnabled}
+            onChange={(e) => setState({ ...state, tunnelEnabled: e.target.checked })}
+            className="h-4 w-4 rounded border border-border bg-surface accent-primary"
+          />
+          <span className="text-xs text-muted font-medium">Enable tunnel</span>
+        </label>
+        {state.tunnelEnabled && (
+          <div className="rounded-md border border-border bg-surface/40 p-3 space-y-3">
+            <div>
+              <span className="block text-xs text-muted mb-2">Tunnel provider</span>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(["frp", "tailscale", "playit"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setState({ ...state, tunnelProvider: p })}
+                    className={cn(
+                      "rounded-md border p-2 text-left text-xs",
+                      state.tunnelProvider === p
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-surface/60",
+                    )}
+                  >
+                    <div className="font-medium">{p === "tailscale" ? "Tailscale" : p === "playit" ? "playit.gg" : "frp"}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block space-y-1.5">
+              <span className="text-xs text-muted">Credentials secret name *</span>
+              <Input
+                value={state.tunnelCredentialsSecretName}
+                onChange={(e) => setState({ ...state, tunnelCredentialsSecretName: e.target.value })}
+                placeholder="tunnel-creds"
+                data-testid="tunnel-credentials-input"
+              />
+              <span className="text-[11px] text-muted">
+                Name of a Kubernetes Secret holding tunnel provider credentials.
+              </span>
+            </label>
+
+            {state.tunnelProvider === "frp" && (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted">Server address *</span>
+                  <Input
+                    value={state.frpServerAddr}
+                    onChange={(e) => setState({ ...state, frpServerAddr: e.target.value })}
+                    placeholder="relay.example.com"
+                    data-testid="frp-server-addr"
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted">Server port</span>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={state.frpServerPort}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setState({ ...state, frpServerPort: val === "" ? "" : val });
+                    }}
+                    placeholder="7000"
+                    data-testid="frp-server-port"
+                  />
+                  <span className="text-[11px] text-muted">
+                    Default 7000. Must be between 1 and 65535.
+                  </span>
+                </label>
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted">Port mappings *</span>
+                  <TunnelPortMappingsEditor
+                    values={state.frpRemotePortMappings}
+                    onChange={(v) => setState({ ...state, frpRemotePortMappings: v })}
+                  />
+                  <span className="text-[11px] text-muted">
+                    Map at least one port name to a remote port (1–65535).
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {state.tunnelProvider === "tailscale" && (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <p className="text-[11px] text-warning bg-warning/10 rounded px-2 py-1.5">
+                  Tailscale access is tailnet-private only and not reachable from the internet.
+                </p>
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted">Hostname (optional)</span>
+                  <Input
+                    value={state.tailscaleHostname}
+                    onChange={(e) => setState({ ...state, tailscaleHostname: e.target.value })}
+                    placeholder="my-server"
+                    data-testid="tailscale-hostname"
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted">Tags (optional)</span>
+                  <Input
+                    value={state.tailscaleTags}
+                    onChange={(e) => setState({ ...state, tailscaleTags: e.target.value })}
+                    placeholder="tag:game,tag:public"
+                    data-testid="tailscale-tags"
+                  />
+                  <span className="text-[11px] text-muted">
+                    Comma or space separated.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {state.tunnelProvider === "playit" && (
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted">Tunnel name (optional)</span>
+                  <Input
+                    value={state.playitTunnelName}
+                    onChange={(e) => setState({ ...state, playitTunnelName: e.target.value })}
+                    placeholder="my-game-server"
+                    data-testid="playit-tunnel-name"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <label className="block space-y-1.5">
         <span className="text-xs text-muted">Hostname (optional)</span>
         <Input
@@ -719,6 +944,68 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
   );
 }
 
+function TunnelPortMappingsEditor({
+  values,
+  onChange,
+}: {
+  values: Array<{ name: string; remotePort: number }>;
+  onChange: (v: Array<{ name: string; remotePort: number }>) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {values.map((item, i) => (
+        <div key={i} className="flex gap-2 items-end">
+          <label className="flex-1 space-y-1">
+            <span className="text-[11px] text-muted">Port name</span>
+            <Input
+              value={item.name}
+              onChange={(e) => {
+                const newValues = [...values];
+                newValues[i] = { ...item, name: e.target.value };
+                onChange(newValues);
+              }}
+              placeholder="game-port"
+              data-testid={`tunnel-port-name-${i}`}
+            />
+          </label>
+          <label className="flex-1 space-y-1">
+            <span className="text-[11px] text-muted">Remote port</span>
+            <Input
+              type="number"
+              min="1"
+              max="65535"
+              value={item.remotePort}
+              onChange={(e) => {
+                const newValues = [...values];
+                const parsed = parseInt(e.target.value, 10);
+                newValues[i] = { ...item, remotePort: isNaN(parsed) ? 0 : parsed };
+                onChange(newValues);
+              }}
+              placeholder="25565"
+              data-testid={`tunnel-port-number-${i}`}
+            />
+          </label>
+          <button
+            onClick={() => onChange(values.filter((_, idx) => idx !== i))}
+            className="rounded px-2 py-1.5 text-xs text-muted hover:text-danger hover:bg-danger/10"
+            title="Delete"
+            data-testid={`tunnel-port-delete-${i}`}
+          >
+            Delete
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange([...values, { name: "", remotePort: 0 }])}
+        className="rounded px-3 py-1.5 text-xs bg-primary/10 text-primary hover:bg-primary/20"
+        data-testid="tunnel-port-add"
+      >
+        Add port mapping
+      </button>
+    </div>
+  );
+}
+
 function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) => void }) {
   const hasVersions = (state.template?.spec.versions?.length ?? 0) > 0;
   const sections = [
@@ -747,6 +1034,36 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
       rows: [
         ["Expose", state.expose],
         ["Hostname", state.hostname || "—"],
+        ...(state.tunnelEnabled
+          ? [
+              ["Tunnel provider", state.tunnelProvider === "tailscale" ? "Tailscale" : state.tunnelProvider === "playit" ? "playit.gg" : "frp"] as [string, string],
+              ["Tunnel credentials", state.tunnelCredentialsSecretName || "—"] as [string, string],
+              ...(state.tunnelProvider === "frp"
+                ? [
+                    ["frp server", state.frpServerAddr || "—"] as [string, string],
+                    ...(nonEmptyTunnelPortMappings(state.frpRemotePortMappings).length > 0
+                      ? [[
+                          "frp port mappings",
+                          nonEmptyTunnelPortMappings(state.frpRemotePortMappings)
+                            .map((m) => `${m.name}→${m.remotePort}`)
+                            .join(", "),
+                        ] as [string, string]]
+                      : []),
+                  ]
+                : []),
+              ...(state.tunnelProvider === "tailscale"
+                ? [
+                    ...(state.tailscaleHostname ? [["Tailscale hostname", state.tailscaleHostname] as [string, string]] : []),
+                    ...(state.tailscaleTags ? [["Tailscale tags", state.tailscaleTags] as [string, string]] : []),
+                  ]
+                : []),
+              ...(state.tunnelProvider === "playit"
+                ? [
+                    ...(state.playitTunnelName ? [["playit tunnel name", state.playitTunnelName] as [string, string]] : []),
+                  ]
+                : []),
+            ]
+          : []),
         ...(nonEmptyPortOverrides(state.portOverrides).length > 0
           ? [[
               "Port overrides",

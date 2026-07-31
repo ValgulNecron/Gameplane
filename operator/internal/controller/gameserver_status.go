@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ const heartbeatFreshness = 60 * time.Second
 func (r *GameServerReconciler) reconcileStatus(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 	idle idleState, idleStatus *gameplanev1alpha1.IdleStatus, tunnelPlan tunnelPlan,
+	tmpl *gameplanev1alpha1.GameTemplate,
 ) (time.Duration, error) {
 	// base captures the object as fetched so we can issue a JSON merge
 	// patch of only the fields this reconciler owns. The agent sidecar
@@ -108,6 +110,33 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	// Compute tunnel conditions.
 	gs.Status.Conditions = computeTunnelConditions(gs, tunnelPlan, tunnelDep)
+
+	// Validate and merge playit tunnel endpoints if present.
+	if gs.Spec.Networking.Tunnel != nil && gs.Spec.Networking.Tunnel.Provider == "playit" &&
+		len(gs.Status.TunnelEndpoints) > 0 {
+		advertisedPorts := getAdvertisedPortNames(tmpl)
+		validEndpoints, errMsg := validatePlayitEndpoints(gs.Status.TunnelEndpoints, advertisedPorts)
+		if errMsg != "" {
+			// Set condition on validation failure; invalid entries are discarded
+			invalidCond := metav1.Condition{
+				Type:               "TunnelAddressInvalid",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: gs.Generation,
+				Reason:             "ValidationFailed",
+				Message:            errMsg,
+			}
+			gs.Status.Conditions = upsertCondition(gs.Status.Conditions, invalidCond)
+			// Use only the valid endpoints
+			tunnelPlan.endpoints = validEndpoints
+		} else {
+			// All valid: remove the invalid condition and merge into tunnel plan
+			gs.Status.Conditions = removeCondition(gs.Status.Conditions, "TunnelAddressInvalid")
+			for i := range validEndpoints {
+				validEndpoints[i].TunnelProvider = "playit"
+			}
+			tunnelPlan.endpoints = validEndpoints
+		}
+	}
 
 	// Folded into this one status patch rather than written by reconcileIdle
 	// itself: the agent concurrently patches status.agent, and a second writer
@@ -612,4 +641,167 @@ func endpointsFromService(svc *corev1.Service) []gameplanev1alpha1.GameServerEnd
 		out = append(out, ep)
 	}
 	return out
+}
+
+// getAdvertisedPortNames returns the list of advertised port names from the template.
+func getAdvertisedPortNames(tmpl *gameplanev1alpha1.GameTemplate) []string {
+	var names []string
+	for _, p := range tmpl.Spec.Ports {
+		if p.Advertise {
+			names = append(names, p.Name)
+		}
+	}
+	return names
+}
+
+// validatePlayitEndpoints validates a slice of playit tunnel endpoints.
+// It checks each endpoint for validity (host, port range, advertised port name)
+// and rejects duplicate port names. Returns the valid endpoints and an error
+// message if any entries were invalid or duplicates were found.
+// Invalid entries are filtered out, but the error message is still returned
+// so a condition can be set on the GameServer.
+func validatePlayitEndpoints(
+	endpoints []gameplanev1alpha1.GameServerEndpoint, advertisedPorts []string,
+) ([]gameplanev1alpha1.GameServerEndpoint, string) {
+	var valid []gameplanev1alpha1.GameServerEndpoint
+	var errs []string
+	seenPorts := make(map[string]bool)
+
+	for i, ep := range endpoints {
+		// Check for duplicate port names.
+		if seenPorts[ep.Name] {
+			errs = append(errs, fmt.Sprintf("endpoint %d: duplicate port name %q", i, ep.Name))
+			continue
+		}
+		seenPorts[ep.Name] = true
+
+		// Validate this entry.
+		if ok, msg := validatePlayitEndpoint(&ep, advertisedPorts); !ok {
+			errs = append(errs, fmt.Sprintf("endpoint %d: %s", i, msg))
+			continue
+		}
+
+		valid = append(valid, ep)
+	}
+
+	var errMsg string
+	if len(errs) > 0 {
+		errMsg = strings.Join(errs, "; ")
+	}
+	return valid, errMsg
+}
+
+// validatePlayitEndpoint validates a playit tunnel endpoint for host validity,
+// port range, and port name. Returns (true, "") on success, or (false, message)
+// on validation failure.
+func validatePlayitEndpoint(endpoint *gameplanev1alpha1.GameServerEndpoint, advertisedPorts []string) (bool, string) {
+	// Validate host.
+	if err := validatePlayitHost(endpoint.Host); err != nil {
+		return false, fmt.Sprintf("invalid hostname: %v", err)
+	}
+
+	// Validate port range.
+	if endpoint.Port < 1 || endpoint.Port > 65535 {
+		return false, fmt.Sprintf("invalid port: %d (must be 1-65535)", endpoint.Port)
+	}
+
+	// Validate port name against advertised ports.
+	found := false
+	for _, name := range advertisedPorts {
+		if name == endpoint.Name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false, fmt.Sprintf("port name not advertised: %s", endpoint.Name)
+	}
+
+	return true, ""
+}
+
+// validatePlayitHost validates the playit endpoint hostname/IP for syntactic validity.
+// It rejects control characters, whitespace, embedded schemes, and absurd lengths.
+func validatePlayitHost(host string) error {
+	if host == "" {
+		return fmt.Errorf("host cannot be empty")
+	}
+
+	// Reject absurd lengths: DNS labels max 253 chars, IPv6 max ~45 chars.
+	if len(host) > 253 {
+		return fmt.Errorf("host too long (%d > 253 characters)", len(host))
+	}
+
+	// Reject control characters and whitespace. Whitespace is checked first
+	// since tab/newline/CR are also control characters (< 32); the more
+	// specific "whitespace" message should win for those.
+	for _, ch := range host {
+		if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			return fmt.Errorf("host contains whitespace")
+		}
+		if ch < 32 || ch == 127 {
+			return fmt.Errorf("host contains control character")
+		}
+	}
+
+	// Reject embedded schemes (http://, https://, etc).
+	if strings.Contains(host, "://") {
+		return fmt.Errorf("host contains embedded scheme")
+	}
+
+	// Try to parse as an IP address (v4 or v6).
+	if ip := net.ParseIP(host); ip != nil {
+		// Reject private/internal IPs: a reported public tunnel address
+		// should not point at cluster-internal addresses.
+		if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			return fmt.Errorf("host is a private or internal address (%s)", ip)
+		}
+		return nil
+	}
+
+	// Not a raw IP; try to validate as a DNS name.
+	// Reject cluster-local DNS names (these point at internal services).
+	if strings.HasSuffix(host, ".svc.cluster.local") {
+		return fmt.Errorf("host is a cluster-local service name; tunnel addresses must be public")
+	}
+
+	// DNS names must be valid labels separated by dots.
+	labels := strings.Split(host, ".")
+	for _, label := range labels {
+		if label == "" {
+			return fmt.Errorf("host contains empty DNS label")
+		}
+		if len(label) > 63 {
+			return fmt.Errorf("DNS label too long (%d > 63 characters)", len(label))
+		}
+		// DNS labels must start and end with alphanumeric, may contain hyphens.
+		if !isValidDNSLabel(label) {
+			return fmt.Errorf("invalid DNS label: %s", label)
+		}
+	}
+
+	return nil
+}
+
+// isValidDNSLabel checks if a single DNS label is valid (alphanumeric/hyphen,
+// starting and ending with alphanumeric).
+func isValidDNSLabel(label string) bool {
+	if len(label) == 0 {
+		return false
+	}
+	for i, ch := range label {
+		if !isAlphaNumeric(ch) && ch != '-' {
+			return false
+		}
+		// First and last must not be hyphen.
+		if ch == '-' && (i == 0 || i == len(label)-1) {
+			return false
+		}
+	}
+	return true
+}
+
+// isAlphaNumeric checks if a rune is an alphanumeric character (letter or digit).
+func isAlphaNumeric(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
 }

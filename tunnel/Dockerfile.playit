@@ -1,0 +1,52 @@
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+
+# gameaction is an in-repo module tunnel depends on via a local replace
+# (../gameaction); copy it first so `go mod download` and the build resolve
+# it. Mirrors sentinel/Dockerfile, api/Dockerfile, and agent/Dockerfile for the
+# same reason.
+COPY gameaction/ ./gameaction/
+COPY tunnel/go.mod tunnel/go.sum* ./tunnel/
+WORKDIR /src/tunnel
+RUN go mod download
+
+WORKDIR /src
+COPY tunnel/ ./tunnel/
+WORKDIR /src/tunnel
+
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w -X main.Version=${VERSION}" \
+    -o /out/tunnel .
+
+# Build stage to download and verify playit binary
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS playit-stage
+ARG PLAYIT_VERSION=1.0.10
+ARG TARGETARCH
+ARG PLAYIT_SHA256_amd64=2df7d9f10227ab312b1ad341853db4e8a8243df5cfcdbae58713a4271711c339
+ARG PLAYIT_SHA256_aarch64=4c0db3e7b3a8158e249441c2f0b73f54e83429395890c7b1ca45fd7a6303d763
+
+RUN apk add --no-cache curl
+WORKDIR /tmp
+RUN mkdir -p /out && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      PLAYIT_ARCH="aarch64"; \
+      PLAYIT_SHA256="$PLAYIT_SHA256_aarch64"; \
+    else \
+      PLAYIT_ARCH="amd64"; \
+      PLAYIT_SHA256="$PLAYIT_SHA256_amd64"; \
+    fi && \
+    curl -fsSL "https://github.com/playit-cloud/playit-agent/releases/download/v${PLAYIT_VERSION}/playit-linux-${PLAYIT_ARCH}" \
+    -o playit && \
+    echo "${PLAYIT_SHA256}  playit" | sha256sum -c - && \
+    mv playit /out/playitd && \
+    chmod +x /out/playitd
+
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=build /out/tunnel /tunnel
+COPY --from=playit-stage /out/playitd /usr/local/bin/playitd
+USER 65532:65532
+EXPOSE 25565/tcp 25565/udp
+ENTRYPOINT ["/tunnel"]
