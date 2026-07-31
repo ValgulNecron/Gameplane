@@ -165,12 +165,14 @@ Top-level knobs (see `values.yaml` for the full list):
 
 ## Observability
 
-The operator and API expose Prometheus metrics on `/metrics` (operator `:8080`,
-API `:8000`). Three **off-by-default** chart toggles wire them into a
-Prometheus-Operator stack (e.g. kube-prometheus-stack):
+The operator, API, and in-pod agent sidecars expose Prometheus metrics on
+`/metrics` (operator `:8080`, API `:8000`, agent `:8090`). Three
+**off-by-default** chart toggles wire them into a Prometheus-Operator stack
+(e.g. kube-prometheus-stack):
 
 - `serviceMonitors.enabled` — `ServiceMonitor`s so Prometheus scrapes the
-  operator and API.
+  operator and API, plus a `PodMonitor` that scrapes per-GameServer agent
+  metrics from game pods in `gamesNamespace`.
 - `prometheusRules.enabled` — a `PrometheusRule` of operator alerts.
 - `grafanaDashboards.enabled` — a Grafana dashboard `ConfigMap` the Grafana
   sidecar auto-imports (relabel via `grafanaDashboards.labels` if your sidecar
@@ -181,8 +183,7 @@ objects up.
 
 ### Metrics
 
-Beyond the standard `controller-runtime_*` / `workqueue_*` series, the operator
-exports **fleet gauges** computed from its cache at scrape time:
+**Operator fleet gauges** (computed at scrape time from the operator's cache):
 
 | Metric | Labels | Meaning |
 |---|---|---|
@@ -192,6 +193,33 @@ exports **fleet gauges** computed from its cache at scrape time:
 Every phase is always present (0 when empty). With 2+ operator replicas each
 replica reports the same cache-derived counts, so aggregate with
 `max by (phase) (...)` (the bundled dashboard and alerts already do).
+
+**Agent per-server metrics** (scraped from port 8090 in each game pod when
+`serviceMonitors.enabled: true`):
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `gameplane_agent_cpu_millicores` | `server`, `namespace`, `template`, `game` | Game process CPU usage (millicores, read from `/proc`). Emitted only when readable. |
+| `gameplane_agent_cpu_limit_millicores` | `server`, `namespace`, `template`, `game` | CPU limit for the game container (millicores). Emitted only when readable. |
+| `gameplane_agent_memory_bytes` | `server`, `namespace`, `template`, `game` | Game process memory usage (bytes, read from `/proc`). Emitted only when readable. |
+| `gameplane_agent_memory_limit_bytes` | `server`, `namespace`, `template`, `game` | Memory limit for the game container (bytes). Emitted only when readable. |
+| `gameplane_agent_disk_used_bytes` | `server`, `namespace`, `template`, `game` | Disk used in the server's data directory (bytes). Emitted only when readable. |
+| `gameplane_agent_disk_total_bytes` | `server`, `namespace`, `template`, `game` | Total disk capacity of the server's data directory (bytes). Emitted only when readable. |
+| `gameplane_agent_players_online` | `server`, `namespace`, `template`, `game` | Number of players currently online. Emitted only when the game RCON succeeded. |
+| `gameplane_agent_players_max` | `server`, `namespace`, `template`, `game` | Maximum player capacity: -1 for unlimited, positive value for a known limit. Emitted only when the capacity is known; absent when unknown or RCON fails. |
+
+**Example PromQL queries for right-sizing servers:**
+
+```
+# Peak CPU over the past week per server
+max_over_time(gameplane_agent_cpu_millicores[7d])
+
+# Average memory utilization (as a percentage of limit) over 7 days
+avg_over_time(gameplane_agent_memory_bytes[7d]) / gameplane_agent_memory_limit_bytes * 100
+
+# 95th percentile disk usage per template
+quantile_over_time(0.95, gameplane_agent_disk_used_bytes[7d])
+```
 
 ### Alerts
 

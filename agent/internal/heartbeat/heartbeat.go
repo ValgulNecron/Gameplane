@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/metrics"
 	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
@@ -52,6 +53,7 @@ type Config struct {
 	Usage        UsageReader
 	PlayerList   *caps.PlayerList
 	PlayerListRE *regexp.Regexp
+	Metrics      *metrics.Metrics
 }
 
 var gvr = schema.GroupVersionResource{
@@ -124,6 +126,16 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 		"version":       cfg.Version,
 		"gameVersion":   cfg.Game,
 	}
+
+	// Prepare the metrics snapshot. Will be updated below as we gather data.
+	var metricsSnap metrics.Snapshot
+	if cfg.Metrics != nil {
+		metricsSnap.ServerName = cfg.ServerName
+		metricsSnap.Namespace = cfg.Namespace
+		metricsSnap.TemplateName = cfg.Template
+		metricsSnap.GameName = cfg.Game
+	}
+
 	// playersOnline/playersMax are null ("unknown") unless the game actually
 	// answered a player-count query. A failing "list" is common on startup
 	// and for games without RCON; emitting a sentinel like -1 here is wrong
@@ -131,10 +143,20 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 	// -2). null/absent is the contract for "unknown" — a JSON merge patch
 	// with null clears any prior value. playersMax stays null when the game
 	// reports an online count but no maximum, so the dashboard shows "—"
-	// rather than a bogus cap of 0.
+	// rather than a bogus cap of 0. playersMax is known when maxN != 0:
+	// -1 for unlimited (custom regex), or positive for a finite limit.
 	if online, maxN, err := queryPlayerCounts(cfg); err == nil {
 		agent["playersOnline"] = online
-		agent["playersMax"] = nullable(int64(maxN), maxN > 0)
+		agent["playersMax"] = nullable(int64(maxN), maxN != 0)
+		// Update metrics with player counts. maxN is emitted when known: -1 for
+		// unlimited, positive for a finite limit. Absent (PlayersMaxKnown=false)
+		// when unknown (maxN=0).
+		if cfg.Metrics != nil {
+			metricsSnap.PlayersOnline = online
+			metricsSnap.PlayersOnlineKnown = true
+			metricsSnap.PlayersMax = maxN
+			metricsSnap.PlayersMaxKnown = (maxN != 0)
+		}
 	} else {
 		agent["playersOnline"] = nil
 		agent["playersMax"] = nil
@@ -151,7 +173,27 @@ func sendOnce(ctx context.Context, dyn dynamic.Interface, cfg Config) error {
 		agent["memoryLimitBytes"] = nullable(s.MemoryLimitBytes, s.MemoryLimitKnown)
 		agent["diskUsedBytes"] = nullable(s.DiskUsedBytes, s.DiskKnown)
 		agent["diskTotalBytes"] = nullable(s.DiskTotalBytes, s.DiskKnown)
+		// Update metrics with usage data.
+		if cfg.Metrics != nil {
+			metricsSnap.CPUMillicores = s.CPUMillicores
+			metricsSnap.CPUKnown = s.CPUKnown
+			metricsSnap.CPULimitMillicores = s.CPULimitMillicores
+			metricsSnap.CPULimitKnown = s.CPULimitKnown
+			metricsSnap.MemoryBytes = s.MemoryBytes
+			metricsSnap.MemoryKnown = s.MemoryKnown
+			metricsSnap.MemoryLimitBytes = s.MemoryLimitBytes
+			metricsSnap.MemoryLimitKnown = s.MemoryLimitKnown
+			metricsSnap.DiskUsedBytes = s.DiskUsedBytes
+			metricsSnap.DiskTotalBytes = s.DiskTotalBytes
+			metricsSnap.DiskKnown = s.DiskKnown
+		}
 	}
+
+	// Emit the metrics snapshot.
+	if cfg.Metrics != nil {
+		cfg.Metrics.Update(metricsSnap)
+	}
+
 	patch := map[string]any{
 		"status": map[string]any{"agent": agent},
 	}

@@ -352,8 +352,8 @@ updates:
   channel: ""
 
 serviceMonitors:
-  enabled: false
-  labels: {}
+  enabled: false   # when true, creates ServiceMonitors for operator/api and a PodMonitor for agent sidecars on port 8090
+  labels: {}       # additional labels applied to ServiceMonitor/PodMonitor objects for Prometheus selector matching
 
 # PrometheusRule (alerts) for the operator, off by default like serviceMonitors.
 # Alerts use only the operator's own metrics — controller-runtime internals plus
