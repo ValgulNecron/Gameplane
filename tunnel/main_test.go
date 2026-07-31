@@ -627,7 +627,7 @@ func TestBuildCommandPlayit(t *testing.T) {
 	// playitd (not playit-cli) takes --secret-path and --platform-docker,
 	// confirmed against playit-cloud/playit-agent's playitd.rs and its
 	// official Dockerfile/entrypoint.sh.
-	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", playitSecretPath, "--platform-docker"}
+	wantArgs := []string{"/usr/local/bin/playitd", "--secret-path", playitAuthPath, "--platform-docker"}
 	if !equalArgs(cmd.Args, wantArgs) {
 		t.Errorf("Args = %v, want %v", cmd.Args, wantArgs)
 	}

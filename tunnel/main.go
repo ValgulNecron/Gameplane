@@ -51,7 +51,7 @@ const (
 	// (see the doc comment on buildCommand).
 	frpConfigPath       = "/tmp/gameplane-tunnel-frpc.toml"
 	tailscaleConfigPath = "/tmp/gameplane-tunnel-tailscaled.json"
-	playitSecretPath    = "/tmp/gameplane-tunnel-playit-secret"
+	playitAuthPath      = "/tmp/gameplane-tunnel-playit-auth"
 )
 
 // credentialsDir is the directory holding the mounted Secret's credential
@@ -396,7 +396,7 @@ func renderTailscaleConfig(hostname, authKey string) (string, error) {
 	return tailscaleConfigPath, nil
 }
 
-// renderPlayitConfig writes the secret key to the fixed playitSecretPath
+// renderPlayitConfig writes the secret key to the fixed playitAuthPath
 // (see the const block near the top of the file for why the path is fixed
 // rather than a random os.CreateTemp name) for playitd's --secret-path flag.
 //
@@ -413,11 +413,11 @@ func renderTailscaleConfig(hostname, authKey string) (string, error) {
 // so the secret never appears in the process's argv, which is readable by
 // anything that can see /proc/<pid>/cmdline in the pod.
 func renderPlayitConfig(secretKey string) (string, error) {
-	if err := os.WriteFile(playitSecretPath, []byte(secretKey), 0o600); err != nil {
+	if err := os.WriteFile(playitAuthPath, []byte(secretKey), 0o600); err != nil {
 		return "", fmt.Errorf("write playit secret: %w", err)
 	}
 
-	return playitSecretPath, nil
+	return playitAuthPath, nil
 }
 
 // escapeTomlString escapes special characters in a TOML string value.
@@ -439,7 +439,7 @@ func escapeTomlString(s string) string {
 //
 // All three providers take their secret via the rendered config file
 // (see renderConfig and the frpConfigPath/tailscaleConfigPath/
-// playitSecretPath consts) rather than a raw credential argument here --
+// playitAuthPath consts) rather than a raw credential argument here --
 // frpc's TOML embeds the token, tailscaled's declarative config JSON embeds
 // the auth key and hostname, and playitd's --secret-path points straight at
 // the secret file -- so buildCommand itself never needs the raw credential.
@@ -488,7 +488,7 @@ func buildCommand(ctx context.Context, cfg Config) *exec.Cmd {
 		// "playit") is a separate *service manager* around playitd with no flag
 		// to run a tunnel in the foreground under this file's exec+Wait
 		// supervision model, so playitd -- not playit-cli -- is the binary here.
-		return exec.CommandContext(ctx, "/usr/local/bin/playitd", "--secret-path", playitSecretPath, "--platform-docker")
+		return exec.CommandContext(ctx, "/usr/local/bin/playitd", "--secret-path", playitAuthPath, "--platform-docker")
 	default:
 		return nil
 	}
