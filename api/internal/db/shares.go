@@ -69,10 +69,13 @@ func (s *Store) CreateShareLink(ctx context.Context, ns, serverName string, crea
 	if canStart {
 		canStartInt = 1
 	}
+	// created_at is generated here in Go (RFC3339 UTC), not via SQL
+	// datetime('now') — see the migration's header comment for why.
+	createdAt := now.UTC()
 	_, err = s.DB.ExecContext(ctx,
-		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, ns, serverName, createdBy, canStartInt, tokenHash, expiresAt.Format(time.RFC3339))
+		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, ns, serverName, createdBy, canStartInt, tokenHash, expiresAt.Format(time.RFC3339), createdAt.Format(time.RFC3339))
 	if err != nil {
 		return "", ShareLink{}, fmt.Errorf("insert share link: %w", err)
 	}
@@ -85,7 +88,7 @@ func (s *Store) CreateShareLink(ctx context.Context, ns, serverName string, crea
 		CreatedBy:  createdBy,
 		CanStart:   canStart,
 		ExpiresAt:  expiresAt,
-		CreatedAt:  time.Now(),
+		CreatedAt:  createdAt,
 	}
 
 	return rawToken, link, nil
@@ -104,6 +107,7 @@ func (s *Store) LookupShareLink(ctx context.Context, rawToken string) (ShareLink
 	var revokedAtStr sql.NullString
 	var lastUsedStr sql.NullString
 	var expiresAtStr string
+	var createdAtStr string
 
 	err := s.DB.QueryRowContext(ctx,
 		`SELECT id, namespace, server_name, created_by, can_start, expires_at, revoked_at, created_at, last_used
@@ -116,7 +120,7 @@ func (s *Store) LookupShareLink(ctx context.Context, rawToken string) (ShareLink
 		&canStartInt,
 		&expiresAtStr,
 		&revokedAtStr,
-		&link.CreatedAt,
+		&createdAtStr,
 		&lastUsedStr,
 	)
 
@@ -133,6 +137,12 @@ func (s *Store) LookupShareLink(ctx context.Context, rawToken string) (ShareLink
 		return ShareLink{}, fmt.Errorf("parse expires_at: %w", err)
 	}
 	link.ExpiresAt = expiresAt
+
+	createdAt, err := time.Parse(time.RFC3339, createdAtStr)
+	if err != nil {
+		return ShareLink{}, fmt.Errorf("parse created_at: %w", err)
+	}
+	link.CreatedAt = createdAt
 
 	// Parse revoked_at if present.
 	if revokedAtStr.Valid {
@@ -251,9 +261,10 @@ func (s *Store) ListShareLinks(ctx context.Context, ns, serverName string) ([]Sh
 // RevokeShareLink marks a share link as revoked by setting revoked_at to the
 // current timestamp. Revocation is auditable (never a delete).
 func (s *Store) RevokeShareLink(ctx context.Context, id string) error {
+	revokedAt := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.DB.ExecContext(ctx,
-		`UPDATE share_links SET revoked_at = datetime('now') WHERE id = ?`,
-		id)
+		`UPDATE share_links SET revoked_at = ? WHERE id = ?`,
+		revokedAt, id)
 	if err != nil {
 		return fmt.Errorf("revoke share link: %w", err)
 	}
@@ -273,9 +284,10 @@ func (s *Store) RevokeShareLink(ctx context.Context, id string) error {
 // TouchShareLink updates the last_used timestamp for a share link, recording
 // when it was last accessed. Used by LookupShareLink internally.
 func (s *Store) TouchShareLink(ctx context.Context, id string) error {
+	lastUsed := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.DB.ExecContext(ctx,
-		`UPDATE share_links SET last_used = datetime('now') WHERE id = ?`,
-		id)
+		`UPDATE share_links SET last_used = ? WHERE id = ?`,
+		lastUsed, id)
 	if err != nil {
 		return fmt.Errorf("touch share link: %w", err)
 	}

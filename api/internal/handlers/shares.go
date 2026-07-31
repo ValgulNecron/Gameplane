@@ -421,9 +421,9 @@ func getPublicAddress(obj *unstructured.Unstructured) *shareAddr {
 			continue
 		}
 		host, _, _ := unstructured.NestedString(epMap, "host")
-		port, _, _ := unstructured.NestedInt64(epMap, "port")
+		port := nestedPort(epMap)
 		if host != "" && port > 0 {
-			return &shareAddr{Host: host, Port: int32(port)}
+			return &shareAddr{Host: host, Port: port}
 		}
 	}
 
@@ -438,13 +438,34 @@ func getPublicAddress(obj *unstructured.Unstructured) *shareAddr {
 			continue
 		}
 		host, _, _ := unstructured.NestedString(epMap, "host")
-		port, _, _ := unstructured.NestedInt64(epMap, "port")
+		port := nestedPort(epMap)
 		if host != "" && port > 0 {
-			return &shareAddr{Host: host, Port: int32(port)}
+			return &shareAddr{Host: host, Port: port}
 		}
 	}
 
 	return nil
+}
+
+// nestedPort extracts the "port" field from an endpoint map as an int32.
+// unstructured.NestedInt64 only accepts a value already typed as int64, but
+// endpoint maps are not guaranteed to come from that exact path: objects
+// decoded from raw JSON (encoding/json into map[string]interface{}) yield
+// float64 for every number, and objects built directly in Go (e.g. test
+// fixtures) may use a plain int. Handle all three so callers get a port
+// regardless of how the unstructured object was constructed.
+func nestedPort(epMap map[string]interface{}) int32 {
+	switch v := epMap["port"].(type) {
+	case int64:
+		return int32(v)
+	case float64:
+		return int32(v)
+	case int32:
+		return v
+	case int:
+		return int32(v)
+	}
+	return 0
 }
 
 // isServerOwner checks if a user is the owner of a GameServer by examining the

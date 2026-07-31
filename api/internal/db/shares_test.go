@@ -242,10 +242,11 @@ func TestLookupShareLink_Expired_Invalid(t *testing.T) {
 	// Temporarily allow this by inserting directly to bypass validation.
 	rawToken := generateShareLinkToken()
 	tokenHash := hashShareLinkToken(rawToken)
+	createdAt := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		"test-id", "default", "server", userID, 0, tokenHash, expiresAt.Format(time.RFC3339))
+		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"test-id", "default", "server", userID, 0, tokenHash, expiresAt.Format(time.RFC3339), createdAt)
 	if err != nil {
 		t.Fatalf("insert expired link: %v", err)
 	}
@@ -295,10 +296,11 @@ func TestLookupShareLink_UnknownExpiredRevoked_Same_Error(t *testing.T) {
 	expiresAt := time.Now().Add(-1 * time.Second)
 	expiredToken := generateShareLinkToken()
 	expiredHash := hashShareLinkToken(expiredToken)
+	createdAt := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		"expired-id", "default", "server", userID, 0, expiredHash, expiresAt.Format(time.RFC3339))
+		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"expired-id", "default", "server", userID, 0, expiredHash, expiresAt.Format(time.RFC3339), createdAt)
 	if err != nil {
 		t.Fatalf("insert expired: %v", err)
 	}
@@ -307,10 +309,11 @@ func TestLookupShareLink_UnknownExpiredRevoked_Same_Error(t *testing.T) {
 	// Revoked link.
 	validToken := generateShareLinkToken()
 	validHash := hashShareLinkToken(validToken)
+	revokedAt := time.Now().UTC().Format(time.RFC3339)
 	_, err = s.DB.ExecContext(ctx,
-		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at, revoked_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-		"revoked-id", "default", "server", userID, 0, validHash, time.Now().Add(24*time.Hour).Format(time.RFC3339))
+		`INSERT INTO share_links(id, namespace, server_name, created_by, can_start, token_hash, expires_at, created_at, revoked_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"revoked-id", "default", "server", userID, 0, validHash, time.Now().Add(24*time.Hour).Format(time.RFC3339), createdAt, revokedAt)
 	if err != nil {
 		t.Fatalf("insert revoked: %v", err)
 	}
