@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderWithQuery } from "@/test/render";
 import { NetworkingSection } from "./Networking";
 import { makeServer } from "@/test/factories";
 
@@ -9,7 +10,7 @@ const baseDraft = makeServer();
 describe("NetworkingSection KVEditor (service annotations)", () => {
   it("Add button is disabled until a key is entered", async () => {
     const onChange = vi.fn();
-    render(<NetworkingSection draft={baseDraft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={baseDraft} onChange={onChange} />);
     const addBtn = screen.getByRole("button", { name: "Add" });
     expect(addBtn).toBeDisabled();
     const keyInput = screen.getByPlaceholderText(/service\.beta/i);
@@ -19,7 +20,7 @@ describe("NetworkingSection KVEditor (service annotations)", () => {
 
   it("Adding a KV entry persists service annotations", async () => {
     const onChange = vi.fn();
-    render(<NetworkingSection draft={baseDraft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={baseDraft} onChange={onChange} />);
     const keyInput = screen.getByPlaceholderText(/service\.beta/i);
     const valueInput = screen.getByPlaceholderText("value");
     await userEvent.type(keyInput, "k");
@@ -38,7 +39,7 @@ describe("NetworkingSection KVEditor (service annotations)", () => {
       },
     };
     const onChange = vi.fn();
-    render(<NetworkingSection draft={draft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
     expect(screen.getByText("team")).toBeInTheDocument();
     // Two Remove buttons exist (KV remove, plus per-port remove if any).
     const removes = screen.getAllByTitle(/Remove/i);
@@ -51,7 +52,7 @@ describe("NetworkingSection KVEditor (service annotations)", () => {
 describe("NetworkingSection PortOverridesEditor", () => {
   it("'Add override' appends an empty PortOverride row", async () => {
     const onChange = vi.fn();
-    render(<NetworkingSection draft={baseDraft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={baseDraft} onChange={onChange} />);
     await userEvent.click(screen.getByRole("button", { name: /Add override/i }));
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.networking.portOverrides).toEqual([{ name: "" }]);
@@ -66,7 +67,7 @@ describe("NetworkingSection PortOverridesEditor", () => {
       },
     };
     const onChange = vi.fn();
-    render(<NetworkingSection draft={draft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
     const inputs = screen.getAllByRole("textbox");
     // textboxes: hostname (empty default) + KV key + KV value + port name +
     // service port + nodeport. For simplicity, target by placeholder.
@@ -86,7 +87,7 @@ describe("NetworkingSection PortOverridesEditor", () => {
       },
     };
     const onChange = vi.fn();
-    render(<NetworkingSection draft={draft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
     const removes = screen.getAllByTitle(/Remove/i);
     // The PortOverride remove is the only Remove button when no KV
     // entries exist, so removes[0] targets the row.

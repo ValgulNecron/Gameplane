@@ -212,7 +212,7 @@ func (h *tunnelCredsHandler) get(w http.ResponseWriter, req *http.Request) {
 
 	// Determine the provider and expected keys from the Secret's keys.
 	var expectedKeys []string
-	for provider, keys := range tunnelProviderKeys {
+	for _, keys := range tunnelProviderKeys {
 		if hasKeys(secret.Data, keys) {
 			expectedKeys = keys
 			break

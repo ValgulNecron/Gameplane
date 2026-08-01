@@ -216,7 +216,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
+    const secretInput = screen.getByPlaceholderText("frp token");
     await user.type(secretInput, "my-secret");
     const serverAddrInput = screen.getByPlaceholderText("relay.example.com");
     await user.type(serverAddrInput, "relay.example.com");
@@ -269,7 +269,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
+    const secretInput = screen.getByPlaceholderText("frp token");
     await user.type(secretInput, "my-secret");
     const serverAddrInput = screen.getByPlaceholderText("relay.example.com");
     await user.type(serverAddrInput, "relay.example.com");
@@ -331,7 +331,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.selectOptions(providerSelect, "Tailscale");
 
     // Fill in credentials secret only
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
+    const secretInput = screen.getByPlaceholderText("Tailscale auth key");
     await user.type(secretInput, "my-secret");
 
     // Verify Save button is enabled (no error shown)

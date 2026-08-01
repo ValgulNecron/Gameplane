@@ -147,6 +147,13 @@ export const handlers = [
     );
   }),
 
+  // Tunnel credentials: GET returns configured status, PUT sets credentials, DELETE removes.
+  http.get(/\/servers\/[^/]+:tunnel-credentials$/, () =>
+    HttpResponse.json({ configured: false, secretName: "", keys: [] }),
+  ),
+  http.put(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
+  http.delete(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
+
   // Templates
   http.get("/templates", () =>
     HttpResponse.json({

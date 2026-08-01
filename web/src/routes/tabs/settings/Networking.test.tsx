@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import { NetworkingSection } from "./Networking";
 import { makeServer } from "@/test/factories";
 
@@ -8,7 +9,7 @@ const baseDraft = makeServer();
 describe("NetworkingSection", () => {
   it("changing expose persists the new value", () => {
     const onChange = vi.fn();
-    render(<NetworkingSection draft={baseDraft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={baseDraft} onChange={onChange} />);
     fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "NodePort" } });
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -25,7 +26,7 @@ describe("NetworkingSection", () => {
       spec: { ...baseDraft.spec, networking: { hostname: "h" } },
     };
     const onChange = vi.fn();
-    render(<NetworkingSection draft={draft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
     const hostInput = screen.getAllByRole("textbox")[0];
     fireEvent.change(hostInput, { target: { value: "" } });
     const lastCall = onChange.mock.calls.at(-1)![0];
@@ -34,7 +35,7 @@ describe("NetworkingSection", () => {
   });
 
   it("renders all four expose options", () => {
-    render(<NetworkingSection draft={baseDraft} onChange={() => {}} />);
+    renderWithQuery(<NetworkingSection draft={baseDraft} onChange={() => {}} />);
     for (const label of ["ClusterIP", "NodePort", "LoadBalancer", "Hostport"]) {
       expect(screen.getByRole("option", { name: new RegExp(label) })).toBeInTheDocument();
     }
@@ -45,7 +46,7 @@ describe("NetworkingSection", () => {
       ...baseDraft,
       spec: { ...baseDraft.spec, networking: { expose: "LoadBalancer" as const } },
     };
-    const { rerender } = render(<NetworkingSection draft={lb} onChange={() => {}} />);
+    const { rerender } = renderWithQuery(<NetworkingSection draft={lb} onChange={() => {}} />);
     expect(screen.getByLabelText("LoadBalancer IP allow-list")).toBeInTheDocument();
 
     const np = {
@@ -62,7 +63,7 @@ describe("NetworkingSection", () => {
       spec: { ...baseDraft.spec, networking: { expose: "LoadBalancer" as const } },
     };
     const onChange = vi.fn();
-    render(<NetworkingSection draft={lb} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={lb} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText("LoadBalancer IP allow-list"), {
       target: { value: "203.0.113.0/24\n10.0.0.0/8" },
     });
@@ -86,7 +87,7 @@ describe("NetworkingSection", () => {
       },
     };
     const onChange = vi.fn();
-    render(<NetworkingSection draft={draft} onChange={onChange} />);
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
     fireEvent.change(screen.getByPlaceholderText("mc.example.com"), {
       target: { value: "mc.example.com" },
     });
