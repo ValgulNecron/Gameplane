@@ -69,6 +69,28 @@ func doTunnelReq(t *testing.T, h http.Handler, method, path string, body any) (i
 	return rr.Code, body_out
 }
 
+// syncSecretData populates Secret.Data from Secret.StringData.
+// The fake typed client doesn't automatically convert StringData to Data like
+// the production Kubernetes API does, so tests must do this manually when
+// they need the handler to read from Data (e.g., in GET handlers that check keys).
+func syncSecretData(t *testing.T, k *kube.Client, ns, secretName string) {
+	t.Helper()
+	secret, err := k.Typed.CoreV1().Secrets(ns).Get(context.Background(), secretName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get secret for sync: %v", err)
+	}
+	if secret.Data == nil {
+		secret.Data = make(map[string][]byte)
+	}
+	for key, val := range secret.StringData {
+		secret.Data[key] = []byte(val)
+	}
+	_, err = k.Typed.CoreV1().Secrets(ns).Update(context.Background(), secret, metav1.UpdateOptions{})
+	if err != nil {
+		t.Fatalf("update secret: %v", err)
+	}
+}
+
 func TestTunnelCreds_PutFrp(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
 	k := fakeKubeClient(gs)
@@ -327,6 +349,10 @@ func TestTunnelCreds_GetConfigured(t *testing.T) {
 	}
 	doTunnelReq(t, router, "PUT", "/servers/test-server:tunnel-credentials", body)
 
+	// The fake typed client doesn't convert StringData to Data automatically.
+	// Manually sync them to match what production Kubernetes would do.
+	syncSecretData(t, k, "gameplane-games", "test-server-tunnel-auth")
+
 	// Now GET should report configured
 	status, respBody := doTunnelReq(t, router, "GET", "/servers/test-server:tunnel-credentials", nil)
 	if status != http.StatusOK {
@@ -359,6 +385,10 @@ func TestTunnelCreds_GetNeverLeaksValue(t *testing.T) {
 		Values:   map[string]string{"token": "super-secret-token-12345"},
 	}
 	doTunnelReq(t, router, "PUT", "/servers/test-server:tunnel-credentials", body)
+
+	// The fake typed client doesn't convert StringData to Data automatically.
+	// Manually sync them to match what production Kubernetes would do.
+	syncSecretData(t, k, "gameplane-games", "test-server-tunnel-auth")
 
 	// GET and verify response never contains the value
 	_, respBody := doTunnelReq(t, router, "GET", "/servers/test-server:tunnel-credentials", nil)
