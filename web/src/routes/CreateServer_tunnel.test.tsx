@@ -259,7 +259,7 @@ describe("CreateServerWizard tunnel configuration", () => {
   it("saves credentials via separate PUT call after server creation", async () => {
     const user = userEvent.setup();
     const apiCalls: Array<{ method: string; url: string; body?: unknown }> = [];
-    vi.stubGlobal("fetch", async (url: string, init?: { method?: string; body?: string }) => {
+    vi.stubGlobal("fetch", async (url: string | Request, init?: { method?: string; body?: string }) => {
       const method = init?.method ?? "GET";
       apiCalls.push({
         method,
