@@ -136,7 +136,7 @@ describe("NetworkingSection tunnel configuration", () => {
     });
   });
 
-  it("shows credentials secret name input for all providers", async () => {
+  it("shows credentials input field when tunnel is enabled", async () => {
     renderWithQuery(<ServerDetailPage />);
     const user = userEvent.setup();
 
@@ -150,13 +150,20 @@ describe("NetworkingSection tunnel configuration", () => {
     const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Check for credentials input
+    // Check for credentials input field
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("tunnel-secret")).toBeInTheDocument();
+      const inputs = screen.getAllByPlaceholderText(/frp token|auth key|secret key/);
+      expect(inputs.length).toBeGreaterThan(0);
     });
   });
 
-  it("blocks save when tunnel is enabled but credentials secret name is empty", async () => {
+  it("blocks save when tunnel is enabled but no credentials are provided or configured", async () => {
+    server.use(
+      http.get("/servers/tunnel-server:tunnel-credentials", () =>
+        HttpResponse.json({ configured: false, secretName: "", keys: [] }),
+      ),
+    );
+
     renderWithQuery(<ServerDetailPage />);
     const user = userEvent.setup();
 
@@ -170,29 +177,26 @@ describe("NetworkingSection tunnel configuration", () => {
     const tunnelToggle = await screen.findByRole("checkbox", { name: /Enable tunnel/i });
     await user.click(tunnelToggle);
 
-    // Select Tailscale so credentials are the only thing this test needs to
-    // fill in — frp additionally requires a server address and a port
-    // mapping, which would keep Save disabled for reasons unrelated to what
-    // this test is checking.
+    // Select Tailscale so we only need to worry about credentials
     const providerSelect = (await screen.findByDisplayValue("frp")) as HTMLSelectElement;
     await user.selectOptions(providerSelect, "Tailscale");
 
-    // Check that validation error is shown
+    // Check that validation error is shown when no credentials are configured or entered
     await waitFor(() => {
-      expect(screen.getByText("Credentials Secret name is required")).toBeInTheDocument();
+      expect(screen.getByText("Tunnel credentials are required")).toBeInTheDocument();
     });
 
     // Verify Save button is disabled
     const saveButton = await screen.findByRole("button", { name: /Save changes/i });
     expect(saveButton).toBeDisabled();
 
-    // Fill in the credentials secret name
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
-    await user.type(secretInput, "my-secret");
+    // Type a credential value to satisfy validation
+    const credentialInput = screen.getByPlaceholderText("Tailscale auth key");
+    await user.type(credentialInput, "tskey_test123");
 
-    // Error should disappear and Save should be enabled
+    // After typing credential, error should disappear and Save should be enabled
     await waitFor(() => {
-      expect(screen.queryByText("Credentials Secret name is required")).not.toBeInTheDocument();
+      expect(screen.queryByText("Tunnel credentials are required")).not.toBeInTheDocument();
       expect(saveButton).not.toBeDisabled();
     });
   });
@@ -212,7 +216,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
+    const secretInput = screen.getByPlaceholderText("frp token");
     await user.type(secretInput, "my-secret");
     const serverAddrInput = screen.getByPlaceholderText("relay.example.com");
     await user.type(serverAddrInput, "relay.example.com");
@@ -265,7 +269,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.click(tunnelToggle);
 
     // Fill in credentials and server address
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
+    const secretInput = screen.getByPlaceholderText("frp token");
     await user.type(secretInput, "my-secret");
     const serverAddrInput = screen.getByPlaceholderText("relay.example.com");
     await user.type(serverAddrInput, "relay.example.com");
@@ -327,7 +331,7 @@ describe("NetworkingSection tunnel configuration", () => {
     await user.selectOptions(providerSelect, "Tailscale");
 
     // Fill in credentials secret only
-    const secretInput = screen.getByPlaceholderText("tunnel-secret");
+    const secretInput = screen.getByPlaceholderText("Tailscale auth key");
     await user.type(secretInput, "my-secret");
 
     // Verify Save button is enabled (no error shown)

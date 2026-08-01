@@ -57,6 +57,7 @@ interface WizardState {
   portOverrides: PortOverride[];
   tunnelEnabled: boolean;
   tunnelProvider: "frp" | "tailscale" | "playit";
+  tunnelCredentialsValue: string;
   tunnelCredentialsSecretName: string;
   frpServerAddr: string;
   frpServerPort: string;
@@ -74,6 +75,7 @@ const initial: WizardState = {
   expose: "NodePort", hostname: "", sourceRanges: "",
   portOverrides: [],
   tunnelEnabled: false, tunnelProvider: "frp",
+  tunnelCredentialsValue: "",
   tunnelCredentialsSecretName: "",
   frpServerAddr: "",
   frpServerPort: "7000",
@@ -121,11 +123,23 @@ function buildCreateBody(state: WizardState): ServerCreate {
   else if (state.nodePlacement === "gpu") nodeSelector = { "gameplane.local/gpu": "true" };
 
   let tunnel: GameServerTunnel | undefined;
-  if (state.tunnelEnabled && state.tunnelCredentialsSecretName) {
+  if (state.tunnelEnabled) {
+    // Determine credentialsSecretRef: either an existing secret name (GitOps) or
+    // a deterministic name derived from the server name (for new credentials).
+    // The handler creates the Secret at <serverName>-tunnel-auth and the operator
+    // mounts it with Optional: true, so the ref can point to a Secret that doesn't
+    // yet exist at create time.
+    let credentialsSecretRef: { name: string } | undefined;
+    if (state.tunnelCredentialsSecretName.trim()) {
+      credentialsSecretRef = { name: state.tunnelCredentialsSecretName };
+    } else if (state.tunnelCredentialsValue.trim()) {
+      credentialsSecretRef = { name: `${state.name}-tunnel-auth` };
+    }
+
     const tunnelBase: GameServerTunnel = {
       enabled: true,
       provider: state.tunnelProvider,
-      credentialsSecretRef: { name: state.tunnelCredentialsSecretName },
+      ...(credentialsSecretRef ? { credentialsSecretRef } : {}),
     };
 
     if (state.tunnelProvider === "frp") {
@@ -148,7 +162,10 @@ function buildCreateBody(state: WizardState): ServerCreate {
         ...(state.playitTunnelName ? { tunnelName: state.playitTunnelName } : {}),
       };
     }
-    tunnel = tunnelBase;
+    // Only include tunnel if it has meaningful config (not just enabled: true).
+    if (Object.keys(tunnelBase).length > 1 || state.tunnelCredentialsSecretName) {
+      tunnel = tunnelBase;
+    }
   }
 
   return {
@@ -232,8 +249,9 @@ function validateStep(
   }
   if (key === "network") {
     if (state.tunnelEnabled) {
-      if (!state.tunnelCredentialsSecretName.trim()) {
-        return { ok: false, reason: "Tunnel requires a credentials secret name" };
+      // Tunnel requires either a credential value (new) or existing secret name (GitOps).
+      if (!state.tunnelCredentialsValue.trim() && !state.tunnelCredentialsSecretName.trim()) {
+        return { ok: false, reason: "Tunnel requires credentials (enter value or existing secret name)" };
       }
       if (state.tunnelProvider === "frp") {
         if (!state.frpServerAddr.trim()) {
@@ -317,7 +335,32 @@ export function CreateServerWizard() {
   }
 
   const create = useMutation({
-    mutationFn: () => Servers.create(buildCreateBody(state)),
+    mutationFn: async () => {
+      const server = await Servers.create(buildCreateBody(state));
+
+      // If tunnel is enabled and credential value was provided, save credentials after server creation.
+      if (state.tunnelEnabled && state.tunnelCredentialsValue.trim() && !state.tunnelCredentialsSecretName.trim()) {
+        const key =
+          state.tunnelProvider === "frp"
+            ? "token"
+            : state.tunnelProvider === "tailscale"
+              ? "authKey"
+              : "secretKey";
+        try {
+          await Servers.setTunnelCredentials(state.name, state.tunnelProvider, { [key]: state.tunnelCredentialsValue });
+        } catch (err) {
+          // Server was created with tunnel enabled and a ref to the secret, but the credential
+          // save (Secret creation) failed. Tell the user the server exists and how to retry.
+          const detail = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `Server created but credential save failed: ${detail}. ` +
+            `The server exists with tunnel enabled. You can set the credential from the server's Networking settings.`
+          );
+        }
+      }
+
+      return server;
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["servers"] });
       await nav({ to: "/servers/$name", params: { name: state.name } });
@@ -800,18 +843,48 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
               </div>
             </div>
 
-            <label className="block space-y-1.5">
-              <span className="text-xs text-muted">Credentials secret name *</span>
-              <Input
-                value={state.tunnelCredentialsSecretName}
-                onChange={(e) => setState({ ...state, tunnelCredentialsSecretName: e.target.value })}
-                placeholder="tunnel-creds"
-                data-testid="tunnel-credentials-input"
-              />
-              <span className="text-[11px] text-muted">
-                Name of a Kubernetes Secret holding tunnel provider credentials.
-              </span>
-            </label>
+            <div className="space-y-3">
+              <div>
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted font-medium">Credentials *</span>
+                  <Input
+                    type="password"
+                    value={state.tunnelCredentialsValue}
+                    onChange={(e) => setState({ ...state, tunnelCredentialsValue: e.target.value })}
+                    placeholder={
+                      state.tunnelProvider === "frp"
+                        ? "frp token"
+                        : state.tunnelProvider === "tailscale"
+                          ? "Tailscale auth key"
+                          : "playit secret key"
+                    }
+                    data-testid="tunnel-credentials-input"
+                  />
+                  <span className="text-[11px] text-muted">
+                    {state.tunnelProvider === "frp"
+                      ? "Your frp authentication token"
+                      : state.tunnelProvider === "tailscale"
+                        ? "Tailscale OAuth token (usually ts_<id>=<secret>)"
+                        : "Your playit.gg secret key"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="border-t border-border/50 pt-3">
+                <label className="block space-y-1.5">
+                  <span className="text-xs text-muted">Or use existing Secret (GitOps)</span>
+                  <Input
+                    value={state.tunnelCredentialsSecretName}
+                    onChange={(e) => setState({ ...state, tunnelCredentialsSecretName: e.target.value })}
+                    placeholder="my-tunnel-secret"
+                    data-testid="tunnel-existing-secret"
+                  />
+                  <span className="text-[11px] text-muted">
+                    Name of a pre-existing Kubernetes Secret. Leave empty to create a new one from the credentials above.
+                  </span>
+                </label>
+              </div>
+            </div>
 
             {state.tunnelProvider === "frp" && (
               <div className="space-y-3 pt-2 border-t border-border/50">
@@ -1034,7 +1107,7 @@ function Review({ state, onEdit }: { state: WizardState; onEdit: (key: StepKey) 
         ...(state.tunnelEnabled
           ? [
               ["Tunnel provider", state.tunnelProvider === "tailscale" ? "Tailscale" : state.tunnelProvider === "playit" ? "playit.gg" : "frp"] as [string, string],
-              ["Tunnel credentials", state.tunnelCredentialsSecretName || "—"] as [string, string],
+              ["Tunnel credentials", state.tunnelCredentialsValue.trim() ? "✓ Configured" : state.tunnelCredentialsSecretName ? `Secret: ${state.tunnelCredentialsSecretName}` : "—"] as [string, string],
               ...(state.tunnelProvider === "frp"
                 ? [
                     ["frp server", state.frpServerAddr || "—"] as [string, string],

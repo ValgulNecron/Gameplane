@@ -234,6 +234,26 @@ export const Servers = {
   modIDs: (name: string, ns?: string) => api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns)),
   setModIDs: (name: string, ids: ModID[], ns?: string) =>
     api<ModID[]>(withNS(`/servers/${name}/mods/ids`, ns), { method: "PUT", body: ids }),
+  // Tunnel credentials management. PUT creates/updates the Secret and sets
+  // credentialsSecretRef on the tunnel config; GET returns configured status
+  // and which Secret holds it (never the value); DELETE clears the ref and
+  // removes the Secret.
+  setTunnelCredentials: (
+    name: string,
+    provider: "frp" | "tailscale" | "playit",
+    values: Record<string, string>,
+    ns?: string,
+  ) =>
+    api<void>(withNS(`/servers/${name}:tunnel-credentials`, ns), {
+      method: "PUT",
+      body: { provider, values },
+    }),
+  getTunnelCredentials: (name: string, ns?: string) =>
+    api<{ configured: boolean; secretName: string; keys: string[] }>(
+      withNS(`/servers/${name}:tunnel-credentials`, ns),
+    ),
+  removeTunnelCredentials: (name: string, ns?: string) =>
+    api<void>(withNS(`/servers/${name}:tunnel-credentials`, ns), { method: "DELETE" }),
 };
 
 export const Templates = {

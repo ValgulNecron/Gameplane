@@ -1,10 +1,12 @@
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Expose, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
+import { Servers } from "@/lib/endpoints";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
@@ -24,7 +26,20 @@ const TUNNEL_PROVIDER_OPTIONS: { value: "frp" | "tailscale" | "playit"; label: s
 export function NetworkingSection({ draft, onChange, onValidityChange }: SectionProps) {
   const net = draft.spec.networking ?? {};
   const tunnel = net.tunnel;
+  const serverName = draft.metadata.name;
+  const serverNamespace = draft.metadata.namespace;
   const [validityError, setValidityError] = useState<string | null>(null);
+
+  // Credential entry state — NOT part of the spec form's dirty tracking.
+  const [showCredentialInput, setShowCredentialInput] = useState(false);
+  const [credentialValue, setCredentialValue] = useState("");
+
+  // Query current tunnel credentials status.
+  const { data: credentialStatus, refetch: refetchCredentials } = useQuery({
+    queryKey: ["tunnel-credentials", serverName],
+    queryFn: () => Servers.getTunnelCredentials(serverName, serverNamespace),
+    enabled: tunnel?.enabled ?? false,
+  });
 
   const setNet = (next: GameServerNetworking) => {
     const cleaned: GameServerNetworking = {};
@@ -49,6 +64,38 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     });
   };
 
+  // Mutation to save credentials.
+  const saveCredentialMutation = useMutation({
+    mutationFn: async () => {
+      if (!tunnel?.provider || !credentialValue.trim()) {
+        throw new Error("Provider and credential value required");
+      }
+      const key =
+        tunnel.provider === "frp"
+          ? "token"
+          : tunnel.provider === "tailscale"
+            ? "authKey"
+            : "secretKey";
+      await Servers.setTunnelCredentials(serverName, tunnel.provider, { [key]: credentialValue }, serverNamespace);
+      // Refetch credential status to get the updated secretName.
+      void refetchCredentials();
+    },
+    onSuccess: () => {
+      setCredentialValue("");
+      setShowCredentialInput(false);
+    },
+  });
+
+  // Mutation to remove credentials.
+  const removeCredentialMutation = useMutation({
+    mutationFn: () => Servers.removeTunnelCredentials(serverName, serverNamespace),
+    onSuccess: () => {
+      // Clear the credentialsSecretRef from the spec.
+      setNet({ ...net, tunnel: tunnel ? { ...tunnel, credentialsSecretRef: undefined } : undefined });
+      void refetchCredentials();
+    },
+  });
+
   // Compute tunnel configuration validity.
   useEffect(() => {
     if (!tunnel?.enabled) {
@@ -61,9 +108,10 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     // Tunnel is enabled — check required fields.
     const errors: string[] = [];
 
-    // Credentials secret is always required.
-    if (!tunnel.credentialsSecretRef?.name) {
-      errors.push("Credentials Secret name is required");
+    // Credentials must be configured (either already in spec or being entered).
+    const hasConfiguredCredential = tunnel.credentialsSecretRef?.name || credentialStatus?.configured;
+    if (!hasConfiguredCredential && !credentialValue.trim()) {
+      errors.push("Tunnel credentials are required");
     }
 
     // Provider-specific validation.
@@ -92,7 +140,7 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     const isValid = errors.length === 0;
     setValidityError(isValid ? null : errors[0]);
     onValidityChange?.(isValid);
-  }, [tunnel, onValidityChange]);
+  }, [tunnel, onValidityChange, credentialValue, credentialStatus]);
 
   return (
     <div className="space-y-6">
@@ -160,22 +208,30 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                 </div>
               )}
 
-              <Field label="Credentials Secret" hint="Name of a Kubernetes Secret holding tunnel credentials (never a value).">
-                <Input
-                  value={tunnel.credentialsSecretRef?.name ?? ""}
-                  onChange={(e) =>
-                    setNet({
-                      ...net,
-                      tunnel: {
-                        ...tunnel,
-                        credentialsSecretRef: e.target.value ? { name: e.target.value } : undefined,
-                      },
-                    })
-                  }
-                  placeholder="tunnel-secret"
-                  spellCheck={false}
-                />
-              </Field>
+              <TunnelCredentialField
+                configured={credentialStatus?.configured}
+                secretName={credentialStatus?.secretName}
+                isLoading={saveCredentialMutation.isPending || removeCredentialMutation.isPending}
+                error={
+                  saveCredentialMutation.error instanceof Error
+                    ? saveCredentialMutation.error.message
+                    : removeCredentialMutation.error instanceof Error
+                      ? removeCredentialMutation.error.message
+                      : undefined
+                }
+                showInput={showCredentialInput}
+                onShowInput={() => setShowCredentialInput(true)}
+                provider={tunnel.provider}
+                credentialValue={credentialValue}
+                onCredentialChange={setCredentialValue}
+                onSave={() => saveCredentialMutation.mutate()}
+                onCancel={() => {
+                  setShowCredentialInput(false);
+                  setCredentialValue("");
+                }}
+                onRemove={() => removeCredentialMutation.mutate()}
+                hasSecretRef={!!tunnel.credentialsSecretRef?.name}
+              />
 
               {tunnel.provider === "frp" && (
                 <>
@@ -543,6 +599,139 @@ function KVEditor({
         />
         <Button size="sm" variant="outline" onClick={add} disabled={!draftKV.key.trim()}>
           Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface TunnelCredentialFieldProps {
+  configured?: boolean;
+  secretName?: string;
+  isLoading: boolean;
+  error?: string;
+  showInput: boolean;
+  onShowInput: () => void;
+  provider: "frp" | "tailscale" | "playit";
+  credentialValue: string;
+  onCredentialChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onRemove: () => void;
+  hasSecretRef: boolean;
+}
+
+function TunnelCredentialField({
+  configured,
+  secretName,
+  isLoading,
+  error,
+  showInput,
+  onShowInput,
+  provider,
+  credentialValue,
+  onCredentialChange,
+  onSave,
+  onCancel,
+  onRemove,
+  hasSecretRef,
+}: TunnelCredentialFieldProps) {
+  const labels: Record<"frp" | "tailscale" | "playit", string> = {
+    frp: "frp token",
+    tailscale: "Tailscale auth key",
+    playit: "playit secret key",
+  };
+
+  if (!showInput && (configured || hasSecretRef)) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-fg">Tunnel credentials</span>
+        </div>
+        <div className="rounded-md border border-border bg-surface/30 px-3 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-success" />
+            <div className="text-sm">
+              <div className="text-fg font-medium">Configured</div>
+              {secretName && <div className="text-xs text-muted">Secret: {secretName}</div>}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onShowInput}
+              disabled={isLoading}
+            >
+              Replace
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onRemove}
+              disabled={isLoading}
+              className="text-danger hover:text-danger"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        {error && (
+          <div className="rounded-md border-l-4 border-danger bg-danger/10 p-3 text-sm">
+            <div className="flex gap-2">
+              <AlertCircle className="h-5 w-5 shrink-0 text-danger" />
+              <div className="text-xs text-danger">{error}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1.5">
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium text-fg">Tunnel credentials</span>
+          <Input
+            type="password"
+            value={credentialValue}
+            onChange={(e) => onCredentialChange(e.target.value)}
+            placeholder={labels[provider]}
+            spellCheck={false}
+            disabled={isLoading}
+          />
+          <span className="text-[11px] text-muted">
+            {labels[provider]} — stored in a Kubernetes Secret, never displayed.
+          </span>
+        </label>
+      </div>
+      {error && (
+        <div className="rounded-md border-l-4 border-danger bg-danger/10 p-3 text-sm">
+          <div className="flex gap-2">
+            <AlertCircle className="h-5 w-5 shrink-0 text-danger" />
+            <div className="text-xs text-danger">{error}</div>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={onSave}
+          disabled={isLoading || !credentialValue.trim()}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4" /> Save credential
+            </>
+          )}
+        </Button>
+        <Button size="sm" variant="outline" onClick={onCancel} disabled={isLoading}>
+          Cancel
         </Button>
       </div>
     </div>

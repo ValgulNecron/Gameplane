@@ -250,6 +250,7 @@ func main() {
 		handlers.MountClusters(p, reg, k8s, cfg.namespace)
 		handlers.MountEvents(p, reg)
 		handlers.MountDestinations(p, reg)
+		handlers.MountTunnelCredentials(p, reg)
 		handlers.MountSystemLogs(p, k8s, cfg.namespace)
 		handlers.MountModules(p, k8s, cfg.namespace)
 		handlers.MountRegistrySecrets(p, k8s, cfg.namespace)
