@@ -357,10 +357,10 @@ describe("CreateServerWizard", () => {
     // Verify the modal doesn't have overflow by checking the outer container
     const modal = screen.getByText(/New game server/).closest("div[class*='max-w']");
     if (modal) {
-      // The modal should have overflow-hidden, which is expected, but content shouldn't be clipped
-      const computedStyle = window.getComputedStyle(modal);
-      // Just verify the structure is in place; the actual rendering is verified by presence of elements
-      expect(modal).toBeInTheDocument();
+      // The modal must have overflow-hidden to bound content and prevent clipping.
+      // We check className since jsdom doesn't resolve Tailwind computed styles.
+      // This assertion catches regressions if overflow-hidden is removed.
+      expect(modal.className).toContain("overflow-hidden");
     }
   });
 });
