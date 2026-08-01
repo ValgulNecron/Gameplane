@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQuery } from "@/test/render";
 import { NetworkingSection } from "./Networking";
 import { makeServer } from "@/test/factories";
@@ -46,14 +47,23 @@ describe("NetworkingSection", () => {
       ...baseDraft,
       spec: { ...baseDraft.spec, networking: { expose: "LoadBalancer" as const } },
     };
-    const { rerender } = renderWithQuery(<NetworkingSection draft={lb} onChange={() => {}} />);
+    const { client, rerender } = renderWithQuery(
+      <NetworkingSection draft={lb} onChange={() => {}} />,
+    );
     expect(screen.getByLabelText("LoadBalancer IP allow-list")).toBeInTheDocument();
 
     const np = {
       ...baseDraft,
       spec: { ...baseDraft.spec, networking: { expose: "NodePort" as const } },
     };
-    rerender(<NetworkingSection draft={np} onChange={() => {}} />);
+    // rerender() replaces the whole tree passed to render(), so the
+    // QueryClientProvider wrapper must be reapplied here too — otherwise
+    // NetworkingSection's useQuery call loses its client mid-test.
+    rerender(
+      <QueryClientProvider client={client}>
+        <NetworkingSection draft={np} onChange={() => {}} />
+      </QueryClientProvider>,
+    );
     expect(screen.queryByLabelText("LoadBalancer IP allow-list")).not.toBeInTheDocument();
   });
 

@@ -13,9 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	dynamicfake "k8s.io/client-go/dynamic/fake"
-	kubefake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
@@ -72,19 +69,9 @@ func doTunnelReq(t *testing.T, h http.Handler, method, path string, body any) (i
 	return rr.Code, body_out
 }
 
-func fakeKubeClientWithGameServer(gs *unstructured.Unstructured) *kube.Client {
-	scheme := runtime.NewScheme()
-	gvkr := map[string]string{
-		"gameplane.local/v1alpha1, Kind=GameServerList": "GameServerList",
-	}
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr, gs)
-	typed := kubefake.NewClientset()
-	return &kube.Client{Dynamic: dyn, Typed: typed}
-}
-
 func TestTunnelCreds_PutFrp(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	body := putReq{
@@ -128,7 +115,7 @@ func TestTunnelCreds_PutFrp(t *testing.T) {
 
 func TestTunnelCreds_PutTailscale(t *testing.T) {
 	gs := newGameServer("gameplane-games", "ts-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	body := putReq{
@@ -151,7 +138,7 @@ func TestTunnelCreds_PutTailscale(t *testing.T) {
 
 func TestTunnelCreds_PutPlayit(t *testing.T) {
 	gs := newGameServer("gameplane-games", "playit-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	body := putReq{
@@ -174,7 +161,7 @@ func TestTunnelCreds_PutPlayit(t *testing.T) {
 
 func TestTunnelCreds_PutWrongKeys(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// frp expects "token", not "apiKey"
@@ -193,7 +180,7 @@ func TestTunnelCreds_PutWrongKeys(t *testing.T) {
 
 func TestTunnelCreds_PutEmptyValue(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	body := putReq{
@@ -211,7 +198,7 @@ func TestTunnelCreds_PutEmptyValue(t *testing.T) {
 
 func TestTunnelCreds_PutUnknownProvider(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	body := putReq{
@@ -229,7 +216,7 @@ func TestTunnelCreds_PutUnknownProvider(t *testing.T) {
 
 func TestTunnelCreds_PutUpsert(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// First PUT
@@ -268,7 +255,7 @@ func TestTunnelCreds_PutUpsert(t *testing.T) {
 // the create-then-patch pattern preserves fields an admin may have added.
 func TestTunnelCreds_RotationPreservesExtraFields(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// First PUT creates the Secret with just the credential.
@@ -308,7 +295,7 @@ func TestTunnelCreds_RotationPreservesExtraFields(t *testing.T) {
 
 func TestTunnelCreds_GetNotConfigured(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	status, respBody := doTunnelReq(t, router, "GET", "/servers/test-server:tunnel-credentials", nil)
@@ -330,7 +317,7 @@ func TestTunnelCreds_GetNotConfigured(t *testing.T) {
 
 func TestTunnelCreds_GetConfigured(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// First PUT to configure
@@ -363,7 +350,7 @@ func TestTunnelCreds_GetConfigured(t *testing.T) {
 
 func TestTunnelCreds_GetNeverLeaksValue(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// PUT a credential
@@ -382,7 +369,7 @@ func TestTunnelCreds_GetNeverLeaksValue(t *testing.T) {
 
 func TestTunnelCreds_Delete(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// PUT to configure
@@ -428,7 +415,7 @@ func TestTunnelCreds_Delete(t *testing.T) {
 
 func TestTunnelCreds_DeleteNotConfigured(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	// DELETE on an unconfigured server should not error
@@ -466,7 +453,7 @@ func TestTunnelCreds_DeleteRefusedWhenTunnelEnabled(t *testing.T) {
 			},
 		},
 	}
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	// Manually create the Secret since the fake client won't auto-create it.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -537,7 +524,7 @@ func TestTunnelCreds_DeleteSucceedsWhenTunnelDisabled(t *testing.T) {
 			},
 		},
 	}
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	// Manually create the Secret.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -574,7 +561,7 @@ func TestTunnelCreds_DeleteSucceedsWhenTunnelDisabled(t *testing.T) {
 
 func TestTunnelCreds_BadJSON(t *testing.T) {
 	gs := newGameServer("gameplane-games", "test-server")
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	req := httptest.NewRequestWithContext(context.Background(), "PUT", "/servers/test-server:tunnel-credentials", bytes.NewReader([]byte("{not json")))
@@ -610,7 +597,7 @@ func TestTunnelCreds_GetMissingSecret(t *testing.T) {
 			},
 		},
 	}
-	k := fakeKubeClientWithGameServer(gs)
+	k := fakeKubeClient(gs)
 	router := newTunnelCredsRouter(k)
 
 	status, respBody := doTunnelReq(t, router, "GET", "/servers/test-server:tunnel-credentials", nil)
