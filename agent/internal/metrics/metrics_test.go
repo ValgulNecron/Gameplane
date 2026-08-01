@@ -685,3 +685,36 @@ func TestMetricsPlayerMaxZero(t *testing.T) {
 		}
 	}
 }
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	m := New()
+	if m == nil {
+		t.Fatal("New() returned nil")
+	}
+
+	// Verify the returned Metrics can be used with Gather.
+	// We can't call Gather directly on the global registry (due to pollution),
+	// but we can verify the object is properly initialized by Update/Collect.
+	m.Update(Snapshot{
+		CPUMillicores: 100,
+		CPUKnown:      true,
+		ServerName:    "test",
+		Namespace:     "ns",
+		TemplateName:  "t",
+		GameName:      "g",
+	})
+
+	// Verify Describe emits metric descriptors without error.
+	ch := make(chan *prometheus.Desc, 10)
+	m.Describe(ch)
+	close(ch)
+	count := 0
+	for range ch {
+		count++
+	}
+	if count != 8 {
+		t.Errorf("Describe emitted %d descriptors, want 8", count)
+	}
+}

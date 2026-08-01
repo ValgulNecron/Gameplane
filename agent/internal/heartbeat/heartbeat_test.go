@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -16,6 +17,7 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/metrics"
 	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/usage"
 )
@@ -411,6 +413,189 @@ func TestReadNamespace_TrimsTrailingNewlines(t *testing.T) {
 	}
 	if string(b) != "gameplane-system" {
 		t.Fatalf("got %q", string(b))
+	}
+}
+
+func TestSendOnce_PopulatesMetricsSnapshot_PlayersAndUsage(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+
+	// Create a Metrics instance to capture the snapshot.
+	metricsReg := prometheus.NewRegistry()
+	metricsObj := &metrics.Metrics{}
+	metricsReg.MustRegister(metricsObj)
+
+	cfg := Config{
+		ServerName: "test-srv",
+		Namespace:  "games",
+		Template:   "minecraft-java",
+		Game:       "minecraft",
+		RCON:       fakeRcon{out: "There are 10 of a max of 30 players online:"},
+		Usage: fakeUsage{s: usage.Sample{
+			CPUMillicores:      500,
+			CPUKnown:           true,
+			CPULimitMillicores: 1000,
+			CPULimitKnown:      true,
+			MemoryBytes:        2048,
+			MemoryKnown:        true,
+			MemoryLimitBytes:   4096,
+			MemoryLimitKnown:   true,
+			DiskUsedBytes:      100,
+			DiskTotalBytes:     1000,
+			DiskKnown:          true,
+		}},
+		Metrics: metricsObj,
+	}
+
+	if err := sendOnce(context.Background(), dyn, cfg); err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+
+	// Verify the metrics snapshot was populated by checking gathered metrics.
+	gatheredMetrics, err := metricsReg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+
+	// Should have emitted 8 metrics: 2 CPU, 2 Memory, 2 Disk, 2 Players.
+	if len(gatheredMetrics) != 8 {
+		t.Errorf("expected 8 metric families, got %d", len(gatheredMetrics))
+	}
+
+	// Verify specific metric values to confirm snapshot was populated correctly.
+	metricMap := map[string]float64{}
+	for _, family := range gatheredMetrics {
+		if family.Name != nil && len(family.Metric) > 0 && family.Metric[0].Gauge.Value != nil {
+			metricMap[*family.Name] = *family.Metric[0].Gauge.Value
+		}
+	}
+
+	if metricMap["gameplane_agent_cpu_millicores"] != 500 {
+		t.Errorf("cpu_millicores=%v, want 500", metricMap["gameplane_agent_cpu_millicores"])
+	}
+	if metricMap["gameplane_agent_memory_bytes"] != 2048 {
+		t.Errorf("memory_bytes=%v, want 2048", metricMap["gameplane_agent_memory_bytes"])
+	}
+	if metricMap["gameplane_agent_disk_used_bytes"] != 100 {
+		t.Errorf("disk_used_bytes=%v, want 100", metricMap["gameplane_agent_disk_used_bytes"])
+	}
+	if metricMap["gameplane_agent_players_online"] != 10 {
+		t.Errorf("players_online=%v, want 10", metricMap["gameplane_agent_players_online"])
+	}
+	if metricMap["gameplane_agent_players_max"] != 30 {
+		t.Errorf("players_max=%v, want 30", metricMap["gameplane_agent_players_max"])
+	}
+}
+
+func TestSendOnce_MetricsSnapshot_HandlesMixedKnownUnknown(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+
+	metricsReg := prometheus.NewRegistry()
+	metricsObj := &metrics.Metrics{}
+	metricsReg.MustRegister(metricsObj)
+
+	// Usage data: CPU known, memory unknown.
+	cfg := Config{
+		ServerName: "test-srv",
+		Namespace:  "games",
+		Template:   "minecraft-java",
+		Game:       "minecraft",
+		RCON:       fakeRcon{out: "There are 5 players"}, // Players known, max unknown
+		Usage:      fakeUsage{s: usage.Sample{CPUMillicores: 300, CPUKnown: true}},
+		Metrics:    metricsObj,
+	}
+
+	if err := sendOnce(context.Background(), dyn, cfg); err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+
+	gatheredMetrics, err := metricsReg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+
+	// Should have exactly 2 metrics: cpu (known) and players_online (known).
+	// No memory, cpu_limit, disk, or players_max (all unknown).
+	if len(gatheredMetrics) != 2 {
+		t.Errorf("expected 2 metric families, got %d", len(gatheredMetrics))
+	}
+
+	metricNames := map[string]bool{}
+	for _, family := range gatheredMetrics {
+		if family.Name != nil {
+			metricNames[*family.Name] = true
+		}
+	}
+
+	if !metricNames["gameplane_agent_cpu_millicores"] {
+		t.Error("cpu_millicores metric missing")
+	}
+	if !metricNames["gameplane_agent_players_online"] {
+		t.Error("players_online metric missing")
+	}
+	if len(metricNames) != 2 {
+		t.Errorf("unexpected metrics present: %v", metricNames)
+	}
+}
+
+func TestSendOnce_MetricsSnapshot_RconFailureDoesNotPopulate(t *testing.T) {
+	scheme := runtime.NewScheme()
+	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
+
+	var captured []byte
+	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
+		captured = a.(clienttesting.PatchAction).GetPatch()
+		return true, fakeGameServer(), nil
+	})
+
+	metricsReg := prometheus.NewRegistry()
+	metricsObj := &metrics.Metrics{}
+	metricsReg.MustRegister(metricsObj)
+
+	cfg := Config{
+		ServerName: "test-srv",
+		Namespace:  "games",
+		Template:   "minecraft-java",
+		Game:       "minecraft",
+		RCON:       fakeRcon{err: errors.New("rcon down")},
+		Usage:      fakeUsage{s: usage.Sample{CPUMillicores: 100, CPUKnown: true}},
+		Metrics:    metricsObj,
+	}
+
+	if err := sendOnce(context.Background(), dyn, cfg); err != nil {
+		t.Fatalf("sendOnce: %v", err)
+	}
+
+	gatheredMetrics, err := metricsReg.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+
+	// Should have only CPU metric; no player metrics because RCON failed.
+	if len(gatheredMetrics) != 1 {
+		t.Errorf("expected 1 metric family (CPU only), got %d", len(gatheredMetrics))
+	}
+
+	if len(gatheredMetrics) > 0 && gatheredMetrics[0].Name != nil {
+		if *gatheredMetrics[0].Name != "gameplane_agent_cpu_millicores" {
+			t.Errorf("expected cpu_millicores, got %s", *gatheredMetrics[0].Name)
+		}
 	}
 }
 
