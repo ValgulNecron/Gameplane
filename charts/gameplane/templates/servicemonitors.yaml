@@ -43,4 +43,20 @@ spec:
     matchLabels: { app.kubernetes.io/name: gameplane-api }
   endpoints:
     - { port: http, interval: 30s, path: /metrics }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: gameplane-agent
+  namespace: {{ .Values.gamesNamespace }}
+  labels:
+    {{- include "gameplane.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitors.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: gameplane-game }
+  podMetricsEndpoints:
+    - { port: agent, interval: 30s }
 {{- end }}

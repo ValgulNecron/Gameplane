@@ -25,6 +25,7 @@ import (
 	"github.com/ValgulNecron/gameplane/agent/internal/heartbeat"
 	"github.com/ValgulNecron/gameplane/agent/internal/lifecycle"
 	"github.com/ValgulNecron/gameplane/agent/internal/logs"
+	"github.com/ValgulNecron/gameplane/agent/internal/metrics"
 	"github.com/ValgulNecron/gameplane/agent/internal/mods"
 	"github.com/ValgulNecron/gameplane/agent/internal/players"
 	"github.com/ValgulNecron/gameplane/agent/internal/quiesce"
@@ -181,6 +182,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// Prometheus metrics for per-server resource usage and player counts.
+	// Registered with the default registry so promhttp.Handler() picks it up.
+	m := metrics.New()
+
 	// Resource usage: in proc mode (the operator shares the pod's PID
 	// namespace and sets GAMEPLANE_USAGE_PROC) the agent reports the game
 	// process's CPU/memory from /proc and uses the operator-supplied limits
@@ -204,6 +209,7 @@ func main() {
 			CPULimitMillicores: envInt("GAMEPLANE_CPU_LIMIT_MILLICORES"),
 			MemLimitBytes:      envInt("GAMEPLANE_MEM_LIMIT_BYTES"),
 		}),
+		Metrics: m,
 	})
 
 	go func() {
