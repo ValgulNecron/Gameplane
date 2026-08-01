@@ -317,9 +317,11 @@ describe("CreateServerWizard", () => {
     fetchMock.mockResolvedValue(jsonRes(200, { items: templates }));
     render(withClient(<CreateServerWizard />));
 
-    // All category buttons should be rendered and accessible
-    await screen.findByRole("button", { name: "All" });
-    expect(screen.getByRole("button", { name: "Sandbox" })).toBeInTheDocument();
+    // "All" renders unconditionally (even before the template query
+    // resolves), so awaiting it wouldn't prove the derived category chips
+    // are up. Await a chip that only exists once the templates have loaded.
+    await screen.findByRole("button", { name: "Sandbox" });
+    expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Survival" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Adventure" })).toBeInTheDocument();
 
@@ -327,6 +329,14 @@ describe("CreateServerWizard", () => {
     // by checking that they have aria-pressed attribute (indicating they're interactive buttons)
     const categoryButtons = screen.getAllByRole("button", { pressed: false });
     expect(categoryButtons.length).toBeGreaterThanOrEqual(3);
+
+    // Regression guard for Bug 1: the row must wrap rather than scroll
+    // behind a clipped overflow container. If `flex-wrap` is dropped or
+    // `overflow-x-auto` comes back, this fails even though jsdom does no
+    // layout, because it's asserting on the classes directly.
+    const chipRow = screen.getByRole("button", { name: "Sandbox" }).closest("div.flex");
+    expect(chipRow?.className).toContain("flex-wrap");
+    expect(chipRow?.className).not.toContain("overflow-x-auto");
   });
 
   it("displays the preview panel inside the modal without clipping on step 1 (Bug 2: preview overflow)", async () => {
@@ -342,20 +352,26 @@ describe("CreateServerWizard", () => {
     fetchMock.mockResolvedValue(jsonRes(200, { items: [minecraftTemplate] }));
     render(withClient(<CreateServerWizard />));
 
-    // Pre-select the template to show the preview
+    // Pre-select the template to show the preview reflecting a real
+    // selection — once selected, the preview header shows the template's
+    // own name instead of the unselected "Pick a template" placeholder.
     fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
 
-    // The preview panel should be visible and not clipped
-    // Check for preview content
-    expect(screen.getByText(/Pick a template/i)).toBeInTheDocument();
+    // The template name should appear in the preview header and not be cut off.
+    const previewElements = screen.getAllByText(/Minecraft Java Edition/i);
+    expect(previewElements.length).toBeGreaterThan(0);
+    // The preview's static footer content is always present.
     expect(screen.getByText(/Memory tip/i)).toBeInTheDocument();
 
-    // The template name should appear in the preview header and not be cut off
-    const previewElements = screen.getAllByText(/Minecraft Java/i);
-    expect(previewElements.length).toBeGreaterThan(0);
+    // Regression guard for Bug 2: the preview panel and its grid column
+    // must be min-w-0, or the panel escapes its column and gets clipped by
+    // the modal's overflow-hidden instead of shrinking to fit.
+    const preview = screen.getByText(/Memory tip/i).closest("aside");
+    expect(preview?.className).toContain("min-w-0");
 
     // Verify the modal doesn't have overflow by checking the outer container
     const modal = screen.getByText(/New game server/).closest("div[class*='max-w']");
+    expect(modal).toBeTruthy();
     if (modal) {
       // The modal must have overflow-hidden to bound content and prevent clipping.
       // We check className since jsdom doesn't resolve Tailwind computed styles.
