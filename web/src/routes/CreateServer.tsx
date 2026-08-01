@@ -366,7 +366,7 @@ export function CreateServerWizard() {
         <StepBar steps={steps} stepIndex={stepIndex} />
 
         <div className="grid gap-6 px-6 py-6 md:grid-cols-[1fr_260px]">
-          <div>
+          <div className="min-w-0">
             {currentKey === "template" && <PickTemplate state={state} setState={setState} />}
             {currentKey === "version" && <PickVersion state={state} setState={setState} />}
             {currentKey === "configure" && <Configure state={state} setState={setState} />}
@@ -513,23 +513,20 @@ function PickTemplate({ state, setState }: { state: WizardState; setState: (s: W
           onChange={(e) => setQ(e.target.value)}
           aria-label="Search templates"
         />
-        <div className="relative">
-          <div className="flex gap-1 overflow-x-auto rounded-md border border-border bg-surface/40 p-1 scrollbar-thin">
-            {templateCategories.map((c: string) => (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={cn(
-                  "shrink-0 rounded px-3 py-1 text-xs font-medium",
-                  activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
-                )}
-                aria-pressed={activeCat === c}
-              >
-                {c === "all" ? "All" : c}
-              </button>
-            ))}
-          </div>
-          <div className="absolute inset-y-0 right-0 w-12 bg-gradient-to-r from-transparent to-card pointer-events-none rounded-md" />
+        <div className="flex flex-wrap gap-1 rounded-md border border-border bg-surface/40 p-1">
+          {templateCategories.map((c: string) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={cn(
+                "rounded px-3 py-1 text-xs font-medium",
+                activeCat === c ? "bg-primary/15 text-primary" : "text-muted hover:text-fg",
+              )}
+              aria-pressed={activeCat === c}
+            >
+              {c === "all" ? "All" : c}
+            </button>
+          ))}
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -1129,8 +1126,8 @@ ${state.version ? `  version: ${state.version}\n` : ""}  resources:
 `
     : "# Pick a template to preview the YAML.";
   return (
-    <aside className="rounded-lg border border-border bg-surface/40">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+    <aside className="min-w-0 rounded-lg border border-border bg-surface/40 flex flex-col">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3 min-w-0">
         <GameIcon game={state.template?.spec.game} size="sm" />
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{name}</div>
@@ -1139,10 +1136,10 @@ ${state.version ? `  version: ${state.version}\n` : ""}  resources:
           </div>
         </div>
       </div>
-      <pre className="max-h-72 overflow-auto px-4 py-3 font-mono text-[11px] leading-relaxed text-fg scrollbar-thin">
+      <pre className="min-w-0 max-h-72 overflow-auto px-4 py-3 font-mono text-[11px] leading-relaxed text-fg scrollbar-thin">
 {yaml}
       </pre>
-      <div className="border-t border-border px-4 py-3 text-[11px] text-muted">
+      <div className="min-w-0 border-t border-border px-4 py-3 text-[11px] text-muted">
         <span className="font-medium text-fg">Memory tip.</span>
         {" "}Factor in mod/plugin overhead; Minecraft Vanilla uses ~1.5 GB at 4 players.
       </div>

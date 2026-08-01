@@ -286,6 +286,99 @@ describe("CreateServerWizard", () => {
     expect(screen.getByRole("button", { name: /Minecraft Java/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Valheim/i })).toBeNull();
   });
+
+  it("renders all category chips reachable on step 1 (Bug 1: category overflow)", async () => {
+    const templates: GameTemplate[] = [
+      {
+        metadata: { name: "minecraft" },
+        spec: { displayName: "Minecraft", game: "minecraft", categories: ["Sandbox"], version: "1.21", image: "x" },
+      },
+      {
+        metadata: { name: "terraria" },
+        spec: { displayName: "Terraria", game: "terraria", categories: ["Sandbox"], version: "1.0", image: "x" },
+      },
+      {
+        metadata: { name: "valheim" },
+        spec: { displayName: "Valheim", game: "valheim", categories: ["Survival"], version: "1.0", image: "x" },
+      },
+      {
+        metadata: { name: "7days" },
+        spec: { displayName: "7 Days to Die", game: "7days", categories: ["Survival"], version: "1.0", image: "x" },
+      },
+      {
+        metadata: { name: "ark" },
+        spec: { displayName: "ARK", game: "ark", categories: ["Adventure"], version: "1.0", image: "x" },
+      },
+      {
+        metadata: { name: "gmod" },
+        spec: { displayName: "Garry's Mod", game: "gmod", categories: ["Sandbox"], version: "1.0", image: "x" },
+      },
+    ];
+    fetchMock.mockResolvedValue(jsonRes(200, { items: templates }));
+    render(withClient(<CreateServerWizard />));
+
+    // "All" renders unconditionally (even before the template query
+    // resolves), so awaiting it wouldn't prove the derived category chips
+    // are up. Await a chip that only exists once the templates have loaded.
+    await screen.findByRole("button", { name: "Sandbox" });
+    expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Survival" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Adventure" })).toBeInTheDocument();
+
+    // Verify they're all clickable and the page doesn't have overflow clipping
+    // by checking that they have aria-pressed attribute (indicating they're interactive buttons)
+    const categoryButtons = screen.getAllByRole("button", { pressed: false });
+    expect(categoryButtons.length).toBeGreaterThanOrEqual(3);
+
+    // Regression guard for Bug 1: the row must wrap rather than scroll
+    // behind a clipped overflow container. If `flex-wrap` is dropped or
+    // `overflow-x-auto` comes back, this fails even though jsdom does no
+    // layout, because it's asserting on the classes directly.
+    const chipRow = screen.getByRole("button", { name: "Sandbox" }).closest("div.flex");
+    expect(chipRow?.className).toContain("flex-wrap");
+    expect(chipRow?.className).not.toContain("overflow-x-auto");
+  });
+
+  it("displays the preview panel inside the modal without clipping on step 1 (Bug 2: preview overflow)", async () => {
+    const minecraftTemplate: GameTemplate = {
+      metadata: { name: "minecraft-java" },
+      spec: {
+        displayName: "Minecraft Java Edition",
+        game: "minecraft",
+        version: "1.21",
+        image: "itzg/minecraft-server",
+      },
+    };
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [minecraftTemplate] }));
+    render(withClient(<CreateServerWizard />));
+
+    // Pre-select the template to show the preview reflecting a real
+    // selection — once selected, the preview header shows the template's
+    // own name instead of the unselected "Pick a template" placeholder.
+    fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
+
+    // The template name should appear in the preview header and not be cut off.
+    const previewElements = screen.getAllByText(/Minecraft Java Edition/i);
+    expect(previewElements.length).toBeGreaterThan(0);
+    // The preview's static footer content is always present.
+    expect(screen.getByText(/Memory tip/i)).toBeInTheDocument();
+
+    // Regression guard for Bug 2: the preview panel and its grid column
+    // must be min-w-0, or the panel escapes its column and gets clipped by
+    // the modal's overflow-hidden instead of shrinking to fit.
+    const preview = screen.getByText(/Memory tip/i).closest("aside");
+    expect(preview?.className).toContain("min-w-0");
+
+    // Verify the modal doesn't have overflow by checking the outer container
+    const modal = screen.getByText(/New game server/).closest("div[class*='max-w']");
+    expect(modal).toBeTruthy();
+    if (modal) {
+      // The modal must have overflow-hidden to bound content and prevent clipping.
+      // We check className since jsdom doesn't resolve Tailwind computed styles.
+      // This assertion catches regressions if overflow-hidden is removed.
+      expect(modal.className).toContain("overflow-hidden");
+    }
+  });
 });
 
 describe("parseSourceRanges", () => {
