@@ -421,9 +421,7 @@ func TestSendOnce_PopulatesMetricsSnapshot_PlayersAndUsage(t *testing.T) {
 	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
 
-	var captured []byte
 	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
-		captured = a.(clienttesting.PatchAction).GetPatch()
 		return true, fakeGameServer(), nil
 	})
 
@@ -499,9 +497,7 @@ func TestSendOnce_MetricsSnapshot_HandlesMixedKnownUnknown(t *testing.T) {
 	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
 
-	var captured []byte
 	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
-		captured = a.(clienttesting.PatchAction).GetPatch()
 		return true, fakeGameServer(), nil
 	})
 
@@ -558,9 +554,7 @@ func TestSendOnce_MetricsSnapshot_RconFailureDoesNotPopulate(t *testing.T) {
 	gvkr := map[schema.GroupVersionResource]string{gvr: "GameServerList"}
 	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvkr)
 
-	var captured []byte
 	dyn.PrependReactor("patch", "gameservers", func(a clienttesting.Action) (bool, runtime.Object, error) {
-		captured = a.(clienttesting.PatchAction).GetPatch()
 		return true, fakeGameServer(), nil
 	})
 
