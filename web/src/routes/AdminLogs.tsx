@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { APIError } from "@/lib/api";
+import { errorTextWithStatus } from "@/lib/errors";
 import { withCluster } from "@/lib/endpoints";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,7 @@ export function AdminLogsPage() {
           });
         } catch (err) {
           if (ctrl.signal.aborted) return;
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorTextWithStatus(err, String(err)));
           return; // only clean stream ends reconnect; errors stop the loop
         }
         // A non-follow fetch is one-shot. The server caps follow streams at
@@ -172,7 +173,7 @@ export function AdminLogsPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorTextWithStatus(err, String(err)));
     }
   };
 

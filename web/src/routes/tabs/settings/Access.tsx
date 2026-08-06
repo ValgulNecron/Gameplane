@@ -5,7 +5,7 @@ import type { GameServer } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Servers } from "@/lib/endpoints";
-import { APIError } from "@/lib/api";
+import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
 import { OWNER_ID_ANNOTATION, OWNER_ANNOTATION } from "@/lib/annotations";
 
@@ -182,14 +182,5 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 function errMsg(err: unknown): string {
-  if (err instanceof APIError) {
-    try {
-      const parsed = JSON.parse(err.body) as { error?: string };
-      if (parsed.error) return parsed.error;
-    } catch {
-      // fall through
-    }
-    return err.body || `request failed (${err.status})`;
-  }
-  return err instanceof Error ? err.message : "failed";
+  return errorText(err, "failed");
 }

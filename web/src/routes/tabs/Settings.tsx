@@ -16,6 +16,7 @@ import {
 import type { GameServer } from "@/types";
 import { Button } from "@/components/ui/button";
 import { APIError } from "@/lib/api";
+import { errorText } from "@/lib/errors";
 import { Servers, Templates } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
 
@@ -332,15 +333,5 @@ function mergeAnnotations(
 }
 
 function errMsg(err: unknown): string {
-  if (err instanceof APIError) {
-    try {
-      const parsed = JSON.parse(err.body) as { error?: string; message?: string };
-      if (parsed.error) return parsed.error;
-      if (parsed.message) return parsed.message;
-    } catch {
-      // fall through
-    }
-    return err.body || `request failed (${err.status})`;
-  }
-  return err instanceof Error ? err.message : "save failed";
+  return errorText(err, "save failed");
 }

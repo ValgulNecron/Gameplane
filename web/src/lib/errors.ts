@@ -15,3 +15,11 @@ export function errorText(err: unknown, fallback = "request failed"): string {
   }
   return err instanceof Error ? err.message : fallback;
 }
+
+// errorTextWithStatus is errorText plus an HTTP status prefix for APIError
+// (e.g. "404: no pods found") — for diagnostic surfaces (like the admin log
+// viewer) where the status code itself is useful context, not just the body.
+export function errorTextWithStatus(err: unknown, fallback = "request failed"): string {
+  if (err instanceof APIError) return `${err.status}: ${errorText(err, fallback)}`;
+  return errorText(err, fallback);
+}

@@ -30,6 +30,7 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { SlackIcon } from "@/components/ui/slack-icon";
 import { cn, formatRelative } from "@/lib/utils";
+import { errorText } from "@/lib/errors";
 import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
 import type { ClusterInfo } from "@/types";
 import {
@@ -198,7 +199,7 @@ function useSectionForm<T>(initial: T, section: Parameters<typeof useUpdateConfi
     setError(null);
     mut.mutate(draft as never, {
       onSuccess: () => setSaved(true),
-      onError: (e) => setError(e instanceof Error ? e.message : "Save failed"),
+      onError: (e) => setError(errorText(e, "Save failed")),
     });
   };
 
@@ -474,7 +475,7 @@ function AddProviderForm({
       });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to store the client secret");
+      setError(errorText(e, "Failed to store the client secret"));
     } finally {
       setBusy(false);
     }
@@ -818,7 +819,7 @@ function SetRegistryKeyForm({
       onSaved({ provider, configRef: res.name });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to store the API key");
+      setError(errorText(e, "Failed to store the API key"));
     } finally {
       setBusy(false);
     }
@@ -1053,7 +1054,7 @@ function AddSinkForm({
       onAdd({ name, kind, enabled: true, configRef: res.name, events });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to store the sink credentials");
+      setError(errorText(e, "Failed to store the sink credentials"));
     } finally {
       setBusy(false);
     }
@@ -1189,7 +1190,7 @@ function NotificationsSection({ initial }: { initial?: NotificationsCfg }) {
       onError: (e) =>
         setTestResults((r) => ({
           ...r,
-          [name]: { ok: false, message: e instanceof Error ? e.message : "delivery failed" },
+          [name]: { ok: false, message: errorText(e, "delivery failed") },
         })),
     });
 

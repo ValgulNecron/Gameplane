@@ -6,8 +6,8 @@ import type { RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { APIError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { errorText } from "@/lib/errors";
 
 const PAGE = 24;
 
@@ -221,16 +221,7 @@ export function RegistryBrowser({
 }
 
 function errText(err: unknown): string {
-  if (err instanceof APIError) {
-    try {
-      const parsed = JSON.parse(err.body) as { error?: string };
-      if (parsed.error) return parsed.error;
-    } catch {
-      // fall through
-    }
-    return err.body || `request failed (${err.status})`;
-  }
-  return err instanceof Error ? err.message : "request failed";
+  return errorText(err, "request failed");
 }
 
 // compactNum formats large download counts (e.g. 1.2M).
