@@ -124,7 +124,7 @@ func sinkSecretData(b sinkSecretBody) (map[string]string, error) {
 
 func (h notificationsHandler) putSecret(w http.ResponseWriter, req *http.Request) {
 	name := chi.URLParam(req, "name")
-	if !nameRE.MatchString(name) {
+	if !dnsLabelRE.MatchString(name) {
 		http.Error(w, "sink name must be a DNS label (lowercase, digits, hyphens)", http.StatusUnprocessableEntity)
 		return
 	}
@@ -163,7 +163,7 @@ func (h notificationsHandler) putSecret(w http.ResponseWriter, req *http.Request
 
 func (h notificationsHandler) deleteSecret(w http.ResponseWriter, req *http.Request) {
 	name := chi.URLParam(req, "name")
-	if !nameRE.MatchString(name) {
+	if !dnsLabelRE.MatchString(name) {
 		http.Error(w, "sink name must be a DNS label (lowercase, digits, hyphens)", http.StatusUnprocessableEntity)
 		return
 	}

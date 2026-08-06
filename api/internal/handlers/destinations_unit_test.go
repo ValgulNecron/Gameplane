@@ -68,12 +68,12 @@ func TestDestinationNameRE(t *testing.T) {
 	good := []string{"a", "ab", "alpha-beta", "x1-y2"}
 	bad := []string{"", "A", "-leading", "trailing-", "foo_bar"}
 	for _, n := range good {
-		if !nameRE.MatchString(n) {
+		if !dnsLabelRE.MatchString(n) {
 			t.Errorf("rejected good name %q", n)
 		}
 	}
 	for _, n := range bad {
-		if nameRE.MatchString(n) {
+		if dnsLabelRE.MatchString(n) {
 			t.Errorf("accepted bad name %q", n)
 		}
 	}

@@ -240,7 +240,7 @@ func (h modulesHandler) createSource(w http.ResponseWriter, req *http.Request) {
 		httperr.WriteCode(w, req, http.StatusBadRequest, err)
 		return
 	}
-	if !moduleNameRE.MatchString(in.Name) {
+	if !dnsLabelRE.MatchString(in.Name) {
 		httperr.WriteCode(w, req, http.StatusBadRequest,
 			errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
 		return

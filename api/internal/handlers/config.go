@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"unicode"
 
@@ -17,11 +16,6 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/notify"
 	"github.com/ValgulNecron/gameplane/api/internal/registry"
 )
-
-// dnsLabelRE matches an RFC1123 label: lowercase alphanumeric and dashes,
-// no leading/trailing dash, 1-63 chars. Used for K8s namespace and Secret
-// name fields where the value will eventually be passed to the API server.
-var dnsLabelRE = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 
 // MountConfig exposes the admin config store at /admin/config.
 //

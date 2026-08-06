@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"sort"
 
 	"github.com/go-chi/chi/v5"
@@ -41,10 +40,6 @@ type roleDTO struct {
 	Builtin     bool     `json:"builtin"`
 	Permissions []string `json:"permissions"`
 }
-
-// roleNameRE keeps role names URL- and identifier-safe (they're stored
-// in users.role and surfaced in bindings). Same shape as usernames.
-var roleNameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
 
 func (h *roleHandler) catalog(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{"groups": rbac.Catalog})
@@ -122,7 +117,7 @@ func (h *roleHandler) create(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if !roleNameRE.MatchString(body.Name) {
+	if !identifierRE.MatchString(body.Name) {
 		http.Error(w, "invalid role name", http.StatusBadRequest)
 		return
 	}
