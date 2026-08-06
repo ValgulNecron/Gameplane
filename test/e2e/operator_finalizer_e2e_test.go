@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -286,19 +287,18 @@ func TestGameTemplate_DeletionWithLiveServer(t *testing.T) {
 	// same UID. A regression where the operator tears down children on
 	// template delete would either delete the SS or recreate it under a
 	// fresh UID.
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
+	envInstance.Consistently(t, 30*time.Second, 3*time.Second, func() (bool, string) {
 		ss, err := envInstance.K8s.AppsV1().StatefulSets(ns).Get(ctx, gs, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
-			t.Fatalf("StatefulSet was GC'd after GameTemplate delete — operator must not cascade")
+			return false, "StatefulSet was GC'd after GameTemplate delete — operator must not cascade"
 		}
 		if err != nil {
-			t.Fatalf("get ss post-delete: %v", err)
+			return false, "get ss post-delete: " + err.Error()
 		}
 		if ss.UID != preUID {
-			t.Fatalf("StatefulSet UID changed after GameTemplate delete (pre=%s, post=%s) — operator recreated it",
+			return false, fmt.Sprintf("StatefulSet UID changed after GameTemplate delete (pre=%s, post=%s) — operator recreated it",
 				preUID, ss.UID)
 		}
-		time.Sleep(3 * time.Second)
-	}
+		return true, ""
+	})
 }

@@ -61,22 +61,21 @@ func TestBackupSchedule_SuspendStopsScheduling(t *testing.T) {
 	// Watch for ~75s. A non-suspended schedule with `* * * * *` would
 	// have fired once. Any owned Backup appearing in this window is a
 	// regression in the suspend gate.
-	deadline := time.Now().Add(75 * time.Second)
-	for time.Now().Before(deadline) {
+	envInstance.Consistently(t, 75*time.Second, 5*time.Second, func() (bool, string) {
 		bks, err := envInstance.Dyn.Resource(backupGVR).Namespace(ns).
 			List(ctx, metav1.ListOptions{})
 		if err != nil {
-			t.Fatalf("list backups: %v", err)
+			return false, "list backups: " + err.Error()
 		}
 		for _, item := range bks.Items {
 			for _, owner := range item.GetOwnerReferences() {
 				if owner.Kind == "BackupSchedule" && owner.Name == schedName {
-					t.Fatalf("suspended schedule still emitted Backup %s", item.GetName())
+					return false, "suspended schedule still emitted Backup " + item.GetName()
 				}
 			}
 		}
-		time.Sleep(5 * time.Second)
-	}
+		return true, ""
+	})
 
 	// Flip suspend to false. Within the next cron window (≤60s) plus
 	// some reconcile slack, a Backup must appear.

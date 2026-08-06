@@ -129,6 +129,23 @@ func (e *Env) Eventually(t *testing.T, timeout time.Duration, cond func() (bool,
 	t.Fatalf("Eventually: timed out after %s: %s", timeout, lastMsg)
 }
 
+// Consistently polls cond every interval for the full duration and fails
+// the test on the first false — the counterpart to Eventually. Where
+// Eventually asserts a condition *becomes* true within a deadline,
+// Consistently asserts an invariant *holds* throughout a window: every
+// poll must return true, or the test fails immediately with the
+// condition's message rather than waiting out the rest of the window.
+func (e *Env) Consistently(t *testing.T, duration, interval time.Duration, cond func() (bool, string)) {
+	t.Helper()
+	deadline := time.Now().Add(duration)
+	for time.Now().Before(deadline) {
+		if ok, msg := cond(); !ok {
+			t.Fatalf("Consistently: invariant broke before %s elapsed: %s", duration, msg)
+		}
+		time.Sleep(interval)
+	}
+}
+
 // Kubectl shells out for operations the typed client makes awkward —
 // `kubectl exec`, `kubectl apply -f`, etc. Output (stdout+stderr
 // combined) is returned along with the error, so callers can include
