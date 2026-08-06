@@ -1,0 +1,82 @@
+name: dump cluster state on failure
+description: >
+  Dump diagnostic cluster state (resources, pod descriptions, component logs)
+  when an e2e job fails. Does not fail the job itself — all kubectl/helm commands
+  run with `|| true` to ensure the step completes even if inspection fails.
+inputs:
+  context:
+    description: kubectl context to query (required)
+    required: true
+  namespaces:
+    description: Comma-separated list of namespaces to describe pods in
+    required: false
+    default: "gameplane-system"
+  include-previous-logs:
+    description: Include --previous operator logs (for crash diagnostics)
+    required: false
+    default: "false"
+  include-helm-history:
+    description: Include helm release history (for upgrade jobs)
+    required: false
+    default: "false"
+  include-get-jobs:
+    description: Include kubectl get jobs output
+    required: false
+    default: "false"
+  include-operator-logs:
+    description: Include operator component logs
+    required: false
+    default: "true"
+  include-api-logs:
+    description: Include API component logs
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: dump cluster state (resources and pods)
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+
+        # Always dump top-level resources
+        kubectl --context "$ctx" get all -A || true
+
+        # Describe pods in specified namespaces
+        IFS=',' read -ra NS_ARRAY <<< "${{ inputs.namespaces }}"
+        for ns in "${NS_ARRAY[@]}"; do
+          ns=$(echo "$ns" | xargs)  # trim whitespace
+          kubectl --context "$ctx" describe pods -n "$ns" || true
+        done
+
+    - name: dump operator logs
+      if: inputs.include-operator-logs == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+
+        if [ "${{ inputs.include-previous-logs }}" = "true" ]; then
+          kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
+        fi
+
+    - name: dump API logs
+      if: inputs.include-api-logs == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+
+    - name: dump helm history (optional)
+      if: inputs.include-helm-history == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        helm --kube-context "$ctx" history gameplane -n gameplane-system || true
+
+    - name: dump jobs (optional)
+      if: inputs.include-get-jobs == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        kubectl --context "$ctx" get jobs -n gameplane-system || true
