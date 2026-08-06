@@ -11,7 +11,6 @@
 package quiesce
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 )
 
 // Rcon is the slice of *rcon.Client we actually use. Defined here as
@@ -61,19 +61,19 @@ func Mount(r chi.Router, rc Rcon, game string, spec *caps.Quiesce) {
 	q := Pick(spec)
 	r.Post("/quiesce", func(w http.ResponseWriter, _ *http.Request) {
 		if !q.Supported() {
-			writeJSON(w, http.StatusOK, response{Quiesced: false, Reason: "game does not support quiesce"})
+			httpjson.Write(w, http.StatusOK, response{Quiesced: false, Reason: "game does not support quiesce"})
 			return
 		}
 		if err := q.Quiesce(rc); err != nil {
 			slog.Warn("quiesce failed", "game", game, "err", err)
-			writeJSON(w, http.StatusBadGateway, response{Quiesced: false, Reason: "rcon error"})
+			httpjson.Write(w, http.StatusBadGateway, response{Quiesced: false, Reason: "rcon error"})
 			return
 		}
-		writeJSON(w, http.StatusOK, response{Quiesced: true})
+		httpjson.Write(w, http.StatusOK, response{Quiesced: true})
 	})
 	r.Post("/unquiesce", func(w http.ResponseWriter, _ *http.Request) {
 		if !q.Supported() {
-			writeJSON(w, http.StatusOK, response{Quiesced: false, Reason: "game does not support quiesce"})
+			httpjson.Write(w, http.StatusOK, response{Quiesced: false, Reason: "game does not support quiesce"})
 			return
 		}
 		if err := q.Unquiesce(rc); err != nil {
@@ -82,17 +82,11 @@ func Mount(r chi.Router, rc Rcon, game string, spec *caps.Quiesce) {
 			// must not block the controller — surface 502 so the
 			// operator can record an event.
 			slog.Warn("unquiesce failed", "game", game, "err", err)
-			writeJSON(w, http.StatusBadGateway, response{Quiesced: true, Reason: "unquiesce rcon error"})
+			httpjson.Write(w, http.StatusBadGateway, response{Quiesced: true, Reason: "unquiesce rcon error"})
 			return
 		}
-		writeJSON(w, http.StatusOK, response{Quiesced: false})
+		httpjson.Write(w, http.StatusOK, response{Quiesced: false})
 	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
 }
 
 // --- Declared (module-driven) ------------------------------------------

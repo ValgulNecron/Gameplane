@@ -19,6 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 	"github.com/ValgulNecron/gameplane/gameaction"
 )
@@ -119,18 +120,18 @@ type runResp struct {
 func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 	var body runReq
 	if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, 16<<10)).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid json body")
+		httpjson.Error(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
 	act, ok := h.actions[body.ID]
 	if !ok {
-		writeErr(w, http.StatusNotFound, "unknown action")
+		httpjson.Error(w, http.StatusNotFound, "unknown action")
 		return
 	}
 
 	params, err := gameaction.Resolve(toGameactionParams(act.spec.Params), body.Params)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		httpjson.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -139,17 +140,17 @@ func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 		cmd, err := c.Render(params)
 		if err != nil {
 			slog.Warn("render action command", "action", act.spec.ID, "err", err)
-			writeErr(w, http.StatusBadRequest, "could not render action command")
+			httpjson.Error(w, http.StatusBadRequest, "could not render action command")
 			return
 		}
 		if cmd == "" {
-			writeErr(w, http.StatusUnprocessableEntity, "action produced an empty command")
+			httpjson.Error(w, http.StatusUnprocessableEntity, "action produced an empty command")
 			return
 		}
 
 		raw, err := h.rc.Exec(cmd)
 		if errors.Is(err, rcon.ErrDisabled) {
-			writeErr(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
+			httpjson.Error(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
 			return
 		}
 		if err != nil {
@@ -157,20 +158,10 @@ func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 			// mods — never reflect them to the client. A mid-sequence
 			// failure aborts the remaining steps.
 			slog.Warn("action rcon", "action", act.spec.ID, "err", err)
-			writeErr(w, http.StatusBadGateway, "upstream unavailable")
+			httpjson.Error(w, http.StatusBadGateway, "upstream unavailable")
 			return
 		}
 		outputs = append(outputs, strings.TrimSpace(raw))
 	}
-	writeJSON(w, http.StatusOK, runResp{OK: true, Raw: strings.Join(outputs, "\n")})
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-func writeErr(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	httpjson.Write(w, http.StatusOK, runResp{OK: true, Raw: strings.Join(outputs, "\n")})
 }

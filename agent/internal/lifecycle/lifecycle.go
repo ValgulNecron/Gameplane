@@ -13,13 +13,13 @@
 package lifecycle
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 )
 
 // Rcon is the subset of *rcon.Client we use, as an interface so tests can
@@ -55,18 +55,12 @@ func Mount(r chi.Router, rc Rcon, game string, spec *caps.Lifecycle) {
 	s := Pick(spec)
 	r.Post("/lifecycle/stop", func(w http.ResponseWriter, _ *http.Request) {
 		if !s.Supported() {
-			writeJSON(w, http.StatusOK, response{Stopped: false, Reason: "game declares no stop sequence"})
+			httpjson.Write(w, http.StatusOK, response{Stopped: false, Reason: "game declares no stop sequence"})
 			return
 		}
 		s.Stop(rc)
-		writeJSON(w, http.StatusOK, response{Stopped: true})
+		httpjson.Write(w, http.StatusOK, response{Stopped: true})
 	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
 }
 
 // --- Declared (module-driven) ------------------------------------------
