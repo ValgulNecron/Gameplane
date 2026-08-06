@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
-	"regexp"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -56,11 +55,6 @@ type userDTO struct {
 	Permissions map[string][]string `json:"permissions,omitempty"`
 }
 
-// usernameRE constrains usernames to a conservative DNS-label-ish set.
-// This also stops homoglyph tricks and keeps URLs clean since usernames
-// can show up in audit logs and (eventually) API paths.
-var usernameRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
-
 func (h *userHandler) list(w http.ResponseWriter, req *http.Request) {
 	rows, err := h.db.DB.QueryContext(req.Context(), `
 		SELECT u.id, u.username, u.display_name, u.email, u.role, u.created_at,
@@ -102,7 +96,7 @@ func (h *userHandler) create(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if !usernameRE.MatchString(body.Username) {
+	if !identifierRE.MatchString(body.Username) {
 		http.Error(w, "invalid username", http.StatusBadRequest)
 		return
 	}

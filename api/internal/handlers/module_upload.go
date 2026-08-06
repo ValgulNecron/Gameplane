@@ -260,7 +260,7 @@ func parseUploadedBundle(body []byte) (map[string][]byte, *uploadedMetadata, err
 	switch {
 	case meta.Name == "":
 		return nil, nil, errors.New("module.yaml: name is required")
-	case !moduleNameRE.MatchString(meta.Name):
+	case !dnsLabelRE.MatchString(meta.Name):
 		return nil, nil, errors.New("module.yaml: name must be a DNS label (lowercase, digits, hyphens)")
 	case meta.DisplayName == "":
 		return nil, nil, errors.New("module.yaml: displayName is required")

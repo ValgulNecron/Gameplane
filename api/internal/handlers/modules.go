@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -128,8 +127,6 @@ type upgradeRequest struct {
 	Version string `json:"version"`
 }
 
-var moduleNameRE = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
-
 func (h modulesHandler) listSources(w http.ResponseWriter, req *http.Request) {
 	list, err := h.k.Dynamic.Resource(kube.GVRModuleSource).List(req.Context(), metav1.ListOptions{})
 	if err != nil {
@@ -176,7 +173,7 @@ func (h modulesHandler) install(w http.ResponseWriter, req *http.Request) {
 	if name == "" {
 		name = in.Module
 	}
-	if !moduleNameRE.MatchString(name) {
+	if !dnsLabelRE.MatchString(name) {
 		httperr.Write(w, req, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
 		return
 	}

@@ -104,7 +104,7 @@ func (h clustersHandler) create(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Validate name.
-	if !nameRE.MatchString(in.Name) {
+	if !dnsLabelRE.MatchString(in.Name) {
 		httperr.WriteCode(w, req, http.StatusBadRequest,
 			errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
 		return

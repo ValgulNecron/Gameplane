@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 
 	"github.com/go-chi/chi/v5"
 	corev1 "k8s.io/api/core/v1"
@@ -33,10 +32,6 @@ import (
 // agent and operator never read this label — it's purely a discovery
 // hint for the API.
 const destinationLabel = "gameplane.local/backup-destination"
-
-// nameRE enforces a conservative DNS-label name. Matches the validation
-// already applied by the operator to GameServer names.
-var nameRE = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
 
 // MountDestinations wires /backup-destinations onto the supplied router.
 // Reads return a redacted projection (no secret values); writes accept
@@ -133,7 +128,7 @@ func (h destinationHandler) create(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
-	if !nameRE.MatchString(in.Name) {
+	if !dnsLabelRE.MatchString(in.Name) {
 		httperr.Write(w, req, errors.New("name must be a DNS label (lowercase, digits, hyphens)"))
 		return
 	}

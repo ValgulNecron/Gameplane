@@ -33,7 +33,7 @@ type authProviderSecretHandler struct {
 }
 
 func (h authProviderSecretHandler) secretName(w http.ResponseWriter, name string) (string, bool) {
-	if !nameRE.MatchString(name) || name == auth.HelmProviderName {
+	if !dnsLabelRE.MatchString(name) || name == auth.HelmProviderName {
 		http.Error(w, "provider name must be a lowercase DNS label (and not the reserved \"helm\")", http.StatusUnprocessableEntity)
 		return "", false
 	}
