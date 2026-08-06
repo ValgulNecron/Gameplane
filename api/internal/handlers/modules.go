@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 
