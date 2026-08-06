@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Expose, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { Servers } from "@/lib/endpoints";
+import { errorText } from "@/lib/errors";
 import { Field } from "./Field";
 import type { SectionProps } from "./types";
 
@@ -213,10 +214,10 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                 secretName={credentialStatus?.secretName}
                 isLoading={saveCredentialMutation.isPending || removeCredentialMutation.isPending}
                 error={
-                  saveCredentialMutation.error instanceof Error
-                    ? saveCredentialMutation.error.message
-                    : removeCredentialMutation.error instanceof Error
-                      ? removeCredentialMutation.error.message
+                  saveCredentialMutation.error
+                    ? errorText(saveCredentialMutation.error)
+                    : removeCredentialMutation.error
+                      ? errorText(removeCredentialMutation.error)
                       : undefined
                 }
                 showInput={showCredentialInput}

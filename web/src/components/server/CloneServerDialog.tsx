@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
 import { isValidK8sName } from "@/lib/validation";
+import { errorText } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -22,7 +23,7 @@ function cloneErrorMessage(err: unknown, name: string): string {
     if (err.status === 403) return "Your role does not allow cloning servers.";
     return err.body.slice(0, 240) || `Clone failed (${err.status}).`;
   }
-  return err instanceof Error ? err.message : "Unknown error";
+  return errorText(err, "Unknown error");
 }
 
 export function CloneServerDialog({

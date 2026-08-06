@@ -5,6 +5,7 @@ import { Package, PackageCheck } from "lucide-react";
 import type { GameServer, GameTemplate, RegistryProject } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { APIError } from "@/lib/api";
+import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { RegistryBrowser, RegistryIcon, compactNum } from "@/components/registry-browser";
@@ -173,5 +174,5 @@ function errMsg(err: unknown): string {
     if (err.status === 403) return "Your role does not allow managing this server.";
     return err.body || `request failed (${err.status})`;
   }
-  return err instanceof Error ? err.message : "request failed";
+  return errorText(err, "request failed");
 }

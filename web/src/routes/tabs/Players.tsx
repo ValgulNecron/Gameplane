@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/ui/stat";
-import { APIError } from "@/lib/api";
+import { errorText } from "@/lib/errors";
 import { Players as PlayersAPI } from "@/lib/endpoints";
 import { cn } from "@/lib/utils";
 
@@ -353,14 +353,5 @@ function truncate(s: string, n: number): string {
 }
 
 function errMsg(err: unknown): string {
-  if (err instanceof APIError) {
-    try {
-      const parsed = JSON.parse(err.body) as { error?: string };
-      if (parsed.error) return parsed.error;
-    } catch {
-      // fall through
-    }
-    return err.body || `request failed (${err.status})`;
-  }
-  return err instanceof Error ? err.message : "action failed";
+  return errorText(err, "action failed");
 }

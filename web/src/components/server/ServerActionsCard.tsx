@@ -36,6 +36,7 @@ import type { ActionParamDecl, GameTemplate, ServerActionDecl } from "@/types";
 import { Servers } from "@/lib/endpoints";
 import { rconAvailable } from "@/lib/capabilities";
 import { APIError } from "@/lib/api";
+import { errorText } from "@/lib/errors";
 import { useMe, can } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -453,5 +454,5 @@ function errMsg(err: unknown): string {
     if (err.status === 403) return "Your role does not allow running actions.";
     return err.body || `request failed (${err.status})`;
   }
-  return err instanceof Error ? err.message : "action failed";
+  return errorText(err, "action failed");
 }

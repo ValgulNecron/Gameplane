@@ -8,6 +8,7 @@ import { GameIcon } from "@/components/ui/game-icon";
 import { ResourceInput } from "@/components/ui/resource-input";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { APIError } from "@/lib/api";
+import { errorText } from "@/lib/errors";
 import { Cluster, Servers, Templates, type ServerCreate } from "@/lib/endpoints";
 import {
   defaultVersionId,
@@ -305,7 +306,7 @@ function errorMessage(err: unknown, name: string): { title: string; body: string
   }
   return {
     title: "Create failed",
-    body: err instanceof Error ? err.message : "Unknown error",
+    body: errorText(err, "Unknown error"),
   };
 }
 
@@ -351,7 +352,7 @@ export function CreateServerWizard() {
         } catch (err) {
           // Server was created with tunnel enabled and a ref to the secret, but the credential
           // save (Secret creation) failed. Tell the user the server exists and how to retry.
-          const detail = err instanceof Error ? err.message : String(err);
+          const detail = errorText(err, String(err));
           throw new Error(
             `Server created but credential save failed: ${detail}. ` +
             `The server exists with tunnel enabled. You can set the credential from the server's Networking settings.`
