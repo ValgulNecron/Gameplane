@@ -792,7 +792,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    renderWithQuery(<FilesTab name="mc-survival" ns="custom-ns" />));
+    renderWithQuery(<FilesTab name="mc-survival" ns="custom-ns" />);
     await waitFor(() =>
       expect(urls.some((u) => u.includes("namespace=custom-ns"))).toBe(true),
     );

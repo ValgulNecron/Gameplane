@@ -287,16 +287,14 @@ describe("SettingsTab", () => {
     unmount();
 
     // Now create invalid grace period state
-    render(
-      withClient(
-        <SettingsTab
-          gs={{
-            ...gs(),
-            spec: { ...gs().spec, stopGracePeriodSeconds: 999 },
-          }}
-          name="mc-survival"
-        />,
-      ),
+    renderWithQuery(
+      <SettingsTab
+        gs={{
+          ...gs(),
+          spec: { ...gs().spec, stopGracePeriodSeconds: 999 },
+        }}
+        name="mc-survival"
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Lifecycle/i }));
@@ -353,14 +351,12 @@ describe("SettingsTab", () => {
   it("discard button resets draft to baseline", async () => {
     const onDirty = vi.fn();
     stubTemplate();
-    render(
-      withClient(
-        <SettingsTab
-          gs={gs({ metadata: { name: "mc-survival", annotations: { "gameplane.local/description": "old" } } })}
-          name="mc-survival"
-          onDirtyChange={onDirty}
-        />,
-      ),
+    renderWithQuery(
+      <SettingsTab
+        gs={gs({ metadata: { name: "mc-survival", annotations: { "gameplane.local/description": "old" } } })}
+        name="mc-survival"
+        onDirtyChange={onDirty}
+      />,
     );
 
     await waitFor(() => expect(onDirty).toHaveBeenCalledWith(false));
