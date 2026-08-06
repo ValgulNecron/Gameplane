@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
@@ -114,7 +115,7 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 		// The game has no RCON: player counts are simply unknown. The
 		// dashboard contract is a valid snapshot with online=-1, not an
 		// error — there is no upstream to be unavailable.
-		writeJSON(w, http.StatusOK, Snapshot{
+		httpjson.Write(w, http.StatusOK, Snapshot{
 			Online:  -1,
 			Max:     -1,
 			Players: []string{},
@@ -130,7 +131,7 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	result.Capabilities = h.cmdr.Capabilities()
-	writeJSON(w, http.StatusOK, result)
+	httpjson.Write(w, http.StatusOK, result)
 }
 
 func (h *handler) fetch() (Snapshot, error) {
@@ -192,38 +193,38 @@ func (h *handler) runMod(
 ) {
 	var body modReq
 	if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, 4<<10)).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid json body")
+		httpjson.Error(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
 	if err := validateName(body.Name); err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		httpjson.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if wantReason {
 		clean, err := sanitizeReason(body.Reason)
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, err.Error())
+			httpjson.Error(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		body.Reason = clean
 	}
 	cmd, ok := build(body.Name, body.Reason)
 	if !ok {
-		writeErr(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s", h.game))
+		httpjson.Error(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s", h.game))
 		return
 	}
 	raw, err := h.rcon.Exec(cmd)
 	if errors.Is(err, rcon.ErrDisabled) {
-		writeErr(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
+		httpjson.Error(w, http.StatusNotImplemented, fmt.Sprintf("not supported by %s (no RCON)", h.game))
 		return
 	}
 	if err != nil {
 		slog.Warn("players moderation rcon", "cmd", cmd, "err", err)
-		writeErr(w, http.StatusBadGateway, "upstream unavailable")
+		httpjson.Error(w, http.StatusBadGateway, "upstream unavailable")
 		return
 	}
 	h.bustCache()
-	writeJSON(w, http.StatusOK, modResp{OK: true, Raw: strings.TrimSpace(raw)})
+	httpjson.Write(w, http.StatusOK, modResp{OK: true, Raw: strings.TrimSpace(raw)})
 }
 
 func (h *handler) whitelistAdd(w http.ResponseWriter, req *http.Request) {
@@ -244,12 +245,12 @@ func (h *handler) whitelistList(w http.ResponseWriter, _ *http.Request) {
 	if !ok {
 		// Empty list rather than 501 so a Whitelist tab renders uniformly;
 		// capabilities advertise whether management is actually available.
-		writeJSON(w, http.StatusOK, []string{})
+		httpjson.Write(w, http.StatusOK, []string{})
 		return
 	}
 	raw, err := h.rcon.Exec(cmd)
 	if errors.Is(err, rcon.ErrDisabled) {
-		writeJSON(w, http.StatusOK, []string{})
+		httpjson.Write(w, http.StatusOK, []string{})
 		return
 	}
 	if err != nil {
@@ -261,7 +262,7 @@ func (h *handler) whitelistList(w http.ResponseWriter, _ *http.Request) {
 	if out == nil {
 		out = []string{}
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpjson.Write(w, http.StatusOK, out)
 }
 
 func (h *handler) banned(w http.ResponseWriter, _ *http.Request) {
@@ -269,12 +270,12 @@ func (h *handler) banned(w http.ResponseWriter, _ *http.Request) {
 	if !ok {
 		// Empty list rather than 501: callers can render a Banned tab
 		// uniformly for every game; capabilities advertise reality.
-		writeJSON(w, http.StatusOK, []BannedPlayer{})
+		httpjson.Write(w, http.StatusOK, []BannedPlayer{})
 		return
 	}
 	raw, err := h.rcon.Exec(cmd)
 	if errors.Is(err, rcon.ErrDisabled) {
-		writeJSON(w, http.StatusOK, []BannedPlayer{})
+		httpjson.Write(w, http.StatusOK, []BannedPlayer{})
 		return
 	}
 	if err != nil {
@@ -286,7 +287,7 @@ func (h *handler) banned(w http.ResponseWriter, _ *http.Request) {
 	if out == nil {
 		out = []BannedPlayer{}
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpjson.Write(w, http.StatusOK, out)
 }
 
 // validateName rejects anything that isn't a printable username so that
@@ -322,15 +323,6 @@ func sanitizeReason(reason string) (string, error) {
 	return reason, nil
 }
 
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-func writeErr(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
-}
 
 // Minecraft "list" responses look like one of:
 //

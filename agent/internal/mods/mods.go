@@ -32,6 +32,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 	"github.com/ValgulNecron/gameplane/netguard"
 )
 
@@ -99,17 +100,17 @@ func newHandler(dataRoot string, spec *caps.Mods) *handler {
 
 func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 	if h.dir == "" {
-		writeJSON(w, http.StatusOK, []Mod{})
+		httpjson.Write(w, http.StatusOK, []Mod{})
 		return
 	}
 	entries, err := os.ReadDir(h.dir)
 	if errors.Is(err, os.ErrNotExist) {
-		writeJSON(w, http.StatusOK, []Mod{})
+		httpjson.Write(w, http.StatusOK, []Mod{})
 		return
 	}
 	if err != nil {
 		slog.Warn("mods list", "err", err)
-		writeErr(w, http.StatusInternalServerError, "could not read mods directory")
+		httpjson.Error(w, http.StatusInternalServerError, "could not read mods directory")
 		return
 	}
 	meta := loadManifest(h.dir).Mods
@@ -146,7 +147,7 @@ func (h *handler) list(w http.ResponseWriter, _ *http.Request) {
 			Meta:    meta[name],
 		})
 	}
-	writeJSON(w, http.StatusOK, out)
+	httpjson.Write(w, http.StatusOK, out)
 }
 
 type installReq struct {
@@ -162,22 +163,22 @@ type installReq struct {
 
 func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 	if h.dir == "" || h.client == nil {
-		writeErr(w, http.StatusNotImplemented, "mod installs are not enabled for this game")
+		httpjson.Error(w, http.StatusNotImplemented, "mod installs are not enabled for this game")
 		return
 	}
 	var body installReq
 	if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, 4<<10)).Decode(&body); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid json body")
+		httpjson.Error(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
 
 	u, err := url.Parse(strings.TrimSpace(body.URL))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		writeErr(w, http.StatusBadRequest, "url must be an absolute http(s) URL")
+		httpjson.Error(w, http.StatusBadRequest, "url must be an absolute http(s) URL")
 		return
 	}
 	if !hostAllowed(u.Hostname(), h.allowed) {
-		writeErr(w, http.StatusForbidden, "download host is not allowed by this module")
+		httpjson.Error(w, http.StatusForbidden, "download host is not allowed by this module")
 		return
 	}
 
@@ -187,18 +188,18 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 	}
 	name, err = safeName(name)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		httpjson.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if !h.extAllowed(name) {
-		writeErr(w, http.StatusBadRequest, "file type is not an accepted mod for this game")
+		httpjson.Error(w, http.StatusBadRequest, "file type is not an accepted mod for this game")
 		return
 	}
 	replaces := ""
 	if body.Replaces != "" {
 		replaces, err = safeName(body.Replaces)
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, "replaces: "+err.Error())
+			httpjson.Error(w, http.StatusBadRequest, "replaces: "+err.Error())
 			return
 		}
 	}
@@ -223,18 +224,18 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 	}
 	switch {
 	case errors.Is(err, errTooLarge):
-		writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+		httpjson.Error(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
 		return
 	case errors.Is(err, netguard.ErrBlockedAddr) || errors.Is(err, errHostNotAllowed):
-		writeErr(w, http.StatusForbidden, "download was redirected to a disallowed address")
+		httpjson.Error(w, http.StatusForbidden, "download was redirected to a disallowed address")
 		return
 	case errors.Is(err, errBadArchive):
-		writeErr(w, http.StatusBadGateway, "downloaded file is not a valid archive")
+		httpjson.Error(w, http.StatusBadGateway, "downloaded file is not a valid archive")
 		return
 	case err != nil:
 		// Never reflect the raw error — it may carry internal addresses.
 		slog.Warn("mod install", "host", u.Hostname(), "err", err)
-		writeErr(w, http.StatusBadGateway, "could not download the mod")
+		httpjson.Error(w, http.StatusBadGateway, "could not download the mod")
 		return
 	}
 
@@ -262,7 +263,7 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 			delete(mods, installName)
 		}
 	})
-	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: size, Meta: meta})
+	httpjson.Write(w, http.StatusOK, Mod{Name: installName, Size: size, Meta: meta})
 }
 
 // upload receives a mod file as multipart form data (field "file") and
@@ -273,7 +274,7 @@ func (h *handler) install(w http.ResponseWriter, req *http.Request) {
 // "upload", which the update check skips.
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	if h.dir == "" {
-		writeErr(w, http.StatusNotImplemented, "mods are not configured for this game")
+		httpjson.Error(w, http.StatusNotImplemented, "mods are not configured for this game")
 		return
 	}
 	maxBytes := h.maxBytes
@@ -287,33 +288,33 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+			httpjson.Error(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
 			return
 		}
-		writeErr(w, http.StatusBadRequest, `multipart form with a "file" field is required`)
+		httpjson.Error(w, http.StatusBadRequest, `multipart form with a "file" field is required`)
 		return
 	}
 	defer file.Close()
 
 	name, err := safeName(hdr.Filename)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		httpjson.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if !h.extAllowed(name) {
-		writeErr(w, http.StatusBadRequest, "file type is not an accepted mod for this game")
+		httpjson.Error(w, http.StatusBadRequest, "file type is not an accepted mod for this game")
 		return
 	}
 
 	if err := os.MkdirAll(h.dir, 0o755); err != nil {
 		slog.Warn("mod upload mkdir", "err", err)
-		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		httpjson.Error(w, http.StatusInternalServerError, "could not store the upload")
 		return
 	}
 	tmp, err := os.CreateTemp(h.dir, ".up-*")
 	if err != nil {
 		slog.Warn("mod upload temp", "err", err)
-		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		httpjson.Error(w, http.StatusInternalServerError, "could not store the upload")
 		return
 	}
 	tmpName := tmp.Name()
@@ -322,11 +323,11 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	if err != nil || closeErr != nil || n > maxBytes {
 		os.Remove(tmpName)
 		if n > maxBytes {
-			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+			httpjson.Error(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
 			return
 		}
 		slog.Warn("mod upload copy", "err", err, "closeErr", closeErr)
-		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		httpjson.Error(w, http.StatusInternalServerError, "could not store the upload")
 		return
 	}
 
@@ -337,20 +338,20 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		os.Remove(tmpName)
 		switch {
 		case errors.Is(swapErr, errBadArchive):
-			writeErr(w, http.StatusBadRequest, "uploaded file is not a valid archive")
+			httpjson.Error(w, http.StatusBadRequest, "uploaded file is not a valid archive")
 			return
 		case errors.Is(swapErr, errTooLarge):
-			writeErr(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
+			httpjson.Error(w, http.StatusRequestEntityTooLarge, "mod exceeds the size limit")
 			return
 		case swapErr != nil:
 			slog.Warn("mod upload extract", "err", swapErr)
-			writeErr(w, http.StatusInternalServerError, "could not unpack the upload")
+			httpjson.Error(w, http.StatusInternalServerError, "could not unpack the upload")
 			return
 		}
 	} else if err := os.Rename(tmpName, filepath.Join(h.dir, name)); err != nil {
 		os.Remove(tmpName)
 		slog.Warn("mod upload rename", "err", err)
-		writeErr(w, http.StatusInternalServerError, "could not store the upload")
+		httpjson.Error(w, http.StatusInternalServerError, "could not store the upload")
 		return
 	}
 
@@ -361,7 +362,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	h.updateManifest(func(mods map[string]*ModMeta) {
 		mods[installName] = meta
 	})
-	writeJSON(w, http.StatusOK, Mod{Name: installName, Size: n, Meta: meta})
+	httpjson.Write(w, http.StatusOK, Mod{Name: installName, Size: n, Meta: meta})
 }
 
 // removeEntry deletes an installed mod by name — the whole folder for
@@ -550,22 +551,22 @@ func dirSize(dir string) int64 {
 
 func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
 	if h.dir == "" {
-		writeErr(w, http.StatusNotImplemented, "mods are not configured for this game")
+		httpjson.Error(w, http.StatusNotImplemented, "mods are not configured for this game")
 		return
 	}
 	name, err := safeName(req.URL.Query().Get("name"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		httpjson.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	target := filepath.Join(h.dir, name)
 	if _, statErr := os.Stat(target); errors.Is(statErr, os.ErrNotExist) {
-		writeErr(w, http.StatusNotFound, "no such mod")
+		httpjson.Error(w, http.StatusNotFound, "no such mod")
 		return
 	}
 	if err := h.removeEntry(name); err != nil {
 		slog.Warn("mod remove", "err", err)
-		writeErr(w, http.StatusInternalServerError, "could not remove mod")
+		httpjson.Error(w, http.StatusInternalServerError, "could not remove mod")
 		return
 	}
 	h.updateManifest(func(mods map[string]*ModMeta) {
@@ -736,12 +737,3 @@ func newSafeClient(allowed []string) *http.Client {
 	return client
 }
 
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-func writeErr(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
-}

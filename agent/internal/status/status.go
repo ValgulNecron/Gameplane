@@ -9,7 +9,6 @@
 package status
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ValgulNecron/gameplane/agent/internal/caps"
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 	"github.com/ValgulNecron/gameplane/agent/internal/rcon"
 )
 
@@ -101,7 +101,7 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 	cached := h.cached
 	h.mu.Unlock()
 	if fresh {
-		writeJSON(w, http.StatusOK, cached)
+		httpjson.Write(w, http.StatusOK, cached)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 		if errors.Is(err, rcon.ErrDisabled) {
 			// No RCON: no live metrics. Empty array so the dashboard can
 			// render the panel uniformly for every game.
-			writeJSON(w, http.StatusOK, []Result{})
+			httpjson.Write(w, http.StatusOK, []Result{})
 			return
 		}
 		res := Result{ID: m.id, DisplayName: m.displayName, Unit: m.unit}
@@ -127,11 +127,6 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 	h.lastFetch = time.Now()
 	h.cached = results
 	h.mu.Unlock()
-	writeJSON(w, http.StatusOK, results)
+	httpjson.Write(w, http.StatusOK, results)
 }
 
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}

@@ -4,7 +4,6 @@
 package files
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/ValgulNecron/gameplane/agent/internal/httpjson"
 )
 
 // errPathOutOfRoot is the only "bad path" error safe to echo back to the
@@ -136,7 +137,7 @@ func (h *handler) list(w http.ResponseWriter, req *http.Request) {
 			ModTime: fi.ModTime().UTC().Format(time.RFC3339),
 		})
 	}
-	writeJSON(w, out)
+	httpjson.Write(w, http.StatusOK, out)
 }
 
 func (h *handler) read(w http.ResponseWriter, req *http.Request) {
@@ -331,7 +332,3 @@ func httpErr(w http.ResponseWriter, err error) {
 	}
 }
 
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
-}
