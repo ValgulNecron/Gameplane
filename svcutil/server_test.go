@@ -11,7 +11,8 @@ import (
 
 func TestRunHTTPCleanShutdown(t *testing.T) {
 	// Create a test listener on localhost with port 0 (OS picks an available port).
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}
@@ -74,7 +75,8 @@ func TestRunHTTPContextCancelledBeforeListen(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}
@@ -105,7 +107,8 @@ func TestRunHTTPServerClosedError(t *testing.T) {
 	// The select will pick the context done case and call srv.Shutdown,
 	// which should return nil (since it's a normal shutdown).
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}
@@ -144,7 +147,8 @@ func TestRunHTTPServerClosedError(t *testing.T) {
 
 func TestRunHTTPShutdownTimeout(t *testing.T) {
 	// Create a server with a long-running handler.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}

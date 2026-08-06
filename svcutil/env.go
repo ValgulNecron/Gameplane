@@ -1,3 +1,7 @@
+// Package svcutil provides shared stdlib-only service helpers for environment
+// parsing (Or, OrInt, ParseLogLevel) and graceful HTTP server shutdown (RunHTTP).
+// Used across operator, api, agent, audit-syslog-bridge, and telemetry-receiver
+// to reduce code duplication and enforce consistent startup and shutdown behavior.
 package svcutil
 
 import (
