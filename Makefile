@@ -236,32 +236,19 @@ lint-web: ## Run web linters
 	cd web && npm run lint --if-present
 
 # -------- images --------
+# Standard-shaped images (Dockerfile path = <dir>/Dockerfile)
+IMAGES := operator api web agent telemetry-receiver sentinel mcp-server
+
 .PHONY: images
-images: image-operator image-api image-web image-agent image-audit-syslog image-telemetry-receiver image-sentinel image-mcp-server image-tunnel-frp image-tunnel-tailscale image-tunnel-playit ## Build all container images
+images: $(addprefix image-,$(IMAGES)) image-audit-syslog image-tunnel-frp image-tunnel-tailscale image-tunnel-playit ## Build all container images
 
-image-operator: ## Build operator image
-	docker build -t $(REGISTRY)/operator:$(TAG) -f operator/Dockerfile .
+# Pattern rule for standard-shaped images
+image-%: ## Build container image
+	docker build -t $(REGISTRY)/$*:$(TAG) -f $*/Dockerfile .
 
-image-api: ## Build API image
-	docker build -t $(REGISTRY)/api:$(TAG) -f api/Dockerfile .
-
-image-web: ## Build web (dashboard) image
-	docker build -t $(REGISTRY)/web:$(TAG) -f web/Dockerfile .
-
-image-agent: ## Build agent image
-	docker build -t $(REGISTRY)/agent:$(TAG) -f agent/Dockerfile .
-
+# Non-standard images (target name ≠ dir, or special Dockerfile paths)
 image-audit-syslog: ## Build audit-syslog-bridge image
 	docker build -t $(REGISTRY)/audit-syslog-bridge:$(TAG) -f audit-syslog-bridge/Dockerfile .
-
-image-telemetry-receiver: ## Build telemetry-receiver image
-	docker build -t $(REGISTRY)/telemetry-receiver:$(TAG) -f telemetry-receiver/Dockerfile .
-
-image-sentinel: ## Build sentinel image
-	docker build -t $(REGISTRY)/sentinel:$(TAG) -f sentinel/Dockerfile .
-
-image-mcp-server: ## Build mcp-server image
-	docker build -t $(REGISTRY)/mcp-server:$(TAG) -f mcp-server/Dockerfile .
 
 image-tunnel-frp: ## Build tunnel-frp image
 	docker build -t $(REGISTRY)/tunnel-frp:$(TAG) -f tunnel/Dockerfile.frp .
