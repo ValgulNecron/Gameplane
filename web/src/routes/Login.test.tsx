@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { useNavigate } from "@tanstack/react-router";
+import { renderWithQuery } from "@/test/render";
 import { LoginPage } from "./Login";
 
 vi.mock("@tanstack/react-router", async () => {
@@ -57,12 +57,7 @@ afterEach(() => {
 
 describe("LoginPage", () => {
   it("submits credentials, seeds cache, and navigates to / on success", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    const { client } = renderWithQuery(<LoginPage />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
     // The show/hide toggle also carries "password" in its aria-label, so
     // scope the query to the input element.
@@ -75,7 +70,7 @@ describe("LoginPage", () => {
     // Verify no hard reload triggered
     expect(assignMock).not.toHaveBeenCalled();
     // Verify the ["me"] cache was seeded with the user from the response
-    expect(queryClient.getQueryData(["me"])).toEqual({
+    expect(client.getQueryData(["me"])).toEqual({
       id: 1,
       username: "admin",
       displayName: "Admin",
@@ -91,12 +86,7 @@ describe("LoginPage", () => {
 
   it("shows an error message on 401", async () => {
     loginResponse = () => new Response("nope", { status: 401 });
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "x" } });
     fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), {
       target: { value: "y" },
@@ -109,12 +99,7 @@ describe("LoginPage", () => {
   });
 
   it("reveals a reset hint when Forgot is clicked", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     expect(screen.queryByText(/contact your administrator/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Forgot?" }));
     expect(screen.getByText(/contact your administrator to reset/i)).toBeInTheDocument();
@@ -125,24 +110,14 @@ describe("LoginPage", () => {
       { kind: "local", label: "Local account" },
       { kind: "oidc", label: "Acme SSO" },
     ];
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     const btn = await screen.findByRole("button", { name: /Continue with Acme SSO/i });
     fireEvent.click(btn);
     expect(assignMock).toHaveBeenCalledWith("/auth/oidc/start");
   });
 
   it("hides the OIDC button when only local auth is enabled", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     await screen.findByRole("button", { name: /sign in/i });
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /Continue with/i })).not.toBeInTheDocument(),
@@ -155,12 +130,7 @@ describe("LoginPage", () => {
       { name: "corp", kind: "oidc", label: "Acme SSO" },
       { name: "helm", kind: "oidc", label: "Helm SSO" },
     ];
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     const corp = await screen.findByRole("button", { name: /Continue with Acme SSO/i });
     fireEvent.click(corp);
     expect(assignMock).toHaveBeenCalledWith("/auth/oidc/corp/start");
@@ -172,12 +142,7 @@ describe("LoginPage", () => {
 
   it("hides the password form when local login is disabled", async () => {
     providers = [{ name: "corp", kind: "oidc", label: "Acme SSO" }];
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     await screen.findByRole("button", { name: /Continue with Acme SSO/i });
     expect(screen.queryByLabelText(/username/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
@@ -190,22 +155,12 @@ describe("LoginPage", () => {
       }
       return router(url);
     });
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     expect(await screen.findByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
   it("reveals the typed password when the eye toggle is clicked", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<LoginPage />);
     const pw = screen.getByLabelText(/password/i, { selector: "input" }) as HTMLInputElement;
     fireEvent.change(pw, { target: { value: "hunter2" } });
     expect(pw.type).toBe("password");
@@ -216,12 +171,7 @@ describe("LoginPage", () => {
   });
 
   it("renders no version string on the pre-auth page", () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { container } = render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
+    const { container } = renderWithQuery(<LoginPage />);
     expect(container.textContent).not.toMatch(/v\d+\.\d+\.\d+/);
     expect(container.textContent).not.toMatch(/alpha/i);
   });
