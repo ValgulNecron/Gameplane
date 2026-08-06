@@ -1,0 +1,31 @@
+name: go module + build cache
+description: >
+  Cache Go modules and build artifacts. setup-go's built-in cache keys off a
+  repo-root go.sum, which this go.work workspace doesn't have — use an explicit
+  per-module cache instead so each matrix leg (or job) saves its own build cache.
+
+inputs:
+  key-suffix:
+    description: Suffix for the cache key (e.g. lint-${{ matrix.module }}, e2e, etc.)
+    required: true
+  go-version:
+    description: Go version to setup
+    required: false
+    default: '1.26'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v7
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+    - name: go module + build cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.key-suffix }}-${{ hashFiles('**/go.sum', 'go.work.sum') }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.key-suffix }}-
