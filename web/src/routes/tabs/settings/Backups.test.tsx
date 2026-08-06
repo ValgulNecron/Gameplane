@@ -1,24 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
+import { renderWithQuery } from "@/test/render";
 import { BackupsSection } from "./Backups";
 import { makeServer, makeDestination } from "@/test/factories";
 
 const baseDraft = makeServer();
-
-function renderWithQuery(component: React.ReactNode) {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={qc}>
-      {component}
-    </QueryClientProvider>
-  );
-}
 
 describe("BackupsSection", () => {
   it("renders with backupPolicy disabled by default", () => {
