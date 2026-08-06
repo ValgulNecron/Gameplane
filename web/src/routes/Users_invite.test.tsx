@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithQuery } from "@/test/render";
 import { UsersPage } from "./Users";
 
 const list = vi.fn();
@@ -33,12 +33,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 function renderPage() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={qc}>
-      <UsersPage />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<UsersPage />);
 }
 
 beforeEach(() => {
