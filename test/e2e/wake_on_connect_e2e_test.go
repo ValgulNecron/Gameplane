@@ -113,18 +113,17 @@ func TestGameServer_WakeOnConnect_PingDoesNotWake(t *testing.T) {
 	// sleep marker remains. Wake propagation is async (the sentinel patches a
 	// request annotation; only the operator's next reconcile clears the sleep marker),
 	// so we must allow time for a regression to manifest.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
+	envInstance.Consistently(t, 5*time.Second, 500*time.Millisecond, func() (bool, string) {
 		gsObj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
 			Get(ctx, gs, metav1.GetOptions{})
 		if err != nil {
-			t.Fatalf("get gameserver: %v", err)
+			return false, "get gameserver: " + err.Error()
 		}
 		if ann := gsObj.GetAnnotations(); ann["gameplane.local/idle-asleep-since"] == "" {
-			t.Fatal("server woke up after a ping; sleep annotation missing")
+			return false, "server woke up after a ping; sleep annotation missing"
 		}
-		time.Sleep(500 * time.Millisecond)
-	}
+		return true, ""
+	})
 
 	// Verify the game StatefulSet is still at 0 replicas.
 	ss, err := envInstance.K8s.AppsV1().StatefulSets(ns).Get(ctx, gs, metav1.GetOptions{})
