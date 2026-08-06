@@ -131,7 +131,8 @@ describe("AdminLogsPage", () => {
       Promise.resolve(new Response("no pods found", { status: 404 })),
     );
     render(<AdminLogsPage />);
-    expect(await screen.findByText(/404: no pods found/)).toBeInTheDocument();
+    // errorText unwraps the APIError body directly (no "404:" status prefix).
+    expect(await screen.findByText(/^no pods found$/)).toBeInTheDocument();
     expect(screen.getByText("No output.")).toBeInTheDocument();
   });
 
