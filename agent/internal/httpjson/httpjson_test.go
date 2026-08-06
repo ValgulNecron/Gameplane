@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -75,7 +76,7 @@ func TestWrite(t *testing.T) {
 				t.Errorf("failed to unmarshal expected: %v", err)
 				return
 			}
-			if got != want {
+			if !reflect.DeepEqual(got, want) {
 				t.Errorf("body = %v, want %v", got, want)
 			}
 		})
