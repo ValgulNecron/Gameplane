@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import { SettingsTab } from "./Settings";
 import type { GameServer } from "@/types";
 
@@ -23,10 +22,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function withClient(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
 
 function gs(overrides: Partial<GameServer> = {}): GameServer {
   return {
@@ -61,7 +56,7 @@ describe("SettingsTab", () => {
   it("starts clean and reports dirty after editing description", async () => {
     stubTemplate();
     const onDirty = vi.fn();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" onDirtyChange={onDirty} />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" onDirtyChange={onDirty} />);
 
     await waitFor(() => expect(onDirty).toHaveBeenCalledWith(false));
 
@@ -74,7 +69,7 @@ describe("SettingsTab", () => {
 
   it("adds, removes, and toggles env-var rows", async () => {
     stubTemplate();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
     fireEvent.click(screen.getByRole("button", { name: /Environment/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Add variable/i }));
@@ -93,7 +88,7 @@ describe("SettingsTab", () => {
 
   it("flags duplicate env names as invalid", async () => {
     stubTemplate();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
     fireEvent.click(screen.getByRole("button", { name: /Environment/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Add variable/i }));
@@ -134,7 +129,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url} ${init?.method ?? "GET"}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     fireEvent.change(screen.getByPlaceholderText(/Long-standing/), {
       target: { value: "test desc" },
@@ -170,7 +165,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     fireEvent.change(screen.getByPlaceholderText(/Long-standing/), {
       target: { value: "x" },
@@ -184,7 +179,7 @@ describe("SettingsTab", () => {
 
   it("requires typing the server name to delete from the danger zone", async () => {
     stubTemplate();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
     fireEvent.click(screen.getByRole("button", { name: /Danger zone/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Delete server…/i }));
@@ -227,7 +222,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" onDirtyChange={onDirty} />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" onDirtyChange={onDirty} />);
     await waitFor(() => expect(onDirty).toHaveBeenCalledWith(false));
     onDirty.mockClear();
 
@@ -262,7 +257,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     fireEvent.change(screen.getByPlaceholderText(/Long-standing/), {
       target: { value: "x" },
@@ -276,7 +271,7 @@ describe("SettingsTab", () => {
 
   it("disables save button when section is invalid", async () => {
     stubTemplate();
-    const { unmount } = render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    const { unmount } = renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     // General section is safe, but let's switch to Lifecycle and make it invalid
     fireEvent.click(screen.getByRole("button", { name: /Lifecycle/i }));
@@ -328,7 +323,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     fireEvent.change(screen.getByPlaceholderText(/Long-standing/), {
       target: { value: "x" },
@@ -349,7 +344,7 @@ describe("SettingsTab", () => {
 
   it("discard button is disabled when not dirty", () => {
     stubTemplate();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     const discardBtn = screen.getByRole("button", { name: /Discard/i });
     expect(discardBtn).toBeDisabled();
@@ -405,7 +400,7 @@ describe("SettingsTab", () => {
     });
 
     const onDirty = vi.fn();
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" onDirtyChange={onDirty} />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" onDirtyChange={onDirty} />);
 
     await waitFor(() => expect(onDirty).toHaveBeenCalledWith(false));
     onDirty.mockClear();
@@ -464,7 +459,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     // Version button should not be in the nav
     expect(screen.queryByRole("button", { name: /^Version$/i })).not.toBeInTheDocument();
@@ -490,7 +485,7 @@ describe("SettingsTab", () => {
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    render(withClient(<SettingsTab gs={gs()} name="mc-survival" />));
+    renderWithQuery(<SettingsTab gs={gs()} name="mc-survival" />);
 
     // Version button should be in the nav
     await waitFor(() => {
