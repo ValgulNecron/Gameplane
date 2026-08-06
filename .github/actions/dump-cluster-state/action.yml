@@ -23,10 +23,18 @@ inputs:
     description: Include kubectl get jobs output
     required: false
     default: "false"
+  include-operator-logs:
+    description: Include operator component logs
+    required: false
+    default: "true"
+  include-api-logs:
+    description: Include API component logs
+    required: false
+    default: "true"
 runs:
   using: composite
   steps:
-    - name: dump cluster state
+    - name: dump cluster state (resources and pods)
       shell: bash
       run: |
         ctx="${{ inputs.context }}"
@@ -41,21 +49,34 @@ runs:
           kubectl --context "$ctx" describe pods -n "$ns" || true
         done
 
-        # Operator and API logs
+    - name: dump operator logs
+      if: inputs.include-operator-logs == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
         kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
 
-        # Optional: previous logs (for crash diagnostics on restart)
         if [ "${{ inputs.include-previous-logs }}" = "true" ]; then
           kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
         fi
 
-        # Optional: helm release history (for upgrade diagnostics)
-        if [ "${{ inputs.include-helm-history }}" = "true" ]; then
-          helm --kube-context "$ctx" history gameplane -n gameplane-system || true
-        fi
+    - name: dump API logs
+      if: inputs.include-api-logs == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
 
-        # Optional: jobs (for upgrade diagnostics)
-        if [ "${{ inputs.include-get-jobs }}" = "true" ]; then
-          kubectl --context "$ctx" get jobs -n gameplane-system || true
-        fi
+    - name: dump helm history (optional)
+      if: inputs.include-helm-history == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        helm --kube-context "$ctx" history gameplane -n gameplane-system || true
+
+    - name: dump jobs (optional)
+      if: inputs.include-get-jobs == 'true'
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+        kubectl --context "$ctx" get jobs -n gameplane-system || true

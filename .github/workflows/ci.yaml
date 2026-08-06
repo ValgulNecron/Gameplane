@@ -620,6 +620,7 @@ jobs:
         uses: ./.github/actions/dump-cluster-state
         with:
           context: ${{ env.CTX_B }}
+          include-api-logs: "false"
 
   # helm upgrade from the last published release to this tree
   # (test/e2e/upgrade_e2e_test.go). Split out from e2e-go for the same reason
@@ -752,6 +753,7 @@ jobs:
         uses: ./.github/actions/dump-cluster-state
         with:
           context: ${{ env.CTX }}
+          include-operator-logs: "false"
       - name: upload playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
