@@ -70,12 +70,14 @@ describe("LoginPage", () => {
     // Verify no hard reload triggered
     expect(assignMock).not.toHaveBeenCalled();
     // Verify the ["me"] cache was seeded with the user from the response
-    expect(client.getQueryData(["me"])).toEqual({
-      id: 1,
-      username: "admin",
-      displayName: "Admin",
-      role: "admin",
-      permissions: {},
+    await waitFor(() => {
+      expect(client.getQueryData(["me"])).toEqual({
+        id: 1,
+        username: "admin",
+        displayName: "Admin",
+        role: "admin",
+        permissions: {},
+      });
     });
     const login = fetchMock.mock.calls.find((c) => String(c[0]).includes("/auth/login"));
     expect(login).toBeTruthy();
