@@ -32,7 +32,7 @@ else
 KUBECONFIG_ENV :=
 endif
 
-GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server tunnel
+GO_MODULES     := netguard gameaction gameproto operator api agent audit-syslog-bridge telemetry-receiver sentinel mcp-server svcutil tunnel
 GO_INTEGRATION_MODULES := operator api
 
 # test/e2e is a separate module (its own go.mod, excluded from the coverage

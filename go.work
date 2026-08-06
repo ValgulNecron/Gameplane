@@ -10,6 +10,7 @@ use (
 	./netguard
 	./operator
 	./sentinel
+	./svcutil
 	./telemetry-receiver
 	./test/e2e
 	./tunnel

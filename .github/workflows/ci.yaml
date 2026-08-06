@@ -78,6 +78,7 @@ jobs:
               - 'telemetry-receiver/**'
               - 'sentinel/**'
               - 'mcp-server/**'
+              - 'svcutil/**'
               - 'tunnel/**'
               - 'go.work'
               - 'go.work.sum'
@@ -171,7 +172,7 @@ jobs:
       # api, agent, and test/e2e are deliberately excluded pending lint backlog
       # cleanup (wave 2). They carry ~493 findings queued for the next wave.
       matrix:
-        module: [netguard, gameaction, gameproto, operator, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, tunnel]
+        module: [netguard, gameaction, gameproto, operator, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -214,7 +215,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, tunnel]
+        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, svcutil, tunnel]
         arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v7

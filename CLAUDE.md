@@ -33,6 +33,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── telemetry-receiver/       # optional anonymous-usage-telemetry collector image (Go), behind the API's telemetry reporter
 ├── sentinel/                 # optional wake-on-connect component (Go), awakens sleeping servers on join attempts
 ├── mcp-server/               # optional, strictly read-only MCP server image (Go), behind mcpServer.enabled
+├── svcutil/                  # shared stdlib-only env and graceful-shutdown helpers (Go) — used by operator, api, agent, audit-syslog-bridge, telemetry-receiver
 ├── web/                      # React 18 + TS strict + Vite dashboard
 │   └── src/{routes,components,lib,router,styles,test}/
 ├── modules/                  # GIT SUBMODULE → gameplane-module repo (game template OCI bundles)
@@ -45,11 +46,11 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
 ├── design.pen                # Pencil design source — encrypted, MCP only
 ├── cosign.pub                # public key for verifying signed images + module bundles
-├── go.work                   # Go workspace linking netguard/gameaction/gameproto/operator/api/agent/audit-syslog-bridge/telemetry-receiver/sentinel/mcp-server/test/e2e
+├── go.work                   # Go workspace linking netguard/gameaction/gameproto/operator/api/agent/audit-syslog-bridge/telemetry-receiver/sentinel/mcp-server/svcutil/test/e2e
 └── Makefile                  # canonical entry point for every command
 ```
 
-The Go modules `netguard`, `gameaction`, `gameproto`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, `sentinel`, `mcp-server`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
+The Go modules `netguard`, `gameaction`, `gameproto`, `operator`, `api`, `agent`, `audit-syslog-bridge`, `telemetry-receiver`, `sentinel`, `mcp-server`, `svcutil`, and `test/e2e` share one workspace via `go.work`. The `web/` tree is its own npm package.
 
 `modules/` is a **git submodule** pointing at the separate `gameplane-module` repo. After a fresh clone, run `git submodule update --init` (or clone with `--recurse-submodules`) before `make dev-up` / `make modules-push` — otherwise `modules/` is an empty directory and those targets find no `build.sh`.
 
@@ -77,7 +78,7 @@ make dev-install   # re-run helm upgrade against the local cluster
 
 ```sh
 make build                       # all components (Go + web)
-make build-go                    # compiles every Go module: netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server
+make build-go                    # compiles every Go module: netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, svcutil
 make build-web                   # web/dist via `npm ci && npm run build`
 make images                      # docker images: operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server
 make image-operator              # one image; same for image-api, image-agent, image-audit-syslog, image-sentinel
@@ -87,7 +88,7 @@ make image-operator              # one image; same for image-api, image-agent, i
 
 ```sh
 make test                # everything (≈ seconds)
-make test-go             # Go unit tests across netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server
+make test-go             # Go unit tests across netguard, gameaction, operator, api, agent, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil
 make test-web            # vitest for web
 
 make test-integration    # envtest tier (operator + api) — downloads K8s 1.31 envtest assets
@@ -112,6 +113,7 @@ cd agent    && go test ./...
 cd audit-syslog-bridge && go test ./...
 cd telemetry-receiver && go test ./...
 cd mcp-server && go test ./...
+cd svcutil && go test ./...
 cd web      && npm test
 ```
 
@@ -126,7 +128,7 @@ make cover           # full coverage with threshold gates (CI-equivalent)
 make cover-ratchet   # measured-vs-threshold delta per module
 ```
 
-Coverage gates: `netguard/.testcoverage.yml` (91%), `gameaction/.testcoverage.yml` (91%), `gameproto/.testcoverage.yml` (90%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `sentinel/.testcoverage.yml` (70%), `mcp-server/.testcoverage.yml` (70%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
+Coverage gates: `netguard/.testcoverage.yml` (91%), `gameaction/.testcoverage.yml` (91%), `gameproto/.testcoverage.yml` (90%), `operator/.testcoverage.yml` (72%), `api/.testcoverage.yml` (80%), `agent/.testcoverage.yml` (90% — re-baselined down from 91% when the SSRF dial guard moved into `netguard`, which now carries and gates that coverage instead), `audit-syslog-bridge/.testcoverage.yml` (70%), `telemetry-receiver/.testcoverage.yml` (70%), `sentinel/.testcoverage.yml` (70%), `mcp-server/.testcoverage.yml` (70%), `svcutil/.testcoverage.yml` (90%), `web/vitest.config.ts` (lines 92% / functions 76% / branches 82% / statements 92%). Don't lower thresholds without a reason; ratchet them up when adding tests.
 
 ### Codegen — mandatory after CRD type edits
 
@@ -289,6 +291,8 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 **`gameproto/`** — shared Go package: wire-protocol parsers for Minecraft and Terraria handshakes, used by the sentinel to distinguish a genuine join from a server-list ping without corrupting the connection stream. `Consumed` field lets callers reconstruct the client stream for lossless replay.
 
+**`svcutil/`** — shared Go package: stdlib-only helpers for environment parsing (`Or`, `OrInt`, `ParseLogLevel`) and graceful HTTP server shutdown (`RunHTTP`). Used across operator, api, agent, audit-syslog-bridge, and telemetry-receiver to reduce code duplication and enforce consistent startup/shutdown behavior.
+
 **`operator/`** — controller-runtime. Reconciles 8 CRDs (`gameplane.local/v1alpha1`) into K8s objects: GameTemplate, GameServer, Backup, BackupSchedule, Restore, Module, ModuleSource, Cluster. Entry: `operator/cmd/main.go`. Controllers in `operator/internal/controller/`. Inject points (agent image, CA bundle, mTLS certs) wired from CLI flags in `main.go`.
 
 **`api/`** — chi router; REST + WebSocket. Entry: `api/cmd/main.go`, with subcommands `serve` and `bootstrap-admin`. Layout:
@@ -323,7 +327,7 @@ The detail lives in `docs/architecture.md`; this is the index.
 
 | Layer | What's used |
 |---|---|
-| Go runtime | 1.25 (netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server share `go.work`) |
+| Go runtime | 1.26 (netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, svcutil share `go.work`) |
 | K8s libs | `controller-runtime` v0.19.0, `client-go` v0.35.0, envtest 1.31 |
 | HTTP / WS | `chi` v5, `coder/websocket` v1.8.12 |
 | Persistence | `modernc.org/sqlite` (production, tested) or `pgx/v5` (experimental, work-in-progress; selected at build time via the `postgres` build tag) |
