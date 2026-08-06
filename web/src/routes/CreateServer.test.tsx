@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import type { GameTemplate } from "@/types";
 
 const navigate = vi.fn();
@@ -36,11 +35,6 @@ afterEach(() => {
   search = {};
   vi.unstubAllGlobals();
 });
-
-function withClient(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
 
 function jsonRes(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -94,7 +88,7 @@ function versionedTemplate(): GameTemplate {
 describe("CreateServerWizard", () => {
   it("blocks Continue with a reason when the name is invalid", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
 
     const nameInput = screen.getByPlaceholderText("mc-hardcore");
@@ -112,7 +106,7 @@ describe("CreateServerWizard", () => {
       ],
     });
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [t] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(t);
 
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
@@ -127,7 +121,7 @@ describe("CreateServerWizard", () => {
   it("renders an inline alert when the API returns 409", async () => {
     routeFetch({ create: new Response("name taken", { status: 409 }) });
 
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
 
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
@@ -145,7 +139,7 @@ describe("CreateServerWizard", () => {
   it("pre-selects the template from the ?template= search param", async () => {
     search = { template: "minecraft-java" };
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
 
     // Without pre-selection, the name input (step 2) is never reachable; its
     // presence means step 1 auto-advanced past template selection isn't
@@ -158,7 +152,7 @@ describe("CreateServerWizard", () => {
 
   it("does not pre-select when no ?template= is present", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
 
     await screen.findByRole("button", { name: new RegExp(template().spec.displayName, "i") });
     const continueBtn = screen.getByRole("button", { name: /Continue to Configure/i });
@@ -168,7 +162,7 @@ describe("CreateServerWizard", () => {
   it("sends nodeSelector when nodePlacement is 'pin'", async () => {
     routeFetch();
 
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
 
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
@@ -189,7 +183,7 @@ describe("CreateServerWizard", () => {
   it("sends requests equal to limits (Guaranteed QoS)", async () => {
     routeFetch();
 
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
 
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
@@ -209,7 +203,7 @@ describe("CreateServerWizard", () => {
 
   it("keeps the 4-step flow when the template declares no versions", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
     expect(screen.getByRole("button", { name: /Continue to Configure/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Continue to Version/i })).not.toBeInTheDocument();
@@ -217,7 +211,7 @@ describe("CreateServerWizard", () => {
 
   it("inserts a Version step and pre-selects the default for versioned templates", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [versionedTemplate()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
     // The step after Template is Version, not Configure.
     fireEvent.click(screen.getByRole("button", { name: /Continue to Version/i }));
@@ -230,7 +224,7 @@ describe("CreateServerWizard", () => {
   it("includes the selected version in the create body", async () => {
     routeFetch({ templates: [versionedTemplate()] });
 
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     fireEvent.click(await screen.findByRole("button", { name: /Minecraft Java/i }));
     fireEvent.click(screen.getByRole("button", { name: /Continue to Version/i }));
     // Switch from the default (paper) to forge.
@@ -269,7 +263,7 @@ describe("CreateServerWizard", () => {
       },
     };
     fetchMock.mockResolvedValue(jsonRes(200, { items: [minecraftTemplate, valheimTemplate] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
 
     // Both templates visible by default.
     expect(await screen.findByRole("button", { name: /Minecraft Java/i })).toBeInTheDocument();
@@ -315,7 +309,7 @@ describe("CreateServerWizard", () => {
       },
     ];
     fetchMock.mockResolvedValue(jsonRes(200, { items: templates }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
 
     // "All" renders unconditionally (even before the template query
     // resolves), so awaiting it wouldn't prove the derived category chips
@@ -350,7 +344,7 @@ describe("CreateServerWizard", () => {
       },
     };
     fetchMock.mockResolvedValue(jsonRes(200, { items: [minecraftTemplate] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
 
     // Pre-select the template to show the preview reflecting a real
     // selection — once selected, the preview header shows the template's
@@ -426,7 +420,7 @@ describe("nodeCaps", () => {
 describe("CreateServerWizard networking", () => {
   it("sends sourceRanges when LoadBalancer + CIDRs are set", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
     fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
@@ -446,7 +440,7 @@ describe("CreateServerWizard networking", () => {
 
   it("sends portOverrides when a named override is added", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
     fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
@@ -467,7 +461,7 @@ describe("CreateServerWizard networking", () => {
 
   it("omits portOverrides when the only row is left blank", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
     fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
@@ -501,7 +495,7 @@ describe("gameCategory", () => {
 describe("CreateServerWizard review", () => {
   it("Edit links jump back to the matching step", async () => {
     fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
     fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
@@ -520,7 +514,7 @@ describe("CreateServerWizard review", () => {
       configSchema: [{ name: "MOTD", displayName: "Server MOTD", type: "string", default: "hi" }],
     });
     fetchMock.mockResolvedValue(jsonRes(200, { items: [t] }));
-    const { container } = render(withClient(<CreateServerWizard />));
+    const { container } = renderWithQuery(<CreateServerWizard />);
     await pickTemplate(t);
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
     // Editing a field is what populates state.config (defaults alone stay out),
@@ -541,7 +535,7 @@ describe("CreateServerWizard review", () => {
 
   it("shows Cancel on step 1 and closes the wizard", async () => {
     fetchMock.mockResolvedValue(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     const cancel = await screen.findByRole("button", { name: "Cancel" });
     fireEvent.click(cancel);
     expect(navigate).toHaveBeenCalledWith({ to: "/" });
