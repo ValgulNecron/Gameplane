@@ -140,30 +140,7 @@ func buildMinecraftLoginDisconnect(reason string) ([]byte, error) {
 
 // readMinecraftVarInt reads a VarInt (5-byte max) from r.
 func readMinecraftVarInt(r io.ByteReader) (int32, error) {
-	var result uint32
-	for i := 0; i < 5; i++ {
-		b, err := r.ReadByte()
-		if err != nil {
-			return 0, err
-		}
-		result |= uint32(b&0x7f) << (7 * i)
-		if b&0x80 == 0 {
-			// This is the last byte (no continuation bit set).
-			// On the 5th byte (i=4), only 4 bits are valid (bits 28-31).
-			// If b&0x7f > 0x0F, we're trying to set bits beyond bit 31.
-			if i == 4 && (b&0x7f) > 0x0f {
-				return 0, fmt.Errorf("varint value out of range for int32")
-			}
-			// Safe to convert uint32 result to int32 (all uint32 patterns map to valid int32).
-			resultInt := int32(result)
-			return resultInt, nil
-		}
-		// Continuation bit is set; if we're at byte 5 (i=4), a 6th byte would be needed.
-		if i == 4 {
-			return 0, errors.New("varint too long")
-		}
-	}
-	return 0, errors.New("varint too long")
+	return readMinecraftVarIntWithCapture(r, io.Discard)
 }
 
 // readMinecraftVarIntWithCapture reads a VarInt and writes its bytes to a buffer.
