@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithQuery } from "@/test/render";
 import { EventsTab } from "./Events";
 
 const fetchMock = vi.fn();
@@ -15,11 +14,6 @@ afterEach(() => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
 });
-
-function withClient(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
 
 function jsonRes(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -60,7 +54,7 @@ describe("EventsTab", () => {
       return Promise.reject(new Error("unexpected fetch"));
     });
 
-    render(withClient(<EventsTab name="s1" />));
+    renderWithQuery(<EventsTab name="s1" />);
     expect(await screen.findByText("Created: created pod")).toBeInTheDocument();
     expect(await screen.findByText("Failed: Back-off pulling image")).toBeInTheDocument();
   });
@@ -97,7 +91,7 @@ describe("EventsTab", () => {
     });
 
     const user = userEvent.setup();
-    render(withClient(<EventsTab name="s1" />));
+    renderWithQuery(<EventsTab name="s1" />);
     expect(await screen.findByText("Created: created pod")).toBeInTheDocument();
 
     const infoButton = screen.getByRole("button", { name: "Info" });
@@ -141,7 +135,7 @@ describe("EventsTab", () => {
     });
 
     const user = userEvent.setup();
-    render(withClient(<EventsTab name="s1" />));
+    renderWithQuery(<EventsTab name="s1" />);
     expect(await screen.findByText("Created: created pod")).toBeInTheDocument();
 
     const warningsButton = screen.getByRole("button", { name: "Warnings" });
@@ -175,7 +169,7 @@ describe("EventsTab", () => {
     });
 
     const user = userEvent.setup();
-    render(withClient(<EventsTab name="s1" />));
+    renderWithQuery(<EventsTab name="s1" />);
     expect(await screen.findByText("Created: created pod")).toBeInTheDocument();
 
     const warningsButton = screen.getByRole("button", { name: "Warnings" });
@@ -192,7 +186,7 @@ describe("EventsTab", () => {
       return Promise.reject(new Error("unexpected fetch"));
     });
 
-    render(withClient(<EventsTab name="s1" />));
+    renderWithQuery(<EventsTab name="s1" />);
     expect(await screen.findByText(/No events yet/i)).toBeInTheDocument();
   });
 });

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import { FilesTab } from "./Files";
 
 type FetchInit = Parameters<typeof fetch>[1];
@@ -34,11 +33,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function withClient(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
-
 function jsonRes(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -66,7 +60,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await waitFor(() => {
       expect(screen.getByText("config")).toBeInTheDocument();
       expect(screen.getByText("server.properties")).toBeInTheDocument();
@@ -90,7 +84,7 @@ describe("FilesTab", () => {
       throw new Error(`unexpected fetch: ${url} ${init?.method ?? "GET"}`);
     });
 
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
 
     fireEvent.click(await screen.findByText("server.properties"));
 
@@ -116,7 +110,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/read")) return textRes("hello");
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
 
@@ -136,7 +130,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url} ${init?.method ?? "GET"}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
 
     fireEvent.click(screen.getByRole("button", { name: /New folder/ }));
@@ -166,7 +160,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/read")) return textRes("hello");
       throw new Error(`unexpected fetch: ${url}`);
     });
-    const { container } = render(withClient(<FilesTab name="mc-survival" />));
+    const { container } = renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
 
     const aside = container.querySelector("aside") as HTMLElement;
@@ -197,7 +191,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     const monaco = await screen.findByTestId("monaco");
     expect(monaco).toHaveValue("some file content here");
@@ -211,7 +205,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await waitFor(() =>
       expect(screen.getByText(/access denied/)).toBeInTheDocument(),
@@ -230,7 +224,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     const monaco = await screen.findByTestId("monaco");
     fireEvent.change(monaco, { target: { value: "modified" } });
@@ -255,7 +249,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
@@ -279,7 +273,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New folder/ }));
     const input = await screen.findByPlaceholderText("my-folder");
@@ -303,7 +297,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     const uploadInput = screen.getByTestId("files-upload-input") as HTMLInputElement;
     const file = new File(["content"], "test.txt", { type: "text/plain" });
@@ -324,7 +318,7 @@ describe("FilesTab", () => {
         return jsonRes(configEntries);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("config"));
     await waitFor(() =>
       expect(screen.getByText("server-config.yaml")).toBeInTheDocument(),
@@ -346,7 +340,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("config"));
     await screen.findByText("server-config.yaml");
     fireEvent.click(screen.getByText(".."));
@@ -361,7 +355,7 @@ describe("FilesTab", () => {
         return jsonRes([]);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await waitFor(() =>
       expect(screen.getByText("Empty folder")).toBeInTheDocument(),
     );
@@ -372,7 +366,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await waitFor(() =>
       expect(screen.getByText("Select a file to edit.")).toBeInTheDocument(),
     );
@@ -390,7 +384,7 @@ describe("FilesTab", () => {
       value: { href: "" },
     });
     try {
-      render(withClient(<FilesTab name="mc-survival" />));
+      renderWithQuery(<FilesTab name="mc-survival" />);
       fireEvent.click(await screen.findByText("server.properties"));
       await screen.findByTestId("monaco");
       const download = screen.getByRole("button", { name: /^Download$/ });
@@ -418,7 +412,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     const uploadBtn = screen.getByRole("button", { name: /Upload/ });
     fireEvent.click(uploadBtn);
@@ -443,7 +437,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New file/ }));
     const input = await screen.findByPlaceholderText("config.yaml");
@@ -459,7 +453,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New file/ }));
     const input = await screen.findByPlaceholderText("config.yaml");
@@ -473,7 +467,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New file/ }));
     const input = await screen.findByPlaceholderText("config.yaml");
@@ -489,7 +483,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New file/ }));
     const input = await screen.findByPlaceholderText("config.yaml");
@@ -503,7 +497,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New folder/ }));
     const input = await screen.findByPlaceholderText("my-folder");
@@ -517,7 +511,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/list")) return jsonRes(ROOT_ENTRIES);
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New file/ }));
     await screen.findByPlaceholderText("config.yaml");
@@ -534,7 +528,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/read")) return textRes("content");
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
@@ -561,7 +555,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
@@ -592,7 +586,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
     fireEvent.click(screen.getByRole("button", { name: /^Delete$/ }));
@@ -614,7 +608,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     const refreshBtn = screen.getByLabelText("Refresh");
     const initialCount = listCallCount;
@@ -652,7 +646,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await waitFor(() => expect(lastPath).toBe("/"));
     fireEvent.click(await screen.findByText("dir1"));
     await waitFor(() => expect(lastPath).toBe("/dir1"));
@@ -664,7 +658,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/read")) return textRes("content");
       throw new Error(`unexpected fetch: ${url}`);
     });
-    const { container } = render(withClient(<FilesTab name="mc-survival" />));
+    const { container } = renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await screen.findByTestId("monaco");
     // Back to tree pane
@@ -693,7 +687,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    const { container } = render(withClient(<FilesTab name="mc-survival" />));
+    const { container } = renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     // Should show loader while file is being read. lucide-react icons render
     // aria-hidden="true" by default, which removes them from the
@@ -723,7 +717,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     const uploadBtn = screen.getByRole("button", { name: /Upload/ });
     const uploadInput = screen.getByTestId("files-upload-input") as HTMLInputElement;
@@ -745,7 +739,7 @@ describe("FilesTab", () => {
     const confirmMock = vi.fn(() => false);
     vi.stubGlobal("confirm", confirmMock);
     try {
-      render(withClient(<FilesTab name="mc-survival" />));
+      renderWithQuery(<FilesTab name="mc-survival" />);
       fireEvent.click(await screen.findByText("server.properties"));
       const monaco = await screen.findByTestId("monaco");
       fireEvent.change(monaco, { target: { value: "modified" } });
@@ -774,7 +768,7 @@ describe("FilesTab", () => {
     const confirmMock = vi.fn(() => true);
     vi.stubGlobal("confirm", confirmMock);
     try {
-      render(withClient(<FilesTab name="mc-survival" />));
+      renderWithQuery(<FilesTab name="mc-survival" />);
       fireEvent.click(await screen.findByText("server.properties"));
       const monaco = await screen.findByTestId("monaco");
       fireEvent.change(monaco, { target: { value: "modified" } });
@@ -798,7 +792,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" ns="custom-ns" />));
+    renderWithQuery(<FilesTab name="mc-survival" ns="custom-ns" />);
     await waitFor(() =>
       expect(urls.some((u) => u.includes("namespace=custom-ns"))).toBe(true),
     );
@@ -815,7 +809,7 @@ describe("FilesTab", () => {
       if (url.startsWith("/servers/mc-survival/files/read")) return textRes("content");
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("config.yaml"));
     let monaco = await screen.findByTestId("monaco") as HTMLTextAreaElement;
     // Check that Editor component receives correct language prop
@@ -836,7 +830,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     fireEvent.click(screen.getByRole("button", { name: /New folder/ }));
     const input = await screen.findByPlaceholderText("my-folder");
@@ -864,7 +858,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     const monaco = await screen.findByTestId("monaco");
     fireEvent.change(monaco, { target: { value: "modified" } });
@@ -891,7 +885,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    render(withClient(<FilesTab name="mc-survival" />));
+    renderWithQuery(<FilesTab name="mc-survival" />);
     await screen.findByText("server.properties");
     const initialCount = listCallCount;
     fireEvent.click(screen.getByRole("button", { name: /New file/ }));
@@ -915,7 +909,7 @@ describe("FilesTab", () => {
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
-    const { unmount } = render(withClient(<FilesTab name="mc-survival" />));
+    const { unmount } = renderWithQuery(<FilesTab name="mc-survival" />);
     fireEvent.click(await screen.findByText("server.properties"));
     await waitFor(() => expect(readStarted).toBe(true));
     unmount();
@@ -938,7 +932,7 @@ describe("FilesTab", () => {
     const confirmMock = vi.fn(() => true);
     vi.stubGlobal("confirm", confirmMock);
     try {
-      const { container } = render(withClient(<FilesTab name="mc-survival" />));
+      const { container } = renderWithQuery(<FilesTab name="mc-survival" />);
       fireEvent.click(await screen.findByText("server.properties"));
       const monaco = await screen.findByTestId("monaco");
       fireEvent.change(monaco, { target: { value: "modified" } });
