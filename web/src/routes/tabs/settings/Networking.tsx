@@ -215,9 +215,9 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
                 isLoading={saveCredentialMutation.isPending || removeCredentialMutation.isPending}
                 error={
                   saveCredentialMutation.error
-                    ? errorText(saveCredentialMutation.error)
+                    ? errorText(saveCredentialMutation.error, "Failed to save the credential")
                     : removeCredentialMutation.error
-                      ? errorText(removeCredentialMutation.error)
+                      ? errorText(removeCredentialMutation.error, "Failed to remove the credential")
                       : undefined
                 }
                 showInput={showCredentialInput}
