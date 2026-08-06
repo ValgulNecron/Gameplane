@@ -736,4 +736,3 @@ func newSafeClient(allowed []string) *http.Client {
 	}
 	return client
 }
-

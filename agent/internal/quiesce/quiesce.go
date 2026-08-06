@@ -89,7 +89,6 @@ func Mount(r chi.Router, rc Rcon, game string, spec *caps.Quiesce) {
 	})
 }
 
-
 // --- Declared (module-driven) ------------------------------------------
 
 type declaredQuiescer struct {

@@ -331,4 +331,3 @@ func httpErr(w http.ResponseWriter, err error) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }
-

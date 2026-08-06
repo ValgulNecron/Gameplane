@@ -129,4 +129,3 @@ func (h *handler) serve(w http.ResponseWriter, _ *http.Request) {
 	h.mu.Unlock()
 	httpjson.Write(w, http.StatusOK, results)
 }
-

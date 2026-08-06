@@ -323,7 +323,6 @@ func sanitizeReason(reason string) (string, error) {
 	return reason, nil
 }
 
-
 // Minecraft "list" responses look like one of:
 //
 //	There are 0 of a max of 20 players online:

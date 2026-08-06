@@ -63,7 +63,6 @@ func Mount(r chi.Router, rc Rcon, game string, spec *caps.Lifecycle) {
 	})
 }
 
-
 // --- Declared (module-driven) ------------------------------------------
 
 type declaredStopper struct{ stop []string }

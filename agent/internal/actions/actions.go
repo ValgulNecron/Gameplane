@@ -165,4 +165,3 @@ func (h *handler) run(w http.ResponseWriter, req *http.Request) {
 	}
 	httpjson.Write(w, http.StatusOK, runResp{OK: true, Raw: strings.Join(outputs, "\n")})
 }
-
