@@ -543,16 +543,13 @@ jobs:
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             go test -tags=e2e -timeout 5m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure
+      - name: dump cluster state on failure (e2e-go)
         if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" describe pods -n gameplane-games || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          # --previous catches the crash output if the operator restarted.
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+        uses: ./.github/actions/dump-cluster-state
+        with:
+          context: ${{ env.CTX }}
+          namespaces: "gameplane-system,gameplane-games"
+          include-previous-logs: "true"
 
   # Dual-cluster ?cluster= dispatch + scoped RBAC (test/e2e/multicluster_e2e_test.go).
   # Split out from e2e-go: it's the only bucket that needs a SECOND kind
@@ -613,16 +610,16 @@ jobs:
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_CLUSTER_B="$CLUSTER_B" \
             go test -tags=e2e -timeout 15m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure
+      - name: dump cluster state on failure (multicluster A)
         if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX_B" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX_B" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          kubectl --context "$CTX_B" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+        uses: ./.github/actions/dump-cluster-state
+        with:
+          context: ${{ env.CTX }}
+      - name: dump cluster state on failure (multicluster B)
+        if: failure()
+        uses: ./.github/actions/dump-cluster-state
+        with:
+          context: ${{ env.CTX_B }}
 
   # helm upgrade from the last published release to this tree
   # (test/e2e/upgrade_e2e_test.go). Split out from e2e-go for the same reason
@@ -680,15 +677,13 @@ jobs:
             GAMEPLANE_E2E_REUSE_CLUSTER=1 \
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             go test -tags=e2e -timeout 25m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure
+      - name: dump cluster state on failure (e2e-upgrade)
         if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          helm --kube-context "$CTX" history gameplane -n gameplane-system || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" get jobs -n gameplane-system || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+        uses: ./.github/actions/dump-cluster-state
+        with:
+          context: ${{ env.CTX }}
+          include-helm-history: "true"
+          include-get-jobs: "true"
 
   e2e-web-live:
     name: e2e web live / ${{ matrix.arch }} (kind)
@@ -752,12 +747,11 @@ jobs:
           GAMEPLANE_E2E_CLUSTER: ${{ env.CLUSTER }}
         run: |
           cd web && npm run test:e2e:live
-      - name: dump cluster state on failure
+      - name: dump cluster state on failure (e2e-web-live)
         if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+        uses: ./.github/actions/dump-cluster-state
+        with:
+          context: ${{ env.CTX }}
       - name: upload playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -818,11 +812,9 @@ jobs:
             GAMEPLANE_E2E_CLUSTER="$CLUSTER" \
             GAMEPLANE_E2E_GAME_BOT=1 \
             go test -tags=e2e -timeout 30m -v -run "$RUN_REGEX" ./...
-      - name: dump cluster state on failure
+      - name: dump cluster state on failure (e2e-game-bot)
         if: failure()
-        run: |
-          kubectl --context "$CTX" get all -A || true
-          kubectl --context "$CTX" describe pods -n gameplane-system || true
-          kubectl --context "$CTX" describe pods -n gameplane-games || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
-          kubectl --context "$CTX" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+        uses: ./.github/actions/dump-cluster-state
+        with:
+          context: ${{ env.CTX }}
+          namespaces: "gameplane-system,gameplane-games"

@@ -1,0 +1,61 @@
+name: dump cluster state on failure
+description: >
+  Dump diagnostic cluster state (resources, pod descriptions, component logs)
+  when an e2e job fails. Does not fail the job itself — all kubectl/helm commands
+  run with `|| true` to ensure the step completes even if inspection fails.
+inputs:
+  context:
+    description: kubectl context to query (required)
+    required: true
+  namespaces:
+    description: Comma-separated list of namespaces to describe pods in
+    required: false
+    default: "gameplane-system"
+  include-previous-logs:
+    description: Include --previous operator logs (for crash diagnostics)
+    required: false
+    default: "false"
+  include-helm-history:
+    description: Include helm release history (for upgrade jobs)
+    required: false
+    default: "false"
+  include-get-jobs:
+    description: Include kubectl get jobs output
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: dump cluster state
+      shell: bash
+      run: |
+        ctx="${{ inputs.context }}"
+
+        # Always dump top-level resources
+        kubectl --context "$ctx" get all -A || true
+
+        # Describe pods in specified namespaces
+        IFS=',' read -ra NS_ARRAY <<< "${{ inputs.namespaces }}"
+        for ns in "${NS_ARRAY[@]}"; do
+          ns=$(echo "$ns" | xargs)  # trim whitespace
+          kubectl --context "$ctx" describe pods -n "$ns" || true
+        done
+
+        # Operator and API logs
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --tail=200 || true
+        kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-api --tail=200 || true
+
+        # Optional: previous logs (for crash diagnostics on restart)
+        if [ "${{ inputs.include-previous-logs }}" = "true" ]; then
+          kubectl --context "$ctx" logs -n gameplane-system -l app.kubernetes.io/name=gameplane-operator --previous --tail=200 || true
+        fi
+
+        # Optional: helm release history (for upgrade diagnostics)
+        if [ "${{ inputs.include-helm-history }}" = "true" ]; then
+          helm --kube-context "$ctx" history gameplane -n gameplane-system || true
+        fi
+
+        # Optional: jobs (for upgrade diagnostics)
+        if [ "${{ inputs.include-get-jobs }}" = "true" ]; then
+          kubectl --context "$ctx" get jobs -n gameplane-system || true
+        fi
