@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithQuery } from "@/test/render";
 import { AuditLogPage, auditAction } from "./AuditLog";
 import type { AuditEvent, AuditVerifyResult } from "@/types";
 
@@ -15,11 +14,6 @@ afterEach(() => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
 });
-
-function withClient(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
 
 function event(id: number, partial: Partial<AuditEvent> = {}): AuditEvent {
   return {
@@ -56,7 +50,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     // Raw HTTP is mapped to human-readable actions + allow/deny outcomes.
     expect(await screen.findByText("Started server")).toBeInTheDocument();
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
@@ -77,7 +71,7 @@ describe("AuditLogPage", () => {
     });
 
     const user = userEvent.setup();
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("Created backup")).toBeInTheDocument();
     expect(screen.getByText("Deleted server")).toBeInTheDocument();
 
@@ -97,7 +91,7 @@ describe("AuditLogPage", () => {
     });
 
     const user = userEvent.setup();
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText(/loaded/);
     await user.click(screen.getByText(/4xx · 0/));
     expect(screen.getByText("No events match the active filters.")).toBeInTheDocument();
@@ -142,7 +136,7 @@ describe("AuditLogPage", () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
     const user = userEvent.setup();
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText("Created server");
 
     // Set a filter to verify it's passed to the export endpoint
@@ -194,7 +188,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("Audit chain verified — no tampering detected")).toBeInTheDocument();
     expect(screen.getByText("Re-check")).toBeInTheDocument();
   });
@@ -214,7 +208,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText(verifyResult.message)).toBeInTheDocument();
     expect(screen.getByText("Re-check")).toBeInTheDocument();
   });
@@ -230,7 +224,7 @@ describe("AuditLogPage", () => {
     });
 
     const user = userEvent.setup();
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText("Audit chain verified — no tampering detected");
 
     await user.click(screen.getByText("Re-check"));
@@ -258,7 +252,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("Created server")).toBeInTheDocument();
 
     const actorInput = screen.getByPlaceholderText(/Filter by actor/i);
@@ -283,7 +277,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText("Created server");
 
     const methodSelect = screen.getByDisplayValue("All methods");
@@ -309,7 +303,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     // alice's and bob's POST /servers rows both render "Created server" —
     // findAllByText tolerates the duplicate label instead of findByText,
     // which never settles on a single match and times out the test.
@@ -344,7 +338,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText(/2xx · 2/);
     expect(screen.getByText(/4xx · 2/)).toBeInTheDocument();
     expect(screen.getByText(/5xx · 1/)).toBeInTheDocument();
@@ -366,7 +360,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText("GET");
     expect(screen.getByText("POST")).toBeInTheDocument();
     expect(screen.getByText("PUT")).toBeInTheDocument();
@@ -389,7 +383,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText("Allowed");
     expect(screen.getByText("Denied")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
@@ -411,7 +405,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("Custom error: something went wrong")).toBeInTheDocument();
   });
 
@@ -430,7 +424,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText(/chain breaks at event #42/)).toBeInTheDocument();
   });
 
@@ -448,7 +442,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     // Initially no banner should be shown while loading
     expect(screen.queryByText(/verified/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/integrity status/i)).not.toBeInTheDocument();
@@ -465,7 +459,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("Integrity status unavailable")).toBeInTheDocument();
   });
 
@@ -484,7 +478,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes([]));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText(/loaded/);
 
     const loadMore = await screen.findByRole("button", { name: /Load more/i });
@@ -507,7 +501,7 @@ describe("AuditLogPage", () => {
       );
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     const loadMore = await screen.findByRole("button", { name: /Load more/i });
     fireEvent.click(loadMore);
 
@@ -529,7 +523,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     await screen.findByText("Created server");
 
     const refreshBtn = screen.getByRole("button", { name: /Refresh/i });
@@ -550,7 +544,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes([]));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("No audit events yet.")).toBeInTheDocument();
   });
 
@@ -564,7 +558,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("Time")).toBeInTheDocument();
     expect(screen.getByText("Actor")).toBeInTheDocument();
     expect(screen.getByText("Action")).toBeInTheDocument();
@@ -587,7 +581,7 @@ describe("AuditLogPage", () => {
       return Promise.resolve(jsonRes(events));
     });
 
-    render(withClient(<AuditLogPage />));
+    renderWithQuery(<AuditLogPage />);
     expect(await screen.findByText("192.168.1.1")).toBeInTheDocument();
     const dashes = screen.getAllByText("—");
     expect(dashes.length).toBeGreaterThanOrEqual(2);
