@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { useNavigate } from "@tanstack/react-router";
+import { QueryClient } from "@tanstack/react-query";
 import { renderWithQuery } from "@/test/render";
 import { LoginPage } from "./Login";
 
@@ -57,7 +58,14 @@ afterEach(() => {
 
 describe("LoginPage", () => {
   it("submits credentials, seeds cache, and navigates to / on success", async () => {
-    renderWithQuery(<LoginPage />);
+    // The default test client's gcTime is 0, so a ["me"] entry with no
+    // observers (nothing in LoginPage subscribes to it) gets garbage
+    // collected on the next timer tick waitFor pumps. Use a client with
+    // gcTime: Infinity so the entry survives long enough to assert on.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    renderWithQuery(<LoginPage />, { client });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
     // The show/hide toggle also carries "password" in its aria-label, so
     // scope the query to the input element.
@@ -69,6 +77,13 @@ describe("LoginPage", () => {
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: "/" }));
     // Verify no hard reload triggered
     expect(assignMock).not.toHaveBeenCalled();
+    expect(client.getQueryData(["me"])).toEqual({
+      id: 1,
+      username: "admin",
+      displayName: "Admin",
+      role: "admin",
+      permissions: {},
+    });
     const login = fetchMock.mock.calls.find((c) => String(c[0]).includes("/auth/login"));
     expect(login).toBeTruthy();
     const init = login![1] as RequestInit;

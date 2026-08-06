@@ -8,6 +8,10 @@ import { render, type RenderOptions } from "@testing-library/react";
 
 // A fresh client per render avoids cache leaks between tests. retry is
 // off so error states surface immediately instead of silently retrying.
+// gcTime: 0 means an observer-less entry seeded via setQueryData is
+// collected on the next pumped timer tick — tests that assert
+// getQueryData on such an entry must pass their own client with a
+// longer gcTime instead of relying on makeClient()'s default.
 export function makeClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
