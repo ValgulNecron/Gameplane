@@ -57,7 +57,7 @@ afterEach(() => {
 
 describe("LoginPage", () => {
   it("submits credentials, seeds cache, and navigates to / on success", async () => {
-    const { client } = renderWithQuery(<LoginPage />);
+    renderWithQuery(<LoginPage />);
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin" } });
     // The show/hide toggle also carries "password" in its aria-label, so
     // scope the query to the input element.
