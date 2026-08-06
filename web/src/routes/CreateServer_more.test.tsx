@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactNode } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import type { GameTemplate } from "@/types";
 
 const navigate = vi.fn();
@@ -27,13 +26,6 @@ afterEach(() => {
   navigate.mockReset();
   vi.unstubAllGlobals();
 });
-
-function withClient(ui: ReactNode) {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
-}
 
 function jsonRes(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -89,7 +81,7 @@ describe("CreateServerWizard configure step extras", () => {
       ],
     });
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [t] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(t);
     expect(screen.getByRole("option", { name: "peaceful" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "normal" })).toBeInTheDocument();
@@ -100,7 +92,7 @@ describe("CreateServerWizard configure step extras", () => {
       configSchema: [{ name: "PVP", type: "bool", default: "true" }],
     });
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [t] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(t);
     expect(screen.getByRole("option", { name: "true" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "false" })).toBeInTheDocument();
@@ -111,7 +103,7 @@ describe("CreateServerWizard configure step extras", () => {
       configSchema: [{ name: "RCON_PASSWORD", type: "password" }],
     });
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [t] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(t);
     const passwordInputs = screen.getAllByRole("textbox").filter((i) => (i as HTMLInputElement).type === "password");
     // No textbox role for password — query directly.
@@ -122,7 +114,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("walks Network step LoadBalancer + hostname through to review", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "lb-test" },
@@ -149,7 +141,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("Back button steps backwards through the wizard", async () => {
     fetchMock.mockResolvedValueOnce(jsonRes(200, { items: [template()] }));
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "back-test" },
@@ -162,7 +154,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("sends nodeSelector when nodePlacement is 'gpu'", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "gpu-test" },
@@ -184,7 +176,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("renders 403 error when user lacks permission", async () => {
     routeFetch({ create: new Response("forbidden", { status: 403 }) });
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "forbidden-test" },
@@ -199,7 +191,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("renders generic error for other status codes", async () => {
     routeFetch({ create: new Response("server error", { status: 500 }) });
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "error-test" },
@@ -214,7 +206,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("includes description in create payload when provided", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "desc-test" },
@@ -239,7 +231,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("renders ClusterIP expose option and sends it in payload", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "clusterip-test" },
@@ -261,7 +253,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("omits portOverrides when no overrides have names", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "no-overrides-test" },
@@ -279,7 +271,7 @@ describe("CreateServerWizard configure step extras", () => {
 
   it("omits sourceRanges when expose is not LoadBalancer", async () => {
     routeFetch();
-    render(withClient(<CreateServerWizard />));
+    renderWithQuery(<CreateServerWizard />);
     await pickTemplate(template());
     fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), {
       target: { value: "no-ranges-test" },
