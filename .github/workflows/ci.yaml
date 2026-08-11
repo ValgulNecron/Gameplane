@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     # Docs-only changes can't affect anything the suites test — don't spend
     # kind minutes on a markdown diff. Any non-ignored file in the change
     # set still triggers the full run. "website" (no slash) matches the

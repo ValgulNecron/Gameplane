@@ -1,6 +1,6 @@
 name: publish-edge
 
-# Continuously publish beta images to GHCR on every push to main, so testers
+# Continuously publish beta images to GHCR on every push to master, so testers
 # can track the latest build without waiting for a tagged release. Tagged
 # releases (release.yaml, triggered by v* tags) remain the recommended,
 # version-pinned install path; this is the rolling "edge" channel.
@@ -11,7 +11,7 @@ name: publish-edge
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     # Only rebuild when something that lands in an image changes. Docs/chart
     # edits don't need a fresh image push.
     paths:
@@ -33,7 +33,7 @@ permissions:
   contents: read
   packages: write
 
-# Don't stack edge publishes: a newer main push supersedes an in-flight one.
+# Don't stack edge publishes: a newer master push supersedes an in-flight one.
 concurrency:
   group: publish-edge
   cancel-in-progress: true
