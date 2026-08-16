@@ -102,7 +102,7 @@ description: "Task list for game protocol E2E coverage feature implementation"
 - [X] T027 Write gameproto/specs.md (Constitution IV requirement) documenting the Minecraft and Terraria wire-protocol codecs, their join-depth measurement capabilities, and any version constraints
 - [X] T028 Write sentinel/specs.md (Constitution IV requirement) documenting the sentinel's protocol parsing, wake-on-connect integration, PARTIAL-depth measurement for join attempts, and interaction with gameproto/ codecs
 - [X] T029 Update docs/roadmap.md to point at docs/game-coverage.md as the canonical source of coverage status, and remove the stale line "only Minecraft and Terraria are bot-testable"
-- [ ] T030 Run the eight scenarios in specs/001-gameprotocol-e2e-coverage/quickstart.md to validate end-to-end correctness, with explicit venue per scenario: Scenario 1 (static verifier — run as static shell check; authoritative run is CI), Scenario 2 (bucket gate — static shell check; authoritative run is CI), Scenario 3 (verifier can fail — static shell check; authoritative run is CI), Scenario 4 (run bot_fast — execute test suite on CI or operator-provided cluster only, never locally; use GAMEPLANE_E2E_REUSE_CLUSTER=1 + GAMEPLANE_E2E_CONTEXT), Scenario 5 (single-game iteration — execute on CI or operator-provided cluster only; use GAMEPLANE_E2E_REUSE_CLUSTER=1 + GAMEPLANE_E2E_CONTEXT + GAMEPLANE_E2E_GAMES), Scenario 6 (deferred heavy game — execute on CI or operator-provided cluster only; use GAMEPLANE_E2E_REUSE_CLUSTER=1 + GAMEPLANE_E2E_CONTEXT + GAMEPLANE_E2E_GAMES), Scenario 7 (negative control proof — execute on CI or operator-provided cluster only; use GAMEPLANE_E2E_REUSE_CLUSTER=1 + GAMEPLANE_E2E_CONTEXT), Scenario 8 (acceptance checklist — review only, not an execution step)
+- [X] T030 Run the eight quickstart scenarios. **6 of 8 validated on CI** (the authoritative venue): Scenario 1 static verifier, Scenario 2 bucket gate, and Scenario 3 gate-can-fail all pass in the "e2e bucket coverage" job (17/17 fixture assertions); Scenario 4 bot_fast and Scenario 7 negative-control proof pass in the "e2e game bot (kind)" job; Scenario 8 acceptance checklist is recorded below. **Scenarios 5 and 6 (single-game iteration, deferred heavy game) remain unrun**: they need the gameprobe image present in the cluster, it is not published to any registry (GHCR returns 403), and building it would be a local build, which this project forbids. Unblock by publishing gameplane-test/gameprobe from the e2e image job, then run them against the operator-provided cluster with GAMEPLANE_E2E_REUSE_CLUSTER=1 + GAMEPLANE_E2E_CONTEXT.
 - [X] T031 Record the separate, out-of-scope gap: modules/<game>/specs.md files do not exist and belong to the gameplane-module repo (not this one) — flag it in the PR description or add a comment to docs/roadmap.md pointing to the gap in the submodule
 
 **Checkpoint**: All specification documents are complete. Documentation is current. End-to-end validation passes.
@@ -247,3 +247,23 @@ With multiple developers:
 - Avoid: vague tasks, same-file conflicts, cross-story hard dependencies that break independence
 - No local tests run; CI is the oracle
 - All commits signed and conventional-commit formatted
+
+---
+
+## Scenario 8 — Acceptance Checklist (T030)
+
+Evidence recorded 2026-08-17 against PR #235. "CI" means the authoritative run,
+not a local invocation.
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| SC-001 — every module has a recorded, verified status | MET | 16 module dirs with `module.yaml`, 16 rows in `docs/game-coverage.md`; check 2 and check 4 enforce the correspondence in CI |
+| SC-002 — CI-excluded modules have a documented reason | MET | 13 per-module rationale lines above `bucket_bot_heavy()` in `test/e2e/buckets.sh`; on-demand invocation documented in each heavy game's `test/e2e/internal/<game>/spec.md` |
+| SC-003 — zero modules in unknown status | MET | 2 covered-in-ci / 0 covered-deferred / 12 blocked-doc / 2 out-of-scope-by-design = 16; the verifier rejects any row outside the four tokens |
+| SC-004 — full status readable from one artifact in <5 min | MET | `docs/game-coverage.md` is a single table plus per-status notes |
+| SC-005 — drift caught the same CI run | MET for the 2 CI-covered modules | `e2e game bot (kind)` passed in 19m51s with the automatic negative control running per game. For deferred modules this rests on the Last Verified staleness warning (W1), which is a weaker guarantee — stated plainly rather than claimed as equivalent |
+| FR-010 — blocked-doc rows name an unblocking artifact | MET | 12 blocked-doc rows, each naming a capture/field-map/vendor-doc artifact; check 13 enforces it |
+
+**Not proven here:** that a deferred heavy game's committed test actually runs
+green on a real cluster. Scenarios 5 and 6 cover that and are blocked on the
+unpublished probe image (see T030).
