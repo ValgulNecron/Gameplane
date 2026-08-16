@@ -305,12 +305,18 @@ check_9_bucket_names_valid() {
 		local bucket=$(get_column 6 "$row")
 
 		if [ -n "$bucket" ] && [ "$bucket" != "—" ]; then
-			# Check if it's valid bucket or unbucketed().
-			if ! printf '%s\n' "$valid_buckets" | grep -qx "$bucket"; then
+			# Membership test via `case` on a space-padded list. A previous
+			# `printf '%s\n' "$valid_buckets" | grep -qx` could never match:
+			# valid_buckets is one space-separated line, so grep -qx compared
+			# the whole line against a single bucket name and always failed.
+			case " $valid_buckets " in
+			*" $bucket "*) : ;;
+			*)
 				if [[ ! "$bucket" =~ ^unbucketed\(\) ]]; then
-					fail "module '$module' has Bucket '$bucket' which is not recognized (valid: operator, api-auth, api-roles, api-rbac, api-agent, api-mods, ratelimit, bot-fast, bot-heavy, multicluster, upgrade, or unbucketed() with comment)"
+					fail "module '$module' has Bucket '$bucket' which is not recognized (valid: $valid_buckets, or unbucketed() with comment)"
 				fi
-			fi
+				;;
+			esac
 		fi
 	done <<<"$coverage"
 }
