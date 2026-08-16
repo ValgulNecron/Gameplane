@@ -70,6 +70,22 @@ The `probe` package provides the harness; per-game `app.go` files (one per `inte
 
 ## External interface / contracts
 
+## JoinDepth contract
+
+The `joindepth.JoinDepth` type represents the exact point a probe reached in a game's join handshake.
+
+**Three values, in strict ordering:**
+
+- **`QUERY`** — out-of-band reachability only. Proved via status query (A2S_INFO, RCON dial, bare socket dial), not a real join handshake. Exit 0 only if server was unreachable (under `-expect-fail`).
+- **`PARTIAL`** — server accepted the client's join handshake intent and the exchange proceeded, but was deliberately not completed (e.g., sentinel wake-on-connect tests). No post-join artifact from the server.
+- **`JOINED`** — client completed the full protocol login/join handshake and observed a server-originated post-join artifact proving it (e.g., Minecraft Login Success packet, Terraria WorldData frame). **Only JOINED constitutes join coverage per FR-006.**
+
+**Stable wire encoding:** uppercase string names `"QUERY"`, `"PARTIAL"`, `"JOINED"`, used in the probe CLI contract and VERDICT lines.
+
+**Invariant:** Tests assert an *exact* expected depth. An unexpected upgrade (e.g., test expects QUERY but probe reached JOINED) is a failure signal — it indicates a correctness defect that must be investigated before the depth measurement is updated.
+
+**Ordering:** `QUERY < PARTIAL < JOINED`. The `joindepth` package provides `Less`, `LessOrEqual`, `Greater`, `GreaterOrEqual` comparators.
+
 ### Shared harness (`probe` package)
 
 **`Depth` type** — how far into a real join a client got:
@@ -83,6 +99,51 @@ const (
     Query   Depth = "QUERY"   // even a partial join is impossible; only the query/status protocol works
 )
 ```
+
+## ProbeVerdict wire format
+
+A probe binary emits a machine-readable **`VERDICT`** line on stdout that the test harness parses to distinguish exit code meanings. The format is:
+
+```
+VERDICT	<result>	<depth>	<depth_evidence>
+```
+
+Tab-separated fields:
+
+1. **`result`** — classification: `PASS`, `FAIL_WRONG_DEPTH`, `FAIL_TRANSPORT`, `FAIL_INTERNAL_ERROR`, or `FAIL_NEGATIVE_CONTROL_REACHED`.
+2. **`depth`** — the reached depth: `QUERY`, `PARTIAL`, or `JOINED` (or `UNKNOWN` if no transport).
+3. **`depth_evidence`** — human-readable name of the server-originated artifact proving the depth.
+
+**Invariant for JOINED:** The `depth_evidence` field **must** name the server-originated artifact (e.g., "login success for user bot#1", "WorldData frame received"). A JOINED depth without evidence is invalid.
+
+For PARTIAL and QUERY, evidence is recommended for debugging but optional.
+
+The `joindepth.ProbeVerdict` struct holds the structured result; `Encode()` produces the VERDICT line, and `ParseVerdict()` consumes it.
+
+### Exit-code semantics and the critical 2 vs 3 distinction
+
+Exit codes map probe outcomes to POSIX semantics:
+
+- **`0`** — success: probe reached the expected depth (or, under `-expect-fail`, correctly failed to reach it).
+- **`1`** — probe internal error: bad flags, panic, misconfiguration, or unusable environment.
+- **`2`** — connected to a live listener but reached the wrong depth. Protocol layer is broken, or handshake failed partway.
+- **`3`** — transport failure: nothing listening, connection refused, DNS failure, timeout, or no bytes exchanged.
+
+**Why 2 and 3 must stay distinguishable:** The automatic negative control (see below) asserts *specifically on exit code 3*. It proves the probe can fail when the address is genuinely unreachable. If a probe that has a bug elsewhere (e.g., its protocol parsing) still manages to reject a dead address, it will return 3 when run against `127.0.0.1:1`. But if the probe is broken in a way that prevents it from ever reaching any server (e.g., a malformed Dial), it will return 1 (internal error). Collapsing 2 and 3 into a single "failure" code would allow a probe with an unrelated bug to pass the negative control for the wrong reason — it would return what looks like "no server" (old code 2/3 bundle) when it actually means "probe has a bug that happens to look like transport failure".
+
+The test harness reads the exit code and the VERDICT line to distinguish these cases; see `verifyNegativeControlTransportFailure` in `gamebot_helpers_e2e_test.go`.
+
+### Automatic negative control: structural guarantee for FR-002
+
+Every game-bot test runs an **automatic negative control** immediately after the positive control. This proves the probe can fail when it must. The flow (in `runGameBotTest` and `runGameBotNegativeControl`):
+
+1. **Positive control** — run the probe against the real game Service; expect exit 0 and depth matching `ExpectDepth`.
+2. **Negative control** — run the *same* probe against `127.0.0.1:1` (a reliably closed address, port 1 is reserved and never listens) with the `-expect-fail` flag.
+   - Under `-expect-fail`, the probe inverts its logic: it exits 0 if it *fails* to reach `ExpectDepth` (the expected behavior when the address is unreachable).
+   - The probe must exit 3 (transport failure), not 1 (internal error) or 2 (wrong depth).
+   - The test calls `verifyNegativeControlTransportFailure()` to parse the VERDICT line and assert that `depth == UNKNOWN` — no protocol depth was measured because the connection failed at the transport level.
+
+**Why this exists:** Spec FR-002 requires "the probe must fail on a dead address". Rather than making this a manual ritual ("manually test each probe with `nc -zv 127.0.0.1:1`"), the negative control is automatic and built into every test. It's a structural guarantee: if a probe is broken, the test *must* fail on the negative control before it ever passes. This prevents a probe that is silently always-passing or always-failing to ship.
 
 **`ParseFlags() Flags`** — parses `-addr`, `-deadline`, `-expect-depth` and any per-game flags. Must be called by every `app.go`:
 
@@ -115,17 +176,27 @@ err := probe.Retry(ctx, "minecraft login", 30*time.Second, func(ctx context.Cont
 
 ```go
 type GameProbe struct {
-    GameNS      string        // namespace holding the GameServer
-    GSName      string        // GameServer name (its Service is dialled)
-    Game        string        // module dir name; selects the /probe/<Game> binary
-    Port        int           // game port (e.g. 25565 for Minecraft)
-    Deadline    time.Duration // total time allowed for the probe
-    ExpectDepth string        // "JOINED" | "PARTIAL" | "QUERY"
-    Args        []string      // extra per-game flags, e.g. []string{"-user", "bot"}
+    GameNS      string                 // namespace holding the GameServer
+    GSName      string                 // GameServer name (its Service is dialled)
+    Game        string                 // module dir name; selects the /probe/<Game> binary
+    Port        int                    // game port (e.g. 25565 for Minecraft)
+    Deadline    time.Duration          // total time allowed for the probe
+    ExpectDepth joindepth.JoinDepth    // JOINED | PARTIAL | QUERY
+    ExpectFail  bool                   // if set, probe must NOT reach ExpectDepth; Job invoked with -expect-fail
+    Args        []string               // extra per-game flags, e.g. []string{"-user", "bot"}
 }
 ```
 
-**`Env.RunGameProbe(t, GameProbe)`** — creates a one-shot Job in the `default` namespace, waits for it to finish or timeout, and fails the test if the probe didn't exit 0. Reads logs on failure. The Job dials the game Service at `<GSName>.<GameNS>.svc.cluster.local:<Port>`.
+**`ProbeResult` struct** — holds both the exit code and the parsed VERDICT line from a probe run:
+
+```go
+type ProbeResult struct {
+    ExitCode int
+    Verdict  *joindepth.ProbeVerdict
+}
+```
+
+**`Env.RunGameProbe(t, GameProbe) *ProbeResult`** — creates a one-shot Job in the `default` namespace, waits for it to finish or timeout, and returns a `ProbeResult` with the exit code and parsed VERDICT line. Fails the test if the probe didn't exit 0 (on positive control) or if the negative control's assertions fail. The Job dials the game Service at `<GSName>.<GameNS>.svc.cluster.local:<Port>`.
 
 ### Per-game implementation (`app.go`)
 
@@ -313,7 +384,10 @@ Per-game `protocol/` dirs hold only game-specific deviations: Minecraft protocol
 
 ## References
 
-- **`gameprobe_job.go`** — `RunGameProbe`, `GameProbe` struct, and in-cluster Job harness.
+- **`specs/001-gameprotocol-e2e-coverage/contracts/probe-cli.md`** — authoritative probe CLI contract: flags, exit codes, VERDICT grammar, and `-expect-fail` semantics.
+- **`gameprobe_job.go`** — `RunGameProbe`, `ProbeResult`, `GameProbe` struct, and in-cluster Job harness. Also contains `runGameBotNegativeControl()` (the automatic negative control) and `verifyNegativeControlTransportFailure()` (validation).
+- **`internal/protocol/joindepth/depth.go`** — `JoinDepth` type, constants, and comparison methods.
+- **`internal/protocol/joindepth/verdict.go`** — `ProbeVerdict` struct, wire encoding (`Encode()`, `ParseVerdict()`), and exit code mapping (`ExitCodeFromVerdict()`).
 - **`probe/probe.go`** — `Depth`, `ParseFlags`, `Main`, `Retry` harness.
 - **`buckets.sh`** — e2e test bucketing, `bot-fast` / `bot-heavy` definitions, and `GAMEPLANE_E2E_GAME_BOT` / `GAMEPLANE_E2E_GAMES` gating.
 - **`.github/workflows/ci.yaml`** — `e2e-game-bot` job (amd64 only, 50-minute timeout, runs `bot-fast` bucket).

@@ -3,20 +3,72 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeVRising(ctx, flags.Addr)
-	})
+	// Standard flags per the probe CLI contract.
+	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
+	deadline := flag.Duration("deadline", 4*time.Minute,
+		"overall deadline; the probe retries until the server is playable or this elapses")
+	expectDepth := flag.String("expect-depth", "JOINED",
+		"expected join depth: QUERY | PARTIAL | JOINED")
+	expectFail := flag.Bool("expect-fail", false,
+		"if set, probe must NOT reach -expect-depth; exits 0 on correct failure")
+
+	flag.Parse()
+
+	// Set up logging.
+	log.SetFlags(log.Ltime)
+
+	// Validate required flags.
+	if *addr == "" {
+		verdict := joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       "Bad flag: -addr is required",
+			Err:          errors.New("-addr is required"),
+		}
+		emitVerdictAndExit(&verdict, joindepth.QUERY, *expectFail, 1)
+	}
+
+	// Parse expected depth.
+	parsedExpect, err := joindepth.Parse(*expectDepth)
+	if err != nil {
+		verdict := joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       fmt.Sprintf("Bad flag: %v", err),
+			Err:          err,
+		}
+		emitVerdictAndExit(&verdict, joindepth.QUERY, *expectFail, 1)
+	}
+
+	// Create the probe context with deadline.
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	// Run the probe.
+	reached, evidence, transportErr := probeVRising(ctx, *addr)
+
+	// Build the verdict.
+	verdict := joindepth.ProbeVerdict{
+		ReachedDepth: reached,
+		Detail:       evidence,
+		Err:          transportErr,
+	}
+
+	// Determine exit code based on the contract.
+	exitCode := computeExitCode(&verdict, parsedExpect, *expectFail)
+	emitVerdictAndExit(&verdict, parsedExpect, *expectFail, exitCode)
 }
 
 // probeVRising attempts to reach the deepest join depth on a V Rising server.
@@ -37,20 +89,22 @@ func main() {
 // depth on any reply. That fallback was not falsifiable (a server that only
 // answers well-formed requests would silently drop an unrecognized packet —
 // the same failure mode proven empirically against Factorio's query port),
-// and in practice it was also dead code: probe.Retry consumes the entire
+// and in practice it was also dead code: retry consumes the entire
 // remaining deadline retrying A2S before returning, so by the time control
 // reached the fallback the shared context was already expired and the
-// fallback's own probe.Retry call returned immediately without ever dialing.
+// fallback's own retry call returned immediately without ever dialing.
 // A2S is in fact the genuine, documented protocol here (see above), so it is
 // now the sole basis for QUERY depth.
 //
-// Depth measurement: Returns Query if the query port answers A2S_INFO. Returns
-// a fatal error otherwise.
-func probeVRising(ctx context.Context, addr string) (probe.Depth, error) {
-	var info *a2s.Info
-	err := probe.Retry(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
+// Depth measurement: Returns (QUERY, evidence, nil) if the query port answers A2S_INFO.
+// Returns (UNKNOWN, "", error) on transport failure. Returns (UNKNOWN, "", error) on protocol error.
+// V Rising does not support join verification, so the maximum reachable depth is QUERY.
+// Returns (depth, evidence, error).
+func probeVRising(ctx context.Context, addr string) (joindepth.JoinDepth, string, error) {
+	var info *a2sproto.Info
+	err := retry(ctx, "a2s-info", probeAttempt, func(actx context.Context) error {
 		var qerr error
-		info, qerr = a2s.QueryInfo(actx, addr)
+		info, qerr = a2sproto.QueryInfo(actx, addr)
 		return qerr
 	})
 	if err != nil {
@@ -63,12 +117,124 @@ func probeVRising(ctx context.Context, addr string) (probe.Depth, error) {
 		diagCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		logRawDiagnostic(diagCtx, addr)
-		return "", fmt.Errorf("a2s query on query port %s never succeeded: %w", addr, err)
+		return joindepth.JoinDepth(-1), "", fmt.Errorf("a2s query on query port %s: %w", addr, err)
 	}
 
 	log.Printf("a2s query succeeded: server=%q map=%q players=%d/%d",
 		info.Name, info.Map, info.Players, info.MaxPlayers)
-	return probe.Query, nil
+	evidence := fmt.Sprintf("A2S_INFO response: %s, %d/%d players", info.Name, info.Players, info.MaxPlayers)
+	return joindepth.QUERY, evidence, nil
+}
+
+// computeExitCode returns the appropriate exit code based on the verdict and expectations.
+// Exit codes per the contract:
+// - 0: reached expected depth (or under -expect-fail, correctly failed)
+// - 1: internal error
+// - 2: connected but wrong depth
+// - 3: transport failure
+func computeExitCode(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool) int {
+	if expectFail {
+		// Under -expect-fail, the probe must NOT reach the expected depth.
+		if v.ReachedDepth == expectedDepth && v.Err == nil {
+			// Probe reached the expected depth when it should not have.
+			return 1
+		}
+		// Probe correctly failed to reach the depth.
+		return 0
+	}
+
+	// Normal (positive control) case.
+	if v.ReachedDepth == expectedDepth && v.Err == nil {
+		// Success: reached the expected depth.
+		return 0
+	}
+
+	// Classify the failure.
+	if v.Err != nil {
+		// Determine if it's a transport error or internal error.
+		if isTransportError(v.Err) {
+			return 3 // Transport failure.
+		}
+		return 1 // Internal error.
+	}
+
+	// Connected but wrong depth.
+	return 2
+}
+
+// isTransportError checks if an error is a transport-level failure.
+func isTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	transportKeywords := []string{
+		"connection refused",
+		"Dial timeout",
+		"timeout",
+		"connection never established",
+		"DNS failure",
+		"No response",
+		"connection reset",
+		"dial",
+		"EOF",
+		"refused",
+	}
+	for _, keyword := range transportKeywords {
+		if strings.Contains(errMsg, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// emitVerdictAndExit emits the machine-readable VERDICT line and exits.
+func emitVerdictAndExit(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool, exitCode int) {
+	// Encode the verdict line.
+	line, err := v.Encode()
+	if err != nil {
+		// If encoding fails, emit a fallback and exit with internal error.
+		fmt.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tVERDICT encoding failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Emit the verdict line to stdout.
+	fmt.Println(line)
+
+	// Exit with the computed code.
+	os.Exit(exitCode)
+}
+
+const (
+	probeAttempt  = 15 * time.Second // per-attempt timeout for A2S query
+	retryInterval = 3 * time.Second   // pause between attempts
+)
+
+// retry calls fn until it succeeds, ctx expires, or fn reports a fatal error.
+func retry(ctx context.Context, what string, attempt time.Duration, fn func(context.Context) error) error {
+	var last error
+	for {
+		if err := ctx.Err(); err != nil {
+			if last == nil {
+				last = err
+			}
+			return fmt.Errorf("%s never succeeded before the deadline: %w", what, last)
+		}
+
+		actx, cancel := context.WithTimeout(ctx, attempt)
+		err := fn(actx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		last = err
+		log.Printf("%s not ready yet: %v", what, err)
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(retryInterval):
+		}
+	}
 }
 
 // logRawDiagnostic sends a minimal, non-protocol UDP probe and logs whatever

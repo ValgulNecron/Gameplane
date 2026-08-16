@@ -4,24 +4,71 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeProjectZomboid(ctx, flags.Addr)
-	})
+	addr := flag.String("addr", "", "game server host:port")
+	deadline := flag.Duration("deadline", 4*time.Minute, "overall deadline")
+	expectDepth := flag.String("expect-depth", "JOINED", "expected join depth: QUERY, PARTIAL, or JOINED")
+	expectFail := flag.Bool("expect-fail", false, "probe must NOT reach -expect-depth")
+	flag.Parse()
+
+	// Validate required flags.
+	if *addr == "" {
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.JoinDepth(-1), // encodes as UNKNOWN
+			Detail:       "Bad flag: -addr is required",
+			Err:          fmt.Errorf("bad flag: -addr is required"),
+		}
+		verdictLine, _ := verdict.Encode()
+		fmt.Println(verdictLine)
+		os.Exit(1)
+	}
+
+	// Parse expected depth.
+	expectedDepth, err := joindepth.Parse(*expectDepth)
+	if err != nil {
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.JoinDepth(-1), // encodes as UNKNOWN
+			Detail:       fmt.Sprintf("Bad flag: %v", err),
+			Err:          err,
+		}
+		verdictLine, _ := verdict.Encode()
+		fmt.Println(verdictLine)
+		os.Exit(1)
+	}
+
+	// Configure logging.
+	log.SetFlags(log.Ltime)
+
+	// Create context with deadline.
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	// Run the probe and construct a ProbeVerdict.
+	verdict := probeProjectZomboidWithVerdict(ctx, *addr)
+
+	// Emit the VERDICT line.
+	verdictLine, _ := verdict.Encode()
+	fmt.Println(verdictLine)
+
+	// Exit with the appropriate code.
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, *expectFail)
+	os.Exit(exitCode)
 }
 
-// probeProjectZomboid attempts to reach the deepest join depth on a Project
-// Zomboid server.
+// probeProjectZomboidWithVerdict attempts to reach the deepest join depth on a Project
+// Zomboid server and returns a ProbeVerdict.
 //
 // Project Zomboid is a Steamworks GameServer title: like the other four games
 // in this bucket, its Steamworks GameServer integration answers Valve's A2S
@@ -41,30 +88,100 @@ func main() {
 // perfectly healthy server). A2S_INFO is the actual documented request this
 // port answers, so it is used here instead.
 //
-// Depth measurement: Returns Query if the game port answers A2S_INFO. Returns
-// a fatal error otherwise.
-func probeProjectZomboid(ctx context.Context, addr string) (probe.Depth, error) {
+// Depth measurement: Returns QUERY if the game port answers A2S_INFO.
+// Distinguishes between transport failures (exit 3) and protocol errors (exit 2).
+func probeProjectZomboidWithVerdict(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 	var info *a2s.Info
-	err := probe.Retry(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
-		var qerr error
-		info, qerr = a2s.QueryInfo(actx, addr)
-		return qerr
-	})
-	if err != nil {
-		// A2S never succeeded before the deadline. Send one bounded,
-		// best-effort diagnostic probe purely for evidence — it cannot
-		// change the outcome below. Silence is itself a measurement: future
-		// readers need to know a raw probe was attempted and what (if
-		// anything) came back.
-		diagCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		logRawDiagnostic(diagCtx, addr)
-		return "", fmt.Errorf("a2s query on game port %s never succeeded: %w", addr, err)
+	var lastErr error
+
+	// Retry the A2S query until the deadline passes.
+	for {
+		// Check if deadline has expired.
+		if ctx.Err() != nil {
+			break
+		}
+
+		// Attempt A2S query with a per-attempt timeout.
+		actx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		info, lastErr = a2s.QueryInfo(actx, addr)
+		cancel()
+
+		if lastErr == nil {
+			// Success! We reached QUERY depth.
+			log.Printf("a2s query succeeded: server=%q map=%q players=%d/%d",
+				info.Name, info.Map, info.Players, info.MaxPlayers)
+
+			detail := fmt.Sprintf("A2S_INFO response received: server=%q players=%d/%d",
+				info.Name, info.Players, info.MaxPlayers)
+			return &joindepth.ProbeVerdict{
+				ReachedDepth: joindepth.QUERY,
+				Detail:       detail,
+				Err:          nil,
+			}
+		}
+
+		// Error occurred. Log and classify it.
+		log.Printf("a2s query attempt failed: %v", lastErr)
+
+		// Check if this is a transport error or protocol error.
+		if isTransportError(lastErr) {
+			// Retry for transport errors (server not ready, etc).
+			select {
+			case <-ctx.Done():
+				// Deadline reached before a successful query.
+				diagCtx, diagCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				logRawDiagnostic(diagCtx, addr)
+				diagCancel()
+				return &joindepth.ProbeVerdict{
+					ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN
+					Detail:       fmt.Sprintf("Dial timeout after 4m against %s; connection never established", addr),
+					Err:          fmt.Errorf("a2s query on game port %s never succeeded: %w", addr, lastErr),
+				}
+			case <-time.After(3 * time.Second):
+				// Retry after 3 seconds.
+			}
+		} else {
+			// Protocol error or other fatal error - don't retry.
+			return &joindepth.ProbeVerdict{
+				ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN
+				Detail:       fmt.Sprintf("A2S protocol error: %v", lastErr),
+				Err:          fmt.Errorf("a2s query failed with protocol error: %w", lastErr),
+			}
+		}
 	}
 
-	log.Printf("a2s query succeeded: server=%q map=%q players=%d/%d",
-		info.Name, info.Map, info.Players, info.MaxPlayers)
-	return probe.Query, nil
+	// Deadline expired without success.
+	diagCtx, diagCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	logRawDiagnostic(diagCtx, addr)
+	diagCancel()
+	return &joindepth.ProbeVerdict{
+		ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN
+		Detail:       fmt.Sprintf("Dial timeout after 4m against %s; connection never established", addr),
+		Err:          fmt.Errorf("a2s query on game port %s never succeeded: %w", addr, lastErr),
+	}
+}
+
+// isTransportError checks if an error is a transport-level failure (dial, timeout, etc.)
+// rather than a protocol error.
+func isTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	transportKeywords := []string{
+		"dial", "connection refused", "connection reset", "timeout", "deadline exceeded",
+		"no such host", "name resolution failed", "temporary failure", "network is unreachable",
+		"connection refused by peer", "i/o timeout",
+	}
+
+	for _, keyword := range transportKeywords {
+		if strings.Contains(strings.ToLower(errMsg), keyword) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // logRawDiagnostic sends a minimal, non-protocol UDP probe (the same 4-byte

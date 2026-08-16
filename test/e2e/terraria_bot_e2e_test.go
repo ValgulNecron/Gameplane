@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_TerrariaBot_Joined boots a REAL Terraria server
@@ -55,7 +57,7 @@ func TestGameServer_TerrariaBot_Joined(t *testing.T) {
 		ReadyTimeout:  10 * time.Minute,
 		ProbePort:     7777,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "JOINED",
+		ExpectDepth:   joindepth.JOINED,
 		RCON:          map[string]any{"protocol": "none"},
 		ConsoleMode:   "pty",
 		Probes: map[string]any{

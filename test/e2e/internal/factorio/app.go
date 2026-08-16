@@ -3,19 +3,72 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeFactorio(ctx, flags.Addr)
-	})
+	log.SetFlags(log.Ltime)
+
+	// Parse flags.
+	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
+	deadline := flag.Duration("deadline", 4*time.Minute, "overall deadline; the probe retries until the server is playable or this elapses")
+	expectDepthStr := flag.String("expect-depth", "JOINED", "expected join depth: QUERY | PARTIAL | JOINED")
+	expectFail := flag.Bool("expect-fail", false, "if set, probe must NOT reach -expect-depth; exits 0 on correct failure, exits 1 or 2 if it somehow succeeded")
+	flag.Parse()
+
+	if *addr == "" {
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.JoinDepth(-1), // renders as UNKNOWN
+			Detail:       "Bad flag: -addr is required",
+			Err:          fmt.Errorf("missing required flag: -addr"),
+		}
+		line, _ := verdict.Encode()
+		fmt.Println(line)
+		os.Exit(1)
+	}
+
+	expectedDepth, err := joindepth.Parse(*expectDepthStr)
+	if err != nil {
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.JoinDepth(-1), // renders as UNKNOWN
+			Detail:       fmt.Sprintf("Bad flag: -expect-depth must be one of QUERY, PARTIAL, JOINED (got %q)", *expectDepthStr),
+			Err:          err,
+		}
+		line, _ := verdict.Encode()
+		fmt.Println(line)
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	depth, evidence, err := probeFactorio(ctx, *addr)
+
+	verdict := &joindepth.ProbeVerdict{
+		ReachedDepth: depth,
+		Detail:       evidence,
+		Err:          err,
+	}
+
+	// Emit the VERDICT line.
+	line, encodeErr := verdict.Encode()
+	if encodeErr != nil {
+		fmt.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tFailed to encode verdict: %v\n", encodeErr)
+		os.Exit(1)
+	}
+	fmt.Println(line)
+
+	// Determine exit code based on -expect-fail flag.
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, *expectFail)
+
+	os.Exit(exitCode)
 }
 
 // probeFactorio attempts to reach the deepest join depth on a Factorio server.
@@ -30,18 +83,23 @@ func main() {
 // protocol format and credentials. The test does not attempt JOINED or even
 // PARTIAL because Factorio's join is mediated by the in-game multiplayer UI,
 // which CI cannot operate.
-func probeFactorio(ctx context.Context, addr string) (probe.Depth, error) {
+//
+// Returns: (depth, evidence, error)
+// - depth: the join depth reached (QUERY, PARTIAL, or JOINED)
+// - evidence: a human-readable description of the concrete server-originated artifact proving the depth
+// - error: a transport-level or protocol-level error, or nil if successful
+func probeFactorio(ctx context.Context, addr string) (joindepth.JoinDepth, string, error) {
 	// Parse the input address to extract the host/port and construct the RCON address.
 	// The input addr is expected to be "host:34197" (the game port); replace with port 27015 (RCON).
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", fmt.Errorf("factorio probe: malformed address %q; expected host:port: %w", addr, err)
+		return joindepth.JoinDepth(-1), "", fmt.Errorf("factorio probe: malformed address %q; expected host:port: %w", addr, err)
 	}
 	rconAddr := net.JoinHostPort(host, "27015")
 
 	// Attempt to establish a TCP connection to the RCON port (27015).
 	// A successful TCP accept proves the server is listening and responsive.
-	if err := probe.Retry(ctx, "factorio-rcon-probe", 15*time.Second, func(actx context.Context) error {
+	if err := retryWithContext(ctx, "factorio-rcon-probe", 15*time.Second, func(actx context.Context) error {
 		conn, err := net.Dial("tcp", rconAddr)
 		if err != nil {
 			return fmt.Errorf("dial tcp %s: %w", rconAddr, err)
@@ -50,7 +108,12 @@ func probeFactorio(ctx context.Context, addr string) (probe.Depth, error) {
 		return nil
 	}); err != nil {
 		// TCP connect failed; RCON port is not accepting connections.
-		return "", fmt.Errorf("factorio rcon probe failed: %w", err)
+		// Distinguish between transport failures and other errors.
+		errMsg := err.Error()
+		if isTransportFailure(errMsg) {
+			return joindepth.JoinDepth(-1), "", fmt.Errorf("Dial timeout after %v against %s; connection never established: %w", 15*time.Second, rconAddr, err)
+		}
+		return joindepth.JoinDepth(-1), "", fmt.Errorf("factorio rcon probe failed: %w", err)
 	}
 
 	log.Printf("factorio-rcon-probe: tcp connection accepted on port 27015")
@@ -76,7 +139,58 @@ func probeFactorio(ctx context.Context, addr string) (probe.Depth, error) {
 	// and credentials. The factorio module's template sets require_user_verification: false
 	// and public: false to disable external auth, but join still requires the
 	// in-game multiplayer UI, which CI cannot operate.
-	return probe.Query, nil
+	return joindepth.QUERY, "TCP connection accepted on RCON port 27015", nil
+}
+
+// retryWithContext calls fn until it succeeds, ctx expires, or fn reports a fatal error.
+// Every failed attempt is logged.
+func retryWithContext(ctx context.Context, what string, attemptTimeout time.Duration, fn func(context.Context) error) error {
+	const retryInterval = 3 * time.Second
+	var lastErr error
+
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastErr == nil {
+				lastErr = err
+			}
+			return fmt.Errorf("%s never succeeded before the deadline: %w", what, lastErr)
+		}
+
+		actx, cancel := context.WithTimeout(ctx, attemptTimeout)
+		err := fn(actx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		log.Printf("%s not ready yet: %v", what, err)
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(retryInterval):
+		}
+	}
+}
+
+// isTransportFailure checks if an error string indicates a transport-level failure.
+func isTransportFailure(errMsg string) bool {
+	return contains(errMsg, "connection refused") ||
+		contains(errMsg, "Dial timeout") ||
+		contains(errMsg, "timeout") ||
+		contains(errMsg, "connection never established") ||
+		contains(errMsg, "DNS failure") ||
+		contains(errMsg, "No response") ||
+		contains(errMsg, "connection reset")
+}
+
+// contains checks if a string contains a substring.
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // sendConnectionRequestUDP sends a diagnostic best-effort Factorio connection

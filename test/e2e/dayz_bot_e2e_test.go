@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_DayZBot_Query boots a REAL DayZ server
@@ -80,7 +82,7 @@ func TestGameServer_DayZBot_Query(t *testing.T) {
 		// ExpectDepth is QUERY because that is what A2S_INFO proves.
 		// The game protocol and control channel are not reachable/documented
 		// from a probe pod, so QUERY is the honest measurement boundary.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		RCON:        map[string]any{"protocol": "battleye"},
 		// No readiness probe: ServerZ provides no TCP health check endpoint.
 		// UDP game/query ports are not reliable probes (servers may silently

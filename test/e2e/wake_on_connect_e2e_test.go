@@ -12,6 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_WakeOnConnect_PingDoesNotWake verifies that a server-list ping
@@ -105,7 +107,7 @@ func TestGameServer_WakeOnConnect_PingDoesNotWake(t *testing.T) {
 		Game:        "minecraft-java",
 		Port:        25565,
 		Deadline:    60 * time.Second,
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		Args:        []string{"-mode", "ping"},
 	})
 
@@ -213,7 +215,7 @@ func TestGameServer_WakeOnConnect_LoginWakes(t *testing.T) {
 		Game:        "minecraft-java",
 		Port:        25565,
 		Deadline:    60 * time.Second,
-		ExpectDepth: "PARTIAL",
+		ExpectDepth: joindepth.PARTIAL,
 		Args:        []string{"-mode", "wake"},
 	})
 

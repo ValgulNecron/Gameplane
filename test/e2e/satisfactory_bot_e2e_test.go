@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_SatisfactoryBot_Query boots a REAL Satisfactory server
@@ -77,7 +79,7 @@ func TestGameServer_SatisfactoryBot_Query(t *testing.T) {
 		// Retry for up to 4 minutes after the pod reaches Running.
 		ProbeDeadline: 4 * time.Minute,
 		// Measure QUERY depth (unauthenticated API call succeeds).
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		// No RCON configured for this test; the probe speaks the HTTPS API
 		// directly (not via the agent's RCON bridge).
 		// Note: the template itself declares rcon.protocol: satisfactory for

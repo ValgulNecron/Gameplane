@@ -22,8 +22,8 @@ description: "Task list for game protocol E2E coverage feature implementation"
 
 **Purpose**: Create minimal project structure and directory scaffolding
 
-- [ ] T001 Create test/e2e/internal/protocol/joindepth/ directory scaffold with package structure
-- [ ] T002 Create test/e2e/testdata/joincoverage/ directory for verifier fixtures
+- [X] T001 Create test/e2e/internal/protocol/joindepth/ directory scaffold with package structure
+- [X] T002 Create test/e2e/testdata/joincoverage/ directory for verifier fixtures
 
 ---
 
@@ -33,12 +33,12 @@ description: "Task list for game protocol E2E coverage feature implementation"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Implement JoinDepth typed value (QUERY/PARTIAL/JOINED) with ordering, stable uppercase wire encoding in test/e2e/internal/protocol/joindepth/depth.go
-- [ ] T004 Implement ProbeVerdict type with ReachedDepth, Detail, Error fields and VERDICT-line encode/decode per contracts/probe-cli.md in test/e2e/internal/protocol/joindepth/verdict.go
-- [ ] T005 Modify test/e2e/gameprobe_job.go: adopt typed JoinDepth, add -expect-fail mode to GameProbe invocation, surface distinct exit codes (0/2/3/1) via ProbeVerdict
-- [ ] T006 Modify test/e2e/gamebot_helpers_e2e_test.go: runGameBotTest runs automatic negative control for every game (second probe against 127.0.0.1:1 with -expect-fail) and fails test if negative control does not fail for transport reason
-- [ ] T007 [P] Update all 16 game probe binaries under test/e2e/internal/<game>/ to honour the new exit-code contract and VERDICT-line grammar per contracts/probe-cli.md (note: this is ONE task spanning: minecraft-java, terraria, valheim, dayz, garrys-mod, factorio, cs2, rust, ark-survival-ascended, palworld, satisfactory, 7-days-to-die, project-zomboid, dont-starve-together, enshrouded, v-rising)
-- [ ] T008 Update test/e2e/internal/specs.md to document the JoinDepth contract, ProbeVerdict wire format, negative control mechanism, and the exit-code semantics per data-model.md
+- [X] T003 Implement JoinDepth typed value (QUERY/PARTIAL/JOINED) with ordering, stable uppercase wire encoding in test/e2e/internal/protocol/joindepth/depth.go
+- [X] T004 Implement ProbeVerdict type with ReachedDepth, Detail, Error fields and VERDICT-line encode/decode per contracts/probe-cli.md in test/e2e/internal/protocol/joindepth/verdict.go
+- [X] T005 Modify test/e2e/gameprobe_job.go: adopt typed JoinDepth, add -expect-fail mode to GameProbe invocation, surface distinct exit codes (0/2/3/1) via ProbeVerdict
+- [X] T006 Modify test/e2e/gamebot_helpers_e2e_test.go: runGameBotTest runs automatic negative control for every game (second probe against 127.0.0.1:1 with -expect-fail) and fails test if negative control does not fail for transport reason
+- [X] T007 [P] Update all 16 game probe binaries under test/e2e/internal/<game>/ to honour the new exit-code contract and VERDICT-line grammar per contracts/probe-cli.md (note: this is ONE task spanning: minecraft-java, terraria, valheim, dayz, garrys-mod, factorio, cs2, rust, ark-survival-ascended, palworld, satisfactory, 7-days-to-die, project-zomboid, dont-starve-together, enshrouded, v-rising)
+- [X] T008 Update test/e2e/internal/specs.md to document the JoinDepth contract, ProbeVerdict wire format, negative control mechanism, and the exit-code semantics per data-model.md
 
 **Checkpoint**: Foundation ready — user story implementation can now begin in parallel. Verify: test/e2e/internal/protocol/joindepth/ compiles, GameProbe accepts typed ExpectDepth, probes emit VERDICT lines, negative controls run automatically.
 

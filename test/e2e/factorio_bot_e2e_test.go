@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_FactorioBot_Query boots a Factorio server through the operator,
@@ -58,7 +60,7 @@ func TestGameServer_FactorioBot_Query(t *testing.T) {
 		ReadyTimeout:  8 * time.Minute,
 		ProbePort:     34197,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "QUERY",
+		ExpectDepth:   joindepth.QUERY,
 		RCON: map[string]any{
 			"protocol":     "source",
 			"port":         int64(27015),

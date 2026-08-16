@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_PalworldBot_Query boots a REAL Palworld server
@@ -72,7 +74,7 @@ func TestGameServer_PalworldBot_Query(t *testing.T) {
 		ProbePort:     27015, // Query port for A2S
 		ProbeDeadline: 4 * time.Minute,
 		// ExpectDepth is QUERY because that is what A2S_INFO proves.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		Probes: map[string]any{
 			"startup": map[string]any{
 				// REST API TCP port is the only reliable liveness signal during boot

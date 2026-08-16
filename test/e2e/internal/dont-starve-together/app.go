@@ -3,21 +3,61 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
 )
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeDontStarveTogether(ctx, flags.Addr)
-	})
+	// Register standard flags.
+	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
+	deadline := flag.Duration("deadline", 4*time.Minute, "overall deadline; the probe retries until the server is playable or this elapses")
+	expectDepthStr := flag.String("expect-depth", "QUERY", "expected join depth: QUERY | PARTIAL | JOINED")
+	expectFail := flag.Bool("expect-fail", false, "if set, probe must NOT reach -expect-depth; exits 0 on correct failure")
+	flag.Parse()
+
+	if *addr == "" {
+		fmt.Fprintf(os.Stderr, "probe: -addr is required\n")
+		fmt.Println("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tBad flag: -addr is required")
+		os.Exit(1)
+	}
+
+	expectDepth, err := joindepth.Parse(*expectDepthStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "probe: invalid -expect-depth: %v\n", err)
+		fmt.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tBad flag: -expect-depth must be one of QUERY, PARTIAL, JOINED\n")
+		os.Exit(1)
+	}
+
+	log.SetFlags(log.Ltime)
+
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	verdict := probeDontStarveTogether(ctx, *addr, expectDepth, *expectFail)
+	verdictLine, err := verdict.Encode()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "probe: failed to encode verdict: %v\n", err)
+		fmt.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tFailed to encode verdict: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(verdictLine)
+
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectDepth, *expectFail)
+	os.Exit(exitCode)
 }
+
+// unknownDepth is a sentinel JoinDepth value that encodes as "UNKNOWN" in VERDICT lines.
+// It is used when the probe never reached any measurable depth (e.g., transport failure).
+const unknownDepth = joindepth.JoinDepth(-1)
 
 // probeDontStarveTogether attempts to reach the deepest join depth on a Don't
 // Starve Together server.
@@ -55,13 +95,16 @@ func main() {
 // Steam cluster token, which CI does not set — this assertion needs to be
 // revisited. See spec.md for what to do if that happens.
 //
-// Depth measurement: Returns Query if the Steam query port answers A2S_INFO.
-// Returns a fatal error otherwise, since DST declares no TCP port at all to
-// fall back to.
-func probeDontStarveTogether(ctx context.Context, addr string) (probe.Depth, error) {
+// Depth measurement: Returns QUERY depth and a ProbeVerdict if the Steam query
+// port answers A2S_INFO. Returns an error in the ProbeVerdict if the query fails.
+func probeDontStarveTogether(ctx context.Context, addr string, expectDepth joindepth.JoinDepth, expectFail bool) *joindepth.ProbeVerdict {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", fmt.Errorf("parse addr: %w", err)
+		return &joindepth.ProbeVerdict{
+			ReachedDepth: unknownDepth,
+			Detail:       fmt.Sprintf("Failed to parse address: %v", err),
+			Err:          fmt.Errorf("parse addr: %w", err),
+		}
 	}
 
 	// Steam query port is 27016 (per node-gamedig's port_query and DST's
@@ -69,15 +112,24 @@ func probeDontStarveTogether(ctx context.Context, addr string) (probe.Depth, err
 	queryAddr := net.JoinHostPort(host, "27016")
 
 	var info *a2s.Info
-	err = probe.Retry(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
+	var lastErr error
+	err = retryWithDeadline(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
 		var qerr error
 		info, qerr = a2s.QueryInfo(actx, queryAddr)
+		lastErr = qerr
 		return qerr
 	})
-	if err == nil {
+
+	if err == nil && info != nil {
 		log.Printf("a2s query succeeded: server=%q map=%q players=%d/%d",
 			info.Name, info.Map, info.Players, info.MaxPlayers)
-		return probe.Query, nil
+		detail := fmt.Sprintf("A2S_INFO response received: server %q, map %q, %d/%d players online",
+			info.Name, info.Map, info.Players, info.MaxPlayers)
+		return &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       detail,
+			Err:          nil,
+		}
 	}
 
 	// A2S never succeeded before the deadline. Send one bounded, best-effort
@@ -89,7 +141,68 @@ func probeDontStarveTogether(ctx context.Context, addr string) (probe.Depth, err
 	defer cancel()
 	logRawDiagnostic(diagCtx, net.JoinHostPort(host, "10999"))
 
-	return "", fmt.Errorf("a2s query on steam query port %s never succeeded: %w", queryAddr, err)
+	// Classify the error as transport or internal.
+	isTransportError := isTransportFailure(err)
+	if isTransportError {
+		return &joindepth.ProbeVerdict{
+			ReachedDepth: unknownDepth,
+			Detail:       fmt.Sprintf("Dial timeout or connection refused on %s", queryAddr),
+			Err:          fmt.Errorf("a2s query on steam query port %s timed out or connection refused: %w", queryAddr, lastErr),
+		}
+	}
+
+	return &joindepth.ProbeVerdict{
+		ReachedDepth: unknownDepth,
+		Detail:       fmt.Sprintf("A2S query failed: %v", lastErr),
+		Err:          fmt.Errorf("a2s query on steam query port %s never succeeded: %w", queryAddr, lastErr),
+	}
+}
+
+// retryWithDeadline calls fn until it succeeds, ctx expires, or fn reports a fatal error.
+func retryWithDeadline(ctx context.Context, what string, attempt time.Duration, fn func(context.Context) error) error {
+	const retryInterval = 3 * time.Second
+	var lastErr error
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastErr == nil {
+				lastErr = err
+			}
+			return fmt.Errorf("%s never succeeded before the deadline: %w", what, lastErr)
+		}
+
+		actx, cancel := context.WithTimeout(ctx, attempt)
+		err := fn(actx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		log.Printf("%s not ready yet: %v", what, err)
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(retryInterval):
+		}
+	}
+}
+
+// isTransportFailure checks if an error is a transport-level failure
+// (connection refused, timeout, DNS failure, etc.).
+func isTransportFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "connection refused") ||
+		strings.Contains(errMsg, "Dial timeout") ||
+		strings.Contains(errMsg, "timeout") ||
+		strings.Contains(errMsg, "connection never established") ||
+		strings.Contains(errMsg, "DNS failure") ||
+		strings.Contains(errMsg, "no such host") ||
+		strings.Contains(errMsg, "connection reset") ||
+		strings.Contains(errMsg, "i/o timeout") ||
+		strings.Contains(errMsg, "deadline exceeded") ||
+		strings.Contains(errMsg, "EOF") && strings.Contains(errMsg, "before the deadline")
 }
 
 // logRawDiagnostic sends a minimal, non-protocol UDP probe and logs whatever

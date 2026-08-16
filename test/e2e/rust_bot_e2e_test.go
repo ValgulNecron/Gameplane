@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_RustBot_Query boots a REAL Rust server
@@ -83,7 +85,7 @@ func TestGameServer_RustBot_Query(t *testing.T) {
 		// depth is not reachable in CI. PARTIAL would require further auth negotiation
 		// we cannot complete. QUERY is the honest measurement: the server accepts A2S
 		// status queries.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		// No custom probe flags; the probe hardcodes port 28015 in its A2S attempt.
 		ProbeArgs: []string{},
 		// Readiness probe: TCP on port 28016 (WebSocket RCON).

@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_EnshroudedBot_Query boots a REAL Enshrouded server
@@ -62,7 +64,7 @@ func TestGameServer_EnshroudedBot_Query(t *testing.T) {
 		// The probe attempts to dial port 15637 (query port), sends a minimal probe packet,
 		// and returns QUERY if any response is received. Enshrouded has no console or RCON,
 		// so there is no deeper measurement possible.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		RCON:        map[string]any{"protocol": "none"},
 		// No readiness probe configured; operator default applies (pod Ready status).
 		// The bot probe's query port connectivity will measure actual readiness.

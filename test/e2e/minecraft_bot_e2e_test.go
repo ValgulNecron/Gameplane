@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_MinecraftJavaBot_Joined is the most end-to-end test in the
@@ -66,7 +68,7 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 		ReadyTimeout:  10 * time.Minute,
 		ProbePort:     25565,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "JOINED",
+		ExpectDepth:   joindepth.JOINED,
 		ProbeArgs:     []string{"-user", "gameplane-bot"},
 		Probes: map[string]any{
 			"readiness": map[string]any{

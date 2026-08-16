@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_VRisingBot_Query boots a REAL V Rising server
@@ -55,7 +57,7 @@ func TestGameServer_VRisingBot_Query(t *testing.T) {
 		ReadyTimeout:  15 * time.Minute,
 		ProbePort:     9877,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "QUERY",
+		ExpectDepth:   joindepth.QUERY,
 		RCON:          map[string]any{"protocol": "source", "port": int64(25575)},
 		ConsoleMode:   "rcon",
 		Probes: map[string]any{
