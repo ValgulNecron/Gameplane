@@ -1,11 +1,13 @@
 <!--
 Sync Impact Report
-- Version change: 1.3.1 → 1.4.0
-- Modified principles: VI. CI Bears the Heavy Lifting — added a bounded exception:
-  builds/tests MAY run on a remote host or cluster the operator explicitly provides
-  for that purpose (e.g. a dedicated test VM or a live K8s cluster); this does not
-  extend to the agent's or developer's own local machine, and CI remains the system
-  of record for merge readiness regardless.
+- Version change: 1.4.0 → 1.4.1
+- Modified principles: II. Design-First for User-Facing Change — removed false
+  encryption claim for `.pen` files (they are plain JSON text, not encrypted);
+  replaced justification with actual constraints: `.pen` files are large
+  machine-generated JSON documents where hand-editing risks structural corruption
+  Pencil cannot recover (wiped once in this repo); they MUST be modified via
+  `pencil` MCP server. Reinforced source-of-truth and code-drift rationales.
+- Version history: 1.3.1 → 1.4.0 (VI exception) → 1.4.1 (II encryption fix)
 - Added sections: none
 - Removed sections: none
 - Deferred / TODO placeholders: none — all template tokens resolved
@@ -50,11 +52,16 @@ Any change to the web dashboard's visual surface, and any change to the public w
 screens, MUST be designed first in the relevant Pencil source (`design.pen` for the
 dashboard, `website.pen` for the public website's screens) via the `pencil` MCP server,
 and translated to React only after the design is committed. Backend-only, API-only, and operator-only changes are exempt. The `.pen`
-files are encrypted and MUST NOT be read, edited, or deleted with generic file tools
-(`Read`, `Grep`, `sed`, `cat`, `rm`) — only `pencil` MCP tools may touch them.
+files are Pencil-owned design sources and MUST NOT be read, hand-edited, or deleted with
+generic file tools (`Read`, `Grep`, `sed`, `cat`, `rm`) — they MUST be accessed and
+modified through the `pencil` MCP server only. They are multi-megabyte machine-generated
+JSON documents: hand-editing risks structural corruption Pencil cannot recover, and
+reading one floods an agent's context while revealing nothing useful about the design,
+for which `get_screenshot` and `export_nodes` are the correct tools.
 Rationale: the `.pen` files are the source of truth for the product's designed screens.
 Code-led redesigns bypass that source of truth, drift from it silently, and have been
-reverted before.
+reverted before. They are large, complex machine-generated JSON structures where
+uncontrolled hand-edits risk corruption that Pencil's recovery mechanisms cannot undo.
 
 ### III. Language & Ecosystem Best Practice
 Code MUST follow the idioms of its language and the project's established tooling
@@ -193,4 +200,4 @@ explicitly in the plan's Complexity Tracking section or the change MUST be redes
 to comply. Use `CLAUDE.md` for the day-to-day runtime guidance this constitution
 intentionally leaves at a higher level of abstraction.
 
-**Version**: 1.4.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-11
+**Version**: 1.4.1 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-16

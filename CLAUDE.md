@@ -44,7 +44,7 @@ This file is for AI coding assistants (Claude Code and similar). It exists so a 
 ├── deploy/kind/              # local dev cluster scripts
 ├── test/e2e/                 # kind-based E2E suite (build tag: e2e)
 ├── docs/                     # human-facing docs (architecture, contributing, security, …)
-├── design.pen                # Pencil design source — encrypted, MCP only
+├── design.pen                # Pencil design source (JSON; edit via Pencil MCP)
 ├── cosign.pub                # public key for verifying signed images + module bundles
 ├── go.work                   # Go workspace linking netguard/gameaction/gameproto/operator/api/agent/audit-syslog-bridge/telemetry-receiver/sentinel/mcp-server/svcutil/test/e2e
 └── Makefile                  # canonical entry point for every command
@@ -161,12 +161,15 @@ Any change to the web dashboard's visual surface starts in **`design.pen`** (Pen
 - *How:* `mcp__pencil__open_document` → `mcp__pencil__get_editor_state` → edit the relevant frame → translate to React.
 - Backend, API, and operator changes do **not** need a Pencil pass.
 
-### 2. Never delete or text-edit `design.pen`
+### 2. Never hand-edit or delete `.pen` files
 
-The file is encrypted — only the `pencil` MCP server can read/write it.
+The `.pen` files (`design.pen` and `website/website.pen`) are Pencil's document format and are the source of truth for the product's designed screens. They are readable JSON, but must not be hand-edited.
 
-- **Don't:** `Read`, `Grep`, `sed`, or `cat` `design.pen`. Don't `rm` it. Don't `git rm` it.
-- **Do:** use `mcp__pencil__open_document`, `mcp__pencil__batch_get`, `mcp__pencil__batch_design`, `mcp__pencil__get_screenshot`.
+- *Why:* `.pen` files are Pencil-owned artifacts; code-led or text-edited changes drift from that source and have been reverted before. They are large single-file JSON documents; hand-editing risks corrupting document structure in ways Pencil cannot recover, and a bad write has wiped the file before (recovery: `git checkout HEAD -- design.pen`). The Pencil MCP server is the correct read/write interface.
+- **Don't:** hand-edit, delete, or `git rm` `.pen` files.
+- **Don't:** `Read`, `Grep`, `sed`, or `cat` a `.pen` file. They are multi-megabyte machine-generated JSON — reading one floods your context and still tells you nothing useful about the design.
+- **Do:** use the Pencil MCP server (`mcp__pencil__get_app_state`, `mcp__pencil__execute`, `mcp__pencil__get_screenshot`, `mcp__pencil__export_nodes`, `mcp__pencil__export_html`) for both reading and editing. To see a design, take a screenshot or export nodes — never open the raw file. Remember: Pencil does not auto-save — after MCP edits, ask the user to save in the GUI.
+- File *metadata* (`ls -l`, `git diff --stat`, byte size) is not file content and is fine to check — e.g. to confirm a `design.pen` diff is additive before committing it.
 
 ### 3. Login privacy: no pre-auth telemetry surface
 
