@@ -1,5 +1,25 @@
 # Rust Game Bot — Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_RustBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: RakNet wire format partially documented but implementation incomplete; anti-cheat may block headless clients
+- **Blocker Class**: documentation
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=rust make test-e2e
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** heavy set (never runs in CI). Hand-run only via:
 ```bash
 GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<kubelab|prod> GAMEPLANE_E2E_GAMES=all make test-e2e-keep

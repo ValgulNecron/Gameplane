@@ -1,8 +1,13 @@
 package joindepth
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net"
+	"os"
 	"strings"
+	"syscall"
 )
 
 // JoinDepth represents the depth a probe reached in a game's join handshake.
@@ -86,4 +91,96 @@ func (jd JoinDepth) Greater(other JoinDepth) bool {
 // GreaterOrEqual returns true if jd >= other.
 func (jd JoinDepth) GreaterOrEqual(other JoinDepth) bool {
 	return jd >= other
+}
+
+// IsTransportError reports whether err represents a failure to establish or maintain
+// the connection at all, as opposed to a live server that rejected or did not complete
+// the exchange.
+//
+// The wrong-depth-on-transport-failure bug hit five probes simultaneously because each
+// classifier had to be independently correct and five were not. Centralising this function
+// makes that bug class structurally impossible rather than repeatedly fixable.
+//
+// IsTransportError prefers structural checks over string matching where the standard library
+// allows it (errors.Is against net.ErrClosed, os.ErrDeadlineExceeded, context.DeadlineExceeded,
+// errors.As to *net.OpError, *net.DNSError, and syscall.ECONNREFUSED / ECONNRESET /
+// EHOSTUNREACH / ENETUNREACH), falling back to keyword matching only for what those cannot catch.
+func IsTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Structural checks first: standard library error types.
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	// Check for *net.OpError (covers dial, read, write failures).
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+
+	// Check for *net.DNSError (DNS resolution failures).
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+
+	// Check for common syscall errors.
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+	if errors.Is(err, syscall.ECONNRESET) {
+		return true
+	}
+	if errors.Is(err, syscall.EHOSTUNREACH) {
+		return true
+	}
+	if errors.Is(err, syscall.ENETUNREACH) {
+		return true
+	}
+
+	// Fall back to keyword matching for errors that don't fit the structural checks above.
+	// This union covers all 16 probes' vocabularies.
+	errMsg := err.Error()
+	transportKeywords := []string{
+		"connection refused",
+		"Dial timeout",
+		"timeout",
+		"connection never established",
+		"DNS failure",
+		"No response",
+		"connection reset",
+		"no such host",
+		"dial",
+		"dial tcp",
+		"dial udp",
+		"EOF",
+		"refused",
+		"i/o timeout",
+		"network is unreachable",
+		"context deadline exceeded",
+		"cannot assign requested address",
+		"deadline exceeded",
+		"name resolution failed",
+		"temporary failure",
+		"connection refused by peer",
+		"address in use",
+		"never succeeded before the deadline",
+	}
+
+	for _, keyword := range transportKeywords {
+		if strings.Contains(errMsg, keyword) {
+			return true
+		}
+	}
+
+	return false
 }

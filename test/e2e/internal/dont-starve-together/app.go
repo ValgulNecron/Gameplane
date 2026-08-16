@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -142,8 +141,7 @@ func probeDontStarveTogether(ctx context.Context, addr string, expectDepth joind
 	logRawDiagnostic(diagCtx, net.JoinHostPort(host, "10999"))
 
 	// Classify the error as transport or internal.
-	isTransportError := isTransportFailure(err)
-	if isTransportError {
+	if joindepth.IsTransportError(err) {
 		return &joindepth.ProbeVerdict{
 			ReachedDepth: unknownDepth,
 			Detail:       fmt.Sprintf("Dial timeout or connection refused on %s", queryAddr),
@@ -184,25 +182,6 @@ func retryWithDeadline(ctx context.Context, what string, attempt time.Duration, 
 		case <-time.After(retryInterval):
 		}
 	}
-}
-
-// isTransportFailure checks if an error is a transport-level failure
-// (connection refused, timeout, DNS failure, etc.).
-func isTransportFailure(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := err.Error()
-	return strings.Contains(errMsg, "connection refused") ||
-		strings.Contains(errMsg, "Dial timeout") ||
-		strings.Contains(errMsg, "timeout") ||
-		strings.Contains(errMsg, "connection never established") ||
-		strings.Contains(errMsg, "DNS failure") ||
-		strings.Contains(errMsg, "no such host") ||
-		strings.Contains(errMsg, "connection reset") ||
-		strings.Contains(errMsg, "i/o timeout") ||
-		strings.Contains(errMsg, "deadline exceeded") ||
-		strings.Contains(errMsg, "EOF") && strings.Contains(errMsg, "before the deadline")
 }
 
 // logRawDiagnostic sends a minimal, non-protocol UDP probe and logs whatever

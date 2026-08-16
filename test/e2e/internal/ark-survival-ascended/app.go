@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -26,14 +25,25 @@ func main() {
 
 	// Validate inputs
 	if *addr == "" {
-		emitVerdictLine("FAIL_INTERNAL_ERROR", "UNKNOWN", "Bad flag: -addr is required")
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.JoinDepth(-1),
+			Detail:       "Bad flag: -addr is required",
+			Err:          fmt.Errorf("bad flag: -addr is required"),
+		}
+		verdictLine, _ := verdict.Encode()
+		fmt.Println(verdictLine)
 		os.Exit(1)
 	}
 
 	expectedDepth, err := joindepth.Parse(*expectDepth)
 	if err != nil {
-		emitVerdictLine("FAIL_INTERNAL_ERROR", "UNKNOWN",
-			fmt.Sprintf("Bad flag: -expect-depth must be one of QUERY, PARTIAL, JOINED; got %q", *expectDepth))
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.JoinDepth(-1),
+			Detail:       fmt.Sprintf("Bad flag: -expect-depth must be one of QUERY, PARTIAL, JOINED; got %q", *expectDepth),
+			Err:          fmt.Errorf("bad flag: %w", err),
+		}
+		verdictLine, _ := verdict.Encode()
+		fmt.Println(verdictLine)
 		os.Exit(1)
 	}
 
@@ -44,47 +54,19 @@ func main() {
 
 	verdict := probeARK(ctx, *addr)
 
-	// Compute exit code and result based on verdict, expectation, and -expect-fail
-	var result joindepth.VerdictResult
-	var exitCode int
-
-	if *expectFail {
-		// Under -expect-fail, the negative control passes if the probe fails to reach expected depth.
-		if verdict.ReachedDepth == expectedDepth && verdict.Err == nil {
-			// Probe reached the expected depth when it should not have: negative control failed.
-			// Exit 2 (connected and reached depth) per the contract.
-			exitCode = 2
-			result = joindepth.FAIL_NEGATIVE_CONTROL_REACHED
-		} else {
-			// Probe correctly failed to reach the depth: negative control passed.
-			exitCode = 0
-			result = joindepth.PASS
-		}
-	} else {
-		// Normal (positive control) case.
-		if verdict.ReachedDepth == expectedDepth && verdict.Err == nil {
-			// Success: reached the expected depth.
-			exitCode = 0
-			result = joindepth.PASS
-		} else if verdict.Err != nil {
-			// Classify the error as transport or internal
-			errMsg := verdict.Err.Error()
-			if isTransportError(errMsg) {
-				exitCode = 3
-				result = joindepth.FAIL_TRANSPORT
-			} else {
-				exitCode = 1
-				result = joindepth.FAIL_INTERNAL_ERROR
-			}
-		} else {
-			// Connected but wrong depth.
-			exitCode = 2
-			result = joindepth.FAIL_WRONG_DEPTH
-		}
+	// Emit VERDICT line
+	verdictLine, err := verdict.Encode()
+	if err != nil {
+		fmt.Printf("VERDICT\t%s\t%s\t%s\n",
+			joindepth.FAIL_INTERNAL_ERROR,
+			"UNKNOWN",
+			fmt.Sprintf("verdict encoding error: %v", err))
+		os.Exit(1)
 	}
+	fmt.Println(verdictLine)
 
-	// Emit VERDICT line and exit
-	emitVerdictLine(string(result), verdict.ReachedDepth.String(), verdict.Detail)
+	// Determine exit code
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, *expectFail)
 	os.Exit(exitCode)
 }
 
@@ -168,22 +150,3 @@ func probeARK(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 	}
 }
 
-// isTransportError returns true if the error message indicates a transport-level failure
-// (connection refused, DNS failure, timeout, etc.)
-func isTransportError(errMsg string) bool {
-	return strings.Contains(errMsg, "connection refused") ||
-		strings.Contains(errMsg, "Dial timeout") ||
-		strings.Contains(errMsg, "timeout") ||
-		strings.Contains(errMsg, "connection never established") ||
-		strings.Contains(errMsg, "DNS failure") ||
-		strings.Contains(errMsg, "No response") ||
-		strings.Contains(errMsg, "connection reset") ||
-		strings.Contains(errMsg, "no such host")
-}
-
-// emitVerdictLine emits a VERDICT line to stdout in the canonical format:
-// VERDICT\t<result>\t<depth>\t<detail>
-func emitVerdictLine(result, depth, detail string) {
-	line := fmt.Sprintf("VERDICT\t%s\t%s\t%s", result, depth, detail)
-	fmt.Println(line)
-}

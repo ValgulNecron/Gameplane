@@ -109,8 +109,7 @@ func probeFactorio(ctx context.Context, addr string) (joindepth.JoinDepth, strin
 	}); err != nil {
 		// TCP connect failed; RCON port is not accepting connections.
 		// Distinguish between transport failures and other errors.
-		errMsg := err.Error()
-		if isTransportFailure(errMsg) {
+		if joindepth.IsTransportError(err) {
 			return joindepth.JoinDepth(-1), "", fmt.Errorf("Dial timeout after %v against %s; connection never established: %w", 15*time.Second, rconAddr, err)
 		}
 		return joindepth.JoinDepth(-1), "", fmt.Errorf("factorio rcon probe failed: %w", err)
@@ -170,27 +169,6 @@ func retryWithContext(ctx context.Context, what string, attemptTimeout time.Dura
 		case <-time.After(retryInterval):
 		}
 	}
-}
-
-// isTransportFailure checks if an error string indicates a transport-level failure.
-func isTransportFailure(errMsg string) bool {
-	return contains(errMsg, "connection refused") ||
-		contains(errMsg, "Dial timeout") ||
-		contains(errMsg, "timeout") ||
-		contains(errMsg, "connection never established") ||
-		contains(errMsg, "DNS failure") ||
-		contains(errMsg, "No response") ||
-		contains(errMsg, "connection reset")
-}
-
-// contains checks if a string contains a substring.
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // sendConnectionRequestUDP sends a diagnostic best-effort Factorio connection

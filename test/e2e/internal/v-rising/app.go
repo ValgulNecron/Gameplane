@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
@@ -67,7 +66,7 @@ func main() {
 	}
 
 	// Determine exit code based on the contract.
-	exitCode := computeExitCode(&verdict, parsedExpect, *expectFail)
+	exitCode := joindepth.ExitCodeFromVerdict(&verdict, parsedExpect, *expectFail)
 	emitVerdictAndExit(&verdict, parsedExpect, *expectFail, exitCode)
 }
 
@@ -124,68 +123,6 @@ func probeVRising(ctx context.Context, addr string) (joindepth.JoinDepth, string
 		info.Name, info.Map, info.Players, info.MaxPlayers)
 	evidence := fmt.Sprintf("A2S_INFO response: %s, %d/%d players", info.Name, info.Players, info.MaxPlayers)
 	return joindepth.QUERY, evidence, nil
-}
-
-// computeExitCode returns the appropriate exit code based on the verdict and expectations.
-// Exit codes per the contract:
-// - 0: reached expected depth (or under -expect-fail, correctly failed)
-// - 1: internal error
-// - 2: connected but wrong depth
-// - 3: transport failure
-func computeExitCode(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool) int {
-	if expectFail {
-		// Under -expect-fail, the probe must NOT reach the expected depth.
-		if v.ReachedDepth == expectedDepth && v.Err == nil {
-			// Probe reached the expected depth when it should not have.
-			return 1
-		}
-		// Probe correctly failed to reach the depth.
-		return 0
-	}
-
-	// Normal (positive control) case.
-	if v.ReachedDepth == expectedDepth && v.Err == nil {
-		// Success: reached the expected depth.
-		return 0
-	}
-
-	// Classify the failure.
-	if v.Err != nil {
-		// Determine if it's a transport error or internal error.
-		if isTransportError(v.Err) {
-			return 3 // Transport failure.
-		}
-		return 1 // Internal error.
-	}
-
-	// Connected but wrong depth.
-	return 2
-}
-
-// isTransportError checks if an error is a transport-level failure.
-func isTransportError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := err.Error()
-	transportKeywords := []string{
-		"connection refused",
-		"Dial timeout",
-		"timeout",
-		"connection never established",
-		"DNS failure",
-		"No response",
-		"connection reset",
-		"dial",
-		"EOF",
-		"refused",
-	}
-	for _, keyword := range transportKeywords {
-		if strings.Contains(errMsg, keyword) {
-			return true
-		}
-	}
-	return false
 }
 
 // emitVerdictAndExit emits the machine-readable VERDICT line and exits.

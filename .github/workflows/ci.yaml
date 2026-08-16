@@ -96,6 +96,10 @@ jobs:
               - 'test/e2e/**'
               - 'deploy/kind/**'
               - 'docker-bake.hcl'
+            gamecoverage:
+              - 'modules'
+              - 'modules/**'
+              - 'docs/game-coverage.md'
             ci:
               - '.github/workflows/ci.yaml'
               - '.github/actions/**'
@@ -114,12 +118,13 @@ jobs:
           WEB: ${{ steps.filter.outputs.web }}
           CHARTS: ${{ steps.filter.outputs.charts }}
           E2ETREE: ${{ steps.filter.outputs.e2etree }}
+          GAMECOVERAGE: ${{ steps.filter.outputs.gamecoverage }}
           CI: ${{ steps.filter.outputs.ci }}
         run: |
           gov=false;  { [ "$GO" = true ]     || [ "$CI" = true ]; } && gov=true
           webv=false; { [ "$WEB" = true ]    || [ "$CI" = true ]; } && webv=true
           chv=false;  { [ "$CHARTS" = true ] || [ "$CI" = true ]; } && chv=true
-          e2ev=false; { [ "$GO" = true ] || [ "$CHARTS" = true ] || [ "$E2ETREE" = true ] || [ "$CI" = true ]; } && e2ev=true
+          e2ev=false; { [ "$GO" = true ] || [ "$CHARTS" = true ] || [ "$E2ETREE" = true ] || [ "$GAMECOVERAGE" = true ] || [ "$CI" = true ]; } && e2ev=true
           wlv=false;  { [ "$e2ev" = true ] || [ "$WEB" = true ] || [ "$CI" = true ]; } && wlv=true
           {
             echo "go=$gov"
@@ -424,8 +429,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
       - name: verify buckets are disjoint + exhaustive
         run: ./test/e2e/buckets.sh verify
+      - name: verify game protocol coverage
+        run: ./test/e2e/joincoverage.sh verify
 
   e2e-go:
     name: e2e ${{ matrix.bucket }} / ${{ matrix.arch }} (kind)

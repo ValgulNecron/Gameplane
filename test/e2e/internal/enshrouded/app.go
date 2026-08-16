@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -71,7 +70,7 @@ func handlePositiveControl(result *ProbeResult, expectedDepth joindepth.JoinDept
 	verdictLine, _ := verdict.Encode()
 	log.Println(verdictLine)
 
-	exitCode := determineExitCode(result, expectedDepth, false)
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, false)
 	os.Exit(exitCode)
 }
 
@@ -98,57 +97,6 @@ func handleNegativeControl(result *ProbeResult, expectedDepth joindepth.JoinDept
 
 	// Exit 0 because the negative control passed (probe correctly failed)
 	os.Exit(0)
-}
-
-// determineExitCode maps a ProbeResult and expected depth to an exit code
-func determineExitCode(result *ProbeResult, expectedDepth joindepth.JoinDepth, expectFail bool) int {
-	if expectFail {
-		// Should not reach here (handled by handleNegativeControl), but provide logic for completeness
-		if result.ReachedDepth == expectedDepth && result.Err == nil {
-			return 1 // or 2 depending on connection state
-		}
-		return 0
-	}
-
-	// Normal (positive control) case
-	if result.ReachedDepth == expectedDepth && result.Err == nil {
-		return 0 // Success
-	}
-
-	// Classify the failure
-	if result.Err != nil {
-		errMsg := result.Err.Error()
-		if isTransportError(errMsg) {
-			return 3 // Transport failure
-		}
-		return 1 // Internal error
-	}
-
-	// Connected but wrong depth
-	return 2
-}
-
-// isTransportError heuristically detects if an error is a transport-level failure
-func isTransportError(errMsg string) bool {
-	keywords := []string{
-		"connection refused",
-		"Dial timeout",
-		"timeout",
-		"connection never established",
-		"DNS failure",
-		"No response",
-		"connection reset",
-		"context deadline exceeded",
-		"refused",
-		"EOF",
-		"never succeeded before the deadline",
-	}
-	for _, kw := range keywords {
-		if strings.Contains(errMsg, kw) {
-			return true
-		}
-	}
-	return false
 }
 
 // ProbeResult represents the outcome of a probe attempt

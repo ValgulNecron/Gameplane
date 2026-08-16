@@ -1,5 +1,15 @@
 # factorio — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_FactorioBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Wire format undocumented; server and client must match exactly (version-locked)
+- **Blocker Class**: documentation
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/factorio`  
 **Dependencies:** stdlib only (Go 1.25+); tested against factoriotools/factorio:stable (2.0.x); image: `factoriotools/factorio:stable@sha256:7052b3cca8ca7790f99f4058617d5c8089df544de736b1baa23f2c5f58fb7f48`

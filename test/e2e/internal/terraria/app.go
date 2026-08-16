@@ -105,7 +105,7 @@ func probeTerraria(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 		// (connection dropped, timeout) or protocol error (server disconnected).
 		// Either way, we measured PARTIAL depth (handshake succeeded).
 		detail := fmt.Sprintf("Server disconnected before sending WorldData: %v", err)
-		if isTransportError(err) {
+		if joindepth.IsTransportError(err) {
 			// Make the detail more specific for transport errors.
 			detail = describeTransportError(err)
 		}
@@ -172,24 +172,6 @@ func retryWithDeadline(ctx context.Context, what string, attemptTimeout time.Dur
 	}
 }
 
-// isKnownDepth checks if a JoinDepth is one of the three known depths (QUERY, PARTIAL, JOINED).
-func isKnownDepth(jd joindepth.JoinDepth) bool {
-	return jd == joindepth.QUERY || jd == joindepth.PARTIAL || jd == joindepth.JOINED
-}
-
-// isTransportError checks if an error is a transport-level failure.
-func isTransportError(err error) bool {
-	errStr := err.Error()
-	return strings.Contains(errStr, "dial") ||
-		strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "Dial timeout") ||
-		strings.Contains(errStr, "i/o timeout") ||
-		strings.Contains(errStr, "network is unreachable") ||
-		strings.Contains(errStr, "no such host")
-}
-
 // describeTransportError produces a human-readable description of a transport error.
 func describeTransportError(err error) string {
 	if err == nil {
@@ -223,44 +205,6 @@ func describeTransportError(err error) string {
 
 // emitVerdictAndExit writes the VERDICT line to stdout and exits with the appropriate code.
 func emitVerdictAndExit(verdict *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool, _ int) {
-	// Determine exit code based on verdict and expectations.
-	var exitCode int
-
-	if expectFail {
-		// Under -expect-fail, the probe should NOT reach the expected depth.
-		if verdict.ReachedDepth == expectedDepth && verdict.Err == nil {
-			// Probe reached the expected depth when it should not have.
-			// This is a test failure: the negative control did not fail as expected.
-			exitCode = 2 // Connected and reached depth (test failure).
-		} else {
-			// Probe correctly failed to reach the expected depth.
-			// This is a test pass: the negative control passed (probe correctly failed).
-			exitCode = 0
-		}
-	} else {
-		// Normal (positive control) case.
-		// First check if we reached the expected depth.
-		if verdict.ReachedDepth == expectedDepth && verdict.Err == nil {
-			exitCode = 0 // Success: reached expected depth with no error.
-		} else if isKnownDepth(verdict.ReachedDepth) {
-			// We measured a concrete depth (QUERY, PARTIAL, or JOINED).
-			// But we did not reach the expected depth (or there's an error).
-			// Exit 2: connected but wrong depth.
-			exitCode = 2
-		} else if verdict.Err != nil {
-			// We didn't measure a known depth, and there's an error.
-			// Classify the error as transport (3) or internal (1).
-			if isTransportError(verdict.Err) {
-				exitCode = 3 // Transport failure.
-			} else {
-				exitCode = 1 // Internal error.
-			}
-		} else {
-			// Should not reach here: no known depth and no error.
-			exitCode = 1
-		}
-	}
-
 	// Emit the VERDICT line to stdout.
 	verdictLine, err := verdict.Encode()
 	if err != nil {
@@ -278,5 +222,7 @@ func emitVerdictAndExit(verdict *joindepth.ProbeVerdict, expectedDepth joindepth
 		log.Printf("probe: reached %s, expected %s", verdict.ReachedDepth.String(), expectedDepth.String())
 	}
 
+	// Determine exit code based on verdict and expectations.
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, expectFail)
 	os.Exit(exitCode)
 }

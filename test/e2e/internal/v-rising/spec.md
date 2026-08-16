@@ -1,5 +1,25 @@
 # v-rising — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_VRisingBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Undocumented proprietary UDP protocol; transport layer unidentified
+- **Blocker Class**: documentation
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=v-rising make test-e2e-keep
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/v-rising`  
 **Dependencies:** stdlib + shared protocol family `a2s` (Go 1.25+); tested against trueosiris/vrising:2026-04-23-1036 (UNMEASURED against a real server — see "Measured connectivity")

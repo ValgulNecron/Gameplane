@@ -1,5 +1,15 @@
 # garrys-mod — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_GarrysModBot_Query
+- **Bucket**: bot-fast
+- **Last Verified**: —
+- **Blocker**: C2S_CONNECT field offsets unknown; challenge exchange already decoded, sv_lan 1 removes the Steam gate
+- **Blocker Class**: documentation
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/garrys-mod`  
 **Dependencies:** stdlib only (Go 1.25+); tested against ceifa/garrysmod:debian; shared protocol families `a2s`, `source`

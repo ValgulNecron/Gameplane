@@ -1,5 +1,25 @@
 # DayZ — e2e game-bot probe specification
 
+## Coverage Status
+
+- **Status**: out-of-scope-by-design
+- **Depth**: QUERY
+- **Test**: TestGameServer_DayZBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: BattlEye anti-cheat gates the join; requires a real game binary
+- **Blocker Class**: architectural
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=dayz make test-e2e-keep
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** Heavy set, hand-run only (never in CI)  
 **Module:** `modules/dayz/`  
 **Measured depth:** QUERY  

@@ -237,9 +237,36 @@ to the CI coverage matrix, and e2e testing against a real Postgres instance.
 
 ## Explicitly out of scope for v1
 
-- **Bot-testing every shipped game.** Only Minecraft and Terraria have practical
-  headless protocol clients. Valheim and Palworld boot via multi-GB steamcmd
-  downloads over proprietary UDP protocols, and Factorio's game traffic is
-  UDP-only — none are bot-testable in CI.
 - **A hosted/managed Gameplane.** The project targets self-hosted clusters, from
   a single-node k3s homelab to multi-node production.
+
+---
+
+## Known gaps tracked for completion
+
+### Game module template specifications
+
+Constitution IV requires a `specs.md` file per game module documenting the
+template's authoring and configuration — the game module itself, not its
+join-protocol wire format. Those specification files belong in the
+`gameplane-module` submodule repo (e.g., `modules/minecraft-java/specs.md`),
+are tracked there in the module repository rather than in this main repo, and
+are a known incomplete item for v1. See the module submodule's project board
+for status.
+
+---
+
+## Game server join protocol coverage
+
+Every Gameplane-shipped game module now has a recorded, verified coverage
+status for its join-protocol E2E testing. See [`docs/game-coverage.md`](game-coverage.md) for the
+canonical per-module status:
+
+- **2 modules** have real join coverage in CI (`minecraft-java`, `terraria`).
+- **12 modules** are blocked on undocumented or partially-documented
+  wire-protocol formats, each with a named unblocking artifact (packet capture,
+  reverse-engineering session, or anti-cheat analysis). They are candidates for
+  future protocol work once documentation becomes available.
+- **2 modules** are permanently out-of-scope-by-design due to architectural
+  constraints (`valheim` routes through Steam Datagram Relay;
+  `dayz` requires BattlEye anti-cheat validation before join completion).

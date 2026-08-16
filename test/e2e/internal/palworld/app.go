@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
@@ -82,8 +81,7 @@ func probePalworld(ctx context.Context, addr string) (joindepth.JoinDepth, error
 		return nil
 	}); err != nil {
 		// Classify the error: is it a transport failure or internal error?
-		errMsg := err.Error()
-		if isTransportError(errMsg) {
+		if joindepth.IsTransportError(err) {
 			// Transport failure: no depth measured. Use JoinDepth(-1) to stringify as UNKNOWN.
 			return joindepth.JoinDepth(-1), errorDetail{
 				Detail: fmt.Sprintf("A2S query failed; no response from %s", addr),
@@ -111,26 +109,6 @@ func probePalworld(ctx context.Context, addr string) (joindepth.JoinDepth, error
 		Detail: detail,
 		Err:    nil,
 	}
-}
-
-// isTransportError checks if an error message indicates a transport-level failure.
-func isTransportError(errMsg string) bool {
-	transportKeywords := []string{
-		"connection refused",
-		"dial",
-		"timeout",
-		"connection never established",
-		"DNS failure",
-		"No response",
-		"connection reset",
-		"Dial timeout",
-	}
-	for _, keyword := range transportKeywords {
-		if strings.Contains(errMsg, keyword) {
-			return true
-		}
-	}
-	return false
 }
 
 // emitVerdictAndExit emits the VERDICT line to stdout and exits with the appropriate code.

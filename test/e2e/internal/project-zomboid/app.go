@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
@@ -124,7 +123,7 @@ func probeProjectZomboidWithVerdict(ctx context.Context, addr string) *joindepth
 		log.Printf("a2s query attempt failed: %v", lastErr)
 
 		// Check if this is a transport error or protocol error.
-		if isTransportError(lastErr) {
+		if joindepth.IsTransportError(lastErr) {
 			// Retry for transport errors (server not ready, etc).
 			select {
 			case <-ctx.Done():
@@ -159,29 +158,6 @@ func probeProjectZomboidWithVerdict(ctx context.Context, addr string) *joindepth
 		Detail:       fmt.Sprintf("Dial timeout after 4m against %s; connection never established", addr),
 		Err:          fmt.Errorf("a2s query on game port %s never succeeded: %w", addr, lastErr),
 	}
-}
-
-// isTransportError checks if an error is a transport-level failure (dial, timeout, etc.)
-// rather than a protocol error.
-func isTransportError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := err.Error()
-	transportKeywords := []string{
-		"dial", "connection refused", "connection reset", "timeout", "deadline exceeded",
-		"no such host", "name resolution failed", "temporary failure", "network is unreachable",
-		"connection refused by peer", "i/o timeout",
-	}
-
-	for _, keyword := range transportKeywords {
-		if strings.Contains(strings.ToLower(errMsg), keyword) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // logRawDiagnostic sends a minimal, non-protocol UDP probe (the same 4-byte

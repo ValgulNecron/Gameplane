@@ -18,6 +18,17 @@ import (
 // The bot runs as an in-cluster Job (see `runGameBotTest`) and dials the game
 // Service directly rather than through a `kubectl port-forward` tunnel.
 //
+// This test explicitly asserts JOINED depth: the probe must complete the real
+// Minecraft protocol login handshake and observe a Login Success packet. It is
+// one of only two shipped games (Minecraft and Terraria) where this is practical
+// with a headless protocol client. The test's suffix _Joined enforces alignment
+// with the asserted depth (enforced by gamebot_helpers_e2e_test.go).
+//
+// The automatic negative control (in runGameBotTest) verifies the probe can fail:
+// it runs the same probe against 127.0.0.1:1 (a guaranteed-closed address) with
+// -expect-fail, proving the probe correctly reports transport failure when the
+// server is unreachable, not a false positive.
+//
 // Unlike the other GameServer tests (which use a busybox "fake game" and never
 // wait for a Ready pod), this pulls a large external image and boots a JVM, so
 // it is opt-in (set GAMEPLANE_E2E_GAME_BOT=1) and runs on its own CI job with a
@@ -33,6 +44,8 @@ import (
 //     there is no assertable control channel.
 func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 	skipUnlessGameInScope(t, "minecraft-java")
+
+	expectedDepth := joindepth.JOINED
 
 	runGameBotTest(t, gameBotSpec{
 		Game:        "minecraft-java",
@@ -68,7 +81,7 @@ func TestGameServer_MinecraftJavaBot_Joined(t *testing.T) {
 		ReadyTimeout:  10 * time.Minute,
 		ProbePort:     25565,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   joindepth.JOINED,
+		ExpectDepth:   expectedDepth,
 		ProbeArgs:     []string{"-user", "gameplane-bot"},
 		Probes: map[string]any{
 			"readiness": map[string]any{

@@ -161,12 +161,8 @@ func probeRust(ctx context.Context, addr string, expectedDepth joindepth.JoinDep
 	// we cannot measure JOINED or PARTIAL depth via Path B.
 	if a2sErr != nil {
 		// Classify the error: is it a transport failure or something else?
-		errMsg := a2sErr.Error()
-
-		// Heuristic: if the error message indicates no connection was established,
-		// it's a transport failure (exit code 3). Use UNKNOWN depth to signal that
-		// we never reached any query depth.
-		if isTransportFailure(errMsg) {
+		// Use UNKNOWN depth to signal that we never reached any query depth.
+		if joindepth.IsTransportError(a2sErr) {
 			if expectFail {
 				// Under -expect-fail, transport failure is success (probe correctly failed).
 				return &joindepth.ProbeVerdict{
@@ -200,39 +196,3 @@ func probeRust(ctx context.Context, addr string, expectedDepth joindepth.JoinDep
 	}
 }
 
-// isTransportFailure checks if an error message indicates a transport-level failure.
-// Transport failures include: connection refused, DNS failure, timeout, nothing listening.
-// Protocol-level failures (wrong depth, bad handshake) do not return true.
-func isTransportFailure(errMsg string) bool {
-	// Check for common transport-level error keywords.
-	transportKeywords := []string{
-		"connection refused",
-		"Dial timeout",
-		"timeout",
-		"connection never established",
-		"DNS failure",
-		"No response",
-		"connection reset",
-		"i/o timeout",
-		"no such host",
-		"connection refused",
-		"address in use",
-	}
-
-	for _, keyword := range transportKeywords {
-		if contains(errMsg, keyword) {
-			return true
-		}
-	}
-	return false
-}
-
-// contains checks if a string contains a substring (case-sensitive).
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

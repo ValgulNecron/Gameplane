@@ -95,8 +95,7 @@ func probeGarrysMod(ctx context.Context, addr string) (joindepth.JoinDepth, stri
 		return nil
 	}); err != nil {
 		// A2S failed; server not even responding to queries. This is a transport failure.
-		errMsg := err.Error()
-		if isTransportFailure(errMsg) {
+		if joindepth.IsTransportError(err) {
 			return joindepth.JoinDepth(-1), "", fmt.Errorf("Dial timeout or connection refused against %s; connection never established: %w", addr, err)
 		}
 		return joindepth.JoinDepth(-1), "", fmt.Errorf("a2s query failed: %w", err)
@@ -215,23 +214,3 @@ func retryWithContext(ctx context.Context, what string, attemptTimeout time.Dura
 	}
 }
 
-// isTransportFailure checks if an error string indicates a transport-level failure.
-func isTransportFailure(errMsg string) bool {
-	return contains(errMsg, "connection refused") ||
-		contains(errMsg, "Dial timeout") ||
-		contains(errMsg, "timeout") ||
-		contains(errMsg, "connection never established") ||
-		contains(errMsg, "DNS failure") ||
-		contains(errMsg, "No response") ||
-		contains(errMsg, "connection reset")
-}
-
-// contains checks if a string contains a substring.
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

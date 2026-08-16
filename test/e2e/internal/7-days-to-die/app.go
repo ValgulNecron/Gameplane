@@ -48,7 +48,7 @@ func main() {
 	verdict := probeSevenDaysToDay(ctx, *addr)
 
 	// Determine exit code based on expectFail flag and verdict
-	exitCode := getExitCode(verdict, expectedDepth, *expectFail)
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, *expectFail)
 	reportVerdict(verdict, exitCode)
 }
 
@@ -65,75 +65,6 @@ func reportVerdict(verdict *joindepth.ProbeVerdict, exitCode int) {
 	// Emit the machine-readable verdict line
 	fmt.Println(verdictLine)
 	os.Exit(exitCode)
-}
-
-// getExitCode maps a ProbeVerdict to its POSIX exit code.
-func getExitCode(verdict *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool) int {
-	if expectFail {
-		// Under -expect-fail, the probe MUST NOT reach the expected depth.
-		if verdict.ReachedDepth == expectedDepth && verdict.Err == nil {
-			// Probe reached the expected depth when it should not have.
-			return 1 // Internal error: negative control failed
-		}
-		// Probe correctly failed to reach the depth.
-		return 0
-	}
-
-	// Normal (positive control) case.
-	if verdict.ReachedDepth == expectedDepth && verdict.Err == nil {
-		// Success: reached the expected depth.
-		return 0
-	}
-
-	// Classify the failure.
-	if verdict.Err != nil {
-		errMsg := verdict.Err.Error()
-		// Heuristic: transport-level keywords indicate exit code 3.
-		if isTransportError(errMsg) {
-			return 3 // Transport failure
-		}
-		return 1 // Internal error
-	}
-
-	// Connected but wrong depth.
-	return 2
-}
-
-// isTransportError checks if an error message contains transport-level keywords.
-func isTransportError(errMsg string) bool {
-	transportKeywords := []string{
-		"connection refused",
-		"Dial timeout",
-		"timeout",
-		"connection never established",
-		"DNS failure",
-		"No response",
-		"connection reset",
-		"dial tcp",
-		"no such host",
-		"dial udp",
-	}
-	for _, kw := range transportKeywords {
-		if len(errMsg) > 0 && contains(errMsg, kw) {
-			return true
-		}
-	}
-	return false
-}
-
-// contains checks if haystack contains needle (case-sensitive).
-func contains(haystack, needle string) bool {
-	return len(needle) > 0 && len(haystack) >= len(needle) && (haystack == needle || findSubstring(haystack, needle))
-}
-
-// findSubstring finds needle in haystack.
-func findSubstring(haystack, needle string) bool {
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
 }
 
 // probeSevenDaysToDay attempts to measure join depth on a 7 Days to Die server.

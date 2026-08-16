@@ -1,5 +1,25 @@
 # Valheim e2e probe specification
 
+## Coverage Status
+
+- **Status**: out-of-scope-by-design
+- **Depth**: QUERY
+- **Test**: TestGameServer_ValheimBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Joins route through Steam Datagram Relay; no direct-UDP join path for a headless client
+- **Blocker Class**: architectural
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=valheim make test-e2e-keep
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** beta (heavy-set, hand-run only)  
 **Module:** `test/e2e/internal/valheim/`  
 **Depth:** QUERY

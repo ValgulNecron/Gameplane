@@ -146,6 +146,32 @@ type gameBotSpec struct {
 // the probe to reach ExpectDepth or the test fails.
 func runGameBotTest(t *testing.T, s gameBotSpec) {
 	t.Helper()
+
+	// Enforcement: verify the test name suffix matches the asserted depth.
+	// Tests ending in _Joined must assert JOINED, _Query must assert QUERY,
+	// _Partial must assert PARTIAL. This constraint prevents silent test-name
+	// drift from the actual depth being tested.
+	testName := t.Name()
+	lastUnder := strings.LastIndex(testName, "_")
+	var suffix string
+	if lastUnder >= 0 {
+		suffix = testName[lastUnder+1:]
+	}
+
+	var expectedSuffix string
+	switch s.ExpectDepth {
+	case joindepth.JOINED:
+		expectedSuffix = "Joined"
+	case joindepth.PARTIAL:
+		expectedSuffix = "Partial"
+	case joindepth.QUERY:
+		expectedSuffix = "Query"
+	}
+
+	if expectedSuffix != "" && suffix != expectedSuffix {
+		t.Fatalf("test name suffix mismatch: %s ends with %q but asserts depth %s (expected suffix _%s)", testName, suffix, s.ExpectDepth.String(), expectedSuffix)
+	}
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 

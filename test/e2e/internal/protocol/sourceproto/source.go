@@ -11,8 +11,11 @@
 //   - C2S_CONNECT ('k'): attempt to connect with the challenge, protocol
 //     version, and player name. Server parsing CONFIRMED; protocol version 17
 //     was rejected as outdated (PR #197, 2026-07-24); attempting version 18 next.
-//     Packet layout remains unverified (server rejected at version check before
-//     validating the full payload).
+//     ⚠️ Packet layout remains UNVERIFIED and likely INCORRECT (server rejected at
+//     version check; bisection of the assumed version field offset found two
+//     consecutive values both rejected identically, proving the field is at the
+//     wrong offset or has wrong structure). A real packet capture is required to
+//     establish the correct layout.
 //
 // Reference: https://developer.valvesoftware.com/wiki/Server_queries
 // (primary reference for packet types and formats). See spec.md for measured
@@ -159,7 +162,16 @@ func Challenge(ctx context.Context, addr string) (uint32, error) {
 //   - Cvars string (additional parameters; often empty)
 //
 // On success, the server replies with 0x03 (new client). On rejection, it
-// replies with 0x63 (disconnect) plus a reason string.
+// replies with 0x63 (disconnect) or 0x39 (version rejection) plus a reason string.
+//
+// ⚠️ VERIFICATION STATUS: The packet layout below is based on Valve's source code
+// (engine/net_ws.cpp) but has never been verified against a real server. A Garry's Mod
+// server (PR #197, 2026-07-24) successfully parsed the header and type byte ('k') but
+// rejected on protocol version before validating the rest of the packet structure.
+// Attempted protocol version bisection showed that two consecutive field values were
+// both rejected identically, proving the assumed field offset is incorrect. Do not
+// assume this layout is correct until a real packet capture confirms it.
+// See spec.md "Known gaps in C2S_CONNECT packet layout" for details.
 //
 // Per Valve's source code (engine/net_ws.cpp), the exact packet layout for
 // C2S_CONNECT varies slightly between Source 1 and Source 2, but the core
@@ -177,11 +189,13 @@ func Connect(ctx context.Context, addr string, challenge uint32, name string, pr
 	defer conn.Close()
 
 	// Build C2S_CONNECT packet.
-	// Layout (per Valve's net_ws.cpp):
+	// ⚠️ WARNING: This layout is unverified. See the Connect() function comment
+	// and spec.md for details on why the current layout may be incorrect.
+	// Layout (per Valve's net_ws.cpp, NOT YET VERIFIED AGAINST REAL SERVER):
 	//   0xFFFFFFFF (4 bytes, LE)
 	//   'k' (1 byte)
 	//   challenge (4 bytes, LE)
-	//   protocol version (4 bytes, LE)
+	//   protocol version (4 bytes, LE)  ⚠️ LIKELY WRONG OFFSET
 	//   auth protocol (4 bytes, LE) - 0 for LAN mode, no Steam
 	//   player name (null-terminated string)
 	//   cvars string (usually empty, but may contain encryption flags, etc.)

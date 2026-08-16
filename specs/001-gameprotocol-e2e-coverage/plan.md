@@ -216,6 +216,24 @@ Steps 1–4 are the plan's committed scope. Step 5 is open-ended by nature and p
 per-game, which is why the artifact and gate come first: they make step 5's progress
 visible one module at a time instead of as a single all-or-nothing push.
 
+## Last Verified Discipline
+
+Updating a module's **Last Verified** date in `docs/game-coverage.md` is licensed only by evidence of a successful protocol-join test execution. The discipline works as follows:
+
+1. A deferred or on-demand test (one that does not run in the default CI job) can only update its `Last Verified` date via a successful run on either:
+   - The operator-provided cluster (invoked with `GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<name> GAMEPLANE_E2E_GAME_BOT=1`)
+   - A on-demand CI job (a workflow dispatch or manual trigger)
+
+2. The `Last Verified` update must be committed in the **same change** as (or immediately after) the successful run, with a reference to the run (CI job URL, local run date, or proof artifact).
+
+3. The test harness records the depth result in its exit code and logs; a successful exit signals that the measured depth matches the expected depth in the test name and `docs/game-coverage.md`.
+
+4. For default-CI tests (currently `minecraft-java` and `terraria`), `Last Verified` is updated on every successful default CI run. The CI job that runs these tests can automatically update the date to today's date as part of its pass logic.
+
+5. The covered-deferred status (reserved for modules that have a real join implementation but are excluded from fast CI for performance reasons) entails a documented schedule: "Last Verified annually" or "Last Verified every 6 months", so a maintainer knows when the next on-demand run is due. When that run succeeds, the date is updated together with any blocking PRs.
+
+This discipline prevents silent decay of coverage claims: a `Last Verified` date older than the documented schedule is visible proof that the deferred test needs a fresh run before the module can be relied upon.
+
 ## Complexity Tracking
 
 > No Constitution Check violations. Nothing to justify.

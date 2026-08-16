@@ -1,5 +1,25 @@
 # cs2 — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_CS2Bot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Source 2 connect packet reportedly carries embedded protobuf and Steam auth ticket; incomplete public documentation
+- **Blocker Class**: documentation
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=cs2 make test-e2e-keep
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** beta (v0.2.0-beta.8); probe depth measured: **QUERY** (A2S query success)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/cs2`  
 **Dependencies:** stdlib only (Go 1.25+); tested against CS2 Image 4.0.1 (joedwards32/cs2); image pin required (floating tag drifts)  

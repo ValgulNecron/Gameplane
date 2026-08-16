@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -98,7 +97,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 	for {
 		if err := ctx.Err(); err != nil {
 			// Deadline has been exceeded.
-			if lastErr != nil && isTransportError(lastErr) {
+			if lastErr != nil && joindepth.IsTransportError(lastErr) {
 				// The last error was a transport error (e.g., connection refused).
 				// No connection was ever established.
 				return &joindepth.ProbeVerdict{
@@ -131,7 +130,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 		}
 
 		// The QueryServerState call failed. Check if this is a transport error or a protocol-level error.
-		if isTransportError(err) {
+		if joindepth.IsTransportError(err) {
 			log.Printf("query-server-state transport error: %v (will retry)", err)
 			lastErr = err
 		} else {
@@ -144,7 +143,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 		select {
 		case <-ctx.Done():
 			// Deadline reached during the retry wait.
-			if isTransportError(lastErr) {
+			if joindepth.IsTransportError(lastErr) {
 				return &joindepth.ProbeVerdict{
 					ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN: no connection established.
 					Detail:       fmt.Sprintf("Dial timeout after %v against %s; connection never established", attemptTimeout, addr),
@@ -240,24 +239,4 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 
 	// A 4xx/5xx status is an API-level failure.
 	return resp.StatusCode, body, fmt.Errorf("query-server-state: http %d", resp.StatusCode)
-}
-
-// isTransportError returns true if the error is a network-level error
-// (connection refused, timeout, DNS failure) rather than an API-level error.
-func isTransportError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := err.Error()
-	return strings.Contains(errMsg, "connection refused") ||
-		strings.Contains(errMsg, "Dial timeout") ||
-		strings.Contains(errMsg, "timeout") ||
-		strings.Contains(errMsg, "connection never established") ||
-		strings.Contains(errMsg, "DNS failure") ||
-		strings.Contains(errMsg, "No response") ||
-		strings.Contains(errMsg, "connection reset") ||
-		strings.Contains(errMsg, "context deadline exceeded") ||
-		strings.Contains(errMsg, "no such host") ||
-		strings.Contains(errMsg, "cannot assign requested address") ||
-		strings.Contains(errMsg, "connection refused")
 }

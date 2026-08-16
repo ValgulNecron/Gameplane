@@ -1,5 +1,15 @@
 # terraria — Specification
 
+## Coverage Status
+
+- **Status**: covered-in-ci
+- **Depth**: JOINED
+- **Test**: TestGameServer_TerrariaBot_Joined
+- **Bucket**: bot-fast
+- **Last Verified**: 2026-08-16
+- **Blocker**: —
+- **Blocker Class**: —
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/terraria`  
 **Dependencies:** stdlib only (Go 1.25+)

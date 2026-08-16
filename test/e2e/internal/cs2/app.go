@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
@@ -109,36 +108,18 @@ func main() {
 	}
 	fmt.Println(verdictLine)
 
-	// Determine exit code based on error classification
-	if probeErr != nil {
-		errMsg := probeErr.Error()
-		if isTransportError(errMsg) {
-			os.Exit(3)
-		}
-		os.Exit(1)
-	}
-
-	// Connected but wrong depth
-	os.Exit(2)
+	// Determine exit code
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, *expectFail)
+	os.Exit(exitCode)
 }
 
 // getDetailForDepth returns evidence string for the measured depth
 func getDetailForDepth(depth joindepth.JoinDepth, err error) string {
 	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "Dial timeout") || strings.Contains(errMsg, "timeout") {
-			return "Dial timeout; connection never established"
+		if joindepth.IsTransportError(err) {
+			return fmt.Sprintf("Transport error: %v", err)
 		}
-		if strings.Contains(errMsg, "connection refused") {
-			return "Connection refused"
-		}
-		if strings.Contains(errMsg, "connection reset") {
-			return "Connection reset by peer"
-		}
-		if strings.Contains(errMsg, "DNS") {
-			return "DNS resolution failed"
-		}
-		return fmt.Sprintf("Transport error: %v", err)
+		return fmt.Sprintf("Error: %v", err)
 	}
 
 	switch depth {
@@ -151,25 +132,6 @@ func getDetailForDepth(depth joindepth.JoinDepth, err error) string {
 	default:
 		return "Unknown depth"
 	}
-}
-
-// isTransportError checks if an error is a transport-level error
-func isTransportError(errMsg string) bool {
-	transportKeywords := []string{
-		"connection refused",
-		"Dial timeout",
-		"timeout",
-		"connection never established",
-		"DNS failure",
-		"No response",
-		"connection reset",
-	}
-	for _, keyword := range transportKeywords {
-		if strings.Contains(errMsg, keyword) {
-			return true
-		}
-	}
-	return false
 }
 
 // probeCS2 implements the CS2 join depth check: queries the server via A2S
@@ -189,10 +151,6 @@ func probeCS2(ctx context.Context, addr string) (joindepth.JoinDepth, error) {
 		}
 		return nil
 	}); err != nil {
-		// Classify the error for better exit code determination
-		if isTransportError(err.Error()) {
-			return joindepth.JoinDepth(-1), fmt.Errorf("A2S QueryInfo failed (transport error): %w", err)
-		}
 		return joindepth.JoinDepth(-1), fmt.Errorf("A2S QueryInfo failed: %w", err)
 	}
 
