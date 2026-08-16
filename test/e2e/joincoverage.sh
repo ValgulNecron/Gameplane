@@ -83,9 +83,15 @@ EOF
 
 # Check if modules/ is initialized (at least one real directory).
 check_modules_initialized() {
-	# If modules/ doesn't exist or is empty, fail immediately with distinct message.
-	if [ ! -d modules ] || [ -z "$(find modules -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)" ]; then
-		fail "modules/ is not initialized (run: git submodule update --init)"
+	# Deliberately avoids a `find ... | head` pipeline: under `set -o pipefail`
+	# head closing the pipe early makes find exit non-zero, which has made this
+	# check misreport a populated modules/ as empty. A glob test cannot do that.
+	if [ ! -d modules ]; then
+		fail "modules/ not found (cwd: $(pwd); run: git submodule update --init)"
+	fi
+	set -- modules/*/
+	if [ ! -d "$1" ]; then
+		fail "modules/ exists but contains no module directories (cwd: $(pwd); submodule not checked out: git submodule update --init)"
 	fi
 }
 
