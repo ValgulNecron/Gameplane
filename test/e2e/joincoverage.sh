@@ -31,6 +31,12 @@ warn() {
 REPO_ROOT="$(dirname "$0")/../.."
 ROOT_EXPLICIT=0
 
+# The Go test suite and buckets.sh always live next to THIS script, regardless
+# of --root. --root swaps the DATA under test (modules/, docs/game-coverage.md),
+# not the suite the data is checked against. Resolved absolutely, because we cd
+# to REPO_ROOT below.
+SUITE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # --root may appear before or after the subcommand: callers and the fixture
 # harness use "verify --root <dir>", CI uses no flag at all.
 SUBCOMMAND=""
@@ -271,7 +277,7 @@ check_7_test_names_valid() {
 		local test=$(get_column 5 "$row")
 
 		if [ -n "$test" ] && [ "$test" != "—" ]; then
-			if ! grep -q "^func $test" test/e2e/*_test.go 2>/dev/null; then
+			if ! grep -q "^func $test" "$SUITE_DIR"/*_test.go 2>/dev/null; then
 				fail "module '$module' lists test '$test' which was not found in test/e2e/*_test.go (typo or renamed?)"
 			fi
 		fi
@@ -436,7 +442,7 @@ check_15_test_bucket_match() {
 		if [ -n "$test" ] && [ "$test" != "—" ] && [ -n "$bucket" ] && [ "$bucket" != "—" ]; then
 			if [[ ! "$bucket" =~ ^unbucketed\(\) ]]; then
 				# Verify test is in this bucket's definition.
-				if ! bash test/e2e/buckets.sh list "$bucket" 2>/dev/null | grep -qx "$test"; then
+				if ! bash "$SUITE_DIR/buckets.sh" list "$bucket" 2>/dev/null | grep -qx "$test"; then
 					fail "module '$module' lists test '$test' in Bucket '$bucket' but this test is not found in buckets.sh's '$bucket' definition"
 				fi
 			fi
