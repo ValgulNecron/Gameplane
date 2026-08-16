@@ -13,7 +13,10 @@
 # Usage:
 #   test/e2e/joincoverage_test.sh
 
-set -euo pipefail
+set -uo pipefail
+# Deliberately NOT `set -e`: this is a test harness that must keep running
+# after a fixture fails, so it can report every failure in one pass rather
+# than only the first. Each run_test call handles its own exit status.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -40,7 +43,7 @@ run_test() {
 
     if [ ! -d "$fixture_path" ]; then
         echo -e "${RED}✗${NC} Fixture not found: $fixture"
-        ((TESTS_FAILED++))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
 
@@ -54,7 +57,7 @@ run_test() {
     if [ "$exit_code" -ne 1 ]; then
         echo -e "${RED}✗${NC} $fixture (Check $check_num): Expected exit code 1, got $exit_code"
         echo "  Output: $output"
-        ((TESTS_FAILED++))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
 
@@ -63,12 +66,12 @@ run_test() {
         echo -e "${RED}✗${NC} $fixture (Check $check_num): Expected pattern not found"
         echo "  Expected pattern: $expected_pattern"
         echo "  Got output: $output"
-        ((TESTS_FAILED++))
+        TESTS_FAILED=$((TESTS_FAILED + 1))
         return 1
     fi
 
     echo -e "${GREEN}✓${NC} $fixture (Check $check_num)"
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
     return 0
 }
 
@@ -148,10 +151,10 @@ echo ""
 echo "Verifying verifier passes against real repository root..."
 if "$VERIFIER" verify 2>&1 >/dev/null; then
     echo -e "${GREEN}✓${NC} Verifier passes on real repo root"
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
 else
     echo -e "${RED}✗${NC} Verifier failed on real repo root (should pass)"
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 
 # Summary
