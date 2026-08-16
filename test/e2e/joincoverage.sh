@@ -109,10 +109,16 @@ check_modules_initialized() {
 
 # Get list of module directories from modules/.
 # Returns: sorted list of module names, one per line.
+# A game module is a directory containing module.yaml — the same rule
+# modules/build.sh uses to discover what to build. Enumerating every
+# subdirectory instead would sweep in .github/, .schema/ and __pycache__/
+# and demand coverage rows for things that are not games.
 get_module_dirs() {
-	find modules -maxdepth 1 -mindepth 1 -type d -not -name '.git' -not -name '.gitmodules' |
-		sed 's|^modules/||' |
-		sort
+	for dir in modules/*/; do
+		if [ -f "$dir/module.yaml" ]; then
+			basename "$dir"
+		fi
+	done | sort
 }
 
 # Parse the coverage table from docs/game-coverage.md (first table only).
