@@ -24,9 +24,12 @@ warn() {
 	printf '%s\n' "WARNING: $*"
 }
 
-# Determine repo root (parent of the script's directory).
+# Determine repo root. This script lives at test/e2e/, so the root is TWO
+# levels up, not one — a single ".." lands in test/ and every relative path
+# then silently misses.
 # Can be overridden with --root <dir> for testing against fixture trees.
-REPO_ROOT="$(dirname "$0")/.."
+REPO_ROOT="$(dirname "$0")/../.."
+ROOT_EXPLICIT=0
 
 # --root may appear before or after the subcommand: callers and the fixture
 # harness use "verify --root <dir>", CI uses no flag at all.
@@ -38,6 +41,7 @@ while [ $# -gt 0 ]; do
 			fail "--root requires an argument"
 		fi
 		REPO_ROOT="$2"
+		ROOT_EXPLICIT=1
 		shift 2
 		;;
 	*)
@@ -49,6 +53,14 @@ done
 
 # Change to repo root so all relative paths work correctly.
 cd "$REPO_ROOT"
+
+# When the root was DERIVED from $0, assert it looks like the Gameplane tree.
+# Without this, a wrong derivation surfaces as a confusing "modules/ not found"
+# instead of naming the real problem. Skipped for an explicit --root, since
+# fixture trees are deliberately minimal (docs/ only, no test/e2e/).
+if [ "$ROOT_EXPLICIT" -eq 0 ] && { [ ! -d test/e2e ] || [ ! -d docs ]; }; then
+	fail "derived repo root does not look like the Gameplane tree (cwd: $(pwd)); expected test/e2e/ and docs/ to exist"
+fi
 
 # --- Artifact keyword list for Check 13 ---
 # Heuristic guard against empty or hand-wavy Blocker cells. This is NOT a semantic
