@@ -6,7 +6,10 @@ description: >
 
 inputs:
   key-suffix:
-    description: Suffix for the cache key (e.g. lint-${{ matrix.module }}, e2e, etc.)
+    description: >-
+      Suffix for the cache key, e.g. "lint-operator" or "e2e". Callers interpolate
+      their own matrix values; this file must not, since composite actions have no
+      matrix context and an expression here fails the whole action at load time.
     required: true
   go-version:
     description: Go version to setup
