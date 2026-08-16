@@ -435,6 +435,11 @@ jobs:
         run: ./test/e2e/buckets.sh verify
       - name: verify game protocol coverage
         run: ./test/e2e/joincoverage.sh verify
+      # The fixtures are what prove the gate above can actually fail. Without
+      # running them, a verifier that silently passed everything would look
+      # identical to a working one.
+      - name: verify the coverage gate can fail
+        run: ./test/e2e/joincoverage_test.sh
 
   e2e-go:
     name: e2e ${{ matrix.bucket }} / ${{ matrix.arch }} (kind)
