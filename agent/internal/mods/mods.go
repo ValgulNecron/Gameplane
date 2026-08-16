@@ -356,7 +356,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		if finalPath != dirClean && !strings.HasPrefix(finalPath, dirClean+string(os.PathSeparator)) {
 			_ = os.Remove(tmpName)
 			slog.Warn("mod upload path escape attempt", "path", finalPath)
-			writeErr(w, http.StatusInternalServerError, "could not store the upload")
+			httpjson.Error(w, http.StatusInternalServerError, "could not store the upload")
 			return
 		}
 		if err := os.Rename(tmpName, finalPath); err != nil {

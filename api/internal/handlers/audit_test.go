@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"net/http"
