@@ -220,7 +220,7 @@ func TestAPI_PerNamespaceBinding_GrantsScopedAccess(t *testing.T) {
 			Delete(context.Background(), gsName, metav1.DeleteOptions{})
 	})
 	// Now the namespaced write is authorized (200/201, not 403).
-	r, b = v2.Post("/servers", gsSpec(gsName))
+	r, b, _ = v2.Post("/servers", gsSpec(gsName))
 	if r != nil {
 		defer func() { _ = r.Body.Close() }()
 	}
