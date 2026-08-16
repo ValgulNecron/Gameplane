@@ -110,14 +110,14 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 			// Generic deadline exceeded; could be retry exhaustion or API rejection.
 			return &joindepth.ProbeVerdict{
 				ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN: deadline reached.
-				Detail:       fmt.Sprintf("Deadline reached; no response from server"),
+				Detail:       "Deadline reached; no response from server",
 				Err:          fmt.Errorf("deadline exceeded: %w", lastErr),
 			}
 		}
 
 		// Attempt the QueryServerState call with a timeout.
 		actx, cancel := context.WithTimeout(ctx, attemptTimeout)
-		statusCode, body, err := queryServerState(actx, addr)
+		statusCode, _, err := queryServerState(actx, addr)
 		cancel()
 
 		if err == nil {
@@ -153,7 +153,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 			}
 			return &joindepth.ProbeVerdict{
 				ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN: deadline reached.
-				Detail:       fmt.Sprintf("Deadline reached; no response from server"),
+				Detail:       "Deadline reached; no response from server",
 				Err:          fmt.Errorf("deadline exceeded: %w", lastErr),
 			}
 		case <-time.After(retryInterval):

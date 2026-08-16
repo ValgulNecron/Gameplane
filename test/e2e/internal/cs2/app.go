@@ -127,7 +127,7 @@ func getDetailForDepth(depth joindepth.JoinDepth, err error) string {
 	if err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "Dial timeout") || strings.Contains(errMsg, "timeout") {
-			return fmt.Sprintf("Dial timeout; connection never established")
+			return "Dial timeout; connection never established"
 		}
 		if strings.Contains(errMsg, "connection refused") {
 			return "Connection refused"

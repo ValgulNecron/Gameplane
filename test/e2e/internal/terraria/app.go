@@ -56,7 +56,6 @@ func main() {
 func probeTerraria(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 	// Retry the handshake at 15 seconds per attempt.
 	var conn *terrariaproto.Conn
-	var connectErr error
 
 	if err := retryWithDeadline(ctx, "handshake", 15*time.Second, func(actx context.Context) error {
 		var err error

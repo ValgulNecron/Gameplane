@@ -215,7 +215,7 @@ func probeMinecraft(ctx context.Context, addr, user string) (joindepth.JoinDepth
 		}
 	})
 	if err != nil {
-		if ef, ok := err.(errFatal); ok {
+		if _, ok := err.(errFatal); ok {
 			// Non-retryable error: server is in online-mode. Report as PARTIAL.
 			evidence := fmt.Sprintf("Encryption Request (0x01) sent; %s", loginResult.Detail)
 			return joindepth.PARTIAL, evidence, nil
@@ -289,7 +289,7 @@ func probeMinecraftWake(ctx context.Context, addr, user string) (joindepth.JoinD
 	if err != nil {
 		log.Printf("wake login attempt closed (expected once the sentinel wakes the server): %v", err)
 		// For wake probes, a connection drop or timeout is expected and counts as PARTIAL.
-		evidence := fmt.Sprintf("Connection accepted; sentinel dropped mid-handshake")
+		evidence := "Connection accepted; sentinel dropped mid-handshake"
 		return joindepth.PARTIAL, evidence, nil
 	}
 
