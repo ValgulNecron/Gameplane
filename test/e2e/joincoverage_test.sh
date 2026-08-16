@@ -77,8 +77,11 @@ echo "Running joincoverage verifier integration tests..."
 echo ""
 
 # Check 1: Modules submodule must be initialized
+# Matches on the remediation hint rather than the exact prose: check 1 reports
+# two distinct conditions (modules/ absent vs present-but-empty) and both end
+# with this instruction, so refining the wording will not re-break this test.
 run_test "case-uninitialized-submodule" "1" \
-    "modules/ is not initialized"
+    "git submodule update --init"
 
 # Check 2: Every module in modules/ must be listed
 run_test "case-missing-module" "2" \
