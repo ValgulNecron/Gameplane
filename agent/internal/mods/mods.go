@@ -36,7 +36,13 @@ import (
 	"github.com/ValgulNecron/gameplane/netguard"
 )
 
-const defaultMaxBytes = 256 << 20 // 256 MiB
+const (
+	defaultMaxBytes = 256 << 20 // 256 MiB
+	// moduleFileMode is the file permission for extracted mod files. Must be
+	// 0o644 (owner+group rw, world r) because the mods volume is shared with
+	// the game container, which runs as a different UID and must read the files.
+	moduleFileMode = 0o644
+)
 
 type handler struct {
 	dir      string   // absolute mods directory, "" when unconfigured
@@ -523,7 +529,7 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			_ = rc.Close()
 			return errors.New("zip-slip attempt")
 		}
-		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, moduleFileMode)
 		if err != nil {
 			_ = rc.Close()
 			return err

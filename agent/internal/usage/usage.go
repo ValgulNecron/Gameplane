@@ -335,7 +335,13 @@ func (r *Reader) procUsage() (cpuTicks uint64, rssBytes int64, ok bool) {
 // The comm field (2nd) is wrapped in parens and may contain spaces and
 // parens, so fields are taken relative to the final ')'.
 func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
-	b, err := os.ReadFile(path)
+	// Validate path is within /proc to guard against directory traversal.
+	pathClean := filepath.Clean(path)
+	procRoot := filepath.Clean("/proc")
+	if !strings.HasPrefix(pathClean, procRoot+string(os.PathSeparator)) && pathClean != procRoot {
+		return 0, 0, false
+	}
+	b, err := os.ReadFile(pathClean)
 	if err != nil {
 		return 0, 0, false
 	}
@@ -365,7 +371,13 @@ func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
 // readProcStatmRSS returns the resident set size in pages (field 2 of
 // /proc/<pid>/statm), or 0 when unreadable.
 func readProcStatmRSS(path string) int64 {
-	b, err := os.ReadFile(filepath.Clean(path))
+	// Validate path is within /proc to guard against directory traversal.
+	pathClean := filepath.Clean(path)
+	procRoot := filepath.Clean("/proc")
+	if !strings.HasPrefix(pathClean, procRoot+string(os.PathSeparator)) && pathClean != procRoot {
+		return 0
+	}
+	b, err := os.ReadFile(pathClean)
 	if err != nil {
 		return 0
 	}
