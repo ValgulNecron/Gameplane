@@ -235,6 +235,7 @@ func setCSRFCookie(w http.ResponseWriter, token string, ttl time.Duration) {
 		Value:    token,
 		Path:     "/",
 		Secure:   true,
+		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(ttl),
 	})
