@@ -1,3 +1,4 @@
+// Package main implements the Gameplane API server and bootstrap command.
 package main
 
 import (
