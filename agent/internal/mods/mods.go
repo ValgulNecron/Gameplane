@@ -523,7 +523,7 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			_ = rc.Close()
 			return errors.New("zip-slip attempt")
 		}
-		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
 			_ = rc.Close()
 			return err

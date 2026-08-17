@@ -225,7 +225,7 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
-	if err := req.ParseMultipartForm(32 << 20); err != nil {
+	if err := req.ParseMultipartForm(64 << 20); err != nil {
 		h.badRequest(w, err)
 		return
 	}
