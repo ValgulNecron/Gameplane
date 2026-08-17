@@ -1,3 +1,8 @@
+// Package main implements a hand-rolled join-depth probe for Satisfactory,
+// used by the e2e suite to measure how far a real client can get against a
+// running server (the unauthenticated QueryServerState HTTPS API call for
+// depth, since CI cannot perform the in-game server claim admin
+// authentication requires).
 package main
 
 import (
@@ -103,7 +108,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 				return &joindepth.ProbeVerdict{
 					ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN: no connection established.
 					Detail:       fmt.Sprintf("Dial timeout after %v against %s; connection never established", attemptTimeout, addr),
-					Err:          fmt.Errorf("Dial timeout: %w", lastErr),
+					Err:          fmt.Errorf("dial timeout: %w", lastErr),
 				}
 			}
 			// Generic deadline exceeded; could be retry exhaustion or API rejection.
@@ -147,7 +152,7 @@ func probeSatisfactory(ctx context.Context, addr string) *joindepth.ProbeVerdict
 				return &joindepth.ProbeVerdict{
 					ReachedDepth: joindepth.JoinDepth(-1), // UNKNOWN: no connection established.
 					Detail:       fmt.Sprintf("Dial timeout after %v against %s; connection never established", attemptTimeout, addr),
-					Err:          fmt.Errorf("Dial timeout: %w", lastErr),
+					Err:          fmt.Errorf("dial timeout: %w", lastErr),
 				}
 			}
 			return &joindepth.ProbeVerdict{
@@ -205,7 +210,7 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 	if err != nil {
 		return 0, nil, fmt.Errorf("http request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read the response body (bounded to avoid log flooding).
 	body := make([]byte, 4096)
