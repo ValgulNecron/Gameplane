@@ -157,6 +157,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("owner PUT :collaborators: %v", err)
 			return
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Errorf("owner PUT :collaborators: status=%d want=204 body=%s", resp.StatusCode, string(body))
 		}
@@ -169,6 +170,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("owner GET /users/me/servers: %v", err)
 			return
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("owner GET /users/me/servers: status=%d body=%s", resp.StatusCode, string(body))
 			return
@@ -185,6 +187,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab GET server: %v", err)
 			return
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("collab GET server after add: status=%d want=200 body=%s", resp.StatusCode, string(body))
 		}

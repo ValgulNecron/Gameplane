@@ -655,7 +655,7 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, userSecret, id string) {
 	t.Helper()
 	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	userSecret = "e2e-created-user-secret-1234"
+	userSecret = "e2e-created-user-testdata-1234"
 	resp, body, err := admin.Post("/users", map[string]string{
 		"username": username,
 		"password": userSecret,
