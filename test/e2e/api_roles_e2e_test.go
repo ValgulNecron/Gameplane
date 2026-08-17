@@ -35,23 +35,29 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create role: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("create role status=%d body=%s", resp.StatusCode, string(body))
 	}
 
 	// It shows up in the listing.
-	_, listBody, err := admin.Get("/roles")
+	listResp, listBody, err := admin.Get("/roles")
 	if err != nil {
 		t.Fatalf("list roles: %v", err)
 	}
+	defer func() { _ = listResp.Body.Close() }()
 	if !strings.Contains(string(listBody), roleName) {
 		t.Fatalf("custom role not in listing: %s", string(listBody))
 	}
 
 	// Reject the wildcard / unknown permissions on a custom role.
-	if r, _, _ := admin.Post("/roles", map[string]any{
+	r, _, _ := admin.Post("/roles", map[string]any{
 		"name": "e2e-bad", "permissions": []string{"*"},
-	}); r.StatusCode != http.StatusBadRequest {
+	})
+	if r != nil {
+		defer func() { _ = r.Body.Close() }()
+	}
+	if r.StatusCode != http.StatusBadRequest {
 		t.Errorf("wildcard role: status=%d want 400", r.StatusCode)
 	}
 

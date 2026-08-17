@@ -200,6 +200,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab POST :start: %v", err)
 			return
 		}
+		defer func() { _ = resp.Body.Close() }()
 		// The server may legitimately fail to start, but the access check (status != 403)
 		// proves the grant is working.
 		if resp.StatusCode == http.StatusForbidden {
@@ -214,6 +215,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab GET /users/me/servers: %v", err)
 			return
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("collab GET /users/me/servers: status=%d body=%s", resp.StatusCode, string(body))
 			return
@@ -232,6 +234,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab POST :transfer: %v", err)
 			return
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("collab POST :transfer: status=%d want=403 body=%s", resp.StatusCode, string(body))
 		}
@@ -246,6 +249,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab PUT :collaborators: %v", err)
 			return
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("collab PUT :collaborators: status=%d want=403 body=%s", resp.StatusCode, string(body))
 		}
@@ -258,6 +262,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab DELETE server: %v", err)
 			return
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("collab DELETE server: status=%d want=403 body=%s", resp.StatusCode, string(body))
 		}
@@ -270,6 +275,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("owner DELETE server: %v", err)
 			return
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Errorf("owner DELETE server: status=%d want=204 body=%s", resp.StatusCode, string(body))
 		}
