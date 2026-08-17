@@ -161,85 +161,86 @@ but that branch is now stale relative to master, which received feature 001 and 
 changes in the interim.
 
 **Process**:
-1. **Phase 1 (Measurement)**: Create a fresh branch off master. Push it with no fixes
-   yet, just the salvaged api and agent work. CI runs golangci-lint; the log reports
-   the true, current finding count for api, agent, and test/e2e against master.
-2. **Phases 2-4 (Fixing)**: Implement fixes in per-module, per-package commits. The
-   branch is red until fixes are complete; this is expected and the honest state.
-3. **Phase 5 (Enablement)**: Once all findings are fixed and the branch is green, land
-   the CI matrix change. This commit lands last, so the matrix and the code state are
-   never mismatched.
+1. **Phase 1 (Setup)**: Create a fresh branch off master with salvaged api and agent work. No matrix change yet; CI does not yet analyze these three modules.
+2. **Phase 2 (Foundational)**: Land the CI matrix enablement commit EARLY, adding api, agent, and test/e2e to the matrix with NO fixes applied. Push to CI. This triggers a deliberately RED run — the red state is intentional and is the authoritative baseline measurement. Retrieve finding counts from CI logs (Constitution VI: no local linter runs).
+3. **Phases 3-5 (Fixing & Verification)**: Implement fixes in per-package commits (Phase 3), verify the zero-suppression property (Phase 4), and implement gate-regression contract rules (Phase 5). The branch is red during active fix work, which is expected and the honest state. Once all fixes land and verifications pass, the branch goes green.
+4. **Phase 6 (Polish)**: Final validation, collateral checks, documentation.
 
-**Why this ordering**: Enabling the matrix before fixes are complete would immediately
-turn CI red and obscure the true starting count. Fixing before enabling ensures the
-log is clean at each major step. The trade-off is that the branch will be red during
-Phases 2-4; this is acceptable per Constitutional VI (CI is the oracle, and a red
-state on a feature branch is expected during active development).
+**Why this ordering**: The matrix lands EARLY (Phase 2) so CI provides measurement mid-work on a deliberately-red run, giving the team visibility into the baseline. Fixing happens against a known measurement, not blindly. The matrix is never reverted; once enabled in Phase 2, it stays as fixes land. This transparency is preferable to measuring blindly or enabling the matrix only after all work is done. Per Constitutional VI, a red state on a feature branch during active development is expected and acceptable.
 
 ## Implementation Phasing
 
-Sequenced so each step is independently reviewable and (where possible) lands on a
-branch that can pass CI.
+Sequenced so each step is independently reviewable and the branch goes red (during fix work) → green (when all fixes and verifications are complete) → merged to master (green). The key insight from research.md Decision 3: the CI matrix enablement lands EARLY on the feature branch (its first run is deliberately red, serving as the baseline measurement), fixes follow, verifications confirm the fix quality, and the branch ends green.
 
-**Phase 1: Measurement**
+**Phase 1: Setup (Shared Infrastructure)**
 - Create a fresh branch `004-lint-backlog-wave2` off master.
 - Cherry-pick api fix commit ba32d0b and agent fix commit f5b9ede from PR #216.
 - Push to CI. The golangci-lint matrix will not yet include api, agent, or test/e2e,
-  so they are not checked by CI. Read the workflow file to confirm they are excluded
-  today. Document the true current finding count for each module (via local grep or
-  a manual lint run, if available; otherwise, accept that the exact count is deferred
-  until Phase 5's matrix commit lands and triggers the first real CI check).
-- This phase establishes the branch and salvaged work.
+  so they are not checked by CI.
+- This phase establishes the branch and salvaged work, with no measurement yet.
 
-**Phase 2: Fix api**
-- Working on the same branch, implement fixes for `api` module findings, organized by
-  package. Each significant fix or set of related fixes gets its own commit
-  (conventional-commit prefix `fix:`, signed with `git commit -s`).
-- Fixes target real code issues: improved error handling, added context parameters
-  (contextcheck), variable renames to avoid collisions (gosec G101), refactoring for
-  clarity (staticcheck/govet), additional nil checks (nilerr), fixed resource cleanup
-  (bodyclose), etc.
-- If a fix requires updating a behavioral contract or internal interface, update the
-  corresponding `api/specs.md` in the same commit so the fix is self-documenting.
-- Land each fix commit; do not wait for the full module to be fixed before committing.
+**Phase 2: Foundational (Blocking Prerequisites)**
+- Land the CI matrix enablement commit EARLY, adding api, agent, and test/e2e to the
+  matrix.module list with NO fixes applied. This commit modifies `.github/workflows/ci.yaml`
+  to add the three modules, include conditional build-tag steps (`--build-tags=envtest`
+  for api, `--build-tags=e2e` for test/e2e), and remove the exclusion comment.
+- Push this commit to CI. This triggers a deliberately RED CI run — the red state is
+  intentional and is the authoritative baseline measurement.
+- Retrieve finding counts from CI logs. Per Constitution VI, no local linter runs are
+  performed; CI is the oracle.
+- This phase gives the team visibility into the true current finding count and sets a
+  clear baseline. The matrix stays enabled throughout all subsequent phases; it is never
+  reverted.
 
-**Phase 3: Fix agent**
-- Working on the same branch, implement fixes for `agent` module findings, organized
-  by package. Same structure as Phase 2: per-fix commits, signed, conventional prefixes.
-- If a fix requires updating a behavioral contract, update `agent/specs.md` in the
-  same commit.
+**Phase 3: User Story 1 (P1 MVP) — "Three modules brought under the uniform lint gate"**
+- Fix all golangci-lint findings across api, agent, and test/e2e via real code changes
+  (improved error handling, added context parameters, variable renames, etc.). No
+  suppression directives are introduced.
+- Partition work BY PACKAGE DIRECTORY per research.md Decision 4, enabling parallel work
+  across all three modules concurrently. Each worker owns one package; no file overlap
+  between workers. This scales to package count and avoids merge conflicts.
+- Fixes can land per-package as ready; do not wait for full modules to be fixed before
+  committing. The branch is red during active fix work, which is expected and honest.
+- If a fix requires updating a behavioral contract, update the corresponding `specs.md`
+  (`api/specs.md`, `agent/specs.md`, `test/e2e/specs.md`) in the same commit.
+- Checkpoint: All three modules pass golangci-lint with zero findings when correct build
+  tags are passed. The branch is green.
 
-**Phase 4: Fix test/e2e**
-- Working on the same branch, implement fixes for `test/e2e` findings against the
-  current master codebase. This includes the new probe infrastructure from feature 001.
-- Package-level granularity: each package in `test/e2e/internal/` and the root package
-  is fixed independently where possible.
-- Same commit discipline as Phases 2 and 3.
-- If any fix changes the test structure or harness behavior, update `test/e2e/specs.md`.
-- Note: `buckets.sh` and test names in e2e are frozen; fixes must not rename tests or
-  alter the bucket structure.
+**Phase 4: User Story 2 (P2) — "Findings are fixed, not suppressed"**
+- Verify and prove the zero-suppression property is preserved. No `//nolint`, `//#nosec`,
+  or `//lint:ignore` directives are introduced in api, agent, or test/e2e.
+- Review a sample of landed fix commits to confirm they contain real code changes, not
+  deletions or artificial narrowing of analysis scope.
+- Confirm `.golangci.yml` has gained zero new exclusions beyond the three pre-existing
+  ones (test exemptions, controller revive exemption, gameproto G115 exemption).
+- Checkpoint: Zero suppression directives introduced. All landed fixes are real code
+  changes. Configuration exclusion list is unchanged.
 
-**Phase 5: Enable the Matrix**
-- Once all findings across api, agent, and test/e2e are fixed and the branch is green
-  (assuming a gate exists or can be run), land the single CI matrix change:
-  - Modify `.github/workflows/ci.yaml`, matrix line ~180, to add `api`, `agent`,
-    `test/e2e` to the module list.
-  - Add a conditional step for build tags: `if: matrix.module == 'operator' ||
-    matrix.module == 'api'` with `args: --build-tags=envtest`.
-  - Add another conditional step: `if: matrix.module == 'test/e2e'` with
-    `args: --build-tags=e2e`.
-  - Remove the exclusion comment at lines 177-178 that currently documents the three
-    modules as pending.
-- This commit is signed and uses the conventional prefix `ci:` (or `chore:` if
-  preferred).
-- Once this commit lands, every subsequent push to any branch will include the three
-  modules in the lint gate.
+**Phase 5: User Story 3 (P3) — "The gate cannot silently regress"**
+- Implement the lint-gate contract rules (R-001 through R-010 from contracts/lint-gate.md)
+  as CI verifications or scripts to prevent future regressions.
+- Create a verifier script (e.g., `test/lint-gate-verify.sh`) that checks contract
+  invariants such as: `go.work` module list stays in sync with CI matrix, no
+  `continue-on-error: true` in lint steps, no temporary/pending comments on the lint gate,
+  build tags are correctly passed.
+- Wire the verifier into `.github/workflows/ci.yaml` so it runs before linting.
+- Document the lint-gate contract and verification rules in `specs/004-lint-backlog-wave2/specs.md`.
+- Checkpoint: Lint-gate contract rules are automated and documented. Regressions are
+  detectable.
 
-**Rationale for ordering**: Phases 2-4 (fixes) are red on CI during active work, which
-is expected and honest. Phase 5 (matrix enablement) lands last so the matrix and the
-code state are never mismatched. If a reviewer or maintainer is watching the branch, it
-goes red → green (fixes) → matrix lands → stays green. This transparency is preferable
-to hiding the red state or enabling the matrix before fixes are ready.
+**Phase 6: Polish & Cross-Cutting Concerns**
+- Confirm that `api/.testcoverage.yml` (80% gate) and `agent/.testcoverage.yml` (90%
+  gate) still pass after all fixes. If coverage dropped, add targeted tests to recover it.
+- Verify that the "e2e bucket coverage" CI job still passes. Note: e2e test names are
+  frozen; renaming a test silently breaks the test→bucket mapping in `test/e2e/buckets.sh`.
+- Run the quickstart.md scenarios on a real cluster. All 8 scenarios must execute without
+  error. If a scenario fails due to this feature's changes, roll back the offending fix.
+- Update `CLAUDE.md` if it contains any stale claim that api, agent, or test/e2e are
+  "unlinted" or "exempt from the lint gate".
+- Checkpoint: All collateral checks pass. Documentation is current. The feature is ready
+  for merge.
+
+**Rationale for ordering**: Early measurement (Phase 2) via a deliberately-red CI run gives the team visibility into the baseline. Parallel-by-package fixes (Phase 3) across all three modules concurrently scale far better than serial per-module work, because each package is touched by exactly one worker, avoiding file conflicts (per research.md Decision 4). Verification phases (4 and 5) prove that fixes were real and that the gate has regression guards. Polish phase ensures no collateral damage. The matrix lands in Phase 2 and stays enabled; this transparency is preferable to measuring blindly or enabling only after all work is done.
 
 ## Known Implementation Traps
 
