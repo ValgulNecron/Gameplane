@@ -92,7 +92,7 @@ func main() {
 }
 
 // emitVerdictAndExit emits the machine-readable VERDICT line and exits.
-func emitVerdictAndExit(v *joindepth.ProbeVerdict, _ joindepth.JoinDepth, expectFail bool, exitCode int) {
+func emitVerdictAndExit(v *joindepth.ProbeVerdict, _ joindepth.JoinDepth, _ bool, exitCode int) {
 	// Encode the verdict line.
 	line, err := v.Encode()
 	if err != nil {

@@ -118,8 +118,10 @@ func TestReadMessageErrors(t *testing.T) {
 	}{
 		{"empty", []byte{}},
 		{"incomplete_header", []byte{0x01, 0x00}},
-		{"bad_frame_length_too_small", []byte{0x01, 0x00, 0x01}}, // Length 1 < 3
-		{"truncated_body", []byte{0x05, 0x00, 0x01, 0x02}}, // Says 5 bytes but only has 3
+		// Length 1 < 3
+		{"bad_frame_length_too_small", []byte{0x01, 0x00, 0x01}},
+		// Says 5 bytes but only has 3
+		{"truncated_body", []byte{0x05, 0x00, 0x01, 0x02}},
 	}
 
 	for _, tt := range tests {

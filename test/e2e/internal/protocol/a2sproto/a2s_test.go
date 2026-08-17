@@ -53,7 +53,7 @@ func TestQueryInfoImmediate(t *testing.T) {
 func TestQueryInfoChallenge(t *testing.T) {
 
 	challengeSent := false
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -283,7 +283,7 @@ func TestWrongHeader(t *testing.T) {
 func TestDeadlineExceeded(t *testing.T) {
 	t.Parallel()
 
-	server := startFakeA2SServer(t, func(_ []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(_ []byte, _ net.Addr) []byte {
 		// Send nothing; let the client timeout.
 		return nil
 	})

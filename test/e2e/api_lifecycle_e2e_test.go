@@ -45,6 +45,7 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST :stop: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf(":stop expected 202, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -67,6 +68,7 @@ func TestAPI_LifecycleStartStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST :start: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf(":start expected 202, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -140,6 +142,7 @@ func TestAPI_LifecycleRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST :restart: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf(":restart expected 202, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -201,6 +204,7 @@ func TestAPI_LifecycleClone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST :clone: %v", err)
 	}
+	defer resp.Body.Close()
 	// Clone returns the created object (200 OK) per cloneHandler in
 	// lifecycle.go — not 202.
 	if resp.StatusCode != http.StatusOK {
@@ -262,6 +266,7 @@ func TestAPI_LifecycleNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST :start on missing: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf(":start on missing expected 404, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -285,6 +290,7 @@ func createGameServerViaAPI(t *testing.T, cli *APIClient, ns, name, tmpl string)
 	if err != nil {
 		t.Fatalf("POST /servers: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /servers expected 200/201, got %d body=%q", resp.StatusCode, string(rb))
 	}

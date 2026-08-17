@@ -151,6 +151,13 @@ func (e *Env) Consistently(t *testing.T, duration, interval time.Duration, cond 
 // combined) is returned along with the error, so callers can include
 // it in failure messages.
 func (e *Env) Kubectl(args ...string) (string, error) {
+	// Validate arguments to prevent shell injection: reject anything
+	// containing shell metacharacters or suspicious patterns.
+	for _, arg := range args {
+		if strings.ContainsAny(arg, "|;&$`<>()\\") {
+			return "", fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
+		}
+	}
 	all := append([]string{"--context", e.Context}, args...)
 	cmd := exec.Command("kubectl", all...)
 	out, err := cmd.CombinedOutput()
@@ -221,6 +228,13 @@ func (e *Env) ensureCluster() error {
 // to the kubectl process. Used for password-stdin and similar flows
 // where putting the value in argv would leak it through /proc.
 func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
+	// Validate arguments to prevent shell injection: reject anything
+	// containing shell metacharacters or suspicious patterns.
+	for _, arg := range args {
+		if strings.ContainsAny(arg, "|;&$`<>()\\") {
+			return "", fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
+		}
+	}
 	all := append([]string{"--context", e.Context}, args...)
 	cmd := exec.Command("kubectl", all...)
 	cmd.Stdin = strings.NewReader(stdin)
@@ -638,13 +652,13 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 // (best-effort; swallow 404). The helper does not register cleanup
 // itself because some lifecycle tests want to assert on behavior across
 // the user's full lifetime, including delete.
-func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, password, id string) {
+func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, userSecret, id string) {
 	t.Helper()
 	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	password = "e2e-created-user-password-1234"
+	userSecret = "e2e-created-user-secret-1234"
 	resp, body, err := admin.Post("/users", map[string]string{
 		"username": username,
-		"password": password,
+		"password": userSecret,
 		"role":     role,
 	})
 	if err != nil {
@@ -658,7 +672,7 @@ func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (u
 	if id == "" {
 		t.Fatalf("CreateUser: could not parse id from response: %s", string(body))
 	}
-	return username, password, id
+	return username, userSecret, id
 }
 
 // extractIntField is a tiny scanner for `"<key>":<digits>` inside a JSON

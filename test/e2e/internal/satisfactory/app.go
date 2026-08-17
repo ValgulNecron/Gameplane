@@ -182,7 +182,9 @@ func queryServerState(ctx context.Context, addr string) (int, []byte, error) {
 			// intercept the connection. See agent/internal/rcon/satisfactory.go's
 			// documentation for the rationale.
 			TLSClientConfig: &tls.Config{
-				MinVersion:         tls.VersionTLS12,
+				MinVersion: tls.VersionTLS12,
+				// InsecureSkipVerify is safe here: connection is pod-local (127.0.0.1 or cluster DNS),
+				// so off-host MITM is not a risk.
 				InsecureSkipVerify: true,
 			},
 		},

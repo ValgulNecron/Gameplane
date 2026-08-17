@@ -53,7 +53,12 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 	// Registered for cleanup before the users so it is deleted after them
 	// (role deletion requires no remaining bindings).
 	noPermRole := fmt.Sprintf("e2e-owner-collab-noperm-%d", time.Now().UnixNano())
-	t.Cleanup(func() { _, _, _ = admin.Delete("/roles/" + noPermRole) })
+	t.Cleanup(func() {
+		r, _, _ := admin.Delete("/roles/" + noPermRole)
+		if r != nil {
+			r.Body.Close()
+		}
+	})
 	roleResp, roleBody, err := admin.Post("/roles", map[string]any{
 		"name":        noPermRole,
 		"description": "e2e: zero permissions (ownership fallback tests)",
@@ -62,6 +67,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create no-perm role: %v", err)
 	}
+	defer roleResp.Body.Close()
 	if roleResp.StatusCode != http.StatusCreated {
 		t.Fatalf("create no-perm role: status=%d body=%s", roleResp.StatusCode, string(roleBody))
 	}
@@ -71,10 +77,16 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 	collabName, collabPW, collabID := envInstance.CreateUser(t, admin, noPermRole, "e2e-owner-collab-collab")
 
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + ownerID)
+		r, _, _ := admin.Delete("/users/" + ownerID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + collabID)
+		r, _, _ := admin.Delete("/users/" + collabID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	// Clean up the GameServer at the end.
@@ -95,6 +107,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin POST :transfer: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Errorf("admin POST :transfer: status=%d body=%s", resp.StatusCode, string(body))
 	}
@@ -116,6 +129,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("owner GET server: %v", err)
 			return
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("owner GET server: status=%d body=%s", resp.StatusCode, string(body))
 		}
@@ -128,6 +142,7 @@ func TestAPI_OwnerCollaboratorAccess(t *testing.T) {
 			t.Errorf("collab GET server: %v", err)
 			return
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("collab GET server before add: status=%d want=403 body=%s", resp.StatusCode, string(body))
 		}

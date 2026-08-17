@@ -100,7 +100,7 @@ const unknownDepth = joindepth.JoinDepth(-1)
 //
 // Depth measurement: Returns QUERY depth and a ProbeVerdict if the Steam query
 // port answers A2S_INFO. Returns an error in the ProbeVerdict if the query fails.
-func probeDontStarveTogether(ctx context.Context, addr string, _ joindepth.JoinDepth, expectFail bool) *joindepth.ProbeVerdict {
+func probeDontStarveTogether(ctx context.Context, addr string, _ joindepth.JoinDepth, _ bool) *joindepth.ProbeVerdict {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return &joindepth.ProbeVerdict{
