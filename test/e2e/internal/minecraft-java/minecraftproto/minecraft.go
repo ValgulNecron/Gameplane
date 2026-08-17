@@ -48,12 +48,14 @@ type Status struct {
 type Outcome int
 
 const (
-	// Success: the server sent Login Success — a bot can join.
+	// Success is the outcome when the server sent Login Success — a bot can join.
 	Success Outcome = iota
-	// NeedsAuth: the server sent an Encryption Request, i.e. it runs in
-	// online-mode and requires a real (Mojang-authenticated) account.
+	// NeedsAuth is the outcome when the server sent an Encryption Request,
+	// i.e. it runs in online-mode and requires a real (Mojang-authenticated)
+	// account.
 	NeedsAuth
-	// Disconnected: the server refused the login (Disconnect packet).
+	// Disconnected is the outcome when the server refused the login
+	// (Disconnect packet).
 	Disconnected
 )
 
@@ -75,7 +77,7 @@ func Ping(ctx context.Context, addr string) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Handshake with next state = 1 (status). Protocol version is ignored by
 	// servers for status, so -1 is conventional.
@@ -125,7 +127,7 @@ func Login(ctx context.Context, addr string, protocol int, username string) (*Lo
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Login Start: name + player UUID (UUID has been mandatory since 1.20.2).
 	var ls bytes.Buffer
