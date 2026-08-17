@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for Garry's Mod,
+// used by the e2e suite to measure how far a real client can get against a
+// running server (A2S query for depth, plus a purely diagnostic Source
+// protocol challenge/connect attempt).
 package main
 
 import (
@@ -9,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	source "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/sourceproto"
 )
 
@@ -96,7 +100,7 @@ func probeGarrysMod(ctx context.Context, addr string) (joindepth.JoinDepth, stri
 	}); err != nil {
 		// A2S failed; server not even responding to queries. This is a transport failure.
 		if joindepth.IsTransportError(err) {
-			return joindepth.JoinDepth(-1), "", fmt.Errorf("Dial timeout or connection refused against %s; connection never established: %w", addr, err)
+			return joindepth.JoinDepth(-1), "", fmt.Errorf("dial timeout or connection refused against %s; connection never established: %w", addr, err)
 		}
 		return joindepth.JoinDepth(-1), "", fmt.Errorf("a2s query failed: %w", err)
 	}
@@ -115,28 +119,13 @@ func probeGarrysMod(ctx context.Context, addr string) (joindepth.JoinDepth, stri
 	// and the connect may succeed or fail. We log the outcome for evidence (raw bytes, etc.)
 	// but neither success nor failure changes our QUERY depth measurement.
 	// Future CI runs can escalate to PARTIAL or JOINED once the connect format is verified.
-	var connectResult *source.ConnectResult
-	if err := retryWithContext(ctx, "source-connect", 15*time.Second, func(actx context.Context) error {
-		// Get a challenge token.
-		challenge, err := source.Challenge(actx, addr)
-		if err != nil {
-			// Challenge failed; don't proceed to connect.
-			// Log this as diagnostic but don't fail the probe.
-			log.Printf("connect-probe: challenge failed: %v", err)
-			return errFatal // Signal to stop retrying without failing the probe itself.
-		}
-
-		// Attempt to connect using the challenge.
-		// Use a generic bot name; sv_lan 1 in the template should allow joins without Steam auth.
-		result, err := source.Connect(actx, addr, challenge, "gameplane-e2e-bot", source.ProtocolSource1)
-		if err != nil {
-			// Connect failed; log as diagnostic.
-			log.Printf("connect-probe: connect error: %v", err)
-			return errFatal // Signal to stop retrying without failing the probe itself.
-		}
-		connectResult = result
-		return nil
-	}); err != nil {
+	// attemptSourceConnect's own internal error is deliberately not surfaced
+	// here: the source-protocol handshake is diagnostic-only, so its outcome
+	// is folded into a plain success/fail boolean (connectOK) rather than an
+	// error value that this function would then have to discard. A2S already
+	// proved QUERY depth regardless of how this attempt goes.
+	connectResult, connectOK := attemptSourceConnect(ctx, addr)
+	if !connectOK {
 		// Source protocol attempt failed (network, protocol error, etc.).
 		// This is NOT fatal; A2S already proved QUERY depth.
 		// No additional logging needed here; errors were logged in the retry callback.
@@ -174,6 +163,37 @@ func probeGarrysMod(ctx context.Context, addr string) (joindepth.JoinDepth, stri
 	return joindepth.QUERY, evidence, nil
 }
 
+// attemptSourceConnect runs the Source protocol challenge+connect handshake
+// diagnostically and reports whether it completed. The caller treats a
+// failed attempt as a non-fatal, expected outcome (A2S already proved QUERY
+// depth), so this helper folds retryWithContext's error into a boolean
+// rather than handing back an error the caller would only discard.
+func attemptSourceConnect(ctx context.Context, addr string) (*source.ConnectResult, bool) {
+	var connectResult *source.ConnectResult
+	err := retryWithContext(ctx, "source-connect", 15*time.Second, func(actx context.Context) error {
+		// Get a challenge token.
+		challenge, err := source.Challenge(actx, addr)
+		if err != nil {
+			// Challenge failed; don't proceed to connect.
+			// Log this as diagnostic but don't fail the probe.
+			log.Printf("connect-probe: challenge failed: %v", err)
+			return errFatal // Signal to stop retrying without failing the probe itself.
+		}
+
+		// Attempt to connect using the challenge.
+		// Use a generic bot name; sv_lan 1 in the template should allow joins without Steam auth.
+		result, err := source.Connect(actx, addr, challenge, "gameplane-e2e-bot", source.ProtocolSource1)
+		if err != nil {
+			// Connect failed; log as diagnostic.
+			log.Printf("connect-probe: connect error: %v", err)
+			return errFatal // Signal to stop retrying without failing the probe itself.
+		}
+		connectResult = result
+		return nil
+	})
+	return connectResult, err == nil
+}
+
 // errFatal marks a failure that retrying cannot fix (a misconfigured server
 // rather than one that is merely still booting), so the probe gives up at once.
 var errFatal = fmt.Errorf("fatal")
@@ -191,8 +211,9 @@ func retryWithContext(ctx context.Context, what string, attemptTimeout time.Dura
 			if lastErr == nil {
 				lastErr = err
 			}
-			// Include "Dial timeout" in the message to ensure it's recognized as a transport failure.
-			return fmt.Errorf("Dial timeout: %s never succeeded before the deadline: %w", what, lastErr)
+			// The word "timeout" in the message keeps this recognized as a
+			// transport failure by joindepth.IsTransportError's keyword match.
+			return fmt.Errorf("dial timeout: %s never succeeded before the deadline: %w", what, lastErr)
 		}
 
 		actx, cancel := context.WithTimeout(ctx, attemptTimeout)
