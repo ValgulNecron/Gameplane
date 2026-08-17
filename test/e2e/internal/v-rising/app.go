@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for V Rising, used
+// by the e2e suite to measure how far a real client can get against a
+// running server (A2S query on the dedicated query port for depth, plus a
+// purely diagnostic raw UDP poke).
 package main
 
 import (
@@ -113,7 +117,7 @@ func probeVRising(ctx context.Context, addr string) (joindepth.JoinDepth, string
 		// timeout (the shared probe deadline is expired by this point).
 		// Silence is itself a measurement: future readers need to know a raw
 		// probe was attempted and what (if anything) came back.
-		diagCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		diagCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 		defer cancel()
 		logRawDiagnostic(diagCtx, addr)
 		return joindepth.JoinDepth(-1), "", fmt.Errorf("a2s query on query port %s: %w", addr, err)
@@ -126,7 +130,7 @@ func probeVRising(ctx context.Context, addr string) (joindepth.JoinDepth, string
 }
 
 // emitVerdictAndExit emits the machine-readable VERDICT line and exits.
-func emitVerdictAndExit(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool, exitCode int) {
+func emitVerdictAndExit(v *joindepth.ProbeVerdict, _ joindepth.JoinDepth, expectFail bool, exitCode int) {
 	// Encode the verdict line.
 	line, err := v.Encode()
 	if err != nil {
@@ -143,8 +147,10 @@ func emitVerdictAndExit(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinD
 }
 
 const (
-	probeAttempt  = 15 * time.Second // per-attempt timeout for A2S query
-	retryInterval = 3 * time.Second   // pause between attempts
+	// probeAttempt is the per-attempt timeout for the A2S query.
+	probeAttempt = 15 * time.Second
+	// retryInterval is the pause between attempts.
+	retryInterval = 3 * time.Second
 )
 
 // retry calls fn until it succeeds, ctx expires, or fn reports a fatal error.
@@ -184,7 +190,7 @@ func logRawDiagnostic(ctx context.Context, addr string) {
 		log.Printf("raw-diagnostic: dial %s failed: %v", addr, err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	deadline := time.Now().Add(2 * time.Second)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
