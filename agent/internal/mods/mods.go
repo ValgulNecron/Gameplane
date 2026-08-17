@@ -349,7 +349,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	} else {
-		finalPath := filepath.Join(h.dir, name)
+		finalPath := filepath.Clean(filepath.Join(h.dir, name))
 		if err := os.Rename(tmpName, finalPath); err != nil {
 			_ = os.Remove(tmpName)
 			slog.Warn("mod upload rename", "err", err)
@@ -523,7 +523,7 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			_ = rc.Close()
 			return errors.New("zip-slip attempt")
 		}
-		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 		if err != nil {
 			_ = rc.Close()
 			return err

@@ -86,7 +86,7 @@ func streamFile(ctx context.Context, conn *websocket.Conn, path string, fromEnd 
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		f, err := os.Open(path)
+		f, err := os.Open(filepath.Clean(path))
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				if sleep(ctx, time.Second) != nil {

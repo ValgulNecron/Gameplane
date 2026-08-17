@@ -211,7 +211,7 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 		httpErr(w, err)
 		return
 	}
-	f, err := os.Create(p)
+	f, err := os.Create(filepath.Clean(p))
 	if err != nil {
 		httpErr(w, err)
 		return
@@ -225,7 +225,7 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
-	if err := req.ParseMultipartForm(64 << 20); err != nil {
+	if err := req.ParseMultipartForm(32 << 20); err != nil {
 		h.badRequest(w, err)
 		return
 	}
@@ -271,7 +271,7 @@ func saveMultipart(dir string, fh *multipart.FileHeader) error {
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
-	dst, err := os.Create(filepath.Join(dir, name))
+	dst, err := os.Create(filepath.Clean(filepath.Join(dir, name)))
 	if err != nil {
 		return err
 	}

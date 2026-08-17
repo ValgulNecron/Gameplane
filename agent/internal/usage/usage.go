@@ -21,6 +21,7 @@
 package usage
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -151,8 +152,12 @@ func (r *Reader) readCPU(s *Sample) {
 			// went backwards (a process set changing under proc mode, or a
 			// counter reset) which would otherwise yield a wild rate.
 			if dWall > 0 && usageUsec >= r.prevUsageUsec {
-				// Safe: difference is guaranteed positive by the check above.
-				dUsage := int64(usageUsec - r.prevUsageUsec)
+				// Safe: difference is guaranteed positive by the check above, and usageUsec fits in int64.
+				diff := usageUsec - r.prevUsageUsec
+				if diff > uint64(math.MaxInt64) {
+					return
+				}
+				dUsage := int64(diff)
 				s.CPUMillicores = dUsage * 1000 / dWall
 				s.CPUKnown = true
 			}
@@ -185,6 +190,9 @@ func (r *Reader) cpuUsageUsec() (uint64, bool) {
 			return 0, false
 		}
 		// Safe: clkTck is always positive (default 100), never exceeds int32.
+		if r.cfg.clkTck <= 0 {
+			return 0, false
+		}
 		return ticks * 1_000_000 / uint64(r.cfg.clkTck), true
 	}
 	return r.cgroupCPUUsageUsec()
@@ -193,7 +201,7 @@ func (r *Reader) cpuUsageUsec() (uint64, bool) {
 // cgroupCPUUsageUsec reads the first "usage_usec" line of cgroup v2's
 // cpu.stat.
 func (r *Reader) cgroupCPUUsageUsec() (uint64, bool) {
-	b, err := os.ReadFile(filepath.Join(r.cfg.Root, "cpu.stat"))
+	b, err := os.ReadFile(filepath.Clean(filepath.Join(r.cfg.Root, "cpu.stat")))
 	if err != nil {
 		return 0, false
 	}
@@ -246,6 +254,9 @@ func (r *Reader) readMemory(s *Sample) {
 	}
 	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.current")); ok {
 		// Safe: actual memory usage never exceeds int64.Max in practice.
+		if v > uint64(math.MaxInt64) {
+			return
+		}
 		s.MemoryBytes = int64(v)
 		s.MemoryKnown = true
 	}
@@ -253,6 +264,9 @@ func (r *Reader) readMemory(s *Sample) {
 	// the "unknown limit" we want to report.
 	if v, ok := readUintFile(filepath.Join(r.cfg.Root, "memory.max")); ok {
 		// Safe: actual memory limits never exceed int64.Max in practice.
+		if v > uint64(math.MaxInt64) {
+			return
+		}
 		s.MemoryLimitBytes = int64(v)
 		s.MemoryLimitKnown = true
 	}
@@ -351,7 +365,7 @@ func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
 // readProcStatmRSS returns the resident set size in pages (field 2 of
 // /proc/<pid>/statm), or 0 when unreadable.
 func readProcStatmRSS(path string) int64 {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return 0
 	}
@@ -377,19 +391,27 @@ func (r *Reader) readDisk(s *Sample) {
 	// Bsize's Go type varies by arch (int64 on amd64/arm64); convert via
 	// uint64 so the arithmetic is correct everywhere and no conversion is
 	// redundant.
-	bsize := uint64(st.Bsize)
-	if bsize == 0 {
+	if st.Bsize <= 0 {
 		return
 	}
+	bsize := uint64(st.Bsize)
 	// Safe: block counts and sizes are always positive and bounded by filesystem limits.
-	s.DiskTotalBytes = int64(st.Blocks * bsize)
-	s.DiskUsedBytes = int64((st.Blocks - st.Bfree) * bsize)
+	total := st.Blocks * bsize
+	if total > uint64(math.MaxInt64) {
+		return
+	}
+	s.DiskTotalBytes = int64(total)
+	used := (st.Blocks - st.Bfree) * bsize
+	if used > uint64(math.MaxInt64) {
+		return
+	}
+	s.DiskUsedBytes = int64(used)
 	s.DiskKnown = true
 }
 
 // readUintFile parses a cgroup file holding a single unsigned integer.
 func readUintFile(path string) (uint64, bool) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return 0, false
 	}
