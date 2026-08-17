@@ -39,6 +39,7 @@ var webhookEvents = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help: "Audit-event webhook deliveries by result (sent, failed, dropped).",
 }, []string{"result"})
 
+// Auditor records every API call into a tamper-evident log chain.
 type Auditor struct {
 	db      *db.Store
 	sink    *slog.Logger // structured stdout sink; nil disables it
@@ -206,6 +207,7 @@ type webhookPayload struct {
 	IP     string `json:"ip,omitempty"`
 }
 
+// New returns an Auditor configured with options.
 func New(store *db.Store, opts ...Option) *Auditor {
 	a := &Auditor{db: store}
 	for _, o := range opts {
@@ -708,6 +710,7 @@ func (r *responseRecorder) Flush() {
 
 // ---- query API ----
 
+// Event is an audit log entry.
 type Event struct {
 	ID     int64  `json:"id"`
 	TS     string `json:"ts"`
