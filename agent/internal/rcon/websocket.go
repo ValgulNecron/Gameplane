@@ -44,6 +44,7 @@ import (
 	"net/url"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/coder/websocket"
@@ -333,20 +334,33 @@ func (c *WebSocket) allocID() int64 {
 }
 
 // isAuthCloseSignal reports whether err is the kind of close WebRcon uses
-// to signal a rejected password: a WebSocket close frame, or the
-// connection ending in EOF. This is a type/sentinel check, deliberately
-// not a substring match on err.Error(): a real close frame renders as
-// "received close frame: status = ...", which contains neither "closed"
-// nor "EOF", while an unrelated transport failure like "use of closed
-// network connection" contains "closed" and would be misclassified as
-// auth by a naive strings.Contains check — which is exactly the bug this
-// replaces. A context-deadline failure matches neither errors.As(...,
-// *CloseError) nor errors.Is(..., io.EOF), so it always falls through to
-// "not an auth signal" here.
+// to signal a rejected password: a WebSocket close frame, the connection
+// ending in EOF, or an abrupt peer-initiated reset (ECONNRESET). This is a
+// type/sentinel check, deliberately not a substring match on err.Error(): a
+// real close frame renders as "received close frame: status = ...", which
+// contains neither "closed" nor "EOF", while an unrelated transport failure
+// like "use of closed network connection" contains "closed" and would be
+// misclassified as auth by a naive strings.Contains check — which is exactly
+// the bug this replaces. A context-deadline failure matches neither
+// errors.As(..., *CloseError) nor errors.Is(..., io.EOF) nor ECONNRESET, so
+// it always falls through to "not an auth signal" here.
 func isAuthCloseSignal(err error) bool {
 	var closeErr websocket.CloseError
 	if errors.As(err, &closeErr) {
 		return true
 	}
-	return errors.Is(err, io.EOF)
+	if errors.Is(err, io.EOF) {
+		return true
+	}
+	// Also treat an abrupt peer-initiated reset as an auth signal. WebRcon
+	// accepts the upgrade regardless of password, then closes immediately on a
+	// bad one: the client's Write of its first command lands on an
+	// already-closed remote socket and the RST surfaces here as ECONNRESET.
+	// Matched on the errno specifically, not on every Op=="read" *net.OpError,
+	// so an unrelated transport failure is not mistaken for a bad password.
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && opErr.Op == "read" && errors.Is(err, syscall.ECONNRESET) {
+		return true
+	}
+	return false
 }
