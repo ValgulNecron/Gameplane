@@ -1,13 +1,12 @@
 <!--
 Sync Impact Report
-- Version change: 1.4.0 → 1.4.1
-- Modified principles: II. Design-First for User-Facing Change — removed false
-  encryption claim for `.pen` files (they are plain JSON text, not encrypted);
-  replaced justification with actual constraints: `.pen` files are large
-  machine-generated JSON documents where hand-editing risks structural corruption
-  Pencil cannot recover (wiped once in this repo); they MUST be modified via
-  `pencil` MCP server. Reinforced source-of-truth and code-drift rationales.
-- Version history: 1.3.1 → 1.4.0 (VI exception) → 1.4.1 (II encryption fix)
+- Version change: 1.4.1 → 1.5.0
+- Modified principles: II. Design-First for User-Facing Change — added a mandatory
+  re-export requirement: every `.pen` edit (design.pen or website.pen), new screen or
+  changed screen, MUST be followed in the same change by re-exporting the touched
+  object(s) to design-export/ or website/website-export/ via the pencil MCP server.
+- Version history: 1.3.1 → 1.4.0 (VI exception) → 1.4.1 (II encryption fix) → 1.5.0
+  (II re-export requirement)
 - Added sections: none
 - Removed sections: none
 - Deferred / TODO placeholders: none — all template tokens resolved
@@ -58,10 +57,22 @@ modified through the `pencil` MCP server only. They are multi-megabyte machine-g
 JSON documents: hand-editing risks structural corruption Pencil cannot recover, and
 reading one floods an agent's context while revealing nothing useful about the design,
 for which `get_screenshot` and `export_nodes` are the correct tools.
+Every design edit — a new screen or a change to an existing one, in either `.pen` file —
+MUST be followed, in the same change, by re-exporting the touched object(s) to the
+matching plain-file snapshot: `design-export/{json,screenshots}/` for `design.pen`,
+`website/website-export/{json,screenshots}/` for `website.pen`. The export is produced
+via the `pencil` MCP server (a JSON dump per touched node and a screenshot per touched
+node), scoped to what changed, not a full re-run of every screen. A design change without
+a matching export update is incomplete.
 Rationale: the `.pen` files are the source of truth for the product's designed screens.
 Code-led redesigns bypass that source of truth, drift from it silently, and have been
 reverted before. They are large, complex machine-generated JSON structures where
 uncontrolled hand-edits risk corruption that Pencil's recovery mechanisms cannot undo.
+The export snapshot exists because the `.pen` format cannot be read directly (Principle
+II above) and the Pencil MCP server's own whole-document read tools have proven
+unreliable for bulk enumeration — a git-tracked, plain-file mirror is what lets any
+agent or human inspect the current design state without a live Pencil session, and a
+stale mirror actively misleads, so it cannot be allowed to drift from the source.
 
 ### III. Language & Ecosystem Best Practice
 Code MUST follow the idioms of its language and the project's established tooling
@@ -200,4 +211,4 @@ explicitly in the plan's Complexity Tracking section or the change MUST be redes
 to comply. Use `CLAUDE.md` for the day-to-day runtime guidance this constitution
 intentionally leaves at a higher level of abstraction.
 
-**Version**: 1.4.1 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-16
+**Version**: 1.5.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-18
