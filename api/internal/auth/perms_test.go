@@ -15,7 +15,7 @@ func TestLoadPerms_GroupsByNamespace(t *testing.T) {
 		{"viewer", "*"},
 		{"operator", "team-a"},
 	} {
-		if _, err := s.DB.Exec(
+		if _, err := s.DB.ExecContext(context.Background(), 
 			`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (1, ?, 'local', ?)`,
 			b.role, b.ns); err != nil {
 			t.Fatalf("insert binding %v: %v", b, err)
@@ -76,7 +76,7 @@ func TestLoadPerms_MultipleClusterBuildsThreeLevelMap(t *testing.T) {
 		{"local", "operator", "team-a"},
 		{"prod", "operator", "*"},
 	} {
-		if _, err := s.DB.Exec(
+		if _, err := s.DB.ExecContext(context.Background(), 
 			`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (1, ?, ?, ?)`,
 			b.role, b.cluster, b.ns); err != nil {
 			t.Fatalf("insert binding %v: %v", b, err)
