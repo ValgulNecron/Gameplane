@@ -61,7 +61,7 @@ func TestTokenBucket_Middleware_AllowsUnderLimit(t *testing.T) {
 		w.WriteHeader(204)
 	}))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", nil)
 	req.RemoteAddr = "10.0.0.1:1234"
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 || called != 1 {
@@ -73,7 +73,7 @@ func TestTokenBucket_Middleware_DeniesAtZero(t *testing.T) {
 	b := newTokenBucket(0, 0)
 	h := b.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", nil)
 	req.RemoteAddr = "10.0.0.1:1234"
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusTooManyRequests {
@@ -92,7 +92,7 @@ func TestTokenBucket_Middleware_HandlesBareHost(t *testing.T) {
 		w.WriteHeader(204)
 	}))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/login", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/login", nil)
 	req.RemoteAddr = "10.0.0.1"
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 {
