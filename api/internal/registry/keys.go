@@ -18,10 +18,10 @@ import (
 // user can't point a registry-key lookup at an unrelated Secret.
 const RegistryKeySecretLabel = "gameplane.local/mod-registry"
 
-// registryKeySecretPrefix derives the default Secret name for a
+// registryKeyPrefix derives the default Secret name for a
 // provider's key when the ConfigSectionModRegistries row carries no
 // explicit configRef.
-const registryKeySecretPrefix = "gameplane-modreg-"
+const registryKeyPrefix = "gameplane-modreg-"
 
 // ConfigSectionModRegistries is the /admin/config section name that holds
 // the (secret-free) list of which mod-registry providers are configured
@@ -43,7 +43,7 @@ var KeyedProviders = map[string]bool{
 // provider's key. Both the secret endpoint (always writes here) and the
 // KeyFunc below (reads here absent a configRef override) use this.
 func DefaultKeySecretName(provider string) string {
-	return registryKeySecretPrefix + provider
+	return registryKeyPrefix + provider
 }
 
 // SecretReader fetches a named credential Secret's data. Production wires

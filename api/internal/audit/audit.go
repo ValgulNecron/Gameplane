@@ -97,7 +97,6 @@ type WebhookSink struct {
 	auth   string // optional Authorization header value; "" omits the header
 	client *http.Client
 	ch     chan Event
-	ctx    context.Context // set by Start, used by post for detached delivery context
 }
 
 // NewWebhookSink returns a sink that POSTs audit events as JSON to url.
@@ -127,7 +126,6 @@ func (s *WebhookSink) Enqueue(e Event) {
 // drains whatever is already buffered within a short deadline. It blocks; run
 // it in a goroutine.
 func (s *WebhookSink) Start(ctx context.Context) {
-	s.ctx = ctx
 	for {
 		select {
 		case <-ctx.Done():
@@ -155,11 +153,12 @@ func (s *WebhookSink) drain() {
 	}
 }
 
-// post delivers one event. It deliberately uses a detached context (bounded by
-// the client's own timeout) rather than the worker's lifecycle context: at
-// shutdown the select in Start can still pick a buffered event after ctx is
-// cancelled, and a cancelled context would fail that delivery even though the
-// event could have been shipped. The client timeout still bounds each attempt.
+// post delivers one event. It deliberately uses a detached context (background,
+// bounded by the client's own timeout) rather than the worker's lifecycle
+// context: at shutdown the select in Start can still pick a buffered event
+// after ctx is cancelled, and a cancelled context would fail that delivery even
+// though the event could have been shipped. The client timeout still bounds each
+// attempt.
 func (s *WebhookSink) post(e Event) {
 	body, err := json.Marshal(webhookPayload{
 		TS: e.TS, Actor: e.Actor, Method: e.Method, Path: e.Path,
@@ -170,7 +169,7 @@ func (s *WebhookSink) post(e Event) {
 		slog.Warn("audit webhook marshal failed", "err", err)
 		return
 	}
-	req, err := http.NewRequestWithContext(context.WithoutCancel(s.ctx), http.MethodPost, s.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, bytes.NewReader(body))
 	if err != nil {
 		webhookEvents.WithLabelValues("failed").Inc()
 		slog.Warn("audit webhook build request failed", "err", err)

@@ -223,8 +223,8 @@ func (h *clusterHandler) fetchNodeUsage(ctx context.Context) map[string]nodeUsag
 
 func (h *clusterHandler) info(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, clusterInfo{
-		ClusterName:    h.clusterName(req.Context()),
-		Version:        h.serverVersion(),
+		ClusterName:      h.clusterName(req.Context()),
+		Version:          h.serverVersion(),
 		GameplaneVersion: h.gameplaneVersion,
 		ClusterOps:       h.clusterOps,
 		UpdateChannel:    h.updateChannel,

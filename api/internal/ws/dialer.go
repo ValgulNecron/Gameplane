@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -86,6 +87,27 @@ func Mount(r chi.Router, k *kube.Client, caBundle, clientCert, clientKey string)
 	r.Delete("/servers/{name}/mods", rejectRemoteCluster(p.httpProxy("/mods")))
 }
 
+// isDNS1123Label reports whether name is a valid DNS-1123 label (valid
+// Kubernetes resource name component). A label must consist of lower-case
+// alphanumerics and hyphens, start and end with an alphanumeric, and be
+// at most 63 characters long.
+func isDNS1123Label(name string) bool {
+	if len(name) == 0 || len(name) > 63 {
+		return false
+	}
+	for i, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+			return false
+		}
+		if i == 0 || i == len(name)-1 {
+			if r == '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // rejectRemoteCluster wraps a handler that can only ever act on the LOCAL
 // cluster. Every route in this package either proxies straight to the
 // agent sidecar (mTLS material is provisioned only for the home cluster)
@@ -144,6 +166,13 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 		ns, err := scope.Resolve(req)
 		if err != nil {
 			httperr.Write(w, req, err)
+			return
+		}
+		// Validate namespace and pod name are valid DNS-1123 labels before
+		// constructing the URL to prevent SSRF injection.
+		if !isDNS1123Label(ns) || !isDNS1123Label(name) {
+			httperr.WriteCode(w, req, http.StatusBadRequest,
+				errors.New("invalid namespace or pod name"))
 			return
 		}
 		host := p.agentHost(name, ns)
@@ -213,6 +242,13 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 		ns, err := scope.Resolve(req)
 		if err != nil {
 			httperr.Write(w, req, err)
+			return
+		}
+		// Validate namespace and pod name are valid DNS-1123 labels before
+		// constructing the URL to prevent SSRF injection.
+		if !isDNS1123Label(ns) || !isDNS1123Label(name) {
+			httperr.WriteCode(w, req, http.StatusBadRequest,
+				errors.New("invalid namespace or pod name"))
 			return
 		}
 		host := p.agentHost(name, ns)
