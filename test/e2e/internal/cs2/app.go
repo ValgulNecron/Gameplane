@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for CS2, used by
+// the e2e suite to measure how far a real client can get against a running
+// server (A2S query for depth, plus a purely diagnostic Source protocol
+// handshake attempt).
 package main
 
 import (
@@ -9,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	source "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/sourceproto"
 )
 
@@ -216,7 +220,7 @@ func connectProbe(ctx context.Context, addr string) {
 	}
 
 	// Log the connect response bytes for debugging.
-	if result.Raw != nil && len(result.Raw) > 0 {
+	if len(result.Raw) > 0 {
 		hexStr := hex.EncodeToString(result.Raw)
 		// Bound to avoid huge logs; truncate if necessary.
 		if len(hexStr) > 256 {
