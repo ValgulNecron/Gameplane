@@ -342,26 +342,26 @@ func TestReadProcStat(t *testing.T) {
 	// A comm with spaces and nested parens must not confuse field parsing —
 	// the reader keys off the final ')'.
 	writeFile(t, dir, "ok", "100 (my (weird) game) S 7 0 0 0 0 0 0 0 0 0 11 4 0 0\n")
-	if ppid, ticks, ok := readProcStat(filepath.Join(dir, "ok")); !ok || ppid != 7 || ticks != 15 {
+	if ppid, ticks, ok := readProcStat(filepath.Join(dir, "ok"), dir); !ok || ppid != 7 || ticks != 15 {
 		t.Fatalf("readProcStat ok = (%d,%d,%v), want (7,15,true)", ppid, ticks, ok)
 	}
 	writeFile(t, dir, "short", "100 (x) S 1 2 3\n") // too few fields after comm
-	if _, _, ok := readProcStat(filepath.Join(dir, "short")); ok {
+	if _, _, ok := readProcStat(filepath.Join(dir, "short"), dir); ok {
 		t.Fatalf("short stat should not parse")
 	}
 	writeFile(t, dir, "noparen", "100 x S 1\n") // no closing paren
-	if _, _, ok := readProcStat(filepath.Join(dir, "noparen")); ok {
+	if _, _, ok := readProcStat(filepath.Join(dir, "noparen"), dir); ok {
 		t.Fatalf("missing ) should not parse")
 	}
 	writeFile(t, dir, "badppid", "100 (x) S z 0 0 0 0 0 0 0 0 0 1 1 0 0\n")
-	if _, _, ok := readProcStat(filepath.Join(dir, "badppid")); ok {
+	if _, _, ok := readProcStat(filepath.Join(dir, "badppid"), dir); ok {
 		t.Fatalf("non-numeric ppid should not parse")
 	}
 	writeFile(t, dir, "badtime", "100 (x) S 7 0 0 0 0 0 0 0 0 0 a b 0 0\n")
-	if _, _, ok := readProcStat(filepath.Join(dir, "badtime")); ok {
+	if _, _, ok := readProcStat(filepath.Join(dir, "badtime"), dir); ok {
 		t.Fatalf("non-numeric times should not parse")
 	}
-	if _, _, ok := readProcStat(filepath.Join(dir, "absent")); ok {
+	if _, _, ok := readProcStat(filepath.Join(dir, "absent"), dir); ok {
 		t.Fatalf("absent stat should not parse")
 	}
 }
@@ -369,18 +369,18 @@ func TestReadProcStat(t *testing.T) {
 func TestReadProcStatmRSS(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "ok", "1000 42 7 0 0 0 0\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "ok")); got != 42 {
+	if got := readProcStatmRSS(filepath.Join(dir, "ok"), dir); got != 42 {
 		t.Fatalf("rss = %d, want 42", got)
 	}
 	writeFile(t, dir, "short", "1000\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "short")); got != 0 {
+	if got := readProcStatmRSS(filepath.Join(dir, "short"), dir); got != 0 {
 		t.Fatalf("short statm rss = %d, want 0", got)
 	}
 	writeFile(t, dir, "bad", "1000 notanum\n")
-	if got := readProcStatmRSS(filepath.Join(dir, "bad")); got != 0 {
+	if got := readProcStatmRSS(filepath.Join(dir, "bad"), dir); got != 0 {
 		t.Fatalf("bad statm rss = %d, want 0", got)
 	}
-	if got := readProcStatmRSS(filepath.Join(dir, "absent")); got != 0 {
+	if got := readProcStatmRSS(filepath.Join(dir, "absent"), dir); got != 0 {
 		t.Fatalf("absent statm rss = %d, want 0", got)
 	}
 }

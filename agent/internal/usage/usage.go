@@ -292,11 +292,11 @@ func (r *Reader) procUsage() (cpuTicks uint64, rssBytes int64, ok bool) {
 		if err != nil {
 			continue // not a pid dir
 		}
-		ppid, ticks, sok := readProcStat(filepath.Join(r.cfg.ProcRoot, e.Name(), "stat"))
+		ppid, ticks, sok := readProcStat(filepath.Join(r.cfg.ProcRoot, e.Name(), "stat"), r.cfg.ProcRoot)
 		if !sok {
 			continue // process exited between ReadDir and read
 		}
-		rss := readProcStatmRSS(filepath.Join(r.cfg.ProcRoot, e.Name(), "statm"))
+		rss := readProcStatmRSS(filepath.Join(r.cfg.ProcRoot, e.Name(), "statm"), r.cfg.ProcRoot)
 		recs[pid] = rec{ppid: ppid, ticks: ticks, rssPages: rss}
 	}
 	if len(recs) == 0 {
@@ -334,10 +334,10 @@ func (r *Reader) procUsage() (cpuTicks uint64, rssBytes int64, ok bool) {
 // readProcStat parses ppid and utime+stime (jiffies) from /proc/<pid>/stat.
 // The comm field (2nd) is wrapped in parens and may contain spaces and
 // parens, so fields are taken relative to the final ')'.
-func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
-	// Validate path is within /proc to guard against directory traversal.
+func readProcStat(path string, procRoot string) (ppid int, ticks uint64, ok bool) {
+	// Validate path is within procRoot to guard against directory traversal.
 	pathClean := filepath.Clean(path)
-	procRoot := filepath.Clean("/proc")
+	procRoot = filepath.Clean(procRoot)
 	if !strings.HasPrefix(pathClean, procRoot+string(os.PathSeparator)) && pathClean != procRoot {
 		return 0, 0, false
 	}
@@ -370,10 +370,10 @@ func readProcStat(path string) (ppid int, ticks uint64, ok bool) {
 
 // readProcStatmRSS returns the resident set size in pages (field 2 of
 // /proc/<pid>/statm), or 0 when unreadable.
-func readProcStatmRSS(path string) int64 {
-	// Validate path is within /proc to guard against directory traversal.
+func readProcStatmRSS(path string, procRoot string) int64 {
+	// Validate path is within procRoot to guard against directory traversal.
 	pathClean := filepath.Clean(path)
-	procRoot := filepath.Clean("/proc")
+	procRoot = filepath.Clean(procRoot)
 	if !strings.HasPrefix(pathClean, procRoot+string(os.PathSeparator)) && pathClean != procRoot {
 		return 0
 	}
