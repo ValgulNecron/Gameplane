@@ -227,7 +227,7 @@ func TestLookupShareLink_Unknown_Invalid(t *testing.T) {
 
 	// Lookup a completely bogus token.
 	_, err := s.LookupShareLink(ctx, "nonexistent-token-xxx")
-	if err != ErrShareLinkInvalid {
+	if !errors.Is(err, ErrShareLinkInvalid) {
 		t.Errorf("lookup unknown token: got %v, want ErrShareLinkInvalid", err)
 	}
 }
@@ -253,7 +253,7 @@ func TestLookupShareLink_Expired_Invalid(t *testing.T) {
 
 	// Lookup must fail with ErrShareLinkInvalid.
 	_, err = s.LookupShareLink(ctx, rawToken)
-	if err != ErrShareLinkInvalid {
+	if !errors.Is(err, ErrShareLinkInvalid) {
 		t.Errorf("lookup expired: got %v, want ErrShareLinkInvalid", err)
 	}
 }
@@ -277,7 +277,7 @@ func TestLookupShareLink_Revoked_Invalid(t *testing.T) {
 
 	// Lookup must fail with ErrShareLinkInvalid.
 	_, err = s.LookupShareLink(ctx, rawToken)
-	if err != ErrShareLinkInvalid {
+	if !errors.Is(err, ErrShareLinkInvalid) {
 		t.Errorf("lookup revoked: got %v, want ErrShareLinkInvalid", err)
 	}
 }
@@ -320,13 +320,13 @@ func TestLookupShareLink_UnknownExpiredRevoked_Same_Error(t *testing.T) {
 	_, revokedErr := s.LookupShareLink(ctx, validToken)
 
 	// All three must return the same error.
-	if unknownErr != ErrShareLinkInvalid {
+	if !errors.Is(unknownErr, ErrShareLinkInvalid) {
 		t.Errorf("unknown: got %v, want ErrShareLinkInvalid", unknownErr)
 	}
-	if expiredErr != ErrShareLinkInvalid {
+	if !errors.Is(expiredErr, ErrShareLinkInvalid) {
 		t.Errorf("expired: got %v, want ErrShareLinkInvalid", expiredErr)
 	}
-	if revokedErr != ErrShareLinkInvalid {
+	if !errors.Is(revokedErr, ErrShareLinkInvalid) {
 		t.Errorf("revoked: got %v, want ErrShareLinkInvalid", revokedErr)
 	}
 }
