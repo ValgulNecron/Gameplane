@@ -135,11 +135,31 @@ TestGameServer_WakeOnConnect_UnarmedNoSentinel
 EOF
 }
 
-# Games with heavy resource requirements (long boots, high memory).
+# Games with heavy resource requirements, excluded from default CI execution.
 # This bucket is DELIBERATELY never run in CI — not on PRs, not nightly, not
 # on `schedule:`, not via `workflow_dispatch:`. It is validated only by a
 # maintainer hand-run with `GAMEPLANE_E2E_GAMES=all`. Do not add CI jobs or
 # workflows that execute this bucket; that would defeat its purpose.
+#
+# IMPORTANT: A test being bucketed (listed here) is NOT evidence it runs in
+# CI. This bucket is bucketed for discovery and audit purposes but is never
+# executed by the default job. The distinction between "bucketed" and
+# "executed in CI" is load-bearing — it prevents silent test loss while
+# acknowledging resource constraints that prevent CI execution.
+# Why each of these is excluded from default CI execution (FR-003):
+#   TestGameServer_ArkBot_Query: 30Gi persistent storage + multi-GB container image
+#   TestGameServer_CS2Bot_Query: 60Gi storage requirement (image docs minimum); GitHub runner ~14GB disk insufficient
+#   TestGameServer_DayZBot_Query: 40Gi storage + ~10GB+ SteamCMD re-download on each restart
+#   TestGameServer_DontStarveTogetherBot_Query: Modest alone (5Gi storage, 1Gi memory) but cumulative with heavier games
+#   TestGameServer_EnshroudedBot_Query: 25Gi storage + sustained memory (8Gi requests, 16Gi limits)
+#   TestGameServer_FactorioBot_Query: Modest alone (5Gi storage, 1Gi memory) but cumulative with heavier games
+#   TestGameServer_PalworldBot_Query: 20Gi storage + multi-GB SteamCMD download on first boot
+#   TestGameServer_ProjectZomboidBot_Query: 15Gi storage + 4Gi memory requests
+#   TestGameServer_RustBot_Query: 10Gi storage + 4Gi memory requests
+#   TestGameServer_SatisfactoryBot_Query: 25Gi storage + multi-GB SteamCMD download on first boot
+#   TestGameServer_SevenDaysToDieBot_Query: 55Gi combined storage (10Gi saves + 45Gi install) — largest single footprint
+#   TestGameServer_ValheimBot_Query: 5Gi storage but ~12GB SteamCMD download on first boot (exceeds runner disk)
+#   TestGameServer_VRisingBot_Query: 20Gi storage + Wine/Ubuntu base image overhead
 bucket_bot_heavy() { cat <<'EOF'
 TestGameServer_ArkBot_Query
 TestGameServer_CS2Bot_Query

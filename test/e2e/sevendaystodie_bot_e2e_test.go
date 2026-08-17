@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_SevenDaysToDieBot_Query boots a REAL 7 Days to Die server
@@ -62,7 +64,7 @@ func TestGameServer_SevenDaysToDieBot_Query(t *testing.T) {
 		ProbeDeadline: 6 * time.Minute,
 		// ExpectDepth is QUERY because that is what A2S query or TCP connectivity proves.
 		// The join handshake is not attempted (protocol undocumented, credentials unknown).
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		// No RCON (template sets rcon.protocol: none; telnet password cannot be wired).
 		RCON: map[string]any{"protocol": "none"},
 		// No probes configured; the template deliberately omits them.

@@ -3,20 +3,107 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
 )
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeEnshrouded(ctx, flags.Addr)
-	})
+	// Parse standard flags: -addr, -deadline, -expect-depth, -expect-fail
+	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
+	deadline := flag.Duration("deadline", 4*time.Minute, "overall deadline")
+	expectDepth := flag.String("expect-depth", "JOINED", "expected join depth: JOINED | PARTIAL | QUERY")
+	expectFail := flag.Bool("expect-fail", false, "if set, probe must NOT reach -expect-depth; exits 0 on correct failure")
+	flag.Parse()
+
+	// Validate required flags
+	if *addr == "" {
+		log.Println("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tBad flag: -addr is required")
+		os.Exit(1)
+	}
+
+	expectedDepth, err := joindepth.Parse(*expectDepth)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		log.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tBad flag: -expect-depth=%s must be one of QUERY, PARTIAL, JOINED", *expectDepth)
+		os.Exit(1)
+	}
+
+	// Run the probe with the deadline
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	result := runProbe(ctx, *addr)
+
+	// Handle -expect-fail logic
+	if *expectFail {
+		handleNegativeControl(result, expectedDepth)
+	} else {
+		handlePositiveControl(result, expectedDepth)
+	}
+}
+
+// runProbe executes the probe and returns a ProbeResult
+func runProbe(ctx context.Context, addr string) *ProbeResult {
+	depth, detail, err := probeEnshrouded(ctx, addr)
+	return &ProbeResult{
+		ReachedDepth: depth,
+		Detail:       detail,
+		Err:          err,
+	}
+}
+
+// handlePositiveControl handles the normal (non-negative-control) case
+func handlePositiveControl(result *ProbeResult, expectedDepth joindepth.JoinDepth) {
+	verdict := &joindepth.ProbeVerdict{
+		ReachedDepth: result.ReachedDepth,
+		Detail:       result.Detail,
+		Err:          result.Err,
+	}
+
+	verdictLine, _ := verdict.Encode()
+	log.Println(verdictLine)
+
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, false)
+	os.Exit(exitCode)
+}
+
+// handleNegativeControl handles the -expect-fail case
+func handleNegativeControl(result *ProbeResult, expectedDepth joindepth.JoinDepth) {
+	// Under -expect-fail, we want the probe to NOT reach the expected depth.
+	// If it did reach it (and no error), that's a test failure.
+	if result.ReachedDepth == expectedDepth && result.Err == nil {
+		// Probe reached the depth when it should not have — test failure
+		verdictLine := fmt.Sprintf("VERDICT\tFAIL_NEGATIVE_CONTROL_REACHED\t%s\t%s",
+			result.ReachedDepth.String(), result.Detail)
+		log.Println(verdictLine)
+		os.Exit(1)
+	}
+
+	// Probe correctly failed (either transport error, wrong depth, or internal error)
+	verdict := &joindepth.ProbeVerdict{
+		ReachedDepth: result.ReachedDepth,
+		Detail:       result.Detail,
+		Err:          result.Err,
+	}
+	verdictLine, _ := verdict.Encode()
+	log.Println(verdictLine)
+
+	// Exit 0 because the negative control passed (probe correctly failed)
+	os.Exit(0)
+}
+
+// ProbeResult represents the outcome of a probe attempt
+type ProbeResult struct {
+	ReachedDepth joindepth.JoinDepth
+	Detail       string
+	Err          error
 }
 
 // probeEnshrouded attempts to reach the deepest join depth on an Enshrouded server.
@@ -45,28 +132,29 @@ func main() {
 // against a perfectly healthy server). A2S_INFO is the actual documented
 // request this port answers, so it is used here instead.
 //
-// Depth measurement: Returns Query if the query port answers A2S_INFO. Returns
-// a fatal error if it never does before the deadline, since Enshrouded has no
-// other control or query surface to fall back to.
-func probeEnshrouded(ctx context.Context, addr string) (probe.Depth, error) {
+// Depth measurement: Returns QUERY if the query port answers A2S_INFO.
+// Returns UNKNOWN depth with an error if it never does before the deadline,
+// since Enshrouded has no other control or query surface to fall back to.
+// Evidence string cites the A2S_INFO response (server name, map, player count).
+func probeEnshrouded(ctx context.Context, addr string) (joindepth.JoinDepth, string, error) {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", fmt.Errorf("parse addr: %w", err)
+		return joindepth.JoinDepth(-1), "", fmt.Errorf("parse addr: %w", err)
 	}
 
 	// Query port is 15637 (per the module template and node-gamedig's port_query).
 	queryAddr := net.JoinHostPort(host, "15637")
 
 	var info *a2s.Info
-	err = probe.Retry(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
+	err = retryWithDeadline(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
 		var qerr error
 		info, qerr = a2s.QueryInfo(actx, queryAddr)
 		return qerr
 	})
 	if err == nil {
-		log.Printf("a2s query succeeded: server=%q map=%q players=%d/%d",
-			info.Name, info.Map, info.Players, info.MaxPlayers)
-		return probe.Query, nil
+		detail := fmt.Sprintf("A2S_INFO response: server=%q, map=%q, players=%d/%d", info.Name, info.Map, info.Players, info.MaxPlayers)
+		log.Printf("a2s query succeeded: %s", detail)
+		return joindepth.QUERY, detail, nil
 	}
 
 	// A2S never succeeded before the deadline. Send one bounded, best-effort
@@ -78,7 +166,38 @@ func probeEnshrouded(ctx context.Context, addr string) (probe.Depth, error) {
 	defer cancel()
 	logRawDiagnostic(diagCtx, queryAddr)
 
-	return "", fmt.Errorf("a2s query on query port %s never succeeded: %w", queryAddr, err)
+	return joindepth.JoinDepth(-1), "", fmt.Errorf("a2s query on query port %s never succeeded before the deadline: %w", queryAddr, err)
+}
+
+// retryWithDeadline calls fn repeatedly until it succeeds, ctx expires, or fn reports ErrFatal.
+// Every failed attempt is logged so a failed probe's pod logs explain why the
+// server never became queryable.
+func retryWithDeadline(ctx context.Context, what string, attemptTimeout time.Duration, fn func(context.Context) error) error {
+	var lastErr error
+	retryInterval := 3 * time.Second
+
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastErr == nil {
+				lastErr = err
+			}
+			return fmt.Errorf("%s never succeeded before the deadline: %w", what, lastErr)
+		}
+
+		actx, cancel := context.WithTimeout(ctx, attemptTimeout)
+		err := fn(actx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		log.Printf("%s not ready yet: %v", what, err)
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(retryInterval):
+		}
+	}
 }
 
 // logRawDiagnostic sends a minimal, non-protocol UDP probe and logs whatever

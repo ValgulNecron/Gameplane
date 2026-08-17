@@ -1,5 +1,25 @@
 # Satisfactory — e2e protocol probe specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_SatisfactoryBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Undocumented proprietary HTTPS API (not standard UDP game protocol); TLS-over-UDP encryption from byte 0
+- **Blocker Class**: documentation
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=satisfactory make test-e2e-keep
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** beta (v0.2.0-beta.8), in-progress (QUERY depth measured; in-game claim gate blocks authentication)
 
 ## Purpose

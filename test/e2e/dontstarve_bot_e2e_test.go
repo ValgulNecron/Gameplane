@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_DontStarveTogetherBot_Query boots a REAL Don't Starve Together server
@@ -72,7 +74,7 @@ func TestGameServer_DontStarveTogetherBot_Query(t *testing.T) {
 		ReadyTimeout:  15 * time.Minute,
 		ProbePort:     10999,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "QUERY",
+		ExpectDepth:   joindepth.QUERY,
 		RCON:          map[string]any{"protocol": "none"},
 		ConsoleMode:   "pty",
 		Probes: map[string]any{

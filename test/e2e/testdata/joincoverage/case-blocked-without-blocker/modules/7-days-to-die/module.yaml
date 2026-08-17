@@ -1,0 +1,4 @@
+# Fixture marker only.
+# get_module_dirs() treats a directory as a game module iff it contains
+# module.yaml, matching modules/build.sh. Content is irrelevant to the verifier.
+name: 7-days-to-die

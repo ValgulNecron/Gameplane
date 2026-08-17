@@ -17,6 +17,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // fastGameSet lists the games run by default (unset GAMEPLANE_E2E_GAMES).
@@ -130,7 +132,7 @@ type gameBotSpec struct {
 	ReadyTimeout  time.Duration
 	ProbePort     int
 	ProbeDeadline time.Duration
-	ExpectDepth   string
+	ExpectDepth   joindepth.JoinDepth
 	ProbeArgs     []string
 	Probes        map[string]any // spec.probes; nil means the operator sets no probe
 	RCON          map[string]any // spec.rcon
@@ -144,6 +146,32 @@ type gameBotSpec struct {
 // the probe to reach ExpectDepth or the test fails.
 func runGameBotTest(t *testing.T, s gameBotSpec) {
 	t.Helper()
+
+	// Enforcement: verify the test name suffix matches the asserted depth.
+	// Tests ending in _Joined must assert JOINED, _Query must assert QUERY,
+	// _Partial must assert PARTIAL. This constraint prevents silent test-name
+	// drift from the actual depth being tested.
+	testName := t.Name()
+	lastUnder := strings.LastIndex(testName, "_")
+	var suffix string
+	if lastUnder >= 0 {
+		suffix = testName[lastUnder+1:]
+	}
+
+	var expectedSuffix string
+	switch s.ExpectDepth {
+	case joindepth.JOINED:
+		expectedSuffix = "Joined"
+	case joindepth.PARTIAL:
+		expectedSuffix = "Partial"
+	case joindepth.QUERY:
+		expectedSuffix = "Query"
+	}
+
+	if expectedSuffix != "" && suffix != expectedSuffix {
+		t.Fatalf("test name suffix mismatch: %s ends with %q but asserts depth %s (expected suffix _%s)", testName, suffix, s.ExpectDepth.String(), expectedSuffix)
+	}
+
 	ctx := context.Background()
 	ns := "gameplane-games"
 
@@ -259,8 +287,8 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		return false, "phase=" + phase
 	})
 
-	// Run the in-cluster probe.
-	envInstance.RunGameProbe(t, GameProbe{
+	// Run the in-cluster probe (positive control).
+	result := envInstance.RunGameProbe(t, GameProbe{
 		GameNS:      ns,
 		GSName:      gsName,
 		Game:        s.Game,
@@ -269,6 +297,49 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		ExpectDepth: s.ExpectDepth,
 		Args:        s.ProbeArgs,
 	})
+	if result.ExitCode != 0 {
+		var verdictStr string
+		if result.Verdict != nil {
+			verdictStr = result.Verdict.String()
+		} else {
+			verdictStr = "UNKNOWN"
+		}
+		t.Fatalf("positive control probe failed for game %q: exit code %d (expected 0), expected depth %s, verdict %s", s.Game, result.ExitCode, s.ExpectDepth.String(), verdictStr)
+	}
+
+	// Negative control: verify the probe can fail. Run the same probe against a
+	// guaranteed-closed address (127.0.0.1:1) with -expect-fail. This proves:
+	//   - The probe correctly reports failure when it cannot reach the server.
+	//   - The probe does not always report success (structural guarantee that
+	//     a broken probe cannot masquerade as working).
+	// 127.0.0.1:1 is reliably closed in-cluster: it's a loopback address
+	// (the probe pod's own 127.0.0.1) with port 1, which is reserved and never
+	// listens. The probe will immediately get connection refused, proving
+	// transport failure, not a measurement error.
+	negCtrlResult := envInstance.RunGameProbe(t, GameProbe{
+		GameNS:      "default",
+		GSName:      "negative-control-" + s.Game,
+		Game:        s.Game,
+		Port:        1,
+		Deadline:    s.ProbeDeadline,
+		ExpectDepth: s.ExpectDepth,
+		ExpectFail:  true,
+		Args:        s.ProbeArgs,
+	})
+	// Negative control passes only when the probe exits 0 (correctly
+	// failed for transport reasons, depth UNKNOWN). If it reached a
+	// live server (QUERY/PARTIAL/JOINED), had an internal error, or
+	// exited non-zero for any reason, fail the test.
+	if negCtrlResult.ExitCode != 0 {
+		if negCtrlResult.Verdict != nil && negCtrlResult.Verdict.ReachedDepth.String() != "UNKNOWN" {
+			t.Fatalf("negative control probe for game %q unexpectedly reached a live server: depth %s (expected UNKNOWN for transport failure)", s.Game, negCtrlResult.Verdict.ReachedDepth.String())
+		}
+		if negCtrlResult.Verdict == nil {
+			t.Fatalf("negative control probe for game %q failed with exit code %d but verdict could not be parsed", s.Game, negCtrlResult.ExitCode)
+		}
+		// Fallback for any other non-zero exit code (e.g., internal error with UNKNOWN verdict).
+		t.Fatalf("negative control probe for game %q failed with exit code %d (expected 0): verdict depth %s", s.Game, negCtrlResult.ExitCode, negCtrlResult.Verdict.ReachedDepth.String())
+	}
 
 	// Path A: drive the server THROUGH Gameplane if a control channel is declared.
 	// This proves the API, agent, and control protocol integration work end-to-end.

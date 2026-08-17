@@ -3,20 +3,85 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
 )
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeDayZ(ctx, flags.Addr)
-	})
+	// Parse standard flags.
+	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
+	deadline := flag.Duration("deadline", 4*time.Minute, "total elapsed time allowed before giving up")
+	expectDepth := flag.String("expect-depth", "JOINED", "expected join depth: QUERY, PARTIAL, or JOINED")
+	expectFail := flag.Bool("expect-fail", false, "if set, probe must NOT reach -expect-depth; exits 0 on correct failure")
+	flag.Parse()
+
+	// Validate flags.
+	if *addr == "" {
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       "Bad flag: -addr is required",
+			Err:          fmt.Errorf("missing required flag: -addr"),
+		}
+		verdictLine, _ := verdict.Encode()
+		fmt.Println(verdictLine)
+		os.Exit(1)
+	}
+
+	expectedDepth, err := joindepth.Parse(*expectDepth)
+	if err != nil {
+		verdict := &joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       fmt.Sprintf("Bad flag: -expect-depth=%s", *expectDepth),
+			Err:          err,
+		}
+		verdictLine, _ := verdict.Encode()
+		fmt.Println(verdictLine)
+		os.Exit(1)
+	}
+
+	// Run the probe with the deadline.
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	reachedDepth, probeErr := probeDayZ(ctx, *addr)
+	if probeErr != nil {
+		log.Printf("probe error: %v", probeErr)
+	}
+
+	// Build the verdict.
+	// Note: if probeErr is a transport error, reachedDepth will be an invalid value (-1)
+	// which .String() will render as "UNKNOWN" in the verdict line.
+	verdict := &joindepth.ProbeVerdict{
+		ReachedDepth: reachedDepth,
+		Err:          probeErr,
+	}
+
+	// Set detail based on depth and error.
+	if reachedDepth == joindepth.QUERY {
+		verdict.Detail = "Server responded to A2S query on UDP 27015"
+	} else if probeErr != nil {
+		// Transport failure: describe the connection-level event.
+		verdict.Detail = probeErr.Error()
+	}
+
+	// Emit the verdict line.
+	verdictLine, err := verdict.Encode()
+	if err != nil {
+		fmt.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tFailed to encode verdict: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(verdictLine)
+
+	// Determine exit code.
+	exitCode := joindepth.ExitCodeFromVerdict(verdict, expectedDepth, *expectFail)
+	os.Exit(exitCode)
 }
 
 // probeDayZ attempts to reach the deepest join depth on a DayZ server.
@@ -32,7 +97,7 @@ func main() {
 // - A2S Query: https://developer.valvesoftware.com/wiki/Server_queries
 // - DayZ Enfusion/BattlEye protocol: not publicly documented.
 // - BattlEye RCON: bound to 127.0.0.1 (unreachable from probe pod).
-func probeDayZ(ctx context.Context, addr string) (probe.Depth, error) {
+func probeDayZ(ctx context.Context, addr string) (joindepth.JoinDepth, error) {
 	// Extract the host from the address (removing :port if present).
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -47,18 +112,19 @@ func probeDayZ(ctx context.Context, addr string) (probe.Depth, error) {
 
 	// First: Query A2S to verify the server is alive and responding to queries.
 	// This establishes QUERY depth and gives us server metadata.
-	// A2S failure is fatal — server is not responding to queries at all.
+	// A2S failure means server is not responding to queries at all.
 	var info *a2s.Info
-	if err := probe.Retry(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
+	if err := retryUntilDeadline(ctx, "a2s-info", 15*time.Second, func(actx context.Context) error {
 		var err error
 		info, err = a2s.QueryInfo(actx, a2sAddr)
 		if err != nil {
-			return err
+			return fmt.Errorf("a2s query: %w", err)
 		}
 		return nil
 	}); err != nil {
-		// A2S failed; server not even responding to queries. This is fatal.
-		return "", fmt.Errorf("a2s query failed: %w", err)
+		// A2S failed; server not responding to queries. This is a transport failure (no depth reached).
+		// Return an invalid JoinDepth value (-1), which will render as "UNKNOWN" in the verdict line.
+		return joindepth.JoinDepth(-1), fmt.Errorf("a2s-info never succeeded before the deadline: %w", err)
 	}
 
 	// Log server metadata from A2S response.
@@ -72,7 +138,7 @@ func probeDayZ(ctx context.Context, addr string) (probe.Depth, error) {
 	// speak it. We send a minimal probe to observe what the server responds with,
 	// for evidence purposes only. If the server doesn't respond or responds with
 	// something we cannot parse, we log it and move on — it does not affect depth.
-	if err := probe.Retry(ctx, "game-port-diagnostic", 10*time.Second, func(actx context.Context) error {
+	if err := retryUntilDeadline(ctx, "game-port-diagnostic", 10*time.Second, func(actx context.Context) error {
 		gameAddr := net.JoinHostPort(host, "2302")
 		return probeGamePort(actx, gameAddr)
 	}); err != nil {
@@ -83,7 +149,39 @@ func probeDayZ(ctx context.Context, addr string) (probe.Depth, error) {
 
 	// Return QUERY because that is what A2S proved.
 	// The game port attempt was diagnostic; evidence is in the logs above.
-	return probe.Query, nil
+	return joindepth.QUERY, nil
+}
+
+// retryUntilDeadline calls fn until it succeeds, the context deadline expires, or fn returns an error.
+// It retries internally within the deadline; a timeout at the deadline-level is fatal (not retried).
+func retryUntilDeadline(ctx context.Context, what string, attemptDuration time.Duration, fn func(context.Context) error) error {
+	const retryInterval = 3 * time.Second
+	var lastErr error
+
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastErr == nil {
+				lastErr = err
+			}
+			return fmt.Errorf("%s never succeeded before the deadline: %w", what, lastErr)
+		}
+
+		attemptCtx, cancel := context.WithTimeout(ctx, attemptDuration)
+		err := fn(attemptCtx)
+		cancel()
+
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		log.Printf("%s not ready yet: %v", what, err)
+
+		select {
+		case <-ctx.Done():
+		case <-time.After(retryInterval):
+		}
+	}
 }
 
 // probeGamePort sends a minimal UDP probe to the game port and logs the response.
@@ -92,19 +190,19 @@ func probeGamePort(ctx context.Context, addr string) error {
 	dialer := net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "udp", addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
 
 	// Set a read deadline so we don't block forever.
 	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-		return err
+		return fmt.Errorf("set read deadline: %w", err)
 	}
 
 	// Send a minimal probe: a single zero byte to see if the server is listening.
 	// This is not a real protocol message, just a diagnostic poke.
 	if _, err := conn.Write([]byte{0x00}); err != nil {
-		return err
+		return fmt.Errorf("write: %w", err)
 	}
 
 	// Try to read a response (any response is interesting).

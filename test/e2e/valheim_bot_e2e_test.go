@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_ValheimBot_Query boots a REAL Valheim server
@@ -65,7 +67,7 @@ func TestGameServer_ValheimBot_Query(t *testing.T) {
 		ReadyTimeout:  10 * time.Minute,
 		ProbePort:     80,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "QUERY",
+		ExpectDepth:   joindepth.QUERY,
 		RCON:          map[string]any{"protocol": "none"},
 		ConsoleMode:   "pty",
 		Probes: map[string]any{

@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_ArkBot_Query boots a REAL ARK: Survival Ascended server
@@ -58,7 +60,7 @@ func TestGameServer_ArkBot_Query(t *testing.T) {
 		ProbeDeadline: 6 * time.Minute,
 		// ExpectDepth is QUERY because that is what UDP connectivity proves.
 		// ARK's join protocol requires EOS/Steam credentials that CI cannot mint.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		// No RCON in this test (would require the admin to manually set it up).
 		RCON: map[string]any{"protocol": "source"},
 		// No probes configured; the template deliberately omits them.

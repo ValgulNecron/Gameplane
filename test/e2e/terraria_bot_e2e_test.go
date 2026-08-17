@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_TerrariaBot_Joined boots a REAL Terraria server
@@ -13,6 +15,17 @@ import (
 // reach Running, then runs a minimal Terraria-protocol bot inside the cluster
 // to verify it reaches JOINED depth (server accepts the client as a player
 // and answers WorldData).
+//
+// This test explicitly asserts JOINED depth: the probe must complete the real
+// Terraria protocol login handshake and observe a WorldData frame. It is one of
+// only two shipped games (Minecraft and Terraria) where this is practical with
+// a headless protocol client. The test's suffix _Joined enforces alignment with
+// the asserted depth (enforced by gamebot_helpers_e2e_test.go).
+//
+// The automatic negative control (in runGameBotTest) verifies the probe can fail:
+// it runs the same probe against 127.0.0.1:1 (a guaranteed-closed address) with
+// -expect-fail, proving the probe correctly reports transport failure when the
+// server is unreachable, not a false positive.
 //
 // Terraria is the one non-Minecraft shipped game where this is practical:
 // the server ships in the image (no steamcmd download) and speaks TCP.
@@ -24,6 +37,8 @@ import (
 // servers booting concurrently OOM-starves a single kind node.
 func TestGameServer_TerrariaBot_Joined(t *testing.T) {
 	skipUnlessGameInScope(t, "terraria")
+
+	expectedDepth := joindepth.JOINED
 
 	runGameBotTest(t, gameBotSpec{
 		Game:        "terraria",
@@ -55,7 +70,7 @@ func TestGameServer_TerrariaBot_Joined(t *testing.T) {
 		ReadyTimeout:  10 * time.Minute,
 		ProbePort:     7777,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "JOINED",
+		ExpectDepth:   expectedDepth,
 		RCON:          map[string]any{"protocol": "none"},
 		ConsoleMode:   "pty",
 		Probes: map[string]any{

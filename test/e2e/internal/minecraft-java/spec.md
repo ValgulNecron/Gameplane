@@ -1,5 +1,15 @@
 # minecraft-java — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: covered-in-ci
+- **Depth**: JOINED
+- **Test**: TestGameServer_MinecraftJavaBot_Joined
+- **Bucket**: bot-fast
+- **Last Verified**: 2026-08-16
+- **Blocker**: —
+- **Blocker Class**: —
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/minecraft-java`  
 **Dependencies:** stdlib only (Go 1.25+); tested against Minecraft 1.21.4; image: `itzg/minecraft-server:java21`

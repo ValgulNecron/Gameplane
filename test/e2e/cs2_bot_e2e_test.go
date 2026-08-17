@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_CS2Bot_Query boots a REAL Counter-Strike 2 server
@@ -68,7 +70,7 @@ func TestGameServer_CS2Bot_Query(t *testing.T) {
 		ReadyTimeout:  10 * time.Minute,
 		ProbePort:     27015,
 		ProbeDeadline: 4 * time.Minute,
-		ExpectDepth:   "QUERY",
+		ExpectDepth:   joindepth.QUERY,
 		// No custom probe flags; bot name is hardcoded in app.go.
 		ProbeArgs: []string{},
 		// No explicit readiness probe defined in the e2e GameServer.

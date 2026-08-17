@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_GarrysModBot_Query boots a REAL Garry's Mod server
@@ -77,7 +79,7 @@ func TestGameServer_GarrysModBot_Query(t *testing.T) {
 		// ExpectDepth is QUERY because that is what A2S_INFO proves.
 		// The source protocol connection attempt is diagnostic only; logs will show
 		// the connect outcome, raw bytes, and any rejection message for evidence.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		RCON:        map[string]any{"protocol": "none"},
 		Probes: map[string]any{
 			"readiness": map[string]any{

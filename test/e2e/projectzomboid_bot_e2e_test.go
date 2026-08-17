@@ -5,6 +5,8 @@ package e2e
 import (
 	"testing"
 	"time"
+
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // TestGameServer_ProjectZomboidBot_Query boots a REAL Project Zomboid server
@@ -74,7 +76,7 @@ func TestGameServer_ProjectZomboidBot_Query(t *testing.T) {
 		ProbeDeadline: 4 * time.Minute,
 		// ExpectDepth is QUERY because that is what a UDP handshake response proves.
 		// The server responds to our probe on port 16261; no further protocol understanding is claimed.
-		ExpectDepth: "QUERY",
+		ExpectDepth: joindepth.QUERY,
 		RCON:        map[string]any{"protocol": "source", "port": int64(27015)},
 		Probes: map[string]any{
 			"readiness": map[string]any{

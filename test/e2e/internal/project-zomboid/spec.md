@@ -1,5 +1,25 @@
 # project-zomboid — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_ProjectZomboidBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Undocumented custom UDP protocol; optional non-Steam private server mode possible but format unknown
+- **Blocker Class**: documentation
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=project-zomboid make test-e2e
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/project-zomboid`  
 **Dependencies:** stdlib + shared `protocol/a2s` (Go 1.25+); tested against sknnr/zomboid-dedicated-server:v1.1.1 (UNMEASURED against a real server — see "Measured connectivity")

@@ -1,5 +1,25 @@
 # palworld — E2E Probe Specification
 
+## Coverage Status
+
+- **Status**: blocked-doc
+- **Depth**: QUERY
+- **Test**: TestGameServer_PalworldBot_Query
+- **Bucket**: bot-heavy
+- **Last Verified**: —
+- **Blocker**: Unreal Engine 5; stateless-connect handshake under reverse-engineering, Steam authentication integration incomplete
+- **Blocker Class**: documentation
+
+## On-Demand Invocation
+
+This test is part of the `bot-heavy` bucket and does not run by default in CI. To run it against an operator-provided cluster (not a local machine), use:
+
+```bash
+GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=<context-name> GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_GAMES=palworld make test-e2e-keep
+```
+
+A successful run is the only event that licenses updating `Last Verified` to the current date.
+
 **Status:** beta (v0.2.0-beta.8)  
 **Module / package:** `github.com/ValgulNecron/gameplane/test/e2e/internal/palworld`  
 **Dependencies:** stdlib only (Go 1.25+); tested against Palworld via thijsvanloef/palworld-server-docker:latest

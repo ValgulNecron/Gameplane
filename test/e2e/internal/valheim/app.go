@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 // statusResponse mirrors the HTTP status.json response from the
@@ -28,10 +32,75 @@ type statusResponse struct {
 }
 
 func main() {
-	flags := probe.ParseFlags()
-	probe.Main(flags, func(ctx context.Context) (probe.Depth, error) {
-		return probeValheim(ctx, flags.Addr)
-	})
+	// Standard flags per the probe CLI contract.
+	addr := flag.String("addr", "", "game server host:port (in-cluster Service DNS)")
+	deadline := flag.Duration("deadline", 4*time.Minute,
+		"overall deadline; the probe retries until the server is playable or this elapses")
+	expectDepth := flag.String("expect-depth", "QUERY",
+		"expected join depth: QUERY | PARTIAL | JOINED")
+	expectFail := flag.Bool("expect-fail", false,
+		"if set, probe must NOT reach -expect-depth; exits 0 on correct failure")
+
+	flag.Parse()
+
+	// Set up logging.
+	log.SetFlags(log.Ltime)
+
+	// Validate required flags.
+	if *addr == "" {
+		verdict := joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       "Bad flag: -addr is required",
+			Err:          errors.New("-addr is required"),
+		}
+		emitVerdictAndExit(&verdict, joindepth.QUERY, *expectFail, 1)
+	}
+
+	// Parse expected depth.
+	parsedExpect, err := joindepth.Parse(*expectDepth)
+	if err != nil {
+		verdict := joindepth.ProbeVerdict{
+			ReachedDepth: joindepth.QUERY,
+			Detail:       fmt.Sprintf("Bad flag: %v", err),
+			Err:          err,
+		}
+		emitVerdictAndExit(&verdict, joindepth.QUERY, *expectFail, 1)
+	}
+
+	// Create the probe context with deadline.
+	ctx, cancel := context.WithTimeout(context.Background(), *deadline)
+	defer cancel()
+
+	// Run the probe.
+	reached, evidence, transportErr := probeValheim(ctx, *addr)
+
+	// Build the verdict.
+	verdict := joindepth.ProbeVerdict{
+		ReachedDepth: reached,
+		Detail:       evidence,
+		Err:          transportErr,
+	}
+
+	// Determine exit code based on the contract.
+	exitCode := joindepth.ExitCodeFromVerdict(&verdict, parsedExpect, *expectFail)
+	emitVerdictAndExit(&verdict, parsedExpect, *expectFail, exitCode)
+}
+
+// emitVerdictAndExit emits the machine-readable VERDICT line and exits.
+func emitVerdictAndExit(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool, exitCode int) {
+	// Encode the verdict line.
+	line, err := v.Encode()
+	if err != nil {
+		// If encoding fails, emit a fallback and exit with internal error.
+		fmt.Printf("VERDICT\tFAIL_INTERNAL_ERROR\tUNKNOWN\tVERDICT encoding failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Emit the verdict line to stdout.
+	fmt.Println(line)
+
+	// Exit with the computed code.
+	os.Exit(exitCode)
 }
 
 // probeValheim fetches the documented status.json HTTP endpoint from a
@@ -43,33 +112,65 @@ func main() {
 // endpoint at /status.json (port 80 by default). A successful fetch and
 // parse proves the server is alive and responding to the health protocol
 // that Kubernetes uses for readiness probes.
-func probeValheim(ctx context.Context, addr string) (probe.Depth, error) {
-	// Retry fetching status.json at 15 seconds per attempt.
+//
+// Returns (depth, evidence, error). Transport-level errors are wrapped with %w.
+func probeValheim(ctx context.Context, addr string) (joindepth.JoinDepth, string, error) {
+	// Retry fetching status.json with per-attempt timeout.
+	const probeAttempt = 15 * time.Second
+	const retryInterval = 3 * time.Second
+
 	var status *statusResponse
-	if err := probe.Retry(ctx, "status.json", 15*time.Second, func(actx context.Context) error {
-		var err error
-		status, err = fetchStatus(actx, addr)
-		if err != nil {
-			return err
+	var lastErr error
+
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastErr == nil {
+				lastErr = err
+			}
+			// Deadline reached; no response from server.
+			return joindepth.JoinDepth(-1), "", fmt.Errorf("status.json never succeeded before the deadline: %w", lastErr)
 		}
-		return nil
-	}); err != nil {
-		return "", err
+
+		actx, cancel := context.WithTimeout(ctx, probeAttempt)
+		status, lastErr = fetchStatus(actx, addr)
+		cancel()
+
+		if lastErr == nil {
+			break
+		}
+
+		log.Printf("status.json not ready yet: %v", lastErr)
+
+		select {
+		case <-ctx.Done():
+			// Deadline reached while sleeping.
+			return joindepth.JoinDepth(-1), "", fmt.Errorf("status.json never succeeded before the deadline: %w", lastErr)
+		case <-time.After(retryInterval):
+			// Continue to next attempt.
+		}
 	}
 
-	// Log server metadata from status response as evidence.
+	// Successfully fetched status.json; report QUERY depth with server version as evidence.
 	if status != nil && status.Server.Version != "" {
-		fmt.Printf("valheim status: players=%d/%d uptime=%ds version=%s\n",
+		evidence := fmt.Sprintf("status.json response: version %s, %d/%d players online",
+			status.Server.Version, status.Server.Players, status.Server.MaxPlayers)
+		log.Printf("valheim status: players=%d/%d uptime=%ds version=%s",
 			status.Server.Players, status.Server.MaxPlayers,
 			status.Server.UptimeSecs, status.Server.Version)
+		return joindepth.QUERY, evidence, nil
 	}
 
-	return probe.Query, nil
+	// Fallback evidence if version is empty.
+	evidence := fmt.Sprintf("status.json response: %d/%d players online",
+		status.Server.Players, status.Server.MaxPlayers)
+	return joindepth.QUERY, evidence, nil
 }
 
 // fetchStatus fetches and parses status.json from the Valheim HTTP status
 // endpoint (port 80 by default). The addr parameter is host:port of the
 // game server's status port.
+//
+// Errors are wrapped with %w to preserve the cause for transport error detection.
 func fetchStatus(ctx context.Context, addr string) (*statusResponse, error) {
 	// Construct the HTTP GET request to /status.json.
 	// addr is "host:port" where port is STATUS_HTTP_PORT (default 80).
@@ -80,13 +181,7 @@ func fetchStatus(ctx context.Context, addr string) (*statusResponse, error) {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	// Use a 10-second timeout for the HTTP request itself (independent of
-	// the overall deadline managed by probe.Retry).
-	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	req = req.WithContext(reqCtx)
-
-	// Send the request.
+	// Send the request with the context's deadline.
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
