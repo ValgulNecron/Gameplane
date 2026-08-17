@@ -267,3 +267,11 @@ not a local invocation.
 **Not proven here:** that a deferred heavy game's committed test actually runs
 green on a real cluster. Scenarios 5 and 6 cover that and are blocked on the
 unpublished probe image (see T030).
+
+---
+
+## Phase 7: Convergence
+
+**Purpose**: Close gaps found by assessing the current codebase against spec.md, plan.md, and tasks.md
+
+- [ ] T032 Fail the negative control on any non-zero probe exit code in test/e2e/gamebot_helpers_e2e_test.go (currently exit code 1 with a parseable UNKNOWN verdict satisfies neither inner branch and passes silently, so an internally-broken probe is indistinguishable from a correct transport failure) per contracts/probe-cli.md `-expect-fail` contract (partial)
