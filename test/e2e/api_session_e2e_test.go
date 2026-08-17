@@ -94,7 +94,7 @@ func TestAPI_LoginRateLimit(t *testing.T) {
 
 	got429 := false
 	for attempt := 0; attempt < 12; attempt++ {
-		req, err := http.NewRequest(http.MethodPost, cli.BaseURL+"/auth/login",
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/auth/login",
 			strings.NewReader(badPW))
 		if err != nil {
 			t.Fatalf("build login request: %v", err)
