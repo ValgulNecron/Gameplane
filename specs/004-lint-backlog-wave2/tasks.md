@@ -24,9 +24,9 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 
 **Purpose**: Create the feature branch off master and salvage completed work from PR #216
 
-- [ ] T001 Create a fresh branch `004-lint-backlog-wave2` off master (do NOT base on PR #216)
-- [ ] T002 [P] Cherry-pick api fix commit ba32d0b from PR #216 into the new branch (fixes 68 api files across 13 packages)
-- [ ] T003 [P] Cherry-pick agent fix commit f5b9ede from PR #216 into the new branch (fixes 29 agent files across 17 packages)
+- [X] T001 Create a fresh branch `004-lint-backlog-wave2` off master (do NOT base on PR #216)
+- [X] T002 [P] Cherry-pick api fix commit ba32d0b from PR #216 into the new branch (fixes 68 api files across 13 packages)
+- [X] T003 [P] Cherry-pick agent fix commit f5b9ede from PR #216 into the new branch (fixes 29 agent files across 17 packages)
 
 **Checkpoint**: Branch created with salvaged api and agent work. Do NOT cherry-pick the test/e2e commit e7b99b6 — it is stale against master's feature 001 restructure and will be redone in Phase 3.
 
@@ -38,11 +38,11 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 
 **⚠️ CRITICAL**: The matrix change lands early on the feature branch, triggering a deliberately-red CI run. This red run is NOT a failure; it is the authoritative measurement. No local linter runs are permitted (Constitution VI).
 
-- [ ] T004 Modify `.github/workflows/ci.yaml` (~line 180): add `api`, `agent`, `test/e2e` to the `matrix.module` list (currently they are listed in a comment on lines 177-178)
-- [ ] T005 Modify `.github/workflows/ci.yaml` (~line 189-195): extend the envtest build-tag step to include `api` with condition `if: matrix.module == 'operator' || matrix.module == 'api'` and args `--build-tags=envtest`
-- [ ] T006 Modify `.github/workflows/ci.yaml`: add a NEW step for e2e build tags with condition `if: matrix.module == 'test/e2e'` and args `--build-tags=e2e`
-- [ ] T007 Modify `.github/workflows/ci.yaml`: delete the exclusion comment at lines 177-178 that lists api, agent, test/e2e as pending cleanup
-- [ ] T008 Push the branch with the matrix changes (no fixes yet). The CI lint job will run RED, reporting the baseline finding count across all three modules. This red run is intentional and is the measurement step per research.md Decision 3.
+- [X] T004 Modify `.github/workflows/ci.yaml` (~line 180): add `api`, `agent`, `test/e2e` to the `matrix.module` list (currently they are listed in a comment on lines 177-178)
+- [X] T005 Modify `.github/workflows/ci.yaml` (~line 189-195): extend the envtest build-tag step to include `api` with condition `if: matrix.module == 'operator' || matrix.module == 'api'` and args `--build-tags=envtest`
+- [X] T006 Modify `.github/workflows/ci.yaml`: add a NEW step for e2e build tags with condition `if: matrix.module == 'test/e2e'` and args `--build-tags=e2e`
+- [X] T007 Modify `.github/workflows/ci.yaml`: delete the exclusion comment at lines 177-178 that lists api, agent, test/e2e as pending cleanup
+- [X] T008 Push the branch with the matrix changes (no fixes yet). The CI lint job will run RED, reporting the baseline finding count across all three modules. This red run is intentional and is the measurement step per research.md Decision 3.
 - [ ] T009 Retrieve the finding lists from the red CI run using the exact recipe: `gh api repos/ValgulNecron/Gameplane/actions/runs/<run_id>/jobs --jq '.jobs[] | select(.name|test("lint")) | [.id,.name,.conclusion] | @tsv'` then `gh api repos/ValgulNecron/Gameplane/actions/jobs/<job_id>/logs`. Record the finding counts per module (api, agent, test/e2e) and note that this is the baseline; no local grep or lint run is performed (Constitution VI).
 
 **Checkpoint**: Matrix enablement landed, first CI run is RED with baseline finding counts recorded. Fix work can now fan out per-package. The branch will be red during phases 3-5; this is expected and honest.
