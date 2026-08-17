@@ -1,0 +1,1 @@
+{"type":"frame","id":"c:ZIXiw","x":1000,"y":320,"name":"List Divider","reusable":true,"width":240,"gap":8,"padding":[4,0],"justifyContent":"center","alignItems":"center","children":[{"type":"line","id":"c:3L1Cx","name":"Line","width":"fill_container","height":0,"stroke":"$c:--border","strokeWidth":1}]}
