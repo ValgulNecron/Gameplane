@@ -73,8 +73,8 @@ type clusterView struct {
 
 type clusterInfo struct {
 	ClusterName      string `json:"clusterName,omitempty"`
-	Version          string `json:"version,omitempty"`              // Kubernetes server version
-	GameplaneVersion string `json:"gameplaneVersion,omitempty"`    // Gameplane control-plane build
+	Version          string `json:"version,omitempty"`          // Kubernetes server version
+	GameplaneVersion string `json:"gameplaneVersion,omitempty"` // Gameplane control-plane build
 	// ClusterOps mirrors the --cluster-ops flag so the dashboard can
 	// grey out node-join / kubeconfig actions instead of letting every
 	// click run into the handlers' 501. Never omitted: the client must

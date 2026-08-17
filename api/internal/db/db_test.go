@@ -73,7 +73,7 @@ func TestMigrate_SeedsBuiltinRoles(t *testing.T) {
 		{"viewer", "servers:read"},
 	} {
 		var got int
-		if err := s.DB.QueryRowContext(context.Background(), 
+		if err := s.DB.QueryRowContext(context.Background(),
 			`SELECT COUNT(*) FROM role_permissions WHERE role_name = ? AND permission = ?`,
 			tc.role, tc.perm).Scan(&got); err != nil {
 			t.Fatalf("query %s/%s: %v", tc.role, tc.perm, err)
@@ -85,7 +85,7 @@ func TestMigrate_SeedsBuiltinRoles(t *testing.T) {
 
 	// viewer must not hold any write/admin permission.
 	var writes int
-	if err := s.DB.QueryRowContext(context.Background(), 
+	if err := s.DB.QueryRowContext(context.Background(),
 		`SELECT COUNT(*) FROM role_permissions WHERE role_name = 'viewer'
 		   AND permission NOT LIKE '%:read'`).Scan(&writes); err != nil {
 		t.Fatalf("viewer writes query: %v", err)
@@ -426,7 +426,7 @@ func TestMigrate_AddsAuditChainColumns(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	if _, err := s.DB.ExecContext(context.Background(), 
+	if _, err := s.DB.ExecContext(context.Background(),
 		`INSERT INTO audit_events(ts, actor, method, path, status, prev_hash, hash)
 		 VALUES (?, 'a', 'POST', '/x', 200, 'p', 'h')`,
 		"2026-01-01T00:00:00Z",
