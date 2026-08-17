@@ -326,8 +326,10 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		ExpectFail:  true,
 		Args:        s.ProbeArgs,
 	})
-	// Negative control passes only when the probe failed for transport reasons (depth UNKNOWN).
-	// If it reached a live server (QUERY/PARTIAL/JOINED) or had an internal error, fail the test.
+	// Negative control passes only when the probe exits 0 (correctly
+	// failed for transport reasons, depth UNKNOWN). If it reached a
+	// live server (QUERY/PARTIAL/JOINED), had an internal error, or
+	// exited non-zero for any reason, fail the test.
 	if negCtrlResult.ExitCode != 0 {
 		if negCtrlResult.Verdict != nil && negCtrlResult.Verdict.ReachedDepth.String() != "UNKNOWN" {
 			t.Fatalf("negative control probe for game %q unexpectedly reached a live server: depth %s (expected UNKNOWN for transport failure)", s.Game, negCtrlResult.Verdict.ReachedDepth.String())
@@ -335,6 +337,8 @@ func runGameBotTest(t *testing.T, s gameBotSpec) {
 		if negCtrlResult.Verdict == nil {
 			t.Fatalf("negative control probe for game %q failed with exit code %d but verdict could not be parsed", s.Game, negCtrlResult.ExitCode)
 		}
+		// Fallback for any other non-zero exit code (e.g., internal error with UNKNOWN verdict).
+		t.Fatalf("negative control probe for game %q failed with exit code %d (expected 0): verdict depth %s", s.Game, negCtrlResult.ExitCode, negCtrlResult.Verdict.ReachedDepth.String())
 	}
 
 	// Path A: drive the server THROUGH Gameplane if a control channel is declared.
