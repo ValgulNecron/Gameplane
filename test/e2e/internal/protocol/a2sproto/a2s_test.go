@@ -13,7 +13,7 @@ import (
 // without a challenge.
 func TestQueryInfoImmediate(t *testing.T) {
 
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		// Parse the request to verify it's A2S_INFO.
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
@@ -102,7 +102,7 @@ func TestQueryPlayersChallenge(t *testing.T) {
 
 	infoCount := 0
 	playerRequestCount := 0
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -187,7 +187,7 @@ func TestQueryPlayersChallenge(t *testing.T) {
 // "Source Engine Query\0" magic string.
 func TestQueryInfoRequestFormat(t *testing.T) {
 	requestSeen := false
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -227,7 +227,7 @@ func TestQueryInfoRequestFormat(t *testing.T) {
 func TestTruncatedResponse(t *testing.T) {
 	t.Parallel()
 
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -236,7 +236,7 @@ func TestTruncatedResponse(t *testing.T) {
 		}
 		// Send a truncated response (just header + type, no data).
 		var buf bytes.Buffer
-		binary.Write(&buf, binary.LittleEndian, headerFourCC)
+		binary.Write(&buf, binary.LittleEndian, uint32(headerFourCC))
 		buf.WriteByte(responseInfo)
 		return buf.Bytes()
 	})
@@ -255,7 +255,7 @@ func TestTruncatedResponse(t *testing.T) {
 func TestWrongHeader(t *testing.T) {
 	t.Parallel()
 
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -283,7 +283,7 @@ func TestWrongHeader(t *testing.T) {
 func TestDeadlineExceeded(t *testing.T) {
 	t.Parallel()
 
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(_ []byte, raddr net.Addr) []byte {
 		// Send nothing; let the client timeout.
 		return nil
 	})
@@ -302,7 +302,7 @@ func TestDeadlineExceeded(t *testing.T) {
 func TestGarbageData(t *testing.T) {
 	t.Parallel()
 
-	server := startFakeA2SServer(t, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServer(t, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -345,7 +345,8 @@ func (s *fakeA2SServer) Close() error {
 // to send back (or nil to send nothing). The server runs until the test
 // completes or the connection is closed.
 func startFakeA2SServer(t *testing.T, handler func(req []byte, raddr net.Addr) []byte) *fakeA2SServer {
-	conn, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	conn, err := lc.ListenPacket(t.Context(), "udp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to start fake server: %v", err)
 	}
@@ -385,7 +386,8 @@ func startFakeA2SServer(t *testing.T, handler func(req []byte, raddr net.Addr) [
 // ensure the client doesn't bind to loopback when connecting to a non-loopback
 // server address.
 func startFakeA2SServerOnAddr(t *testing.T, addr string, handler func(req []byte, raddr net.Addr) []byte) *fakeA2SServer {
-	conn, err := net.ListenPacket("udp4", addr+":0")
+	lc := net.ListenConfig{}
+	conn, err := lc.ListenPacket(t.Context(), "udp4", addr+":0")
 	if err != nil {
 		t.Fatalf("failed to start fake server on %s: %v", addr, err)
 	}
@@ -623,7 +625,7 @@ func TestQueryInfoNonLoopbackServer(t *testing.T) {
 		t.Skip("no non-loopback IPv4 address found on this host")
 	}
 
-	server := startFakeA2SServerOnAddr(t, nonLoopbackAddr, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServerOnAddr(t, nonLoopbackAddr, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
@@ -665,7 +667,7 @@ func TestQueryPlayersNonLoopbackServer(t *testing.T) {
 	infoCount := 0
 	playerRequestCount := 0
 
-	server := startFakeA2SServerOnAddr(t, nonLoopbackAddr, func(req []byte, raddr net.Addr) []byte {
+	server := startFakeA2SServerOnAddr(t, nonLoopbackAddr, func(req []byte, _ net.Addr) []byte {
 		if len(req) < 5 || binary.LittleEndian.Uint32(req[:4]) != headerFourCC {
 			return nil
 		}
