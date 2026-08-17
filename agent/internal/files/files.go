@@ -226,11 +226,8 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	const maxFormSize = int64(64 << 20)
-	// Validate request size before parsing multipart form.
-	if req.ContentLength > maxFormSize {
-		h.badRequest(w, fmt.Errorf("request body too large: %d bytes exceeds limit of %d", req.ContentLength, maxFormSize))
-		return
-	}
+	// Limit request body size to prevent unbounded form parsing.
+	req.Body = http.MaxBytesReader(w, req.Body, maxFormSize)
 	if err := req.ParseMultipartForm(maxFormSize); err != nil {
 		h.badRequest(w, err)
 		return
