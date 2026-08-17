@@ -99,7 +99,7 @@ func QueryInfo(ctx context.Context, addr string) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("a2s: dial udp: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set deadline on the socket itself.
 	deadline := time.Now().Add(5 * time.Second)
@@ -163,7 +163,7 @@ func QueryPlayers(ctx context.Context, addr string) ([]Player, error) {
 	if err != nil {
 		return nil, fmt.Errorf("a2s: dial udp for players: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
@@ -173,7 +173,7 @@ func QueryPlayers(ctx context.Context, addr string) ([]Player, error) {
 
 	// A2S_PLAYER always requires a challenge. Start with 0xFFFFFFFF sentinel.
 	// If the server responds with S2C_CHALLENGE, echo the challenge back.
-	var challenge []byte = []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	challenge := []byte{0xFF, 0xFF, 0xFF, 0xFF}
 
 	for attempt := 0; attempt < 2; attempt++ {
 		req := buildRequest(requestPlayer, challenge)
