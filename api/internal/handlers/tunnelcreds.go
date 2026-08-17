@@ -115,12 +115,11 @@ func (h *tunnelCredsHandler) put(w http.ResponseWriter, req *http.Request) {
 	// This preserves any extra fields an admin may have set via kubectl and
 	// avoids the resourceVersion issue that would fail a blind Update.
 	_, err = k.Typed.CoreV1().Secrets(ns).Create(req.Context(), desired, metav1.CreateOptions{})
-	if err == nil {
-		// Created successfully.
-	} else if !apierrors.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		httperr.Write(w, req, err)
 		return
-	} else {
+	}
+	if err != nil {
 		// Secret already exists; patch it instead to preserve extra fields.
 		patch := map[string]any{
 			"stringData": body.Values,
