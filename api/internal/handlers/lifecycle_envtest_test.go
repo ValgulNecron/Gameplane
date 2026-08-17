@@ -45,7 +45,7 @@ func TestLifecycle_StartClearsSuspend(t *testing.T) {
 		t.Fatalf(":stop precondition didn't take effect")
 	}
 
-	resp := doJSON(t, http.MethodPost, "/servers/"+name+":start", nil)
+	resp = doJSON(t, http.MethodPost, "/servers/"+name+":start", nil)
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf(":start status = %d, want 202; body=%s", resp.StatusCode, readBody(t, resp))
 	}

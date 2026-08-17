@@ -292,7 +292,10 @@ func (c *WebSocket) ensureLocked() error {
 	if err != nil {
 		return fmt.Errorf("websocket rcon: dial %s: %w", c.baseURL, err)
 	}
-	if resp != nil {
+	// coder/websocket hijacks the connection on successful dial, leaving
+	// resp.Body nil. Close only if the body exists (e.g., on a redirect or
+	// other non-101 response before the upgrade completes).
+	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
 	}
 
