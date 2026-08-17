@@ -267,11 +267,16 @@ func writeProc(t *testing.T, procRoot string, pid, ppid int, comm string, ticks 
 func TestRead_ProcMode(t *testing.T) {
 	proc := t.TempDir()
 	const self = 50
-	writeProc(t, proc, 1, 0, "pause", 999, 999)        // excluded (pid 1)
-	writeProc(t, proc, self, 1, "agent", 500, 500)     // excluded (selfPID)
-	writeProc(t, proc, 60, self, "agent-tls", 300, 300)  // excluded (agent subtree)
-	writeProc(t, proc, 100, 1, "javaserver", 100, 10)   // counted
-	writeProc(t, proc, 101, 100, "java-gc", 0, 5)       // counted (child of game)
+	// excluded (pid 1)
+	writeProc(t, proc, 1, 0, "pause", 999, 999)
+	// excluded (selfPID)
+	writeProc(t, proc, self, 1, "agent", 500, 500)
+	// excluded (agent subtree)
+	writeProc(t, proc, 60, self, "agent-tls", 300, 300)
+	// counted
+	writeProc(t, proc, 100, 1, "javaserver", 100, 10)
+	// counted (child of game)
+	writeProc(t, proc, 101, 100, "java-gc", 0, 5)
 
 	clock := &fakeClock{t: time.Unix(100, 0)}
 	r := New(Config{
