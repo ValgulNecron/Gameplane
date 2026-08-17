@@ -242,7 +242,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -251,7 +251,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			if errors.Is(err, db.ErrShareLinkInvalid) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 				return
 			}
 			httperr.Write(w, req, err)
@@ -276,7 +276,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -293,7 +293,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}
 }
 
@@ -306,7 +306,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -315,7 +315,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			if errors.Is(err, db.ErrShareLinkInvalid) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 				return
 			}
 			httperr.Write(w, req, err)
@@ -326,7 +326,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if !link.CanStart {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -345,7 +345,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
