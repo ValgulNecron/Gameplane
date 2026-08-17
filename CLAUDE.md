@@ -155,11 +155,17 @@ These are the rules an agent cannot infer from reading the code. They are delibe
 
 ### 1. Design-first for UI changes
 
-Any change to the web dashboard's visual surface starts in **`design.pen`** (Pencil), not in code. Update the relevant screen via the `pencil` MCP server, then translate to React.
+Any change to the web dashboard's visual surface starts in **`design.pen`** (Pencil), not in code. Update the relevant screen via the `pencil` MCP server, then translate to React. The same applies to the public website's screens in **`website/website.pen`** — see `website/CLAUDE.md`/`AGENTS.md` for that repo's specifics.
 
-- *Why:* `design.pen` holds 18 designed screens that are the source of truth. Code-led redesigns get reverted.
+- *Why:* `design.pen` holds the designed screens that are the source of truth. Code-led redesigns get reverted.
 - *How:* `mcp__pencil__open_document` → `mcp__pencil__get_editor_state` → edit the relevant frame → translate to React.
 - Backend, API, and operator changes do **not** need a Pencil pass.
+
+**Re-export after every design edit.** Any change to `design.pen` or `website.pen` — a new screen, or an edit to an existing one — MUST be followed, in the same change, by re-exporting the touched object(s) via the `pencil` MCP server: a JSON dump (`mcp__pencil__execute` running `Get("<id>", {depth: N})`, written to `design-export/json/<id>.json`) and a screenshot (`mcp__pencil__export_nodes`, written to `design-export/screenshots/<id>.png`). Website screens use the mirrored `website/website-export/json/` and `website/website-export/screenshots/` directories. Only the touched objects need re-exporting — this is an incremental update, not a full re-run of every screen.
+
+- *Why:* `design-export/` (see `design-export/MANIFEST.md`) is a plain-file snapshot of the Pencil source kept in git so anyone — human or agent — can browse the current design without opening Pencil or fighting the MCP server's whole-document walker (see rule 2's note on `Get(document, ...)` being unreliable). A stale export is worse than no export: it silently misleads.
+- **Don't:** consider a design edit finished once Pencil is saved — the export update is part of the same unit of work, not a follow-up task.
+- **Do:** re-export only what changed (the added/edited node IDs), not the whole file, unless the edit renamed/restructured enough nodes that staleness elsewhere is likely.
 
 ### 2. Never hand-edit or delete `.pen` files
 
