@@ -43,7 +43,7 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 - [X] T006 Modify `.github/workflows/ci.yaml`: add a NEW step for e2e build tags with condition `if: matrix.module == 'test/e2e'` and args `--build-tags=e2e`
 - [X] T007 Modify `.github/workflows/ci.yaml`: delete the exclusion comment at lines 177-178 that lists api, agent, test/e2e as pending cleanup
 - [X] T008 Push the branch with the matrix changes (no fixes yet). The CI lint job will run RED, reporting the baseline finding count across all three modules. This red run is intentional and is the measurement step per research.md Decision 3.
-- [ ] T009 Retrieve the finding lists from the red CI run using the exact recipe: `gh api repos/ValgulNecron/Gameplane/actions/runs/<run_id>/jobs --jq '.jobs[] | select(.name|test("lint")) | [.id,.name,.conclusion] | @tsv'` then `gh api repos/ValgulNecron/Gameplane/actions/jobs/<job_id>/logs`. Record the finding counts per module (api, agent, test/e2e) and note that this is the baseline; no local grep or lint run is performed (Constitution VI).
+- [X] T009 Retrieve the finding lists from the red CI run using the exact recipe: `gh api repos/ValgulNecron/Gameplane/actions/runs/<run_id>/jobs --jq '.jobs[] | select(.name|test("lint")) | [.id,.name,.conclusion] | @tsv'` then `gh api repos/ValgulNecron/Gameplane/actions/jobs/<job_id>/logs`. Record the finding counts per module (api, agent, test/e2e) and note that this is the baseline; no local grep or lint run is performed (Constitution VI).
 
 **Checkpoint**: Matrix enablement landed, first CI run is RED with baseline finding counts recorded. Fix work can now fan out per-package. The branch will be red during phases 3-5; this is expected and honest.
 
