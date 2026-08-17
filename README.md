@@ -159,12 +159,12 @@ credential on your behalf.
 │    Sentinel pods, and Tunnel pods                              │
 └────────────────────────────────────────────────────────────────┘
         │                            │                        │
-┌───────┴───────────────┐ ┌──────────┴──────────┐ ┌───────────┴──────────┐
-│ GameServer pod:       │ │ Sentinel pod:       │ │ Tunnel pod:          │
-│ ├── game container    │ │ └── daemon (Go):    │ │ └── supervisor (Go): │
-│ └── agent sidecar     │ │     wake-on-connect │ │     frp / Tailscale  │
+┌───────┴───────────────┐ ┌──────────┴───────────┐ ┌───────────┴──────────┐
+│ GameServer pod:       │ │ Sentinel pod:        │ │ Tunnel pod:          │
+│ ├── game container    │ │ └── daemon (Go):     │ │ └── supervisor (Go): │
+│ └── agent sidecar     │ │     wake-on-connect  │ │     frp / Tailscale  │
 │     (Go): RCON, files │ │     protocol listener│ │     / playit relay   │
-└───────────────────────┘ └─────────────────────┘ └──────────────────────┘
+└───────────────────────┘ └──────────────────────┘ └──────────────────────┘
 ```
 
 ### Components
