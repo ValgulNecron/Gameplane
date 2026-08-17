@@ -1,3 +1,6 @@
+// Package main implements a hand-rolled join-depth probe for ARK: Survival
+// Ascended, used by the e2e suite to measure how far a real client can get
+// against a running server (RCON port TCP connectivity only).
 package main
 
 import (
@@ -125,7 +128,7 @@ func probeARK(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 		cancel()
 
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			log.Printf("connectivity-probe: successfully connected to RCON port (TCP 27020)")
 			return &joindepth.ProbeVerdict{
 				ReachedDepth: joindepth.QUERY,
@@ -149,4 +152,3 @@ func probeARK(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 		}
 	}
 }
-
