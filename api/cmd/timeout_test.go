@@ -44,7 +44,7 @@ func TestIsStreamingRequest(t *testing.T) {
 func TestRequestTimeout_NormalRequestCarriesDeadline(t *testing.T) {
 	mw := requestTimeout(30 * time.Second)
 	var sawDeadline bool
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		_, sawDeadline = r.Context().Deadline()
 	}))
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/servers/alpha", nil)
@@ -59,7 +59,7 @@ func TestRequestTimeout_NormalRequestCarriesDeadline(t *testing.T) {
 // middleware.Timeout would produce.
 func TestRequestTimeout_NormalRequestExpires(t *testing.T) {
 	mw := requestTimeout(10 * time.Millisecond)
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
@@ -93,7 +93,7 @@ func TestRequestTimeout_StreamingRequestHasNoDeadline(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mw := requestTimeout(10 * time.Millisecond)
 			var hasDeadline bool
-			h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				_, hasDeadline = r.Context().Deadline()
 			}))
 			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
@@ -114,7 +114,7 @@ func TestRequestTimeout_StreamingRequestHasNoDeadline(t *testing.T) {
 // connections killed every 60s).
 func TestRequestTimeout_StreamingRequestOutlivesTimeout(t *testing.T) {
 	mw := requestTimeout(10 * time.Millisecond)
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond) // well past the configured deadline
 		w.WriteHeader(http.StatusOK)
 	}))
