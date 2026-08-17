@@ -1,0 +1,1 @@
+{"type":"frame","id":"c:W4YFH","x":200,"y":3166,"name":"Progress","reusable":true,"clip":true,"width":360,"height":16,"fill":"$c:--secondary","cornerRadius":"$c:--radius-pill","layout":"none","children":[{"type":"rectangle","id":"c:qQ5Qx","x":0,"y":0,"name":"Progress","fill":"$c:--primary","width":180,"height":16}]}
