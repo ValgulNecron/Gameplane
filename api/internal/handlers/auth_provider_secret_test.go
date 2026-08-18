@@ -28,7 +28,7 @@ func providerSecretRouter(secrets ...runtime.Object) (chi.Router, *kube.Client) 
 
 func putProviderSecret(h http.Handler, name string, body any) *httptest.ResponseRecorder {
 	b, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/admin/auth/providers/"+name+"/secret", bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/admin/auth/providers/"+name+"/secret", bytes.NewReader(b))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
@@ -94,7 +94,7 @@ func TestProviderSecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 	}
 
 	del := func(name string) int {
-		req := httptest.NewRequest(http.MethodDelete, "/admin/auth/providers/"+name+"/secret", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/admin/auth/providers/"+name+"/secret", nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		return rr.Code

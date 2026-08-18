@@ -114,7 +114,7 @@ func TestRequestTimeout_StreamingRequestHasNoDeadline(t *testing.T) {
 // connections killed every 60s).
 func TestRequestTimeout_StreamingRequestOutlivesTimeout(t *testing.T) {
 	mw := requestTimeout(10 * time.Millisecond)
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(50 * time.Millisecond) // well past the configured deadline
 		w.WriteHeader(http.StatusOK)
 	}))

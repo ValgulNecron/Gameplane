@@ -62,7 +62,7 @@ func TestClusterActions_DisabledReturns501(t *testing.T) {
 
 	for _, path := range []string{"/cluster/nodes:join", "/cluster/kubeconfig"} {
 		rr := httptest.NewRecorder()
-		r.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, path, nil))
+		r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodPost, path, nil))
 		if rr.Code != http.StatusNotImplemented {
 			t.Fatalf("%s: status = %d, want 501 when clusterOps disabled", path, rr.Code)
 		}
@@ -75,7 +75,7 @@ func TestClusterActions_AddNodeCreatesBootstrapToken(t *testing.T) {
 	MountClusterActions(r, k, true)
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/cluster/nodes:join", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/cluster/nodes:join", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}

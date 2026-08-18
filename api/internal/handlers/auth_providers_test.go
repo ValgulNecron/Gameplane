@@ -40,7 +40,7 @@ func seedAuthConfig(t *testing.T, store *db.Store, blob string) {
 func getProviders(t *testing.T, reg *auth.Registry) (loginProvidersResp, string) {
 	t.Helper()
 	rr := httptest.NewRecorder()
-	AuthProvidersHandler(reg)(rr, httptest.NewRequest(http.MethodGet, "/auth/providers", nil))
+	AuthProvidersHandler(reg)(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/auth/providers", nil))
 	var resp loginProvidersResp
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)

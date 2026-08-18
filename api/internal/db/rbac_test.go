@@ -20,7 +20,7 @@ func newRBACStore(t *testing.T) *Store {
 
 func insertUser(t *testing.T, s *Store, username, role string) int64 {
 	t.Helper()
-	res, err := s.DB.Exec(`INSERT INTO users(username, role) VALUES (?, ?)`, username, role)
+	res, err := s.DB.ExecContext(context.Background(), `INSERT INTO users(username, role) VALUES (?, ?)`, username, role)
 	if err != nil {
 		t.Fatalf("insert user %q: %v", username, err)
 	}
@@ -34,7 +34,7 @@ func insertUser(t *testing.T, s *Store, username, role string) int64 {
 func assertBindingCluster(t *testing.T, s *Store, uid int64, cluster, ns, wantRole string) {
 	t.Helper()
 	var got string
-	err := s.DB.QueryRow(
+	err := s.DB.QueryRowContext(context.Background(),
 		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`, uid, cluster, ns).Scan(&got)
 	if err != nil {
 		t.Fatalf("binding for cluster=%q ns=%q missing: %v", cluster, ns, err)
@@ -50,7 +50,7 @@ func TestSetClusterRoleBinding(t *testing.T) {
 	uid := insertUser(t, s, "alice", "viewer")
 
 	// A pre-existing per-namespace binding must survive cluster repointing.
-	if _, err := s.DB.Exec(
+	if _, err := s.DB.ExecContext(ctx,
 		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, 'operator', 'local', 'team-a')`, uid); err != nil {
 		t.Fatalf("seed ns binding: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestSetClusterRoleBinding(t *testing.T) {
 	assertBindingCluster(t, s, uid, "local", "*", "admin")
 
 	var nStar int
-	if err := s.DB.QueryRow(
+	if err := s.DB.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = '*'`, uid, "local").Scan(&nStar); err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestDeleteUserBindings(t *testing.T) {
 	ctx := context.Background()
 	uid := insertUser(t, s, "carol", "operator")
 	for _, b := range []struct{ cluster, role, ns string }{{"local", "operator", "*"}, {"local", "viewer", "team-a"}} {
-		if _, err := s.DB.Exec(
+		if _, err := s.DB.ExecContext(ctx,
 			`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
 			uid, b.role, b.cluster, b.ns); err != nil {
 			t.Fatalf("seed binding: %v", err)
@@ -111,7 +111,7 @@ func TestDeleteUserBindings(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 	var n int
-	if err := s.DB.QueryRow(
+	if err := s.DB.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ?`, uid).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}

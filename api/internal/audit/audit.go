@@ -581,7 +581,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			actor := "anonymous"
 			if name := holder.Name(); name != "" {
 				actor = name
-			} else if u := auth.UserFromContext(req.Context()); u != nil && u.Username != "" {
+			} else if u := auth.UserFromContext(ctx); u != nil && u.Username != "" {
 				// Fallback for callers that put the user directly on this
 				// context instead of via the actor holder. In the normal
 				// chain Authenticate fills the holder, so this never overrides
@@ -597,7 +597,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			// Extract the client IP from context (set by ClientIPFromXFF middleware).
 			// Fall back to the host portion of RemoteAddr if not set, so audit
 			// records stay consistent when the middleware is absent (e.g., in tests).
-			clientIP := middleware.GetClientIP(req.Context())
+			clientIP := middleware.GetClientIP(ctx)
 			if clientIP == "" {
 				// Fallback: extract host from RemoteAddr. net.SplitHostPort handles
 				// both IPv4:port and [IPv6]:port forms correctly; for bare addresses
@@ -617,7 +617,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 
 			// WithoutCancel: the audit write must survive the request context being
 			// cancelled, or a client disconnect would silently punch a hole in the trail.
-			if err := a.insertChained(context.WithoutCancel(req.Context()), ts, actor, req.Method, path, target, rw.status, clientIP); err != nil {
+			if err := a.insertChained(context.WithoutCancel(ctx), ts, actor, req.Method, path, target, rw.status, clientIP); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",

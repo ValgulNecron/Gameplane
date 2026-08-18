@@ -25,7 +25,7 @@ func newShareLinksStore(t *testing.T) *Store {
 
 func insertTestUser(t *testing.T, s *Store, username string) int64 {
 	t.Helper()
-	res, err := s.DB.Exec(`INSERT INTO users(username, role) VALUES (?, ?)`, username, "admin")
+	res, err := s.DB.ExecContext(context.Background(), `INSERT INTO users(username, role) VALUES (?, ?)`, username, "admin")
 	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestLookupShareLink_RawTokenNotStored(t *testing.T) {
 
 	// Query the raw row to verify the token_hash is a hash, not the token itself.
 	var tokenHash string
-	err = s.DB.QueryRow(`SELECT token_hash FROM share_links LIMIT 1`).Scan(&tokenHash)
+	err = s.DB.QueryRowContext(context.Background(), `SELECT token_hash FROM share_links LIMIT 1`).Scan(&tokenHash)
 	if err != nil {
 		t.Fatalf("query token_hash: %v", err)
 	}
@@ -412,7 +412,7 @@ func TestTouchShareLink_Updates_LastUsed(t *testing.T) {
 
 	// Initially last_used must be NULL.
 	var lastUsedStr sql.NullString
-	err = s.DB.QueryRow(`SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedStr)
+	err = s.DB.QueryRowContext(context.Background(), `SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedStr)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestTouchShareLink_Updates_LastUsed(t *testing.T) {
 	}
 
 	// Now last_used should be set.
-	err = s.DB.QueryRow(`SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedStr)
+	err = s.DB.QueryRowContext(context.Background(), `SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedStr)
 	if err != nil {
 		t.Fatalf("query after touch: %v", err)
 	}
@@ -461,7 +461,7 @@ func TestLookupShareLink_DoesNotUpdateLastUsed(t *testing.T) {
 
 	// Initially last_used must be NULL.
 	var lastUsedBefore sql.NullString
-	err = s.DB.QueryRow(`SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedBefore)
+	err = s.DB.QueryRowContext(context.Background(), `SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedBefore)
 	if err != nil {
 		t.Fatalf("query before: %v", err)
 	}
@@ -477,7 +477,7 @@ func TestLookupShareLink_DoesNotUpdateLastUsed(t *testing.T) {
 
 	// last_used should still be NULL (lookup is a pure read).
 	var lastUsedAfter sql.NullString
-	err = s.DB.QueryRow(`SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedAfter)
+	err = s.DB.QueryRowContext(context.Background(), `SELECT last_used FROM share_links WHERE id = ?`, link.ID).Scan(&lastUsedAfter)
 	if err != nil {
 		t.Fatalf("query after: %v", err)
 	}
@@ -505,7 +505,7 @@ func TestRevokeShareLink_Success(t *testing.T) {
 
 	// Verify revoked_at is now set.
 	var revokedAtStr sql.NullString
-	err = s.DB.QueryRow(`SELECT revoked_at FROM share_links WHERE id = ?`, link.ID).Scan(&revokedAtStr)
+	err = s.DB.QueryRowContext(context.Background(), `SELECT revoked_at FROM share_links WHERE id = ?`, link.ID).Scan(&revokedAtStr)
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
