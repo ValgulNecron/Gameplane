@@ -129,23 +129,24 @@ func (s *WebhookSink) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.drain()
+			s.drain(ctx)
 			return
 		case e := <-s.ch:
-			s.post(e)
+			s.post(ctx, e)
 		}
 	}
 }
 
 // drain ships already-buffered events on shutdown, bounded by a short deadline
 // so a wedged endpoint can't stall process exit.
-func (s *WebhookSink) drain() {
-	deadline := time.After(2 * time.Second)
+func (s *WebhookSink) drain(ctx context.Context) {
+	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
 	for {
 		select {
 		case e := <-s.ch:
-			s.post(e)
-		case <-deadline:
+			s.post(drainCtx, e)
+		case <-drainCtx.Done():
 			return
 		default:
 			return
@@ -153,13 +154,12 @@ func (s *WebhookSink) drain() {
 	}
 }
 
-// post delivers one event. It deliberately uses a detached context (background,
-// bounded by the client's own timeout) rather than the worker's lifecycle
-// context: at shutdown the select in Start can still pick a buffered event
-// after ctx is cancelled, and a cancelled context would fail that delivery even
-// though the event could have been shipped. The client timeout still bounds each
-// attempt.
-func (s *WebhookSink) post(e Event) {
+// post delivers one event. It uses context.WithoutCancel to detach from the
+// worker's lifecycle context: at shutdown the select in Start can still pick a
+// buffered event after ctx is cancelled, and a cancelled context would fail
+// that delivery even though the event could have been shipped. The client
+// timeout still bounds each attempt.
+func (s *WebhookSink) post(ctx context.Context, e Event) {
 	body, err := json.Marshal(webhookPayload{
 		TS: e.TS, Actor: e.Actor, Method: e.Method, Path: e.Path,
 		Target: e.Target, Status: e.Status, IP: e.IP,
@@ -169,7 +169,7 @@ func (s *WebhookSink) post(e Event) {
 		slog.Warn("audit webhook marshal failed", "err", err)
 		return
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.WithoutCancel(ctx), http.MethodPost, s.url, bytes.NewReader(body))
 	if err != nil {
 		webhookEvents.WithLabelValues("failed").Inc()
 		slog.Warn("audit webhook build request failed", "err", err)
