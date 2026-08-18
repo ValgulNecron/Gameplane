@@ -33,7 +33,7 @@ func TestRejectRemoteCluster_TableDriven(t *testing.T) {
 				called = true
 				w.WriteHeader(http.StatusOK)
 			})
-			req := httptest.NewRequest(http.MethodGet, "/servers/alpha/status"+tc.query, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/servers/alpha/status"+tc.query, nil)
 			rr := httptest.NewRecorder()
 			h(rr, req)
 			if called != tc.wantCalled {
@@ -65,7 +65,7 @@ func TestMount_RejectsNonLocalCluster(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(tc.method, tc.path+"?cluster=remote-1", nil)
+		req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path+"?cluster=remote-1", nil)
 		r.ServeHTTP(rr, req)
 		if rr.Code != http.StatusNotFound {
 			t.Errorf("%s %s?cluster=remote-1: got %d, want 404", tc.method, tc.path, rr.Code)
@@ -82,7 +82,7 @@ func TestMount_LocalClusterStillReachesHandler(t *testing.T) {
 	Mount(r, nil, "", "", "")
 	for _, q := range []string{"", "?cluster=local"} {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/servers/alpha/status"+q, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/servers/alpha/status"+q, nil)
 		r.ServeHTTP(rr, req)
 		if rr.Code != http.StatusServiceUnavailable {
 			t.Errorf("query=%q: got %d, want 503 (reached the proxy handler)", q, rr.Code)
@@ -98,7 +98,7 @@ func TestMountAttach_RejectsNonLocalCluster(t *testing.T) {
 	r := chi.NewRouter()
 	mountAttach(r, &kube.Client{})
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/ws/servers/alpha/console-pty?cluster=remote-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/console-pty?cluster=remote-1", nil)
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("got %d, want 404", rr.Code)
@@ -113,7 +113,7 @@ func TestMountAttach_LocalClusterReachesHandler(t *testing.T) {
 	r := chi.NewRouter()
 	mountAttach(r, &kube.Client{})
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/ws/servers/alpha/console-pty", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/console-pty", nil)
 	r.ServeHTTP(rr, req)
 	if rr.Code == http.StatusNotFound {
 		t.Fatal("got 404, guard should have passed an absent cluster selector through to the handler")
@@ -126,7 +126,7 @@ func TestMountPodLogs_RejectsNonLocalCluster(t *testing.T) {
 	r := chi.NewRouter()
 	mountPodLogs(r, &kube.Client{})
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/ws/servers/alpha/logs/pod?cluster=remote-1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/logs/pod?cluster=remote-1", nil)
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("got %d, want 404", rr.Code)
@@ -139,7 +139,7 @@ func TestMountPodLogs_LocalClusterReachesHandler(t *testing.T) {
 	r := chi.NewRouter()
 	mountPodLogs(r, &kube.Client{})
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/ws/servers/alpha/logs/pod", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/servers/alpha/logs/pod", nil)
 	r.ServeHTTP(rr, req)
 	if rr.Code == http.StatusNotFound {
 		t.Fatal("got 404, guard should have passed an absent cluster selector through to the handler")

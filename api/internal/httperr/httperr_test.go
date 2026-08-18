@@ -1,6 +1,7 @@
 package httperr
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 )
 
 func newReq() *http.Request {
-	return httptest.NewRequest("GET", "/x", nil)
+	return httptest.NewRequestWithContext(context.Background(), "GET", "/x", nil)
 }
 
 // TestWriteCode_5xxNeverEchoesErr is the B1 defence-in-depth regression

@@ -63,7 +63,7 @@ func TestRegistrySecret_UnknownProviderRejected(t *testing.T) {
 		t.Fatalf("status = %d body=%s, want 400", rr.Code, rr.Body)
 	}
 
-	req := httptest.NewRequest(http.MethodDelete, "/admin/registries/modrinth/secret", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/admin/registries/modrinth/secret", nil)
 	rr2 := httptest.NewRecorder()
 	r.ServeHTTP(rr2, req)
 	if rr2.Code != http.StatusBadRequest {
@@ -101,7 +101,7 @@ func TestRegistrySecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 	}
 
 	del := func(provider string) int {
-		req := httptest.NewRequest(http.MethodDelete, "/admin/registries/"+provider+"/secret", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/admin/registries/"+provider+"/secret", nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		return rr.Code
@@ -134,7 +134,7 @@ func TestRegistrySecret_NeverLeaksIntoConfig(t *testing.T) {
 	MountConfig(configRouter, store, false)
 
 	body := bytes.NewReader([]byte(`{"registries":[{"provider":"curseforge","configRef":"gameplane-modreg-curseforge"}]}`))
-	req := httptest.NewRequest(http.MethodPut, "/admin/config/modRegistries", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/admin/config/modRegistries", body)
 	rr := httptest.NewRecorder()
 	configRouter.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
@@ -144,7 +144,7 @@ func TestRegistrySecret_NeverLeaksIntoConfig(t *testing.T) {
 		t.Fatalf("config PUT response mentions apiKey: %s", rr.Body)
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	getReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/config", nil)
 	getRR := httptest.NewRecorder()
 	configRouter.ServeHTTP(getRR, getReq)
 	if strings.Contains(getRR.Body.String(), "apiKey") || strings.Contains(getRR.Body.String(), "s3cret") {
