@@ -54,7 +54,7 @@ func seedUser(t *testing.T, store *db.Store, username, role, password string) in
 		}
 		hash = h
 	}
-	res, err := store.DB.ExecContext(context.Background(),
+	res, err := store.DB.ExecContext(t.Context(),
 		`INSERT INTO users(username, display_name, email, role, pw_hash) VALUES (?,?,?,?,?)`,
 		username, username, username+"@example.com", role, hash)
 	if err != nil {
