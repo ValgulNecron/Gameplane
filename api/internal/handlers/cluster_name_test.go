@@ -18,7 +18,7 @@ func clusterInfoName(t *testing.T, generalJSON string) string {
 	t.Helper()
 	store := newTestStore(t)
 	if generalJSON != "" {
-		if _, err := store.DB.ExecContext(context.Background(), `INSERT INTO config(key, value) VALUES ('general', ?)`, generalJSON); err != nil {
+		if _, err := store.DB.Exec(`INSERT INTO config(key, value) VALUES ('general', ?)`, generalJSON); err != nil {
 			t.Fatalf("seed config: %v", err)
 		}
 	}
@@ -26,7 +26,7 @@ func clusterInfoName(t *testing.T, generalJSON string) string {
 	r := chi.NewRouter()
 	MountCluster(r, k, store, "v1", false, "")
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster/info", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}

@@ -202,7 +202,7 @@ func TestConfig_GetSkipsUnknownSections(t *testing.T) {
 	// Insert a row with a key the API doesn't expose anymore (e.g. a
 	// removed section). GET should skip it rather than return it as
 	// json.RawMessage.
-	_, err := store.DB.ExecContext(context.Background(), `INSERT INTO config(key, value) VALUES('legacy', '{"foo":1}')`)
+	_, err := store.DB.Exec(`INSERT INTO config(key, value) VALUES('legacy', '{"foo":1}')`)
 	if err != nil {
 		t.Fatalf("insert legacy: %v", err)
 	}

@@ -67,7 +67,7 @@ func TestCluster_View(t *testing.T) {
 	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}
@@ -110,7 +110,7 @@ func TestCluster_Stats(t *testing.T) {
 	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster/stats", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/stats", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}
@@ -171,7 +171,7 @@ func TestCluster_Info_NilStore(t *testing.T) {
 	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster/info", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d", rr.Code)
 	}
@@ -204,7 +204,7 @@ func TestCluster_Info_ReportsClusterOpsAndChannel(t *testing.T) {
 	MountCluster(r, k, nil, "v9.9.9-test", true, "edge")
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster/info", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d", rr.Code)
 	}
@@ -272,7 +272,7 @@ func TestCluster_View_MetricsAvailable(t *testing.T) {
 	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}
@@ -316,7 +316,7 @@ func TestCluster_View_MetricsAbsent(t *testing.T) {
 	MountCluster(r, k, nil, "v9.9.9-test", false, "")
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/cluster", nil))
+	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}

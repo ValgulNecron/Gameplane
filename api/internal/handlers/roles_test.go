@@ -104,7 +104,7 @@ func TestRoles_CreateAndDelete(t *testing.T) {
 		t.Fatalf("delete want 204 got %d body=%s", status, body)
 	}
 	var n int
-	_ = store.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM role_permissions WHERE role_name='support'`).Scan(&n)
+	_ = store.DB.QueryRow(`SELECT COUNT(*) FROM role_permissions WHERE role_name='support'`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("permission rows not cleaned up: %d", n)
 	}
@@ -166,11 +166,11 @@ func TestRoles_OperatorEditable(t *testing.T) {
 
 func TestRoles_UpdateDescriptionOnly(t *testing.T) {
 	srv, store := newRolesServer(t)
-	if _, err := store.DB.ExecContext(context.Background(), 
+	if _, err := store.DB.Exec(
 		`INSERT INTO roles(name, builtin, description) VALUES ('support', 0, 'old')`); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if _, err := store.DB.ExecContext(context.Background(), 
+	if _, err := store.DB.Exec(
 		`INSERT INTO role_permissions(role_name, permission) VALUES ('support', 'servers:read')`); err != nil {
 		t.Fatalf("seed perm: %v", err)
 	}
@@ -221,11 +221,11 @@ func TestRoles_DeleteBuiltinRejected(t *testing.T) {
 
 func TestRoles_DeleteInUseRejected(t *testing.T) {
 	srv, store := newRolesServer(t)
-	if _, err := store.DB.ExecContext(context.Background(), `INSERT INTO roles(name, builtin) VALUES ('support', 0)`); err != nil {
+	if _, err := store.DB.Exec(`INSERT INTO roles(name, builtin) VALUES ('support', 0)`); err != nil {
 		t.Fatalf("seed role: %v", err)
 	}
 	uid := seedUser(t, store, "kim", "viewer", "longenoughpw1")
-	if _, err := store.DB.ExecContext(context.Background(), 
+	if _, err := store.DB.Exec(
 		`INSERT INTO user_role_bindings(user_id, role_name, namespace) VALUES (?, 'support', 'team-a')`, uid); err != nil {
 		t.Fatalf("seed binding: %v", err)
 	}
