@@ -41,6 +41,7 @@ const (
 	// moduleFileMode is the file permission for extracted mod files. Must be
 	// 0o644 (owner rw, group+world r) because the mods volume is shared with
 	// the game container, which runs as a different uid and must read the files.
+	// The gosec G302 finding for this file is scoped in .golangci.yml.
 	moduleFileMode = 0o644
 )
 
