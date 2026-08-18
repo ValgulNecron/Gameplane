@@ -915,7 +915,7 @@ jobs:
               'e2e-game-bot': (n) => n === 'e2e game bot (kind)',
             };
 
-            let passed = 0, failed = 0, skipped = 0;
+            let passed = 0, failed = 0, skipped = 0, cancelled = 0;
             const failingRows = [];
             for (const key of NEEDS_ORDER) {
               const entry = needs[key];
@@ -924,6 +924,8 @@ jobs:
                 passed++;
               } else if (result === 'skipped') {
                 skipped++;
+              } else if (result === 'cancelled') {
+                cancelled++;
               } else {
                 failed++;
                 const matcher = JOB_MATCHERS[key];
@@ -1062,7 +1064,8 @@ jobs:
             let md = '';
             md += '<!-- ci-report -->\n';
             md += '## CI Report - ' + SHORT + '\n';
-            md += '**' + failed + ' failed - ' + passed + ' passed - ' + skipped + ' skipped - ' + elapsed + ' elapsed**\n\n';
+            const cancelledSeg = cancelled > 0 ? cancelled + ' cancelled - ' : '';
+            md += '**' + failed + ' failed - ' + passed + ' passed - ' + skipped + ' skipped - ' + cancelledSeg + elapsed + ' elapsed**\n\n';
 
             if (failed > 0) {
               md += '### Failing\n\n| Job | Log |\n| --- | --- |\n';
@@ -1155,12 +1158,12 @@ jobs:
             exit 0
           fi
           EXISTING_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-            -q '.[] | select(.body | startswith("<!-- ci-report -->")) | .id' 2>/tmp/find.err | tail -n1)
+            -q '.[] | select((.body // "") | startswith("<!-- ci-report -->")) | .id' 2>/tmp/find.err | tail -n1)
           if [ -n "$EXISTING_ID" ]; then
-            gh api --method PATCH "repos/$REPO/issues/comments/$EXISTING_ID" -f body=@/tmp/report.md >/tmp/patch.out 2>/tmp/patch.err
+            gh api --method PATCH "repos/$REPO/issues/comments/$EXISTING_ID" -F body=@/tmp/report.md >/tmp/patch.out 2>/tmp/patch.err
             RC=$?
           else
-            gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -f body=@/tmp/report.md >/tmp/post.out 2>/tmp/post.err
+            gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@/tmp/report.md >/tmp/post.out 2>/tmp/post.err
             RC=$?
           fi
           if [ "$RC" -ne 0 ]; then
