@@ -170,8 +170,8 @@ These are the eight authorized exclusions currently in `.golangci.yml`. All othe
 | **Path Pattern** | `(^|/)internal/ws/dialer\.go$` (any path ending in `internal/ws/dialer.go`) |
 | **Linters Affected** | `gosec` |
 | **Text Matcher** | `"G704"` (gosec's URL-construction-from-request-data check) |
-| **Justification** (from config) | "The ws and http proxy handlers take a namespace and pod name from the request path and build an upstream URL from them. Both are validated as DNS-1123 labels first and the URL is assembled with url.URL, but gosec's taint analysis does not model a custom validator as a sanitiser." |
-| **Rationale** | The agent-proxy handlers extract `namespace` and `pod` from the incoming request path, validate each as a DNS-1123 label before use, and then build the upstream URL with `url.URL` (not string concatenation). gosec's taint analysis flags any request-derived value reaching a URL construction, regardless of intervening validation, because it does not recognize the project's validator function as a sanitizing boundary. |
+| **Justification** (from config) | "The ws and http proxy handlers take a namespace and pod name from the request path and build an upstream URL from them. Both are validated as DNS-1123 labels first — before either handler assembles its URL — but gosec's taint analysis does not model a custom validator as a sanitiser." |
+| **Rationale** | The agent-proxy handlers extract `namespace` and `pod` from the incoming request path and validate each as a DNS-1123 label before either handler builds its upstream URL — `httpProxyLimit` assembles it with `url.URL`, while `wsProxy` concatenates the string directly, so the two paths differ in how the URL is built but not in whether it is validated first. A request that fails the DNS-1123 check is rejected with 400 before any URL construction runs. gosec's taint analysis flags any request-derived value reaching a URL construction, regardless of intervening validation, because it does not recognize the project's validator function as a sanitizing boundary. |
 | **Why Authorized** | Narrow scope (only `internal/ws/dialer.go`). Text matcher narrows further (only `G704` findings). The validation step is real and enforced before the flagged construction. |
 | **Abuse Risk** | Low, because the scope is file-specific and the validator is exercised by tests; a contributor could not use this exclusion to skip validating other request-derived values elsewhere. |
 
@@ -203,13 +203,13 @@ These are the eight authorized exclusions currently in `.golangci.yml`. All othe
 
 | Aspect | Value |
 |--------|-------|
-| **Path Pattern** | `(^|/)env\.go$` (any path ending in `env.go`, scoped to `test/e2e`) |
+| **Path Pattern** | `(^|/)env\.go$` — matches any file named `env.go` at any depth. Today that is two files: `test/e2e/env.go` (the intended target) and `svcutil/env.go` (matched incidentally, since it shares the filename). The pattern is written by shape, not by directory, so it is wider than the `test/e2e`-only intent. |
 | **Linters Affected** | `gosec` |
 | **Text Matcher** | `"G204"` (gosec's subprocess-with-variable-arguments check) |
 | **Justification** (from config) | "The Kubectl/KubectlWithStdin/port-forward helpers exist to run kubectl with caller-supplied arguments; the args come from the suite's own test code and the helper rejects shell metacharacters ahead of the -- separator, which gosec cannot see." |
 | **Rationale** | The e2e suite's `Kubectl`, `KubectlWithStdin`, and port-forward helpers exec `kubectl` with arguments supplied by test code within the same repository (never external input), and the helper itself rejects shell metacharacters before the `--` separator. gosec flags any `exec.Command` call built from a variable argument slice, regardless of that in-process validation, because it cannot trace the rejection logic as a sanitizing boundary. |
-| **Why Authorized** | Narrow scope (only `env.go` in `test/e2e`). Text matcher narrows further (only `G204` findings). Callers are exclusively the suite's own tests, never untrusted input, and the helper validates its own arguments. |
-| **Abuse Risk** | Low, because the scope is a test-only helper invoked exclusively by trusted, in-repo test code, and it is not reachable from production binaries. |
+| **Why Authorized** | Text matcher narrows scope (only `G204` findings). Callers are exclusively the suite's own tests, never untrusted input, and the helper validates its own arguments. The pattern's incidental match on `svcutil/env.go` is inert today — that file imports only `log/slog`, `os`, `strconv`, and `strings`, none of which reach `exec.Command`, so G204 cannot fire there — but this exclusion should not be read as scoped to `test/e2e`; it silences G204 in every present and future file literally named `env.go`. A follow-up could narrow the pattern to `(^|/)test/e2e/env\.go$`, or rename the e2e helper file to something unique, so the exclusion's scope matches its intent. |
+| **Abuse Risk** | Low today, because the only other matching file (`svcutil/env.go`) has no code path that reaches `exec.Command`. Not zero going forward: any future file named `env.go` anywhere in the repo — including a new one added to `svcutil` or another shared module — would silently inherit this G204 exemption without review. |
 
 ### Exclusion #8: Satisfactory HTTPS Probe with Self-Signed Cert
 
@@ -221,13 +221,13 @@ These are the eight authorized exclusions currently in `.golangci.yml`. All othe
 
 | Aspect | Value |
 |--------|-------|
-| **Path Pattern** | `(^|/)internal/satisfactory/app\.go$` (any path ending in `internal/satisfactory/app.go`, scoped to `test/e2e`) |
+| **Path Pattern** | `(^|/)internal/satisfactory/app\.go$` — matches any file at path `internal/satisfactory/app.go` regardless of module root. Today exactly one file matches: `test/e2e/internal/satisfactory/app.go`. Like Exclusion #7's pattern, this is written by shape rather than pinned to `test/e2e/`, so it would also match a same-named file introduced under a different module root. |
 | **Linters Affected** | `gosec` |
 | **Text Matcher** | `"G402"` (gosec's TLS `InsecureSkipVerify`/weak-config check) |
 | **Justification** (from config) | "The probe dials the game server's HTTPS API over a pod-local address; the server generates a self-signed cert at first boot so there is nothing to pin, and the connection never leaves the pod network." |
 | **Rationale** | The Satisfactory e2e probe connects to the game server's HTTPS management API using a pod-local address inside the test cluster. The server generates a self-signed certificate on first boot with no stable fingerprint to pin ahead of time, and the connection is confined to the pod network (never traverses an untrusted path), so there is no practical MITM surface for the test to defend against. |
-| **Why Authorized** | Narrow scope (only `internal/satisfactory/app.go` in `test/e2e`). Text matcher narrows further (only `G402` findings). The probe never runs against production traffic and never leaves the pod network. |
-| **Abuse Risk** | Low, because the scope is a single e2e probe file exercising a test-only, pod-local connection, not any production TLS client. |
+| **Why Authorized** | Text matcher narrows scope (only `G402` findings). The probe never runs against production traffic and never leaves the pod network. As with Exclusion #7, the pattern's scope is broader than the single file it happens to match today — a follow-up could narrow it to `(^|/)test/e2e/internal/satisfactory/app\.go$` to make the intended `test/e2e` scoping explicit in the pattern itself rather than only in this document. |
+| **Abuse Risk** | Low today, since only one file matches and it is test-only, exercising a pod-local connection rather than any production TLS client. Not zero going forward: a same-named `internal/satisfactory/app.go` added under a different module root would silently inherit this G402 exemption without review. |
 
 ---
 
