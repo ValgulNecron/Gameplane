@@ -244,6 +244,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	count := 0
+	foundAnyPart := false
 	for {
 		part, err := mr.NextPart()
 		// NextPart returns io.EOF directly at the closing boundary,
@@ -256,6 +257,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			h.badRequest(w, err)
 			return
 		}
+		foundAnyPart = true
 		if part.FileName() == "" {
 			// A plain form field, not an attachment: nothing to store.
 			_ = part.Close()
@@ -273,6 +275,11 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			httpErr(w, saveErr)
 			return
 		}
+	}
+	// If ContentLength > 0 but we didn't find any parts, the multipart body is malformed
+	if !foundAnyPart && req.ContentLength > 0 {
+		h.badRequest(w, errors.New("malformed multipart body"))
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
