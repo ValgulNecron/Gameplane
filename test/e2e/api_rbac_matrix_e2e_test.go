@@ -27,7 +27,10 @@ func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
 
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-rbac-vmatrix")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + viewerID)
+		r, _, _ := admin.Delete("/users/" + viewerID)
+		if r != nil {
+			_ = r.Body.Close()
+		}
 	})
 
 	viewer := envInstance.APIClient(t, viewerName, viewerPW)
@@ -94,6 +97,7 @@ func TestAPI_RBAC_ViewerCannotMutate_Matrix(t *testing.T) {
 		if resp.StatusCode != tc.want {
 			t.Errorf("%s: status=%d want=%d body=%s", tc.name, resp.StatusCode, tc.want, string(body))
 		}
+		_ = resp.Body.Close()
 	}
 }
 
@@ -110,7 +114,10 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 
 	opName, opPW, opID := envInstance.CreateUser(t, admin, "operator", "e2e-rbac-op")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + opID)
+		r, _, _ := admin.Delete("/users/" + opID)
+		if r != nil {
+			_ = r.Body.Close()
+		}
 	})
 
 	op := envInstance.APIClient(t, opName, opPW)
@@ -139,6 +146,7 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("operator POST /servers: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		t.Errorf("operator POST /servers: status=%d body=%s", resp.StatusCode, string(body))
 	}
@@ -175,6 +183,7 @@ func TestAPI_RBAC_OperatorCanWriteServers_NotUsers(t *testing.T) {
 		if r.StatusCode != tc.want {
 			t.Errorf("%s: status=%d want=%d body=%s", tc.name, r.StatusCode, tc.want, string(b))
 		}
+		_ = r.Body.Close()
 	}
 }
 
@@ -194,7 +203,10 @@ func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
 
 	opName, opPW, opID := envInstance.CreateUser(t, admin, "operator", "e2e-rbac-op-invite")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + opID)
+		r, _, _ := admin.Delete("/users/" + opID)
+		if r != nil {
+			_ = r.Body.Close()
+		}
 	})
 
 	op := envInstance.APIClient(t, opName, opPW)
@@ -208,6 +220,7 @@ func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("operator POST /users: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusForbidden {
 		t.Errorf("operator POST /users: status=%d want=403 body=%s",
 			resp.StatusCode, string(body))
@@ -245,5 +258,6 @@ func TestAPI_RBAC_AdminCanReachAll(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("%s: status=%d body=%s", c.name, resp.StatusCode, string(body))
 		}
+		_ = resp.Body.Close()
 	}
 }

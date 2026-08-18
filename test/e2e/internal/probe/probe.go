@@ -28,6 +28,7 @@ var ErrFatal = errors.New("fatal")
 // Depth is how far into a real join a client got. See test/e2e/internal/specs.md.
 type Depth string
 
+// The three depths a probe can report, from deepest to shallowest.
 const (
 	Joined  Depth = "JOINED"  // server accepted the client as a player
 	Partial Depth = "PARTIAL" // spoke the real protocol, then hit a credential gate CI can't mint

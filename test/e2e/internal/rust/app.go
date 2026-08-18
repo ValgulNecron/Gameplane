@@ -1,3 +1,6 @@
+// Package main implements a hand-rolled join-depth probe for Rust, used by
+// the e2e suite to measure how far a real client can get against a running
+// server (A2S query for depth, if the server answers it).
 package main
 
 import (
@@ -9,8 +12,8 @@ import (
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
@@ -195,4 +198,3 @@ func probeRust(ctx context.Context, addr string, expectedDepth joindepth.JoinDep
 		Err:          fmt.Errorf("rust probe: no query method succeeded"),
 	}
 }
-

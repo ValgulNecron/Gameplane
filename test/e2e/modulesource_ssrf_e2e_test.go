@@ -77,7 +77,7 @@ func TestModuleSource_RejectsSSRFTarget(t *testing.T) {
 			}
 			t.Cleanup(func() {
 				_ = envInstance.Dyn.Resource(moduleSourceGVR).
-					Delete(context.Background(), tc.source, metav1.DeleteOptions{})
+					Delete(context.WithoutCancel(ctx), tc.source, metav1.DeleteOptions{})
 			})
 
 			envInstance.Eventually(t, 90*time.Second, func() (bool, string) {

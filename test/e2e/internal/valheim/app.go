@@ -1,3 +1,8 @@
+// Package main implements a hand-rolled join-depth probe for Valheim, used
+// by the e2e suite to measure how far a real client can get against a
+// running server: since Valheim's UDP game protocol is not publicly
+// documented, this probe measures QUERY depth via the lloesche/
+// valheim-server image's documented HTTP status.json endpoint.
 package main
 
 import (
@@ -87,7 +92,7 @@ func main() {
 }
 
 // emitVerdictAndExit emits the machine-readable VERDICT line and exits.
-func emitVerdictAndExit(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool, exitCode int) {
+func emitVerdictAndExit(v *joindepth.ProbeVerdict, _ joindepth.JoinDepth, _ bool, exitCode int) {
 	// Encode the verdict line.
 	line, err := v.Encode()
 	if err != nil {
@@ -189,7 +194,7 @@ func fetchStatus(ctx context.Context, addr string) (*statusResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch status.json: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check HTTP status code.
 	if resp.StatusCode != http.StatusOK {

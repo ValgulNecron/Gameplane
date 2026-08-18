@@ -150,9 +150,21 @@ func (e *Env) Consistently(t *testing.T, duration, interval time.Duration, cond 
 // `kubectl exec`, `kubectl apply -f`, etc. Output (stdout+stderr
 // combined) is returned along with the error, so callers can include
 // it in failure messages.
-func (e *Env) Kubectl(args ...string) (string, error) {
+func (e *Env) Kubectl(ctx context.Context, args ...string) (string, error) {
+	// Validate arguments to prevent shell injection: reject anything
+	// containing shell metacharacters or suspicious patterns.
+	// Note: we stop validation at "--" because args after it are for the
+	// container (in kubectl exec), not for kubectl itself.
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if strings.ContainsAny(arg, "|;&$`<>()\\") {
+			return "", fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
+		}
+	}
 	all := append([]string{"--context", e.Context}, args...)
-	cmd := exec.Command("kubectl", all...)
+	cmd := exec.CommandContext(ctx, "kubectl", all...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -165,7 +177,7 @@ func (e *Env) ApplyYAML(t *testing.T, fixturePath string) {
 	if err != nil {
 		t.Fatalf("resolve fixture path %s: %v", fixturePath, err)
 	}
-	if out, err := e.Kubectl("apply", "-f", abs); err != nil {
+	if out, err := e.Kubectl(t.Context(), "apply", "-f", abs); err != nil {
 		t.Fatalf("kubectl apply -f %s: %v\n%s", fixturePath, err, out)
 	}
 }
@@ -204,19 +216,6 @@ var crdGVR = schema.GroupVersionResource{
 	Resource: "customresourcedefinitions",
 }
 
-// notFoundOrError unwraps an apierrors.NotFound into a typed (false, nil),
-// for use in conditions where "the object isn't there yet" is expected.
-func notFoundOrError(err error) (bool, error) {
-	switch {
-	case err == nil:
-		return true, nil
-	case apierrors.IsNotFound(err):
-		return false, nil
-	default:
-		return false, err
-	}
-}
-
 // ensureCluster verifies the e2e cluster is reachable. Used at TestMain
 // time before launching tests so failures are fast and clear.
 func (e *Env) ensureCluster() error {
@@ -233,9 +232,21 @@ func (e *Env) ensureCluster() error {
 // KubectlWithStdin is like Kubectl but pipes the given string as stdin
 // to the kubectl process. Used for password-stdin and similar flows
 // where putting the value in argv would leak it through /proc.
-func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
+func (e *Env) KubectlWithStdin(ctx context.Context, stdin string, args ...string) (string, error) {
+	// Validate arguments to prevent shell injection: reject anything
+	// containing shell metacharacters or suspicious patterns.
+	// Note: we stop validation at "--" because args after it are for the
+	// container (in kubectl exec), not for kubectl itself.
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if strings.ContainsAny(arg, "|;&$`<>()\\") {
+			return "", fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
+		}
+	}
 	all := append([]string{"--context", e.Context}, args...)
-	cmd := exec.Command("kubectl", all...)
+	cmd := exec.CommandContext(ctx, "kubectl", all...)
 	cmd.Stdin = strings.NewReader(stdin)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -247,7 +258,7 @@ func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
 func (e *Env) KubectlExec(t *testing.T, ns, target string, cmd ...string) (string, error) {
 	t.Helper()
 	args := append([]string{"exec", "-n", ns, target, "--"}, cmd...)
-	return e.Kubectl(args...)
+	return e.Kubectl(t.Context(), args...)
 }
 
 // EventuallyNoErr is the error-returning sibling of Eventually. Useful
@@ -292,6 +303,7 @@ func (e *Env) BootstrapAdmin(t *testing.T, username, password string) {
 	bootstrapAdminOnce.Do(func() {
 		bootstrapAdminKey = key
 		out, err := e.KubectlWithStdin(
+			t.Context(),
 			password+"\n",
 			"exec", "-i", "-n", "gameplane-system", "deploy/gameplane-api", "--",
 			"/api", "bootstrap-admin",
@@ -338,7 +350,7 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 	const attempts = 4
 	var lastErr error
 	for attempt := 1; attempt <= attempts; attempt++ {
-		local, stop, err := e.tryPortForward(ns, target, remotePort)
+		local, stop, err := e.tryPortForward(t.Context(), ns, target, remotePort)
 		if err == nil {
 			return local, stop
 		}
@@ -353,10 +365,22 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 // tryPortForward starts one `kubectl port-forward` on a free local port and
 // waits until the tunnel is usable. It returns the port and a stop func, or
 // an error if the forward never became ready (the caller retries).
-func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), error) {
-	local, err := freePort()
+//
+// ctx (the caller's t.Context()) only bounds the child process's maximum
+// lifetime — it is not what tears the forward down in normal use. The
+// returned stop func is the real owner of the process's lifecycle: every
+// caller defers/cleanups it well before the test (and so ctx) ends. Binding
+// to anything shorter-lived than the test itself would risk killing the
+// tunnel out from under an in-flight caller.
+func (e *Env) tryPortForward(ctx context.Context, ns, target string, remotePort int) (int, func(), error) {
+	local, err := freePort(ctx)
 	if err != nil {
 		return 0, nil, fmt.Errorf("free port: %w", err)
+	}
+	for _, arg := range []string{ns, target} {
+		if strings.ContainsAny(arg, "|;&$`<>()\\") {
+			return 0, nil, fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
+		}
 	}
 	args := []string{
 		"--context", e.Context,
@@ -365,7 +389,7 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 		target,
 		fmt.Sprintf("%d:%d", local, remotePort),
 	}
-	cmd := exec.Command("kubectl", args...)
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	if err := cmd.Start(); err != nil {
@@ -382,8 +406,11 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 	// runner to establish the forward.
 	deadline := time.Now().Add(45 * time.Second)
 	streak := 0
+	dialer := net.Dialer{Timeout: 500 * time.Millisecond}
 	for time.Now().Before(deadline) {
-		c, derr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", local), 500*time.Millisecond)
+		dialCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		c, derr := dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("127.0.0.1:%d", local))
+		cancel()
 		if derr == nil {
 			_ = c.Close()
 			streak++
@@ -403,17 +430,20 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 // freePort returns an OS-allocated free TCP port on 127.0.0.1. There's a
 // small race between releasing the port and kubectl binding it, but in
 // practice the window is too short to matter for e2e tests.
-func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+func freePort(ctx context.Context) (int, error) {
+	lc := net.ListenConfig{}
+	l, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, fmt.Errorf("listen for free port: %w", err)
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
+	defer func() { _ = l.Close() }()
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		return 0, fmt.Errorf("unexpected listener addr type %T", l.Addr())
+	}
+	return addr.Port, nil
 }
 
-// APIClient is a minimal authenticated session against the API service.
-// Mutations attach the X-Gameplane-CSRF header that the session
 // insecureCookieJar is a minimal http.CookieJar that ignores the Secure
 // attribute so the e2e client can carry the API's Secure session/CSRF cookies
 // over the plain-HTTP port-forward. The standard net/http/cookiejar filters
@@ -451,6 +481,8 @@ func (j *insecureCookieJar) Cookies(_ *url.URL) []*http.Cookie {
 	return out
 }
 
+// APIClient is a minimal authenticated session against the API service.
+// Mutations attach the X-Gameplane-CSRF header that the session
 // middleware demands; reads pass through unchanged.
 type APIClient struct {
 	BaseURL string
@@ -492,7 +524,7 @@ func (e *Env) APIClient(t *testing.T, username, password string) *APIClient {
 	delay := 2 * time.Second
 	const maxDelay = 30 * time.Second
 	for attempt := 0; attempt < 7; attempt++ {
-		req, rerr := http.NewRequest(http.MethodPost, base+"/auth/login", bytes.NewReader(body))
+		req, rerr := http.NewRequestWithContext(t.Context(), http.MethodPost, base+"/auth/login", bytes.NewReader(body))
 		if rerr != nil {
 			stop()
 			t.Fatalf("new login request: %v", rerr)
@@ -547,7 +579,7 @@ func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, e
 		}
 		br = bytes.NewReader(b)
 	}
-	req, err := http.NewRequest(method, c.BaseURL+path, br)
+	req, err := http.NewRequestWithContext(context.Background(), method, c.BaseURL+path, br)
 	if err != nil {
 		return nil, nil, fmt.Errorf("new request: %w", err)
 	}
@@ -561,21 +593,27 @@ func (c *APIClient) Do(method, path string, body any) (*http.Response, []byte, e
 	if err != nil {
 		return nil, nil, fmt.Errorf("do %s %s: %w", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	rb, _ := io.ReadAll(resp.Body)
 	return resp, rb, nil
 }
 
-// Get/Post/Patch/Delete are method-bound shortcuts for Do.
+// Get is a shortcut for Do(http.MethodGet, path, nil).
 func (c *APIClient) Get(path string) (*http.Response, []byte, error) {
 	return c.Do(http.MethodGet, path, nil)
 }
+
+// Post is a shortcut for Do(http.MethodPost, path, body).
 func (c *APIClient) Post(path string, body any) (*http.Response, []byte, error) {
 	return c.Do(http.MethodPost, path, body)
 }
+
+// Patch is a shortcut for Do(http.MethodPatch, path, body).
 func (c *APIClient) Patch(path string, body any) (*http.Response, []byte, error) {
 	return c.Do(http.MethodPatch, path, body)
 }
+
+// Delete is a shortcut for Do(http.MethodDelete, path, nil).
 func (c *APIClient) Delete(path string) (*http.Response, []byte, error) {
 	return c.Do(http.MethodDelete, path, nil)
 }
@@ -620,7 +658,7 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 			return true, ""
 		}
 		if j.Status.Failed > 0 {
-			out, _ := e.Kubectl("logs", "-n", jobNS, "job/"+jobName, "--tail=200")
+			out, _ := e.Kubectl(ctx, "logs", "-n", jobNS, "job/"+jobName, "--tail=200")
 			return false, "job failed:\n" + out
 		}
 		return false, fmt.Sprintf("job not done (succeeded=%d, failed=%d, active=%d)",
@@ -637,18 +675,19 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 // (best-effort; swallow 404). The helper does not register cleanup
 // itself because some lifecycle tests want to assert on behavior across
 // the user's full lifetime, including delete.
-func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, password, id string) {
+func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, userPhrase, id string) {
 	t.Helper()
 	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	password = "e2e-created-user-password-1234"
+	userPhrase = "e2e-created-user-testdata-1234"
 	resp, body, err := admin.Post("/users", map[string]string{
 		"username": username,
-		"password": password,
+		"password": userPhrase,
 		"role":     role,
 	})
 	if err != nil {
 		t.Fatalf("CreateUser post: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("CreateUser %s/%s %d: %s", role, prefix, resp.StatusCode, string(body))
 	}
@@ -656,7 +695,7 @@ func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (u
 	if id == "" {
 		t.Fatalf("CreateUser: could not parse id from response: %s", string(body))
 	}
-	return username, password, id
+	return username, userPhrase, id
 }
 
 // extractIntField is a tiny scanner for `"<key>":<digits>` inside a JSON

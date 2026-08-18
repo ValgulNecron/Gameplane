@@ -1,3 +1,6 @@
+// Package main implements a hand-rolled join-depth probe for Terraria, used
+// by the e2e suite to measure how far a real client can get against a
+// running server: handshake, then a WorldData request to prove a full join.
 package main
 
 import (
@@ -78,7 +81,8 @@ func probeTerraria(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 		return nil
 	}); err != nil {
 		// Check if it's a fatal error wrapping a PARTIAL depth.
-		if fe, ok := err.(*fatalError); ok {
+		var fe *fatalError
+		if errors.As(err, &fe) {
 			return &joindepth.ProbeVerdict{
 				ReachedDepth: fe.depth,
 				Detail:       fe.detail,
@@ -95,7 +99,7 @@ func probeTerraria(ctx context.Context, addr string) *joindepth.ProbeVerdict {
 	}
 
 	// After successful Connect, request world data with its own timeout.
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	worldDataCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -158,7 +162,8 @@ func retryWithDeadline(ctx context.Context, what string, attemptTimeout time.Dur
 		}
 
 		// Check for fatal errors (don't retry).
-		if _, ok := err.(*fatalError); ok {
+		var fe *fatalError
+		if errors.As(err, &fe) {
 			return err
 		}
 

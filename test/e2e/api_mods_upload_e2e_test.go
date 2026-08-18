@@ -38,6 +38,7 @@ func TestAPI_ModUpload(t *testing.T) {
 		if err != nil {
 			return false, "GET /mods: " + err.Error()
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			return false, "status=" + http.StatusText(resp.StatusCode) + " body=" + string(body)
 		}
@@ -58,7 +59,7 @@ func TestAPI_ModUpload(t *testing.T) {
 		t.Fatalf("close multipart: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload", &buf)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, cli.BaseURL+"/servers/"+gs+"/mods/upload", &buf)
 	if err != nil {
 		t.Fatalf("build upload req: %v", err)
 	}
@@ -95,6 +96,7 @@ func TestAPI_ModUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DELETE /mods: %v", err)
 	}
+	defer delResp.Body.Close()
 	if delResp.StatusCode/100 != 2 {
 		t.Fatalf("remove expected 2xx, got %d body=%q", delResp.StatusCode, string(delBody))
 	}

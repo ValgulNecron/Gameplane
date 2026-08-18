@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for Enshrouded,
+// used by the e2e suite to measure how far a real client can get against a
+// running server (A2S query for depth, plus a purely diagnostic raw UDP
+// poke at the query port).
 package main
 
 import (
@@ -10,8 +14,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
@@ -162,7 +166,7 @@ func probeEnshrouded(ctx context.Context, addr string) (joindepth.JoinDepth, str
 	// below (which is already a failure). Silence is itself a measurement:
 	// future readers need to know a raw probe was attempted and what (if
 	// anything) came back, in case A2S support turns out to be wrong.
-	diagCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	diagCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
 	logRawDiagnostic(diagCtx, queryAddr)
 
@@ -212,7 +216,7 @@ func logRawDiagnostic(ctx context.Context, addr string) {
 		log.Printf("raw-diagnostic: dial %s failed: %v", addr, err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	deadline := time.Now().Add(2 * time.Second)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {

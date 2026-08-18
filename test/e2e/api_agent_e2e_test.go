@@ -47,7 +47,7 @@ func requireAgentReady(t *testing.T, ns, gsName string) {
 		}
 		time.Sleep(2 * time.Second)
 	}
-	logs, _ := envInstance.Kubectl("logs", "-n", ns, gsName+"-0", "-c", "agent", "--tail=10")
+	logs, _ := envInstance.Kubectl(ctx, "logs", "-n", ns, gsName+"-0", "-c", "agent", "--tail=10")
 	t.Fatalf("agent sidecar never reached stable Ready in 90s. agent logs:\n%s", logs)
 }
 
@@ -63,6 +63,7 @@ func waitAgentReachable(t *testing.T, cli *APIClient, gs string) {
 		if err != nil {
 			return false, "GET /players: " + err.Error()
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return false, "status=" + http.StatusText(resp.StatusCode) + " body=" + string(body)
 		}
@@ -113,7 +114,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	// Write a file. The endpoint takes path as query param and body as
 	// raw octet-stream — APIClient.Do marshals JSON, so we go direct.
 	writeURL := cli.BaseURL + "/servers/" + gs + "/files/write?path=" + url.QueryEscape(filePath)
-	req, err := http.NewRequest(http.MethodPost, writeURL, bytes.NewReader([]byte(payload)))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, writeURL, bytes.NewReader([]byte(payload)))
 	if err != nil {
 		t.Fatalf("build write req: %v", err)
 	}
@@ -135,6 +136,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		if err != nil {
 			return false, "list: " + err.Error()
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return false, "list status=" + http.StatusText(resp.StatusCode) + " body=" + string(body)
 		}
@@ -157,6 +159,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /files/read: %v", err)
 	}
+	defer func() { _ = readResp.Body.Close() }()
 	if readResp.StatusCode != http.StatusOK {
 		t.Fatalf("/files/read expected 200, got %d body=%q", readResp.StatusCode, string(readBody))
 	}
@@ -169,6 +172,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DELETE /files/delete: %v", err)
 	}
+	defer func() { _ = delResp.Body.Close() }()
 	if delResp.StatusCode/100 != 2 {
 		t.Fatalf("/files/delete expected 2xx, got %d body=%q", delResp.StatusCode, string(delBody))
 	}
@@ -178,6 +182,7 @@ func TestAPI_AgentFilesRoundTrip(t *testing.T) {
 		if err != nil {
 			return false, "list-after-delete: " + err.Error()
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return false, "list-after-delete status=" + http.StatusText(resp.StatusCode)
 		}
@@ -227,6 +232,7 @@ func TestAPI_AgentPlayers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /players: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("/players expected 200, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -282,6 +288,7 @@ func TestAPI_AgentUnreachable(t *testing.T) {
 			// retry.
 			return false, "GET /players: " + err.Error()
 		}
+		defer func() { _ = resp.Body.Close() }()
 		switch resp.StatusCode {
 		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			return true, ""

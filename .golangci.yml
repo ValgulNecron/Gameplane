@@ -77,6 +77,22 @@ linters:
       - path: (^|/)internal/auth/sessions\.go$
         linters: [gosec]
         text: "G124"
+      # Kubectl/KubectlWithStdin/port-forward helpers exist to run kubectl with
+      # caller-supplied arguments - that's the whole point of an E2E harness. The
+      # args come from the suite's own test code (not external input), and the
+      # helper already rejects shell metacharacters ahead of the -- separator,
+      # which gosec's static analysis can't see. G204 remains active everywhere else.
+      - path: (^|/)env\.go$
+        linters: [gosec]
+        text: "G204"
+      # The Satisfactory probe dials the game server's HTTPS API over a pod-local
+      # address. The server generates a self-signed cert at first boot, so there is
+      # no cert to pin in advance, and the connection never leaves the pod network,
+      # so there's no off-host position to intercept it from. G402 remains active
+      # everywhere else.
+      - path: (^|/)internal/satisfactory/app\.go$
+        linters: [gosec]
+        text: "G402"
 
 formatters:
   enable:
