@@ -80,7 +80,7 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 	defer support.Close()
 
 	// The read-only role can read servers but not write them.
-	r, _, _ := support.Get("/servers")
+	r, _, _ = support.Get("/servers")
 	if r.StatusCode != http.StatusOK {
 		t.Errorf("support GET /servers: status=%d want 200", r.StatusCode)
 	}

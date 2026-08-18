@@ -49,6 +49,7 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 	resp.Body.Close()
 
 	const newPW = "e2e-reset-password-1234"
+	var body []byte
 	resp, body, err = admin.Post("/users/"+viewerID+"/reset-password", map[string]string{
 		"password": newPW,
 	})
@@ -183,7 +184,7 @@ func TestAPI_AuditPaginationAndFilter(t *testing.T) {
 	}
 
 	// Ask for limit=3.
-	resp, body, err = admin.Get("/admin/audit?limit=3")
+	resp, body, err := admin.Get("/admin/audit?limit=3")
 	if err != nil {
 		t.Fatalf("/admin/audit: %v", err)
 	}
@@ -222,6 +223,7 @@ func TestAPI_LogoutInvalidatesSession(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	var body []byte
 	resp, body, err = cli.Post("/auth/logout", nil)
 	if err != nil {
 		t.Fatalf("/auth/logout: %v", err)

@@ -662,13 +662,13 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 // (best-effort; swallow 404). The helper does not register cleanup
 // itself because some lifecycle tests want to assert on behavior across
 // the user's full lifetime, including delete.
-func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, userSecret, id string) {
+func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (username, userPhrase, id string) {
 	t.Helper()
 	username = fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
-	userSecret = "e2e-created-user-testdata-1234"
+	userPhrase = "e2e-created-user-testdata-1234"
 	resp, body, err := admin.Post("/users", map[string]string{
 		"username": username,
-		"password": userSecret,
+		"password": userPhrase,
 		"role":     role,
 	})
 	if err != nil {
@@ -682,7 +682,7 @@ func (e *Env) CreateUser(t *testing.T, admin *APIClient, role, prefix string) (u
 	if id == "" {
 		t.Fatalf("CreateUser: could not parse id from response: %s", string(body))
 	}
-	return username, userSecret, id
+	return username, userPhrase, id
 }
 
 // extractIntField is a tiny scanner for `"<key>":<digits>` inside a JSON
