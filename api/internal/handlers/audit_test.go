@@ -85,7 +85,7 @@ func TestMountAudit_HappyPath(t *testing.T) {
 	store := newTestStore(t)
 	a := audit.New(store)
 	for i := 0; i < 3; i++ {
-		_, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
+		_, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
 			VALUES (?, 'admin', 'POST', '/x', '', 201, '')`, "2026-01-01T00:00:00Z")
 		if err != nil {
 			t.Fatalf("insert: %v", err)
@@ -147,7 +147,7 @@ func TestMountAudit_Verify(t *testing.T) {
 	}
 
 	// Tamper directly at the DB level, then verify again through the endpoint.
-	if _, err := store.DB.Exec(`UPDATE audit_events SET actor = 'attacker' WHERE id = 2`); err != nil {
+	if _, err := store.DB.ExecContext(t.Context(), `UPDATE audit_events SET actor = 'attacker' WHERE id = 2`); err != nil {
 		t.Fatalf("tamper: %v", err)
 	}
 	resp2 := auditGet(t, srv.URL+"/admin/audit/verify")
@@ -208,7 +208,7 @@ func TestMountAudit_DBError(t *testing.T) {
 func TestMountAudit_ExportCSV(t *testing.T) {
 	store := newTestStore(t)
 	for i := 0; i < 3; i++ {
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
 			VALUES (?, 'admin', 'POST', '/servers', 'mc-1', 201, '10.0.0.1')`,
 			"2026-01-0"+strconv.Itoa(i+1)+"T00:00:00Z"); err != nil {
 			t.Fatalf("insert: %v", err)
@@ -249,7 +249,7 @@ func TestMountAudit_ExportCSV(t *testing.T) {
 func TestMountAudit_ExportJSON(t *testing.T) {
 	store := newTestStore(t)
 	for i := 0; i < 2; i++ {
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, 'admin', 'POST', '/x', 201)`, "2026-01-0"+strconv.Itoa(i+1)+"T00:00:00Z"); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
@@ -290,7 +290,7 @@ func TestMountAudit_ExportBadFormat(t *testing.T) {
 func TestMountAudit_ExportTimeWindow(t *testing.T) {
 	store := newTestStore(t)
 	for _, ts := range []string{"2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z", "2026-03-01T00:00:00Z"} {
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, 'admin', 'POST', '/x', 201)`, ts); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
@@ -324,7 +324,7 @@ func TestMountAudit_ExportFilteredByActor(t *testing.T) {
 	}
 	for i, row := range rows {
 		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, ?, ?, '/x', ?)`, ts, row.actor, row.method, row.status); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
@@ -361,7 +361,7 @@ func TestMountAudit_ExportFilteredByMethod(t *testing.T) {
 	}
 	for i, row := range rows {
 		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, ?, ?, '/x', ?)`, ts, row.actor, row.method, row.status); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
@@ -399,7 +399,7 @@ func TestMountAudit_ExportFilteredByStatus(t *testing.T) {
 	}
 	for i, row := range rows {
 		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, ?, 'POST', '/x', ?)`, ts, row.actor, row.status); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
@@ -446,7 +446,7 @@ func TestMountAudit_ExportLiteralPercentInActor(t *testing.T) {
 	actors := []string{"a%b", "axxb"}
 	for i, actor := range actors {
 		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, ?, 'POST', '/x', 200)`, ts, actor); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
@@ -510,7 +510,7 @@ func TestMountAudit_ExportBareNoFilters(t *testing.T) {
 	}
 	for i, row := range rows {
 		ts := "2026-01-0" + strconv.Itoa(i+1) + "T00:00:00Z"
-		if _, err := store.DB.Exec(`INSERT INTO audit_events(ts, actor, method, path, status)
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, status)
 			VALUES (?, ?, ?, '/x', 201)`, ts, row.actor, row.method); err != nil {
 			t.Fatalf("insert: %v", err)
 		}

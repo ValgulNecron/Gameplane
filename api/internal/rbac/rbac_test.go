@@ -25,7 +25,7 @@ func userForRole(t *testing.T, store *db.Store, role string) *auth.User {
 
 func loadRolePerms(t *testing.T, store *db.Store, role string) map[string]struct{} {
 	t.Helper()
-	rows, err := store.DB.Query(`SELECT permission FROM role_permissions WHERE role_name = ?`, role)
+	rows, err := store.DB.QueryContext(t.Context(), `SELECT permission FROM role_permissions WHERE role_name = ?`, role)
 	if err != nil {
 		t.Fatalf("load perms for %q: %v", role, err)
 	}

@@ -18,7 +18,7 @@ func clusterInfoName(t *testing.T, generalJSON string) string {
 	t.Helper()
 	store := newTestStore(t)
 	if generalJSON != "" {
-		if _, err := store.DB.Exec(`INSERT INTO config(key, value) VALUES ('general', ?)`, generalJSON); err != nil {
+		if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO config(key, value) VALUES ('general', ?)`, generalJSON); err != nil {
 			t.Fatalf("seed config: %v", err)
 		}
 	}

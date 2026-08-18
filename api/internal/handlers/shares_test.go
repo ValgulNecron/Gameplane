@@ -40,7 +40,7 @@ func mountSharesRouter(reg *kube.Registry, store *db.Store) http.Handler {
 // created_by / the owner-id annotation can reference a real user.
 func insertShareTestUser(t *testing.T, store *db.Store, username string) int64 {
 	t.Helper()
-	res, err := store.DB.Exec(`INSERT INTO users(username, role) VALUES (?, ?)`, username, "admin")
+	res, err := store.DB.ExecContext(t.Context(), `INSERT INTO users(username, role) VALUES (?, ?)`, username, "admin")
 	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}

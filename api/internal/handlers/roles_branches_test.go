@@ -57,7 +57,7 @@ func TestRoles_Create_DeduplicatesPermissions(t *testing.T) {
 		t.Fatalf("permissions = %v, want 2 unique", created.Permissions)
 	}
 	var n int
-	if err := store.DB.QueryRow(
+	if err := store.DB.QueryRowContext(t.Context(),
 		`SELECT COUNT(*) FROM role_permissions WHERE role_name='dup'`).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}

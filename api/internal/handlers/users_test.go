@@ -77,7 +77,7 @@ func allowTeamA(t *testing.T) {
 func sessionCount(t *testing.T, store *db.Store, userID int64) int {
 	t.Helper()
 	var n int
-	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM sessions WHERE user_id = ?`, userID).Scan(&n); err != nil {
+	if err := store.DB.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM sessions WHERE user_id = ?`, userID).Scan(&n); err != nil {
 		t.Fatalf("session count: %v", err)
 	}
 	return n
@@ -146,7 +146,7 @@ func TestUsers_CreateBindsClusterRole(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	var role string
-	err := store.DB.QueryRow(
+	err := store.DB.QueryRowContext(t.Context(),
 		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = '*'`,
 		created.ID, scope.DefaultCluster).Scan(&role)
 	if err != nil || role != "operator" {
@@ -157,7 +157,7 @@ func TestUsers_CreateBindsClusterRole(t *testing.T) {
 // A custom role can be assigned to a user once it exists in the roles table.
 func TestUsers_CreateAcceptsCustomRole(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
-	if _, err := store.DB.Exec(`INSERT INTO roles(name, builtin) VALUES ('support', 0)`); err != nil {
+	if _, err := store.DB.ExecContext(t.Context(), `INSERT INTO roles(name, builtin) VALUES ('support', 0)`); err != nil {
 		t.Fatalf("seed role: %v", err)
 	}
 	status, _ := doReq(t, "POST", srv.URL+"/users", map[string]any{
@@ -383,7 +383,7 @@ func TestUsers_ResetPasswordHashesAndInvalidatesSessions(t *testing.T) {
 	}
 
 	var newHash string
-	if err := store.DB.QueryRow(`SELECT pw_hash FROM users WHERE id=?`, id).Scan(&newHash); err != nil {
+	if err := store.DB.QueryRowContext(t.Context(), `SELECT pw_hash FROM users WHERE id=?`, id).Scan(&newHash); err != nil {
 		t.Fatalf("read hash: %v", err)
 	}
 	if ok, _ := auth.VerifyPassword("brand-new-password-1", newHash); !ok {
@@ -451,7 +451,7 @@ func TestAddBinding_DefaultsAndReturnsCluster(t *testing.T) {
 	}
 	// Verify it was persisted.
 	var role string
-	err := store.DB.QueryRow(
+	err := store.DB.QueryRowContext(t.Context(),
 		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`,
 		alice, scope.DefaultCluster, "team-a").Scan(&role)
 	if err != nil || role != "operator" {
@@ -486,7 +486,7 @@ func TestListBindings_IncludesCluster(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, store, "alice", "operator", "pw")
 	// Insert an explicit binding with cluster.
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(t.Context(),
 		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
 		alice, "viewer", "local", "team-a"); err != nil {
 		t.Fatalf("seed binding: %v", err)
@@ -527,7 +527,7 @@ func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
 	srv, store, _ := newUsersServer(t, &auth.User{ID: 1, Role: "admin"})
 	alice := seedUser(t, store, "alice", "operator", "pw")
 	// Insert a binding with cluster.
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(t.Context(),
 		`INSERT INTO user_role_bindings(user_id, role_name, cluster, namespace) VALUES (?, ?, ?, ?)`,
 		alice, "viewer", "local", "team-a"); err != nil {
 		t.Fatalf("seed binding: %v", err)
@@ -540,7 +540,7 @@ func TestDeleteBinding_DefaultsAndDeletesCluster(t *testing.T) {
 	}
 	// Verify deleted.
 	var n int
-	err := store.DB.QueryRow(
+	err := store.DB.QueryRowContext(t.Context(),
 		`SELECT COUNT(*) FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`,
 		alice, "local", "team-a").Scan(&n)
 	if err != nil || n != 0 {

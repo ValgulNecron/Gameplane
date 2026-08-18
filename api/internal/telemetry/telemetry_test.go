@@ -29,7 +29,7 @@ func telStore(t *testing.T, sendMetrics bool) *db.Store {
 		t.Fatalf("migrate: %v", err)
 	}
 	val, _ := json.Marshal(map[string]bool{"sendMetrics": sendMetrics})
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(context.Background(),
 		`INSERT INTO config(key, value, updated_at) VALUES ('telemetry', ?, ?)`,
 		string(val), "2026-01-01T00:00:00Z",
 	); err != nil {

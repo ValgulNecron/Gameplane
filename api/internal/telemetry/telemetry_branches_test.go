@@ -45,7 +45,7 @@ func TestEnabled_Branches(t *testing.T) {
 
 	t.Run("malformed config is disabled", func(t *testing.T) {
 		store := bareStore(ctx, t)
-		if _, err := store.DB.Exec(
+		if _, err := store.DB.ExecContext(t.Context(),
 			`INSERT INTO config(key, value, updated_at) VALUES ('telemetry', '{bad', ?)`,
 			"2026-01-01T00:00:00Z"); err != nil {
 			t.Fatalf("seed: %v", err)
