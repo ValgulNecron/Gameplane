@@ -294,18 +294,30 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 }
 
 // savePart streams one multipart part into dir under a sanitized name,
-// refusing anything larger than limit bytes.
-func savePart(dir, filename string, src io.Reader, limit int64) error {
+// refusing anything larger than limit bytes. On any failure after the
+// destination file is created — a truncated/erroring source, or an
+// over-limit part — the partially-written file is removed rather than
+// left behind: a half-written file could otherwise be served or loaded
+// as though it were complete.
+func savePart(dir, filename string, src io.Reader, limit int64) (retErr error) {
 	// Sanitize filename — reject anything that would climb out of dir.
 	name := filepath.Base(filename)
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
-	dst, err := os.Create(filepath.Clean(filepath.Join(dir, name)))
+	dstPath := filepath.Clean(filepath.Join(dir, name))
+	dst, err := os.Create(dstPath)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = dst.Close() }()
+	defer func() {
+		_ = dst.Close()
+		if retErr != nil {
+			// Best-effort cleanup: removal failing here must not mask the
+			// original error, and there is nothing further we can do with it.
+			_ = os.Remove(dstPath)
+		}
+	}()
 	// Read one byte past the cap: if that byte materializes the part is
 	// over the limit, whatever its multipart headers claimed.
 	n, err := io.Copy(dst, io.LimitReader(src, limit+1))
