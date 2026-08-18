@@ -261,6 +261,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /templates?cluster=%s: status=%d body=%s", clusterID, resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	t.Cleanup(func() {
 		_, _, _ = admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
 	})
@@ -299,6 +300,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /users/%s/bindings: status=%d body=%s", opID, resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	// addBinding invalidates the target user's existing sessions (see
 	// userHandler.invalidateSessions) so a bound-in-flight session wouldn't
 	// see the new grant anyway — log in AFTER granting the binding, not
@@ -320,8 +322,12 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /servers?cluster=%s: status=%d body=%s", clusterID, resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	t.Cleanup(func() {
-		_, _, _ = operatorClient.Delete("/servers/" + gsName + "?cluster=" + clusterID)
+		r, _, _ := operatorClient.Delete("/servers/" + gsName + "?cluster=" + clusterID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	// --- Ground truth: read each cluster's own Kubernetes API directly,  ----
@@ -348,6 +354,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if !strings.Contains(string(body), gsName) {
 		t.Errorf("GET /servers?cluster=%s: expected %s in listing, got %s", clusterID, gsName, string(body))
 	}
+	resp.Body.Close()
 
 	resp, body, err = admin.Get("/servers")
 	if err != nil {
@@ -360,6 +367,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		t.Errorf("GET /servers (default cluster): cluster-B server %s leaked into the local listing: %s",
 			gsName, string(body))
 	}
+	resp.Body.Close()
 
 	// --- RBAC: a viewer bound only to "local" cannot see cluster B's server -
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-mc-viewer")
@@ -372,9 +380,11 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	// Sanity check first: the viewer's default-cluster read still works, so
 	// a subsequent 403 below is provably about the cluster dimension and not
 	// a broken viewer session.
-	if resp, body, err := viewer.Get("/servers"); err != nil || resp.StatusCode != http.StatusOK {
+	resp, body, err = viewer.Get("/servers")
+	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("viewer GET /servers (default cluster): status=%v err=%v body=%s", resp, err, string(body))
 	}
+	resp.Body.Close()
 
 	resp, body, err = viewer.Get("/servers?cluster=" + clusterID)
 	if err != nil {
@@ -384,12 +394,14 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		t.Errorf("viewer GET /servers?cluster=%s: status=%d want=%d body=%s",
 			clusterID, resp.StatusCode, http.StatusForbidden, string(body))
 	}
+	resp.Body.Close()
 
 	// --- An unregistered cluster is a 400 for any caller, admin included ----
 	resp, body, err = admin.Get("/servers?cluster=e2e-mc-does-not-exist")
 	if err != nil {
 		t.Fatalf("admin GET /servers?cluster=<unknown>: %v", err)
 	}
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("admin GET /servers?cluster=<unknown>: status=%d want=%d body=%s",
 			resp.StatusCode, http.StatusBadRequest, string(body))
