@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -190,9 +189,9 @@ func (h *handler) download(w http.ResponseWriter, req *http.Request) {
 const maxWriteBytes = 64 << 20
 
 // maxUploadFileBytes caps each individual file in a multipart upload.
-// ParseMultipartForm's 64 MiB limit is a *total* budget — without a
-// per-file cap, one oversized file is still allowed as long as the
-// multipart metadata fits.
+// The MaxBytesReader on the request body is a *total* budget — without a
+// per-file cap, one oversized file is still allowed as long as it fits
+// inside that total.
 const maxUploadFileBytes = 64 << 20
 
 // maxUploadFiles caps the number of attachments per request. Reasonable
@@ -226,9 +225,12 @@ func (h *handler) write(w http.ResponseWriter, req *http.Request) {
 
 func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	const maxFormSize = int64(64 << 20)
-	// Limit request body size to prevent unbounded form parsing.
+	// Bound the whole request body first, then stream the parts one at a
+	// time. ParseMultipartForm would buffer the entire form (memory plus
+	// a temp-file spill) before any of it could be validated.
 	req.Body = http.MaxBytesReader(w, req.Body, maxFormSize)
-	if err := req.ParseMultipartForm(maxFormSize); err != nil {
+	mr, err := req.MultipartReader()
+	if err != nil {
 		h.badRequest(w, err)
 		return
 	}
@@ -242,35 +244,44 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	count := 0
-	for _, fhs := range req.MultipartForm.File {
-		count += len(fhs)
-	}
-	if count > maxUploadFiles {
-		h.badRequest(w, fmt.Errorf("too many files (max %d)", maxUploadFiles))
-		return
-	}
-	for _, fhs := range req.MultipartForm.File {
-		for _, fh := range fhs {
-			if err := saveMultipart(p, fh); err != nil {
-				httpErr(w, err)
-				return
-			}
+	for {
+		part, err := mr.NextPart()
+		// Direct comparison on purpose: NextPart returns a bare io.EOF at
+		// the closing boundary, but a *wrapped* io.EOF when the body just
+		// stops. errors.Is would silently accept the truncated upload.
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			h.badRequest(w, err)
+			return
+		}
+		if part.FileName() == "" {
+			// A plain form field, not an attachment: nothing to store.
+			_ = part.Close()
+			continue
+		}
+		count++
+		if count > maxUploadFiles {
+			_ = part.Close()
+			h.badRequest(w, fmt.Errorf("too many files (max %d)", maxUploadFiles))
+			return
+		}
+		saveErr := savePart(p, part.FileName(), part, maxUploadFileBytes)
+		_ = part.Close()
+		if saveErr != nil {
+			httpErr(w, saveErr)
+			return
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func saveMultipart(dir string, fh *multipart.FileHeader) error {
-	if fh.Size > maxUploadFileBytes {
-		return fmt.Errorf("file %q exceeds %d-byte limit", filepath.Base(fh.Filename), maxUploadFileBytes)
-	}
-	src, err := fh.Open()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = src.Close() }()
+// savePart streams one multipart part into dir under a sanitized name,
+// refusing anything larger than limit bytes.
+func savePart(dir, filename string, src io.Reader, limit int64) error {
 	// Sanitize filename — reject anything that would climb out of dir.
-	name := filepath.Base(fh.Filename)
+	name := filepath.Base(filename)
 	if name == "." || name == ".." || name == string(os.PathSeparator) {
 		return errors.New("invalid filename")
 	}
@@ -279,10 +290,16 @@ func saveMultipart(dir string, fh *multipart.FileHeader) error {
 		return err
 	}
 	defer func() { _ = dst.Close() }()
-	// Even with Size checked above, cap the copy so a lying multipart
-	// header can't bypass it.
-	_, err = io.Copy(dst, io.LimitReader(src, maxUploadFileBytes))
-	return err
+	// Read one byte past the cap: if that byte materializes the part is
+	// over the limit, whatever its multipart headers claimed.
+	n, err := io.Copy(dst, io.LimitReader(src, limit+1))
+	if err != nil {
+		return fmt.Errorf("save %q: %w", name, err)
+	}
+	if n > limit {
+		return fmt.Errorf("file %q exceeds %d-byte limit", name, limit)
+	}
+	return nil
 }
 
 func (h *handler) mkdir(w http.ResponseWriter, req *http.Request) {
