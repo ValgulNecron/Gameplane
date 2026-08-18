@@ -52,8 +52,9 @@ func notifTestRouter(store *db.Store, secrets ...runtime.Object) chi.Router {
 // doNotifTest fires the test-send with a caller-chosen client IP so each
 // test gets its own rate-limit bucket (NotifyTestLimiter is a package
 // singleton keyed by IP).
-func doNotifTest(h http.Handler, sink, ip string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/admin/notifications/sinks/"+sink+"/test", nil)
+func doNotifTest(t *testing.T, h http.Handler, sink, ip string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/notifications/sinks/"+sink+"/test", nil)
 	req.RemoteAddr = ip + ":40000"
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -63,7 +64,7 @@ func doNotifTest(h http.Handler, sink, ip string) *httptest.ResponseRecorder {
 func TestNotificationTestSendUnknownSink(t *testing.T) {
 	store := newTestStore(t)
 	seedNotifSinks(t, store, `{"sinks":[{"name":"a","kind":"discord","enabled":true}]}`)
-	rr := doNotifTest(notifTestRouter(store), "nope", "10.10.0.1")
+	rr := doNotifTest(t, notifTestRouter(store), "nope", "10.10.0.1")
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("got %d %s", rr.Code, rr.Body)
 	}
@@ -72,7 +73,7 @@ func TestNotificationTestSendUnknownSink(t *testing.T) {
 func TestNotificationTestSendUnconfiguredSink(t *testing.T) {
 	store := newTestStore(t)
 	seedNotifSinks(t, store, `{"sinks":[{"name":"a","kind":"discord","enabled":true}]}`)
-	rr := doNotifTest(notifTestRouter(store), "a", "10.10.0.2")
+	rr := doNotifTest(t, notifTestRouter(store), "a", "10.10.0.2")
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("got %d %s", rr.Code, rr.Body)
 	}
@@ -92,7 +93,7 @@ func TestNotificationTestSendDelivers(t *testing.T) {
 	seedNotifSinks(t, store, `{"sinks":[{"name":"hook","kind":"webhook","enabled":true,"configRef":"hook-secret"}]}`)
 	r := notifTestRouter(store, notifSinkSecret("hook-secret", srv.URL))
 
-	rr := doNotifTest(r, "hook", "10.10.0.3")
+	rr := doNotifTest(t, r, "hook", "10.10.0.3")
 	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"delivered":true`) {
 		t.Fatalf("got %d %s", rr.Code, rr.Body)
 	}
@@ -112,7 +113,7 @@ func TestNotificationTestSendFailureIs502(t *testing.T) {
 	seedNotifSinks(t, store, `{"sinks":[{"name":"hook","kind":"webhook","enabled":true,"configRef":"hook-secret"}]}`)
 	r := notifTestRouter(store, notifSinkSecret("hook-secret", srv.URL))
 
-	rr := doNotifTest(r, "hook", "10.10.0.4")
+	rr := doNotifTest(t, r, "hook", "10.10.0.4")
 	if rr.Code != http.StatusBadGateway {
 		t.Fatalf("got %d %s", rr.Code, rr.Body)
 	}
@@ -125,11 +126,11 @@ func TestNotificationTestSendRateLimited(t *testing.T) {
 
 	const ip = "10.10.0.5" // dedicated bucket: burst is 3
 	for i := 0; i < 3; i++ {
-		if rr := doNotifTest(r, "nope", ip); rr.Code != http.StatusNotFound {
+		if rr := doNotifTest(t, r, "nope", ip); rr.Code != http.StatusNotFound {
 			t.Fatalf("call %d: got %d, want 404 (under the limit)", i, rr.Code)
 		}
 	}
-	if rr := doNotifTest(r, "nope", ip); rr.Code != http.StatusTooManyRequests {
+	if rr := doNotifTest(t, r, "nope", ip); rr.Code != http.StatusTooManyRequests {
 		t.Fatalf("got %d, want 429 after burst", rr.Code)
 	}
 }

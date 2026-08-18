@@ -79,7 +79,7 @@ func bundleZip(t *testing.T, files map[string]string) []byte {
 
 func doBytes(t *testing.T, h http.Handler, method, path string, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), method, path, bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr

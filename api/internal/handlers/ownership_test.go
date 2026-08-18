@@ -19,7 +19,7 @@ import (
 
 func TestStampOwner(t *testing.T) {
 	obj := newServerObj("gameplane-games", "alpha")
-	req := httptest.NewRequest("POST", "/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 7, Username: "alice"}))
 	stampOwner(obj, req)
 	ann := obj.GetAnnotations()
@@ -170,7 +170,7 @@ func TestStampOwner_StripsCollaborators(t *testing.T) {
 	ann[collaboratorNamesAnnotation] = "evil,hacker"
 	obj.SetAnnotations(ann)
 
-	req := httptest.NewRequest("POST", "/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 7, Username: "alice"}))
 	stampOwner(obj, req)
 
@@ -271,7 +271,7 @@ func doAs(t *testing.T, r http.Handler, userID int64, method, path string, body 
 		rb = bytes.NewReader(data)
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(method, path, rb)
+	req := httptest.NewRequestWithContext(t.Context(), method, path, rb)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: userID}))
 	r.ServeHTTP(rr, req)
 	return rr

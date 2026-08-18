@@ -172,7 +172,7 @@ func (p *proxy) wsProxy(agentPath string) http.HandlerFunc {
 		}
 		// Validate namespace and pod name are valid DNS-1123 labels before
 		// constructing the URL to prevent SSRF injection.
-		if !isDNS1123Label(ns) || !isDNS1123Label(name) {
+		if !(isDNS1123Label(ns) && isDNS1123Label(name)) {
 			httperr.WriteCode(w, req, http.StatusBadRequest,
 				errors.New("invalid namespace or pod name"))
 			return
@@ -248,7 +248,7 @@ func (p *proxy) httpProxyLimit(agentPath string, maxBody int64) http.HandlerFunc
 		}
 		// Validate namespace and pod name are valid DNS-1123 labels before
 		// constructing the URL to prevent SSRF injection.
-		if !isDNS1123Label(ns) || !isDNS1123Label(name) {
+		if !(isDNS1123Label(ns) && isDNS1123Label(name)) {
 			httperr.WriteCode(w, req, http.StatusBadRequest,
 				errors.New("invalid namespace or pod name"))
 			return

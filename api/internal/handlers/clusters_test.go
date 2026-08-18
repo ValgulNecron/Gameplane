@@ -67,7 +67,7 @@ func doClusters(t *testing.T, h http.Handler, method, path string, body any) *ht
 		b, _ := json.Marshal(body)
 		buf = bytes.NewReader(b)
 	}
-	req := httptest.NewRequest(method, path, buf)
+	req := httptest.NewRequestWithContext(t.Context(), method, path, buf)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
