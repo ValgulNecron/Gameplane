@@ -59,164 +59,164 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 
 #### API: api/internal/handlers — auth & OIDC (6 files)
 
-- [ ] T010 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` auth and OIDC handler files (auth_provider_secret.go, auth_provider_secret_test.go, auth_providers.go, auth_providers_test.go, oidc_routes.go, oidc_routes_test.go). Expected fixes: improved error handling (errcheck), context parameters (contextcheck), resource cleanup (bodyclose). Update `api/specs.md` if behavioral changes occur.
+- [X] T010 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` auth and OIDC handler files (auth_provider_secret.go, auth_provider_secret_test.go, auth_providers.go, auth_providers_test.go, oidc_routes.go, oidc_routes_test.go). Expected fixes: improved error handling (errcheck), context parameters (contextcheck), resource cleanup (bodyclose). Update `api/specs.md` if behavioral changes occur.
 
 #### API: api/internal/handlers — config (4 files)
 
-- [ ] T011 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/config.go`, `config_test.go`, `config_db_test.go`, and `config_validators_test.go`. Expected fixes: nil checks (nilerr), error wrapping consistency (errorlint).
+- [X] T011 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/config.go`, `config_test.go`, `config_db_test.go`, and `config_validators_test.go`. Expected fixes: nil checks (nilerr), error wrapping consistency (errorlint).
 
 #### API: api/internal/handlers — modules, module sources, uploads, mod IDs, mod updates (15 files)
 
-- [ ] T012 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` module and module-source files (modules.go, modules_envtest_test.go, modules_fake_test.go, modules_list_errors_test.go, modules_unit_test.go, modules_uninstall_test.go, module_sources.go, module_sources_test.go, module_sources_validate_test.go). Expected fixes: context parameters, error handling, resource cleanup.
-- [ ] T013 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` upload and mod-related files (module_upload.go, module_upload_test.go, mod_ids.go, mod_ids_test.go, mod_updates.go, mod_updates_test.go). Expected fixes: context parameters, error wrapping.
+- [X] T012 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` module and module-source files (modules.go, modules_envtest_test.go, modules_fake_test.go, modules_list_errors_test.go, modules_unit_test.go, modules_uninstall_test.go, module_sources.go, module_sources_test.go, module_sources_validate_test.go). Expected fixes: context parameters, error handling, resource cleanup.
+- [X] T013 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` upload and mod-related files (module_upload.go, module_upload_test.go, mod_ids.go, mod_ids_test.go, mod_updates.go, mod_updates_test.go). Expected fixes: context parameters, error wrapping.
 
 #### API: api/internal/handlers — destinations (5 files)
 
-- [ ] T014 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` destinations files (destinations.go, destinations_envtest_test.go, destinations_fake_test.go, destinations_unit_test.go, destinations_upsert_test.go). Expected fixes: context parameters, nil checks.
+- [X] T014 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` destinations files (destinations.go, destinations_envtest_test.go, destinations_fake_test.go, destinations_unit_test.go, destinations_upsert_test.go). Expected fixes: context parameters, nil checks.
 
 #### API: api/internal/handlers — lifecycle (4 files)
 
-- [ ] T015 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` lifecycle files (lifecycle.go, lifecycle_envtest_test.go, lifecycle_extra_test.go, lifecycle_fake_test.go). Expected fixes: error handling, context parameters.
+- [X] T015 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` lifecycle files (lifecycle.go, lifecycle_envtest_test.go, lifecycle_extra_test.go, lifecycle_fake_test.go). Expected fixes: error handling, context parameters.
 
 #### API: api/internal/handlers — resources, pod events, system logs (10 files)
 
-- [ ] T016 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` resources and pod-events files (resources.go, resources_envtest_test.go, resources_fake_test.go, resources_cluster_envtest_test.go, resources_stale_test.go, resources_update_test.go, pod_events.go, pod_events_test.go). Expected fixes: context parameters, error wrapping.
-- [ ] T017 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/systemlogs.go` and `systemlogs_test.go`. Expected fixes: nil checks, context parameters.
+- [X] T016 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` resources and pod-events files (resources.go, resources_envtest_test.go, resources_fake_test.go, resources_cluster_envtest_test.go, resources_stale_test.go, resources_update_test.go, pod_events.go, pod_events_test.go). Expected fixes: context parameters, error wrapping.
+- [X] T017 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/systemlogs.go` and `systemlogs_test.go`. Expected fixes: nil checks, context parameters.
 
 #### API: api/internal/handlers — cluster(s) (9 files)
 
-- [ ] T018 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` cluster files (cluster.go, clusters.go, cluster_actions.go, cluster_test.go, clusters_test.go, cluster_actions_test.go, cluster_actions_kubeconfig_test.go, cluster_guard_test.go, cluster_name_test.go). Expected fixes: context parameters, error handling.
+- [X] T018 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` cluster files (cluster.go, clusters.go, cluster_actions.go, cluster_test.go, clusters_test.go, cluster_actions_test.go, cluster_actions_kubeconfig_test.go, cluster_guard_test.go, cluster_name_test.go). Expected fixes: context parameters, error handling.
 
 #### API: api/internal/handlers — registry & registry secret (4 files)
 
-- [ ] T019 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/registry.go`, `registry_test.go`, `registry_secret.go`, and `registry_secret_test.go`. Expected fixes: error handling, context parameters.
+- [X] T019 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/registry.go`, `registry_test.go`, `registry_secret.go`, and `registry_secret_test.go`. Expected fixes: error handling, context parameters.
 
 #### API: api/internal/handlers — users, roles, shares, ownership (11 files)
 
-- [ ] T020 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` user and role files (users.go, users_test.go, users_extra_test.go, users_branches_test.go, roles.go, roles_test.go, roles_branches_test.go). Expected fixes: context parameters, error wrapping.
-- [ ] T021 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/shares.go`, `shares_test.go`, `ownership.go`, and `ownership_test.go`. Expected fixes: context parameters, nil checks.
+- [X] T020 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` user and role files (users.go, users_test.go, users_extra_test.go, users_branches_test.go, roles.go, roles_test.go, roles_branches_test.go). Expected fixes: context parameters, error wrapping.
+- [X] T021 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/shares.go`, `shares_test.go`, `ownership.go`, and `ownership_test.go`. Expected fixes: context parameters, nil checks.
 
 #### API: api/internal/handlers — notifications (3 files)
 
-- [ ] T022 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/notifications.go`, `notifications_test.go`, and `notifications_secret_test.go`. Expected fixes: error handling, context parameters.
+- [X] T022 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/notifications.go`, `notifications_test.go`, and `notifications_secret_test.go`. Expected fixes: error handling, context parameters.
 
 #### API: api/internal/handlers — events (2 files)
 
-- [ ] T023 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/events.go` and `events_test.go`. Expected fixes: context parameters, error wrapping.
+- [X] T023 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/events.go` and `events_test.go`. Expected fixes: context parameters, error wrapping.
 
 #### API: api/internal/handlers — helpers & misc (11 files)
 
-- [ ] T024 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` helper and miscellaneous files (audit.go, audit_test.go, validate.go, secrets_managed.go, semver.go, semver_test.go, suite_envtest_test.go, test_helpers_test.go, tunnelcreds.go, tunnelcreds_test.go, dispatch_isolation_envtest_test.go). Expected fixes: context parameters, error handling.
+- [X] T024 [P] [US1] Fix all golangci-lint findings in `api/internal/handlers/` helper and miscellaneous files (audit.go, audit_test.go, validate.go, secrets_managed.go, semver.go, semver_test.go, suite_envtest_test.go, test_helpers_test.go, tunnelcreds.go, tunnelcreds_test.go, dispatch_isolation_envtest_test.go). Expected fixes: context parameters, error handling.
 
 #### API: api/internal/registry (24 files)
 
-- [ ] T025 [P] [US1] Fix all golangci-lint findings in `api/internal/registry/` package. Expected fixes: context parameters (contextcheck), error handling (errcheck), resource cleanup (bodyclose), improved error wrapping (errorlint). Update `api/specs.md` if OCI-registry behavior changes.
+- [X] T025 [P] [US1] Fix all golangci-lint findings in `api/internal/registry/` package. Expected fixes: context parameters (contextcheck), error handling (errcheck), resource cleanup (bodyclose), improved error wrapping (errorlint). Update `api/specs.md` if OCI-registry behavior changes.
 
 #### API: api/internal/auth (22 files)
 
-- [ ] T026 [P] [US1] Fix all golangci-lint findings in `api/internal/auth/` package. Expected fixes: context parameters (contextcheck — especially on graceful shutdown paths with `context.WithoutCancel`), variable shadowing fixes (gosec G101 — validate renames against password/secret/token regex), error handling (errcheck, nilerr), rate-limit integration tests. Update `api/specs.md` if authentication behavior or rate-limit logic changes.
+- [X] T026 [P] [US1] Fix all golangci-lint findings in `api/internal/auth/` package. Expected fixes: context parameters (contextcheck — especially on graceful shutdown paths with `context.WithoutCancel`), variable shadowing fixes (gosec G101 — validate renames against password/secret/token regex), error handling (errcheck, nilerr), rate-limit integration tests. Update `api/specs.md` if authentication behavior or rate-limit logic changes.
 
 #### API: api/internal/ws (12 files)
 
-- [ ] T027 [P] [US1] Fix all golangci-lint findings in `api/internal/ws/` package (WebSocket bridge). Expected fixes: context parameters (contextcheck), error handling (errcheck), resource cleanup (bodyclose). Note trap: if switching from `net.DialTimeout` to `DialContext`, ensure `Dialer.Timeout` is also set. Update `api/specs.md` if WebSocket behavior changes.
+- [X] T027 [P] [US1] Fix all golangci-lint findings in `api/internal/ws/` package (WebSocket bridge). Expected fixes: context parameters (contextcheck), error handling (errcheck), resource cleanup (bodyclose). Note trap: if switching from `net.DialTimeout` to `DialContext`, ensure `Dialer.Timeout` is also set. Update `api/specs.md` if WebSocket behavior changes.
 
 #### API: api/internal/notify (11 files)
 
-- [ ] T028 [P] [US1] Fix all golangci-lint findings in `api/internal/notify/` package (notification delivery). Expected fixes: error handling (errcheck), context parameters (contextcheck), resource cleanup (bodyclose). Update `api/specs.md` if notification sink behavior changes.
+- [X] T028 [P] [US1] Fix all golangci-lint findings in `api/internal/notify/` package (notification delivery). Expected fixes: error handling (errcheck), context parameters (contextcheck), resource cleanup (bodyclose). Update `api/specs.md` if notification sink behavior changes.
 
 #### API: api/internal/kube (11 files)
 
-- [ ] T029 [P] [US1] Fix all golangci-lint findings in `api/internal/kube/` package (Kubernetes client wrapper). Expected fixes: error handling (errcheck), context parameters (contextcheck). Update `api/specs.md` if K8s API interaction changes.
+- [X] T029 [P] [US1] Fix all golangci-lint findings in `api/internal/kube/` package (Kubernetes client wrapper). Expected fixes: error handling (errcheck), context parameters (contextcheck). Update `api/specs.md` if K8s API interaction changes.
 
 #### API: api/internal/db (11 files)
 
-- [ ] T030 [P] [US1] Fix all golangci-lint findings in `api/internal/db/` package (database driver and migrations). Expected fixes: error handling (errcheck), error wrapping consistency (errorlint). Note: migration filenames are frozen; do NOT rename migration files.
+- [X] T030 [P] [US1] Fix all golangci-lint findings in `api/internal/db/` package (database driver and migrations). Expected fixes: error handling (errcheck), error wrapping consistency (errorlint). Note: migration filenames are frozen; do NOT rename migration files.
 
 #### API: api/internal/rbac (5 files)
 
-- [ ] T031 [P] [US1] Fix all golangci-lint findings in `api/internal/rbac/` package (role-based access control middleware). Expected fixes: error handling (errcheck), context parameters (contextcheck).
+- [X] T031 [P] [US1] Fix all golangci-lint findings in `api/internal/rbac/` package (role-based access control middleware). Expected fixes: error handling (errcheck), context parameters (contextcheck).
 
 #### API: api/internal/audit (5 files)
 
-- [ ] T032 [P] [US1] Fix all golangci-lint findings in `api/internal/audit/` package (audit event logging). Expected fixes: error handling (errcheck), resource cleanup. Note: audit event field names and Prometheus metric names are frozen; do NOT rename them. Refactor around via extraction if needed.
+- [X] T032 [P] [US1] Fix all golangci-lint findings in `api/internal/audit/` package (audit event logging). Expected fixes: error handling (errcheck), resource cleanup. Note: audit event field names and Prometheus metric names are frozen; do NOT rename them. Refactor around via extraction if needed.
 
 #### API: api/cmd (5 files)
 
-- [ ] T033 [P] [US1] Fix all golangci-lint findings in `api/cmd/` package (API entry point, serve and bootstrap-admin subcommands). Expected fixes: error handling, context parameters.
+- [X] T033 [P] [US1] Fix all golangci-lint findings in `api/cmd/` package (API entry point, serve and bootstrap-admin subcommands). Expected fixes: error handling, context parameters.
 
 #### API: api/internal/scope (4 files)
 
-- [ ] T034 [P] [US1] Fix all golangci-lint findings in `api/internal/scope/` package. Expected fixes: error handling, context parameters.
+- [X] T034 [P] [US1] Fix all golangci-lint findings in `api/internal/scope/` package. Expected fixes: error handling, context parameters.
 
 #### API: api/internal/telemetry (3 files)
 
-- [ ] T035 [P] [US1] Fix all golangci-lint findings in `api/internal/telemetry/` package. Expected fixes: error handling, context parameters.
+- [X] T035 [P] [US1] Fix all golangci-lint findings in `api/internal/telemetry/` package. Expected fixes: error handling, context parameters.
 
 #### API: api/internal/httperr (2 files)
 
-- [ ] T036 [P] [US1] Fix all golangci-lint findings in `api/internal/httperr/` package. Expected fixes: error handling, error wrapping.
+- [X] T036 [P] [US1] Fix all golangci-lint findings in `api/internal/httperr/` package. Expected fixes: error handling, error wrapping.
 
 ### Agent Module Fixes (64 files, 17 packages)
 
 #### Agent: agent/internal/rcon (14 files)
 
-- [ ] T037 [P] [US1] Fix all golangci-lint findings in `agent/internal/rcon/` package (RCON protocol implementation). Expected fixes: context parameters (contextcheck), error handling (errcheck), resource cleanup (bodyclose). Update `agent/specs.md` if RCON protocol behavior changes.
+- [X] T037 [P] [US1] Fix all golangci-lint findings in `agent/internal/rcon/` package (RCON protocol implementation). Expected fixes: context parameters (contextcheck), error handling (errcheck), resource cleanup (bodyclose). Update `agent/specs.md` if RCON protocol behavior changes.
 
 #### Agent: agent/internal/players (7 files)
 
-- [ ] T038 [P] [US1] Fix all golangci-lint findings in `agent/internal/players/` package. Expected fixes: context parameters, error handling.
+- [X] T038 [P] [US1] Fix all golangci-lint findings in `agent/internal/players/` package. Expected fixes: context parameters, error handling.
 
 #### Agent: agent/internal/files (7 files)
 
-- [ ] T039 [P] [US1] Fix all golangci-lint findings in `agent/internal/files/` package (file access from pods). Expected fixes: context parameters, error handling, error wrapping.
+- [X] T039 [P] [US1] Fix all golangci-lint findings in `agent/internal/files/` package (file access from pods). Expected fixes: context parameters, error handling, error wrapping.
 
 #### Agent: agent/internal/mods (6 files)
 
-- [ ] T040 [P] [US1] Fix all golangci-lint findings in `agent/internal/mods/` package (module management). Expected fixes: context parameters, error handling.
+- [X] T040 [P] [US1] Fix all golangci-lint findings in `agent/internal/mods/` package (module management). Expected fixes: context parameters, error handling.
 
 #### Agent: agent/internal/quiesce (4 files)
 
-- [ ] T041 [P] [US1] Fix all golangci-lint findings in `agent/internal/quiesce/` package (graceful shutdown). Expected fixes: context parameters (contextcheck — note trap: graceful-shutdown paths with `WithoutCancel` require explicit timeout wrapping).
+- [X] T041 [P] [US1] Fix all golangci-lint findings in `agent/internal/quiesce/` package (graceful shutdown). Expected fixes: context parameters (contextcheck — note trap: graceful-shutdown paths with `WithoutCancel` require explicit timeout wrapping).
 
 #### Agent: agent/internal/logs (4 files)
 
-- [ ] T042 [P] [US1] Fix all golangci-lint findings in `agent/internal/logs/` package. Expected fixes: context parameters, error handling.
+- [X] T042 [P] [US1] Fix all golangci-lint findings in `agent/internal/logs/` package. Expected fixes: context parameters, error handling.
 
 #### Agent: Small packages grouped (usage, status, metrics, lifecycle, httpjson, heartbeat, console, caps, auth, actions — 2 files each on average)
 
-- [ ] T043 [P] [US1] Fix all golangci-lint findings in `agent/internal/{usage,status,metrics,lifecycle,httpjson,heartbeat,console,caps,auth,actions}/` packages (small utility and handler packages). Expected fixes: context parameters, error handling across all packages.
+- [X] T043 [P] [US1] Fix all golangci-lint findings in `agent/internal/{usage,status,metrics,lifecycle,httpjson,heartbeat,console,caps,auth,actions}/` packages (small utility and handler packages). Expected fixes: context parameters, error handling across all packages.
 
 #### Agent: agent/cmd (2 files)
 
-- [ ] T044 [P] [US1] Fix all golangci-lint findings in `agent/cmd/` package (agent entry point). Expected fixes: error handling, context parameters.
+- [X] T044 [P] [US1] Fix all golangci-lint findings in `agent/cmd/` package (agent entry point). Expected fixes: error handling, context parameters.
 
 ### Test/E2E Module Fixes (79 files, 23 packages)
 
 #### Test/E2E: Root setup & helpers (5 files)
 
-- [ ] T045 [P] [US1] Fix all golangci-lint findings in root test/e2e setup files (`env.go`, `gameprobe_job.go`, `e2e_suite_test.go`, `test_helpers_e2e_test.go`, `gamebot_helpers_e2e_test.go`). Expected fixes: context parameters, error handling, build-tag-specific signatures. Build tags must be passed: `--build-tags=e2e`.
+- [X] T045 [P] [US1] Fix all golangci-lint findings in root test/e2e setup files (`env.go`, `gameprobe_job.go`, `e2e_suite_test.go`, `test_helpers_e2e_test.go`, `gamebot_helpers_e2e_test.go`). Expected fixes: context parameters, error handling, build-tag-specific signatures. Build tags must be passed: `--build-tags=e2e`.
 
 #### Test/E2E: API tests (10 files)
 
-- [ ] T046 [P] [US1] Fix all golangci-lint findings in root `test/e2e/` API integration test files (api_agent_e2e_test.go, api_auth_e2e_test.go, api_lifecycle_e2e_test.go, api_mods_e2e_test.go, api_mods_upload_e2e_test.go, api_owner_collab_e2e_test.go, api_rbac_matrix_e2e_test.go, api_roles_e2e_test.go, api_session_e2e_test.go, api_ws_e2e_test.go). Expected fixes: context parameters, error handling. Build tags: `--build-tags=e2e`.
+- [X] T046 [P] [US1] Fix all golangci-lint findings in root `test/e2e/` API integration test files (api_agent_e2e_test.go, api_auth_e2e_test.go, api_lifecycle_e2e_test.go, api_mods_e2e_test.go, api_mods_upload_e2e_test.go, api_owner_collab_e2e_test.go, api_rbac_matrix_e2e_test.go, api_roles_e2e_test.go, api_session_e2e_test.go, api_ws_e2e_test.go). Expected fixes: context parameters, error handling. Build tags: `--build-tags=e2e`.
 
 #### Test/E2E: Operator & CRD tests (16 files)
 
-- [ ] T047 [P] [US1] Fix all golangci-lint findings in root `test/e2e/` operator and CRD test files (backup_e2e_test.go, backupschedule_e2e_test.go, crd_validation_e2e_test.go, gameserver_e2e_test.go, gameserver_idle_e2e_test.go, gameserver_lifecycle_e2e_test.go, gameserver_networkpolicy_e2e_test.go, gameserver_version_switch_e2e_test.go, module_e2e_test.go, module_verify_e2e_test.go, module_verify_signed_e2e_test.go, modulesource_ssrf_e2e_test.go, modulesource_upload_e2e_test.go, operator_finalizer_e2e_test.go, restore_e2e_test.go, wake_on_connect_e2e_test.go). Expected fixes: context parameters, error handling. Build tags: `--build-tags=e2e`.
+- [X] T047 [P] [US1] Fix all golangci-lint findings in root `test/e2e/` operator and CRD test files (backup_e2e_test.go, backupschedule_e2e_test.go, crd_validation_e2e_test.go, gameserver_e2e_test.go, gameserver_idle_e2e_test.go, gameserver_lifecycle_e2e_test.go, gameserver_networkpolicy_e2e_test.go, gameserver_version_switch_e2e_test.go, module_e2e_test.go, module_verify_e2e_test.go, module_verify_signed_e2e_test.go, modulesource_ssrf_e2e_test.go, modulesource_upload_e2e_test.go, operator_finalizer_e2e_test.go, restore_e2e_test.go, wake_on_connect_e2e_test.go). Expected fixes: context parameters, error handling. Build tags: `--build-tags=e2e`.
 
 #### Test/E2E: Game bot tests (16 files)
 
-- [ ] T048 [P] [US1] Fix all golangci-lint findings in root `test/e2e/` game bot test files (ark_bot_e2e_test.go, cs2_bot_e2e_test.go, dayz_bot_e2e_test.go, dontstarve_bot_e2e_test.go, enshrouded_bot_e2e_test.go, factorio_bot_e2e_test.go, garrysmod_bot_e2e_test.go, minecraft_bot_e2e_test.go, palworld_bot_e2e_test.go, projectzomboid_bot_e2e_test.go, rust_bot_e2e_test.go, satisfactory_bot_e2e_test.go, sevendaystodie_bot_e2e_test.go, terraria_bot_e2e_test.go, valheim_bot_e2e_test.go, vrising_bot_e2e_test.go). Expected fixes: context parameters, error handling. Note: test names in buckets.sh are frozen; do NOT rename test functions. Build tags: `--build-tags=e2e`.
+- [X] T048 [P] [US1] Fix all golangci-lint findings in root `test/e2e/` game bot test files (ark_bot_e2e_test.go, cs2_bot_e2e_test.go, dayz_bot_e2e_test.go, dontstarve_bot_e2e_test.go, enshrouded_bot_e2e_test.go, factorio_bot_e2e_test.go, garrysmod_bot_e2e_test.go, minecraft_bot_e2e_test.go, palworld_bot_e2e_test.go, projectzomboid_bot_e2e_test.go, rust_bot_e2e_test.go, satisfactory_bot_e2e_test.go, sevendaystodie_bot_e2e_test.go, terraria_bot_e2e_test.go, valheim_bot_e2e_test.go, vrising_bot_e2e_test.go). Expected fixes: context parameters, error handling. Note: test names in buckets.sh are frozen; do NOT rename test functions. Build tags: `--build-tags=e2e`.
 
 #### Test/E2E: Integration tests (4 files)
 
-- [ ] T049 [P] [US1] Fix all golangci-lint findings in root test/e2e integration test files (failure_paths_e2e_test.go, multicluster_e2e_test.go, helm_install_e2e_test.go, upgrade_e2e_test.go). Expected fixes: context parameters, error handling. Build tags: `--build-tags=e2e`.
+- [X] T049 [P] [US1] Fix all golangci-lint findings in root test/e2e integration test files (failure_paths_e2e_test.go, multicluster_e2e_test.go, helm_install_e2e_test.go, upgrade_e2e_test.go). Expected fixes: context parameters, error handling. Build tags: `--build-tags=e2e`.
 
 #### Test/E2E: Internal packages (probe, protocol subdirs, per-game dirs)
 
-- [ ] T050 [P] [US1] Fix all golangci-lint findings in `test/e2e/internal/probe/` package (probe harness). Expected fixes: error handling, context parameters. Build tags: `--build-tags=e2e`.
-- [ ] T051 [P] [US1] Fix all golangci-lint findings in `test/e2e/internal/protocol/` packages (joindepth, a2sproto, sourceproto) and per-game protocol packages (test/e2e/internal/terraria/, test/e2e/internal/minecraft-java/, and 14 other game dirs). Expected fixes: error handling, variable names. Build tags: `--build-tags=e2e`.
-- [ ] T052 [P] [US1] Fix all golangci-lint findings in per-game subdirectories under `test/e2e/internal/` (16 game dirs: minecraft-java, terraria, valheim, dayz, garrys-mod, factorio, cs2, rust, ark-survival-ascended, palworld, satisfactory, 7-days-to-die, project-zomboid, dont-starve-together, enshrouded, v-rising). Each game dir contains protocol and bot fixtures. Expected fixes: error handling, variable names. Note: protocol byte layouts are frozen; refactor around them if findings touch them. Build tags: `--build-tags=e2e`.
+- [X] T050 [P] [US1] Fix all golangci-lint findings in `test/e2e/internal/probe/` package (probe harness). Expected fixes: error handling, context parameters. Build tags: `--build-tags=e2e`.
+- [X] T051 [P] [US1] Fix all golangci-lint findings in `test/e2e/internal/protocol/` packages (joindepth, a2sproto, sourceproto) and per-game protocol packages (test/e2e/internal/terraria/, test/e2e/internal/minecraft-java/, and 14 other game dirs). Expected fixes: error handling, variable names. Build tags: `--build-tags=e2e`.
+- [X] T052 [P] [US1] Fix all golangci-lint findings in per-game subdirectories under `test/e2e/internal/` (16 game dirs: minecraft-java, terraria, valheim, dayz, garrys-mod, factorio, cs2, rust, ark-survival-ascended, palworld, satisfactory, 7-days-to-die, project-zomboid, dont-starve-together, enshrouded, v-rising). Each game dir contains protocol and bot fixtures. Expected fixes: error handling, variable names. Note: protocol byte layouts are frozen; refactor around them if findings touch them. Build tags: `--build-tags=e2e`.
 
 #### Test/E2E: specs.md documentation
 
@@ -232,11 +232,11 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 
 **Independent Test**: A grep of the entire repository returns zero lines matching suppression directives in api, agent, and test/e2e (accounting for false positives in identifier names).
 
-- [ ] T054 [US2] Verify zero `//nolint` directives in `api/`, `agent/`, and `test/e2e/` directories. Expected: empty result or only false positives (identifiers like "nolint" in variable names or test names). The grep command must be: `git grep -i 'nolint' -- api/ agent/ test/e2e/` and any match must be manually verified as a false positive (not an actual suppression directive). Document the verification step.
-- [ ] T055 [US2] Verify zero `//#nosec` directives in `api/`, `agent/`, and `test/e2e/` directories. Expected: empty result. Grep: `git grep '#nosec' -- api/ agent/ test/e2e/`.
-- [ ] T056 [US2] Verify zero `//lint:ignore` directives in `api/`, `agent/`, and `test/e2e/` directories. Expected: empty result. Grep: `git grep 'lint:ignore' -- api/ agent/ test/e2e/`.
-- [ ] T057 [US2] Review a sample of 5–10 landed fix commits to confirm they contain real code changes (improved error handling, added context parameters, renamed variables, extracted helpers) and not deletions or artificial narrowing of analysis scope. Document findings in a brief review note.
-- [ ] T058 [US2] Confirm `.golangci.yml` has gained zero new exclusions beyond the three pre-existing ones (test exemptions, controller revive exemption, gameproto G115 exemption). Verify by inspecting lines 35-52 of `.golangci.yml` and confirming no new directive appears.
+- [X] T054 [US2] Verify zero `//nolint` directives in `api/`, `agent/`, and `test/e2e/` directories. Expected: empty result or only false positives (identifiers like "nolint" in variable names or test names). The grep command must be: `git grep -i 'nolint' -- api/ agent/ test/e2e/` and any match must be manually verified as a false positive (not an actual suppression directive). Document the verification step.
+- [X] T055 [US2] Verify zero `//#nosec` directives in `api/`, `agent/`, and `test/e2e/` directories. Expected: empty result. Grep: `git grep '#nosec' -- api/ agent/ test/e2e/`.
+- [X] T056 [US2] Verify zero `//lint:ignore` directives in `api/`, `agent/`, and `test/e2e/` directories. Expected: empty result. Grep: `git grep 'lint:ignore' -- api/ agent/ test/e2e/`.
+- [X] T057 [US2] Review a sample of 5–10 landed fix commits to confirm they contain real code changes (improved error handling, added context parameters, renamed variables, extracted helpers) and not deletions or artificial narrowing of analysis scope. Document findings in a brief review note.
+- [X] T058 [US2] Confirm `.golangci.yml` has gained zero new exclusions beyond the three pre-existing ones (test exemptions, controller revive exemption, gameproto G115 exemption). Verify by inspecting lines 35-52 of `.golangci.yml` and confirming no new directive appears.
 
 **Checkpoint**: Zero suppression directives introduced. All landed fixes are real code changes. .golangci.yml exclusion list is unchanged.
 
@@ -254,6 +254,7 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 - [ ] T062 [US3] Verify that build-tag args are correctly passed in `.github/workflows/ci.yaml`: `--build-tags=envtest` for api module, `--build-tags=e2e` for test/e2e module (R-008 / R-009). Confirm by inspection of the matrix step conditions and args in the workflow file.
 - [ ] T063 [US3] Confirm that no module listed in the matrix has been accidentally excluded via a skip condition (`if: ...false`) (R-003). Every module in the matrix must be analyzed on every run.
 - [ ] T064 [US3] Add documentation to specs.md: update `specs/004-lint-backlog-wave2/specs.md` to document the lint-gate contract and its verification rules (R-001..R-010), with references to the verifier script and CI configuration. Include the exact CI recipe for maintainers to manually verify the gate if needed.
+  - **Note (2026-08-19, T077 convergence pass)**: no `specs/004-lint-backlog-wave2/specs.md` was created; `contracts/lint-gate.md` was judged to already satisfy this task's intent in full — it documents R-001..R-010 as a normative rules table, spells out what a green lint job does and does not prove, and ends with a "Matrix Completeness Verification" section giving the exact maintainer recipe (`go work edit -json | jq ...` vs. the ci.yaml matrix) this task asked for. The one gap — a verifier *script* — is still open and tracked separately as T059/T076.
 
 **Checkpoint**: Lint-gate contract rules are automated and documented. The verifier script can fail when the contract is violated. CI configuration is locked in.
 
@@ -263,9 +264,9 @@ description: "Task list for Lint Backlog Wave 2 — bringing api, agent, test/e2
 
 **Purpose**: Final validation, collateral-damage checks, and documentation updates.
 
-- [ ] T065 [P] Confirm that `api/.testcoverage.yml` 80% gate still passes after all fixes. If coverage dropped, add targeted tests to recover it. Build tags: `--build-tags=envtest`.
-- [ ] T066 [P] Confirm that `agent/.testcoverage.yml` 90% gate still passes after all fixes. If coverage dropped, add targeted tests to recover it.
-- [ ] T067 Verify that the "e2e bucket coverage" CI job still passes and the verifier (`test/e2e/joincoverage.sh`) still validates all 16 modules correctly. Note: renaming an e2e test to satisfy a linting rule will silently break the test→bucket mapping in `test/e2e/buckets.sh` and fail the coverage job; this is why e2e test names are frozen (T048).
+- [X] T065 [P] Confirm that `api/.testcoverage.yml` 80% gate still passes after all fixes. If coverage dropped, add targeted tests to recover it. Build tags: `--build-tags=envtest`.
+- [X] T066 [P] Confirm that `agent/.testcoverage.yml` 90% gate still passes after all fixes. If coverage dropped, add targeted tests to recover it.
+- [X] T067 Verify that the "e2e bucket coverage" CI job still passes and the verifier (`test/e2e/joincoverage.sh`) still validates all 16 modules correctly. Note: renaming an e2e test to satisfy a linting rule will silently break the test→bucket mapping in `test/e2e/buckets.sh` and fail the coverage job; this is why e2e test names are frozen (T048).
 - [ ] T068 Run the quickstart.md scenarios on a real cluster (e.g., kubelab). All 8 scenarios must execute without error. If a scenario fails due to this feature's changes, document the failure and roll back the offending fix.
 - [ ] T069 Verify that CLAUDE.md's "Lint & coverage" section (lines 120–131) and the project-specific rules accurately reflect that all 13 Go modules (netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, svcutil, and test/e2e) are now under the uniform golangci-lint gate. If the section does not list api, agent, and test/e2e alongside the other modules or does not mention build-tag requirements (`--build-tags=envtest` for api, `--build-tags=e2e` for test/e2e), update it to reflect the complete, uniform gate. If CLAUDE.md is already current, document the verification and confirm no changes are needed.
 
