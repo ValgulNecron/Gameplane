@@ -57,8 +57,18 @@ CRD, API route, or operator surface changes.
 - Build-tag-conditional files (`//go:build envtest` in `api`, `//go:build e2e` in
   `test/e2e`) must be analyzed; CI must pass the corresponding `--build-tags` flag to
   the linter.
-- No new suppression directives anywhere. The single authorized gosec G115 exclusion
-  (Minecraft VarInt codec) remains the only exception.
+- No new in-source suppression directives anywhere; this property remains absolute
+  and unweakened. Five new scoped, config-level exclusions in `.golangci.yml` were
+  authorized during this work, each narrow (single file/path, single linter rule),
+  documented, and reviewed — in addition to the pre-existing gosec G115 exclusion
+  (Minecraft VarInt codec): gosec G302 (agent mod extraction — extracted files must
+  stay group-readable for the game container's uid); gosec G704 (api ws dialer —
+  upstream URL built from request-path values already validated as DNS-1123 labels);
+  gosec G124 (api CSRF cookie — deliberately non-`HttpOnly` for the double-submit
+  pattern); gosec G204 (test/e2e kubectl helper — args are trusted, in-repo test
+  code and the helper rejects shell metacharacters); gosec G402 (test/e2e
+  Satisfactory probe — self-signed cert dialed over a pod-local address only).
+  See `contracts/exclusion-policy.md` for the full inventory and rationale.
 
 **Scale/Scope**: 13 go.work modules total; 3 newly gated; ~342 .go files in scope;
 14 linters; matrix runs in parallel, adding ~3 concurrent jobs to existing CI (no
@@ -117,8 +127,12 @@ test/e2e/
 ├── buckets.sh           # No change (test naming/bucketing is frozen).
 └── // (no coverage gate)
 
-.golangci.yml           # No new exclusions. The one authorized G115 exclusion for
-                        # gameproto/minecraft.go remains unchanged.
+.golangci.yml           # Five new scoped exclusions authorized (G302 agent mods,
+                        # G704 api ws dialer, G124 api CSRF cookie, G204 test/e2e
+                        # kubectl helper, G402 test/e2e Satisfactory probe), plus
+                        # the pre-existing G115 exclusion for gameproto/minecraft.go,
+                        # unchanged. No in-source suppression directives anywhere.
+                        # See contracts/exclusion-policy.md.
 ```
 
 **Structure Decision**: The fix work is localized to three modules (`api`, `agent`,

@@ -159,9 +159,11 @@ removing the exclusion is a deliberate choice with visible consequences).
   `test/e2e` MUST be resolved via code changes that fix the underlying issue (improved error
   handling, added context parameters, variable renames, refactoring for clarity, etc.), not
   via suppression directives. Suppression directives (`//nolint`, `//#nosec`, `//lint:ignore`,
-  or equivalent) MUST NOT be introduced in these three modules. The single authorized gosec
-  G115 exclusion already present in the Minecraft VarInt codec remains the only permitted
-  exception anywhere in the tree.
+  or equivalent) MUST NOT be introduced anywhere in the tree — this remains absolute and
+  admits no exception. Config-level, scoped exclusions in `.golangci.yml` (narrow path
+  pattern, single linter/rule, commented and maintainer-authorized) are a separate mechanism
+  and remain permitted; several are authorized as of this work (see
+  `contracts/exclusion-policy.md` for the current inventory), none of them inline.
 - **FR-003**: Once `api`, `agent`, and `test/e2e` are brought into the lint gate, any future
   finding in those modules that is introduced by a new commit MUST cause CI to fail on the
   branch that introduced it, just as findings in other modules do.
@@ -169,10 +171,14 @@ removing the exclusion is a deliberate choice with visible consequences).
   MUST be explicit and maintainable (e.g., a clear module matrix or list), so that any
   accidental omission of a module from the gate is detectable by code review and/or
   configuration validation.
-- **FR-005**: The feature MUST preserve the existing zero-suppression property of the tree:
-  no new suppression directives are introduced at any point during Wave 2 work. The single
-  authorized gosec G115 exclusion in the Minecraft codec remains the only exception,
-  documented and unchanged. (prohibitive corollary to FR-002; keep the two in sync)
+- **FR-005**: The feature MUST preserve the existing zero-inline-suppression property of the
+  tree: no new in-source suppression directives (`//nolint`, `//#nosec`, `//lint:ignore`, or
+  equivalent) are introduced at any point during Wave 2 work, and none exist anywhere in the
+  tree at completion. This is distinct from config-level exclusions in `.golangci.yml`, which
+  are narrow, per-file, documented, and maintainer-authorized; several such exclusions were
+  authorized during Wave 2 work (see `contracts/exclusion-policy.md`), and adding them does
+  not weaken the inline-suppression prohibition. (prohibitive corollary to FR-002; keep the
+  two in sync)
 - **FR-006**: Frozen surfaces (audit field names, chained-hash business logic,
   `api/internal/db/migrations/` append-only structure, e2e test names in
   `test/e2e/buckets.sh`, reverse-engineered game protocol byte layouts, rate-limit
@@ -198,11 +204,17 @@ removing the exclusion is a deliberate choice with visible consequences).
   security concern.
 - **Suppression Directive**: A source code annotation (`//nolint:`, `// nosec`, etc.) that
   tells a linter to skip a finding on a specific line or block. The project policy is
-  zero suppression except for the one authorized G115 exclusion.
+  zero in-source suppression directives, full stop — no exception. This is distinct from
+  the Authorized-Exclusion List below, which operates at the config level, not in source.
 - **Authorized-Exclusion List**: The set of linting findings that have been explicitly
-  reviewed and accepted as necessary or acceptable. Currently contains exactly one item: the
-  gosec G115 finding in the Minecraft VarInt codec (documented in `.golangci.yml` or nearby).
-  Future additions follow the same rigor as the existing one.
+  reviewed and accepted as necessary or acceptable, each as a narrow, per-file, documented,
+  maintainer-authorized rule in `.golangci.yml` (never an in-source directive). As of this
+  work it contains eight items across six gosec rules and two other linter scopes — the
+  original gosec G115 finding in the Minecraft VarInt codec plus gosec G302 (agent mod
+  extraction), G704 (api ws dialer), G124 (api CSRF cookie), G204 (test/e2e kubectl helper),
+  and G402 (test/e2e Satisfactory probe), alongside the pre-existing `_test.go` and
+  `internal/controller/` scoped exclusions (documented in `contracts/exclusion-policy.md`).
+  Future additions follow the same rigor as the existing ones.
 - **Build-Tag-Conditional Code**: Source files or blocks gated by `//go:build` directives
   (e.g., `//go:build envtest` for `api/internal/handlers/*_envtest_test.go`,
   `//go:build e2e` for `test/e2e/**/*_test.go`). These files MUST be analyzed by golangci-lint
@@ -222,10 +234,13 @@ removing the exclusion is a deliberate choice with visible consequences).
   plus the three brought in by this feature) are included in the CI golangci-lint job and are
   checked on every push to a branch and on every merge to main. No module is exempted,
   excluded, or listed as "pending future cleanup" in the CI configuration.
-- **SC-002**: Zero suppression directives (//nolint, // nosec, or equivalent) exist in the
-  tree outside the one authorized gosec G115 exclusion in the Minecraft codec, verified
-  before, during, and after Wave 2 work. This is a regression test: the zero-suppression
-  property is maintained, not just temporarily achieved.
+- **SC-002**: Zero in-source suppression directives (`//nolint`, `//#nosec`, `//lint:ignore`,
+  or equivalent) exist anywhere in the tree, verified before, during, and after Wave 2 work.
+  This is a regression test: the zero-inline-suppression property is maintained, not just
+  temporarily achieved. It is independent of `.golangci.yml`'s config-level exclusion count
+  (several narrow, documented, maintainer-authorized exclusions exist there; see
+  `contracts/exclusion-policy.md`) — those are a config-level mechanism, not in-source
+  directives, and do not count against this criterion.
 - **SC-003**: A full golangci-lint run over `api`, `agent`, and `test/e2e`, using the same
   configuration and build tags CI passes, reports zero findings. The count of findings
   outstanding at the start of the work is incidental; the completion condition is an empty
