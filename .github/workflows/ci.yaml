@@ -174,10 +174,10 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # api, agent, and test/e2e are deliberately excluded pending lint backlog
+      # api and test/e2e are deliberately excluded pending lint backlog
       # cleanup (wave 2). They carry ~493 findings queued for the next wave.
       matrix:
-        module: [netguard, gameaction, gameproto, operator, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel]
+        module: [netguard, gameaction, gameproto, operator, agent, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go-cache

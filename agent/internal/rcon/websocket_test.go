@@ -24,7 +24,7 @@ func TestWebSocketHappyPath(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			t.Logf("failed to read request: %v", err)
@@ -75,7 +75,7 @@ func TestWebSocketQuietHealthyServer(t *testing.T) {
 		// normally once a command actually arrives.
 		time.Sleep(1200 * time.Millisecond)
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			t.Logf("failed to read request: %v", err)
@@ -112,7 +112,7 @@ func TestWebSocketInterleavedUnsolicited(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			t.Logf("failed to read request: %v", err)
@@ -180,7 +180,7 @@ func TestWebSocketPasswordInPath(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			return
@@ -219,7 +219,7 @@ func TestWebSocketAuthFailure(t *testing.T) {
 		// Close), but this is the other, close-frame-less way Rust
 		// signals a bad password, and the two must both be classified as
 		// ErrAuth without resorting to matching on error text.
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		_ = readJSON(ctx, conn, &req)
 		_ = conn.CloseNow()
@@ -245,7 +245,7 @@ func TestWebSocketTimeout(t *testing.T) {
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
 		// Accept but never respond
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		_ = readJSON(ctx, conn, &req)
 		// Hang until the client (or test) goes away — the client's own
@@ -285,7 +285,7 @@ func TestWebSocketCommandTooLong(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			return
@@ -328,7 +328,7 @@ func TestWebSocketConcurrentExecs(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		for {
 			var req WebSocketMessage
 			if err := readJSON(ctx, conn, &req); err != nil {
@@ -425,7 +425,7 @@ func TestWebSocketCloseMultipleTimes(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			t.Logf("failed to read request: %v", err)
@@ -571,7 +571,7 @@ func TestWebSocketMalformedJSON(t *testing.T) {
 		}
 		defer conn.Close(websocket.StatusNormalClosure, "")
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		var req WebSocketMessage
 		if err := readJSON(ctx, conn, &req); err != nil {
 			t.Logf("failed to read request: %v", err)
@@ -655,7 +655,7 @@ func TestWebSocketReconnectAfterError(t *testing.T) {
 		first := conns == 1
 		mu.Unlock()
 
-		ctx := context.Background()
+		ctx := context.WithoutCancel(r.Context())
 		for {
 			var req WebSocketMessage
 			if err := readJSON(ctx, conn, &req); err != nil {

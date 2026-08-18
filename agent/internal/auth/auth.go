@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -95,6 +96,7 @@ func ServerTLS(certFile, keyFile, clientCAFile string) (*tls.Config, error) {
 	}
 	pool := x509.NewCertPool()
 	if clientCAFile != "" {
+		clientCAFile = filepath.Clean(clientCAFile)
 		ca, err := os.ReadFile(clientCAFile)
 		if err != nil {
 			return nil, fmt.Errorf("read client CA: %w", err)
