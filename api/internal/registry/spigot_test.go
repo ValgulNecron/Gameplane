@@ -78,10 +78,10 @@ func TestSpigotSearchModpackEmpty(t *testing.T) {
 
 func TestSpigotVersionsHostedFile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/resources/28140":
+		switch r.URL.Path {
+		case "/resources/28140":
 			_, _ = w.Write([]byte(`{"id":28140,"name":"LuckPerms","external":false,"premium":false}`))
-		case r.URL.Path == "/resources/28140/versions":
+		case "/resources/28140/versions":
 			_, _ = w.Write([]byte(`[{"id":590885,"name":"5.5.0"},{"id":544174,"name":"5.4.131"}]`))
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
@@ -114,10 +114,10 @@ func TestSpigotVersionsHostedFile(t *testing.T) {
 func TestSpigotVersionsExternalResourceHasNoVersions(t *testing.T) {
 	var hitVersionsEndpoint bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/resources/9089":
+		switch r.URL.Path {
+		case "/resources/9089":
 			_, _ = w.Write([]byte(`{"id":9089,"name":"EssentialsX","external":true,"premium":false}`))
-		case r.URL.Path == "/resources/9089/versions":
+		case "/resources/9089/versions":
 			hitVersionsEndpoint = true
 			_, _ = w.Write([]byte(`[{"id":639442,"name":"2.22.0"}]`))
 		default:
@@ -143,10 +143,10 @@ func TestSpigotVersionsExternalResourceHasNoVersions(t *testing.T) {
 
 func TestSpigotVersionsPremiumResourceHasNoVersions(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/resources/555":
+		switch r.URL.Path {
+		case "/resources/555":
 			_, _ = w.Write([]byte(`{"id":555,"name":"PaidPlugin","external":false,"premium":true}`))
-		case r.URL.Path == "/resources/555/versions":
+		case "/resources/555/versions":
 			_, _ = w.Write([]byte(`[{"id":1,"name":"1.0"}]`))
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)

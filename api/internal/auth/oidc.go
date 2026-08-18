@@ -33,6 +33,7 @@ type ProviderPolicy struct {
 	DefaultRole  string
 }
 
+// OIDC handles OpenID Connect authentication.
 type OIDC struct {
 	provider *oidc.Provider
 	verifier *oidc.IDTokenVerifier
@@ -151,8 +152,10 @@ func computeRole(groups []string, pol *ProviderPolicy) (role string, deny bool) 
 	}
 }
 
+// AttachStore attaches a database store to the OIDC handler.
 func (o *OIDC) AttachStore(s *db.Store) { o.db = s }
 
+// HandleStart returns an HTTP handler for starting an OIDC authorization flow.
 func (o *OIDC) HandleStart() http.HandlerFunc {
 	return o.HandleStartAt("/")
 }
@@ -182,6 +185,7 @@ func (o *OIDC) HandleStartAt(cookiePath string) http.HandlerFunc {
 	}
 }
 
+// HandleCallback returns an HTTP handler for OIDC authorization callbacks.
 func (o *OIDC) HandleCallback(sessions *SessionStore) http.HandlerFunc {
 	return o.HandleCallbackAt(sessions, "/")
 }
@@ -196,7 +200,7 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 			http.Error(w, "state mismatch", http.StatusBadRequest)
 			return
 		}
-		clearCookieAt(w, oidcStateCookie, true, cookiePath)
+		clearCookieAt(w, oidcStateCookie, cookiePath)
 
 		tok, err := o.oauth.Exchange(req.Context(), req.URL.Query().Get("code"))
 		if err != nil {
@@ -220,11 +224,11 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 		// accept the login.
 		nonceCookie, err := req.Cookie(oidcNonceCookie)
 		if err != nil || nonceCookie.Value == "" || idt.Nonce != nonceCookie.Value {
-			clearCookieAt(w, oidcNonceCookie, true, cookiePath)
+			clearCookieAt(w, oidcNonceCookie, cookiePath)
 			http.Error(w, "nonce mismatch", http.StatusBadRequest)
 			return
 		}
-		clearCookieAt(w, oidcNonceCookie, true, cookiePath)
+		clearCookieAt(w, oidcNonceCookie, cookiePath)
 		var claims struct {
 			Sub   string `json:"sub"`
 			Email string `json:"email"`

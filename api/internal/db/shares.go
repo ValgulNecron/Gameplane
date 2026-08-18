@@ -189,7 +189,9 @@ func (s *Store) ListShareLinks(ctx context.Context, ns, serverName string) ([]Sh
 	if err != nil {
 		return nil, fmt.Errorf("list share links: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close() // rows.Close error is already checked via rows.Err() below
+	}()
 
 	var links []ShareLink
 	for rows.Next() {

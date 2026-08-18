@@ -65,8 +65,8 @@ func doTunnelReq(t *testing.T, h http.Handler, method, path string, body any) (i
 	}
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
-	body_out, _ := io.ReadAll(rr.Body)
-	return rr.Code, body_out
+	bodyOut, _ := io.ReadAll(rr.Body)
+	return rr.Code, bodyOut
 }
 
 // syncSecretData populates Secret.Data from Secret.StringData.

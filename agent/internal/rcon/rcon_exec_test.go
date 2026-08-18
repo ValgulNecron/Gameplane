@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"context"
 	"net"
 	"strings"
 	"testing"
@@ -13,7 +14,8 @@ import (
 func TestExec_WriteFailsWhenServerGone(t *testing.T) {
 	// Custom server that authenticates then immediately closes the
 	// connection so the real command write fails on the next packet.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -45,7 +47,8 @@ func TestExec_WriteFailsWhenServerGone(t *testing.T) {
 func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
 	// Server authenticates, reads the (single) EXEC, answers it echoing the
 	// request id, then closes — mirroring real Minecraft RCON behaviour.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -82,7 +85,8 @@ func TestExec_ResponseThenCloseReturnsOutput(t *testing.T) {
 // before the command's response arrives is still surfaced as a (wrapped)
 // error — the graceful end-of-stream only applies once we have output.
 func TestExec_ErrorBeforeAnyResponse(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -119,7 +123,8 @@ func TestExec_ErrorBeforeAnyResponse(t *testing.T) {
 // execDeadline, Exec returns a timeout error promptly instead of holding
 // the client mutex (and every caller that shares it) indefinitely.
 func TestExec_DeadlineOnHungServer(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}

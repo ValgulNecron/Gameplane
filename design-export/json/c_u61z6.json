@@ -1,0 +1,1 @@
+{"type":"frame","id":"c:u61z6","x":2200,"y":1144,"name":"Radio/Selected","reusable":true,"clip":true,"width":16,"height":16,"fill":"$c:--foreground","cornerRadius":8,"stroke":"$c:--foreground","strokeWidth":1,"strokeAlignment":"inner","layout":"none","children":[{"type":"ellipse","id":"c:mB2s3","x":6,"y":6,"name":"dot","fill":"$c:--background","width":4,"height":4}]}

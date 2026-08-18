@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -69,7 +70,7 @@ func TestMiddleware_MTLS(t *testing.T) {
 
 	t.Run("plain HTTP rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		a.Middleware(next).ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", rr.Code)
@@ -78,7 +79,7 @@ func TestMiddleware_MTLS(t *testing.T) {
 
 	t.Run("TLS without verified chains rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.TLS = &tls.ConnectionState{}
 		a.Middleware(next).ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
@@ -88,7 +89,7 @@ func TestMiddleware_MTLS(t *testing.T) {
 
 	t.Run("TLS with verified chain passes", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 		req.TLS = &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{}}}}
 		a.Middleware(next).ServeHTTP(rr, req)
 		if rr.Code != http.StatusOK {
@@ -116,7 +117,7 @@ func TestMiddleware_Token(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 			if tc.header != "" {
 				req.Header.Set("Authorization", tc.header)
 			}

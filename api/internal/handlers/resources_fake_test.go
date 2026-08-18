@@ -143,7 +143,7 @@ func TestDecode_OversizeRejected(t *testing.T) {
 // send malformed payloads to test the parser.
 func doRaw(t *testing.T, h http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr

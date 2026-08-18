@@ -82,6 +82,7 @@ func listServerMods(t *testing.T, cli *APIClient, gs string) []modEntry {
 	if err != nil {
 		t.Fatalf("GET /mods: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("/mods expected 200, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -119,6 +120,7 @@ func TestAPI_ModManifestInstallUpgrade(t *testing.T) {
 		if err != nil {
 			return false, "GET /mods: " + err.Error()
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			return false, "status=" + http.StatusText(resp.StatusCode) + " body=" + string(body)
 		}
@@ -141,6 +143,7 @@ func TestAPI_ModManifestInstallUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /mods/install: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("install expected 200, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -169,6 +172,7 @@ func TestAPI_ModManifestInstallUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /mods/install (upgrade): %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("upgrade expected 200, got %d body=%q", resp.StatusCode, string(body))
 	}
@@ -186,6 +190,7 @@ func TestAPI_ModManifestInstallUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DELETE /mods: %v", err)
 	}
+	defer delResp.Body.Close()
 	if delResp.StatusCode/100 != 2 {
 		t.Fatalf("remove expected 2xx, got %d body=%q", delResp.StatusCode, string(delBody))
 	}

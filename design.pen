@@ -1,5 +1,5 @@
 {
-  "version": "2.14",
+  "version": "2.15",
   "children": [
     {
       "type": "frame",
@@ -2029,6 +2029,7 @@
             "right": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "layout": "vertical",
           "children": [
             {
@@ -2352,6 +2353,7 @@
                 "top": 1
               },
               "strokeAlignment": "inner",
+              "strokeLinejoin": "round",
               "gap": 12,
               "padding": 12,
               "alignItems": "center",
@@ -2413,6 +2415,7 @@
                 "bottom": 1
               },
               "strokeAlignment": "inner",
+              "strokeLinejoin": "round",
               "gap": 16,
               "padding": [
                 0,
@@ -2642,6 +2645,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 16,
                       "padding": [
                         12,
@@ -2676,6 +2680,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 16,
                       "padding": [
                         12,
@@ -2710,6 +2715,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 16,
                       "padding": [
                         12,
@@ -2744,6 +2750,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 16,
                       "padding": [
                         12,
@@ -2778,6 +2785,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 16,
                       "padding": [
                         12,
@@ -4899,6 +4907,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "alignItems": "center",
                       "children": [
                         {
@@ -5209,6 +5218,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "alignItems": "center",
                       "children": [
                         {
@@ -8171,6 +8181,7 @@
                     "bottom": 1
                   },
                   "strokeAlignment": "inner",
+                  "strokeLinejoin": "round",
                   "padding": [
                     8,
                     16
@@ -8457,6 +8468,7 @@
                     "bottom": 1
                   },
                   "strokeAlignment": "inner",
+                  "strokeLinejoin": "round",
                   "gap": 8,
                   "padding": [
                     8,
@@ -8528,6 +8540,7 @@
                               "strokeWidth": {
                                 "left": 1
                               },
+                              "strokeLinejoin": "round",
                               "padding": [
                                 0,
                                 8
@@ -9541,6 +9554,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "children": [
                         {
@@ -9553,6 +9567,7 @@
                             "bottom": 1
                           },
                           "strokeAlignment": "inner",
+                          "strokeLinejoin": "round",
                           "padding": [
                             8,
                             12
@@ -11007,6 +11022,7 @@
                           "strokeWidth": {
                             "left": 1
                           },
+                          "strokeLinejoin": "round",
                           "padding": [
                             0,
                             12
@@ -11041,6 +11057,7 @@
                           "strokeWidth": {
                             "left": 1
                           },
+                          "strokeLinejoin": "round",
                           "padding": [
                             0,
                             12
@@ -11138,6 +11155,7 @@
                               "strokeWidth": {
                                 "left": 1
                               },
+                              "strokeLinejoin": "round",
                               "padding": [
                                 0,
                                 12
@@ -12404,6 +12422,7 @@
                               "strokeWidth": {
                                 "left": 1
                               },
+                              "strokeLinejoin": "round",
                               "padding": [
                                 0,
                                 12
@@ -12432,6 +12451,7 @@
                               "strokeWidth": {
                                 "left": 1
                               },
+                              "strokeLinejoin": "round",
                               "padding": [
                                 0,
                                 12
@@ -12865,6 +12885,7 @@
                               "strokeWidth": {
                                 "left": 1
                               },
+                              "strokeLinejoin": "round",
                               "padding": [
                                 0,
                                 12
@@ -12894,6 +12915,7 @@
                               "strokeWidth": {
                                 "left": 1
                               },
+                              "strokeLinejoin": "round",
                               "padding": [
                                 0,
                                 12
@@ -14939,6 +14961,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -15712,6 +15735,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -16579,6 +16603,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -16795,6 +16820,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -17571,6 +17597,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -17787,6 +17814,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -18902,6 +18930,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -19118,6 +19147,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -19553,6 +19583,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -19769,6 +19800,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -21394,6 +21426,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -21610,6 +21643,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -22101,6 +22135,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -22317,6 +22352,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -22845,6 +22881,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 12,
                               "padding": [
                                 12,
@@ -23061,6 +23098,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -23752,6 +23790,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -24349,6 +24388,7 @@
             "right": 1
           },
           "strokeAlignment": "outer",
+          "strokeLinejoin": "round",
           "layout": "vertical",
           "children": [
             {
@@ -24362,6 +24402,7 @@
                 "bottom": 1
               },
               "strokeAlignment": "inner",
+              "strokeLinejoin": "round",
               "layout": "vertical",
               "gap": 8,
               "padding": [
@@ -24856,6 +24897,7 @@
                 "top": 1
               },
               "strokeAlignment": "inner",
+              "strokeLinejoin": "round",
               "gap": 8,
               "padding": [
                 16,
@@ -24968,6 +25010,7 @@
                 "bottom": 1
               },
               "strokeAlignment": "inner",
+              "strokeLinejoin": "round",
               "padding": [
                 0,
                 32
@@ -25348,6 +25391,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         20,
                         28
@@ -25418,6 +25462,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 8,
                       "padding": [
                         12,
@@ -26389,6 +26434,7 @@
                                 "bottom": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 8,
                               "padding": [
                                 12,
@@ -26605,6 +26651,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "padding": [
                                 12,
                                 14
@@ -26639,6 +26686,7 @@
                         "top": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         16,
                         28
@@ -26898,6 +26946,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         20,
                         28
@@ -26968,6 +27017,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 8,
                       "padding": [
                         12,
@@ -27634,6 +27684,7 @@
                                 "bottom": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 8,
                               "padding": [
                                 12,
@@ -27850,6 +27901,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "padding": [
                                 12,
                                 14
@@ -27884,6 +27936,7 @@
                         "top": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         16,
                         28
@@ -28153,6 +28206,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         20,
                         28
@@ -28223,6 +28277,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 8,
                       "padding": [
                         12,
@@ -29886,6 +29941,7 @@
                                 "bottom": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 8,
                               "padding": [
                                 12,
@@ -30143,6 +30199,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "padding": [
                                 12,
                                 14
@@ -30177,6 +30234,7 @@
                         "top": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         16,
                         28
@@ -30453,6 +30511,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         20,
                         28
@@ -30523,6 +30582,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 8,
                       "padding": [
                         12,
@@ -31311,6 +31371,7 @@
                                 "bottom": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 8,
                               "padding": [
                                 12,
@@ -31548,6 +31609,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "padding": [
                                 12,
                                 14
@@ -31582,6 +31644,7 @@
                         "top": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         16,
                         28
@@ -31858,6 +31921,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         20,
                         28
@@ -31928,6 +31992,7 @@
                         "bottom": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 8,
                       "padding": [
                         12,
@@ -32266,6 +32331,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32350,6 +32416,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32434,6 +32501,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32473,6 +32541,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32512,6 +32581,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32551,6 +32621,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32590,6 +32661,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32674,6 +32746,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32713,6 +32786,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32752,6 +32826,7 @@
                                     "bottom": 1
                                   },
                                   "strokeAlignment": "inner",
+                                  "strokeLinejoin": "round",
                                   "padding": [
                                     6,
                                     0
@@ -32809,6 +32884,7 @@
                                 "bottom": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "gap": 8,
                               "padding": [
                                 12,
@@ -33024,6 +33100,7 @@
                                 "top": 1
                               },
                               "strokeAlignment": "inner",
+                              "strokeLinejoin": "round",
                               "padding": [
                                 12,
                                 14
@@ -33058,6 +33135,7 @@
                         "top": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         16,
                         28
@@ -37384,6 +37462,7 @@
                     "bottom": 1
                   },
                   "strokeAlignment": "inner",
+                  "strokeLinejoin": "round",
                   "gap": 4,
                   "alignItems": "center",
                   "children": [
@@ -37397,6 +37476,7 @@
                         "bottom": 2
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         0,
                         12
@@ -37878,6 +37958,7 @@
                     "bottom": 1
                   },
                   "strokeAlignment": "inner",
+                  "strokeLinejoin": "round",
                   "gap": 4,
                   "alignItems": "center",
                   "children": [
@@ -37914,6 +37995,7 @@
                         "bottom": 2
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         0,
                         12
@@ -39349,6 +39431,7 @@
                     "bottom": 1
                   },
                   "strokeAlignment": "inner",
+                  "strokeLinejoin": "round",
                   "gap": 4,
                   "alignItems": "center",
                   "children": [
@@ -39408,6 +39491,7 @@
                         "bottom": 2
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "padding": [
                         0,
                         12
@@ -45474,6 +45558,7 @@
                         "top": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "gap": 12,
                       "padding": [
                         12,
@@ -52775,6 +52860,7 @@
             "bottom": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             0,
             16
@@ -53991,6 +54077,7 @@
             "bottom": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             0,
             16
@@ -55780,6 +55867,7 @@
         "right": 1
       },
       "strokeAlignment": "outer",
+      "strokeLinejoin": "round",
       "layout": "vertical",
       "children": [
         {
@@ -55793,6 +55881,7 @@
             "bottom": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "layout": "vertical",
           "gap": 8,
           "padding": [
@@ -56187,6 +56276,7 @@
             "top": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "gap": 8,
           "padding": [
             16,
@@ -56282,6 +56372,7 @@
         "bottom": 1
       },
       "strokeAlignment": "inner",
+      "strokeLinejoin": "round",
       "padding": [
         0,
         32
@@ -56615,6 +56706,7 @@
         "bottom": 1
       },
       "strokeAlignment": "inner",
+      "strokeLinejoin": "round",
       "children": [
         {
           "type": "frame",
@@ -56625,6 +56717,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56652,6 +56745,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56679,6 +56773,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56706,6 +56801,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56733,6 +56829,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56760,6 +56857,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56787,6 +56885,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56814,6 +56913,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56841,6 +56941,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -56868,6 +56969,7 @@
             "bottom": 2
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             12,
             16
@@ -58530,6 +58632,7 @@
             "bottom": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "padding": [
             8,
             12
@@ -58768,6 +58871,7 @@
         "left": 1
       },
       "strokeAlignment": "inner",
+      "strokeLinejoin": "round",
       "effect": {
         "type": "shadow",
         "shadowType": "outer",
@@ -58791,6 +58895,7 @@
             "bottom": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "gap": 12,
           "padding": 20,
           "justifyContent": "space_between",
@@ -59077,6 +59182,7 @@
             "top": 1
           },
           "strokeAlignment": "inner",
+          "strokeLinejoin": "round",
           "gap": 8,
           "padding": 16,
           "justifyContent": "end",
@@ -61710,6 +61816,7 @@
                     "top": 1
                   },
                   "strokeAlignment": "inner",
+                  "strokeLinejoin": "round",
                   "gap": 12,
                   "padding": [
                     16,
@@ -68821,6 +68928,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [
@@ -69814,6 +69922,7 @@
                         "right": 1
                       },
                       "strokeAlignment": "inner",
+                      "strokeLinejoin": "round",
                       "layout": "vertical",
                       "padding": 8,
                       "children": [

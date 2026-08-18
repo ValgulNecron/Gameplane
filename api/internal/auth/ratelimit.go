@@ -41,6 +41,7 @@ func newTokenBucket(rate, burst float64) *TokenBucket {
 	}
 }
 
+// Allow returns true if the key has tokens available and reserves one, false otherwise.
 func (t *TokenBucket) Allow(key string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()

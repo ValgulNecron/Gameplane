@@ -76,7 +76,7 @@ func TestModule_VerifySignedBundleInstalls(t *testing.T) {
 			return true, ""
 		}
 		if j.Status.Failed > 0 {
-			out, _ := envInstance.Kubectl("logs", "-n", "gameplane-system",
+			out, _ := envInstance.Kubectl(ctx, "logs", "-n", "gameplane-system",
 				"job/cosign-sign-test-game", "--all-containers", "--tail=200")
 			return false, "sign job failed:\n" + out
 		}

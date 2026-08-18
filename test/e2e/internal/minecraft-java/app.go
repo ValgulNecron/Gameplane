@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for Minecraft
+// Java Edition, used by the e2e suite to measure how far a real client
+// can get against a running server: server-list ping, and (depending on
+// -mode) a full offline-mode login or a single wake-on-connect attempt.
 package main
 
 import (
@@ -90,7 +94,7 @@ func main() {
 }
 
 // emitVerdictAndExit emits the machine-readable VERDICT line and exits.
-func emitVerdictAndExit(v *joindepth.ProbeVerdict, expectedDepth joindepth.JoinDepth, expectFail bool, exitCode int) {
+func emitVerdictAndExit(v *joindepth.ProbeVerdict, _ joindepth.JoinDepth, _ bool, exitCode int) {
 	// Encode the verdict line.
 	line, err := v.Encode()
 	if err != nil {
@@ -152,7 +156,8 @@ func probeMinecraft(ctx context.Context, addr, user string) (joindepth.JoinDepth
 		}
 	})
 	if err != nil {
-		if _, ok := err.(errFatal); ok {
+		var fatalErr errFatal
+		if errors.As(err, &fatalErr) {
 			// Non-retryable error: server is in online-mode. Report as PARTIAL.
 			evidence := fmt.Sprintf("Encryption Request (0x01) sent; %s", loginResult.Detail)
 			return joindepth.PARTIAL, evidence, nil
@@ -245,9 +250,12 @@ func (e errFatal) Error() string {
 }
 
 const (
-	probeAttempt = 15 * time.Second // per-attempt timeout for ping
-	loginAttempt = 20 * time.Second // per-attempt timeout for login
-	retryInterval = 3 * time.Second  // pause between attempts
+	// probeAttempt is the per-attempt timeout for ping.
+	probeAttempt = 15 * time.Second
+	// loginAttempt is the per-attempt timeout for login.
+	loginAttempt = 20 * time.Second
+	// retryInterval is the pause between attempts.
+	retryInterval = 3 * time.Second
 )
 
 // retry calls fn until it succeeds, ctx expires, or fn reports a fatal error.
@@ -268,7 +276,8 @@ func retry(ctx context.Context, what string, attempt time.Duration, fn func(cont
 		if err == nil {
 			return nil
 		}
-		if _, ok := err.(errFatal); ok {
+		var fatalErr errFatal
+		if errors.As(err, &fatalErr) {
 			return err
 		}
 		last = err

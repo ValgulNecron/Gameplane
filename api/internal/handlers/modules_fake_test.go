@@ -73,7 +73,7 @@ func do(t *testing.T, h http.Handler, method, path string, body any) *httptest.R
 		b, _ := json.Marshal(body)
 		buf = bytes.NewReader(b)
 	}
-	req := httptest.NewRequest(method, path, buf)
+	req := httptest.NewRequestWithContext(t.Context(), method, path, buf)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
@@ -143,7 +143,7 @@ func TestMountModules_Install(t *testing.T) {
 	})
 
 	t.Run("bad json", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/modules/", strings.NewReader("not json"))
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/modules/", strings.NewReader("not json"))
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		if rr.Code == http.StatusCreated {

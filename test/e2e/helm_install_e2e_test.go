@@ -105,7 +105,7 @@ func TestHelmInstall_OperatorLogsClean(t *testing.T) {
 	}
 
 	for _, p := range pods.Items {
-		out, err := envInstance.Kubectl("logs", "-n", "gameplane-system", p.Name, "--tail=500")
+		out, err := envInstance.Kubectl(ctx, "logs", "-n", "gameplane-system", p.Name, "--tail=500")
 		if err != nil {
 			t.Fatalf("kubectl logs %s: %v\n%s", p.Name, err, out)
 		}
@@ -137,7 +137,7 @@ func TestHelmInstall_APILogsClean(t *testing.T) {
 	}
 
 	for _, p := range pods.Items {
-		out, err := envInstance.Kubectl("logs", "-n", "gameplane-system", p.Name, "--tail=500")
+		out, err := envInstance.Kubectl(ctx, "logs", "-n", "gameplane-system", p.Name, "--tail=500")
 		if err != nil {
 			t.Fatalf("kubectl logs %s: %v\n%s", p.Name, err, out)
 		}
@@ -165,6 +165,7 @@ func TestHelmInstall_APIHealthz(t *testing.T) {
 		// not-yet-cleaned-up pod from the previous tick.
 		name := fmt.Sprintf("healthz-probe-%d", time.Now().UnixNano())
 		out, err := envInstance.Kubectl(
+			t.Context(),
 			"run", "-n", "gameplane-system",
 			"--rm", "--restart=Never", "--attach",
 			"--image=curlimages/curl:8.10.1",

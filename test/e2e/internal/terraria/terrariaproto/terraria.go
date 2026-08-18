@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"regexp"
 	"time"
@@ -52,6 +53,7 @@ type Conn struct {
 	c net.Conn
 }
 
+// Close closes the underlying connection.
 func (c *Conn) Close() error { return c.c.Close() }
 
 // Connect dials addr and completes the ConnectRequest handshake. On a
@@ -168,6 +170,9 @@ func (c *Conn) RequestWorldData(ctx context.Context) error {
 // writeMessage frames and sends one message.
 func writeMessage(w io.Writer, typ byte, payload []byte) error {
 	total := 2 + 1 + len(payload)
+	if total > math.MaxUint16 {
+		return fmt.Errorf("terraria: message too large: %d bytes exceeds the uint16 frame length field", total)
+	}
 	buf := make([]byte, 0, total)
 	buf = binary.LittleEndian.AppendUint16(buf, uint16(total))
 	buf = append(buf, typ)
@@ -272,14 +277,25 @@ func parseNetworkTextReader(r *bytes.Reader) (string, error) {
 	if mode == 0 {
 		return text, nil
 	}
+	// Substitutions are non-critical formatting data that this parser does
+	// not currently surface to callers; a truncated or malformed
+	// substitution block yields the base text rather than an error.
+	consumeSubstitutions(r)
+	return text, nil
+}
+
+// consumeSubstitutions best-effort drains the substitution block that
+// follows a NetworkText's base string when mode != 0. Any read failure here
+// is silently absorbed — the caller already has the base text it needs, and
+// substitution values are not currently surfaced further up the call chain.
+func consumeSubstitutions(r *bytes.Reader) {
 	count, err := r.ReadByte()
 	if err != nil {
-		return text, nil
+		return
 	}
 	for i := 0; i < int(count); i++ {
 		if _, err := parseNetworkTextReader(r); err != nil {
-			return text, nil
+			return
 		}
 	}
-	return text, nil
 }

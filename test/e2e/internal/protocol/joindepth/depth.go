@@ -1,3 +1,6 @@
+// Package joindepth defines the JoinDepth scale (QUERY/PARTIAL/JOINED) and
+// the ProbeVerdict wire contract that per-game e2e probes use to report how
+// far a real client got against a running game server.
 package joindepth
 
 import (
@@ -14,9 +17,9 @@ import (
 //
 // QUERY: Out-of-band status query (A2S_INFO, RCON dial, bare socket dial) proving reachability only.
 // PARTIAL: Server accepted the client handshake intent but the exchange was deliberately not completed.
-//   Example: sentinel wake-on-connect tests assert this on an armed server.
+// Example: sentinel wake-on-connect tests assert this on an armed server.
 // JOINED: Client completed the real protocol login/join handshake and observed a server-originated post-join artifact
-//   (e.g., Minecraft Login Success packet, Terraria WorldData packet).
+// (e.g., Minecraft Login Success packet, Terraria WorldData packet).
 //
 // Ordering is QUERY < PARTIAL < JOINED.
 //

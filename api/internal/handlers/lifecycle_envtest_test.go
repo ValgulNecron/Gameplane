@@ -36,14 +36,16 @@ func TestLifecycle_StartClearsSuspend(t *testing.T) {
 	createServerForLifecycleTest(t, name)
 
 	// First stop to get into a known suspended state.
-	if resp := doJSON(t, http.MethodPost, "/servers/"+name+":stop", nil); resp.StatusCode != http.StatusAccepted {
+	resp := doJSON(t, http.MethodPost, "/servers/"+name+":stop", nil)
+	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf(":stop precondition: %d", resp.StatusCode)
 	}
+	resp.Body.Close()
 	if got := lifecycleSuspendOf(t, name); !got {
 		t.Fatalf(":stop precondition didn't take effect")
 	}
 
-	resp := doJSON(t, http.MethodPost, "/servers/"+name+":start", nil)
+	resp = doJSON(t, http.MethodPost, "/servers/"+name+":start", nil)
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf(":start status = %d, want 202; body=%s", resp.StatusCode, readBody(t, resp))
 	}
@@ -121,6 +123,7 @@ func TestLifecycle_CloneRequiresNewName(t *testing.T) {
 	if resp.StatusCode < 400 || resp.StatusCode >= 500 {
 		t.Errorf(":clone without newName status = %d, want 4xx", resp.StatusCode)
 	}
+	resp.Body.Close()
 }
 
 // ---------- helpers ----------

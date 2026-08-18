@@ -17,7 +17,7 @@ import (
 func TestWSProxy_NoTLSConfigReturns503(t *testing.T) {
 	p := &proxy{tls: nil}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/ws/servers/alpha/console", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/ws/servers/alpha/console", nil)
 	p.wsProxy("/console")(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("got %d", rr.Code)
@@ -29,7 +29,7 @@ func TestWSProxy_NoTLSConfigReturns503(t *testing.T) {
 func TestHTTPProxy_NoTLSConfigReturns503(t *testing.T) {
 	p := &proxy{tls: nil}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha/files/list", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha/files/list", nil)
 	p.httpProxy("/files/list")(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("got %d", rr.Code)
@@ -44,7 +44,7 @@ func TestHTTPProxy_ScopeError(t *testing.T) {
 		http: &http.Client{},
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha/files/list?namespace=forbidden", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha/files/list?namespace=forbidden", nil)
 	p.httpProxy("/files/list")(rr, req)
 	if rr.Code == http.StatusOK {
 		t.Fatalf("expected non-200, got %d", rr.Code)
@@ -59,7 +59,7 @@ func TestWSProxy_ScopeError(t *testing.T) {
 		http: &http.Client{},
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/ws/servers/alpha/logs?namespace=forbidden", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/ws/servers/alpha/logs?namespace=forbidden", nil)
 	p.wsProxy("/logs/tail")(rr, req)
 	if rr.Code == http.StatusSwitchingProtocols {
 		t.Fatalf("expected non-101, got %d", rr.Code)
@@ -73,7 +73,7 @@ func TestMount_LogsDownloadRouted(t *testing.T) {
 	r := chi.NewRouter()
 	Mount(r, nil, "", "", "")
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha/logs/download", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha/logs/download", nil)
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("got %d, want 503", rr.Code)
@@ -98,7 +98,7 @@ func TestMount_ActionsAndStatusRouted(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, nil)
 		r.ServeHTTP(rr, req)
 		if rr.Code != http.StatusServiceUnavailable {
 			t.Errorf("%s %s: got %d, want 503 (registered but no mTLS)", tc.method, tc.path, rr.Code)
@@ -128,7 +128,7 @@ func (fakeTimeoutErr) Temporary() bool { return true }
 // statuses (the dashboard and TestAPI_AgentUnreachable key off the
 // 502/503/504 range), never as 500.
 func TestWriteUpstreamErr_GatewayStatuses(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/servers/x/players", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/servers/x/players", nil)
 
 	rr := httptest.NewRecorder()
 	writeUpstreamErr(rr, req, errors.New("dial tcp 10.0.0.1:8090: connect: connection refused"))

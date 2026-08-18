@@ -433,6 +433,7 @@ func runControlActionRCON(t *testing.T, cli *APIClient, gsName, ns string, ctrl 
 	if err != nil {
 		t.Fatalf("API rejected the action: POST /actions/run transport error: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusGatewayTimeout {
 		// api/internal/ws/dialer.go's writeUpstreamErr maps a failed
 		// API→agent dial to 502/504 with body "agent unreachable" — a
@@ -501,6 +502,7 @@ func runControlActionStdinPTY(t *testing.T, cli *APIClient, gsName string, ctrl 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("API rejected the action: POST /servers/%s/actions/run returned %d: %s", gsName, resp.StatusCode, string(body))
 	}
+	defer func() { _ = resp.Body.Close() }()
 	var respBody struct {
 		OK bool `json:"ok"`
 	}

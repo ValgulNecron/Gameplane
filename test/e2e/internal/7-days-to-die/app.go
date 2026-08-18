@@ -1,3 +1,6 @@
+// Package main implements a hand-rolled join-depth probe for 7 Days to Die,
+// used by the e2e suite to measure how far a real client can get against a
+// running server (A2S query, then a plain TCP fallback).
 package main
 
 import (
@@ -9,8 +12,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
@@ -154,7 +157,7 @@ func probeSevenDaysToDay(ctx context.Context, addr string) *joindepth.ProbeVerdi
 	return &joindepth.ProbeVerdict{
 		ReachedDepth: joindepth.JoinDepth(-1),
 		Detail:       fmt.Sprintf("Transport failure: A2S query on %s and TCP dial to %s both failed", queryAddr, addr),
-		Err:          fmt.Errorf("7dtd server not reachable: tcp dial to %s failed: %w (a2s query on %s: %v)", addr, tcpErr, queryAddr, a2sErr),
+		Err:          fmt.Errorf("7dtd server not reachable: tcp dial to %s failed: %w (a2s query on %s: %w)", addr, tcpErr, queryAddr, a2sErr),
 	}
 }
 
@@ -215,7 +218,7 @@ func retryTCP(ctx context.Context, addr string) error {
 		cancel()
 
 		if derr == nil {
-			conn.Close()
+			_ = conn.Close()
 			log.Printf("tcp-connectivity: connection established to %s", addr)
 			return nil // Success
 		}

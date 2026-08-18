@@ -1,3 +1,6 @@
+// Package main implements a hand-rolled join-depth probe for Palworld, used
+// by the e2e suite to measure how far a real client can get against a
+// running server (A2S query on the query port for depth).
 package main
 
 import (
@@ -9,8 +12,8 @@ import (
 	"time"
 
 	"github.com/ValgulNecron/gameplane/test/e2e/internal/probe"
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {

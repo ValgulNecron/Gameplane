@@ -1,15 +1,14 @@
 package db
 
 import (
-	"context"
 	"testing"
 )
 
 func TestConfigValue(t *testing.T) {
 	s := newRBACStore(t) // migrated store helper (rbac_test.go)
-	ctx := context.Background()
+	ctx := t.Context()
 	const want = `{"instanceName":"gameplane"}`
-	if _, err := s.DB.Exec(`INSERT INTO config(key, value) VALUES ('general', ?)`, want); err != nil {
+	if _, err := s.DB.ExecContext(ctx, `INSERT INTO config(key, value) VALUES ('general', ?)`, want); err != nil {
 		t.Fatalf("insert config: %v", err)
 	}
 
@@ -30,7 +29,7 @@ func TestConfigValue(t *testing.T) {
 func TestConfigValue_ClosedDB(t *testing.T) {
 	s := newRBACStore(t)
 	_ = s.Close()
-	if _, _, err := s.ConfigValue(context.Background(), "general"); err == nil {
+	if _, _, err := s.ConfigValue(t.Context(), "general"); err == nil {
 		t.Fatal("expected error querying a closed DB")
 	}
 }

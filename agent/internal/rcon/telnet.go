@@ -7,9 +7,11 @@
 // there is one at all — is whatever text arrives before the socket goes
 // quiet. Replies are matched to commands purely by ordering on one
 // connection.
+
 package rcon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -176,7 +178,8 @@ func (c *TelnetClient) ensureLocked() error {
 	if err != nil {
 		return fmt.Errorf("telnet rcon: resolve password: %w", err)
 	}
-	conn, err := net.DialTimeout("tcp", c.addr, c.connectTimeout)
+	dialer := &net.Dialer{Timeout: c.connectTimeout}
+	conn, err := dialer.DialContext(context.Background(), "tcp", c.addr)
 	if err != nil {
 		return fmt.Errorf("telnet rcon: dial %s: %w", c.addr, err)
 	}

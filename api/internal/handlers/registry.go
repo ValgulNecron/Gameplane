@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -325,15 +326,21 @@ func registryProviders(tmpl *unstructured.Unstructured) []providerCfg {
 func nestedInt32(v any) int32 {
 	switch n := v.(type) {
 	case int64:
-		return int32(n)
+		if n >= math.MinInt32 && n <= math.MaxInt32 {
+			return int32(n)
+		}
 	case int32:
 		return n
 	case int:
-		return int32(n)
+		if n >= math.MinInt32 && n <= math.MaxInt32 {
+			return int32(n)
+		}
 	case float64:
-		return int32(n)
+		if n >= math.MinInt32 && n <= math.MaxInt32 {
+			return int32(n)
+		}
 	case json.Number:
-		if i, err := n.Int64(); err == nil {
+		if i, err := n.Int64(); err == nil && i >= math.MinInt32 && i <= math.MaxInt32 {
 			return int32(i)
 		}
 	}
@@ -442,6 +449,6 @@ func setEnvVars(gs *unstructured.Unstructured, apply []envKV) {
 
 // decodeBody reads a small JSON request body into v.
 func decodeBody(req *http.Request, v any) error {
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 	return json.NewDecoder(io.LimitReader(req.Body, 4<<10)).Decode(v)
 }

@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -70,7 +71,7 @@ func TestNotifyOnEOF(t *testing.T) {
 	}
 
 	// A read after EOF must not double-close (that would panic).
-	if _, err := n.Read(buf); err != io.EOF {
+	if _, err := n.Read(buf); !errors.Is(err, io.EOF) {
 		t.Fatalf("post-EOF read err = %v, want io.EOF", err)
 	}
 }

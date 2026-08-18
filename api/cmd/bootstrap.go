@@ -1,3 +1,4 @@
+// Package main implements the Gameplane API server and bootstrap command.
 package main
 
 import (
@@ -42,7 +43,7 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 		if err != nil {
 			return fmt.Errorf("open db: %w", err)
 		}
-		defer store.Close()
+		defer func() { _ = store.Close() }()
 		if err := store.Migrate(ctx); err != nil {
 			return fmt.Errorf("migrate: %w", err)
 		}
@@ -64,7 +65,7 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
@@ -101,7 +102,7 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 		if err := store.SetClusterRoleBinding(ctx, nil, newID, scope.DefaultCluster, "admin"); err != nil {
 			return fmt.Errorf("bind admin role: %w", err)
 		}
-		fmt.Fprintf(stderr, "bootstrap-admin: created user %q\n", bf.username)
+		_, _ = fmt.Fprintf(stderr, "bootstrap-admin: created user %q\n", bf.username)
 		return nil
 	case err != nil:
 		return fmt.Errorf("lookup user: %w", err)
@@ -121,7 +122,7 @@ func bootstrapAdmin(ctx context.Context, args []string, stdin io.Reader, stderr 
 	if err := store.SetClusterRoleBinding(ctx, nil, existingID, scope.DefaultCluster, "admin"); err != nil {
 		return fmt.Errorf("bind admin role: %w", err)
 	}
-	fmt.Fprintf(stderr, "bootstrap-admin: updated user %q\n", bf.username)
+	_, _ = fmt.Fprintf(stderr, "bootstrap-admin: updated user %q\n", bf.username)
 	return nil
 }
 
@@ -158,7 +159,7 @@ func enableLocalLogin(ctx context.Context, store *db.Store, stderr io.Writer) er
 		return fmt.Errorf("read auth config: %w", err)
 	}
 	if !ok {
-		fmt.Fprintln(stderr, "bootstrap-admin: no auth config row — local login is already enabled by default")
+		_, _ = fmt.Fprintln(stderr, "bootstrap-admin: no auth config row — local login is already enabled by default")
 		return nil
 	}
 	var cfg struct {
@@ -193,7 +194,7 @@ func enableLocalLogin(ctx context.Context, store *db.Store, stderr io.Writer) er
 	); err != nil {
 		return fmt.Errorf("write auth config: %w", err)
 	}
-	fmt.Fprintln(stderr, "bootstrap-admin: local login re-enabled in the auth config")
+	_, _ = fmt.Fprintln(stderr, "bootstrap-admin: local login re-enabled in the auth config")
 	return nil
 }
 

@@ -185,7 +185,7 @@ func TestSatisfactory401TriggersOneRelogin(t *testing.T) {
 		switch req.Function {
 		case "PasswordLogin":
 			n := atomic.AddInt32(&loginCount, 1)
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"data":{"authenticationToken":"tok-%d"}}`, n)))
+			_, _ = fmt.Fprintf(w, `{"data":{"authenticationToken":"tok-%d"}}`, n)
 		case "RunCommand":
 			n := atomic.AddInt32(&cmdCount, 1)
 			if n == 1 {
@@ -232,7 +232,7 @@ func TestSatisfactoryServerErrorWithEnvelopeIsNotAuth(t *testing.T) {
 	// and must NOT arm the auth cooldown, or a transient outage would freeze
 	// the pollers and read as a bad credential.
 	var reqCount int32
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt32(&reqCount, 1)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte(`{"errorCode":"server_busy","errorMessage":"try later"}`))
@@ -364,7 +364,7 @@ func TestSatisfactory200WithErrorCodeIsError(t *testing.T) {
 func TestSatisfactoryAuthFailureCooldown(t *testing.T) {
 	var requestCount int32
 
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt32(&requestCount, 1)
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"errorCode":"wrong_password","errorMessage":"nope"}`))
@@ -398,7 +398,8 @@ func TestSatisfactoryAuthFailureCooldown(t *testing.T) {
 // TestSatisfactoryConnectionRefused covers part of required case 9: a
 // closed port must fail fast with a plain (non-auth) error, not hang.
 func TestSatisfactoryConnectionRefused(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+	ln, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("reserve a port: %v", err)
 	}
@@ -470,7 +471,7 @@ func TestSatisfactoryMalformedJSONBody(t *testing.T) {
 // TestSatisfactoryLoginMalformedJSON exercises the same unmarshal-error
 // path on the PasswordLogin response.
 func TestSatisfactoryLoginMalformedJSON(t *testing.T) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`not json`))
 	}))
 	defer server.Close()
@@ -523,7 +524,7 @@ func TestSatisfactoryNon2xxStatusWithoutErrorEnvelope(t *testing.T) {
 // itself: a bare 500 is a server problem, not proof of a bad password, so
 // it must not arm the auth-failure cooldown.
 func TestSatisfactoryLoginServerError(t *testing.T) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()

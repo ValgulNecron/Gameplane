@@ -13,21 +13,21 @@ import (
 
 // bareStore is a migrated store with no telemetry config row (telStore
 // seeds one; some branches need its absence).
-func bareStore(t *testing.T) *db.Store {
+func bareStore(ctx context.Context, t *testing.T) *db.Store {
 	t.Helper()
-	store, err := db.Open(context.Background(), "sqlite", "file:"+filepath.Join(t.TempDir(), "t.db"))
+	store, err := db.Open(ctx, "sqlite", "file:"+filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.Migrate(context.Background()); err != nil {
+	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return store
 }
 
 func TestNew_DefaultsInterval(t *testing.T) {
-	r := New(bareStore(t), telKube(), "http://x", "", "v1", 0)
+	r := New(bareStore(context.Background(), t), telKube(), "http://x", "", "v1", 0)
 	if r.interval != 24*time.Hour {
 		t.Fatalf("interval = %v, want the 24h default for a non-positive interval", r.interval)
 	}
@@ -37,15 +37,15 @@ func TestEnabled_Branches(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("absent config is disabled", func(t *testing.T) {
-		r := New(bareStore(t), telKube(), "http://x", "", "v1", time.Hour)
+		r := New(bareStore(ctx, t), telKube(), "http://x", "", "v1", time.Hour)
 		if r.enabled(ctx) {
 			t.Fatal("want disabled when there is no telemetry config row")
 		}
 	})
 
 	t.Run("malformed config is disabled", func(t *testing.T) {
-		store := bareStore(t)
-		if _, err := store.DB.Exec(
+		store := bareStore(ctx, t)
+		if _, err := store.DB.ExecContext(ctx,
 			`INSERT INTO config(key, value, updated_at) VALUES ('telemetry', '{bad', ?)`,
 			"2026-01-01T00:00:00Z"); err != nil {
 			t.Fatalf("seed: %v", err)
@@ -58,7 +58,7 @@ func TestEnabled_Branches(t *testing.T) {
 }
 
 func TestCount_UnknownKind(t *testing.T) {
-	r := New(bareStore(t), telKube(), "http://x", "", "v1", time.Hour)
+	r := New(bareStore(context.Background(), t), telKube(), "http://x", "", "v1", time.Hour)
 	n, err := r.count(context.Background(), "bogus")
 	if err != nil || n != 0 {
 		t.Fatalf("count(bogus) = %d, %v; want 0, nil", n, err)

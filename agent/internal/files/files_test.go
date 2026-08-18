@@ -302,7 +302,7 @@ func TestUpload(t *testing.T) {
 	})
 
 	t.Run("multipart parse error", func(t *testing.T) {
-		// Wrong Content-Type (no multipart boundary) → ParseMultipartForm fails.
+		// Wrong Content-Type (no multipart boundary) → MultipartReader fails.
 		resp, err := testPost(t, srvURL+"/files/upload?path=/", "text/plain", strings.NewReader("not multipart"))
 		if err != nil {
 			t.Fatalf("post: %v", err)
@@ -314,13 +314,12 @@ func TestUpload(t *testing.T) {
 	})
 }
 
-func TestSaveMultipart_RejectsBadFilenames(t *testing.T) {
+func TestSavePart_RejectsBadFilenames(t *testing.T) {
 	dir := t.TempDir()
 	cases := []string{".", "..", string(os.PathSeparator)}
 	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
-			fh := makeFileHeader(t, name, "x")
-			err := saveMultipart(dir, fh)
+			err := savePart(dir, name, strings.NewReader("x"), maxUploadFileBytes)
 			if err == nil || !strings.Contains(err.Error(), "invalid filename") {
 				t.Fatalf("got %v", err)
 			}
@@ -328,11 +327,9 @@ func TestSaveMultipart_RejectsBadFilenames(t *testing.T) {
 	}
 }
 
-func TestSaveMultipart_RejectsOversize(t *testing.T) {
+func TestSavePart_RejectsOversize(t *testing.T) {
 	dir := t.TempDir()
-	fh := makeFileHeader(t, "big", "x")
-	fh.Size = maxUploadFileBytes + 1 // lie about size
-	err := saveMultipart(dir, fh)
+	err := savePart(dir, "big", strings.NewReader("abcdef"), 3)
 	if err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("got %v", err)
 	}
@@ -545,27 +542,6 @@ func multipartBody(t *testing.T, files map[string]string) (*bytes.Buffer, string
 		t.Fatalf("close mw: %v", err)
 	}
 	return &buf, mw.FormDataContentType()
-}
-
-func makeFileHeader(t *testing.T, name, body string) *multipart.FileHeader {
-	t.Helper()
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	fw, _ := mw.CreateFormFile("files", name)
-	_, _ = fw.Write([]byte(body))
-	_ = mw.Close()
-	req := httptest.NewRequest("POST", "/", &buf)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	if err := req.ParseMultipartForm(1 << 20); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	for _, fhs := range req.MultipartForm.File {
-		for _, fh := range fhs {
-			return fh
-		}
-	}
-	t.Fatal("no header parsed")
-	return nil
 }
 
 func readBody(r *http.Response) string {

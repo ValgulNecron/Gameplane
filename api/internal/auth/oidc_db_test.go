@@ -52,7 +52,7 @@ func TestPickUniqueUsername_Disambiguates(t *testing.T) {
 	store := newAuthDB(t)
 	// Seed a local user with the same base username an OIDC sign-in
 	// would default to.
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(context.Background(),
 		`INSERT INTO users(username, display_name, email, role) VALUES (?, ?, ?, 'admin')`,
 		"alice@x", "Alice", "alice@x",
 	); err != nil {
@@ -79,7 +79,7 @@ func TestPickUniqueUsername_Disambiguates(t *testing.T) {
 // no truncation" branch.
 func TestPickUniqueUsername_ShortSubKeepsAll(t *testing.T) {
 	store := newAuthDB(t)
-	if _, err := store.DB.Exec(
+	if _, err := store.DB.ExecContext(context.Background(),
 		`INSERT INTO users(username, display_name, email, role) VALUES (?, ?, ?, 'admin')`,
 		"x", "X", "x",
 	); err != nil {

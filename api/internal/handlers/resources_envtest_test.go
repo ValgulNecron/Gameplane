@@ -113,6 +113,7 @@ func TestResources_TemplateIsClusterScoped(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /templates/%s status = %d", name, resp.StatusCode)
 	}
+	resp.Body.Close()
 
 	// Verify cluster-scoped on apiserver: list returns it without ns.
 	list, err := kubeC.Dynamic.Resource(gvrTemplates()).
@@ -242,7 +243,7 @@ func doJSON(t *testing.T, method, path string, body any) *http.Response {
 		}
 		rdr = bytes.NewReader(buf)
 	}
-	req, err := http.NewRequest(method, apiBase+path, rdr)
+	req, err := http.NewRequestWithContext(t.Context(), method, apiBase+path, rdr)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}

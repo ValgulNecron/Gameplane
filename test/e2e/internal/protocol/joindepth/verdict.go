@@ -9,16 +9,16 @@ import (
 type VerdictResult string
 
 const (
-	// PASS means the probe reached the expected depth (or, under -expect-fail, correctly failed).
-	PASS VerdictResult = "PASS"
-	// FAIL_WRONG_DEPTH means the probe connected to a live listener but did not reach the expected depth.
-	FAIL_WRONG_DEPTH VerdictResult = "FAIL_WRONG_DEPTH"
-	// FAIL_TRANSPORT means the probe encountered a transport failure (connection refused, timeout, etc.).
-	FAIL_TRANSPORT VerdictResult = "FAIL_TRANSPORT"
-	// FAIL_INTERNAL_ERROR means the probe encountered an internal error (bad flags, panic, unusable environment).
-	FAIL_INTERNAL_ERROR VerdictResult = "FAIL_INTERNAL_ERROR"
-	// FAIL_NEGATIVE_CONTROL_REACHED means the probe was run with -expect-fail and unexpectedly reached the expected depth.
-	FAIL_NEGATIVE_CONTROL_REACHED VerdictResult = "FAIL_NEGATIVE_CONTROL_REACHED"
+	// Pass means the probe reached the expected depth (or, under -expect-fail, correctly failed).
+	Pass VerdictResult = "PASS"
+	// FailWrongDepth means the probe connected to a live listener but did not reach the expected depth.
+	FailWrongDepth VerdictResult = "FAIL_WRONG_DEPTH"
+	// FailTransport means the probe encountered a transport failure (connection refused, timeout, etc.).
+	FailTransport VerdictResult = "FAIL_TRANSPORT"
+	// FailInternalError means the probe encountered an internal error (bad flags, panic, unusable environment).
+	FailInternalError VerdictResult = "FAIL_INTERNAL_ERROR"
+	// FailNegativeControlReached means the probe was run with -expect-fail and unexpectedly reached the expected depth.
+	FailNegativeControlReached VerdictResult = "FAIL_NEGATIVE_CONTROL_REACHED"
 )
 
 // ProbeVerdict is the structured result a per-game probe binary reports back to the E2E test harness.
@@ -67,16 +67,16 @@ func VerdictResultFromVerdict(pv *ProbeVerdict) VerdictResult {
 			strings.Contains(errMsg, "DNS failure") ||
 			strings.Contains(errMsg, "No response") ||
 			strings.Contains(errMsg, "connection reset") {
-			return FAIL_TRANSPORT
+			return FailTransport
 		}
 		// Default to internal error if unclassified.
-		return FAIL_INTERNAL_ERROR
+		return FailInternalError
 	}
 
 	// No error; verdict is based on depth matching.
 	// (This function is primarily for classification; the calling test harness
-	// will determine PASS vs FAIL based on the expected depth assertion.)
-	return PASS
+	// will determine Pass vs Fail based on the expected depth assertion.)
+	return Pass
 }
 
 // ExitCodeFromVerdict maps a ProbeVerdict to its POSIX exit code.

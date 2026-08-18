@@ -104,7 +104,7 @@ func postAction(t *testing.T, r *chi.Mux, payload map[string]any) *httptest.Resp
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/servers/alpha/actions/run", bytes.NewReader(raw))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/servers/alpha/actions/run", bytes.NewReader(raw))
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	return rr
@@ -423,7 +423,7 @@ func TestRunAction_BadJSONBodyIs400(t *testing.T) {
 	k := newActionsFakeClient(t, stdinActionTemplate())
 	r := mountRunAction(&proxy{k: k, stdin: &fakeStdinWriter{}})
 
-	req := httptest.NewRequest(http.MethodPost, "/servers/alpha/actions/run", strings.NewReader("not json"))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/servers/alpha/actions/run", strings.NewReader("not json"))
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {

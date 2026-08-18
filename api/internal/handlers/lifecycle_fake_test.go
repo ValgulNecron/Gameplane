@@ -152,7 +152,7 @@ func TestLifecycle_Clone(t *testing.T) {
 	})
 
 	t.Run("bad json", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/servers/alpha:clone", strings.NewReader("bogus"))
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:clone", strings.NewReader("bogus"))
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		if rr.Code != 400 {
@@ -186,7 +186,7 @@ func TestLifecycle_CloneRestampsOwner(t *testing.T) {
 	r := mountLifecycleRouter(k)
 
 	body, _ := json.Marshal(map[string]any{"newName": "beta"})
-	req := httptest.NewRequest("POST", "/servers/alpha:clone", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:clone", bytes.NewReader(body))
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 2, Username: "bob"}))
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)

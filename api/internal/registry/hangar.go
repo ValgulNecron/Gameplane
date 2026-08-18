@@ -15,6 +15,8 @@ import (
 // The engine splits the "~" back to owner/slug for the two-segment upstream
 // Hangar path. Hangar hosts plugins, not modpacks.
 const hangarSep = "~"
+
+// Hangar is the registry engine for PaperMC's Hangar plugin repository.
 type Hangar struct {
 	client    *http.Client
 	userAgent string

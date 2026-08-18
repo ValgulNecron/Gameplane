@@ -11,7 +11,7 @@ type fakeLister []string
 func (f fakeLister) IDs() []string { return f }
 
 func TestResolveClusterNoParam(t *testing.T) {
-	req := httptest.NewRequest("GET", "/api/v1/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/servers", nil)
 	reg := fakeLister{"local", "prod"}
 
 	id, err := ResolveCluster(req, reg)
@@ -24,7 +24,7 @@ func TestResolveClusterNoParam(t *testing.T) {
 }
 
 func TestResolveClusterLocalParam(t *testing.T) {
-	req := httptest.NewRequest("GET", "/api/v1/servers?cluster=local", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/servers?cluster=local", nil)
 	reg := fakeLister{"local", "prod"}
 
 	id, err := ResolveCluster(req, reg)
@@ -37,7 +37,7 @@ func TestResolveClusterLocalParam(t *testing.T) {
 }
 
 func TestResolveClusterProdParam(t *testing.T) {
-	req := httptest.NewRequest("GET", "/api/v1/servers?cluster=prod", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/servers?cluster=prod", nil)
 	reg := fakeLister{"local", "prod"}
 
 	id, err := ResolveCluster(req, reg)
@@ -50,7 +50,7 @@ func TestResolveClusterProdParam(t *testing.T) {
 }
 
 func TestResolveClusterNotFound(t *testing.T) {
-	req := httptest.NewRequest("GET", "/api/v1/servers?cluster=ghost", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/servers?cluster=ghost", nil)
 	reg := fakeLister{"local", "prod"}
 
 	id, err := ResolveCluster(req, reg)
@@ -63,7 +63,7 @@ func TestResolveClusterNotFound(t *testing.T) {
 }
 
 func TestResolveClusterWhitespaceParam(t *testing.T) {
-	req := httptest.NewRequest("GET", "/api/v1/servers?cluster=%20", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/servers?cluster=%20", nil)
 	reg := fakeLister{"local", "prod"}
 
 	id, err := ResolveCluster(req, reg)
