@@ -36,7 +36,14 @@ import (
 	"github.com/ValgulNecron/gameplane/netguard"
 )
 
-const defaultMaxBytes = 256 << 20 // 256 MiB
+const (
+	defaultMaxBytes = 256 << 20 // 256 MiB
+	// moduleFileMode is the file permission for extracted mod files. Must be
+	// 0o644 (owner rw, group+world r) because the mods volume is shared with
+	// the game container, which runs as a different uid and must read the files.
+	// The gosec G302 finding for this file is scoped in .golangci.yml.
+	moduleFileMode = 0o644
+)
 
 type handler struct {
 	dir      string   // absolute mods directory, "" when unconfigured
@@ -349,7 +356,7 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	} else {
-		finalPath := filepath.Join(h.dir, name)
+		finalPath := filepath.Clean(filepath.Join(h.dir, name))
 		if err := os.Rename(tmpName, finalPath); err != nil {
 			_ = os.Remove(tmpName)
 			slog.Warn("mod upload rename", "err", err)
@@ -523,7 +530,7 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 			_ = rc.Close()
 			return errors.New("zip-slip attempt")
 		}
-		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		out, err := os.OpenFile(targetClean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, moduleFileMode)
 		if err != nil {
 			_ = rc.Close()
 			return err
