@@ -135,11 +135,14 @@ func TestAPI_LoginRateLimit(t *testing.T) {
 	// is per-IP-with-recovery, not a permanent ban.
 	recovered := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer recovered.Close()
-	if resp, _, err := recovered.Get("/users/me"); err != nil {
+	resp, _, err := recovered.Get("/users/me")
+	if err != nil {
 		t.Fatalf("post-recovery /users/me: %v", err)
-	} else if resp.StatusCode != http.StatusOK {
+	}
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("post-recovery /users/me: status=%d", resp.StatusCode)
 	}
+	resp.Body.Close()
 }
 
 // TestAPI_AuditPaginationAndFilter: /admin/audit?limit=N must honor the
@@ -164,6 +167,7 @@ func TestAPI_AuditPaginationAndFilter(t *testing.T) {
 	if getMe.StatusCode != http.StatusOK {
 		t.Fatalf("/users/me %d: %s", getMe.StatusCode, string(body))
 	}
+	defer func() { _ = getMe.Body.Close() }()
 	id := extractIntField(string(body), "id")
 	if id == "" {
 		t.Fatalf("could not parse id from /users/me: %s", string(body))

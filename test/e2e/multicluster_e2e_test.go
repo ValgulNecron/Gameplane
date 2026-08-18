@@ -212,11 +212,15 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /clusters: status=%d body=%s", resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	// Registered first (and so, by t.Cleanup's LIFO order, torn down LAST) —
 	// the GameServer/GameTemplate cleanups below dispatch through this
 	// cluster registration and must run while it still resolves.
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/clusters/" + clusterID)
+		r, _, _ := admin.Delete("/clusters/" + clusterID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	// The API's cluster watch (kube.WatchClusters) loads a client for the new
@@ -229,6 +233,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		if err != nil {
 			return false, err.Error()
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return false, fmt.Sprintf("GET /clusters: status=%d body=%s", resp.StatusCode, string(body))
 		}
@@ -263,7 +268,10 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	}
 	resp.Body.Close()
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
+		r, _, _ := admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	const ns = "gameplane-games"
@@ -287,7 +295,10 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	// test needs.
 	opUsername, opPassword, opID := envInstance.CreateUser(t, admin, "operator", "e2e-mc-operator")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + opID)
+		r, _, _ := admin.Delete("/users/" + opID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 	resp, body, err = admin.Post("/users/"+opID+"/bindings", map[string]any{
 		"roleName":  "admin",
@@ -372,7 +383,10 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	// --- RBAC: a viewer bound only to "local" cannot see cluster B's server -
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-mc-viewer")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + viewerID)
+		r, _, _ := admin.Delete("/users/" + viewerID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 	viewer := envInstance.APIClient(t, viewerName, viewerPW)
 	defer viewer.Close()
