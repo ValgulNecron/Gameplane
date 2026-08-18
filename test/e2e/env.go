@@ -150,7 +150,7 @@ func (e *Env) Consistently(t *testing.T, duration, interval time.Duration, cond 
 // `kubectl exec`, `kubectl apply -f`, etc. Output (stdout+stderr
 // combined) is returned along with the error, so callers can include
 // it in failure messages.
-func (e *Env) Kubectl(args ...string) (string, error) {
+func (e *Env) Kubectl(ctx context.Context, args ...string) (string, error) {
 	// Validate arguments to prevent shell injection: reject anything
 	// containing shell metacharacters or suspicious patterns.
 	// Note: we stop validation at "--" because args after it are for the
@@ -164,7 +164,7 @@ func (e *Env) Kubectl(args ...string) (string, error) {
 		}
 	}
 	all := append([]string{"--context", e.Context}, args...)
-	cmd := exec.Command("kubectl", all...)
+	cmd := exec.CommandContext(ctx, "kubectl", all...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -177,7 +177,7 @@ func (e *Env) ApplyYAML(t *testing.T, fixturePath string) {
 	if err != nil {
 		t.Fatalf("resolve fixture path %s: %v", fixturePath, err)
 	}
-	if out, err := e.Kubectl("apply", "-f", abs); err != nil {
+	if out, err := e.Kubectl(t.Context(), "apply", "-f", abs); err != nil {
 		t.Fatalf("kubectl apply -f %s: %v\n%s", fixturePath, err, out)
 	}
 }
@@ -232,7 +232,7 @@ func (e *Env) ensureCluster() error {
 // KubectlWithStdin is like Kubectl but pipes the given string as stdin
 // to the kubectl process. Used for password-stdin and similar flows
 // where putting the value in argv would leak it through /proc.
-func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
+func (e *Env) KubectlWithStdin(ctx context.Context, stdin string, args ...string) (string, error) {
 	// Validate arguments to prevent shell injection: reject anything
 	// containing shell metacharacters or suspicious patterns.
 	// Note: we stop validation at "--" because args after it are for the
@@ -246,7 +246,7 @@ func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
 		}
 	}
 	all := append([]string{"--context", e.Context}, args...)
-	cmd := exec.Command("kubectl", all...)
+	cmd := exec.CommandContext(ctx, "kubectl", all...)
 	cmd.Stdin = strings.NewReader(stdin)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -258,7 +258,7 @@ func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
 func (e *Env) KubectlExec(t *testing.T, ns, target string, cmd ...string) (string, error) {
 	t.Helper()
 	args := append([]string{"exec", "-n", ns, target, "--"}, cmd...)
-	return e.Kubectl(args...)
+	return e.Kubectl(t.Context(), args...)
 }
 
 // EventuallyNoErr is the error-returning sibling of Eventually. Useful
@@ -303,6 +303,7 @@ func (e *Env) BootstrapAdmin(t *testing.T, username, password string) {
 	bootstrapAdminOnce.Do(func() {
 		bootstrapAdminKey = key
 		out, err := e.KubectlWithStdin(
+			t.Context(),
 			password+"\n",
 			"exec", "-i", "-n", "gameplane-system", "deploy/gameplane-api", "--",
 			"/api", "bootstrap-admin",
@@ -349,7 +350,7 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 	const attempts = 4
 	var lastErr error
 	for attempt := 1; attempt <= attempts; attempt++ {
-		local, stop, err := e.tryPortForward(ns, target, remotePort)
+		local, stop, err := e.tryPortForward(t.Context(), ns, target, remotePort)
 		if err == nil {
 			return local, stop
 		}
@@ -364,7 +365,14 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 // tryPortForward starts one `kubectl port-forward` on a free local port and
 // waits until the tunnel is usable. It returns the port and a stop func, or
 // an error if the forward never became ready (the caller retries).
-func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), error) {
+//
+// ctx (the caller's t.Context()) only bounds the child process's maximum
+// lifetime — it is not what tears the forward down in normal use. The
+// returned stop func is the real owner of the process's lifecycle: every
+// caller defers/cleanups it well before the test (and so ctx) ends. Binding
+// to anything shorter-lived than the test itself would risk killing the
+// tunnel out from under an in-flight caller.
+func (e *Env) tryPortForward(ctx context.Context, ns, target string, remotePort int) (int, func(), error) {
 	local, err := freePort()
 	if err != nil {
 		return 0, nil, fmt.Errorf("free port: %w", err)
@@ -381,7 +389,7 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 		target,
 		fmt.Sprintf("%d:%d", local, remotePort),
 	}
-	cmd := exec.Command("kubectl", args...)
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	if err := cmd.Start(); err != nil {
@@ -650,7 +658,7 @@ func (e *Env) OCIPushFromFixture(t *testing.T, jobNS, jobName, fixture string) {
 			return true, ""
 		}
 		if j.Status.Failed > 0 {
-			out, _ := e.Kubectl("logs", "-n", jobNS, "job/"+jobName, "--tail=200")
+			out, _ := e.Kubectl(ctx, "logs", "-n", jobNS, "job/"+jobName, "--tail=200")
 			return false, "job failed:\n" + out
 		}
 		return false, fmt.Sprintf("job not done (succeeded=%d, failed=%d, active=%d)",

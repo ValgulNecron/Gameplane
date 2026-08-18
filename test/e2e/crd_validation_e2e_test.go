@@ -88,11 +88,11 @@ spec:
 // rejection was about the right field.
 func expectAdmissionRejection(t *testing.T, yaml string, matchAny []string) {
 	t.Helper()
-	out, err := envInstance.KubectlWithStdin(yaml, "apply", "-f", "-")
+	out, err := envInstance.KubectlWithStdin(t.Context(), yaml, "apply", "-f", "-")
 	if err == nil {
 		// Best-effort delete to keep the cluster clean for subsequent
 		// tests; the apply we just made created a real CR.
-		_, _ = envInstance.KubectlWithStdin(yaml, "delete", "-f", "-", "--ignore-not-found")
+		_, _ = envInstance.KubectlWithStdin(t.Context(), yaml, "delete", "-f", "-", "--ignore-not-found")
 		t.Fatalf("CRD schema accepted a spec it must reject — the validation regressed in operator/api/v1alpha1/*_types.go (or the chart CRDs are stale; helm never upgrades crds/, recreate the cluster after CRD changes).\nyaml:\n%s\nkubectl output:\n%s",
 			yaml, out)
 		return

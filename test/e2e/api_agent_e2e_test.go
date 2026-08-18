@@ -47,7 +47,7 @@ func requireAgentReady(t *testing.T, ns, gsName string) {
 		}
 		time.Sleep(2 * time.Second)
 	}
-	logs, _ := envInstance.Kubectl("logs", "-n", ns, gsName+"-0", "-c", "agent", "--tail=10")
+	logs, _ := envInstance.Kubectl(ctx, "logs", "-n", ns, gsName+"-0", "-c", "agent", "--tail=10")
 	t.Fatalf("agent sidecar never reached stable Ready in 90s. agent logs:\n%s", logs)
 }
 
