@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/coder/websocket"
@@ -358,7 +359,10 @@ func agentTLSConfig(caFile, certFile, keyFile string) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	ca, err := os.ReadFile(caFile)
+	// caFile is operator configuration (a CLI flag / mounted secret path),
+	// not user input; filepath.Clean here normalises the path but does not
+	// constrain it to a directory.
+	ca, err := os.ReadFile(filepath.Clean(caFile))
 	if err != nil {
 		return nil, err
 	}

@@ -175,10 +175,12 @@ func (s *SessionStore) HandleLogout() http.HandlerFunc {
 		if c, err := req.Cookie(sessionCookie); err == nil {
 			_, _ = s.db.DB.ExecContext(req.Context(), `DELETE FROM sessions WHERE token = ?`, c.Value)
 		}
-		clearCookie(w, sessionCookie, true)
-		// CSRF cookie is JS-readable by design, so clear it without
-		// HttpOnly so the flag matches how it was set.
-		clearCookie(w, csrfCookie, false)
+		clearCookie(w, sessionCookie)
+		// The CSRF cookie is JS-readable while set (see setCSRFCookie), but
+		// clearing it is server-driven and browsers match a delete on
+		// Name/Domain/Path — the HttpOnly flag on the clearing Set-Cookie
+		// doesn't matter, so clearCookie always sends HttpOnly.
+		clearCookie(w, csrfCookie)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -241,15 +243,20 @@ func setCSRFCookie(w http.ResponseWriter, token string, ttl time.Duration) {
 	})
 }
 
-func clearCookie(w http.ResponseWriter, name string, httpOnly bool) {
-	clearCookieAt(w, name, httpOnly, "/")
+func clearCookie(w http.ResponseWriter, name string) {
+	clearCookieAt(w, name, "/")
 }
 
 // clearCookieAt clears a cookie set on a specific path — browsers only
 // drop a cookie when the clearing Set-Cookie carries the same Path.
-func clearCookieAt(w http.ResponseWriter, name string, httpOnly bool, path string) {
+//
+// HttpOnly is always set here regardless of how the cookie was originally
+// created: a deletion (Value: "", MaxAge: -1) is matched by the browser on
+// Name/Domain/Path only, so the HttpOnly flag has no bearing on whether the
+// clear lands, including for the JS-readable CSRF cookie.
+func clearCookieAt(w http.ResponseWriter, name string, path string) {
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: "", Path: path, MaxAge: -1,
-		HttpOnly: httpOnly, Secure: true, SameSite: http.SameSiteLaxMode,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
 	})
 }

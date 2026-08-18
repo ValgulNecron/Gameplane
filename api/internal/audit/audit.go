@@ -159,7 +159,19 @@ func (s *WebhookSink) drain(ctx context.Context) {
 // buffered event after ctx is cancelled, and a cancelled context would fail
 // that delivery even though the event could have been shipped. The client
 // timeout still bounds each attempt.
+//
+// context.WithoutCancel strips any deadline as well as cancellation, so a
+// bare WithoutCancel(ctx) here would silently undo drain's 2s budget on the
+// shutdown path. Re-apply ctx's own deadline (if any) to the detached
+// context so drain's bound still holds; the normal Start path has no
+// deadline on ctx, so this is a no-op there.
 func (s *WebhookSink) post(ctx context.Context, e Event) {
+	reqCtx := context.WithoutCancel(ctx)
+	if dl, ok := ctx.Deadline(); ok {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(reqCtx, time.Until(dl))
+		defer cancel()
+	}
 	body, err := json.Marshal(webhookPayload{
 		TS: e.TS, Actor: e.Actor, Method: e.Method, Path: e.Path,
 		Target: e.Target, Status: e.Status, IP: e.IP,
@@ -169,7 +181,7 @@ func (s *WebhookSink) post(ctx context.Context, e Event) {
 		slog.Warn("audit webhook marshal failed", "err", err)
 		return
 	}
-	req, err := http.NewRequestWithContext(context.WithoutCancel(ctx), http.MethodPost, s.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, s.url, bytes.NewReader(body))
 	if err != nil {
 		webhookEvents.WithLabelValues("failed").Inc()
 		slog.Warn("audit webhook build request failed", "err", err)
