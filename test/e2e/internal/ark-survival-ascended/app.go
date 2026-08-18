@@ -61,7 +61,7 @@ func main() {
 	verdictLine, err := verdict.Encode()
 	if err != nil {
 		fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			fmt.Sprintf("verdict encoding error: %v", err))
 		os.Exit(1)

@@ -31,7 +31,7 @@ func main() {
 	// Validate -addr flag
 	if *addr == "" {
 		verdictLine := fmt.Sprintf("VERDICT\t%s\t%s\t%s",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			"probe: -addr is required")
 		fmt.Println(verdictLine)
@@ -42,7 +42,7 @@ func main() {
 	expectedDepth, err := joindepth.Parse(*expectDepthStr)
 	if err != nil {
 		verdictLine := fmt.Sprintf("VERDICT\t%s\t%s\t%s",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			fmt.Sprintf("invalid -expect-depth: %v", err))
 		fmt.Println(verdictLine)
@@ -68,7 +68,7 @@ func main() {
 		if measuredDepth == expectedDepth && probeErr == nil {
 			// Probe reached the expected depth when it should not have — test failure
 			verdictLine := fmt.Sprintf("VERDICT\t%s\t%s\t%s",
-				joindepth.FAIL_NEGATIVE_CONTROL_REACHED,
+				joindepth.FailNegativeControlReached,
 				measuredDepth.String(),
 				fmt.Sprintf("reached %s when expected to fail", measuredDepth.String()))
 			fmt.Println(verdictLine)
@@ -78,7 +78,7 @@ func main() {
 		verdictLine, encErr := verdict.Encode()
 		if encErr != nil {
 			fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-				joindepth.FAIL_INTERNAL_ERROR,
+				joindepth.FailInternalError,
 				"UNKNOWN",
 				fmt.Sprintf("verdict encoding error: %v", encErr))
 			os.Exit(1)
@@ -92,7 +92,7 @@ func main() {
 		verdictLine, encErr := verdict.Encode()
 		if encErr != nil {
 			fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-				joindepth.FAIL_INTERNAL_ERROR,
+				joindepth.FailInternalError,
 				"UNKNOWN",
 				fmt.Sprintf("verdict encoding error: %v", encErr))
 			os.Exit(1)
@@ -105,7 +105,7 @@ func main() {
 	verdictLine, encErr := verdict.Encode()
 	if encErr != nil {
 		fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			fmt.Sprintf("verdict encoding error: %v", encErr))
 		os.Exit(1)
