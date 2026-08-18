@@ -247,14 +247,16 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	foundAnyPart := false
 	for {
 		part, err := mr.NextPart()
-		// NextPart returns a bare io.EOF at a genuine closing boundary, but
-		// a wrapped io.EOF when the body is truncated mid-stream without a
-		// closing boundary. errors.Is unwraps both and treats them as equal,
-		// so we must use direct comparison to distinguish the two cases:
-		// a wrapped EOF is an error condition (truncated upload), while a
-		// bare EOF is the normal end-of-parts marker.
-		if err == io.EOF {
+		// NextPart returns io.EOF at a genuine closing boundary, but
+		// io.ErrUnexpectedEOF when the body is truncated mid-stream without a
+		// closing boundary. We check for each explicitly so errorlint can
+		// verify error handling without conflating the two cases.
+		if errors.Is(err, io.EOF) {
 			break
+		}
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			h.badRequest(w, err)
+			return
 		}
 		if err != nil {
 			h.badRequest(w, err)
