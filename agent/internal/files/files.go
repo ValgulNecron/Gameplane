@@ -246,10 +246,10 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	count := 0
 	for {
 		part, err := mr.NextPart()
-		// Direct comparison on purpose: NextPart returns a bare io.EOF at
-		// the closing boundary, but a *wrapped* io.EOF when the body just
-		// stops. errors.Is would silently accept the truncated upload.
-		if err == io.EOF {
+		// NextPart returns io.EOF directly at the closing boundary,
+		// and io.ErrUnexpectedEOF (not wrapped) on truncated body.
+		// errors.Is and direct comparison are therefore equivalent.
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
