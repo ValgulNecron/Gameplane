@@ -80,12 +80,12 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 	defer support.Close()
 
 	// The read-only role can read servers but not write them.
-	r, _, _ := support.Get("/servers")
+	r, _, _ = support.Get("/servers")
 	if r.StatusCode != http.StatusOK {
 		t.Errorf("support GET /servers: status=%d want 200", r.StatusCode)
 	}
 	r.Body.Close()
-	r, _, _ := support.Post("/servers", map[string]any{
+	r, _, _ = support.Post("/servers", map[string]any{
 		"apiVersion": "gameplane.local/v1alpha1", "kind": "GameServer",
 		"metadata": map[string]any{"name": "e2e-support-nope", "namespace": "gameplane-games"},
 		"spec":     map[string]any{"templateRef": map[string]any{"name": "nope"}},
@@ -96,19 +96,19 @@ func TestAPI_CustomRole_Lifecycle(t *testing.T) {
 	r.Body.Close()
 
 	// A role assigned to a user can't be deleted.
-	r, _, _ := admin.Delete("/roles/" + roleName)
+	r, _, _ = admin.Delete("/roles/" + roleName)
 	if r.StatusCode != http.StatusConflict {
 		t.Errorf("delete in-use role: status=%d want 409", r.StatusCode)
 	}
 	r.Body.Close()
 
 	// Once the user is gone, the role deletes cleanly.
-	r, _, _ := admin.Delete("/users/" + supportID)
+	r, _, _ = admin.Delete("/users/" + supportID)
 	if r.StatusCode != http.StatusNoContent {
 		t.Fatalf("delete support user: status=%d", r.StatusCode)
 	}
 	r.Body.Close()
-	r, _, _ := admin.Delete("/roles/" + roleName)
+	r, _, _ = admin.Delete("/roles/" + roleName)
 	if r.StatusCode != http.StatusNoContent {
 		t.Errorf("delete unused role: status=%d want 204", r.StatusCode)
 	}
@@ -132,7 +132,7 @@ func TestAPI_BuiltinRole_Immutable(t *testing.T) {
 	}
 	r.Body.Close()
 	for _, name := range []string{"admin", "operator", "viewer"} {
-		r, _, _ = admin.Delete("/roles/" + name)
+		r, _, _ := admin.Delete("/roles/" + name)
 		if r.StatusCode != http.StatusBadRequest {
 			t.Errorf("delete builtin %q: status=%d want 400", name, r.StatusCode)
 		}
