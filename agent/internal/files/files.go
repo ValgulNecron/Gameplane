@@ -277,6 +277,10 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 		saveErr := savePart(p, part.FileName(), part, maxUploadFileBytes)
 		_ = part.Close()
 		if saveErr != nil {
+			if errors.Is(saveErr, io.ErrUnexpectedEOF) {
+				h.badRequest(w, saveErr)
+				return
+			}
 			httpErr(w, saveErr)
 			return
 		}
