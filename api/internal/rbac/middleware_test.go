@@ -403,7 +403,7 @@ func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
 		h := Middleware(&fakeFetcher{
 			obj: nil,
 			err: nil,
-		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		})(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			t.Fatal("handler should not be called")
 		}))
 

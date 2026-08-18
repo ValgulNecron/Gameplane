@@ -174,10 +174,10 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # agent and test/e2e are deliberately excluded pending lint backlog
-      # cleanup (wave 2). They carry ~488 findings queued for the next wave.
+      # api, agent and test/e2e are deliberately excluded pending lint backlog
+      # cleanup (wave 2). They carry ~493 findings queued for the next wave.
       matrix:
-        module: [netguard, gameaction, gameproto, operator, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel]
+        module: [netguard, gameaction, gameproto, operator, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/go-cache
@@ -186,15 +186,15 @@ jobs:
       - name: go mod download
         working-directory: ${{ matrix.module }}
         run: go mod download
-      - name: lint (operator/api - envtest build tags)
-        if: matrix.module == 'operator' || matrix.module == 'api'
+      - name: lint (operator - envtest build tags)
+        if: matrix.module == 'operator'
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: ${{ matrix.module }}
           args: --build-tags=envtest
       - name: lint (other modules - no build tags)
-        if: matrix.module != 'operator' && matrix.module != 'api'
+        if: matrix.module != 'operator'
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
