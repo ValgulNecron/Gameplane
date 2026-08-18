@@ -8,7 +8,7 @@
 
 The `test/e2e` module is Gameplane's end-to-end test suite: it stands up a real (kind-based) Kubernetes cluster, installs the Helm chart, and drives the operator/api/agent/sentinel stack as real components rather than mocks — CRDs applied through the typed/dynamic client, HTTP calls through a real port-forward, RCON/wire-protocol joins against real game server containers. Where the other modules' test tiers (unit, envtest) prove a component's own logic in isolation, this module proves the whole product works together on a cluster shaped like the ones users actually run.
 
-It is the **only** `go.work` module without CI lint coverage until this feature: `netguard`, `gameaction`, `gameproto`, `operator`, `agent`, `api`, `sentinel`, `audit-syslog-bridge`, `telemetry-receiver`, `mcp-server`, `svcutil`, and `tunnel` are all golangci-lint gated in CI; `test/e2e` lints with `--build-tags=e2e`, same tier as `operator`/`api`'s `--build-tags=envtest`, run as their own step so the catch-all lint step excludes all three and nothing is linted twice.
+It was one of three `go.work` modules without CI lint coverage until this feature (`api`, `agent`, and `test/e2e` — see FR-001); all 13 `go.work` members (`netguard`, `gameaction`, `gameproto`, `operator`, `agent`, `api`, `sentinel`, `audit-syslog-bridge`, `telemetry-receiver`, `mcp-server`, `svcutil`, `tunnel`, and `test/e2e`) are golangci-lint gated in CI now — see the `lint` job's matrix in `.github/workflows/ci.yaml`. `test/e2e` lints with `--build-tags=e2e`, same tier as `operator`/`api`'s `--build-tags=envtest`, run as their own step so the catch-all lint step excludes all three and nothing is linted twice.
 
 ## Responsibilities
 
@@ -88,7 +88,7 @@ This module has no runtime HTTP/RPC surface of its own — its "interface" is th
 |---|---|
 | `GAMEPLANE_E2E_CLUSTER` | kind cluster name (default `gameplane-e2e`) |
 | `GAMEPLANE_E2E_TAG` | image tag the chart is installed with (default `e2e`) |
-| `GAMEPLANE_E2E_CONTEXT` | kubeconfig context to act in; overrides the derived `kind-<cluster>` default — set this (with `KESTREL_E2E_REUSE_CLUSTER=1`-style bring-up) to run the suite against an existing cluster instead of kind |
+| `GAMEPLANE_E2E_CONTEXT` | kubeconfig context to act in; overrides the derived `kind-<cluster>` default — set this (with `GAMEPLANE_E2E_REUSE_CLUSTER=1`-style bring-up) to run the suite against an existing cluster instead of kind |
 | `KUBECONFIG` | standard kubeconfig path override, honored by `newEnvForContext`'s loader |
 
 ### Key exported helpers on `Env` (env.go)

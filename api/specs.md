@@ -274,7 +274,7 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 ### Outbound safety
 - **netguard SSRF guard:** on module registry fetches (HTTP/HTTPS); permissive allowlist (modular, self-hosted registries on loopback OK)
 - **mTLS to agent:** client cert + key validate console operations
-- **Agent proxy URL construction:** `api/internal/ws/dialer.go`'s ws and http proxy handlers build the upstream agent URL from the namespace and pod name taken off the request path. Both are validated as DNS-1123 labels via `isDNS1123Label` before the URL is assembled with `url.URL`, and a request with an invalid namespace or pod name is rejected with `400 Bad Request` before any URL is built.
+- **Agent proxy URL construction:** `api/internal/ws/dialer.go`'s ws and http proxy handlers build the upstream agent URL from the namespace and pod name taken off the request path. In both handlers the namespace and pod name are validated as DNS-1123 labels via `isDNS1123Label` first, and a request with an invalid namespace or pod name is rejected with `400 Bad Request` before any URL is built. Only after that validation do the two paths diverge in how they construct the URL: the HTTP proxy path assembles it with `url.URL`, while the WebSocket proxy path concatenates the already-validated host onto a fixed `wss://` scheme and the fixed agent path (`upstream := "wss://" + host + agentPath`). The load-bearing safety property — validation strictly precedes URL construction — holds for both paths regardless of which one then uses string concatenation.
 
 ### Error handling
 - **httperr package:** internal errors (K8s 404, DB constraint, FS path) mapped to safe HTTP status + generic message
