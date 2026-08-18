@@ -7,12 +7,12 @@ import (
 
 func newRBACStore(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(context.Background(), "sqlite", ":memory:")
+	s, err := Open(t.Context(), "sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	if err := s.Migrate(context.Background()); err != nil {
+	if err := s.Migrate(t.Context()); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return s
@@ -20,7 +20,7 @@ func newRBACStore(t *testing.T) *Store {
 
 func insertUser(t *testing.T, s *Store, username, role string) int64 {
 	t.Helper()
-	res, err := s.DB.ExecContext(context.Background(), `INSERT INTO users(username, role) VALUES (?, ?)`, username, role)
+	res, err := s.DB.ExecContext(t.Context(), `INSERT INTO users(username, role) VALUES (?, ?)`, username, role)
 	if err != nil {
 		t.Fatalf("insert user %q: %v", username, err)
 	}
@@ -34,7 +34,7 @@ func insertUser(t *testing.T, s *Store, username, role string) int64 {
 func assertBindingCluster(t *testing.T, s *Store, uid int64, cluster, ns, wantRole string) {
 	t.Helper()
 	var got string
-	err := s.DB.QueryRowContext(context.Background(),
+	err := s.DB.QueryRowContext(t.Context(),
 		`SELECT role_name FROM user_role_bindings WHERE user_id = ? AND cluster = ? AND namespace = ?`, uid, cluster, ns).Scan(&got)
 	if err != nil {
 		t.Fatalf("binding for cluster=%q ns=%q missing: %v", cluster, ns, err)
@@ -46,7 +46,7 @@ func assertBindingCluster(t *testing.T, s *Store, uid int64, cluster, ns, wantRo
 
 func TestSetClusterRoleBinding(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	uid := insertUser(t, s, "alice", "viewer")
 
 	// A pre-existing per-namespace binding must survive cluster repointing.
@@ -80,7 +80,7 @@ func TestSetClusterRoleBinding(t *testing.T) {
 
 func TestSetClusterRoleBinding_InTx(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	uid := insertUser(t, s, "bob", "viewer")
 
 	tx, err := s.DB.BeginTx(ctx, nil)
@@ -98,7 +98,7 @@ func TestSetClusterRoleBinding_InTx(t *testing.T) {
 
 func TestDeleteUserBindings(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	uid := insertUser(t, s, "carol", "operator")
 	for _, b := range []struct{ cluster, role, ns string }{{"local", "operator", "*"}, {"local", "viewer", "team-a"}} {
 		if _, err := s.DB.ExecContext(ctx,
@@ -122,7 +122,7 @@ func TestDeleteUserBindings(t *testing.T) {
 
 func TestRoleExists(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if ok, err := s.RoleExists(ctx, "admin"); err != nil || !ok {
 		t.Fatalf("admin exists = %v, err = %v", ok, err)
 	}
@@ -133,7 +133,7 @@ func TestRoleExists(t *testing.T) {
 
 func TestRoleGrantsUserManagement(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tc := range []struct {
 		role string
 		want bool
@@ -154,7 +154,7 @@ func TestRoleGrantsUserManagement(t *testing.T) {
 
 func TestUserManagesUsersAndManagerCount(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	adminID := insertUser(t, s, "root", "admin")
 	viewerID := insertUser(t, s, "view", "viewer")
 
@@ -175,7 +175,7 @@ func TestUserManagesUsersAndManagerCount(t *testing.T) {
 
 func TestRBACReads_ClosedDB(t *testing.T) {
 	s := newRBACStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	_ = s.Close() // every query/exec below now fails
 
 	if err := s.SetClusterRoleBinding(ctx, nil, 1, "local", "admin"); err == nil {
