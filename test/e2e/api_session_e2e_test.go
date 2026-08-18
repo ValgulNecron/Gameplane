@@ -50,7 +50,7 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 
 	const newPW = "e2e-reset-password-1234"
 	var body []byte
-	resp, body, err = admin.Post("/users/"+viewerID+"/reset-password", map[string]string{
+	resp, body, err := admin.Post("/users/"+viewerID+"/reset-password", map[string]string{
 		"password": newPW,
 	})
 	if err != nil {
@@ -63,7 +63,7 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 
 	// Viewer's prior session must now bounce. Even if the cookie reaches
 	// the API, it shouldn't resolve to a valid session row.
-	resp, body, err = viewer.Get("/users/me")
+	resp, body, err := viewer.Get("/users/me")
 	if err != nil {
 		t.Fatalf("post-reset /users/me: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 	// And the new password works for a fresh login.
 	relogged := envInstance.APIClient(t, viewerName, newPW)
 	defer relogged.Close()
-	resp, _, err = relogged.Get("/users/me")
+	resp, _, err := relogged.Get("/users/me")
 	if err != nil {
 		t.Fatalf("relogin /users/me: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestAPI_LogoutInvalidatesSession(t *testing.T) {
 	resp.Body.Close()
 
 	var body []byte
-	resp, body, err = cli.Post("/auth/logout", nil)
+	resp, body, err := cli.Post("/auth/logout", nil)
 	if err != nil {
 		t.Fatalf("/auth/logout: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestAPI_LogoutInvalidatesSession(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	resp, body, err = cli.Get("/users/me")
+	resp, body, err := cli.Get("/users/me")
 	if err != nil {
 		t.Fatalf("post-logout /users/me: %v", err)
 	}
