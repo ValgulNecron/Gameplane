@@ -29,21 +29,27 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-session-reset")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + viewerID)
+		r, _, _ := admin.Delete("/users/" + viewerID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	viewer := envInstance.APIClient(t, viewerName, viewerPW)
 	defer viewer.Close()
 
 	// Confirm baseline: viewer can read /users/me before the reset.
-	if resp, _, err := viewer.Get("/users/me"); err != nil {
+	resp, _, err := viewer.Get("/users/me")
+	if err != nil {
 		t.Fatalf("baseline /users/me: %v", err)
-	} else if resp.StatusCode != http.StatusOK {
+	}
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("baseline /users/me: status=%d", resp.StatusCode)
 	}
+	resp.Body.Close()
 
 	const newPW = "e2e-reset-password-1234"
-	resp, body, err := admin.Post("/users/"+viewerID+"/reset-password", map[string]string{
+	resp, body, err = admin.Post("/users/"+viewerID+"/reset-password", map[string]string{
 		"password": newPW,
 	})
 	if err != nil {
@@ -52,6 +58,7 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("reset-password expected 204, got %d body=%q", resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 
 	// Viewer's prior session must now bounce. Even if the cookie reaches
 	// the API, it shouldn't resolve to a valid session row.
@@ -62,15 +69,19 @@ func TestAPI_PasswordResetInvalidatesSession(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("post-reset /users/me expected 401, got %d body=%q", resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 
 	// And the new password works for a fresh login.
 	relogged := envInstance.APIClient(t, viewerName, newPW)
 	defer relogged.Close()
-	if resp, _, err := relogged.Get("/users/me"); err != nil {
+	resp, _, err = relogged.Get("/users/me")
+	if err != nil {
 		t.Fatalf("relogin /users/me: %v", err)
-	} else if resp.StatusCode != http.StatusOK {
+	}
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("relogin /users/me: status=%d", resp.StatusCode)
 	}
+	resp.Body.Close()
 }
 
 // TestAPI_LoginRateLimit: the LoginLimiter middleware caps wrong-password
@@ -168,16 +179,18 @@ func TestAPI_AuditPaginationAndFilter(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("patch %d: status=%d body=%s", i, resp.StatusCode, string(b))
 		}
+		resp.Body.Close()
 	}
 
 	// Ask for limit=3.
-	resp, body, err := admin.Get("/admin/audit?limit=3")
+	resp, body, err = admin.Get("/admin/audit?limit=3")
 	if err != nil {
 		t.Fatalf("/admin/audit: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("/admin/audit %d: %s", resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 
 	// Count "id":<digits> occurrences. The audit endpoint returns a JSON
 	// array of events; each event has an id field. Five mutations are
@@ -200,19 +213,23 @@ func TestAPI_LogoutInvalidatesSession(t *testing.T) {
 	defer cli.Close()
 
 	// Confirm baseline: /users/me works.
-	if resp, _, err := cli.Get("/users/me"); err != nil {
+	resp, _, err := cli.Get("/users/me")
+	if err != nil {
 		t.Fatalf("baseline /users/me: %v", err)
-	} else if resp.StatusCode != http.StatusOK {
+	}
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("baseline /users/me: status=%d", resp.StatusCode)
 	}
+	resp.Body.Close()
 
-	resp, body, err := cli.Post("/auth/logout", nil)
+	resp, body, err = cli.Post("/auth/logout", nil)
 	if err != nil {
 		t.Fatalf("/auth/logout: %v", err)
 	}
 	if resp.StatusCode/100 != 2 {
 		t.Fatalf("/auth/logout expected 2xx, got %d body=%q", resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 
 	resp, body, err = cli.Get("/users/me")
 	if err != nil {
@@ -222,4 +239,5 @@ func TestAPI_LogoutInvalidatesSession(t *testing.T) {
 		t.Fatalf("post-logout /users/me expected 401, got %d body=%q",
 			resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 }

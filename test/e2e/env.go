@@ -153,7 +153,12 @@ func (e *Env) Consistently(t *testing.T, duration, interval time.Duration, cond 
 func (e *Env) Kubectl(args ...string) (string, error) {
 	// Validate arguments to prevent shell injection: reject anything
 	// containing shell metacharacters or suspicious patterns.
+	// Note: we stop validation at "--" because args after it are for the
+	// container (in kubectl exec), not for kubectl itself.
 	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
 		if strings.ContainsAny(arg, "|;&$`<>()\\") {
 			return "", fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
 		}
@@ -230,7 +235,12 @@ func (e *Env) ensureCluster() error {
 func (e *Env) KubectlWithStdin(stdin string, args ...string) (string, error) {
 	// Validate arguments to prevent shell injection: reject anything
 	// containing shell metacharacters or suspicious patterns.
+	// Note: we stop validation at "--" because args after it are for the
+	// container (in kubectl exec), not for kubectl itself.
 	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
 		if strings.ContainsAny(arg, "|;&$`<>()\\") {
 			return "", fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
 		}
