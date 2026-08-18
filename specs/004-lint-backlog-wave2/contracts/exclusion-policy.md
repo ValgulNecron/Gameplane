@@ -84,7 +84,14 @@ This distinction is **critical**. They sound similar but are fundamentally diffe
 
 ## Current Authorization Inventory
 
-These are the three authorized exclusions currently in `.golangci.yml` (lines 35–52). All other findings must be fixed, not excluded.
+These are the four authorized exclusions currently in `.golangci.yml` (lines 35–60). All other findings must be fixed, not excluded.
+
+Two more are expected from a separate authorization step not included in this
+change: G124 on `api/internal/auth/sessions.go`'s `setCSRFCookie` (the CSRF
+cookie is deliberately not `HttpOnly` so the SPA can echo it back) and G704 on
+`api/internal/ws/dialer.go`'s agent-proxy request. Until that step lands and
+adds the corresponding `.golangci.yml` entries, those two findings are neither
+fixed nor authorized-excluded, and this inventory does not list them.
 
 ### Exclusion #1: Test Files
 
@@ -138,6 +145,24 @@ These are the three authorized exclusions currently in `.golangci.yml` (lines 35
 | **Rationale** | Minecraft's wire protocol uses variable-length integers (VarInts) that are signed in the spec but unsigned in Go's `encoding/binary`. The parser intentionally reinterprets bytes between `uint32` and `int32` to decode the spec-correct value. All bits are preserved (no truncation), and overflow checks are explicit. gosec's G115 rule flags this as a security risk, but in this context, it is safe and necessary. The exclusion is scoped to only this file, so gosec's G115 rule still runs everywhere else in the codebase. |
 | **Why Authorized** | Narrow scope (only `minecraft.go`). Text matcher narrows to the specific gosec code (G115); other gosec findings in the file are still reported. The justification documents the control flow (bit preservation, overflow checks) that makes the reinterpretation safe. The exclusion is explicitly documented in code, not hidden. |
 | **Abuse Risk** | Very low, because the scope is file-specific and semantically tied to a known protocol requirement. A contributor could not use this to hide unsafe type assertions elsewhere in the codebase. |
+
+### Exclusion #4: Mod Extraction File Permissions
+
+```yaml
+      - path: (^|/)internal/mods/mods\.go$
+        linters: [gosec]
+        text: "G302"
+```
+
+| Aspect | Value |
+|--------|-------|
+| **Path Pattern** | `(^|/)internal/mods/mods\.go$` (any path ending in `internal/mods/mods.go`) |
+| **Linters Affected** | `gosec` |
+| **Text Matcher** | `"G302"` (gosec's "Expect file permissions to be 0600 or less") |
+| **Justification** (from config) | "Mod extraction writes files to a volume shared with the game container, which runs as a different uid than the agent (65532). At 0o600 the game server cannot read files the agent just installed. FSGroup does not help: it changes group ownership, not the mode bits. Forcing a shared uid breaks modules that pin their own." |
+| **Rationale** | The agent extracts mod archives into a PVC shared with the game server container. The two containers run as different UIDs, so a 0600 mode (owner read/write only) would leave the extracted files unreadable by the game server process. Group-writable/readable permissions are required for the handoff to work, and Kubernetes `fsGroup` only affects group *ownership*, not the mode bits gosec is checking. |
+| **Why Authorized** | Narrow scope (only `internal/mods/mods.go`). Text matcher narrows further (only `G302` findings). G302 remains active everywhere else in the codebase. |
+| **Abuse Risk** | Low, because the scope is file-specific and tied to a documented cross-container ownership constraint. |
 
 ---
 
@@ -229,7 +254,7 @@ To audit the current exclusions:
 
 ```bash
 # Count exclusions in .golangci.yml
-grep -c "^      - path:" .golangci.yml  # Should be 3 (current state)
+grep -c "^      - path:" .golangci.yml  # Should be 4 (current state)
 
 # List exclusions
 echo "=== Current Authorized Exclusions ==="

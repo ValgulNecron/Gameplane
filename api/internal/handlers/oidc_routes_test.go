@@ -71,7 +71,7 @@ func TestOIDCStart_RedirectsWithScopedCookies(t *testing.T) {
 	r := oidcRouter(oidcRoutesRegistry(t, issuer.URL))
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth/oidc/corp/start", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/oidc/corp/start", nil))
 	if rr.Code != http.StatusFound {
 		t.Fatalf("status = %d body=%s, want 302", rr.Code, rr.Body)
 	}
@@ -100,7 +100,7 @@ func TestOIDCStart_UnknownProviderIsNeutral404(t *testing.T) {
 	r := oidcRouter(oidcRoutesRegistry(t, issuer.URL))
 	for _, path := range []string{"/auth/oidc/ghost/start", "/auth/oidc/local/start"} {
 		rr := httptest.NewRecorder()
-		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 		if rr.Code != http.StatusNotFound {
 			t.Fatalf("%s: status = %d, want 404", path, rr.Code)
 		}
@@ -119,7 +119,7 @@ func TestOIDCStart_BrokenIssuerIs502WithoutDetail(t *testing.T) {
 	r := oidcRouter(oidcRoutesRegistry(t, broken.URL))
 
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth/oidc/corp/start", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/oidc/corp/start", nil))
 	if rr.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502", rr.Code)
 	}
@@ -137,7 +137,7 @@ func TestOIDCStartLegacy_WithoutHelmProviderIs404(t *testing.T) {
 	issuer := minimalIssuer(t)
 	r := oidcRouter(oidcRoutesRegistry(t, issuer.URL))
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth/oidc/start", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/oidc/start", nil))
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 with no helm provider", rr.Code)
 	}

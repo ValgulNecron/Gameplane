@@ -242,7 +242,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -251,7 +251,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			if errors.Is(err, db.ErrShareLinkInvalid) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 				return
 			}
 			httperr.Write(w, req, err)
@@ -276,7 +276,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -293,7 +293,7 @@ func resolveShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}
 }
 
@@ -306,7 +306,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -315,7 +315,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 			if errors.Is(err, db.ErrShareLinkInvalid) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
-				json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 				return
 			}
 			httperr.Write(w, req, err)
@@ -326,7 +326,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if !link.CanStart {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -345,7 +345,7 @@ func startShareHandler(reg *kube.Registry, store *db.Store) http.HandlerFunc {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
 			return
 		}
 
@@ -385,12 +385,21 @@ func getPlayersOnline(obj *unstructured.Unstructured) *int32 {
 	// NestedFieldNoCopy returns interface{}, could be float64 (JSON number) or int64.
 	switch v := val.(type) {
 	case float64:
+		if v < 0 || v > 2147483647 {
+			return nil
+		}
 		n := int32(v)
 		return &n
 	case int64:
+		if v < 0 || v > 2147483647 {
+			return nil
+		}
 		n := int32(v)
 		return &n
 	case int:
+		if v < 0 || v > 2147483647 {
+			return nil
+		}
 		n := int32(v)
 		return &n
 	}
@@ -453,16 +462,29 @@ func getPublicAddress(obj *unstructured.Unstructured) *shareAddr {
 // decoded from raw JSON (encoding/json into map[string]interface{}) yield
 // float64 for every number, and objects built directly in Go (e.g. test
 // fixtures) may use a plain int. Handle all three so callers get a port
-// regardless of how the unstructured object was constructed.
+// regardless of how the unstructured object was constructed. Valid ports are
+// 0-65535; invalid values return 0.
 func nestedPort(epMap map[string]interface{}) int32 {
 	switch v := epMap["port"].(type) {
 	case int64:
+		if v < 0 || v > 65535 {
+			return 0
+		}
 		return int32(v)
 	case float64:
+		if v < 0 || v > 65535 {
+			return 0
+		}
 		return int32(v)
 	case int32:
+		if v < 0 || v > 65535 {
+			return 0
+		}
 		return v
 	case int:
+		if v < 0 || v > 65535 {
+			return 0
+		}
 		return int32(v)
 	}
 	return 0

@@ -200,7 +200,7 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 			http.Error(w, "state mismatch", http.StatusBadRequest)
 			return
 		}
-		clearCookieAt(w, oidcStateCookie, true, cookiePath)
+		clearCookieAt(w, oidcStateCookie, cookiePath)
 
 		tok, err := o.oauth.Exchange(req.Context(), req.URL.Query().Get("code"))
 		if err != nil {
@@ -224,11 +224,11 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 		// accept the login.
 		nonceCookie, err := req.Cookie(oidcNonceCookie)
 		if err != nil || nonceCookie.Value == "" || idt.Nonce != nonceCookie.Value {
-			clearCookieAt(w, oidcNonceCookie, true, cookiePath)
+			clearCookieAt(w, oidcNonceCookie, cookiePath)
 			http.Error(w, "nonce mismatch", http.StatusBadRequest)
 			return
 		}
-		clearCookieAt(w, oidcNonceCookie, true, cookiePath)
+		clearCookieAt(w, oidcNonceCookie, cookiePath)
 		var claims struct {
 			Sub   string `json:"sub"`
 			Email string `json:"email"`

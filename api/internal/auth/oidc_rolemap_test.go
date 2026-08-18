@@ -121,7 +121,7 @@ func TestComputeRole(t *testing.T) {
 func callbackViaIDP(t *testing.T, o *OIDC, sessions *SessionStore, nonce string) *httptest.ResponseRecorder {
 	t.Helper()
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: nonce})
 	o.HandleCallback(sessions)(rr, req)
@@ -425,7 +425,7 @@ func TestHandleStart_ExtraScopesInAuthCodeURL(t *testing.T) {
 		t.Fatalf("NewOIDCWithPolicy: %v", err)
 	}
 	rr := httptest.NewRecorder()
-	o.HandleStart()(rr, httptest.NewRequest("GET", "/auth/oidc/start", nil))
+	o.HandleStart()(rr, httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/start", nil))
 	if rr.Code != http.StatusFound {
 		t.Fatalf("code=%d", rr.Code)
 	}

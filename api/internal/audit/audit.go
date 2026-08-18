@@ -39,6 +39,7 @@ var webhookEvents = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help: "Audit-event webhook deliveries by result (sent, failed, dropped).",
 }, []string{"result"})
 
+// Auditor records every API call into a tamper-evident log chain.
 type Auditor struct {
 	db      *db.Store
 	sink    *slog.Logger // structured stdout sink; nil disables it
@@ -128,23 +129,24 @@ func (s *WebhookSink) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.drain()
+			s.drain(ctx)
 			return
 		case e := <-s.ch:
-			s.post(e)
+			s.post(ctx, e)
 		}
 	}
 }
 
 // drain ships already-buffered events on shutdown, bounded by a short deadline
 // so a wedged endpoint can't stall process exit.
-func (s *WebhookSink) drain() {
-	deadline := time.After(2 * time.Second)
+func (s *WebhookSink) drain(ctx context.Context) {
+	drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
 	for {
 		select {
 		case e := <-s.ch:
-			s.post(e)
-		case <-deadline:
+			s.post(drainCtx, e)
+		case <-drainCtx.Done():
 			return
 		default:
 			return
@@ -152,12 +154,24 @@ func (s *WebhookSink) drain() {
 	}
 }
 
-// post delivers one event. It deliberately uses a detached context (bounded by
-// the client's own timeout) rather than the worker's lifecycle context: at
-// shutdown the select in Start can still pick a buffered event after ctx is
-// cancelled, and a cancelled context would fail that delivery even though the
-// event could have been shipped. The client timeout still bounds each attempt.
-func (s *WebhookSink) post(e Event) {
+// post delivers one event. It uses context.WithoutCancel to detach from the
+// worker's lifecycle context: at shutdown the select in Start can still pick a
+// buffered event after ctx is cancelled, and a cancelled context would fail
+// that delivery even though the event could have been shipped. The client
+// timeout still bounds each attempt.
+//
+// context.WithoutCancel strips any deadline as well as cancellation, so a
+// bare WithoutCancel(ctx) here would silently undo drain's 2s budget on the
+// shutdown path. Re-apply ctx's own deadline (if any) to the detached
+// context so drain's bound still holds; the normal Start path has no
+// deadline on ctx, so this is a no-op there.
+func (s *WebhookSink) post(ctx context.Context, e Event) {
+	reqCtx := context.WithoutCancel(ctx)
+	if dl, ok := ctx.Deadline(); ok {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(reqCtx, time.Until(dl))
+		defer cancel()
+	}
 	body, err := json.Marshal(webhookPayload{
 		TS: e.TS, Actor: e.Actor, Method: e.Method, Path: e.Path,
 		Target: e.Target, Status: e.Status, IP: e.IP,
@@ -167,7 +181,7 @@ func (s *WebhookSink) post(e Event) {
 		slog.Warn("audit webhook marshal failed", "err", err)
 		return
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, s.url, bytes.NewReader(body))
 	if err != nil {
 		webhookEvents.WithLabelValues("failed").Inc()
 		slog.Warn("audit webhook build request failed", "err", err)
@@ -206,6 +220,7 @@ type webhookPayload struct {
 	IP     string `json:"ip,omitempty"`
 }
 
+// New returns an Auditor configured with options.
 func New(store *db.Store, opts ...Option) *Auditor {
 	a := &Auditor{db: store}
 	for _, o := range opts {
@@ -578,7 +593,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			actor := "anonymous"
 			if name := holder.Name(); name != "" {
 				actor = name
-			} else if u := auth.UserFromContext(req.Context()); u != nil && u.Username != "" {
+			} else if u := auth.UserFromContext(ctx); u != nil && u.Username != "" {
 				// Fallback for callers that put the user directly on this
 				// context instead of via the actor holder. In the normal
 				// chain Authenticate fills the holder, so this never overrides
@@ -594,7 +609,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			// Extract the client IP from context (set by ClientIPFromXFF middleware).
 			// Fall back to the host portion of RemoteAddr if not set, so audit
 			// records stay consistent when the middleware is absent (e.g., in tests).
-			clientIP := middleware.GetClientIP(req.Context())
+			clientIP := middleware.GetClientIP(ctx)
 			if clientIP == "" {
 				// Fallback: extract host from RemoteAddr. net.SplitHostPort handles
 				// both IPv4:port and [IPv6]:port forms correctly; for bare addresses
@@ -614,7 +629,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 
 			// WithoutCancel: the audit write must survive the request context being
 			// cancelled, or a client disconnect would silently punch a hole in the trail.
-			if err := a.insertChained(context.WithoutCancel(req.Context()), ts, actor, req.Method, path, target, rw.status, clientIP); err != nil {
+			if err := a.insertChained(context.WithoutCancel(ctx), ts, actor, req.Method, path, target, rw.status, clientIP); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",
@@ -708,6 +723,7 @@ func (r *responseRecorder) Flush() {
 
 // ---- query API ----
 
+// Event is an audit log entry.
 type Event struct {
 	ID     int64  `json:"id"`
 	TS     string `json:"ts"`

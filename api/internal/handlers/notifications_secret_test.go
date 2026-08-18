@@ -30,9 +30,10 @@ func sinkSecretRouter(t *testing.T, secrets ...runtime.Object) (chi.Router, *kub
 	return r, k
 }
 
-func putSinkSecret(h http.Handler, sink string, body any) *httptest.ResponseRecorder {
+func putSinkSecret(t *testing.T, h http.Handler, sink string, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	b, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/admin/notifications/sinks/"+sink+"/secret", bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/admin/notifications/sinks/"+sink+"/secret", bytes.NewReader(b))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
@@ -40,7 +41,7 @@ func putSinkSecret(h http.Handler, sink string, body any) *httptest.ResponseReco
 
 func TestSinkSecret_CreateWebhook(t *testing.T) {
 	r, k := sinkSecretRouter(t)
-	rr := putSinkSecret(r, "ops-hook", map[string]string{"kind": "webhook", "url": "https://hooks.example.com/x", "authorization": "Bearer tok"})
+	rr := putSinkSecret(t, r, "ops-hook", map[string]string{"kind": "webhook", "url": "https://hooks.example.com/x", "authorization": "Bearer tok"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rr.Code, rr.Body)
 	}
@@ -71,7 +72,7 @@ func TestSinkSecret_CreateWebhook(t *testing.T) {
 
 func TestSinkSecret_NtfyTokenBecomesBearer(t *testing.T) {
 	r, k := sinkSecretRouter(t)
-	rr := putSinkSecret(r, "alerts", map[string]string{"kind": "ntfy", "url": "https://ntfy.sh/gameplane-alerts", "token": "tk_x"})
+	rr := putSinkSecret(t, r, "alerts", map[string]string{"kind": "ntfy", "url": "https://ntfy.sh/gameplane-alerts", "token": "tk_x"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rr.Code, rr.Body)
 	}
@@ -86,12 +87,12 @@ func TestSinkSecret_NtfyTokenBecomesBearer(t *testing.T) {
 
 func TestSinkSecret_UpdateReplacesOptionalKeys(t *testing.T) {
 	r, k := sinkSecretRouter(t)
-	if rr := putSinkSecret(r, "hook", map[string]string{"kind": "webhook", "url": "https://a.example", "authorization": "Bearer old"}); rr.Code != http.StatusOK {
+	if rr := putSinkSecret(t, r, "hook", map[string]string{"kind": "webhook", "url": "https://a.example", "authorization": "Bearer old"}); rr.Code != http.StatusOK {
 		t.Fatalf("first put: %d %s", rr.Code, rr.Body)
 	}
 	// Re-save without authorization: the full key set is written, so the
 	// stale header value must be cleared, not kept.
-	if rr := putSinkSecret(r, "hook", map[string]string{"kind": "webhook", "url": "https://b.example"}); rr.Code != http.StatusOK {
+	if rr := putSinkSecret(t, r, "hook", map[string]string{"kind": "webhook", "url": "https://b.example"}); rr.Code != http.StatusOK {
 		t.Fatalf("second put: %d %s", rr.Code, rr.Body)
 	}
 	sec, err := k.Typed.CoreV1().Secrets(notifNS).Get(context.Background(), "gameplane-notify-hook", metav1.GetOptions{})
@@ -119,7 +120,7 @@ func TestSinkSecret_ValidationFailures(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if rr := putSinkSecret(r, tc.sink, tc.body); rr.Code != http.StatusUnprocessableEntity {
+			if rr := putSinkSecret(t, r, tc.sink, tc.body); rr.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("status = %d body=%s, want 422", rr.Code, rr.Body)
 			}
 		})
@@ -133,7 +134,7 @@ func TestSinkSecret_RefusesForeignSecret(t *testing.T) {
 		Data:       map[string][]byte{"something": []byte("else")},
 	}
 	r, _ := sinkSecretRouter(t, foreign)
-	rr := putSinkSecret(r, "hook", map[string]string{"kind": "webhook", "url": "https://a.example"})
+	rr := putSinkSecret(t, r, "hook", map[string]string{"kind": "webhook", "url": "https://a.example"})
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("status = %d body=%s, want 409", rr.Code, rr.Body)
 	}
@@ -156,7 +157,7 @@ func TestSinkSecret_DeleteManagedOnly(t *testing.T) {
 	r, k := sinkSecretRouter(t, managed, userOwned)
 
 	del := func(sink string) int {
-		req := httptest.NewRequest(http.MethodDelete, "/admin/notifications/sinks/"+sink+"/secret", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/admin/notifications/sinks/"+sink+"/secret", nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		return rr.Code

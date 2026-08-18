@@ -67,7 +67,7 @@ func TestCatalog_Wellformed(t *testing.T) {
 // catalog key (the admin "*" wildcard is the sole intentional exception).
 func TestCatalog_CoversSeededPermissions(t *testing.T) {
 	store := migratedStore(t) // rbac_test.go
-	rows, err := store.DB.Query(`SELECT DISTINCT permission FROM role_permissions`)
+	rows, err := store.DB.QueryContext(t.Context(), `SELECT DISTINCT permission FROM role_permissions`)
 	if err != nil {
 		t.Fatalf("query seeded permissions: %v", err)
 	}

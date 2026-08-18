@@ -177,7 +177,7 @@ func TestHandleCallback_HappyPath(t *testing.T) {
 	sessions := NewSessionStore(store)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "nonce-abc"})
 	o.HandleCallback(sessions)(rr, req)
@@ -223,7 +223,7 @@ func TestHandleCallback_NonceMismatch(t *testing.T) {
 	sessions := NewSessionStore(store)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "from-cookie"})
 	o.HandleCallback(sessions)(rr, req)
@@ -246,7 +246,7 @@ func TestHandleCallback_ExchangeFailure(t *testing.T) {
 	}
 	sessions := NewSessionStore(newAuthDB(t))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=wrong-code", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?state=abc&code=wrong-code", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	req.AddCookie(&http.Cookie{Name: oidcNonceCookie, Value: "n"})
 	o.HandleCallback(sessions)(rr, req)
@@ -267,7 +267,7 @@ func TestHandleCallback_NoNonceCookie(t *testing.T) {
 	}
 	sessions := NewSessionStore(newAuthDB(t))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth/oidc/callback?state=abc&code=auth-code-1", nil)
 	req.AddCookie(&http.Cookie{Name: oidcStateCookie, Value: "abc"})
 	o.HandleCallback(sessions)(rr, req)
 	if rr.Code != http.StatusBadRequest {

@@ -31,7 +31,7 @@ func TestEvents_StreamingUnsupported(t *testing.T) {
 	reg := kube.NewRegistry(scope.DefaultCluster)
 	reg.Set(scope.DefaultCluster, k)
 	w := &nonFlushingWriter{header: http.Header{}}
-	req := httptest.NewRequest("GET", "/events", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/events", nil)
 	eventsHandler(reg)(w, req)
 	if w.code != http.StatusInternalServerError {
 		t.Fatalf("got %d", w.code)
@@ -47,7 +47,7 @@ func TestEvents_RejectsForbiddenNamespace(t *testing.T) {
 	reg := kube.NewRegistry(scope.DefaultCluster)
 	reg.Set(scope.DefaultCluster, k)
 	rr := httptest.NewRecorder() // implements http.Flusher → past the 500 branch
-	req := httptest.NewRequest("GET", "/events?namespace=forbidden", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/events?namespace=forbidden", nil)
 	eventsHandler(reg)(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("got %d, want 403 for a non-permitted namespace", rr.Code)

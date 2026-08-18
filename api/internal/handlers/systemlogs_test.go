@@ -177,7 +177,7 @@ func TestMountSystemLogs(t *testing.T) {
 				query += sep + "follow=" + tt.follow
 			}
 
-			req := httptest.NewRequest("GET", "/admin/system-logs/"+tt.component+query, nil)
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/admin/system-logs/"+tt.component+query, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
@@ -209,7 +209,7 @@ func TestMountSystemLogsNoPods(t *testing.T) {
 	r := chi.NewRouter()
 	MountSystemLogs(r, k8sClient, namespace)
 
-	req := httptest.NewRequest("GET", "/admin/system-logs/api", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/admin/system-logs/api", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -270,7 +270,7 @@ func TestMountSystemLogsPreferRunning(t *testing.T) {
 	r := chi.NewRouter()
 	MountSystemLogs(r, k8sClient, namespace)
 
-	req := httptest.NewRequest("GET", "/admin/system-logs/api", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/admin/system-logs/api", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -316,7 +316,7 @@ func TestMountSystemLogsFallbackNoRunning(t *testing.T) {
 	r := chi.NewRouter()
 	MountSystemLogs(r, k8sClient, namespace)
 
-	req := httptest.NewRequest("GET", "/admin/system-logs/api", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/admin/system-logs/api", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)

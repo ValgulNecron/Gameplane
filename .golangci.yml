@@ -58,6 +58,25 @@ linters:
       - path: (^|/)internal/mods/mods\.go$
         linters: [gosec]
         text: "G302"
+      # The websocket and HTTP proxy handlers take a namespace and pod name from the
+      # request path and use them to build the upstream agent URL. Both are validated as
+      # DNS-1123 labels first - lowercase alphanumeric and hyphen, 63 chars max, no leading
+      # or trailing hyphen - so no scheme, host override or traversal can survive, and the
+      # URL is assembled with url.URL rather than string concatenation. gosec's taint
+      # analysis does not model a custom validator as a sanitiser, so it reports the
+      # request regardless. G704 remains active everywhere else.
+      - path: (^|/)internal/ws/dialer\.go$
+        linters: [gosec]
+        text: "G704"
+      # The CSRF cookie is deliberately not HttpOnly: the SPA must read it and echo it
+      # back as the X-Gameplane-CSRF header, which is the double-submit pattern documented
+      # in docs/security.md. Making it HttpOnly would hide the token from the browser and
+      # break CSRF protection outright. G124 cannot tell a deliberately-readable CSRF
+      # token from a leaked session cookie. Every cookie here still sets Secure and
+      # SameSite. G124 remains active everywhere else.
+      - path: (^|/)internal/auth/sessions\.go$
+        linters: [gosec]
+        text: "G124"
       # Kubectl/KubectlWithStdin/port-forward helpers exist to run kubectl with
       # caller-supplied arguments - that's the whole point of an E2E harness. The
       # args come from the suite's own test code (not external input), and the

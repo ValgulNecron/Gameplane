@@ -18,6 +18,7 @@ import (
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 )
 
+// MountAudit registers the audit log API handlers.
 func MountAudit(r chi.Router, a *audit.Auditor) {
 	r.Get("/admin/audit", func(w http.ResponseWriter, req *http.Request) {
 		limit, _ := strconv.Atoi(req.URL.Query().Get("limit"))

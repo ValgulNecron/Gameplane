@@ -40,7 +40,7 @@ func TestSessions_Lookup_Expired(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	// Force-expire the row directly.
-	if _, err := s.DB.Exec(`UPDATE sessions SET expires_at = ? WHERE token = ?`,
+	if _, err := s.DB.ExecContext(context.Background(), `UPDATE sessions SET expires_at = ? WHERE token = ?`,
 		time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), tok); err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestSessions_Lookup_CorruptExpires(t *testing.T) {
 	seedUser(t, s, "alice", "pw", "admin")
 	store := NewSessionStore(s)
 	tok, _, _ := store.Create(context.Background(), 1)
-	if _, err := s.DB.Exec(`UPDATE sessions SET expires_at = 'garbage' WHERE token = ?`, tok); err != nil {
+	if _, err := s.DB.ExecContext(context.Background(), `UPDATE sessions SET expires_at = 'garbage' WHERE token = ?`, tok); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	if _, _, err := store.lookup(context.Background(), tok); err == nil ||
@@ -64,7 +64,7 @@ func TestSessions_Lookup_CorruptExpires(t *testing.T) {
 	}
 	// Row should also be deleted.
 	var n int
-	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM sessions WHERE token = ?`, tok).Scan(&n)
+	_ = s.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sessions WHERE token = ?`, tok).Scan(&n)
 	if n != 0 {
 		t.Fatalf("corrupt row not removed (%d rows remaining)", n)
 	}
@@ -87,7 +87,7 @@ func TestSessions_Authenticate(t *testing.T) {
 
 	t.Run("no cookie returns 401", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/protected", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/protected", nil)
 		h.ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
 			t.Fatalf("code=%d", rr.Code)
@@ -96,7 +96,7 @@ func TestSessions_Authenticate(t *testing.T) {
 
 	t.Run("unknown token returns 401", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/protected", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/protected", nil)
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "ghost"})
 		h.ServeHTTP(rr, req)
 		if rr.Code != http.StatusUnauthorized {
@@ -107,7 +107,7 @@ func TestSessions_Authenticate(t *testing.T) {
 	t.Run("read passes without csrf", func(t *testing.T) {
 		called = false
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/protected", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/protected", nil)
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: tok})
 		h.ServeHTTP(rr, req)
 		if rr.Code != 204 || !called {
@@ -117,7 +117,7 @@ func TestSessions_Authenticate(t *testing.T) {
 
 	t.Run("mutating without csrf returns 403", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/protected", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "/protected", nil)
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: tok})
 		h.ServeHTTP(rr, req)
 		if rr.Code != http.StatusForbidden {
@@ -128,7 +128,7 @@ func TestSessions_Authenticate(t *testing.T) {
 	t.Run("mutating with valid csrf passes", func(t *testing.T) {
 		called = false
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/protected", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "/protected", nil)
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: tok})
 		req.Header.Set(csrfHeader, csrf)
 		h.ServeHTTP(rr, req)
@@ -148,7 +148,7 @@ func TestSessions_DeleteForUser(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 	var n int
-	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM sessions WHERE user_id=1`).Scan(&n)
+	_ = s.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sessions WHERE user_id=1`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("expected 0 sessions, got %d", n)
 	}
@@ -161,7 +161,7 @@ func TestSessions_HandleLogout(t *testing.T) {
 	tok, _, _ := store.Create(context.Background(), 1)
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/logout", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: tok})
 	store.HandleLogout().ServeHTTP(rr, req)
 	if rr.Code != http.StatusNoContent {
@@ -182,7 +182,7 @@ func TestSessions_HandleLogout(t *testing.T) {
 	}
 	// Row deleted.
 	var n int
-	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM sessions WHERE token=?`, tok).Scan(&n)
+	_ = s.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sessions WHERE token=?`, tok).Scan(&n)
 	if n != 0 {
 		t.Fatalf("session row not deleted")
 	}
@@ -192,7 +192,7 @@ func TestSessions_HandleLogout_NoCookie(t *testing.T) {
 	s := newAuthDB(t)
 	store := NewSessionStore(s)
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/logout", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/logout", nil)
 	store.HandleLogout().ServeHTTP(rr, req)
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("code=%d", rr.Code)
@@ -204,11 +204,11 @@ func TestSessions_GCOnce_DeletesExpired(t *testing.T) {
 	seedUser(t, s, "alice", "pw", "admin")
 	store := NewSessionStore(s)
 	tok, _, _ := store.Create(context.Background(), 1)
-	_, _ = s.DB.Exec(`UPDATE sessions SET expires_at = ? WHERE token = ?`,
+	_, _ = s.DB.ExecContext(context.Background(), `UPDATE sessions SET expires_at = ? WHERE token = ?`,
 		time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), tok)
 	store.gcOnce(context.Background())
 	var n int
-	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&n)
+	_ = s.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sessions`).Scan(&n)
 	if n != 0 {
 		t.Fatalf("gc did not delete: %d remain", n)
 	}
@@ -219,7 +219,7 @@ func TestSessions_StartGC(t *testing.T) {
 	seedUser(t, s, "alice", "pw", "admin")
 	store := NewSessionStore(s)
 	tok, _, _ := store.Create(context.Background(), 1)
-	_, _ = s.DB.Exec(`UPDATE sessions SET expires_at = ? WHERE token = ?`,
+	_, _ = s.DB.ExecContext(context.Background(), `UPDATE sessions SET expires_at = ? WHERE token = ?`,
 		time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), tok)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -227,7 +227,7 @@ func TestSessions_StartGC(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		var n int
-		_ = s.DB.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&n)
+		_ = s.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM sessions`).Scan(&n)
 		if n == 0 {
 			return
 		}

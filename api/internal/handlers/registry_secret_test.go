@@ -26,9 +26,10 @@ func registrySecretRouter(secrets ...runtime.Object) (chi.Router, *kube.Client) 
 	return r, k
 }
 
-func putRegistrySecret(h http.Handler, provider string, body any) *httptest.ResponseRecorder {
+func putRegistrySecret(t *testing.T, h http.Handler, provider string, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	b, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/admin/registries/"+provider+"/secret", bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/admin/registries/"+provider+"/secret", bytes.NewReader(b))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr
@@ -36,7 +37,7 @@ func putRegistrySecret(h http.Handler, provider string, body any) *httptest.Resp
 
 func TestRegistrySecret_Create(t *testing.T) {
 	r, k := registrySecretRouter()
-	rr := putRegistrySecret(r, "curseforge", map[string]string{"apiKey": "s3cret-key"})
+	rr := putRegistrySecret(t, r, "curseforge", map[string]string{"apiKey": "s3cret-key"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rr.Code, rr.Body)
 	}
@@ -57,12 +58,12 @@ func TestRegistrySecret_Create(t *testing.T) {
 
 func TestRegistrySecret_UnknownProviderRejected(t *testing.T) {
 	r, _ := registrySecretRouter()
-	rr := putRegistrySecret(r, "modrinth", map[string]string{"apiKey": "x"})
+	rr := putRegistrySecret(t, r, "modrinth", map[string]string{"apiKey": "x"})
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body=%s, want 400", rr.Code, rr.Body)
 	}
 
-	req := httptest.NewRequest(http.MethodDelete, "/admin/registries/modrinth/secret", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/admin/registries/modrinth/secret", nil)
 	rr2 := httptest.NewRecorder()
 	r.ServeHTTP(rr2, req)
 	if rr2.Code != http.StatusBadRequest {
@@ -75,7 +76,7 @@ func TestRegistrySecret_ReservedProvidersAccepted(t *testing.T) {
 	// their plumbing can land ahead of the engine (task requirement).
 	r, _ := registrySecretRouter()
 	for _, provider := range []string{"steam", "nexus"} {
-		if rr := putRegistrySecret(r, provider, map[string]string{"apiKey": "x"}); rr.Code != http.StatusOK {
+		if rr := putRegistrySecret(t, r, provider, map[string]string{"apiKey": "x"}); rr.Code != http.StatusOK {
 			t.Fatalf("provider %s: status = %d body=%s", provider, rr.Code, rr.Body)
 		}
 	}
@@ -83,7 +84,7 @@ func TestRegistrySecret_ReservedProvidersAccepted(t *testing.T) {
 
 func TestRegistrySecret_ValidationEmptyKey(t *testing.T) {
 	r, _ := registrySecretRouter()
-	rr := putRegistrySecret(r, "curseforge", map[string]string{"apiKey": ""})
+	rr := putRegistrySecret(t, r, "curseforge", map[string]string{"apiKey": ""})
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d body=%s, want 422", rr.Code, rr.Body)
 	}
@@ -95,12 +96,12 @@ func TestRegistrySecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 	}
 	r, k := registrySecretRouter(foreign)
 
-	if rr := putRegistrySecret(r, "curseforge", map[string]string{"apiKey": "x"}); rr.Code != http.StatusConflict {
+	if rr := putRegistrySecret(t, r, "curseforge", map[string]string{"apiKey": "x"}); rr.Code != http.StatusConflict {
 		t.Fatalf("foreign upsert: status = %d, want 409", rr.Code)
 	}
 
 	del := func(provider string) int {
-		req := httptest.NewRequest(http.MethodDelete, "/admin/registries/"+provider+"/secret", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/admin/registries/"+provider+"/secret", nil)
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		return rr.Code
@@ -111,7 +112,7 @@ func TestRegistrySecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 	}
 
 	// A different, unclaimed provider: create then delete round-trips.
-	if rr := putRegistrySecret(r, "steam", map[string]string{"apiKey": "x"}); rr.Code != http.StatusOK {
+	if rr := putRegistrySecret(t, r, "steam", map[string]string{"apiKey": "x"}); rr.Code != http.StatusOK {
 		t.Fatalf("create steam: %d", rr.Code)
 	}
 	if code := del("steam"); code != http.StatusNoContent {
@@ -133,7 +134,7 @@ func TestRegistrySecret_NeverLeaksIntoConfig(t *testing.T) {
 	MountConfig(configRouter, store, false)
 
 	body := bytes.NewReader([]byte(`{"registries":[{"provider":"curseforge","configRef":"gameplane-modreg-curseforge"}]}`))
-	req := httptest.NewRequest(http.MethodPut, "/admin/config/modRegistries", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/admin/config/modRegistries", body)
 	rr := httptest.NewRecorder()
 	configRouter.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
@@ -143,7 +144,7 @@ func TestRegistrySecret_NeverLeaksIntoConfig(t *testing.T) {
 		t.Fatalf("config PUT response mentions apiKey: %s", rr.Body)
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	getReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/config", nil)
 	getRR := httptest.NewRecorder()
 	configRouter.ServeHTTP(getRR, getReq)
 	if strings.Contains(getRR.Body.String(), "apiKey") || strings.Contains(getRR.Body.String(), "s3cret") {

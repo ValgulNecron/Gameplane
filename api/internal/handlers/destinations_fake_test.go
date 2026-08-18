@@ -140,7 +140,7 @@ func TestDestinations_Create(t *testing.T) {
 	})
 
 	t.Run("bad json", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/backup-destinations/", strings.NewReader("not json"))
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/backup-destinations/", strings.NewReader("not json"))
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
 		if rr.Code == 200 {
