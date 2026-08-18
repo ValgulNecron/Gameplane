@@ -856,7 +856,7 @@ jobs:
           set +e
           printf '%s' "$NEEDS_JSON" > /tmp/needs.json
           [ -s /tmp/needs.json ] || echo '{}' > /tmp/needs.json
-          cat > /tmp/render.mjs <<'JSEOF'
+          cat > /tmp/render.cjs <<'JSEOF'
           const fs = require('node:fs');
 
           function safe(fn, fallback) {
@@ -1125,7 +1125,7 @@ jobs:
             );
           }
           JSEOF
-          node /tmp/render.mjs
+          node /tmp/render.cjs
           exit 0
 
       - name: write job summary
