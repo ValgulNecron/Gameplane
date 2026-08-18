@@ -24,7 +24,7 @@ func TestMiddleware_Unauthenticated(t *testing.T) {
 		w.WriteHeader(204)
 	}))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers", nil)
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("code=%d", rr.Code)
@@ -51,7 +51,7 @@ func TestMiddleware_AllowsViewerRead(t *testing.T) {
 		w.WriteHeader(204)
 	}))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), clusterWide(RoleViewer, "servers:read")))
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 || !called {
@@ -64,7 +64,7 @@ func TestMiddleware_DeniesViewerWrite(t *testing.T) {
 		t.Fatal("inner handler should not run")
 	}))
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers", nil)
 	// Viewer holds reads but not servers:write.
 	req = req.WithContext(auth.WithUser(req.Context(), clusterWide(RoleViewer, "servers:read")))
 	h.ServeHTTP(rr, req)
@@ -132,7 +132,7 @@ type fakeFetcher struct {
 	err error
 }
 
-func (f *fakeFetcher) GetServer(_ context.Context, _ string, ns, name string) (*unstructured.Unstructured, error) {
+func (f *fakeFetcher) GetServer(_ context.Context, _ string, _, name string) (*unstructured.Unstructured, error) {
 	return f.obj, f.err
 }
 
@@ -175,7 +175,7 @@ func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
 
 		// User 1 is the owner, requesting :clone
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:clone", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:clone", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -195,7 +195,7 @@ func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("DELETE", "/servers/alpha", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "DELETE", "/servers/alpha", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -215,7 +215,7 @@ func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:transfer", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -235,7 +235,7 @@ func TestMiddleware_OwnershipFallback_Owner(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:wipe-data", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:wipe-data", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -255,7 +255,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("DELETE", "/servers/alpha", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "DELETE", "/servers/alpha", nil)
 		user := &auth.User{ID: 2, Username: "bob"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -273,7 +273,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:transfer", nil)
 		user := &auth.User{ID: 2, Username: "bob"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -291,7 +291,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("PUT", "/servers/alpha:collaborators", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "PUT", "/servers/alpha:collaborators", nil)
 		user := &auth.User{ID: 2, Username: "bob"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -309,7 +309,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:wipe-data", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:wipe-data", nil)
 		user := &auth.User{ID: 2, Username: "bob"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -329,7 +329,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:clone", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:clone", nil)
 		user := &auth.User{ID: 2, Username: "bob"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -349,7 +349,7 @@ func TestMiddleware_OwnershipFallback_Collaborator(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:start", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:start", nil)
 		user := &auth.User{ID: 2, Username: "bob"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -369,7 +369,7 @@ func TestMiddleware_OwnershipFallback_InvalidPath(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/servers/alpha:transfer/extra", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:transfer/extra", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -389,7 +389,7 @@ func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/servers/alpha", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -408,7 +408,7 @@ func TestMiddleware_OwnershipFallback_FetchError(t *testing.T) {
 		}))
 
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/servers/alpha", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 		user := &auth.User{ID: 1, Username: "alice"}
 		req = req.WithContext(auth.WithUser(req.Context(), user))
 		h.ServeHTTP(rr, req)
@@ -456,7 +456,7 @@ func TestMiddleware_OwnerAllowedOnOwnedServer(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 	// User has no namespace permissions but is the owner.
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42, Role: "viewer"}))
 	h.ServeHTTP(rr, req)
@@ -480,7 +480,7 @@ func TestMiddleware_CollaboratorAllowedOnServer(t *testing.T) {
 
 	// Test read allowed
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), user))
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 || !called {
@@ -497,7 +497,7 @@ func TestMiddleware_CollaboratorDeniedOnTransfer(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:transfer", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 100}))
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -516,7 +516,7 @@ func TestMiddleware_OwnerAllowedOnTransfer(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/servers/alpha:transfer", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/servers/alpha:transfer", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 || !called {
@@ -533,7 +533,7 @@ func TestMiddleware_StrangerDenied(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 999}))
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -551,7 +551,7 @@ func TestMiddleware_UnknownClusterRejected(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha?cluster=ghost", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha?cluster=ghost", nil)
 	// Owner of the server, but the cluster selector is invalid — the
 	// fallback must never even be attempted.
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
@@ -573,7 +573,7 @@ func TestMiddleware_OwnershipFallback_DefaultCluster(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42, Role: "viewer"}))
 	h.ServeHTTP(rr, req)
 	if rr.Code != 204 || !called {
@@ -588,7 +588,7 @@ func TestMiddleware_NilFetcher(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers/alpha", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers/alpha", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -605,7 +605,7 @@ func TestMiddleware_ListEndpointNoFallback(t *testing.T) {
 	}))
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/servers", nil)
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/servers", nil)
 	req = req.WithContext(auth.WithUser(req.Context(), &auth.User{ID: 42}))
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {

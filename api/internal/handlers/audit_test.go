@@ -48,9 +48,9 @@ func TestAudit_RecordsAuthenticatedActor(t *testing.T) {
 	final := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusCreated) })
 	h := audit.Middleware(a)(setActor(final))
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/servers", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/servers", nil))
 
-	evs, err := a.Page(httptest.NewRequest(http.MethodGet, "/x", nil), 10, 0)
+	evs, err := a.Page(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil), 10, 0)
 	if err != nil {
 		t.Fatalf("page: %v", err)
 	}
@@ -70,9 +70,9 @@ func TestAudit_AnonymousWhenUnauthenticated(t *testing.T) {
 	final := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
 	h := audit.Middleware(a)(final)
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/auth/login", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/login", nil))
 
-	evs, err := a.Page(httptest.NewRequest(http.MethodGet, "/x", nil), 10, 0)
+	evs, err := a.Page(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil), 10, 0)
 	if err != nil {
 		t.Fatalf("page: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestMountAudit_Verify(t *testing.T) {
 	a := audit.New(store)
 	h := audit.Middleware(a)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
 	for i := 0; i < 3; i++ {
-		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/servers", nil))
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/servers", nil))
 	}
 
 	r := chi.NewRouter()

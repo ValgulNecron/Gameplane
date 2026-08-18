@@ -26,7 +26,7 @@ func clusterInfoName(t *testing.T, generalJSON string) string {
 	r := chi.NewRouter()
 	MountCluster(r, k, store, "v1", false, "")
 	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/cluster/info", nil))
+	r.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cluster/info", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
 	}

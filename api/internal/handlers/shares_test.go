@@ -124,7 +124,7 @@ func shareReq(t *testing.T, h http.Handler, method, path string, body any, user 
 		}
 		buf = bytes.NewReader(b)
 	}
-	req := httptest.NewRequest(method, path, buf)
+	req := httptest.NewRequestWithContext(t.Context(), method, path, buf)
 	if remoteAddr != "" {
 		req.RemoteAddr = remoteAddr
 	}
