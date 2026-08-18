@@ -369,6 +369,11 @@ func (e *Env) tryPortForward(ns, target string, remotePort int) (int, func(), er
 	if err != nil {
 		return 0, nil, fmt.Errorf("free port: %w", err)
 	}
+	for _, arg := range []string{ns, target} {
+		if strings.ContainsAny(arg, "|;&$`<>()\\") {
+			return 0, nil, fmt.Errorf("kubectl arg rejected (shell metachar): %q", arg)
+		}
+	}
 	args := []string{
 		"--context", e.Context,
 		"port-forward",
