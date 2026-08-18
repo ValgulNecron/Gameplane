@@ -50,6 +50,14 @@ linters:
       - path: (gameproto/)?minecraft\.go$
         linters: [gosec]
         text: "G115"
+      # Mod extraction writes files to a volume shared with the game container, which
+      # runs as a different uid than the agent (65532). At 0o600 the game server cannot
+      # read files the agent just installed. FSGroup does not help: it changes group
+      # ownership, not the mode bits. Forcing a shared uid breaks modules that pin their own.
+      # G302 remains active everywhere else.
+      - path: (^|/)internal/mods/mods\.go$
+        linters: [gosec]
+        text: "G302"
       # Kubectl/KubectlWithStdin/port-forward helpers exist to run kubectl with
       # caller-supplied arguments - that's the whole point of an E2E harness. The
       # args come from the suite's own test code (not external input), and the
