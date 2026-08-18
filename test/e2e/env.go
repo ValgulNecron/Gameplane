@@ -373,7 +373,7 @@ func (e *Env) PortForward(t *testing.T, ns, target string, remotePort int) (int,
 // to anything shorter-lived than the test itself would risk killing the
 // tunnel out from under an in-flight caller.
 func (e *Env) tryPortForward(ctx context.Context, ns, target string, remotePort int) (int, func(), error) {
-	local, err := freePort()
+	local, err := freePort(ctx)
 	if err != nil {
 		return 0, nil, fmt.Errorf("free port: %w", err)
 	}
@@ -408,7 +408,7 @@ func (e *Env) tryPortForward(ctx context.Context, ns, target string, remotePort 
 	streak := 0
 	dialer := net.Dialer{Timeout: 500 * time.Millisecond}
 	for time.Now().Before(deadline) {
-		dialCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		dialCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 		c, derr := dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("127.0.0.1:%d", local))
 		cancel()
 		if derr == nil {
@@ -430,9 +430,9 @@ func (e *Env) tryPortForward(ctx context.Context, ns, target string, remotePort 
 // freePort returns an OS-allocated free TCP port on 127.0.0.1. There's a
 // small race between releasing the port and kubectl binding it, but in
 // practice the window is too short to matter for e2e tests.
-func freePort() (int, error) {
+func freePort(ctx context.Context) (int, error) {
 	lc := net.ListenConfig{}
-	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	l, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, fmt.Errorf("listen for free port: %w", err)
 	}
