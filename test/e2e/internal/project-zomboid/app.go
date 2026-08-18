@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for Project
+// Zomboid, used by the e2e suite to measure how far a real client can get
+// against a running server (A2S query on the game port for depth, plus a
+// purely diagnostic raw UDP poke).
 package main
 
 import (
@@ -94,12 +98,7 @@ func probeProjectZomboidWithVerdict(ctx context.Context, addr string) *joindepth
 	var lastErr error
 
 	// Retry the A2S query until the deadline passes.
-	for {
-		// Check if deadline has expired.
-		if ctx.Err() != nil {
-			break
-		}
-
+	for ctx.Err() == nil {
 		// Attempt A2S query with a per-attempt timeout.
 		actx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		info, lastErr = a2s.QueryInfo(actx, addr)
@@ -128,7 +127,7 @@ func probeProjectZomboidWithVerdict(ctx context.Context, addr string) *joindepth
 			select {
 			case <-ctx.Done():
 				// Deadline reached before a successful query.
-				diagCtx, diagCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				diagCtx, diagCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 				logRawDiagnostic(diagCtx, addr)
 				diagCancel()
 				return &joindepth.ProbeVerdict{
@@ -150,7 +149,7 @@ func probeProjectZomboidWithVerdict(ctx context.Context, addr string) *joindepth
 	}
 
 	// Deadline expired without success.
-	diagCtx, diagCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	diagCtx, diagCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	logRawDiagnostic(diagCtx, addr)
 	diagCancel()
 	return &joindepth.ProbeVerdict{
@@ -173,7 +172,7 @@ func logRawDiagnostic(ctx context.Context, addr string) {
 		log.Printf("raw-diagnostic: dial %s failed: %v", addr, err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	deadline := time.Now().Add(2 * time.Second)
 	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {

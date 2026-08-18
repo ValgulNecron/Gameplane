@@ -197,6 +197,7 @@ func TestUpgrade_FromPreviousRelease(t *testing.T) {
 	if !strings.Contains(string(body), gs) {
 		t.Errorf("upgraded API does not return the pre-upgrade GameServer %q; body=%s", gs, body)
 	}
+	resp.Body.Close()
 }
 
 // waitGameContainerReady polls until the named pod's "game" container reports

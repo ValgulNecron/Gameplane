@@ -159,7 +159,7 @@ func (e *Env) RunGameProbe(t *testing.T, p GameProbe) *ProbeResult {
 		j, err := e.K8s.BatchV1().Jobs(probeNamespace).Get(ctx, jobName, metav1.GetOptions{})
 		if err == nil {
 			if j.Status.Succeeded > 0 {
-				out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=50")
+				out, _ := e.Kubectl(ctx, "logs", "-n", probeNamespace, "job/"+jobName, "--tail=50")
 				verdict, verdictErr := parseVerdictFromLogs(out)
 				if verdictErr != nil {
 					t.Logf("warning: failed to parse verdict from %s probe logs: %v", p.Game, verdictErr)
@@ -171,7 +171,7 @@ func (e *Env) RunGameProbe(t *testing.T, p GameProbe) *ProbeResult {
 				}
 			}
 			if j.Status.Failed > 0 {
-				out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
+				out, _ := e.Kubectl(ctx, "logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
 				exitCode, exitErr := e.extractExitCode(ctx, jobName)
 				verdict, verdictErr := parseVerdictFromLogs(out)
 				if verdictErr != nil {
@@ -189,8 +189,8 @@ func (e *Env) RunGameProbe(t *testing.T, p GameProbe) *ProbeResult {
 			}
 		}
 		if time.Now().After(expiry) {
-			out, _ := e.Kubectl("logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
-			pods, _ := e.Kubectl("get", "pods", "-n", probeNamespace, "-l", "job-name="+jobName, "-o", "wide")
+			out, _ := e.Kubectl(ctx, "logs", "-n", probeNamespace, "job/"+jobName, "--tail=200")
+			pods, _ := e.Kubectl(ctx, "get", "pods", "-n", probeNamespace, "-l", "job-name="+jobName, "-o", "wide")
 			t.Fatalf("%s probe job did not finish within %s (is %s loaded into the cluster?)\npods:\n%s\nlogs:\n%s",
 				p.Game, wait, e.probeImage(), pods, out)
 		}

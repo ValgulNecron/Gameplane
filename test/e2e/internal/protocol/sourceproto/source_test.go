@@ -15,7 +15,8 @@ func TestChallenge_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	// Start a fake UDP server.
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -68,7 +69,8 @@ func TestChallenge_RoundTrip(t *testing.T) {
 func TestChallenge_BadHeader(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -105,7 +107,8 @@ func TestChallenge_BadHeader(t *testing.T) {
 func TestChallenge_BadPacketType(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -142,7 +145,8 @@ func TestChallenge_BadPacketType(t *testing.T) {
 func TestChallenge_TruncatedResponse(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -178,7 +182,8 @@ func TestChallenge_TruncatedResponse(t *testing.T) {
 func TestConnect_Accepted(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -230,7 +235,8 @@ func TestConnect_Accepted(t *testing.T) {
 func TestConnect_RejectedWithMessage(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -277,7 +283,8 @@ func TestConnect_RejectedWithMessage(t *testing.T) {
 func TestConnect_RejectedNoMessage(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -317,7 +324,8 @@ func TestConnect_RejectedNoMessage(t *testing.T) {
 func TestConnect_TruncatedResponse(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -355,7 +363,8 @@ func TestConnect_TruncatedResponse(t *testing.T) {
 func TestConnect_GarbageResponse(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -402,7 +411,8 @@ func TestConnect_GarbageResponse(t *testing.T) {
 func TestConnect_PayloadIntegrity(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -489,7 +499,8 @@ func TestConnect_ProtocolVersions(t *testing.T) {
 
 	for _, proto := range []uint32{ProtocolSource1, ProtocolSource2} {
 		t.Run(fmt.Sprintf("protocol_%d", proto), func(t *testing.T) {
-			listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+			lc := net.ListenConfig{}
+			listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 			if err != nil {
 				t.Fatalf("listen: %v", err)
 			}
@@ -533,7 +544,8 @@ func TestConnect_ProtocolVersions(t *testing.T) {
 func TestConnect_MeasuredVersionRejection_0x39(t *testing.T) {
 	t.Parallel()
 
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -610,7 +622,8 @@ func TestChallenge_NonLoopbackServer(t *testing.T) {
 		t.Skip("no non-loopback IPv4 address found on this host")
 	}
 
-	listener, err := net.ListenPacket("udp4", nonLoopbackAddr+":0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp4", nonLoopbackAddr+":0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -658,7 +671,8 @@ func TestConnect_NonLoopbackServer(t *testing.T) {
 		t.Skip("no non-loopback IPv4 address found on this host")
 	}
 
-	listener, err := net.ListenPacket("udp4", nonLoopbackAddr+":0")
+	lc := net.ListenConfig{}
+	listener, err := lc.ListenPacket(t.Context(), "udp4", nonLoopbackAddr+":0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}

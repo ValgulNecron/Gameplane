@@ -61,6 +61,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -112,7 +113,7 @@ func ensureClusterB(t *testing.T) (envB *Env, name string) {
 func podReachableKubeconfig(t *testing.T, clusterName string) []byte {
 	t.Helper()
 
-	raw, err := exec.Command("kind", "get", "kubeconfig", "--internal", "--name", clusterName).Output()
+	raw, err := exec.CommandContext(t.Context(), "kind", "get", "kubeconfig", "--internal", "--name", clusterName).Output()
 	if err != nil {
 		t.Fatalf("kind get kubeconfig --internal --name %s: %v", clusterName, exitErr(err))
 	}
@@ -126,7 +127,7 @@ func podReachableKubeconfig(t *testing.T, clusterName string) []byte {
 	// or another docker-compose network on a shared runner). Every kind node
 	// is guaranteed to be on "kind" (see the package doc above), so name it
 	// explicitly.
-	ipOut, err := exec.Command("docker", "inspect", "-f",
+	ipOut, err := exec.CommandContext(t.Context(), "docker", "inspect", "-f",
 		`{{(index .NetworkSettings.Networks "kind").IPAddress}}`, containerName).Output()
 	if err != nil {
 		t.Fatalf("docker inspect %s: %v", containerName, exitErr(err))
@@ -163,7 +164,8 @@ func podReachableKubeconfig(t *testing.T, clusterName string) []byte {
 // exitErr enriches an *exec.ExitError with its captured stderr, which
 // exec.Command's default Output() error otherwise discards.
 func exitErr(err error) error {
-	if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && len(ee.Stderr) > 0 {
 		return fmt.Errorf("%w: %s", err, string(ee.Stderr))
 	}
 	return err
@@ -210,11 +212,15 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /clusters: status=%d body=%s", resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	// Registered first (and so, by t.Cleanup's LIFO order, torn down LAST) —
 	// the GameServer/GameTemplate cleanups below dispatch through this
 	// cluster registration and must run while it still resolves.
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/clusters/" + clusterID)
+		r, _, _ := admin.Delete("/clusters/" + clusterID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	// The API's cluster watch (kube.WatchClusters) loads a client for the new
@@ -227,6 +233,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		if err != nil {
 			return false, err.Error()
 		}
+		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusOK {
 			return false, fmt.Sprintf("GET /clusters: status=%d body=%s", resp.StatusCode, string(body))
 		}
@@ -259,8 +266,12 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /templates?cluster=%s: status=%d body=%s", clusterID, resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
+		r, _, _ := admin.Delete("/templates/" + tmplName + "?cluster=" + clusterID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	const ns = "gameplane-games"
@@ -284,7 +295,10 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	// test needs.
 	opUsername, opPassword, opID := envInstance.CreateUser(t, admin, "operator", "e2e-mc-operator")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + opID)
+		r, _, _ := admin.Delete("/users/" + opID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 	resp, body, err = admin.Post("/users/"+opID+"/bindings", map[string]any{
 		"roleName":  "admin",
@@ -297,6 +311,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /users/%s/bindings: status=%d body=%s", opID, resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	// addBinding invalidates the target user's existing sessions (see
 	// userHandler.invalidateSessions) so a bound-in-flight session wouldn't
 	// see the new grant anyway — log in AFTER granting the binding, not
@@ -318,8 +333,12 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /servers?cluster=%s: status=%d body=%s", clusterID, resp.StatusCode, string(body))
 	}
+	resp.Body.Close()
 	t.Cleanup(func() {
-		_, _, _ = operatorClient.Delete("/servers/" + gsName + "?cluster=" + clusterID)
+		r, _, _ := operatorClient.Delete("/servers/" + gsName + "?cluster=" + clusterID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 
 	// --- Ground truth: read each cluster's own Kubernetes API directly,  ----
@@ -346,6 +365,7 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	if !strings.Contains(string(body), gsName) {
 		t.Errorf("GET /servers?cluster=%s: expected %s in listing, got %s", clusterID, gsName, string(body))
 	}
+	resp.Body.Close()
 
 	resp, body, err = admin.Get("/servers")
 	if err != nil {
@@ -358,11 +378,15 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		t.Errorf("GET /servers (default cluster): cluster-B server %s leaked into the local listing: %s",
 			gsName, string(body))
 	}
+	resp.Body.Close()
 
 	// --- RBAC: a viewer bound only to "local" cannot see cluster B's server -
 	viewerName, viewerPW, viewerID := envInstance.CreateUser(t, admin, "viewer", "e2e-mc-viewer")
 	t.Cleanup(func() {
-		_, _, _ = admin.Delete("/users/" + viewerID)
+		r, _, _ := admin.Delete("/users/" + viewerID)
+		if r != nil {
+			r.Body.Close()
+		}
 	})
 	viewer := envInstance.APIClient(t, viewerName, viewerPW)
 	defer viewer.Close()
@@ -370,9 +394,11 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 	// Sanity check first: the viewer's default-cluster read still works, so
 	// a subsequent 403 below is provably about the cluster dimension and not
 	// a broken viewer session.
-	if resp, body, err := viewer.Get("/servers"); err != nil || resp.StatusCode != http.StatusOK {
+	resp, body, err = viewer.Get("/servers")
+	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("viewer GET /servers (default cluster): status=%v err=%v body=%s", resp, err, string(body))
 	}
+	resp.Body.Close()
 
 	resp, body, err = viewer.Get("/servers?cluster=" + clusterID)
 	if err != nil {
@@ -382,12 +408,14 @@ func TestMultiCluster_ClusterDispatchAndScopedRBAC(t *testing.T) {
 		t.Errorf("viewer GET /servers?cluster=%s: status=%d want=%d body=%s",
 			clusterID, resp.StatusCode, http.StatusForbidden, string(body))
 	}
+	resp.Body.Close()
 
 	// --- An unregistered cluster is a 400 for any caller, admin included ----
 	resp, body, err = admin.Get("/servers?cluster=e2e-mc-does-not-exist")
 	if err != nil {
 		t.Fatalf("admin GET /servers?cluster=<unknown>: %v", err)
 	}
+	resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("admin GET /servers?cluster=<unknown>: status=%d want=%d body=%s",
 			resp.StatusCode, http.StatusBadRequest, string(body))

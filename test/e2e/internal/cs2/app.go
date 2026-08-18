@@ -1,3 +1,7 @@
+// Package main implements a hand-rolled join-depth probe for CS2, used by
+// the e2e suite to measure how far a real client can get against a running
+// server (A2S query for depth, plus a purely diagnostic Source protocol
+// handshake attempt).
 package main
 
 import (
@@ -9,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	source "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/sourceproto"
 )
 
@@ -27,7 +31,7 @@ func main() {
 	// Validate -addr flag
 	if *addr == "" {
 		verdictLine := fmt.Sprintf("VERDICT\t%s\t%s\t%s",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			"probe: -addr is required")
 		fmt.Println(verdictLine)
@@ -38,7 +42,7 @@ func main() {
 	expectedDepth, err := joindepth.Parse(*expectDepthStr)
 	if err != nil {
 		verdictLine := fmt.Sprintf("VERDICT\t%s\t%s\t%s",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			fmt.Sprintf("invalid -expect-depth: %v", err))
 		fmt.Println(verdictLine)
@@ -64,7 +68,7 @@ func main() {
 		if measuredDepth == expectedDepth && probeErr == nil {
 			// Probe reached the expected depth when it should not have — test failure
 			verdictLine := fmt.Sprintf("VERDICT\t%s\t%s\t%s",
-				joindepth.FAIL_NEGATIVE_CONTROL_REACHED,
+				joindepth.FailNegativeControlReached,
 				measuredDepth.String(),
 				fmt.Sprintf("reached %s when expected to fail", measuredDepth.String()))
 			fmt.Println(verdictLine)
@@ -74,7 +78,7 @@ func main() {
 		verdictLine, encErr := verdict.Encode()
 		if encErr != nil {
 			fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-				joindepth.FAIL_INTERNAL_ERROR,
+				joindepth.FailInternalError,
 				"UNKNOWN",
 				fmt.Sprintf("verdict encoding error: %v", encErr))
 			os.Exit(1)
@@ -88,7 +92,7 @@ func main() {
 		verdictLine, encErr := verdict.Encode()
 		if encErr != nil {
 			fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-				joindepth.FAIL_INTERNAL_ERROR,
+				joindepth.FailInternalError,
 				"UNKNOWN",
 				fmt.Sprintf("verdict encoding error: %v", encErr))
 			os.Exit(1)
@@ -101,7 +105,7 @@ func main() {
 	verdictLine, encErr := verdict.Encode()
 	if encErr != nil {
 		fmt.Printf("VERDICT\t%s\t%s\t%s\n",
-			joindepth.FAIL_INTERNAL_ERROR,
+			joindepth.FailInternalError,
 			"UNKNOWN",
 			fmt.Sprintf("verdict encoding error: %v", encErr))
 		os.Exit(1)
@@ -216,7 +220,7 @@ func connectProbe(ctx context.Context, addr string) {
 	}
 
 	// Log the connect response bytes for debugging.
-	if result.Raw != nil && len(result.Raw) > 0 {
+	if len(result.Raw) > 0 {
 		hexStr := hex.EncodeToString(result.Raw)
 		// Bound to avoid huge logs; truncate if necessary.
 		if len(hexStr) > 256 {

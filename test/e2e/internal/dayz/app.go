@@ -1,3 +1,6 @@
+// Package main implements a hand-rolled join-depth probe for DayZ, used by
+// the e2e suite to measure how far a real client can get against a running
+// server (A2S query for depth, plus a purely diagnostic game-port UDP poke).
 package main
 
 import (
@@ -10,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 	a2s "github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/a2sproto"
+	"github.com/ValgulNecron/gameplane/test/e2e/internal/protocol/joindepth"
 )
 
 func main() {
@@ -192,7 +195,7 @@ func probeGamePort(ctx context.Context, addr string) error {
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set a read deadline so we don't block forever.
 	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
