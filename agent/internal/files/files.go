@@ -247,10 +247,13 @@ func (h *handler) upload(w http.ResponseWriter, req *http.Request) {
 	foundAnyPart := false
 	for {
 		part, err := mr.NextPart()
-		// NextPart returns io.EOF directly at the closing boundary,
-		// and io.ErrUnexpectedEOF (not wrapped) on truncated body.
-		// errors.Is and direct comparison are therefore equivalent.
-		if errors.Is(err, io.EOF) {
+		// NextPart returns a bare io.EOF at a genuine closing boundary, but
+		// a wrapped io.EOF when the body is truncated mid-stream without a
+		// closing boundary. errors.Is unwraps both and treats them as equal,
+		// so we must use direct comparison to distinguish the two cases:
+		// a wrapped EOF is an error condition (truncated upload), while a
+		// bare EOF is the normal end-of-parts marker.
+		if err == io.EOF {
 			break
 		}
 		if err != nil {

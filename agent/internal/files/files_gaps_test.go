@@ -161,3 +161,46 @@ func TestUpload_ResolveError(t *testing.T) {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
+
+// TestUpload_TruncatedBody is a regression test for the multipart EOF
+// handling bug: a request that successfully parses one file part but is then
+// truncated before the closing boundary must be rejected (400), not silently
+// accepted as complete (204). The fix uses direct 'err == io.EOF' comparison
+// to distinguish a bare EOF (genuine closing boundary) from a wrapped EOF
+// (truncated body), since errors.Is unwraps both and treats them as equal.
+func TestUpload_TruncatedBody(t *testing.T) {
+	srvURL, root := newServer(t)
+
+	// Build a multipart body with one valid file part, then truncate it
+	// before writing the closing boundary. This simulates a client that sends
+	// a complete part header + content but then abruptly closes the connection.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("files", "partial.txt")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fw.Write([]byte("content")); err != nil {
+		t.Fatalf("write part: %v", err)
+	}
+	// DO NOT call mw.Close() — that writes the closing boundary.
+	// Instead, just capture the raw buffer with an incomplete body.
+	truncatedBody := buf.String()
+
+	// Upload the truncated multipart.
+	resp, err := testPost(t, srvURL+"/files/upload?path=/trunc", mw.FormDataContentType(), strings.NewReader(truncatedBody))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// The handler must reject a truncated body with 400, not 204.
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("truncated multipart should return 400, got %d", resp.StatusCode)
+	}
+
+	// Verify no file was written (upload should have been rejected).
+	if _, err := os.Stat(filepath.Join(root, "trunc", "partial.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("file should not exist after truncated upload: %v", err)
+	}
+}
