@@ -1,0 +1,14 @@
+name: ci
+on: push
+jobs:
+  lint:
+    name: lint (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [netguard, gameaction, gameproto, operator, agent, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel, test/e2e]
+    steps:
+      - uses: actions/checkout@v7
+      - name: lint
+        run: golangci-lint run ./... || true

@@ -54,10 +54,9 @@ golangci-lint finding that was not present in the base branch.
 Every linting finding in the tree today is fixed with real code changes: there are no
 `//nolint`, `// nosec`, `// eslint-disable-next-line`, or equivalent suppression
 directives anywhere in the project. In-source suppressions remain zero, absolutely and
-without exception; the only exclusions are eight narrowly-scoped, documented, and
-reviewed config-level entries in `.golangci.yml` (inventoried in
-`contracts/exclusion-policy.md`), including the pre-existing gosec G115 exclusion in
-the Minecraft VarInt codec. This zero-suppression
+without exception; the only exclusions are nine config-level entries in `.golangci.yml` (inventoried in
+`contracts/exclusion-policy.md`): eight narrowly-scoped path-based rules (including the pre-existing gosec G115 exclusion in
+the Minecraft VarInt codec) and one global gosec G104 exclusion. This zero-suppression
 property is a quality signal—it means linters are trusted and findings are addressable.
 When the three modules are brought under the gate, this property must be preserved: the
 ~488 findings across `api`, `agent`, and `test/e2e` will be resolved by fixing code, not
@@ -73,7 +72,7 @@ is the same as it has been for every other module.
 
 **Independent Test**: Can be tested independently by searching the tree for all
 suppression-directive patterns (`//nolint:`, `//#nosec`, `//`, `:ignore`, etc.) across
-all `.go` files, excluding the eight authorized config-level `.golangci.yml` exclusions
+all `.go` files, excluding the nine authorized config-level `.golangci.yml` exclusions (8 path-scoped + 1 global)
 (never in-source), and confirming zero matches.
 This test MUST be repeatable: the pattern search can be run before, during, and after the
 feature work, and the count must never increase.
@@ -82,15 +81,15 @@ feature work, and the count must never increase.
 
 1. **Given** the completed work on `api`, `agent`, and `test/e2e`, **When** a search for
    linting suppression directives runs across the workspace, **Then** zero in-source
-   directives are found; only the eight authorized config-level `.golangci.yml`
-   exclusions exist (see `contracts/exclusion-policy.md`).
+   directives are found; only the nine authorized config-level `.golangci.yml`
+   exclusions exist (8 path-scoped + 1 global; see `contracts/exclusion-policy.md`).
 2. **Given** a code reviewer examining a merged PR that resolves Wave 2 findings, **When**
    they read the diff, **Then** they see only code fixes (added context parameters,
    improved error handling, variable renames to avoid collisions, etc.), never
    suppression directives added as a shortcut.
 3. **Given** the same zero-suppression check at release time, **When** it runs, **Then**
    it reports the same result: zero in-source suppression directives, with only the
-   eight authorized config-level `.golangci.yml` exclusions present. (This scenario is
+   nine authorized config-level `.golangci.yml` exclusions present (8 path-scoped + 1 global). (This scenario is
    really a regression check: the property is maintained, not just temporarily achieved.)
 
 ---
@@ -134,7 +133,7 @@ removing the exclusion is a deliberate choice with visible consequences).
 ### Edge Cases
 
 - What happens when a finding is truly a false positive? The authorized-exception process
-  (which has produced eight config-level exclusions to date, inventoried in
+  (which has produced nine config-level exclusions to date — eight path-scoped plus one global — inventoried in
   `contracts/exclusion-policy.md`) applies: the finding must be reviewed and documented at
   a scope level (per-file, per-function, or similar) rather than globally ignored, and it
   is always a config-level `.golangci.yml` entry — never an in-source suppression
@@ -214,13 +213,13 @@ removing the exclusion is a deliberate choice with visible consequences).
   zero in-source suppression directives, full stop — no exception. This is distinct from
   the Authorized-Exclusion List below, which operates at the config level, not in source.
 - **Authorized-Exclusion List**: The set of linting findings that have been explicitly
-  reviewed and accepted as necessary or acceptable, each as a narrow, per-file, documented,
+  reviewed and accepted as necessary or acceptable, each as a narrow, documented,
   maintainer-authorized rule in `.golangci.yml` (never an in-source directive). As of this
-  work it contains eight items across six gosec rules and two other linter scopes — the
-  original gosec G115 finding in the Minecraft VarInt codec plus gosec G302 (agent mod
-  extraction), G704 (api ws dialer), G124 (api CSRF cookie), G204 (test/e2e kubectl helper),
-  and G402 (test/e2e Satisfactory probe), alongside the pre-existing `_test.go` and
-  `internal/controller/` scoped exclusions (documented in `contracts/exclusion-policy.md`).
+  work it contains nine items: one global gosec G104 exclusion (errors are covered more precisely by errcheck), 
+  six path-scoped gosec rules (G115 in Minecraft VarInt codec, G302 agent mod extraction, G704 api ws dialer, 
+  G124 api CSRF cookie, G204 test/e2e kubectl helper, G402 test/e2e Satisfactory probe), 
+  and two other path-scoped linter rules (_test.go for errcheck/gosec/unparam, internal/controller/ for revive).
+  See `contracts/exclusion-policy.md` for the full inventory and rationale.
   Future additions follow the same rigor as the existing ones.
 - **Build-Tag-Conditional Code**: Source files or blocks gated by `//go:build` directives
   (e.g., `//go:build envtest` for `api/internal/handlers/*_envtest_test.go`,
@@ -276,9 +275,10 @@ removing the exclusion is a deliberate choice with visible consequences).
   errorlint, contextcheck) and its v2 schema are taken as given and will not be re-litigated
   during Wave 2. If a linter is deemed unsuitable for a module, that is a separate feature
   request, not part of this work.
-- The pre-existing authorized gosec G115 exclusion (in the Minecraft VarInt codec) is
+- The pre-existing authorized exclusions (gosec G115 in the Minecraft VarInt codec, plus
+  the _test.go and internal/controller/ path-scoped rules, plus the global gosec G104) are
   accepted and will remain in place, alongside the five new config-level exclusions
-  authorized during Wave 2 (eight total, inventoried in `contracts/exclusion-policy.md`).
+  authorized during Wave 2 (G302, G704, G124, G204, G402) — nine total exclusions inventoried in `contracts/exclusion-policy.md`.
   No attempt to remove any of them or to add them to other modules is made during Wave 2.
   Future authorization of new exceptions follows the same review rigor and is documented
   with equal clarity; in-source suppression directives remain forbidden without exception.

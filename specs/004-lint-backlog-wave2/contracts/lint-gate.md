@@ -10,7 +10,7 @@ The lint job is parameterized by `matrix.module`, with each matrix entry specify
 
 ### Matrix Configuration (Current and Target)
 
-The matrix.module array (line ~180 in ci.yaml) currently contains 10 entries:
+**Before wave 2**, the matrix.module array (line ~180 in ci.yaml) contained 10 entries:
 
 ```yaml
 matrix:
@@ -29,16 +29,8 @@ matrix:
 After adding api, agent, and test/e2e to the matrix:
 
 ```yaml
-  - name: lint (operator - envtest build tags)
-    if: matrix.module == 'operator'
-    uses: golangci/golangci-lint-action@v9
-    with:
-      version: v2.12.2
-      working-directory: ${{ matrix.module }}
-      args: --build-tags=envtest
-
-  - name: lint (api - envtest build tags)
-    if: matrix.module == 'api'
+  - name: lint (operator/api - envtest build tags)
+    if: matrix.module == 'operator' || matrix.module == 'api'
     uses: golangci/golangci-lint-action@v9
     with:
       version: v2.12.2
@@ -91,7 +83,7 @@ When the entire lint job completes with exit code 0:
 1. **Every matrix module was analyzed** under the correct working directory and build tags.
 2. **Zero findings exist** in any of the gated modules under the configuration in `.golangci.yml`.
 3. **All enabled linters ran**: bodyclose, errcheck, gosec, govet, ineffassign, staticcheck, unused, misspell, revive, unparam, nilerr, noctx, errorlint, contextcheck, gofmt.
-4. **The three authorized exclusions were applied** (see `.golangci.yml` lines 35–52).
+4. **The nine authorized exclusions were applied** (see `.golangci.yml` line 29 [global G104] and lines 37–94 [path-scoped]).
 5. **Suppressions do not exist**: no `//nolint`, `//#nosec`, `//lint:ignore` directives were found or applied.
 
 ### What It Does NOT Prove
@@ -106,7 +98,7 @@ When the entire lint job completes with exit code 0:
 
 ## Worked Example: Target Configuration (Wave 2)
 
-Below is the exact YAML after wave 2 changes, based on the current ci.yaml structure (lines 169–201).
+Below is the exact YAML after wave 2 changes, based on the current ci.yaml structure (lines 170–210).
 
 ```yaml
   lint:
@@ -122,6 +114,9 @@ Below is the exact YAML after wave 2 changes, based on the current ci.yaml struc
         module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, svcutil, tunnel, test/e2e]
     steps:
       - uses: actions/checkout@v7
+      - name: verify lint gate configuration
+        if: matrix.module == 'netguard'
+        run: ./test/e2e/lint-gate-verify.sh verify
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: lint-${{ matrix.module }}
@@ -130,18 +125,10 @@ Below is the exact YAML after wave 2 changes, based on the current ci.yaml struc
         run: go mod download
 
       # Conditional steps for build-tag-gated modules.
-      # Each if: checks matrix.module against the exact string.
+      # Exact-string matching (not regex or prefix) ensures the correct build tags are applied.
 
-      - name: lint (operator - envtest build tags)
-        if: matrix.module == 'operator'
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.12.2
-          working-directory: ${{ matrix.module }}
-          args: --build-tags=envtest
-
-      - name: lint (api - envtest build tags)
-        if: matrix.module == 'api'
+      - name: lint (operator/api - envtest build tags)
+        if: matrix.module == 'operator' || matrix.module == 'api'
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
@@ -167,12 +154,12 @@ Below is the exact YAML after wave 2 changes, based on the current ci.yaml struc
 **Key Changes from Current (10 modules) to Target (13 modules)**:
 
 1. **Matrix**: Add `api`, `agent`, `test/e2e`.
-2. **Conditional steps**: Replace the single `lint (operator - envtest build tags)` step and the catch-all `lint (other modules - no build tags)` step with four steps:
-   - Operator-specific (envtest)
-   - API-specific (envtest)
-   - test/e2e-specific (e2e)
-   - All others (no tags)
-3. **No functional change to other jobs**: The `go` job already lists all 12 modules (not test/e2e), and the coverage job remains unchanged.
+2. **Verifier step**: Add a `verify lint gate configuration` step that runs once per CI run (guarded by `if: matrix.module == 'netguard'`).
+3. **Conditional steps**: Three conditional steps execute per matrix entry:
+   - Combined operator + api step using `||` (both require envtest build tags)
+   - test/e2e-specific step (requires e2e build tags)
+   - Catch-all step for all other modules (no build tags)
+4. **No functional change to other jobs**: The `go` job already lists all 12 modules (not test/e2e), and the coverage job remains unchanged.
 
 ---
 

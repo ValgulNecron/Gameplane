@@ -2,7 +2,7 @@
 
 **Related**: `plan.md` Phase 1 output. Defines the status vocabulary and gating model for the progressive golangci-lint enforcement across all go.work members.
 
-**Canonical Vocabulary**: This file defines the gated/ungated module classifications and the three authorized exclusions in `.golangci.yml`, reconciled against `research.md` and `plan.md` for accuracy on measurement and finding counts. The state transitions are one-way: ungated → gated (never the reverse without explicit specification amendment).
+**Canonical Vocabulary**: This file defines the gated/ungated module classifications and the nine authorized exclusions in `.golangci.yml` (one global rule + eight path-scoped rules), reconciled against `research.md` and `plan.md` for accuracy on measurement and finding counts. The state transitions are one-way: ungated → gated (never the reverse without explicit specification amendment).
 
 ## Entity Relationship Summary
 
@@ -220,11 +220,12 @@ To verify the integrity of this data model against the live tree:
 # Verify zero suppressions exist
 grep -r '//nolint\|//#nosec\|//lint:ignore' --include='*.go' || echo "✓ No suppressions"
 
-# Verify .golangci.yml has exactly 3 exclusions
-grep -c "^      - path:" .golangci.yml  # Should print 3
+# Verify .golangci.yml has exactly 9 exclusions (8 path-scoped + 1 global)
+grep -c "^      - path:" .golangci.yml  # Should print 8
+grep "excludes:" .golangci.yml  # Should show global G104
 
-# Verify the three exclusion paths
-grep "path:" .golangci.yml
+# Verify the eight exclusion paths (path-scoped rules, excluding the global G104)
+grep "^      - path:" .golangci.yml
 
 # Verify all go.work members exist
 go work edit -json | jq -r '.Use[].Path' | while read p; do

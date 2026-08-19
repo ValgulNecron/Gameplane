@@ -80,6 +80,7 @@ jobs:
               - 'mcp-server/**'
               - 'svcutil/**'
               - 'tunnel/**'
+              - 'test/e2e/**'
               - 'go.work'
               - 'go.work.sum'
               - '**/go.mod'
@@ -178,6 +179,9 @@ jobs:
         module: [netguard, gameaction, gameproto, operator, agent, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel, test/e2e]
     steps:
       - uses: actions/checkout@v7
+      - name: verify lint gate configuration
+        if: matrix.module == 'netguard'
+        run: ./test/e2e/lint-gate-verify.sh verify
       - uses: ./.github/actions/go-cache
         with:
           key-suffix: lint-${{ matrix.module }}
@@ -445,6 +449,10 @@ jobs:
       # identical to a working one.
       - name: verify the coverage gate can fail
         run: ./test/e2e/joincoverage_test.sh
+      - name: verify lint gate configuration
+        run: ./test/e2e/lint-gate-verify.sh verify
+      - name: verify the lint gate can fail
+        run: ./test/e2e/lint-gate-verify_test.sh
 
   e2e-go:
     name: e2e ${{ matrix.bucket }} / ${{ matrix.arch }} (kind)
