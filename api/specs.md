@@ -189,9 +189,10 @@ audit:read, config:read, config:manage (cluster-scoped)
 5. **Append-only migrations:** database schema mutations are irreversible (migrations 001-005); no down-migrations
 6. **Login rate limiting:** per-IP (burst 10, 5/min) + per-user (burst 6, 3/min) on `/auth/login` + OIDC callback
 7. **Audit hash-chain:** each audit_events row includes hash of previous row (prev_hash) + its own content hash (hash); detects DB-level UPDATE/DELETE tampering
-8. **Session CSRF protection:** CSRF token paired with session token; validated on state-changing requests
+8. **Session CSRF protection:** CSRF token paired with session token; validated on state-changing requests. The CSRF cookie is deliberately **not** `HttpOnly` — the SPA reads it via JS and echoes it back as the `X-Gameplane-CSRF` header (double-submit pattern); making it `HttpOnly` would break the protection it's providing. The session cookie itself stays `HttpOnly`. Cookie *clearing* (logout) always sends `HttpOnly` regardless of the original cookie, since a delete carries no value for a script to read and the browser matches the clear on Name/Domain/Path alone. This is why the `.golangci.yml` gosec G124 exclusion is scoped narrowly to `api/internal/auth/sessions.go`.
 9. **Secure error handling:** internal errors (DB failures, K8s API errors) logged in full; safe generic messages sent to clients
 10. **Cluster dispatch validation:** `?cluster=` matched against registered Cluster CRDs via registry; unknown cluster is a 400
+11. **WebSocket/HTTP proxy path validation:** `api/internal/ws/dialer.go` takes the namespace and pod name from the request path before building the agent's upstream URL. Both are validated as DNS-1123 labels (`isDNS1123Label`) and rejected with a 400 before any URL is constructed — gosec's taint analysis doesn't model a custom validator as a sanitizer, hence the scoped G704 exclusion on that file.
 
 ## Dependencies
 
@@ -255,6 +256,7 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **Local:** argon2id (Argon2id13, m=64MiB, t=3, p=2) with per-user random salt; ~200ms per check
 - **OIDC:** `coreos/go-oidc/v3` discovery + `go-jose/v4` JWT validation; claims mapping (email, groups, roles)
 - **Sessions:** cryptographically random token + paired CSRF token; memory store + DB persistence; expiry at midnight UTC
+- **CSRF cookie is JS-readable by design:** unlike the session cookie (`HttpOnly`), the CSRF cookie is set `HttpOnly: false` so the SPA can read its value and echo it back as `X-Gameplane-CSRF` on mutating requests — the standard double-submit pattern (see `docs/security.md`). Logout's cookie-clear always sends `HttpOnly: true` regardless, since a MaxAge<0 delete carries no value and the browser matches it on Name/Domain/Path alone.
 - **Bootstrap:** `bootstrap-admin` subcommand hashes password same way as API
 
 ### Authorization
@@ -267,10 +269,12 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **Sinks:** database (table audit_events) + webhook (POST JSON) + S3 (object storage) + syslog bridge (HTTP->syslog relay) + stdout (structured logs)
 - **Hash-chain:** prev_hash + hash computed at insert time; Verify tool detects tampering
 - **Retention:** optional daily prune (--audit-retention-days)
+- **Webhook sink context threading:** `WebhookSink.Start` runs the delivery worker until its context is cancelled; on cancellation it calls `drain`, which best-effort-ships whatever's still buffered within a short (2s) deadline so a wedged endpoint can't stall process exit. Both `drain` and the normal per-event `post` path detach from the worker's context via `context.WithoutCancel` before making the HTTP call — the `Start` select loop can still pick a buffered event right after cancellation, and a cancelled context would fail that delivery even though the event could still be shipped. Because `WithoutCancel` strips the deadline along with the cancellation, `post` re-applies the caller's own deadline (if any) onto the detached context, so `drain`'s 2s budget survives the trip through `post` instead of being silently discarded.
 
 ### Outbound safety
 - **netguard SSRF guard:** on module registry fetches (HTTP/HTTPS); permissive allowlist (modular, self-hosted registries on loopback OK)
 - **mTLS to agent:** client cert + key validate console operations
+- **Agent proxy URL construction:** `api/internal/ws/dialer.go`'s ws and http proxy handlers build the upstream agent URL from the namespace and pod name taken off the request path. In both handlers the namespace and pod name are validated as DNS-1123 labels via `isDNS1123Label` first, and a request with an invalid namespace or pod name is rejected with `400 Bad Request` before any URL is built. Only after that validation do the two paths diverge in how they construct the URL: the HTTP proxy path assembles it with `url.URL`, while the WebSocket proxy path concatenates the already-validated host onto a fixed `wss://` scheme and the fixed agent path (`upstream := "wss://" + host + agentPath`). The load-bearing safety property — validation strictly precedes URL construction — holds for both paths regardless of which one then uses string concatenation.
 
 ### Error handling
 - **httperr package:** internal errors (K8s 404, DB constraint, FS path) mapped to safe HTTP status + generic message

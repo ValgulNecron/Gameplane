@@ -60,7 +60,7 @@ tunnel
 
 ## Scenario 2: Verify zero suppression directives
 
-Confirms that no linting suppression directives exist in the tree outside the one authorized gosec G115 exclusion in the Minecraft codec. This is a static, local check.
+Confirms that no in-source linting suppression directives exist in the tree; only the eight authorized config-level exclusions in `.golangci.yml` (inventoried in `contracts/exclusion-policy.md`), including the pre-existing gosec G115 exclusion in the Minecraft codec, are permitted. This is a static, local check.
 
 **Prerequisites**: repo root, all Go source files present.
 
@@ -82,7 +82,8 @@ git grep -n '//#nosec' -- '*.go' || echo "(none found)"
 echo "=== Searching for lint:ignore directives ==="
 git grep -n 'lint:ignore' -- '*.go' || echo "(none found)"
 
-# The one authorized exception (Minecraft VarInt codec):
+# One of the eight authorized config-level exclusions (Minecraft VarInt codec);
+# see contracts/exclusion-policy.md for the full inventory:
 echo "=== Authorized exception check (gameproto/minecraft.go) ==="
 git grep -A 2 -B 2 'G115' gameproto/minecraft.go 2>/dev/null || echo "(not found — expected to be there)"
 ```
@@ -390,7 +391,7 @@ Each Success Criterion (SC) from the specification maps to one or more scenarios
 | Spec Criterion | Validated By | Validation Type | Evidence |
 |---|---|---|---|
 | **SC-001**: 100% of go.work members (13 total) are in the lint matrix; api, agent, and test/e2e are now included | Scenario 1 + Scenario 7 | Static/Local | go.work lists all 13; lint matrix includes all 13 with no exemptions; no `if:` conditionals hide any module |
-| **SC-002**: Zero suppression directives exist outside the one authorized gosec G115 exclusion in Minecraft codec | Scenario 2 | Static/Local | Grep over tree for //nolint, #nosec, lint:ignore returns no matches; G115 exclusion is in .golangci.yml config, not inline |
+| **SC-002**: Zero in-source suppression directives exist; only the eight authorized config-level `.golangci.yml` exclusions are present (contracts/exclusion-policy.md) | Scenario 2 | Static/Local | Grep over tree for //nolint, #nosec, lint:ignore returns no matches; all eight exclusions (incl. G115) are in .golangci.yml config, not inline |
 | **SC-003**: golangci-lint reports zero findings for api, agent, and test/e2e after fixes are applied | Scenario 4 (baseline measurement) + Scenario 5 (per-module confirmation) | Runtime/CI-only | Each module's lint job concludes `success`; log tails show no findings for any linter |
 | **SC-004**: A maintainer can read the CI config and identify all linted modules within 2 minutes, with no external docs required | Scenario 1 + Scenario 7 | Static/Local | Explicit matrix; no dynamic evaluation; matrix is self-documenting; no "pending cleanup" comments |
 | **SC-005**: Frozen surfaces (audit fields, migrations, e2e test names, protocol layouts, thresholds, metrics) remain semantically identical | Scenario 6 | Runtime/CI-only | coverage/api and coverage/agent checks pass (no field renames broke exports); e2e bucket coverage passes (no test renames broke bucket.sh mapping) |

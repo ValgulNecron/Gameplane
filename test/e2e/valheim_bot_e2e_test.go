@@ -21,7 +21,7 @@ import (
 // excluded from CI (see test/e2e/buckets.sh). It is only run when a
 // maintainer hand-executes:
 //
-//	GAMEPLANE_E2E_GAMES=all GAMEPLANE_E2E_GAME_BOT=1 KESTREL_E2E_REUSE_CLUSTER=1 make test-e2e-keep
+//	GAMEPLANE_E2E_GAMES=all GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_REUSE_CLUSTER=1 make test-e2e-keep
 //
 // Deliberately NOT t.Parallel(): a real Valheim server boot consumes 2–6GB
 // memory; two servers concurrently OOM-starve a single kind node.

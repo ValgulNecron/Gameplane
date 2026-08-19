@@ -298,7 +298,7 @@ Each game's e2e test (`TestGameServer_<Game>Bot_<Depth>`) is registered in `test
   - `TestGameServer_GarrysModBot_Query`
 
 - **Heavy set** (`bot-heavy` bucket) — **deliberately never runs in CI** — only on maintainer hand-run with `GAMEPLANE_E2E_GAMES=all`:
-  - All other games. Reserved for `KESTREL_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=… GAMEPLANE_E2E_GAMES=all make test-e2e-keep`.
+  - All other games. Reserved for `GAMEPLANE_E2E_REUSE_CLUSTER=1 GAMEPLANE_E2E_CONTEXT=… GAMEPLANE_E2E_GAMES=all make test-e2e-keep`.
 
 The `buckets.sh verify` step fails CI if any test is unbucketed or double-bucketed, so tests cannot be silently dropped.
 

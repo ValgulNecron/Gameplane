@@ -107,7 +107,7 @@ TestGameServer_ValheimBot_Query
 The `bot-heavy` bucket is **deliberately never run in CI**. It is only executed when a maintainer hand-runs the e2e suite with:
 
 ```bash
-GAMEPLANE_E2E_GAMES=all GAMEPLANE_E2E_GAME_BOT=1 KESTREL_E2E_REUSE_CLUSTER=1 make test-e2e-keep
+GAMEPLANE_E2E_GAMES=all GAMEPLANE_E2E_GAME_BOT=1 GAMEPLANE_E2E_REUSE_CLUSTER=1 make test-e2e-keep
 ```
 
 (Valheim is heavy because the `lloesche/valheim-server` image executes SteamCMD on first boot, which downloads a multi-GB game binary — too large and slow for CI runners.)

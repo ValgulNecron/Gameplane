@@ -84,14 +84,7 @@ This distinction is **critical**. They sound similar but are fundamentally diffe
 
 ## Current Authorization Inventory
 
-These are the four authorized exclusions currently in `.golangci.yml` (lines 35–60). All other findings must be fixed, not excluded.
-
-Two more are expected from a separate authorization step not included in this
-change: G124 on `api/internal/auth/sessions.go`'s `setCSRFCookie` (the CSRF
-cookie is deliberately not `HttpOnly` so the SPA can echo it back) and G704 on
-`api/internal/ws/dialer.go`'s agent-proxy request. Until that step lands and
-adds the corresponding `.golangci.yml` entries, those two findings are neither
-fixed nor authorized-excluded, and this inventory does not list them.
+These are the eight authorized exclusions currently in `.golangci.yml`. All other findings must be fixed, not excluded.
 
 ### Exclusion #1: Test Files
 
@@ -163,6 +156,78 @@ fixed nor authorized-excluded, and this inventory does not list them.
 | **Rationale** | The agent extracts mod archives into a PVC shared with the game server container. The two containers run as different UIDs, so a 0600 mode (owner read/write only) would leave the extracted files unreadable by the game server process. Group-writable/readable permissions are required for the handoff to work, and Kubernetes `fsGroup` only affects group *ownership*, not the mode bits gosec is checking. |
 | **Why Authorized** | Narrow scope (only `internal/mods/mods.go`). Text matcher narrows further (only `G302` findings). G302 remains active everywhere else in the codebase. |
 | **Abuse Risk** | Low, because the scope is file-specific and tied to a documented cross-container ownership constraint. |
+
+### Exclusion #5: Agent-Proxy Upstream URL Construction
+
+```yaml
+      - path: (^|/)internal/ws/dialer\.go$
+        linters: [gosec]
+        text: "G704"
+```
+
+| Aspect | Value |
+|--------|-------|
+| **Path Pattern** | `(^|/)internal/ws/dialer\.go$` (any path ending in `internal/ws/dialer.go`) |
+| **Linters Affected** | `gosec` |
+| **Text Matcher** | `"G704"` (gosec's URL-construction-from-request-data check) |
+| **Justification** (from config) | "The ws and http proxy handlers take a namespace and pod name from the request path and build an upstream URL from them. Both are validated as DNS-1123 labels first — before either handler assembles its URL — but gosec's taint analysis does not model a custom validator as a sanitiser." |
+| **Rationale** | The agent-proxy handlers extract `namespace` and `pod` from the incoming request path and validate each as a DNS-1123 label before either handler builds its upstream URL — `httpProxyLimit` assembles it with `url.URL`, while `wsProxy` concatenates the string directly, so the two paths differ in how the URL is built but not in whether it is validated first. A request that fails the DNS-1123 check is rejected with 400 before any URL construction runs. gosec's taint analysis flags any request-derived value reaching a URL construction, regardless of intervening validation, because it does not recognize the project's validator function as a sanitizing boundary. |
+| **Why Authorized** | Narrow scope (only `internal/ws/dialer.go`). Text matcher narrows further (only `G704` findings). The validation step is real and enforced before the flagged construction. |
+| **Abuse Risk** | Low, because the scope is file-specific and the validator is exercised by tests; a contributor could not use this exclusion to skip validating other request-derived values elsewhere. |
+
+### Exclusion #6: CSRF Cookie Not HttpOnly
+
+```yaml
+      - path: (^|/)internal/auth/sessions\.go$
+        linters: [gosec]
+        text: "G124"
+```
+
+| Aspect | Value |
+|--------|-------|
+| **Path Pattern** | `(^|/)internal/auth/sessions\.go$` (any path ending in `internal/auth/sessions.go`) |
+| **Linters Affected** | `gosec` |
+| **Text Matcher** | `"G124"` (gosec's cookie-without-HttpOnly check) |
+| **Justification** (from config) | "The CSRF cookie is deliberately not HttpOnly so the SPA can read it and echo it back as the X-Gameplane-CSRF header — the double-submit pattern documented in docs/security.md. Making it HttpOnly would break the protection gosec thinks it is asking for." |
+| **Rationale** | `setCSRFCookie` intentionally sets a non-`HttpOnly` cookie because the double-submit CSRF pattern requires the SPA's JavaScript to read the cookie value and echo it back in the `X-Gameplane-CSRF` request header; the server then compares the two. Setting `HttpOnly` would prevent the SPA from reading the value at all, disabling the CSRF protection gosec's rule assumes it is enforcing. |
+| **Why Authorized** | Narrow scope (only `internal/auth/sessions.go`). Text matcher narrows further (only `G124` findings). The design is documented in `docs/security.md`, so the exclusion is not a hidden decision. |
+| **Abuse Risk** | Low, because the scope is a single cookie-setting function tied to a documented, deliberate protocol choice. |
+
+### Exclusion #7: Test Helper Kubectl Invocation
+
+```yaml
+      - path: (^|/)env\.go$
+        linters: [gosec]
+        text: "G204"
+```
+
+| Aspect | Value |
+|--------|-------|
+| **Path Pattern** | `(^|/)env\.go$` — matches any file named `env.go` at any depth. Today that is two files: `test/e2e/env.go` (the intended target) and `svcutil/env.go` (matched incidentally, since it shares the filename). The pattern is written by shape, not by directory, so it is wider than the `test/e2e`-only intent. |
+| **Linters Affected** | `gosec` |
+| **Text Matcher** | `"G204"` (gosec's subprocess-with-variable-arguments check) |
+| **Justification** (from config) | "The Kubectl/KubectlWithStdin/port-forward helpers exist to run kubectl with caller-supplied arguments; the args come from the suite's own test code and the helper rejects shell metacharacters ahead of the -- separator, which gosec cannot see." |
+| **Rationale** | The e2e suite's `Kubectl`, `KubectlWithStdin`, and port-forward helpers exec `kubectl` with arguments supplied by test code within the same repository (never external input), and the helper itself rejects shell metacharacters before the `--` separator. gosec flags any `exec.Command` call built from a variable argument slice, regardless of that in-process validation, because it cannot trace the rejection logic as a sanitizing boundary. |
+| **Why Authorized** | Text matcher narrows scope (only `G204` findings). Callers are exclusively the suite's own tests, never untrusted input, and the helper validates its own arguments. The pattern's incidental match on `svcutil/env.go` is inert today — that file imports only `log/slog`, `os`, `strconv`, and `strings`, none of which reach `exec.Command`, so G204 cannot fire there — but this exclusion should not be read as scoped to `test/e2e`; it silences G204 in every present and future file literally named `env.go`. A follow-up could narrow the pattern to `(^|/)test/e2e/env\.go$`, or rename the e2e helper file to something unique, so the exclusion's scope matches its intent. |
+| **Abuse Risk** | Low today, because the only other matching file (`svcutil/env.go`) has no code path that reaches `exec.Command`. Not zero going forward: any future file named `env.go` anywhere in the repo — including a new one added to `svcutil` or another shared module — would silently inherit this G204 exemption without review. |
+
+### Exclusion #8: Satisfactory HTTPS Probe with Self-Signed Cert
+
+```yaml
+      - path: (^|/)internal/satisfactory/app\.go$
+        linters: [gosec]
+        text: "G402"
+```
+
+| Aspect | Value |
+|--------|-------|
+| **Path Pattern** | `(^|/)internal/satisfactory/app\.go$` — matches any file at path `internal/satisfactory/app.go` regardless of module root. Today exactly one file matches: `test/e2e/internal/satisfactory/app.go`. Like Exclusion #7's pattern, this is written by shape rather than pinned to `test/e2e/`, so it would also match a same-named file introduced under a different module root. |
+| **Linters Affected** | `gosec` |
+| **Text Matcher** | `"G402"` (gosec's TLS `InsecureSkipVerify`/weak-config check) |
+| **Justification** (from config) | "The probe dials the game server's HTTPS API over a pod-local address; the server generates a self-signed cert at first boot so there is nothing to pin, and the connection never leaves the pod network." |
+| **Rationale** | The Satisfactory e2e probe connects to the game server's HTTPS management API using a pod-local address inside the test cluster. The server generates a self-signed certificate on first boot with no stable fingerprint to pin ahead of time, and the connection is confined to the pod network (never traverses an untrusted path), so there is no practical MITM surface for the test to defend against. |
+| **Why Authorized** | Text matcher narrows scope (only `G402` findings). The probe never runs against production traffic and never leaves the pod network. As with Exclusion #7, the pattern's scope is broader than the single file it happens to match today — a follow-up could narrow it to `(^|/)test/e2e/internal/satisfactory/app\.go$` to make the intended `test/e2e` scoping explicit in the pattern itself rather than only in this document. |
+| **Abuse Risk** | Low today, since only one file matches and it is test-only, exercising a pod-local connection rather than any production TLS client. Not zero going forward: a same-named `internal/satisfactory/app.go` added under a different module root would silently inherit this G402 exemption without review. |
 
 ---
 
@@ -254,7 +319,7 @@ To audit the current exclusions:
 
 ```bash
 # Count exclusions in .golangci.yml
-grep -c "^      - path:" .golangci.yml  # Should be 4 (current state)
+grep -c "^      - path:" .golangci.yml  # Should be 8 (current state)
 
 # List exclusions
 echo "=== Current Authorized Exclusions ==="
@@ -307,7 +372,7 @@ When reviewing a PR that proposes a new exclusion:
 |--------|-----------|----------------|--------------|
 | **Go source files** | Correct code (no bugs) | Suppressions (`//nolint`, `//#nosec`, etc.) | `grep -r '//nolint' --include='*.go'` → must be empty |
 | **Web source files** | Correct code (no bugs) | ESLint suppressions (`eslint-disable`) | `grep -r 'eslint-disable' web/src` → must be empty |
-| **`.golangci.yml`** | Justified exclusions (≤3 in current state) | Disabled linters, global silencing | `grep "^      - path:" .golangci.yml` ≤ N (where N is authorized count) |
+| **`.golangci.yml`** | Justified exclusions (8 in current state) | Disabled linters, global silencing | `grep "^      - path:" .golangci.yml` ≤ N (where N is authorized count) |
 | **New PRs proposing exclusions** | Clear justification, narrow scope, maintainer approval | Ad-hoc suppressions, broad exclusions, no comment | Code review + PR approval from maintainer |
 
 ---

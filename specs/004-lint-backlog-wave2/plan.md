@@ -57,8 +57,18 @@ CRD, API route, or operator surface changes.
 - Build-tag-conditional files (`//go:build envtest` in `api`, `//go:build e2e` in
   `test/e2e`) must be analyzed; CI must pass the corresponding `--build-tags` flag to
   the linter.
-- No new suppression directives anywhere. The single authorized gosec G115 exclusion
-  (Minecraft VarInt codec) remains the only exception.
+- No new in-source suppression directives anywhere; this property remains absolute
+  and unweakened. Five new scoped, config-level exclusions in `.golangci.yml` were
+  authorized during this work, each narrow (single file/path, single linter rule),
+  documented, and reviewed — in addition to the pre-existing gosec G115 exclusion
+  (Minecraft VarInt codec): gosec G302 (agent mod extraction — extracted files must
+  stay group-readable for the game container's uid); gosec G704 (api ws dialer —
+  upstream URL built from request-path values already validated as DNS-1123 labels);
+  gosec G124 (api CSRF cookie — deliberately non-`HttpOnly` for the double-submit
+  pattern); gosec G204 (test/e2e kubectl helper — args are trusted, in-repo test
+  code and the helper rejects shell metacharacters); gosec G402 (test/e2e
+  Satisfactory probe — self-signed cert dialed over a pod-local address only).
+  See `contracts/exclusion-policy.md` for the full inventory and rationale.
 
 **Scale/Scope**: 13 go.work modules total; 3 newly gated; ~342 .go files in scope;
 14 linters; matrix runs in parallel, adding ~3 concurrent jobs to existing CI (no
@@ -73,7 +83,7 @@ extra wall-clock).
 |---|---|
 | **I. E2E-Tested Delivery** (non-negotiable) | The lint gate itself is not an E2E feature; it is a correctness infrastructure gate. No E2E test suite is required for the feature. Findings uncovered by the gate are fixed via code review and CI validation (Constitution VI), not via end-to-end testing. The gate is not negotiable per se, but its implementation as a CI matrix addition is verified by pushing a branch and reading the CI run log. |
 | **II. Design-First for User-Facing Change** | **Exempt.** No dashboard or public-website screen changes. The CI configuration change is infrastructure-only; no visual surface is added. |
-| **III. Language & Ecosystem Best Practice** | **Directly Enforced.** This feature implements Principle III itself — it mandates that all findings reported by golangci-lint be fixed, not silenced, across the entire workspace. No `//nolint`, no `// nosec`, no rule removals from `.golangci.yml`. The single authorized gosec G115 exclusion is documented and remains untouched. |
+| **III. Language & Ecosystem Best Practice** | **Directly Enforced.** This feature implements Principle III itself — it mandates that all findings reported by golangci-lint be fixed, not silenced, across the entire workspace. No `//nolint`, no `// nosec`, no rule removals from `.golangci.yml`. In-source suppression directives remain zero, absolutely; `.golangci.yml` now carries eight config-level exclusions total (the pre-existing gosec G115 exclusion plus five new ones authorized during this work), each narrow, documented, and reviewed — see `contracts/exclusion-policy.md`. |
 | **IV. Spec-Driven Development** | **Implementation Adds New `specs.md` Requirement.** The fixes applied to `api`, `agent`, and `test/e2e` may alter those modules' observable behavior or documented responsibilities. Any such change MUST be accompanied by a corresponding `specs.md` update in the same commit. `api/specs.md`, `agent/specs.md`, and `test/e2e/specs.md` are either already present or will be created/updated as part of this work to document any behavioral changes the fixes introduce. |
 | **V. Delegate to Workflows & Subagents** | Work partitions naturally by package directory within each module (no file overlap between api, agent, test/e2e; package-level granularity within each allows parallel work). The implementation phase fans out per-package/per-module fixes to small agents with a tier-up review before landing the matrix change. |
 | **VI. CI Bears the Heavy Lifting** | Finding counts are measured via CI, not locally. The true backlog across all three modules is unknown until the first linter run on a fresh branch against master (this becomes Phase 1's first step). No local build, test, or lint runs occur. All verification is via CI logs and diff review. |
@@ -117,8 +127,12 @@ test/e2e/
 ├── buckets.sh           # No change (test naming/bucketing is frozen).
 └── // (no coverage gate)
 
-.golangci.yml           # No new exclusions. The one authorized G115 exclusion for
-                        # gameproto/minecraft.go remains unchanged.
+.golangci.yml           # Five new scoped exclusions authorized (G302 agent mods,
+                        # G704 api ws dialer, G124 api CSRF cookie, G204 test/e2e
+                        # kubectl helper, G402 test/e2e Satisfactory probe), plus
+                        # the pre-existing G115 exclusion for gameproto/minecraft.go,
+                        # unchanged. No in-source suppression directives anywhere.
+                        # See contracts/exclusion-policy.md.
 ```
 
 **Structure Decision**: The fix work is localized to three modules (`api`, `agent`,
@@ -211,10 +225,12 @@ Sequenced so each step is independently reviewable and the branch goes red (duri
   or `//lint:ignore` directives are introduced in api, agent, or test/e2e.
 - Review a sample of landed fix commits to confirm they contain real code changes, not
   deletions or artificial narrowing of analysis scope.
-- Confirm `.golangci.yml` has gained zero new exclusions beyond the three pre-existing
-  ones (test exemptions, controller revive exemption, gameproto G115 exemption).
-- Checkpoint: Zero suppression directives introduced. All landed fixes are real code
-  changes. Configuration exclusion list is unchanged.
+- Confirm `.golangci.yml` has gained only the five reviewed, documented, narrowly-scoped
+  exclusions inventoried in `contracts/exclusion-policy.md` (eight config-level
+  exclusion rules total, including the three pre-existing ones: test exemptions,
+  controller revive exemption, gameproto G115 exemption).
+- Checkpoint: Zero in-source suppression directives introduced. All landed fixes are
+  real code changes. Configuration exclusion list matches the reviewed inventory.
 
 **Phase 5: User Story 3 (P3) — "The gate cannot silently regress"**
 - Implement the lint-gate contract rules (R-001 through R-010 from contracts/lint-gate.md)
