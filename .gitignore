@@ -61,3 +61,6 @@ cosign.key
 .claude
 .codex
 .agents
+.mcp.json
+.repowise
+.vscode
