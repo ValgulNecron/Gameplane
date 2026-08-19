@@ -857,6 +857,9 @@ jobs:
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
           EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPO_SLUG: ${{ github.repository }}
         run: |
           set +e
           printf '%s' "$NEEDS_JSON" > /tmp/needs.json
@@ -1068,7 +1071,17 @@ jobs:
             // --- render ---
             let md = '';
             md += '<!-- ci-report -->\n';
+            const RUN_ID = process.env.RUN_ID || '';
+            const RUN_ATTEMPT = process.env.RUN_ATTEMPT || '1';
+            const REPO_SLUG = process.env.REPO_SLUG || '';
+            // Name the run and attempt: a re-run of failed jobs bumps the attempt
+            // without re-rendering this comment, so without these a stale report
+            // is indistinguishable from a current one.
+            const runLink = (RUN_ID && REPO_SLUG)
+              ? '[run ' + RUN_ID + '](https://github.com/' + REPO_SLUG + '/actions/runs/' + RUN_ID + ')'
+              : 'run unknown';
             md += '## CI Report - ' + SHORT + '\n';
+            md += '_' + runLink + ' - attempt ' + RUN_ATTEMPT + '_\n\n';
             const cancelledSeg = cancelled > 0 ? cancelled + ' cancelled - ' : '';
             md += '**' + failed + ' failed - ' + passed + ' passed - ' + skipped + ' skipped - ' + cancelledSeg + elapsed + ' elapsed**\n\n';
 
