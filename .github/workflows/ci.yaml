@@ -773,3 +773,405 @@ jobs:
         with:
           context: ${{ env.CTX }}
           namespaces: "gameplane-system,gameplane-games"
+
+  # Runs after every other job and publishes one build report: which jobs
+  # failed and where, measured coverage against each gate, changed files by
+  # area (PRs only), the slowest job legs, and which e2e buckets actually
+  # ran. Always writes the Actions job-summary panel; on pull_request it also
+  # upserts a single sticky PR comment (tagged with a hidden marker so
+  # re-runs update it in place instead of piling up).
+  #
+  # `if: always()` so a red run still gets a report. Every data-gathering and
+  # publishing step is defensive (set +e, continue-on-error) so a broken
+  # report can never turn a green build red or hide a real failure — a fork
+  # PR's read-only token, for example, makes the comment step a no-op but
+  # never fails the job.
+  report:
+    name: ci report
+    needs:
+      [
+        changes,
+        build-images,
+        build-images-arm64,
+        lint,
+        go,
+        web,
+        web-e2e-mock,
+        helm,
+        chart-template,
+        go-e2e-unit,
+        e2e-buckets,
+        e2e-go,
+        e2e-multicluster,
+        e2e-upgrade,
+        e2e-web-live,
+        e2e-game-bot,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      # Reads back the coverage/* commit statuses published near web:287.
+      statuses: read
+      # Upserts the sticky PR comment. On a fork PR this permission is
+      # downgraded to read-only by GitHub regardless of what's requested
+      # here, which the comment step detects and skips quietly.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: gather data
+        id: gather
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          SHA="${HEAD_SHA:-$RUN_SHA}"
+          echo "$SHA" > /tmp/sha.txt
+
+          gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" > /tmp/jobs.json 2>/tmp/jobs.err
+          [ -s /tmp/jobs.json ] || echo '{"jobs":[]}' > /tmp/jobs.json
+
+          gh api "repos/$REPO/commits/$SHA/statuses?per_page=100" > /tmp/statuses.json 2>/tmp/statuses.err
+          [ -s /tmp/statuses.json ] || echo '[]' > /tmp/statuses.json
+
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
+            gh api "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" --paginate > /tmp/files.json 2>/tmp/files.err
+            [ -s /tmp/files.json ] || echo '[]' > /tmp/files.json
+          else
+            echo '[]' > /tmp/files.json
+          fi
+          exit 0
+
+      - name: render report
+        id: render
+        continue-on-error: true
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set +e
+          printf '%s' "$NEEDS_JSON" > /tmp/needs.json
+          [ -s /tmp/needs.json ] || echo '{}' > /tmp/needs.json
+          cat > /tmp/render.cjs <<'JSEOF'
+          const fs = require('node:fs');
+
+          function safe(fn, fallback) {
+            try { return fn(); } catch { return fallback; }
+          }
+
+          function readJSON(path, fallback) {
+            return safe(() => JSON.parse(fs.readFileSync(path, 'utf8')), fallback);
+          }
+
+          function fmtDuration(ms) {
+            if (ms == null || !Number.isFinite(ms) || ms < 0) return 'unknown';
+            const totalSec = Math.round(ms / 1000);
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            return m > 0 ? m + 'm' + s + 's' : s + 's';
+          }
+
+          function render() {
+            const HEAD = safe(() => fs.readFileSync('/tmp/sha.txt', 'utf8').trim(), '');
+            const SHORT = HEAD ? HEAD.slice(0, 7) : 'unknown';
+            const EVENT = process.env.EVENT_NAME || '';
+
+            const needs = readJSON('/tmp/needs.json', {});
+            const jobsResp = readJSON('/tmp/jobs.json', { jobs: [] });
+            const apiJobs = Array.isArray(jobsResp.jobs) ? jobsResp.jobs : [];
+            const statuses = readJSON('/tmp/statuses.json', []);
+            const files = readJSON('/tmp/files.json', []);
+
+            const NEEDS_ORDER = [
+              'changes', 'build-images', 'build-images-arm64', 'lint', 'go',
+              'web', 'web-e2e-mock', 'helm', 'chart-template', 'go-e2e-unit',
+              'e2e-buckets', 'e2e-go', 'e2e-multicluster', 'e2e-upgrade',
+              'e2e-web-live', 'e2e-game-bot',
+            ];
+
+            // Maps each workflow job id to how its `name:` field (as reported by
+            // the jobs API, with matrix values interpolated) can be recognized.
+            // Kept in sync by hand with the `name:` fields above.
+            const JOB_MATCHERS = {
+              changes: (n) => n === 'detect changes',
+              'build-images': (n) => n === 'build e2e images',
+              'build-images-arm64': (n) => n === 'build e2e images (arm64)',
+              lint: (n) => n.startsWith('lint ('),
+              go: (n) => n.startsWith('go (') && n !== 'go (test/e2e)',
+              web: (n) => n === 'web',
+              'web-e2e-mock': (n) => n === 'web e2e (mock)',
+              helm: (n) => n === 'helm lint',
+              'chart-template': (n) => n === 'chart render',
+              'go-e2e-unit': (n) => n === 'go (test/e2e)',
+              'e2e-buckets': (n) => n === 'e2e bucket coverage',
+              'e2e-go': (n) => /^e2e (operator|api-auth|api-roles|api-rbac|api-agent|api-mods) \//.test(n),
+              'e2e-multicluster': (n) => n.startsWith('e2e multicluster /'),
+              'e2e-upgrade': (n) => n.startsWith('e2e upgrade /'),
+              'e2e-web-live': (n) => n.startsWith('e2e web live /'),
+              'e2e-game-bot': (n) => n === 'e2e game bot (kind)',
+            };
+
+            let passed = 0, failed = 0, skipped = 0, cancelled = 0;
+            const failingRows = [];
+            for (const key of NEEDS_ORDER) {
+              const entry = needs[key];
+              const result = entry && entry.result;
+              if (result === 'success') {
+                passed++;
+              } else if (result === 'skipped') {
+                skipped++;
+              } else if (result === 'cancelled') {
+                cancelled++;
+              } else {
+                failed++;
+                const matcher = JOB_MATCHERS[key];
+                let url = null;
+                if (matcher) {
+                  const candidates = apiJobs.filter((j) => matcher(j.name || ''));
+                  const bad = candidates.find((j) => j.conclusion && j.conclusion !== 'success');
+                  url = (bad || candidates[0] || {}).html_url || null;
+                }
+                failingRows.push({ key, result: result || 'unknown', url });
+              }
+            }
+
+            // Wall-clock span across every non-report job leg, for the headline.
+            let minStart = null, maxEnd = null;
+            for (const j of apiJobs) {
+              if (j.name === 'ci report') continue;
+              const s = j.started_at ? Date.parse(j.started_at) : NaN;
+              const e = j.completed_at ? Date.parse(j.completed_at) : NaN;
+              if (Number.isFinite(s) && (minStart === null || s < minStart)) minStart = s;
+              if (Number.isFinite(e) && (maxEnd === null || e > maxEnd)) maxEnd = e;
+            }
+            const elapsed = (minStart !== null && maxEnd !== null) ? fmtDuration(maxEnd - minStart) : 'unknown';
+
+            // Slowest individual job legs (each matrix combination is its own
+            // API job entry), excluding this report job itself.
+            const durations = apiJobs
+              .filter((j) => j.name !== 'ci report' && j.started_at && j.completed_at)
+              .map((j) => ({ name: j.name, ms: Date.parse(j.completed_at) - Date.parse(j.started_at) }))
+              .filter((j) => Number.isFinite(j.ms) && j.ms >= 0)
+              .sort((a, b) => b.ms - a.ms)
+              .slice(0, 5);
+
+            // Coverage: read back whatever coverage/* commit statuses are on the
+            // head sha, and pair each against its gate read from the repo
+            // (web/vitest.config.ts, or <module>/.testcoverage.yml for Go).
+            function parseVitestGates() {
+              const src = fs.readFileSync('web/vitest.config.ts', 'utf8');
+              const grab = (name) => {
+                const m = src.match(new RegExp(name + '\\s*:\\s*([0-9.]+)'));
+                return m ? Number(m[1]) : null;
+              };
+              return { L: grab('lines'), F: grab('functions'), B: grab('branches'), S: grab('statements') };
+            }
+            const vitestGates = safe(parseVitestGates, null);
+
+            function parseGoGate(mod) {
+              const src = fs.readFileSync(mod + '/.testcoverage.yml', 'utf8');
+              const m = src.match(/threshold:[\s\S]*?total:\s*([0-9.]+)/);
+              return m ? Number(m[1]) : null;
+            }
+
+            const seenContexts = new Set();
+            const coverageRows = [];
+            for (const st of Array.isArray(statuses) ? statuses : []) {
+              const ctx = st && st.context;
+              if (!ctx || !ctx.startsWith('coverage/') || seenContexts.has(ctx)) continue;
+              seenContexts.add(ctx);
+              const mod = ctx.slice('coverage/'.length);
+              const desc = st.description || '';
+              if (mod === 'web' && vitestGates) {
+                const measured = {};
+                for (const letter of ['L', 'S', 'B', 'F']) {
+                  const m = desc.match(new RegExp(letter + '([0-9.]+)'));
+                  if (m) measured[letter] = Number(m[1]);
+                }
+                const gateStr = ['L', 'S', 'B', 'F']
+                  .map((l) => (vitestGates[l] != null ? l + vitestGates[l] : l + '-'))
+                  .join(' ');
+                let margin = null;
+                for (const l of ['L', 'S', 'B', 'F']) {
+                  if (measured[l] != null && vitestGates[l] != null) {
+                    const d = measured[l] - vitestGates[l];
+                    if (margin === null || d < margin) margin = d;
+                  }
+                }
+                coverageRows.push({
+                  module: mod,
+                  measured: desc || '-',
+                  gate: gateStr,
+                  margin: margin !== null ? (margin >= 0 ? '+' + margin.toFixed(2) : margin.toFixed(2)) : '-',
+                });
+              } else {
+                const gate = safe(() => parseGoGate(mod), null);
+                const mMeasured = desc.match(/([0-9]+(\.[0-9]+)?)/);
+                const measuredNum = mMeasured ? Number(mMeasured[1]) : null;
+                let margin = '-';
+                if (gate != null && measuredNum != null) {
+                  const d = measuredNum - gate;
+                  margin = d >= 0 ? '+' + d.toFixed(2) : d.toFixed(2);
+                }
+                coverageRows.push({
+                  module: mod,
+                  measured: desc || '-',
+                  gate: gate != null ? gate + '%' : '-',
+                  margin,
+                });
+              }
+            }
+
+            // Changed files by top-level area, PR events only.
+            let changedRows = [];
+            if (EVENT === 'pull_request' && Array.isArray(files)) {
+              const byArea = new Map();
+              for (const f of files) {
+                const name = f && f.filename;
+                if (!name) continue;
+                const slash = name.indexOf('/');
+                const area = slash === -1 ? '(root)' : name.slice(0, slash + 1);
+                const cur = byArea.get(area) || { count: 0, add: 0, del: 0 };
+                cur.count++;
+                cur.add += f.additions || 0;
+                cur.del += f.deletions || 0;
+                byArea.set(area, cur);
+              }
+              changedRows = [...byArea.entries()]
+                .map(([area, v]) => ({ area, files: v.count, plus: v.add, minus: v.del }))
+                .sort((a, b) => (b.plus + b.minus) - (a.plus + a.minus));
+            }
+
+            // e2e buckets that actually executed, derived from the e2e-go
+            // matrix leg names plus the multicluster/upgrade/game-bot jobs.
+            const bucketSet = new Set();
+            for (const j of apiJobs) {
+              const n = j.name || '';
+              const m = n.match(/^e2e (operator|api-auth|api-roles|api-rbac|api-agent|api-mods) \//);
+              if (m) bucketSet.add(m[1]);
+              if (/^e2e multicluster \//.test(n)) bucketSet.add('multicluster');
+              if (/^e2e upgrade \//.test(n)) bucketSet.add('upgrade');
+            }
+            const gameBot = needs['e2e-game-bot'];
+            if (gameBot && gameBot.result && gameBot.result !== 'skipped') bucketSet.add('bot-fast');
+            const buckets = [...bucketSet].sort();
+
+            // --- render ---
+            let md = '';
+            md += '<!-- ci-report -->\n';
+            md += '## CI Report - ' + SHORT + '\n';
+            const cancelledSeg = cancelled > 0 ? cancelled + ' cancelled - ' : '';
+            md += '**' + failed + ' failed - ' + passed + ' passed - ' + skipped + ' skipped - ' + cancelledSeg + elapsed + ' elapsed**\n\n';
+
+            if (failed > 0) {
+              md += '### Failing\n\n| Job | Log |\n| --- | --- |\n';
+              for (const row of failingRows) {
+                md += '| ' + row.key + ' | ' + (row.url ? '[logs](' + row.url + ')' : '-') + ' |\n';
+              }
+              md += '\n';
+            }
+
+            md += '### Coverage\n\n';
+            if (coverageRows.length) {
+              md += '| Module | Measured | Gate | Margin |\n| --- | --- | --- | --- |\n';
+              for (const r of coverageRows) {
+                md += '| ' + r.module + ' | ' + r.measured + ' | ' + r.gate + ' | ' + r.margin + ' |\n';
+              }
+            } else {
+              md += '_no coverage/* commit statuses found on ' + SHORT + '_\n';
+            }
+            md += '\n';
+
+            if (EVENT === 'pull_request') {
+              md += '### Changed\n\n';
+              if (changedRows.length) {
+                md += '| Area | Files | +/- |\n| --- | --- | --- |\n';
+                for (const r of changedRows) {
+                  md += '| ' + r.area + ' | ' + r.files + ' | +' + r.plus + '/-' + r.minus + ' |\n';
+                }
+              } else {
+                md += '_no changed-file data available_\n';
+              }
+              md += '\n';
+            }
+
+            md += '### Slowest jobs\n\n';
+            if (durations.length) {
+              md += '| Job | Duration |\n| --- | --- |\n';
+              for (const d of durations) {
+                md += '| ' + d.name + ' | ' + fmtDuration(d.ms) + ' |\n';
+              }
+            } else {
+              md += '_no job duration data available_\n';
+            }
+            md += '\n';
+
+            md += '### e2e buckets run\n\n';
+            md += buckets.length ? buckets.map((b) => '`' + b + '`').join(', ') + '\n' : '_none ran_\n';
+
+            fs.writeFileSync('/tmp/report.md', md);
+          }
+
+          try {
+            render();
+          } catch (err) {
+            fs.writeFileSync(
+              '/tmp/report.md',
+              '<!-- ci-report -->\n## CI Report\n\nReport generation failed: ' + String(err) + '\n'
+            );
+          }
+          JSEOF
+          node /tmp/render.cjs
+          exit 0
+
+      - name: write job summary
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          if [ -s /tmp/report.md ]; then
+            cat /tmp/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo '## CI Report'
+              echo
+              echo 'Report generation failed; see the "render report" step logs for this job.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 0
+
+      - name: post sticky PR comment
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          if [ ! -s /tmp/report.md ]; then
+            echo "no report body to post, skipping PR comment"
+            exit 0
+          fi
+          EXISTING_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" --paginate \
+            -q '.[] | select((.body // "") | startswith("<!-- ci-report -->")) | .id' 2>/tmp/find.err | tail -n1)
+          if [ -n "$EXISTING_ID" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$EXISTING_ID" -F body=@/tmp/report.md >/tmp/patch.out 2>/tmp/patch.err
+            RC=$?
+          else
+            gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@/tmp/report.md >/tmp/post.out 2>/tmp/post.err
+            RC=$?
+          fi
+          if [ "$RC" -ne 0 ]; then
+            echo "::notice::could not publish the sticky PR comment (likely a fork PR with a read-only token); the job summary above still has the full report"
+          fi
+          exit 0
