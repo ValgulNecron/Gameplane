@@ -267,7 +267,7 @@ func TestBuildMinecraftLoginDisconnect(t *testing.T) {
 			}
 
 			// Verify packet has a valid frame length prefix
-			if data != nil && len(data) > 0 {
+			if len(data) > 0 {
 				br := bytes.NewReader(data)
 				length, err := readMinecraftVarInt(br)
 				if err != nil || length <= 0 {
@@ -577,8 +577,8 @@ func TestClassifyMinecraftPipelinedPackets(t *testing.T) {
 
 	// Add a fake "Login Start" packet
 	var loginStart bytes.Buffer
-	writeMinecraftVarInt(&loginStart, 0x00)                      // packet ID
-	_ = writeMinecraftString(&loginStart, "player")              // username
+	writeMinecraftVarInt(&loginStart, 0x00)
+	_ = writeMinecraftString(&loginStart, "player")
 	loginStartData := loginStart.Bytes()
 	full.Write(frameMinecraftPacket(loginStartData))
 
@@ -719,14 +719,6 @@ func TestClassifyMinecraftMalformedFrames(t *testing.T) {
 			}
 		})
 	}
-}
-
-// mustMinecraftVarInt encodes v as a Minecraft VarInt for use in hand-built
-// test frames.
-func mustMinecraftVarInt(v int32) []byte {
-	var buf bytes.Buffer
-	writeMinecraftVarInt(&buf, v)
-	return buf.Bytes()
 }
 
 // TestBuildMinecraftStatusResponseTooLong tests that an oversized JSON

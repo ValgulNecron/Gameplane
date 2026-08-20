@@ -304,29 +304,31 @@ func TestMinecraftSupportsStatusPing(t *testing.T) {
 func TestTerrariaClassifyGolden(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	type testCase struct {
 		name          string
 		data          []byte
 		expectKind    Kind
 		expectErr     bool
 		expectDetail  bool
 		expectVersion string
-	}{
+	}
+
+	tests := []testCase{
 		{
-			name:           "valid terraria connect request",
-			data:           buildTerrariaConnectRequest("Terraria279"),
-			expectKind:     Join,
-			expectErr:      false,
-			expectDetail:   true,
-			expectVersion:  "Terraria279",
+			name:          "valid terraria connect request",
+			data:          buildTerrariaConnectRequest("Terraria279"),
+			expectKind:    Join,
+			expectErr:     false,
+			expectDetail:  true,
+			expectVersion: "Terraria279",
 		},
 		{
-			name:           "terraria connect with different version",
-			data:           buildTerrariaConnectRequest("Terraria234"),
-			expectKind:     Join,
-			expectErr:      false,
-			expectDetail:   true,
-			expectVersion:  "Terraria234",
+			name:          "terraria connect with different version",
+			data:          buildTerrariaConnectRequest("Terraria234"),
+			expectKind:    Join,
+			expectErr:     false,
+			expectDetail:  true,
+			expectVersion: "Terraria234",
 		},
 		{
 			name:       "truncated terraria header",
@@ -356,7 +358,7 @@ func TestTerrariaClassifyGolden(t *testing.T) {
 			name:         "bytes that don't match terraria",
 			data:         []byte{0x01, 0x02, 0x03, 0x04},
 			expectKind:   Unknown,
-			expectErr:    false,
+			expectErr:    true,
 			expectDetail: false,
 		},
 	}
@@ -462,12 +464,34 @@ func TestTerrariaTerrariaBuildDisconnectGolden(t *testing.T) {
 				t.Errorf("expected non-empty output, got empty")
 			}
 
-			// Verify it's a valid framed packet (can be parsed back)
-			if len(data) > 0 {
-				br := bytes.NewReader(data)
-				_, err := readTerrafia7BitEncodedInt(br)
-				if err == nil {
-					// Could read a length, packet looks valid
+			// Verify the frame structure matches the protocol:
+			// [2-byte LE length][1-byte message type][1-byte mode][7-bit string length][string data]
+			if len(data) >= 2 {
+				// Check that the 2-byte little-endian length field equals the total frame length
+				frameLen := binary.LittleEndian.Uint16(data[:2])
+				if int(frameLen) != len(data) {
+					t.Errorf("frame length mismatch: declared %d, actual %d", frameLen, len(data))
+				}
+
+				// Check that the message type byte is terrariaDisconnect (0x02)
+				if len(data) >= 3 && data[2] != terrariaDisconnect {
+					t.Errorf("message type mismatch: expected %d, got %d", terrariaDisconnect, data[2])
+				}
+
+				// Check that the mode byte is 0 (literal text, no substitutions)
+				if len(data) >= 4 && data[3] != 0 {
+					t.Errorf("mode byte mismatch: expected 0 (literal), got %d", data[3])
+				}
+
+				// Verify the 7-bit-encoded string length can be decoded from the payload
+				if len(data) >= 4 {
+					br := bytes.NewReader(data[4:])
+					strLen, err := readTerrafia7BitEncodedInt(br)
+					if err != nil {
+						t.Errorf("failed to decode string length: %v", err)
+					} else if strLen < 0 {
+						t.Errorf("string length must be non-negative, got %d", strLen)
+					}
 				}
 			}
 		})

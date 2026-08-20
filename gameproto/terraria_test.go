@@ -307,11 +307,11 @@ func TestBuildTerrariaDisconnect(t *testing.T) {
 				t.Errorf("expected non-empty output")
 			}
 
-			// Verify it's a valid Terraria message (can extract length)
+			// Verify it's a valid Terraria message (can extract length and it matches actual data length)
 			if len(data) >= 2 {
 				frameLen := binary.LittleEndian.Uint16(data[:2])
-				if frameLen < 1 || frameLen > 65535 {
-					t.Errorf("invalid frame length: %d", frameLen)
+				if int(frameLen) != len(data) {
+					t.Errorf("frame length mismatch: declared %d, actual %d", frameLen, len(data))
 				}
 			}
 		})
