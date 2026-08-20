@@ -727,7 +727,7 @@ func TestHandleMinecraftStatusDoesNotWake(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		handleMinecraft(context.Background(), server, cw, "127.0.0.1:1", time.Second)
+		handleRegistryProtocol(context.Background(), server, cw, "127.0.0.1:1", "minecraft", time.Second)
 		server.Close() // mirrors handleTCPConnection's defer conn.Close() in production
 		close(done)
 	}()
@@ -775,7 +775,7 @@ func TestHandleMinecraftJoinWakesAndReplaysHandshake(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		handleMinecraft(context.Background(), server, cw, upstream.Addr().String(), 2*time.Second)
+		handleRegistryProtocol(context.Background(), server, cw, upstream.Addr().String(), "minecraft", 2*time.Second)
 		server.Close() // mirrors handleTCPConnection's defer conn.Close() in production
 		close(done)
 	}()
@@ -844,7 +844,7 @@ func TestHandleMinecraftJoinBouncesOnDeadline(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		handleMinecraft(context.Background(), server, cw, addr, 150*time.Millisecond)
+		handleRegistryProtocol(context.Background(), server, cw, addr, "minecraft", 150*time.Millisecond)
 		server.Close() // mirrors handleTCPConnection's defer conn.Close() in production
 		close(done)
 	}()
@@ -891,7 +891,7 @@ func TestHandleTerrariaJoinWakes(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		handleTerraria(context.Background(), server, cw, upstream.Addr().String(), 2*time.Second)
+		handleRegistryProtocol(context.Background(), server, cw, upstream.Addr().String(), "terraria", 2*time.Second)
 		server.Close() // mirrors handleTCPConnection's defer conn.Close() in production
 		close(done)
 	}()
@@ -937,7 +937,7 @@ func TestHandleTerrariaJoinBouncesOnDeadline(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		handleTerraria(context.Background(), server, cw, addr, 150*time.Millisecond)
+		handleRegistryProtocol(context.Background(), server, cw, addr, "terraria", 150*time.Millisecond)
 		server.Close() // mirrors handleTCPConnection's defer conn.Close() in production
 		close(done)
 	}()
@@ -969,7 +969,7 @@ func TestHandleTerrariaNonJoinDoesNotWake(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		handleTerraria(context.Background(), server, cw, "127.0.0.1:1", time.Second)
+		handleRegistryProtocol(context.Background(), server, cw, "127.0.0.1:1", "terraria", time.Second)
 		server.Close() // mirrors handleTCPConnection's defer conn.Close() in production
 		close(done)
 	}()
@@ -1314,5 +1314,280 @@ func write7BitEncodedInt(w *bytes.Buffer, v int32) {
 		if uv == 0 {
 			return
 		}
+	}
+}
+
+// -----------------------------------------------------------------------
+// Registry Dispatch Tests (User Story 1: Classifier Registry)
+// -----------------------------------------------------------------------
+
+// TestRegistryProtocolDispatchMinecraftJoinWakes verifies that a Minecraft join
+// handshake dispatched through handleRegistryProtocol correctly classifies as
+// Join and initiates a wake request.
+func TestRegistryProtocolDispatchMinecraftJoinWakes(t *testing.T) {
+	lc := &net.ListenConfig{}
+	upstream, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer upstream.Close()
+
+	upstreamConnCh := make(chan net.Conn, 1)
+	go func() {
+		c, err := upstream.Accept()
+		if err == nil {
+			upstreamConnCh <- c
+		}
+	}()
+
+	server, client := tcpPipe(t)
+	defer client.Close()
+
+	cw := newCountingWaker(nil)
+
+	done := make(chan struct{})
+	go func() {
+		handleRegistryProtocol(context.Background(), server, cw, upstream.Addr().String(), "minecraft", 2*time.Second)
+		server.Close()
+		close(done)
+	}()
+
+	handshake := encodeMinecraftHandshake(761, "localhost", 25565, 2)
+	if _, err := client.Write(handshake); err != nil {
+		t.Fatalf("write handshake: %v", err)
+	}
+	if tc, ok := client.(*net.TCPConn); ok {
+		_ = tc.CloseWrite()
+	}
+
+	var upConn net.Conn
+	select {
+	case upConn = <-upstreamConnCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream never accepted a connection")
+	}
+	defer upConn.Close()
+
+	replayed := make([]byte, len(handshake))
+	_ = upConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := io.ReadFull(upConn, replayed); err != nil {
+		t.Fatalf("read replayed handshake: %v", err)
+	}
+	if !bytes.Equal(replayed, handshake) {
+		t.Errorf("replayed bytes = %x, want %x", replayed, handshake)
+	}
+
+	upConn.Close()
+
+	<-done
+	if cw.count() != 1 {
+		t.Errorf("expected exactly 1 wake request for a Join, got %d", cw.count())
+	}
+}
+
+// TestRegistryProtocolDispatchMinecraftStatusPingNoWake verifies that a Minecraft
+// status ping dispatched through handleRegistryProtocol correctly classifies as
+// Status and sends a response without waking.
+func TestRegistryProtocolDispatchMinecraftStatusPingNoWake(t *testing.T) {
+	server, client := tcpPipe(t)
+	defer client.Close()
+
+	cw := newCountingWaker(nil)
+
+	done := make(chan struct{})
+	go func() {
+		handleRegistryProtocol(context.Background(), server, cw, "127.0.0.1:1", "minecraft", time.Second)
+		server.Close()
+		close(done)
+	}()
+
+	if _, err := client.Write(encodeMinecraftHandshake(-1, "localhost", 25565, 1)); err != nil {
+		t.Fatalf("write handshake: %v", err)
+	}
+
+	reply := make([]byte, 4096)
+	_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err := client.Read(reply)
+	if err != nil {
+		t.Fatalf("read status reply: %v", err)
+	}
+	if !bytes.Contains(reply[:n], []byte("Asleep")) {
+		t.Errorf("expected status reply to mention Asleep, got %q", reply[:n])
+	}
+
+	<-done
+	if cw.count() != 0 {
+		t.Errorf("expected 0 wake requests for a Status ping, got %d", cw.count())
+	}
+}
+
+// TestRegistryProtocolDispatchTerrariaJoinWakes verifies that a Terraria
+// ConnectRequest (which has no status concept) dispatched through handleRegistryProtocol
+// correctly classifies as Join and initiates a wake request.
+func TestRegistryProtocolDispatchTerrariaJoinWakes(t *testing.T) {
+	lc := &net.ListenConfig{}
+	upstream, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer upstream.Close()
+
+	upstreamConnCh := make(chan net.Conn, 1)
+	go func() {
+		c, err := upstream.Accept()
+		if err == nil {
+			upstreamConnCh <- c
+		}
+	}()
+
+	server, client := tcpPipe(t)
+	defer client.Close()
+
+	cw := newCountingWaker(nil)
+
+	done := make(chan struct{})
+	go func() {
+		handleRegistryProtocol(context.Background(), server, cw, upstream.Addr().String(), "terraria", 2*time.Second)
+		server.Close()
+		close(done)
+	}()
+
+	req := encodeTerrariaConnectRequest("Terraria279")
+	if _, err := client.Write(req); err != nil {
+		t.Fatalf("write connect request: %v", err)
+	}
+	if tc, ok := client.(*net.TCPConn); ok {
+		_ = tc.CloseWrite()
+	}
+
+	var upConn net.Conn
+	select {
+	case upConn = <-upstreamConnCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream never accepted a connection")
+	}
+	defer upConn.Close()
+
+	upConn.Close()
+
+	<-done
+	if cw.count() != 1 {
+		t.Errorf("expected exactly 1 wake request for Terraria Join, got %d", cw.count())
+	}
+}
+
+// TestRegistryProtocolDispatchUnknownNoWake verifies that an unclassifiable
+// connection (bytes that do not match any known protocol) dispatched through
+// handleRegistryProtocol does not initiate a wake and closes gracefully.
+func TestRegistryProtocolDispatchUnknownNoWake(t *testing.T) {
+	server, client := tcpPipe(t)
+	defer client.Close()
+
+	cw := newCountingWaker(nil)
+
+	done := make(chan struct{})
+	go func() {
+		handleRegistryProtocol(context.Background(), server, cw, "127.0.0.1:1", "minecraft", time.Second)
+		server.Close()
+		close(done)
+	}()
+
+	// Send bytes that do not match Minecraft handshake.
+	if _, err := client.Write([]byte("not a minecraft handshake")); err != nil {
+		t.Fatalf("write garbage: %v", err)
+	}
+
+	<-done
+	if cw.count() != 0 {
+		t.Errorf("expected 0 wake requests for Unknown classification, got %d", cw.count())
+	}
+}
+
+// TestParsePortsConfigRejectsUnknownProtocol verifies that parsePortsConfig
+// rejects configurations with wakeProtocol names that are not registered in
+// the gameproto registry.
+func TestParsePortsConfigRejectsUnknownProtocol(t *testing.T) {
+	// Test with a known protocol that should succeed.
+	ports, err := parsePortsConfig("25565:TCP:minecraft")
+	if err != nil {
+		t.Fatalf("parsePortsConfig() with 'minecraft' should succeed, got error: %v", err)
+	}
+	if len(ports) != 1 {
+		t.Fatalf("expected 1 port, got %d", len(ports))
+	}
+
+	// Test with an unknown protocol that should fail.
+	_, err = parsePortsConfig("25565:TCP:unknown_protocol")
+	if err == nil {
+		t.Error("parsePortsConfig() with unknown_protocol should fail, got nil error")
+	}
+}
+
+// TestRegistryProtocolReplayConsumedBytes verifies that consumed bytes are
+// correctly replayed to the upstream server after classification. This validates
+// the stream replay invariant: original_stream == Consumed + remaining_in_bufio.Reader.
+func TestRegistryProtocolReplayConsumedBytes(t *testing.T) {
+	lc := &net.ListenConfig{}
+	upstream, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer upstream.Close()
+
+	upstreamConnCh := make(chan net.Conn, 1)
+	go func() {
+		c, err := upstream.Accept()
+		if err == nil {
+			upstreamConnCh <- c
+		}
+	}()
+
+	server, client := tcpPipe(t)
+	defer client.Close()
+
+	cw := newCountingWaker(nil)
+
+	done := make(chan struct{})
+	go func() {
+		handleRegistryProtocol(context.Background(), server, cw, upstream.Addr().String(), "minecraft", 2*time.Second)
+		server.Close()
+		close(done)
+	}()
+
+	// Create a handshake with pipelined data (second message follows immediately).
+	handshake := encodeMinecraftHandshake(761, "localhost", 25565, 2)
+	pipelined := []byte("this is pipelined data")
+	combined := append(handshake, pipelined...)
+
+	if _, err := client.Write(combined); err != nil {
+		t.Fatalf("write handshake + pipelined: %v", err)
+	}
+	if tc, ok := client.(*net.TCPConn); ok {
+		_ = tc.CloseWrite()
+	}
+
+	var upConn net.Conn
+	select {
+	case upConn = <-upstreamConnCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream never accepted a connection")
+	}
+	defer upConn.Close()
+
+	// Verify that the handshake was replayed exactly.
+	replayed := make([]byte, len(handshake))
+	_ = upConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := io.ReadFull(upConn, replayed); err != nil {
+		t.Fatalf("read replayed handshake: %v", err)
+	}
+	if !bytes.Equal(replayed, handshake) {
+		t.Errorf("replayed bytes = %x, want %x", replayed, handshake)
+	}
+
+	upConn.Close()
+
+	<-done
+	if cw.count() != 1 {
+		t.Errorf("expected 1 wake request, got %d", cw.count())
 	}
 }

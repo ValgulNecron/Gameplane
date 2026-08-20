@@ -227,6 +227,7 @@ type PortConfig struct {
 // parsePortsConfig parses the PORTS_CONFIG env var.
 // Format: "port:protocol:wakeProtocol,..." e.g. "25565:TCP:minecraft,19133:UDP:generic".
 // Leading, trailing, and doubled commas are tolerated and ignored.
+// Validates wakeProtocol names against the registry at startup.
 func parsePortsConfig(config string) ([]PortConfig, error) {
 	config = strings.Trim(config, ",")
 	if config == "" {
@@ -256,8 +257,13 @@ func parsePortsConfig(config string) ([]PortConfig, error) {
 		}
 
 		wakeProto := strings.TrimSpace(strings.ToLower(fields[2]))
-		if wakeProto != "minecraft" && wakeProto != "terraria" && wakeProto != "generic" && wakeProto != "none" {
-			return nil, fmt.Errorf("invalid wakeProtocol in %q: %q", part, fields[2])
+		// Validate wakeProtocol: "generic" and "none" are special cases (handled outside registry).
+		// All others must be registered in the gameproto registry.
+		if wakeProto != "generic" && wakeProto != "none" {
+			if _, ok := gameproto.Lookup(wakeProto); !ok {
+				available := gameproto.ListRegistered()
+				return nil, fmt.Errorf("unknown wakeProtocol %q in %q (registered protocols: %v)", fields[2], part, available)
+			}
 		}
 
 		ports = append(ports, PortConfig{
@@ -476,19 +482,17 @@ func handleTCPConnection(ctx context.Context, conn net.Conn, port PortConfig, w 
 	}()
 
 	addr := gameDirectAddr(cfg, port)
-	switch port.WakeProtocol {
-	case "minecraft":
-		handleMinecraft(ctx, conn, w, addr, cfg.WakeDeadline)
-	case "terraria":
-		handleTerraria(ctx, conn, w, addr, cfg.WakeDeadline)
-	case "generic":
+	if port.WakeProtocol == "generic" {
 		handleGeneric(ctx, conn, w, addr, cfg.WakeDeadline)
+	} else {
+		handleRegistryProtocol(ctx, conn, w, addr, port.WakeProtocol, cfg.WakeDeadline)
 	}
 }
 
-// handleMinecraft classifies a Minecraft handshake and acts on it: replies
-// to a Status ping without waking, requests a wake and holds the connection
-// for a Join, and closes without waking for anything else.
+// handleRegistryProtocol classifies an incoming connection using a registered
+// protocol Classifier. It replaces the hardcoded handleMinecraft/handleTerraria
+// dispatch with a registry-based lookup, making protocol addition a matter of
+// registry entry + Classifier implementation with zero edits to sentinel.
 //
 // The connection is wrapped in a *bufio.Reader exactly once, and every
 // subsequent read — classification, and later the client-to-game copy in
@@ -496,83 +500,57 @@ func handleTCPConnection(ctx context.Context, conn net.Conn, port PortConfig, w 
 // net.Conn again after this point would drop whatever gameproto's internal
 // bufio.Reader already buffered past the handshake (the exact bug class
 // gameproto #196 fixed).
-func handleMinecraft(ctx context.Context, conn net.Conn, w wakeRequester, upstreamAddr string, deadline time.Duration) {
-	br := bufio.NewReader(conn)
+func handleRegistryProtocol(ctx context.Context, conn net.Conn, w wakeRequester, upstreamAddr string, protocol string, deadline time.Duration) {
+	classifier, ok := gameproto.Lookup(protocol)
+	if !ok {
+		// Should not happen if parsePortsConfig validated properly, but log it defensively.
+		log.Printf("protocol %q not found in registry (internal error, this should have been caught at startup)", protocol)
+		return
+	}
 
+	br := bufio.NewReader(conn)
 	_ = conn.SetReadDeadline(time.Now().Add(classifyReadTimeout))
-	kind, result, err := gameproto.ClassifyMinecraft(br)
+	result, err := classifier.Classify(br)
 	_ = conn.SetReadDeadline(time.Time{})
 	if err != nil {
 		return
 	}
 
-	switch kind {
+	switch result.Kind {
 	case gameproto.Status:
-		reply, buildErr := gameproto.BuildMinecraftStatusResponse(minecraftAsleepStatusJSON)
-		if buildErr != nil {
-			log.Printf("build minecraft status response: %v", buildErr)
-			return
+		// Only send status response if the protocol supports out-of-band status pings.
+		if classifier.SupportsStatusPing() {
+			reply, buildErr := classifier.BuildStatusResponse(minecraftAsleepStatusJSON)
+			if buildErr != nil {
+				log.Printf("build %s status response: %v", protocol, buildErr)
+				return
+			}
+			_, _ = conn.Write(reply)
 		}
-		_, _ = conn.Write(reply)
 
 	case gameproto.Join:
+		// Build a bounce function that sends a protocol-native disconnect message
+		// when the wake deadline expires.
+		bounce := func(c net.Conn) {
+			disconnect, err := classifier.BuildDisconnect(wakingUpMessage)
+			if err != nil {
+				log.Printf("build %s disconnect: %v", protocol, err)
+				return
+			}
+			_, _ = c.Write(disconnect)
+		}
+
 		handleJoin(ctx, conn, br, w, joinParams{
 			upstreamAddr: upstreamAddr,
 			deadline:     deadline,
 			pollInterval: defaultPollInterval,
 			consumed:     result.Consumed,
-			bounce:       bounceMinecraft,
+			bounce:       bounce,
 		})
 
 	case gameproto.Unknown:
 		// Unrecognized bytes: close without waking (deferred by the caller).
 	}
-}
-
-func bounceMinecraft(conn net.Conn) {
-	disconnect, err := gameproto.BuildMinecraftLoginDisconnect(wakingUpMessage)
-	if err != nil {
-		log.Printf("build minecraft disconnect: %v", err)
-		return
-	}
-	_, _ = conn.Write(disconnect)
-}
-
-// handleTerraria classifies a Terraria ConnectRequest. Terraria has no
-// out-of-band status ping (see gameproto's package doc), so anything that
-// isn't a recognized Join just closes without waking.
-func handleTerraria(ctx context.Context, conn net.Conn, w wakeRequester, upstreamAddr string, deadline time.Duration) {
-	br := bufio.NewReader(conn)
-
-	_ = conn.SetReadDeadline(time.Now().Add(classifyReadTimeout))
-	kind, result, err := gameproto.ClassifyTerraria(br)
-	_ = conn.SetReadDeadline(time.Time{})
-	if err != nil {
-		return
-	}
-
-	switch kind {
-	case gameproto.Join:
-		handleJoin(ctx, conn, br, w, joinParams{
-			upstreamAddr: upstreamAddr,
-			deadline:     deadline,
-			pollInterval: defaultPollInterval,
-			consumed:     result.Consumed,
-			bounce:       bounceTerraria,
-		})
-
-	case gameproto.Status, gameproto.Unknown:
-		// No status ping to answer; close without waking.
-	}
-}
-
-func bounceTerraria(conn net.Conn) {
-	disconnect, err := gameproto.BuildTerrariaDisconnect(wakingUpMessage)
-	if err != nil {
-		log.Printf("build terraria disconnect: %v", err)
-		return
-	}
-	_, _ = conn.Write(disconnect)
 }
 
 // handleGeneric treats a completed TCP connection as a join outright — a

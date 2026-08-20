@@ -7,6 +7,19 @@
 //   - Status: a server-list ping or query (answer it without waking).
 //   - Unknown: unrecognized bytes (do not wake; let the connection fail).
 //
+// Primary API: The Classifier interface and registry pattern (gameproto/classifier.go
+// and gameproto/registry.go) provide the canonical API for protocol-agnostic handshake
+// classification, response building, and status-ping capability detection. This pattern
+// enables new protocols to be added without modifying shared code (gameproto/gameproto.go
+// or sentinel/main.go).
+//
+// Deprecated facades: Functions ClassifyMinecraft, ClassifyTerraria, BuildMinecraftStatusResponse,
+// BuildMinecraftLoginDisconnect, and BuildTerrariaDisconnect, along with types
+// MinecraftClassifyResult and TerrariaClassifyResult, are deprecated in favor of the
+// Classifier interface. They are retained as compatibility wrappers to support equivalence
+// tests that validate byte-for-byte behavior preservation during the transition from
+// facades to the Classifier registry pattern.
+//
 // Replay contract: the caller must create a *bufio.Reader and pass it to the
 // classifier. The classifier reads the handshake and returns it in the Consumed
 // field. Any pipelined data (e.g., Handshake followed immediately by Login Start)
@@ -18,7 +31,7 @@
 // All parsing is defensive: bounded reads, explicit max packet sizes, no unbounded
 // allocations from length prefixes, and no panics on hostile input.
 //
-// Example usage:
+// Example usage (deprecated — use Classifier registry instead):
 //
 //	br := bufio.NewReader(conn)
 //	kind, result, err := ClassifyMinecraft(br)
@@ -35,8 +48,13 @@ package gameproto
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 )
+
+// ErrStatusPingUnsupported is returned when a protocol does not support
+// out-of-band status pings and BuildStatusResponse is called on it.
+var ErrStatusPingUnsupported = errors.New("status ping unsupported for this protocol")
 
 // Kind classifies the reason for a connection attempt.
 type Kind int
@@ -69,6 +87,9 @@ func (k Kind) String() string {
 }
 
 // MinecraftClassifyResult holds the result of classifying a Minecraft handshake.
+//
+// Deprecated: Use Classifier interface and MinecraftDetail struct instead.
+// This type is retained for equivalence tests validating behavior preservation.
 type MinecraftClassifyResult struct {
 	// ProtocolVersion is the version field from the handshake packet.
 	ProtocolVersion int32
@@ -92,11 +113,18 @@ type MinecraftClassifyResult struct {
 // on truncated input). Hostile input like a huge length prefix is rejected
 // before allocation. The caller must provide a *bufio.Reader and continue
 // using it for the rest of the connection to avoid losing pipelined data.
+//
+// Deprecated: Use registry.Lookup("minecraft") to obtain a MinecraftClassifier,
+// then call its Classify method instead. This function is retained for
+// equivalence tests validating behavior preservation.
 func ClassifyMinecraft(br *bufio.Reader) (Kind, *MinecraftClassifyResult, error) {
 	return classifyMinecraftHandshake(br)
 }
 
 // TerrariaClassifyResult holds the result of classifying a Terraria connection.
+//
+// Deprecated: Use Classifier interface and TerrariaDetail struct instead.
+// This type is retained for equivalence tests validating behavior preservation.
 type TerrariaClassifyResult struct {
 	// Version is the protocol version string from the ConnectRequest.
 	Version string
@@ -111,6 +139,10 @@ type TerrariaClassifyResult struct {
 // recognized ConnectRequest is classified as Join. Unknown messages or
 // truncated input return Unknown. The caller must provide a *bufio.Reader and
 // continue using it for the rest of the connection to avoid losing pipelined data.
+//
+// Deprecated: Use registry.Lookup("terraria") to obtain a TerrariaClassifier,
+// then call its Classify method instead. This function is retained for
+// equivalence tests validating behavior preservation.
 func ClassifyTerraria(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error) {
 	return classifyTerrariaConnect(br)
 }
@@ -118,18 +150,30 @@ func ClassifyTerraria(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error) {
 // BuildMinecraftStatusResponse builds a JSON status response packet that
 // the server can send without waking. It takes the JSON (e.g. a server list
 // entry payload) and returns the framed packet bytes ready to write.
+//
+// Deprecated: Use registry.Lookup("minecraft") to obtain a MinecraftClassifier,
+// then call its BuildStatusResponse method instead. This function is retained
+// for equivalence tests validating behavior preservation.
 func BuildMinecraftStatusResponse(jsonPayload string) ([]byte, error) {
 	return buildMinecraftStatusResponse(jsonPayload)
 }
 
 // BuildMinecraftLoginDisconnect builds a Login Disconnect packet containing
 // a chat-JSON reason string.
+//
+// Deprecated: Use registry.Lookup("minecraft") to obtain a MinecraftClassifier,
+// then call its BuildDisconnect method instead. This function is retained
+// for equivalence tests validating behavior preservation.
 func BuildMinecraftLoginDisconnect(reason string) ([]byte, error) {
 	return buildMinecraftLoginDisconnect(reason)
 }
 
 // BuildTerrariaDisconnect builds a Terraria Disconnect message containing
 // a reason string.
+//
+// Deprecated: Use registry.Lookup("terraria") to obtain a TerrariaClassifier,
+// then call its BuildDisconnect method instead. This function is retained
+// for equivalence tests validating behavior preservation.
 func BuildTerrariaDisconnect(reason string) ([]byte, error) {
 	return buildTerrariaDisconnect(reason)
 }
