@@ -84,7 +84,7 @@ This distinction is **critical**. They sound similar but are fundamentally diffe
 
 ## Current Authorization Inventory
 
-These are the eight authorized exclusions currently in `.golangci.yml`. All other findings must be fixed, not excluded.
+These are the nine authorized exclusions currently in `.golangci.yml` — eight path-scoped rules and one global setting. All other findings must be fixed, not excluded.
 
 ### Exclusion #1: Test Files
 
@@ -229,6 +229,29 @@ These are the eight authorized exclusions currently in `.golangci.yml`. All othe
 | **Why Authorized** | Text matcher narrows scope (only `G402` findings). The probe never runs against production traffic and never leaves the pod network. As with Exclusion #7, the pattern's scope is broader than the single file it happens to match today — a follow-up could narrow it to `(^|/)test/e2e/internal/satisfactory/app\.go$` to make the intended `test/e2e` scoping explicit in the pattern itself rather than only in this document. |
 | **Abuse Risk** | Low today, since only one file matches and it is test-only, exercising a pod-local connection rather than any production TLS client. Not zero going forward: a same-named `internal/satisfactory/app.go` added under a different module root would silently inherit this G402 exemption without review. |
 
+### Exclusion #9: Global gosec G104 Suppression (Configuration-Level Only)
+
+```yaml
+    gosec:
+      # Exclude noisy rules that don't map to the codebase's threat model:
+      # - G104: "Errors unhandled" — errcheck covers this more precisely.
+      excludes: [G104]
+```
+
+(The G204 exclusion for `env.go` (Exclusion #7, above) is path-scoped in the `rules:`
+block, not global here. See Exclusion #7 for the real G204 exclusion and its justification.)
+
+| Aspect | Value |
+|--------|-------|
+| **Scope** | **Global** `linters.settings.gosec.excludes` (not a path-scoped rule) |
+| **Linters Affected** | `gosec` |
+| **Rule Code** | `G104` (gosec's "Errors unhandled" check) |
+| **Justification** (from config line 28) | "G104: 'Errors unhandled' — errcheck covers this more precisely." |
+| **Rationale** | gosec's G104 rule handles two cases: bare expression statements (`f()` on a line by itself) and assignments with `_`. Without audit mode enabled (which `.golangci.yml` does not set), G104 only flags bare expression statements. Assignments to `_` like `_ = f()` are gated behind the audit-mode check in gosec's `noErrorCheck.Match` (lines 53–65 of `rules/errors.go`), so they never trigger when audit is off. The enabled `errcheck` linter with `check-blank: false` (line 32 of `.golangci.yml`) also does not flag `_ = f()` assignments. Since both linters skip this case for independent reasons, excluding G104 does not widen the unchecked error gap. G104 flags a strict subset of bare calls that errcheck catches; excluding G104 is noise-reduction without defect-hiding. The `_ = f()` gap itself is a deliberate project configuration choice (errcheck's `check-blank: false` setting), separate from the G104 exclusion. |
+| **Why Authorized** | **(Redundant-Rule Disabling Exception)** — This is a configuration-level exclusion, not an in-source suppression directive. G104 is disabled globally because it is a duplicate check wholly subsumed by the stricter, more configurable `errcheck` linter, which is explicitly enabled in `.golangci.yml`. The underlying requirement (check errors) remains enforced by `errcheck`; disabling G104 does not hide any class of defect. Authorized as a rare exception to the path-pattern rule, in the category "Redundant-Rule Disabling" (Principle III.2 of Constitution 1.6.0). |
+| **Introduced** | Commit 8c202ea2 (2026-07-30), predates Wave 2 work; this is a pre-existing exclusion. |
+| **Abuse Risk** | None: this is a configuration setting that affects all code uniformly. It does not create hidden exceptions by path or file; it simply disables a redundant linter rule. The workspace's error-checking discipline remains enforced by `errcheck`. |
+
 ---
 
 ## Authorization Procedure for New Exclusions
@@ -237,7 +260,9 @@ If a finding is raised and deemed a false positive, the **only** acceptable path
 
 ### Prerequisites (What Must Be True)
 
-Before proposing a new exclusion:
+Before proposing a new exclusion, determine which category it falls into:
+
+**For Path-Scoped False-Positive Exclusions** (single file/path, single rule):
 
 1. **Genuine False Positive**: The finding is incorrect, not a real bug. Example: a security linter flags `unsafe.Pointer` arithmetic, but the code uses it correctly under a specific constraint documented in an adjacent comment.
 
@@ -252,6 +277,19 @@ Before proposing a new exclusion:
    - Why the scope is minimal (e.g., "limited to Minecraft handshake parsing").
 
 4. **Maintainer Sign-Off**: The exclusion is reviewed and approved by a project maintainer (commit is signed, PR is approved).
+
+**For Redundant-Rule Disabling Exclusions** (global, deprecated/duplicate rule):
+
+These are rare exceptions that disable a linter rule globally, applicable only when:
+
+1. **Duplicate Rule, Not Hiding Defects**: The rule being disabled is a wholly subsumed check already covered by a stricter, more configurable enabled linter rule. Example: gosec's G104 ("Errors unhandled") is disabled globally because `errcheck` (which is enabled) catches the same unhandled errors and more precisely. Actual error-checking remains enforced; the disabled rule is noise.
+
+2. **Documented in Code**: The `.golangci.yml` config includes a comment explaining:
+   - What rule is being disabled and why (e.g., "G104 is redundant with errcheck").
+   - Which stricter enabled rule covers the same defect class.
+   - Confirmation that the requirement (error-checking) remains enforced.
+
+3. **Maintainer Sign-Off**: The exclusion is reviewed and approved by a project maintainer (commit is signed, PR is approved).
 
 ### Unacceptable Responses (What Is Never OK)
 
@@ -318,11 +356,16 @@ echo "✓ Zero suppressions in Go code"
 To audit the current exclusions:
 
 ```bash
-# Count exclusions in .golangci.yml
-grep -c "^      - path:" .golangci.yml  # Should be 8 (current state)
+# Count path-scoped exclusions in .golangci.yml
+grep -c "^      - path:" .golangci.yml  # Should be 8 (path-scoped rules only)
 
-# List exclusions
-echo "=== Current Authorized Exclusions ==="
+# Count global gosec excludes
+grep "excludes: \[" .golangci.yml  # Should show 1 global entry: [G104]
+
+# Total authorized exclusions: 8 path-scoped + 1 global = 9
+
+# List path-scoped exclusions
+echo "=== Current Path-Scoped Authorized Exclusions ==="
 grep -B 1 "^      - path:" .golangci.yml | grep -A 3 "^      - path:"
 
 # Verify each exclusion's justification comment
@@ -372,8 +415,9 @@ When reviewing a PR that proposes a new exclusion:
 |--------|-----------|----------------|--------------|
 | **Go source files** | Correct code (no bugs) | Suppressions (`//nolint`, `//#nosec`, etc.) | `grep -r '//nolint' --include='*.go'` → must be empty |
 | **Web source files** | Correct code (no bugs) | ESLint suppressions (`eslint-disable`) | `grep -r 'eslint-disable' web/src` → must be empty |
-| **`.golangci.yml`** | Justified exclusions (8 in current state) | Disabled linters, global silencing | `grep "^      - path:" .golangci.yml` ≤ N (where N is authorized count) |
-| **New PRs proposing exclusions** | Clear justification, narrow scope, maintainer approval | Ad-hoc suppressions, broad exclusions, no comment | Code review + PR approval from maintainer |
+| **`.golangci.yml`** | Justified exclusions (current: 8 path-scoped false-positives + 1 global redundant-rule disabling) | In-source suppressions; disabled linters; global silencing that hides real findings | `grep "^      - path:" .golangci.yml` shows ≤ 8 path-scoped; `grep "excludes: \["` shows only G104 (redundant with errcheck) |
+| **New PRs proposing path-scoped exclusions** | Single path, single rule, false-positive justification, maintainer approval | Ad-hoc suppressions, broad exclusions, no comment | Code review + PR approval from maintainer |
+| **New PRs proposing redundant-rule disabling** | Proof that the rule is wholly subsumed by a stricter enabled rule; clear documentation; maintainer approval | Any reduction in actual defect-checking coverage; rules that catch defects no other rule catches | Confirm the subsuming rule is enabled and covers the disabled rule's entire purpose |
 
 ---
 

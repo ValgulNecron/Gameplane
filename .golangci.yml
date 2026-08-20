@@ -26,7 +26,6 @@ linters:
     gosec:
       # Exclude noisy rules that don't map to the codebase's threat model:
       # - G104: "Errors unhandled" — errcheck covers this more precisely.
-      # - G204: "subprocess launched with variable" — we don't exec shell.
       excludes: [G104]
     errcheck:
       check-type-assertions: true

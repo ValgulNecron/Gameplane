@@ -83,7 +83,7 @@ extra wall-clock).
 |---|---|
 | **I. E2E-Tested Delivery** (non-negotiable) | The lint gate itself is not an E2E feature; it is a correctness infrastructure gate. No E2E test suite is required for the feature. Findings uncovered by the gate are fixed via code review and CI validation (Constitution VI), not via end-to-end testing. The gate is not negotiable per se, but its implementation as a CI matrix addition is verified by pushing a branch and reading the CI run log. |
 | **II. Design-First for User-Facing Change** | **Exempt.** No dashboard or public-website screen changes. The CI configuration change is infrastructure-only; no visual surface is added. |
-| **III. Language & Ecosystem Best Practice** | **Directly Enforced.** This feature implements Principle III itself — it mandates that all findings reported by golangci-lint be fixed, not silenced, across the entire workspace. No `//nolint`, no `// nosec`, no rule removals from `.golangci.yml`. In-source suppression directives remain zero, absolutely; `.golangci.yml` now carries eight config-level exclusions total (the pre-existing gosec G115 exclusion plus five new ones authorized during this work), each narrow, documented, and reviewed — see `contracts/exclusion-policy.md`. |
+| **III. Language & Ecosystem Best Practice** | **Directly Enforced.** This feature implements Principle III itself — it mandates that all findings reported by golangci-lint be fixed, not silenced, across the entire workspace. No `//nolint`, no `// nosec`, no rule removals from `.golangci.yml`. In-source suppression directives remain zero, absolutely; `.golangci.yml` now carries nine config-level exclusions total (pre-existing: gosec G115, G104, plus _test.go and internal/controller/ path rules; new during Wave 2: five gosec rules G302, G704, G124, G204, G402), each narrow, documented, and reviewed — see `contracts/exclusion-policy.md`. |
 | **IV. Spec-Driven Development** | **Implementation Adds New `specs.md` Requirement.** The fixes applied to `api`, `agent`, and `test/e2e` may alter those modules' observable behavior or documented responsibilities. Any such change MUST be accompanied by a corresponding `specs.md` update in the same commit. `api/specs.md`, `agent/specs.md`, and `test/e2e/specs.md` are either already present or will be created/updated as part of this work to document any behavioral changes the fixes introduce. |
 | **V. Delegate to Workflows & Subagents** | Work partitions naturally by package directory within each module (no file overlap between api, agent, test/e2e; package-level granularity within each allows parallel work). The implementation phase fans out per-package/per-module fixes to small agents with a tier-up review before landing the matrix change. |
 | **VI. CI Bears the Heavy Lifting** | Finding counts are measured via CI, not locally. The true backlog across all three modules is unknown until the first linter run on a fresh branch against master (this becomes Phase 1's first step). No local build, test, or lint runs occur. All verification is via CI logs and diff review. |
@@ -226,9 +226,9 @@ Sequenced so each step is independently reviewable and the branch goes red (duri
 - Review a sample of landed fix commits to confirm they contain real code changes, not
   deletions or artificial narrowing of analysis scope.
 - Confirm `.golangci.yml` has gained only the five reviewed, documented, narrowly-scoped
-  exclusions inventoried in `contracts/exclusion-policy.md` (eight config-level
-  exclusion rules total, including the three pre-existing ones: test exemptions,
-  controller revive exemption, gameproto G115 exemption).
+  exclusions inventoried in `contracts/exclusion-policy.md` (nine config-level
+  exclusion rules total: five new ones from Wave 2, plus four pre-existing — test exemptions,
+  controller revive exemption, gameproto G115 exemption, and global gosec G104 exemption).
 - Checkpoint: Zero in-source suppression directives introduced. All landed fixes are
   real code changes. Configuration exclusion list matches the reviewed inventory.
 

@@ -1,0 +1,18 @@
+name: ci
+on: push
+jobs:
+  lint:
+    name: lint (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [netguard, gameaction, gameproto, operator, agent, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel, test/e2e]
+    steps:
+      - uses: actions/checkout@v7
+      # TODO: re-enable agent lint pending cleanup once the matrix entry lands
+      - name: lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}

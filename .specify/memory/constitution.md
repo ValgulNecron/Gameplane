@@ -1,12 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 1.4.1 → 1.5.0
-- Modified principles: II. Design-First for User-Facing Change — added a mandatory
-  re-export requirement: every `.pen` edit (design.pen or website.pen), new screen or
-  changed screen, MUST be followed in the same change by re-exporting the touched
-  object(s) to design-export/ or website/website-export/ via the pencil MCP server.
+- Version change: 1.5.0 → 1.6.0
+- Modified principles: III. Language & Ecosystem Best Practice — clarified that while
+  in-source suppressions (//nolint, // eslint-disable-next-line, etc.) remain absolutely
+  forbidden, narrowly-scoped, maintainer-authorized config-level exclusions in
+  `.golangci.yml` are permitted in two categories: (1) path-scoped false-positive
+  exclusions targeting a single path pattern and single linter/rule, or (2) global
+  redundant-rule disabling where a linter rule is wholly subsumed by a stricter enabled
+  rule. All exclusions carry inline justification and are inventoried in an exclusion
+  policy document. Explicitly preserved the ban on broad/global rule-weakening that
+  hides actual defect classes (disabling linters, repo-wide exclusions).
 - Version history: 1.3.1 → 1.4.0 (VI exception) → 1.4.1 (II encryption fix) → 1.5.0
-  (II re-export requirement)
+  (II re-export requirement) → 1.6.0 (III config-level exclusion carve-out)
 - Added sections: none
 - Removed sections: none
 - Deferred / TODO placeholders: none — all template tokens resolved
@@ -81,11 +86,28 @@ keep working up the call stack; TypeScript runs under `strict` mode with
 `@typescript-eslint/no-explicit-any` and `@typescript-eslint/no-floating-promises`
 enforced — an unavoidable `any` gets a one-line comment explaining why, and a
 fire-and-forget `Promise` is resolved with `await` or explicit `void`, never suppressed.
-When `golangci-lint` or ESLint flags something, the code MUST be fixed, not silenced:
-no `//nolint`, no `// eslint-disable-next-line`, no deleting or loosening rules in
-`.golangci.yml` or `web/eslint.config.js`. CRD Go type edits MUST be followed by
-`make generate && make manifests` in the same commit, with the regenerated artifacts
-included.
+When `golangci-lint` or ESLint flags something, the code MUST be fixed, not silenced.
+In-source suppression directives are absolutely forbidden — no `//nolint`, no `//#nosec`,
+no `//lint:ignore`, no `// eslint-disable-next-line`, no `// @ts-ignore`. Narrowly-scoped,
+maintainer-authorized config-level exclusions in `.golangci.yml` are permitted in two
+categories:
+
+(1) **Path-scoped false-positive exclusions**: Single path pattern, single linter or rule,
+    with inline justification, targeting a false positive that the code handles correctly
+    despite what the linter reports.
+
+(2) **Redundant-rule disabling**: Disabling a linter rule globally when that rule is a
+    duplicate or strict subset of another enabled linter rule, such that no class of actual
+    defect goes unchecked. The disabled rule must be wholly subsumed by a stricter, more
+    configurable enabled linter such that the underlying requirement (e.g., error-checking)
+    remains enforced. Exclusions of this type are rare and require maintainer sign-off;
+    specific instances are documented in `specs/004-lint-backlog-wave2/contracts/exclusion-policy.md`.
+
+Global or broad rule-weakening — removing a linter from the enabled set, or repo-wide
+exclusions for findings that would otherwise go unchecked — remains forbidden.
+
+CRD Go type edits MUST be followed by `make generate && make manifests` in the same
+commit, with the regenerated artifacts included.
 Rationale: suppression directives and workarounds hide defects instead of fixing them,
 and this project has already accumulated cases where that erased real signal. Fixing
 the underlying issue is the only change that survives the next refactor.
@@ -211,4 +233,4 @@ explicitly in the plan's Complexity Tracking section or the change MUST be redes
 to comply. Use `CLAUDE.md` for the day-to-day runtime guidance this constitution
 intentionally leaves at a higher level of abstraction.
 
-**Version**: 1.5.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-18
+**Version**: 1.6.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-19
