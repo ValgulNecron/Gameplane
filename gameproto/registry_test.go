@@ -167,11 +167,11 @@ func TestRegistry_ListRegisteredSorted(t *testing.T) {
 // registry impose no transport-type restriction (TCP vs UDP), enabling protocols
 // to serve either or both transports without interface changes (Edge Case 6).
 //
-// This is verified via two mechanisms:
-//   1. Structural: The Classifier interface accepts a *bufio.Reader, which is
-//      transport-agnostic (it wraps any io.Reader, TCP or UDP or otherwise).
-//   2. Method inspection: No Classify, SupportsStatusPing, BuildStatusResponse,
-//      or BuildDisconnect method references TCP, UDP, or any transport constant.
+// This is verified via two mechanisms. Structurally, the Classifier interface
+// accepts a *bufio.Reader, which is transport-agnostic since it wraps any
+// io.Reader, TCP or UDP or otherwise. Via method inspection, none of Classify,
+// SupportsStatusPing, BuildStatusResponse, or BuildDisconnect references TCP,
+// UDP, or any transport constant.
 func TestRegistry_TransportAgnostic(t *testing.T) {
 	// Verify that Classifier interface methods exist and use transport-agnostic types.
 	classifierType := reflect.TypeOf((*Classifier)(nil)).Elem()
@@ -212,26 +212,26 @@ func TestRegistry_TransportAgnostic(t *testing.T) {
 // declared per protocol and that unsupported protocols return errors rather than panicking.
 func TestClassifier_StatusPingSupport(t *testing.T) {
 	tests := []struct {
-		name             string
-		classifier       Classifier
+		name               string
+		classifier         Classifier
 		supportsStatusPing bool
 		shouldErrorOnBuild bool
 	}{
 		{
-			name:             "minecraft supports status ping",
-			classifier:       &MinecraftClassifier{},
+			name:               "minecraft supports status ping",
+			classifier:         &MinecraftClassifier{},
 			supportsStatusPing: true,
 			shouldErrorOnBuild: false,
 		},
 		{
-			name:             "terraria does not support status ping",
-			classifier:       &TerrariaClassifier{},
+			name:               "terraria does not support status ping",
+			classifier:         &TerrariaClassifier{},
 			supportsStatusPing: false,
 			shouldErrorOnBuild: true,
 		},
 		{
-			name:             "demo does not support status ping",
-			classifier:       &DemoClassifier{},
+			name:               "demo does not support status ping",
+			classifier:         &DemoClassifier{},
 			supportsStatusPing: false,
 			shouldErrorOnBuild: true,
 		},
