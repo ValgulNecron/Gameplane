@@ -384,3 +384,11 @@ Developers should ensure Phase 4 (Developer A) completes before Phase 3 tests (D
 - **E2E validates behavior**: Three wake-on-connect tests from bot-fast bucket (T046, T074) must pass unchanged to prove behavior preservation.
 - **Grep-auditable registry**: SC-006 requirement; a reviewer must be able to read `gameproto/registry.go` and immediately identify all registered protocols without reading implementation files.
 - **Transport-agnostic interface**: Classifier interface and registry impose no transport-type restriction; protocols can register as TCP, UDP, or both without interface changes (Edge Case 6, addressed in T018)
+
+---
+
+## Phase 8: Convergence
+
+**Purpose**: Remaining work found by assessing the shipped code against spec.md, plan.md, and tasks.md. Appended by `/speckit-converge`; existing tasks above are untouched.
+
+- [ ] T084 Fix `MinecraftClassifier.Classify` in `gameproto/minecraft.go` (lines ~292-300) to populate `Detail` only when `Kind` is Join or Status, leaving it nil for Unknown — it currently builds `&MinecraftDetail{...}` unconditionally, contradicting the contract documented at `gameproto/specs.md:144` ("nil for Unknown classification") and FR-002 ("carrying no protocol-specific detail for a generic Unknown classification"). `TerrariaClassifier.Classify` in `gameproto/terraria.go` already guards correctly with `if kind == Join` and is the pattern to follow. Then add a fixture to `TestMinecraftClassifyEquivalence` in `gameproto/classifier_equivalence_test.go` using a syntactically valid handshake with an out-of-range nextState (reachable via `classifyMinecraftHandshake`'s `default: return Unknown, result, nil`), asserting `Detail == nil` when `Kind == Unknown`; the existing assertions are guarded by `if oldKind != Unknown` and so cannot catch this. per FR-002 (contradicts)
