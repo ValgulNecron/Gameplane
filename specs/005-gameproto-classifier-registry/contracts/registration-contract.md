@@ -89,7 +89,7 @@ type Classifier interface {
 **Postconditions for Classify()**:
 - Returns ClassificationResult with Kind and Consumed set.
 - Returns error only on internal I/O failures, not on invalid data.
-- Unknown classifications return Kind=Unknown, Consumed=0, Detail=nil, error=nil.
+- Unknown classifications return Kind=Unknown, Consumed as an empty byte slice, Detail=nil, error=nil.
 
 **SupportsStatusPing() Contract**:
 - Must return a constant value (always true or always false for a given protocol).
@@ -220,7 +220,7 @@ When reviewing a PR that adds a new protocol, check:
 - [ ] **Classify() correctness**:
   - Parses the handshake correctly (per the game's wire protocol).
   - Returns Kind=Unknown (not an error) if the stream doesn't match.
-  - Returns Consumed correctly (byte count, not error).
+  - Returns Consumed as a byte slice containing the parsed bytes (not an error).
   - Does not panic on truncated or adversarial input.
 - [ ] **SupportsStatusPing() value**: Returns true or false consistently (not based on runtime state).
 - [ ] **BuildStatusResponse() (if applicable)**:
@@ -294,12 +294,12 @@ type FactorioClassifier struct{}
 
 // Classify reads from the connection and classifies it as a Factorio
 // join, status, or unknown.
-// For this stub, always returns Unknown (0 bytes consumed).
+// For this stub, always returns Unknown (no bytes consumed).
 func (c *FactorioClassifier) Classify(br *bufio.Reader) (*ClassificationResult, error) {
 	// Stub: always unknown. A real implementation would parse the handshake.
 	return &ClassificationResult{
 		Kind:      Unknown,
-		Consumed:  0,
+		Consumed:  nil,
 		Detail:    nil,
 	}, nil
 }
@@ -349,8 +349,8 @@ func TestFactorioClassifier_Classify_ReturnsUnknown(t *testing.T) {
 	if result.Kind != Unknown {
 		t.Errorf("expected Kind=Unknown, got %v", result.Kind)
 	}
-	if result.Consumed != 0 {
-		t.Errorf("expected Consumed=0, got %d", result.Consumed)
+	if len(result.Consumed) > 0 {
+		t.Errorf("expected Consumed to be empty, got %d bytes", len(result.Consumed))
 	}
 	if result.Detail != nil {
 		t.Errorf("expected Detail=nil, got %v", result.Detail)

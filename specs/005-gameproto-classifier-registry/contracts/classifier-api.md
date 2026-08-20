@@ -86,7 +86,7 @@ type ClassificationResult struct {
 ```
 
 **Status**: NEW  
-**Semantics**: The unified result type for all protocol classifications. Carries the classification outcome, the byte count for stream replay, and optional protocol-specific detail.
+**Semantics**: The unified result type for all protocol classifications. Carries the classification outcome, the consumed bytes for stream replay, and optional protocol-specific detail.
 
 **Preconditions**:
 - Consumed is a byte slice (may be empty if no bytes were parsed).
@@ -398,7 +398,7 @@ The following items remain unchanged and continue to be exported. Sentinel and o
 
 | Item | Type | Source | Purpose | Status |
 |------|------|--------|---------|--------|
-| `Consumed` (field/method on old result types) | int / method | `gameproto/gameproto.go` | Byte count for stream replay | Unchanged in ClassificationResult.Consumed |
+| `Consumed` (field/method on old result types) | []byte | `gameproto/gameproto.go` | Consumed bytes for stream replay | Unchanged in ClassificationResult.Consumed |
 | Protocol wire-protocol parsing helpers (e.g., `ReadVarInt`, `WriteVarInt` if exported) | func | `gameproto/*.go` | Internal handshake parsing utilities | Unchanged; may be private or public depending on current usage |
 
 ---

@@ -97,7 +97,7 @@ type Classifier interface {
 
 ### Relationships
 
-- **Registry** — The Classifier is registered in the Protocol Registry by game name ("minecraft", "terraria", etc.). Registry.Lookup(name) returns a Classifier.
+- **Registry** — The Classifier is registered in the Protocol Registry by game name ("minecraft", "terraria", etc.). Lookup(name) returns a Classifier.
 - **ClassificationResult** — Classifier.Classify() returns a ClassificationResult on Join/Status (non-Unknown). The result carries the Classifier's parsed detail via ClassificationResult.Detail.
 - **Detail** — The Classifier's ClassificationResult.Detail field holds a concrete Detail implementation (MinecraftDetail, TerrariaDetail) with protocol-specific fields. Callers type-assert to access protocol-specific data.
 
@@ -263,43 +263,30 @@ The **Protocol Registry** is a central, initialization-time lookup structure map
 ### API Signature
 
 ```go
-// Registry holds a static map of protocol names to Classifiers.
-// Initialized at startup with explicit registration; read-only thereafter.
-type Registry struct {
-	classifiers map[string]Classifier
+// classifierRegistry is a package-level map holding the static, compile-time registry
+// of protocol names to Classifier implementations. Populated with explicit entries
+// at initialization; read-only thereafter.
+var classifierRegistry = map[string]Classifier{
+	"minecraft": &MinecraftClassifier{},
+	"terraria":  &TerrariaClassifier{},
+	"demo":      &DemoClassifier{},
+	// Future protocols registered here: "factorio", "valheim", etc.
+	// Each is a single map line; no other changes required.
 }
 
-// Register adds a Classifier to the registry under the given name.
-// If called during initialization (main.go), it populates classifiers.
-// Panics if name is empty or already registered (double registration).
-//
-// Note: The current implementation uses an explicit map literal in registry.go.
-// Register() is shown for API documentation; the actual registry is populated
-// by declaring a global map[string]Classifier in registry.go and passing it to
-// NewRegistry().
-func (r *Registry) Register(name string, classifier Classifier) {
-	if name == "" {
-		panic("register: empty protocol name")
-	}
-	if _, exists := r.classifiers[name]; exists {
-		panic(fmt.Sprintf("register: protocol %q already registered", name))
-	}
-	r.classifiers[name] = classifier
-}
-
-// Lookup retrieves a Classifier by protocol name.
+// Lookup retrieves a Classifier by protocol name from the registry.
 // Returns (classifier, true) if found, (nil, false) if not found.
 // Never panics on unknown names; caller must handle lookup miss gracefully.
-func (r *Registry) Lookup(name string) (Classifier, bool) {
-	classifier, ok := r.classifiers[name]
+func Lookup(name string) (Classifier, bool) {
+	classifier, ok := classifierRegistry[name]
 	return classifier, ok
 }
 
-// Protocols returns a slice of all registered protocol names (for debugging/audit).
+// ListRegistered returns a sorted slice of all registered protocol names (for debugging/audit).
 // Useful for logging or verifying registry completeness at startup.
-func (r *Registry) Protocols() []string {
-	names := make([]string, 0, len(r.classifiers))
-	for name := range r.classifiers {
+func ListRegistered() []string {
+	names := make([]string, 0, len(classifierRegistry))
+	for name := range classifierRegistry {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -309,25 +296,25 @@ func (r *Registry) Protocols() []string {
 
 ### Registry Initialization
 
-**Explicit Map Literal** (in `gameproto/registry.go`):
+**Bare Map Literal** (in `gameproto/registry.go`):
 
 ```go
-// defaultRegistry is the static, compile-time registry mapping protocol names to Classifiers.
-// Populated with explicit entries for each supported protocol.
-var defaultRegistry = &Registry{
-	classifiers: map[string]Classifier{
-		"minecraft": &MinecraftClassifier{},
-		"terraria":  &TerrariaClassifier{},
-		// Future protocols registered here: "factorio", "valheim", etc.
-		// Each is a single map line; no edits to gameproto/gameproto.go or sentinel/main.go required.
-	},
-}
-
-// Global returns the default (singleton) registry.
-func Global() *Registry {
-	return defaultRegistry
+// classifierRegistry is the static, compile-time registry mapping protocol names to Classifiers.
+// Populated with explicit entries for each supported protocol. Duplicate keys are a Go compile error.
+var classifierRegistry = map[string]Classifier{
+	"minecraft": &MinecraftClassifier{},
+	"terraria":  &TerrariaClassifier{},
+	"demo":      &DemoClassifier{},
+	// Future protocols registered here: "factorio", "valheim", etc.
+	// Each is a single map line; no other edits required.
 }
 ```
+
+The registry is a bare package-level map, not a struct wrapper. This design:
+- Makes the registration set greppable and auditable in one place (source of truth).
+- Prevents duplicate registrations (Go compiler error on duplicate literal keys).
+- Requires no accessor function; lookups call Lookup(name) directly.
+- Requires no initialization code (map literal is assigned at package load time).
 
 ### Validation Rules
 
@@ -336,12 +323,12 @@ func Global() *Registry {
 | Registry MUST be initialized with all expected protocols (Minecraft, Terraria, plus any demo/test protocols) | SC-001, SC-006 | Empty registry or missing protocols are detected by tests at CI time, not at runtime. |
 | No duplicate names allowed in the registry | FR-004, SC-001 | Explicit map literal prevents duplicates (Go compiler error on duplicate keys), or tests catch typos. |
 | Lookup MUST handle unknown names gracefully (return false, not panic) | FR-004 | Unknown protocol names are configuration errors caught at sentinel startup (log fatal if not found), not runtime crashes. |
-| Registry MUST be queryable for completeness audits (Protocols() method) | SC-006 | Maintainers can verify all expected protocols are present via grep or test assertions. |
+| Registry MUST be queryable for completeness audits (ListRegistered() function) | SC-006 | Maintainers can verify all expected protocols are present via grep or test assertions. |
 
 ### Relationships
 
-- **Classifier** — Registry stores Classifier implementations. Each registered protocol has exactly one Classifier in the registry.
-- **Sentinel Dispatcher** — Calls Registry.Lookup(wakeProtocol) at startup and during each connection dispatch. Unknown protocols cause a fatal startup error.
+- **Classifier** — The bare map stores Classifier implementations. Each registered protocol has exactly one Classifier in the registry.
+- **Sentinel Dispatcher** — Calls Lookup(wakeProtocol) at startup and during each connection dispatch. Unknown protocols cause a fatal startup error.
 
 ---
 
@@ -463,39 +450,39 @@ For Terraria, the `if result.Kind == Status` branch is **unreachable** because C
 
 ### Initialization (Startup)
 
-1. **Registry construction** (`gameproto/registry.go`):
-   - A package-level registry map is declared with static entries for all supported protocols.
+1. **Registry map literal** (`gameproto/registry.go`):
+   - A package-level map `classifierRegistry` is declared with static entries for all supported protocols.
    - No runtime registration calls; all protocols are known at compile time.
+   - Go compiler enforces unique keys; duplicate protocol names cause a compile error.
    - Example:
      ```go
-     var defaultRegistry = &Registry{
-         classifiers: map[string]Classifier{
-             "minecraft": &MinecraftClassifier{},
-             "terraria":  &TerrariaClassifier{},
-         },
+     var classifierRegistry = map[string]Classifier{
+         "minecraft": &MinecraftClassifier{},
+         "terraria":  &TerrariaClassifier{},
+         "demo":      &DemoClassifier{},
      }
      ```
 
 2. **Validation** (in `gameproto_test.go`):
    - Tests assert that:
      - All expected protocols are registered (TestRegistryCompleteness).
-     - No duplicate names exist (TestRegistryNoDuplicates, verified by Go compiler on duplicate literal keys).
+     - No duplicate names exist (verified by Go compiler on duplicate literal keys; tests double-check via TestRegistryNoDuplicates).
      - Exactly one Classifier per protocol (TestOneClassifierPerProtocol).
    - Tests run at CI time; failures block merge.
 
 3. **Sentinel startup** (`sentinel/main.go`):
    - On startup, sentinel loads port configuration (wakeProtocol values).
-   - For each configured wakeProtocol, sentinel calls Registry.Lookup(name).
-   - If Lookup returns false (not found), log a fatal error and refuse to start.
+   - For each configured wakeProtocol, sentinel calls Lookup(name).
+   - If Lookup returns (nil, false) (not found), log a fatal error and refuse to start.
    - Error message must clearly identify the unknown protocol and suggest checking the registry.
-   - Example: `"fatal: wakeProtocol 'typoname' not registered; available: minecraft, terraria"`
+   - Example: `"fatal: wakeProtocol 'typoname' not registered; available: minecraft, terraria, demo"`
 
 ---
 
 ### Read Operations (Runtime)
 
 1. **Protocol dispatch** (in `sentinel/main.go`):
-   - On each inbound TCP connection, sentinel reads the wakeProtocol from config and calls Registry.Lookup(name).
+   - On each inbound TCP connection, sentinel reads the wakeProtocol from config and calls Lookup(name).
    - If found, sentinel passes the Classifier to the dispatcher.
    - If not found, this is a config error (should not happen if startup validation passed).
 
@@ -511,6 +498,7 @@ For Terraria, the `if result.Kind == Status` branch is **unreachable** because C
 1. **Static map literal** (compile time):
    - Go compiler rejects duplicate literal keys in a map literal with a compile error.
    - Example: `map[string]Classifier{"minecraft": ..., "minecraft": ...}` is a Go syntax error.
+   - This is the primary defense against duplicate registrations.
 
 2. **Typo detection** (test time):
    - If a protocol name is misspelled in the registry map literal (e.g., "minecfraft"), the test for completeness catches it.
@@ -519,7 +507,7 @@ For Terraria, the `if result.Kind == Status` branch is **unreachable** because C
 
 3. **Sentinel validation** (startup time):
    - If config references a protocol not in the registry (e.g., via manual helm value edit), sentinel startup fails fatally.
-   - Error logged with protocol name and available registrations.
+   - Error logged with protocol name and available registrations (via ListRegistered()).
 
 ---
 
@@ -528,12 +516,12 @@ For Terraria, the `if result.Kind == Status` branch is **unreachable** because C
 **Trigger**: Sentinel config specifies a wakeProtocol value (e.g., "unknown_protocol") that is not in the registry.
 
 **Detection**:
-1. **Startup** (primary): Sentinel calls Registry.Lookup("unknown_protocol") and receives (nil, false).
+1. **Startup** (primary): Sentinel calls Lookup("unknown_protocol") and receives (nil, false).
 2. Sentinel logs a fatal error and refuses to start, preventing silent misconfiguration.
 
 **Error message format**:
 ```
-fatal: wakeProtocol 'unknown_protocol' not registered; available protocols: minecraft, terraria
+fatal: wakeProtocol 'unknown_protocol' not registered; available protocols: minecraft, terraria, demo
 ```
 
 **Consequence**:
@@ -547,12 +535,12 @@ fatal: wakeProtocol 'unknown_protocol' not registered; available protocols: mine
 
 As part of Phase 1 (per Decision 10 in research.md), a third protocol (demo stub) is registered to validate the registry pattern.
 
-1. **Registration**: Added to the registry map literal in `gameproto/registry.go`.
+1. **Registration**: Added to the bare map literal in `gameproto/registry.go`.
    ```go
-   classifiers: map[string]Classifier{
+   var classifierRegistry = map[string]Classifier{
        "minecraft": &MinecraftClassifier{},
        "terraria":  &TerrariaClassifier{},
-       "demo": &DemoClassifier{}, // Demo/test-only protocol
+       "demo":      &DemoClassifier{}, // Demo/test-only protocol
    }
    ```
 
@@ -560,7 +548,7 @@ As part of Phase 1 (per Decision 10 in research.md), a third protocol (demo stub
 
 3. **E2E validation**: A sentinel E2E test configures a listening port with `wakeProtocol="demo"` and verifies:
    - Sentinel starts without error.
-   - Registry.Lookup("demo") succeeds.
+   - Lookup("demo") succeeds.
    - Classifier dispatch works (connection is handled by DemoClassifier).
 
 4. **Cleanup**: Test stub remains in the codebase permanently as a worked example of the pattern; it is never deployed to production (not exposed in Helm chart values).
@@ -580,7 +568,7 @@ This table shows how the current facade functions and result types map to the ne
 | `BuildTerrariaDisconnect(reason string) ([]byte, error)` | Facade function | `TerrariaClassifier.BuildDisconnect(reason string) ([]byte, error)` | Moved into Classifier interface method. Same unified name. |
 | `MinecraftClassifyResult { ProtocolVersion, NextState, ServerAddr, Consumed }` | Result struct | `ClassificationResult { Kind, Consumed, Detail(*MinecraftDetail) }` where `MinecraftDetail { ProtocolVersion, NextState, ServerAddr }` | Protocol-specific fields moved from result struct into Detail. Consumed field preserved exactly. Kind replaces the out-of-band return value. |
 | `TerrariaClassifyResult { Version, Consumed }` | Result struct | `ClassificationResult { Kind, Consumed, Detail(*TerrariaDetail) }` where `TerrariaDetail { Version }` | Protocol-specific fields moved into Detail. Consumed field preserved exactly. Kind is determined by Classify(). |
-| `handleMinecraft(ctx, conn, w, upstreamAddr, deadline)` | Handler function | Unified dispatcher: `registry.Lookup("minecraft").Classify(br)` → result → switch on result.Kind → handleRegistryProtocol or BuildStatusResponse | Hardcoded switch removed. Registry lookup and Classifier dispatch replace the per-protocol handler. Sentinel has one unified handler for all protocols via the registry. |
+| `handleMinecraft(ctx, conn, w, upstreamAddr, deadline)` | Handler function | Unified dispatcher: `Lookup("minecraft").Classify(br)` → result → switch on result.Kind → handleRegistryProtocol or BuildStatusResponse | Hardcoded switch removed. Registry lookup via Lookup() and Classifier dispatch replace the per-protocol handler. Sentinel has one unified handler for all protocols. |
 | `handleTerraria(ctx, conn, w, upstreamAddr, deadline)` | Handler function | Same unified dispatcher (one per protocol via registry) | Same: hardcoded switch removed. |
 | `bounceMinecraft(conn)` | Helper function | `MinecraftClassifier.BuildDisconnect(wakingUpMessage)` | Disconnect building moved into Classifier method. Called from the unified handleRegistryProtocol, not a separate function. |
 | `bounceTerraria(conn)` | Helper function | `TerrariaClassifier.BuildDisconnect(wakingUpMessage)` | Same: disconnect building is now a Classifier method. |
