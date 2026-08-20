@@ -298,7 +298,7 @@ func TestMinecraftVarIntRoundtrip(t *testing.T) {
 		{-128},
 		{-129},
 		{int32(0x7fffffff)},
-		{int32(0x80000000)},
+		{-2147483648},
 	}
 
 	for _, tt := range tests {
