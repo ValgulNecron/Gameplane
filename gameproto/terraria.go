@@ -72,7 +72,9 @@ func classifyTerrariaConnect(br *bufio.Reader) (Kind, *TerrariaClassifyResult, e
 
 	// Only ConnectRequest (type 1) indicates a join attempt.
 	if messageType != terrariaConnectRequest {
-		return Unknown, nil, nil
+		return Unknown, &TerrariaClassifyResult{
+			Consumed: consumed.Bytes(),
+		}, nil
 	}
 
 	// Parse the ConnectRequest payload.
@@ -219,4 +221,56 @@ func writeTerrariaNetworkText(w *bytes.Buffer, text string) error {
 
 	// Write the text as a 7-bit-encoded string.
 	return writeTerrariaString(w, text)
+}
+
+// TerrariaClassifier implements the Classifier interface for Terraria.
+type TerrariaClassifier struct{}
+
+// Classify reads and classifies a Terraria connection attempt.
+// It calls the existing classifyTerrariaConnect to parse the wire format,
+// then repackages the result into a ClassificationResult with a TerrariaDetail.
+// Returns non-nil ClassificationResult even on Kind == Unknown, to enable
+// stream replay. Errors are propagated unchanged.
+func (tc *TerrariaClassifier) Classify(br *bufio.Reader) (*ClassificationResult, error) {
+	kind, tcr, err := classifyTerrariaConnect(br)
+	if err != nil {
+		return nil, err
+	}
+
+	// classifyTerrariaConnect now returns a non-nil *TerrariaClassifyResult
+	// in all non-error cases, including Unknown (non-ConnectRequest) messages,
+	// with Consumed bytes always present. Detail is only populated on Join.
+	var detail Detail
+	if kind == Join {
+		detail = &TerrariaDetail{
+			Version: tcr.Version,
+		}
+	}
+
+	result := &ClassificationResult{
+		Kind:     kind,
+		Consumed: tcr.Consumed,
+		Detail:   detail,
+	}
+
+	return result, nil
+}
+
+// SupportsStatusPing returns false because Terraria does not support out-of-band
+// status pings. Any attempt to call BuildStatusResponse is a contract violation.
+func (tc *TerrariaClassifier) SupportsStatusPing() bool {
+	return false
+}
+
+// BuildStatusResponse is not supported for Terraria and returns an error.
+// The caller should have checked SupportsStatusPing() first; this method
+// exists only as a defensive path and should never be called in correct usage.
+func (tc *TerrariaClassifier) BuildStatusResponse(payload string) ([]byte, error) {
+	return nil, ErrStatusPingUnsupported
+}
+
+// BuildDisconnect builds a Terraria Disconnect message containing the given reason.
+// It calls the existing buildTerrariaDisconnect function.
+func (tc *TerrariaClassifier) BuildDisconnect(reason string) ([]byte, error) {
+	return buildTerrariaDisconnect(reason)
 }

@@ -25,27 +25,35 @@ Shared wire-protocol parser for game server handshakes (Minecraft Java Edition a
 - Does **not** interact with Kubernetes objects directly — the sentinel and its callers own the operator integration.
 - Does **not** support join-attempt forwarding or address rewriting — replies and consumed bytes are protocol-native, unmodified.
 
-## Directory & package layout
+## Directory & Package Layout
 
 ```
 gameproto/
-├── gameproto.go        # Public API (Kind, classifiers, response builders)
-├── minecraft.go        # Minecraft handshake codec (VarInt frame + packet parser + response builders)
-├── terraria.go         # Terraria message codec (7-bit-encoded strings, NetworkText frames)
-├── minecraft_test.go   # Minecraft codec tests
-├── terraria_test.go    # Terraria codec tests
-├── gameproto_test.go   # Public API integration tests
-├── go.mod             # (module, stdlib-only)
-└── .testcoverage.yml  # 90% coverage gate
+├── gameproto.go              # Public API (Kind, deprecated facade functions, result type definitions)
+├── classifier.go             # NEW: Classifier interface, ClassificationResult, Detail interface, 
+│                             # and concrete MinecraftDetail/TerrariaDetail types
+├── registry.go               # NEW: Protocol Registry (classifierRegistry map, Lookup, ListRegistered)
+├── minecraft.go              # Minecraft handshake codec (unexported parsing + response builders +
+│                             # NEW MinecraftClassifier implementing Classifier interface)
+├── terraria.go               # Terraria message codec (unexported parsing + response builders +
+│                             # NEW TerrariaClassifier implementing Classifier interface)
+├── demo.go                   # NEW: Reference/stub DemoClassifier implementation (validates registry pattern)
+├── minecraft_test.go         # Minecraft codec tests (+ classifier equivalence tests)
+├── terraria_test.go          # Terraria codec tests (+ classifier equivalence tests)
+├── gameproto_test.go         # Public API integration tests (+ registry structure tests)
+├── registry_test.go          # NEW: Protocol Registry tests
+├── classifier_equivalence_test.go  # NEW: Byte-for-byte comparison tests (old facades vs new Classifiers)
+├── go.mod                    # (module, stdlib-only)
+└── .testcoverage.yml         # 90% coverage gate
 ```
 
-Single package; no subdirectories.
+Single package; no subdirectories. Core abstractions (Classifier interface, ClassificationResult, Detail) in classifier.go. Registry and all protocol implementations co-located in the same package.
 
-## External interface / contracts
+## External Interface / Contracts
 
-### Classification
+### Classification Kind (Enumeration)
 
-**`Kind`** — Enum classifying a connection attempt:
+The `Kind` enum classifies a connection attempt:
 
 ```go
 type Kind int
@@ -57,81 +65,233 @@ const (
 )
 ```
 
-### Classifiers
+**Unchanged.** The Kind enumeration and its string representation are preserved exactly from the pre-refactor API. Callers continue to use it to determine whether to wake the server (Join), answer without waking (Status), or close (Unknown).
 
-**`ClassifyMinecraft(br *bufio.Reader) (Kind, *MinecraftClassifyResult, error)`**
+### Classifier Interface
 
-Parses the Handshake packet from a Minecraft Java Edition connection and classifies it.
+The **Classifier** interface encapsulates all protocol-specific logic for classifying an incoming connection and generating protocol-native responses. Each game protocol (Minecraft, Terraria, future) provides one Classifier implementation, registered in the central Protocol Registry.
 
-- `br`: A `*bufio.Reader` wrapping the inbound connection. The reader is used directly, so pipelined data (Handshake followed by Login Start, etc.) remains in the reader's buffer for the caller to continue reading.
-- **Returns:** `Kind` (Join for next-state=2/Login, Status for next-state=1/Status, Unknown otherwise), a result struct with parsed fields (protocol version, server address, port, consumed bytes), and any parse error.
-- **Error handling:** Returns `Unknown` and no error for truncated input (EOF mid-packet). Returns `Unknown` and a wrapped error for malformed frames (invalid VarInts, length prefix out of range, missing required fields). Does **not** panic on hostile input.
-
-**MinecraftClassifyResult:**
 ```go
-type MinecraftClassifyResult struct {
-  ProtocolVersion int32   // Version field from handshake
-  NextState       int32   // 1 = Status, 2 = Login (determines Kind)
-  ServerAddr      string  // "hostname:port" sent by client
-  Consumed        []byte  // Exact bytes read to parse this handshake (VarInt frame + packet data)
+type Classifier interface {
+	// Classify reads a handshake from br and returns a *ClassificationResult or error.
+	// On success (err == nil), result is always non-nil; Kind field indicates
+	// Join, Status, or Unknown. On error (err != nil), result may be nil or carry
+	// partial Consumed bytes for stream replay.
+	//
+	// Invariant: Classify returns a non-nil *ClassificationResult on every
+	// non-error path, including Kind == Unknown, because the caller needs
+	// result.Consumed to replay the already-read bytes. A nil result is only
+	// valid together with a non-nil error.
+	//
+	// The caller must create br as bufio.NewReader(conn) and continue using it
+	// for the rest of the connection. Any pipelined data remains in br's buffer.
+	Classify(br *bufio.Reader) (*ClassificationResult, error)
+
+	// SupportsStatusPing declares whether this protocol supports out-of-band
+	// status pings (e.g., Minecraft's ping/pong). Terraria returns false here.
+	//
+	// If false, the caller must not attempt to call BuildStatusResponse for
+	// classifications with kind == Status; doing so is a caller contract violation.
+	SupportsStatusPing() bool
+
+	// BuildStatusResponse builds a status-ping reply. Only valid if
+	// SupportsStatusPing() returns true and kind == Status.
+	//
+	// Input: payload string (JSON for Minecraft, format is protocol-specific).
+	// Output: framed packet bytes ready to write to the connection.
+	// Error: if payload is malformed or oversized, or if this protocol does
+	// not support status pings (should not happen if SupportsStatusPing()
+	// was checked first).
+	BuildStatusResponse(payload string) ([]byte, error)
+
+	// BuildDisconnect builds a disconnect/timeout message to send to a client
+	// that initiated a join but was rejected (e.g., due to server timeout or
+	// explicit rejection).
+	//
+	// Input: reason string (human-readable explanation).
+	// Output: framed packet bytes ready to write to the connection.
+	// Error: if reason is oversized or contains characters this protocol
+	// cannot encode.
+	BuildDisconnect(reason string) ([]byte, error)
 }
 ```
 
-**`ClassifyTerraria(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error)`**
+**Minecraft and Terraria Implementations:**
 
-Parses the first Terraria message frame and classifies it. Terraria has no out-of-band status ping (all recognized messages are player-driven), so only ConnectRequest (message type 1) classifies as Join; anything else or unrecognized data returns Unknown.
+- **`MinecraftClassifier`** (in `minecraft.go`): Implements all four Classifier methods by delegating to existing unexported parsing and response-building functions. Returns a ClassificationResult with MinecraftDetail carrying ProtocolVersion, NextState, and ServerAddr fields. SupportsStatusPing() returns true.
 
-- `br`: A `*bufio.Reader` wrapping the inbound connection, used directly to preserve pipelined bytes.
-- **Returns:** `Kind` (Join only for ConnectRequest; Unknown otherwise), a result struct with the version string and consumed bytes, and any parse error.
-- **Error handling:** Returns `Unknown` and no error for truncated input or unrecognized message types. Returns `Unknown` and a wrapped error for parsing failures.
+- **`TerrariaClassifier`** (in `terraria.go`): Implements all four Classifier methods by delegating to existing unexported parsing and response-building functions. Returns a ClassificationResult with TerrariaDetail carrying the Version field. SupportsStatusPing() returns false (Terraria has no out-of-band status ping concept).
 
-**TerrariaClassifyResult:**
+**Design Invariant**: The Classifier implementations **call the existing unexported handshake parsing and response-building functions** — they do not rewrite any parsing logic. This ensures byte-for-byte equivalence with the pre-refactor behavior and eliminates duplication. The parsing logic is defined once; Classifiers wrap it in an interface.
+
+### ClassificationResult Struct
+
+The **ClassificationResult** is the unified result type returned by all Classifiers, carrying the classification outcome, the bytes consumed during parsing, and optional protocol-specific detail.
+
 ```go
-type TerrariaClassifyResult struct {
-  Version  string // Protocol version string from ConnectRequest
-  Consumed []byte // Exact bytes read: 2-byte LE length + 1-byte type + payload
+type ClassificationResult struct {
+	// Kind is the classification outcome: Join, Status, or Unknown.
+	// Always present.
+	Kind Kind
+
+	// Consumed holds the actual bytes read from the input during handshake
+	// parsing. Always present (may be empty for Unknown or on error).
+	// Enables lossless stream replay: original_stream == Consumed + remaining_in_bufio.Reader.
+	Consumed []byte
+
+	// Detail is a protocol-specific detail object carrying parsed handshake
+	// fields (server address, protocol version, player name, etc.).
+	// Conditionally present: nil for Unknown classification; non-nil for Join/Status.
+	// Type: *MinecraftDetail, *TerrariaDetail, or other protocol implementations.
+	// Caller must type-assert: if md, ok := result.Detail.(*MinecraftDetail) { ... }.
+	Detail Detail
 }
 ```
 
-### Replay Contract
+**Preconditions and Postconditions:**
 
-**The `Consumed` field and why it exists:**
+- On a non-error path (error == nil), `*ClassificationResult` is **always non-nil**, including when Kind == Unknown. This is load-bearing: the caller needs `result.Consumed` to replay already-read bytes to the real server or a generic handler.
+- On an error path (error != nil), result may be nil.
+- The Consumed field contains exactly the bytes read during handshake parsing, enabling lossless stream replay: `len(Consumed) + len(remaining_in_bufio.Reader) == len(original_stream)`.
+- For Unknown classification, Detail is nil.
+- For Join or Status, Detail is non-nil and implements the Detail interface (one of MinecraftDetail, TerrariaDetail, etc.).
 
-The sentinel must classify a connection without consuming more bytes than necessary, so it can replay them to the real game pod once it comes up. Both classifiers accept a `*bufio.Reader` and read from it directly. Any bytes they consume are returned in the `Consumed` field; anything left in the reader's internal buffer (pipelined data) stays there for the caller to consume.
+### Detail Interface
+
+The **Detail** interface represents protocol-specific metadata parsed from a handshake. Each protocol implements a concrete Detail type carrying its specific fields.
+
+```go
+type Detail interface {
+	// ProtocolName returns the name of the protocol ("minecraft", "terraria", etc.)
+	// for debugging and logging.
+	ProtocolName() string
+}
+```
+
+**Concrete Implementations:**
+
+- **`MinecraftDetail`**: Holds ProtocolVersion (int32), NextState (int32: 1=Status, 2=Login), and ServerAddr (string). ProtocolName() returns "minecraft".
+- **`TerrariaDetail`**: Holds Version (string from ConnectRequest). ProtocolName() returns "terraria".
+
+### Stream Replay Contract
+
+The sentinel must classify a connection without consuming more bytes than necessary, so it can replay them to the real game pod once it comes up. Classifiers accept a `*bufio.Reader` and read from it directly. Any bytes they consume are returned in `ClassificationResult.Consumed`; anything left in the reader's internal buffer (pipelined data) stays there for the caller to consume.
 
 **Replay sequence:**
-1. Call `ClassifyMinecraft` or `ClassifyTerraria` with a fresh `*bufio.Reader` wrapping the client connection.
-2. Receive the classified `Kind` and the `Consumed` bytes.
-3. Once the upstream (game pod) connection is ready, write `Consumed` to it first.
+1. Call `Lookup("protocol-name").Classify(br)` with a fresh `*bufio.Reader` wrapping the client connection.
+2. Receive the classified `*ClassificationResult` carrying Kind, Consumed bytes, and protocol-specific Detail.
+3. Once the upstream (game pod) connection is ready, write `result.Consumed` to it first.
 4. Then continue copying from the same `*bufio.Reader` (for pipelined bytes) and the client connection (for new data).
 
 This contract ensures: `Consumed + remaining(bufio.Reader) == original stream`, so the game pod receives exactly what the client sent, in order, with no data loss or duplication.
 
-### Response Builders
+### Protocol Registry
 
-**`BuildMinecraftStatusResponse(jsonPayload string) ([]byte, error)`**
+The **Protocol Registry** is a central, compile-time lookup structure mapping protocol names to Classifier implementations. The registry is initialized with a bare package-level map literal and is read-only at runtime.
 
-Builds a Minecraft Status Response packet (sent in response to a Status ping without waking the server).
+```go
+// classifierRegistry is a static, compile-time map mapping protocol names to Classifiers.
+// Duplicate keys are a Go compile error.
+var classifierRegistry = map[string]Classifier{
+	"minecraft": &MinecraftClassifier{},
+	"terraria":  &TerrariaClassifier{},
+	"demo":      &DemoClassifier{},
+}
 
-- Input: A JSON object (e.g., `{"version":{"name":"Asleep","protocol":0},"players":{"max":0,"online":0},"description":{"text":"Server is asleep"}}`).
-- Returns: The framed packet bytes ready to write to the client.
-- **Error handling:** Returns an error if the JSON payload is too long (string > 32KB, a Minecraft protocol limit).
+// Lookup retrieves a Classifier by protocol name.
+// Returns (classifier, true) if found, (nil, false) if not found.
+// Never panics on unknown names; caller must handle lookup miss gracefully.
+func Lookup(name string) (Classifier, bool) {
+	classifier, ok := classifierRegistry[name]
+	return classifier, ok
+}
 
-**`BuildMinecraftLoginDisconnect(reason string) ([]byte, error)`**
+// ListRegistered returns a sorted slice of all registered protocol names
+// for debugging and audit purposes. Useful for verifying registry completeness.
+func ListRegistered() []string {
+	names := make([]string, 0, len(classifierRegistry))
+	for name := range classifierRegistry {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+```
 
-Builds a Minecraft Login Disconnect packet (sent to reject or bounce a joining player).
+**Design Rationale:**
 
-- Input: A plain-text reason string (e.g., "Server is waking up, try again in a moment.").
-- Returns: The framed packet bytes ready to write.
-- **Error handling:** Escapes the reason for JSON safety (quotes, backslashes, control chars). Returns an error if the escaped JSON exceeds protocol limits.
+- **Bare map literal** (not a struct wrapper) makes the registry greppable and auditable in one place (all registrations are visible in `gameproto/registry.go`).
+- **Compile-time initialization** via map literal prevents duplicate keys (Go compiler error) and requires no runtime setup code.
+- **No registration function** at runtime; all protocols are known at compile time. This simplifies review and testing.
 
-**`BuildTerrariaDisconnect(reason string) ([]byte, error)`**
+### Adding a New Protocol
 
-Builds a Terraria Disconnect message (sent to reject or bounce a connecting player).
+To add a new game protocol (e.g., "factorio"):
 
-- Input: A plain-text reason string.
-- Returns: The framed message bytes (3-byte header + NetworkText-encoded reason) ready to write.
-- **Error handling:** Returns an error if the message exceeds the 16-bit length limit.
+1. **Create a new file** `gameproto/factorio.go` defining a FactorioClassifier struct that implements the Classifier interface:
+   ```go
+   type FactorioClassifier struct{}
+
+   func (c *FactorioClassifier) Classify(br *bufio.Reader) (*ClassificationResult, error) {
+       // Handshake parsing logic (may call unexported helper functions)
+       // Return ClassificationResult with Kind (Join/Status/Unknown), Consumed bytes, and Detail
+   }
+
+   func (c *FactorioClassifier) SupportsStatusPing() bool {
+       // Return true if protocol supports out-of-band status pings, false otherwise
+   }
+
+   func (c *FactorioClassifier) BuildStatusResponse(payload string) ([]byte, error) {
+       // If SupportsStatusPing() is true, build and return status response bytes
+       // Otherwise return error
+   }
+
+   func (c *FactorioClassifier) BuildDisconnect(reason string) ([]byte, error) {
+       // Build and return disconnect message bytes
+   }
+   ```
+
+2. **Create a detail type** (also in `factorio.go`):
+   ```go
+   type FactorioDetail struct {
+       // Protocol-specific fields parsed from the handshake
+       Version string
+       // ... other fields
+   }
+
+   func (d *FactorioDetail) ProtocolName() string { return "factorio" }
+   ```
+
+3. **Register in the map** (in `gameproto/registry.go`):
+   ```go
+   var classifierRegistry = map[string]Classifier{
+       "minecraft": &MinecraftClassifier{},
+       "terraria":  &TerrariaClassifier{},
+       "factorio":  &FactorioClassifier{},  // Add this line
+   }
+   ```
+
+4. **Write tests** (in `gameproto/factorio_test.go`):
+   - Unit tests for Classify() and response builders
+   - Comparison/equivalence tests if migrating from an existing implementation
+
+5. **That's it.** No changes to sentinel/main.go, gameproto.go, or any shared code.
+
+**Reference Template:** See `gameproto/demo.go` for a minimal stub implementation showing the pattern. DemoClassifier implements all four methods but always classifies as Unknown; it serves as a worked example that demonstrates the registry pattern requires zero edits to shared code when adding a protocol.
+
+### Deprecated Facade Functions
+
+The following functions in `gameproto.go` are **deprecated** but remain in the codebase for backward compatibility during the transition. New code should use Classifier.Lookup() and the Classifier interface instead.
+
+| Deprecated Function | Classifier Replacement |
+|---|---|
+| `ClassifyMinecraft(br *bufio.Reader) (Kind, *MinecraftClassifyResult, error)` | `Lookup("minecraft").Classify(br)` returns `(*ClassificationResult, error)` |
+| `ClassifyTerraria(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error)` | `Lookup("terraria").Classify(br)` returns `(*ClassificationResult, error)` |
+| `BuildMinecraftStatusResponse(jsonPayload string) ([]byte, error)` | `Lookup("minecraft").BuildStatusResponse(payload)` |
+| `BuildMinecraftLoginDisconnect(reason string) ([]byte, error)` | `Lookup("minecraft").BuildDisconnect(reason)` |
+| `BuildTerrariaDisconnect(reason string) ([]byte, error)` | `Lookup("terraria").BuildDisconnect(reason)` |
+
+**Migration Path:** Callers currently using these facade functions should migrate to the Classifier interface by calling `Lookup(protocolName)` and using the returned Classifier's methods. The facade functions will be removed in a future version after the migration is complete and behavior equivalence is verified.
 
 ## Handshake Codecs
 
@@ -187,9 +347,10 @@ Both defend against untrusted length prefixes: they bound the decoder loop to 5 
 
 1. **Only JOINED depth satisfies a covered-* status.** Classification alone (without joining) is PARTIAL; only test cases that establish a game connection to verify handshake replay satisfy JOINED depth.
 2. **Status and Unknown are distinct.** Status means the sentinel can and should answer with a protocol-native reply (Minecraft status JSON). Unknown means the bytes did not parse; the sentinel closes without replying or waking.
-3. **Protocol-native only.** The classifiers operate on wire bytes only; no game state, player database, or server configuration is consulted. Join vs. Status is determined entirely by the handshake.
-4. **Classification is deterministic.** Given the same wire bytes, ClassifyMinecraft and ClassifyTerraria always return the same Kind (barring bugs).
+3. **Protocol-native only.** Classifiers operate on wire bytes only; no game state, player database, or server configuration is consulted. Join vs. Status is determined entirely by the handshake.
+4. **Classification is deterministic.** Given the same wire bytes, `MinecraftClassifier.Classify()` and `TerrariaClassifier.Classify()` always return the same Kind (barring bugs). Behavior is identical to the deprecated facade functions ClassifyMinecraft and ClassifyTerraria; the refactor does not change parsing semantics.
 5. **Parsing is read-safe.** The frame length limits, bounded VarInt loops, and max-packet-size gates ensure parsing terminates and doesn't allocate based on untrusted input.
+6. **Kind enumeration is unchanged.** The Kind constants (Join=0, Status=1, Unknown=2) and Kind.String() method are preserved exactly; existing callers continue to work without changes.
 
 ## Bounded-Read Defences
 
@@ -212,41 +373,49 @@ Both defend against untrusted length prefixes: they bound the decoder loop to 5 
 
 ## Invariants the Sentinel Depends On
 
-1. **Consumed bytes are correct and complete.** The sentinel replays them to the game pod as-is; if they're truncated, duplicated, or corrupted, the join fails.
+1. **Consumed bytes are correct and complete.** The sentinel replays them to the game pod as-is; if they're truncated, duplicated, or corrupted, the join fails. The Classifier interface preserves the Consumed field exactly as the old facade functions did.
 
-2. **The bufio.Reader is not consumed beyond the handshake.** The sentinel re-uses the same reader to forward pipelined data (e.g., Login Start after Handshake) and later game protocol traffic. If ClassifyMinecraft or ClassifyTerraria reads beyond the consumed frame, pipelined bytes are lost.
+2. **The bufio.Reader is not consumed beyond the handshake.** The sentinel re-uses the same reader to forward pipelined data (e.g., Login Start after Handshake) and later game protocol traffic. Classifiers read only the bytes needed to make a classification decision; remaining data stays in the reader's buffer.
 
-3. **Status replies are protocol-native and don't wake the server.** BuildMinecraftStatusResponse returns bytes the client expects; sending them doesn't trigger any game-logic side effects.
+3. **Status replies are protocol-native and don't wake the server.** `classifier.BuildStatusResponse(payload)` returns bytes the client expects; sending them doesn't trigger any game-logic side effects. Callers must check `classifier.SupportsStatusPing()` before calling this method.
 
-4. **Disconnect messages bounce the client cleanly.** BuildMinecraftLoginDisconnect and BuildTerrariaDisconnect are protocol-native rejection messages; the client receives them, displays the reason, and closes the connection.
+4. **Disconnect messages bounce the client cleanly.** `classifier.BuildDisconnect(reason)` returns protocol-native rejection messages; the client receives them, displays the reason, and closes the connection. Behavior is identical to the old BuildMinecraftLoginDisconnect and BuildTerrariaDisconnect functions.
 
-5. **Unknown classification doesn't assume anything.** If ClassifyMinecraft returns Unknown (e.g., unknown next-state), the sentinel closes without waking or replying. The client is left to time out naturally.
+5. **Unknown classification doesn't assume anything.** If `classifier.Classify()` returns a result with Kind == Unknown, the sentinel closes without waking or replying. The client is left to time out naturally.
+
+6. **ClassificationResult is always non-nil on success.** Even when Kind == Unknown, `classifier.Classify()` returns a non-nil result (with Consumed bytes for replay). Callers never see a nil result unless an error occurred.
 
 ## Testing & Coverage
 
 **Test structure:**
 
-- **`minecraft_test.go`:** Table-driven tests for VarInt codec, string parsing, handshake classification (various protocol versions, next-states, edge cases), response building (JSON escaping, large payloads), error cases (truncated input, oversized frames).
-- **`terraria_test.go`:** Similar coverage for 7-bit-encoded-int, Terraria message framing, ConnectRequest parsing, various message types (Join, Unknown, etc.), Disconnect message building.
-- **`gameproto_test.go`:** Integration tests verifying classifiers work end-to-end, including replay contract (Consumed bytes can be re-read without duplication).
+- **`minecraft_test.go`:** Table-driven tests for VarInt codec, string parsing, handshake classification (various protocol versions, next-states, edge cases), response building (JSON escaping, large payloads), error cases (truncated input, oversized frames). Includes classifier equivalence tests comparing MinecraftClassifier methods against the deprecated facade functions on identical wire bytes.
+- **`terraria_test.go`:** Similar coverage for 7-bit-encoded-int, Terraria message framing, ConnectRequest parsing, various message types (Join, Unknown, etc.), Disconnect message building. Includes classifier equivalence tests comparing TerrariaClassifier methods against deprecated facades.
+- **`gameproto_test.go`:** Integration tests verifying Classifiers work end-to-end, including replay contract (Consumed bytes can be re-read without duplication). Registry structure tests verifying all expected protocols are registered, no duplicates exist, and Lookup() works correctly.
+- **`registry_test.go`:** Tests for Lookup(name) success/failure, ListRegistered() output format and sorting, registry completeness. Covers DemoClassifier stub implementation verification.
+- **`classifier_equivalence_test.go`:** Byte-for-byte comparison tests running old facade functions side-by-side with new Classifier implementations on identical handshake byte fixtures, verifying Kind, Consumed, and Detail fields match exactly.
 
 **Key test scenarios:**
 
-- **Replay contract verification:** Build a handshake, classify it, replay the Consumed bytes to a mock upstream, verify the game pod receives the exact bytes.
+- **Replay contract verification:** Classify a handshake, replay the Consumed bytes to a mock upstream, verify the game pod receives the exact bytes.
 - **Pipelined data preservation:** Classify a handshake with additional Login Start bytes following; verify the bufio.Reader still has those bytes available.
 - **Bounds enforcement:** Oversized frame lengths, oversized strings, malformed VarInts, truncated input — all return errors or Unknown without panicking.
 - **Response builders:** Status JSON escaping, chat-component encoding, Terraria NetworkText framing.
+- **Registry validation:** New protocols can be added with one file + one registry entry; no other changes required.
+- **Classifier interface compliance:** Each Classifier implementation fully implements all four methods (Classify, SupportsStatusPing, BuildStatusResponse, BuildDisconnect) and handles errors correctly.
+- **Byte-for-byte equivalence:** Old facade functions and new Classifier methods produce identical results on identical inputs (Kind, Consumed byte sequence, Detail field values).
 
-**Coverage gate:** 90% (enforced by `.testcoverage.yml`). The small gap is in error paths (e.g., malformed VarInts that exceed bounds) and less-critical response-builder edge cases.
+**Coverage gate:** 90% (enforced by `.testcoverage.yml`). The small gap is in error paths (e.g., malformed VarInts that exceed bounds) and less-critical response-builder edge cases. The refactor must maintain this threshold despite code migration between modules (lines moved from sentinel to gameproto).
 
-## Non-goals (What Gameproto Does NOT Do)
+## Non-Goals (What Gameproto Does NOT Do)
 
-- **Does not execute joins.** Classification only; the sentinel decides whether to wake or reply.
-- **Does not validate server addresses or ports.** The ServerAddr field in MinecraftClassifyResult is the raw string the client sent; the sentinel doesn't validate it, only replays it.
+- **Does not execute joins.** Classification and response building only; the sentinel dispatcher decides whether to wake or reply. The Classifier interface preserves this separation of concerns.
+- **Does not validate server addresses or ports.** The ServerAddr field in MinecraftDetail is the raw string the client sent; the sentinel doesn't validate it, only replays it.
 - **Does not interact with DNS or network sockets.** Parsing is pure; callers provide a bufio.Reader wrapping a real connection.
 - **Does not implement the full game protocol.** Handshake parsing only; full Login, Status, play, etc. phases are the game's job, not gameproto's.
 - **Does not authenticate players.** The classified Kind is protocol-based, not player-database-based.
 - **Does not provide telemetry or logging.** Callers (sentinel, tests) own logging classified Kind and any parse errors.
+- **Does not manage the protocol registry at runtime.** Registration is compile-time via a bare map literal in `gameproto/registry.go`; no runtime registration calls or dynamic updates.
 
 ## Dependencies
 
@@ -274,8 +443,13 @@ No external modules.
 
 ## References
 
-- **`sentinel/main.go`** — usage: `ClassifyMinecraft`, `ClassifyTerraria`, response builders for hold-and-forward logic.
-- **`sentinel/main_test.go`** — test doubles: `encodeMinecraftHandshake`, `encodeTerrariaConnectRequest` show how to construct wire bytes for testing.
+- **`gameproto/classifier.go`** — Classifier interface, ClassificationResult, Detail interface, MinecraftDetail, TerrariaDetail.
+- **`gameproto/registry.go`** — Protocol Registry (classifierRegistry map literal, Lookup, ListRegistered functions).
+- **`gameproto/minecraft.go`** — MinecraftClassifier implementation, unexported parsing and response-building helpers.
+- **`gameproto/terraria.go`** — TerrariaClassifier implementation, unexported parsing and response-building helpers.
+- **`gameproto/demo.go`** — DemoClassifier reference implementation (validates registry pattern).
+- **`sentinel/main.go`** — usage: `Lookup(wakeProtocol).Classify()` and response builder methods (BuildStatusResponse, BuildDisconnect) for hold-and-forward logic. Calls ListRegistered() at startup for validation.
+- **`sentinel/main_test.go`** — tests for registry-based dispatcher; test doubles: `encodeMinecraftHandshake`, `encodeTerrariaConnectRequest` show how to construct wire bytes for testing.
 - **`test/e2e/tests/bot_*.go`** — e2e tests that launch real game bots to verify handshake replay doesn't corrupt joins.
 - **`go.work`** — workspace linking gameproto to sentinel, operator, api, and other Go modules.
 - **`docs/architecture.md`** — overview of sentinel's wake-on-connect feature and gameproto's role.

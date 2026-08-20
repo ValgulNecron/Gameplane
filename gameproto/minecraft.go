@@ -274,3 +274,45 @@ func escapeJSONString(s string) string {
 	}
 	return sb.String()
 }
+
+// MinecraftClassifier implements the Classifier interface for Minecraft (Java Edition).
+type MinecraftClassifier struct{}
+
+// Classify reads a Minecraft handshake and returns a ClassificationResult.
+// It delegates to the unexported classifyMinecraftHandshake function and repackages
+// the result into the unified ClassificationResult type.
+func (c *MinecraftClassifier) Classify(br *bufio.Reader) (*ClassificationResult, error) {
+	kind, result, err := classifyMinecraftHandshake(br)
+	if err != nil {
+		return nil, err
+	}
+
+	// Repackage into ClassificationResult, wrapping MinecraftClassifyResult fields
+	// in the Detail interface.
+	return &ClassificationResult{
+		Kind:     kind,
+		Consumed: result.Consumed,
+		Detail: &MinecraftDetail{
+			ProtocolVersion: result.ProtocolVersion,
+			NextState:       result.NextState,
+			ServerAddr:      result.ServerAddr,
+		},
+	}, nil
+}
+
+// SupportsStatusPing returns true because Minecraft supports out-of-band status pings.
+func (c *MinecraftClassifier) SupportsStatusPing() bool {
+	return true
+}
+
+// BuildStatusResponse builds a Minecraft status response packet.
+// It delegates to the unexported buildMinecraftStatusResponse function.
+func (c *MinecraftClassifier) BuildStatusResponse(jsonPayload string) ([]byte, error) {
+	return buildMinecraftStatusResponse(jsonPayload)
+}
+
+// BuildDisconnect builds a Minecraft disconnect packet.
+// It delegates to the unexported buildMinecraftLoginDisconnect function.
+func (c *MinecraftClassifier) BuildDisconnect(reason string) ([]byte, error) {
+	return buildMinecraftLoginDisconnect(reason)
+}

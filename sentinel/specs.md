@@ -11,8 +11,8 @@ Wake-on-connect daemon that runs as a replacement pod for dormant game servers. 
 ## Responsibilities
 
 1. Bind listeners on configured TCP and UDP ports (replacing the sleeping game pod).
-2. Classify TCP connections using gameproto (Minecraft, Terraria) or a generic protocol-agnostic heuristic (UDP).
-3. For Status/ping classifications, send a protocol-native "server is asleep" reply **without** waking the server.
+2. Classify TCP connections using a registry-based Classifier (Minecraft, Terraria, or custom protocols registered in gameproto), or a generic protocol-agnostic heuristic (UDP) for protocols without a parser.
+3. For Status/ping classifications (if the protocol supports them), send a protocol-native "server is asleep" reply **without** waking the server.
 4. For Join classifications, request a wake via a Kubernetes annotation patch, then hold the connection open.
 5. Poll for the real game pod to come up (by repeatedly attempting to dial the game-direct Service), replay the consumed handshake bytes to it, and proxy the remaining traffic bidirectionally.
 6. Bound concurrent TCP handlers with a semaphore to prevent resource exhaustion under port scans.
@@ -25,7 +25,7 @@ Wake-on-connect daemon that runs as a replacement pod for dormant game servers. 
 - Does **not** authenticate players or check credentials — join/status classification is protocol-only.
 - Does **not** persist wake requests — patches the GameServer annotation; the operator's reconciler is authoritative.
 - Does **not** validate game-specific rules or enforce RBAC — those are handled by the game pod and/or API when it's up.
-- Does **not** support custom protocol parsing beyond Minecraft/Terraria — UDP falls back to the packet-counting heuristic.
+- Does **not** implement protocol parsing itself — uses the gameproto registry of Classifier implementations for protocol-specific dispatch. Protocols without a Classifier fall back to the generic heuristic.
 - Does **not** filter or modify traffic — handshake replay and bidirectional proxying preserve the exact byte stream.
 
 ## Directory & package layout
@@ -51,11 +51,11 @@ Single executable module; no subdirectories or packages.
 - **`PORTS_CONFIG`** (required): Comma-separated list of ports to listen on, format: `port:protocol:wakeProtocol,...`
   - Example: `25565:TCP:minecraft,19133:UDP:generic,8080:TCP:none`
   - `protocol`: `TCP` or `UDP`.
-  - `wakeProtocol`: `minecraft`, `terraria`, `generic`, or `none`. 
-    - `minecraft`: Use gameproto to classify Minecraft handshakes (Status vs. Join).
-    - `terraria`: Use gameproto to classify Terraria ConnectRequest (all are Join; others are Unknown).
+  - `wakeProtocol`: Any protocol registered in the gameproto registry (e.g., `minecraft`, `terraria`), or the special values `generic` or `none`.
+    - Registered protocols (e.g., `minecraft`, `terraria`): Use the corresponding gameproto Classifier to parse handshakes and determine Join vs. Status classifications.
     - `generic`: No protocol-specific parsing; treat every accepted TCP connection as a join; for UDP, use the packet-counting heuristic.
     - `none`: Operator still advertises the port (container spec, Service), but the sentinel doesn't listen on it (port scan sink).
+    - **Startup validation:** At startup, all configured `wakeProtocol` values (except `generic` and `none`) are validated against the gameproto registry. Unknown protocol names cause a fatal startup error listing available registered protocols.
 
 - **`WAKE_DEADLINE`** (optional, default `25s`): How long to hold a join connection waiting for the game pod to come up. Must be less than the game client's own timeout (Minecraft ~30s, Terraria ~30s) or the client gives up first.
 - **`UDP_PACKET_THRESHOLD`** (optional, default `3`): Number of packets from one source within the window before triggering a wake.
@@ -81,24 +81,29 @@ Once woken, the real game pod is reachable at a stable DNS name:
 
 This is a Kubernetes Service created by the operator pointing to the game pod's port (the same port the sentinel was listening on). The sentinel dials this address with exponential backoff / polling (default interval: 250ms) until it either succeeds or the deadline expires.
 
-## Responsibilities by Protocol
+## Protocol Dispatch: Registry-Based Architecture
 
-### Minecraft (TCP only)
+### Unified Registry Dispatcher (`handleRegistryProtocol`)
 
-1. Accept a TCP connection.
-2. Call `gameproto.ClassifyMinecraft` with a `*bufio.Reader` wrapping the connection.
-3. **Status ping:** Build a Minecraft status response (e.g., `{"version":{"name":"Asleep","protocol":0},"players":{"max":0,"online":0,"description":{"text":"Asleep — joining wakes it"}}`) via `gameproto.BuildMinecraftStatusResponse`, send it, and close without waking.
-4. **Join attempt:** Call `RequestWake` to patch the annotation, then proceed to hold-and-poll (see generic path below).
-5. **Unknown:** Close without waking or replying.
-
-### Terraria (TCP only)
+TCP connections using a registered protocol (Minecraft, Terraria, or custom) are dispatched through a single unified handler:
 
 1. Accept a TCP connection.
-2. Call `gameproto.ClassifyTerraria` with a `*bufio.Reader` wrapping the connection.
-3. **Join attempt (ConnectRequest):** Call `RequestWake` to patch the annotation, then proceed to hold-and-poll.
-4. **Unknown / non-ConnectRequest:** Close without waking or replying. Terraria has no out-of-band status ping, so any unrecognized message is treated as noise.
+2. Look up the configured `wakeProtocol` in the gameproto registry via `gameproto.Lookup(name)`.
+3. Call the Classifier's `Classify(br)` method with a `*bufio.Reader` wrapping the connection.
+4. Check the result's `Kind` field:
+   - **Status:** If `Classifier.SupportsStatusPing()` is true, build a status response (e.g., `{"version":{"name":"Asleep","protocol":0},"players":{"max":0,"online":0,"description":{"text":"Asleep — joining wakes it"}}`) via `Classifier.BuildStatusResponse()`, send it, and close without waking. If `SupportsStatusPing()` is false, fall through to close without responding.
+   - **Join:** Build a bounce function that calls `Classifier.BuildDisconnect(reason)` to send a protocol-native disconnect message on timeout (if the protocol supports it). Call `RequestWake` to patch the annotation, then proceed to hold-and-poll (see hold-and-poll path below).
+   - **Unknown:** Close without waking or replying.
 
-### Generic (TCP)
+This unified dispatcher is protocol-agnostic and makes adding a new game protocol a matter of implementing a Classifier and registering it in the gameproto registry, with zero edits to sentinel's dispatch logic.
+
+### Startup Validation
+
+At startup, `parsePortsConfig` validates each configured `wakeProtocol` against the gameproto registry (via `gameproto.Lookup`). Unknown protocol names cause a fatal startup error with a clear message listing available protocols. The sentinel refuses to start if any port's `wakeProtocol` is not registered, preventing misconfiguration from being discovered at connection time.
+
+### Generic Protocol (TCP and UDP)
+
+The `handleGeneric` handler remains **outside the registry** because it performs statistical detection (packets-in-window heuristic for UDP, or unconditional accept for TCP) rather than handshake parsing. Generic is not a Classifier; it is a fallback heuristic for protocols without a wire-protocol parser.
 
 1. Accept a TCP connection.
 2. Treat the mere acceptance as a join (no handshake to parse).
@@ -114,18 +119,18 @@ This is a Kubernetes Service created by the operator pointing to the game pod's 
 5. Drop the packet itself (no upstream listening yet; forwarding would fail). The UDP client is responsible for re-sending if the server doesn't respond.
 6. Suppress re-triggering from the same source for the duration of the window (cooldown), to avoid hammering the apiserver on every incoming packet from a scanner or rapid reconnect.
 
-### Hold-and-Poll Path (Minecraft Join, Terraria Join, Generic TCP)
+### Hold-and-Poll Path (Registered Protocols with Join Classification, Generic TCP)
 
 1. After `RequestWake` succeeds (or fails but logged; always proceed to poll), start polling for the upstream.
 2. Repeatedly dial `game-direct-address:port` with a fixed interval (250ms by default) and bounded deadline (e.g., 25s).
 3. On successful dial:
-   - Write the `Consumed` handshake bytes (from gameproto classifiers) to the upstream, if any.
+   - Write the `Consumed` handshake bytes (from the Classifier's `Classify` method) to the upstream, if any.
    - Create two goroutines copying data bidirectionally: upstream→client and client→upstream.
    - Use `io.Copy` on each goroutine but read the client side through the same `*bufio.Reader` the handshake was parsed from (to preserve pipelined bytes).
    - When one side hits EOF, half-close the write side of the other (if supported; `net.TCPConn` does) so any remaining buffered data can drain.
    - Wait for both copies to finish before closing both connections.
 4. On deadline expiry before the upstream connects:
-   - If a protocol-native bounce message exists (Minecraft or Terraria), send it (e.g., "Server is waking up, try again in a moment.").
+   - If the protocol supports a protocol-native bounce message (via `Classifier.BuildDisconnect`), send it (e.g., "Server is waking up, try again in a moment.").
    - Close the connection.
 
 ## Per-Expose-Mode Behaviour
@@ -248,7 +253,7 @@ To reach **JOINED depth**, the test would need to establish an actual game conne
 - `k8s.io/client-go/rest` — in-cluster configuration.
 
 **Gameplane:**
-- `github.com/ValgulNecron/gameplane/gameproto` — ClassifyMinecraft, ClassifyTerraria, Build*Response, Build*Disconnect.
+- `github.com/ValgulNecron/gameplane/gameproto` — Classifier interface (Classify, SupportsStatusPing, BuildStatusResponse, BuildDisconnect), registry functions (Lookup, ListRegistered) for protocol dispatch.
 
 ## Security Considerations
 
@@ -276,8 +281,8 @@ To reach **JOINED depth**, the test would need to establish an actual game conne
 - **Upstream polling:** `TestWaitForUpstreamSucceedsImmediately`, `TestWaitForUpstreamPollsUntilAvailable`, `TestWaitForUpstreamDeadlineExpires`, `TestWaitForUpstreamRespectsParentContext` verify polling loop, deadline enforcement, context cancellation.
 - **Bidirectional proxy:** `TestProxyBidirectionalWaitsForBothDirections`, `TestProxyBidirectionalStopsOnContextCancel` verify copy goroutines, half-close semantics, both-directions-finish guarantee.
 - **Waker (annotation patching):** `TestWakerRequestWakeSetsAnnotation`, `TestWakerRequestWakePreservesOtherAnnotations`, `TestWakerRequestWakeCoalescesBursts` verify merge patch isolation, burst coalescing.
-- **Minecraft handlers:** `TestHandleMinecraftStatusDoesNotWake`, `TestHandleMinecraftJoinWakesAndReplaysHandshake`, `TestHandleMinecraftJoinBouncesOnDeadline` verify status answer, join hold-and-poll, deadline bounce with gameproto.
-- **Terraria handlers:** `TestHandleTerrariaJoinWakes`, `TestHandleTerrariaJoinBouncesOnDeadline`, `TestHandleTerrariaNonJoinDoesNotWake` verify join classification, deadline bounce, non-join silence.
+- **Registry dispatch:** `TestHandleRegistryProtocolLookupSuccess`, `TestHandleRegistryProtocolStatusPing`, `TestHandleRegistryProtocolJoinAndWake`, `TestHandleRegistryProtocolUnknown` verify registry lookup, Classifier.Classify invocation, protocol-agnostic join/status/unknown handling.
+- **Startup validation:** `TestParsePortsConfigUnknownProtocol`, `TestParsePortsConfigValidRegisteredProtocols` verify that unknown protocol names cause fatal startup errors with clear error messages listing available protocols.
 - **Generic handlers:** `TestHandleGenericWakesOnConnect`, `TestHandleGenericClosesSilentlyOnDeadline` verify generic TCP (always join), generic UDP bounce (no message).
 - **TCP listener:** `TestRunShutsDownOnContextCancel`, `TestRunReturnsErrorOnListenFailure`, `TestServeTCPBoundsConcurrentHandlers` verify clean shutdown, error reporting, semaphore enforcement.
 
@@ -297,12 +302,14 @@ To reach **JOINED depth**, the test would need to establish an actual game conne
 - **Does not enforce game-specific rules.** RBAC, player caps, banned players, etc. are the game server's responsibility.
 - **Does not modify game traffic.** Handshake replay and proxying are bit-for-bit preserving.
 - **Does not persist state across restarts.** Sentinel is stateless; the operator and game pod carry state.
-- **Does not support protocol parsing beyond the three built-in types.** Games without a parser fall back to the generic heuristic.
+- **Does not implement protocol parsing.** Uses the gameproto Classifier registry for protocol-specific dispatch. Games without a registered Classifier fall back to the generic heuristic.
 - **Does not manage DNS or load balancing.** The operator's Service and Kubernetes DNS handle routing.
 
 ## References
 
 - **`operator/internal/controller/gameserver_sentinel.go`** — operator controller that manages sentinel deployment, RBAC, configuration via environment variables.
-- **`test/e2e/tests/bot_*.go`** — e2e tests that launch real game clients (minecraft-launcher, tshock, etc.) to verify join handshake replay and server wake.
-- **`gameproto/specs.md`** — detailed handshake codec and replay contract.
+- **`test/e2e/tests/bot_*.go`** — e2e tests that launch real game clients (minecraft-launcher, tshock, etc.) to verify join handshake replay and server wake with registry-based dispatch.
+- **`gameproto/classifier.go`** — Classifier interface, ClassificationResult type, and protocol registry; defines the contract that all game protocol parsers implement.
+- **`gameproto/registry.go`** — gameproto registry: central lookup structure (Lookup, ListRegistered) mapping protocol names to Classifier implementations.
+- **`gameproto/specs.md`** — detailed handshake codec, replay contract, and Classifier interface specification.
 - **`CLAUDE.md`** ("Wake-on-connect") — project context and design rationale.
