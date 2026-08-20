@@ -219,36 +219,6 @@ type Classifier interface {
 
 ## Registry Functions
 
-### Register Function
-
-```go
-func Register(name string, classifier Classifier) error
-```
-
-**Status**: NEW  
-**Semantics**: Registers a Classifier in the central registry, keyed by protocol name.
-
-**Preconditions**:
-- name is a non-empty, lowercased string (e.g., "minecraft", "terraria").
-- classifier is a non-nil Classifier implementation.
-- name must be unique; registering a duplicate name is an error (see below).
-
-**Postconditions**:
-- The Classifier is stored in the registry and available via Lookup().
-- Returns nil on success.
-- Returns an error if name is already registered (duplicate prevention).
-
-**Error/Zero-Value Behavior**:
-- Returns error!=nil if name is already registered (the error message clearly identifies the duplicate).
-- Returns error!=nil if name is empty or contains invalid characters.
-- Does not panic.
-
-**Concurrency Note**: Registration MUST complete at startup (during init or main()), before any connection handling begins. Register() is not safe for concurrent use alongside Lookup() during normal operation. The project assumes a single-threaded startup phase followed by concurrent Lookup() calls.
-
-**Design Note**: The actual implementation uses an explicit map literal in `gameproto/registry.go`, not a Register() function called at runtime. This preserves compile-time safety and simplifies review (all registrations are visible in one place). However, the Register() function is available as an optional convenience for tests or future extensibility.
-
----
-
 ### Lookup Function
 
 ```go
@@ -414,7 +384,6 @@ The following items remain unchanged and continue to be exported. Sentinel and o
 | MinecraftDetail struct | N/A | NEW | Minecraft-specific metadata |
 | TerrariaDetail struct | N/A | NEW | Terraria-specific metadata |
 | Lookup(name string) func | N/A | NEW | Registry lookup function |
-| Register(name string, classifier) func | N/A | NEW | Registry registration function (optional; implementation uses map literal) |
 | ListRegistered() func | N/A | NEW | Registry inspection function |
 | ClassifyMinecraft func | EXPORTED | REMOVED | Replaced by Classifier.Classify() |
 | ClassifyTerraria func | EXPORTED | REMOVED | Replaced by Classifier.Classify() |

@@ -22,12 +22,22 @@ const (
 // We cap at a reasonable value to prevent allocation from length injection.
 const terrariaMaxPacketSize = 65535
 
+// terrariaClassifyResult holds the result of classifying a Terraria connection.
+type terrariaClassifyResult struct {
+	// Version is the protocol version string from the ConnectRequest.
+	Version string
+
+	// Consumed holds the bytes read from the input to parse this request.
+	// Can be replayed: len(consumed) + len(remaining) == len(original).
+	Consumed []byte
+}
+
 // classifyTerrariaConnect reads and parses the first Terraria message to
 // determine if it's a ConnectRequest (which is always classified as Join).
 // Terraria has no out-of-band status ping, so we only care about connection
 // attempts. The caller-provided bufio.Reader is used directly, preserving any
 // pipelined data in its internal buffer for the caller to consume later.
-func classifyTerrariaConnect(br *bufio.Reader) (Kind, *TerrariaClassifyResult, error) {
+func classifyTerrariaConnect(br *bufio.Reader) (Kind, *terrariaClassifyResult, error) {
 	// Accumulate consumed bytes
 	var consumed bytes.Buffer
 
@@ -60,9 +70,6 @@ func classifyTerrariaConnect(br *bufio.Reader) (Kind, *TerrariaClassifyResult, e
 	payload := make([]byte, payloadLength)
 	if payloadLength > 0 {
 		if _, err := io.ReadFull(br, payload); err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				return Unknown, nil, fmt.Errorf("read terraria frame payload: %w", err)
-			}
 			return Unknown, nil, fmt.Errorf("read terraria frame payload: %w", err)
 		}
 	}
@@ -72,7 +79,7 @@ func classifyTerrariaConnect(br *bufio.Reader) (Kind, *TerrariaClassifyResult, e
 
 	// Only ConnectRequest (type 1) indicates a join attempt.
 	if messageType != terrariaConnectRequest {
-		return Unknown, &TerrariaClassifyResult{
+		return Unknown, &terrariaClassifyResult{
 			Consumed: consumed.Bytes(),
 		}, nil
 	}
@@ -91,7 +98,7 @@ func classifyTerrariaConnect(br *bufio.Reader) (Kind, *TerrariaClassifyResult, e
 
 // parseTerrariaConnectRequest parses the payload of a ConnectRequest message.
 // Format: [version string only]
-func parseTerrariaConnectRequest(payload []byte) (*TerrariaClassifyResult, error) {
+func parseTerrariaConnectRequest(payload []byte) (*terrariaClassifyResult, error) {
 	if len(payload) == 0 {
 		return nil, errors.New("empty ConnectRequest payload")
 	}
@@ -104,7 +111,7 @@ func parseTerrariaConnectRequest(payload []byte) (*TerrariaClassifyResult, error
 		return nil, fmt.Errorf("read version string: %w", err)
 	}
 
-	result := &TerrariaClassifyResult{
+	result := &terrariaClassifyResult{
 		Version: version,
 	}
 
@@ -237,7 +244,7 @@ func (tc *TerrariaClassifier) Classify(br *bufio.Reader) (*ClassificationResult,
 		return nil, err
 	}
 
-	// classifyTerrariaConnect now returns a non-nil *TerrariaClassifyResult
+	// classifyTerrariaConnect now returns a non-nil *terrariaClassifyResult
 	// in all non-error cases, including Unknown (non-ConnectRequest) messages,
 	// with Consumed bytes always present. Detail is only populated on Join.
 	var detail Detail
