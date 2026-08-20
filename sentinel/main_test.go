@@ -1377,6 +1377,8 @@ func TestRegistryProtocolDispatchMinecraftJoinWakes(t *testing.T) {
 		t.Errorf("replayed bytes = %x, want %x", replayed, handshake)
 	}
 
+	upConn.Close()
+
 	<-done
 	if cw.count() != 1 {
 		t.Errorf("expected exactly 1 wake request for a Join, got %d", cw.count())
@@ -1465,6 +1467,8 @@ func TestRegistryProtocolDispatchTerrariaJoinWakes(t *testing.T) {
 		t.Fatal("upstream never accepted a connection")
 	}
 	defer upConn.Close()
+
+	upConn.Close()
 
 	<-done
 	if cw.count() != 1 {
@@ -1579,6 +1583,8 @@ func TestRegistryProtocolReplayConsumedBytes(t *testing.T) {
 	if !bytes.Equal(replayed, handshake) {
 		t.Errorf("replayed bytes = %x, want %x", replayed, handshake)
 	}
+
+	upConn.Close()
 
 	<-done
 	if cw.count() != 1 {
