@@ -16,11 +16,28 @@ import (
 // allocation from a malicious length prefix.
 const minecraftMaxPacketSize = 512
 
+// minecraftClassifyResult holds the result of classifying a Minecraft handshake.
+type minecraftClassifyResult struct {
+	// ProtocolVersion is the version field from the handshake packet.
+	ProtocolVersion int32
+
+	// NextState is the requested next protocol state after handshake.
+	// 1 = Status, 2 = Login.
+	NextState int32
+
+	// ServerAddr is the server address (host:port) the client sent in the handshake.
+	ServerAddr string
+
+	// Consumed holds the bytes read from the input to parse this handshake.
+	// Can be replayed: len(consumed) + len(remaining) == len(original).
+	Consumed []byte
+}
+
 // classifyMinecraftHandshake reads and parses the Handshake packet to determine
 // whether the connection is a Join (login state) or Status (status state).
 // The caller-provided bufio.Reader is used directly, preserving any pipelined
 // data in its internal buffer for the caller to consume later.
-func classifyMinecraftHandshake(br *bufio.Reader) (Kind, *MinecraftClassifyResult, error) {
+func classifyMinecraftHandshake(br *bufio.Reader) (Kind, *minecraftClassifyResult, error) {
 	// Accumulate consumed bytes
 	var consumed bytes.Buffer
 
@@ -40,9 +57,6 @@ func classifyMinecraftHandshake(br *bufio.Reader) (Kind, *MinecraftClassifyResul
 	// Read the packet data into a buffer.
 	frame := make([]byte, length)
 	if _, err = io.ReadFull(br, frame); err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			return Unknown, nil, fmt.Errorf("read handshake frame: %w", err)
-		}
 		return Unknown, nil, fmt.Errorf("read handshake frame: %w", err)
 	}
 
@@ -86,7 +100,7 @@ func classifyMinecraftHandshake(br *bufio.Reader) (Kind, *MinecraftClassifyResul
 		return Unknown, nil, fmt.Errorf("read next state: %w", err)
 	}
 
-	result := &MinecraftClassifyResult{
+	result := &minecraftClassifyResult{
 		ProtocolVersion: protocolVersion,
 		NextState:       nextState,
 		ServerAddr:      serverAddr + ":" + strconv.Itoa(int(port)),
@@ -280,23 +294,29 @@ type MinecraftClassifier struct{}
 
 // Classify reads a Minecraft handshake and returns a ClassificationResult.
 // It delegates to the unexported classifyMinecraftHandshake function and repackages
-// the result into the unified ClassificationResult type.
+// the result into the unified ClassificationResult type. Detail is nil for Unknown
+// classification and non-nil for Join/Status, per the contract in specs.md.
 func (c *MinecraftClassifier) Classify(br *bufio.Reader) (*ClassificationResult, error) {
 	kind, result, err := classifyMinecraftHandshake(br)
 	if err != nil {
 		return nil, err
 	}
 
-	// Repackage into ClassificationResult, wrapping MinecraftClassifyResult fields
-	// in the Detail interface.
-	return &ClassificationResult{
-		Kind:     kind,
-		Consumed: result.Consumed,
-		Detail: &MinecraftDetail{
+	// Repackage into ClassificationResult, wrapping minecraftClassifyResult fields
+	// in the Detail interface. Detail is nil for Unknown, non-nil for Join/Status.
+	var detail Detail
+	if kind == Join || kind == Status {
+		detail = &MinecraftDetail{
 			ProtocolVersion: result.ProtocolVersion,
 			NextState:       result.NextState,
 			ServerAddr:      result.ServerAddr,
-		},
+		}
+	}
+
+	return &ClassificationResult{
+		Kind:     kind,
+		Consumed: result.Consumed,
+		Detail:   detail,
 	}, nil
 }
 

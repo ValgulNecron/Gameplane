@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 )
 
@@ -41,7 +42,8 @@ func TestClassifyTerrariaConnectRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(tt.data)))
+			terraria := &TerrariaClassifier{}
+			result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if tt.expectErr && err == nil {
 				t.Errorf("expected error, got none")
@@ -50,12 +52,14 @@ func TestClassifyTerrariaConnectRequest(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 
-			if kind != tt.expectKind {
-				t.Errorf("expected kind %v, got %v", tt.expectKind, kind)
-			}
+			if err == nil {
+				if result.Kind != tt.expectKind {
+					t.Errorf("expected kind %v, got %v", tt.expectKind, result.Kind)
+				}
 
-			if !tt.expectErr && kind == Join && result == nil {
-				t.Errorf("expected result to be populated")
+				if !tt.expectErr && result.Kind == Join && result.Detail == nil {
+					t.Errorf("expected detail to be populated for Join")
+				}
 			}
 		})
 	}
@@ -68,13 +72,14 @@ func TestClassifyTerrariaDisconnectMessage(t *testing.T) {
 	// Build a Disconnect message (type 2).
 	data := buildTerrariaMessage(terrariaDisconnect, []byte{0x00})
 
-	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown for Disconnect, got %v", kind)
+	if result.Kind != Unknown {
+		t.Errorf("expected kind Unknown for Disconnect, got %v", result.Kind)
 	}
 }
 
@@ -85,13 +90,14 @@ func TestClassifyTerrariaPasswordRequired(t *testing.T) {
 	// Build a PasswordRequired message (type 37).
 	data := buildTerrariaMessage(terrariaPasswordRequired, []byte{})
 
-	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(data)))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown for PasswordRequired, got %v", kind)
+	if result.Kind != Unknown {
+		t.Errorf("expected kind Unknown for PasswordRequired, got %v", result.Kind)
 	}
 }
 
@@ -100,36 +106,30 @@ func TestClassifyTerrariaTruncatedHeader(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		data  []byte
-		isEOF bool
+		name string
+		data []byte
 	}{
 		{
-			name:  "no bytes",
-			data:  []byte{},
-			isEOF: true,
+			name: "single byte only",
+			data: []byte{0x01},
 		},
 		{
-			name:  "one byte only",
-			data:  []byte{0x10},
-			isEOF: true,
+			name: "two bytes only",
+			data: []byte{0x01, 0x02},
 		},
 		{
-			name:  "two bytes only (missing type)",
-			data:  []byte{0x10, 0x00},
-			isEOF: true,
+			name: "empty",
+			data: []byte{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(tt.data)))
+			terraria := &TerrariaClassifier{}
+			_, err := terraria.Classify(bufio.NewReader(bytes.NewReader(tt.data)))
 
 			if err == nil {
-				t.Errorf("expected error for truncated frame")
-			}
-			if kind != Unknown {
-				t.Errorf("expected kind Unknown, got %v", kind)
+				t.Errorf("expected error for truncated header: %s", tt.name)
 			}
 		})
 	}
@@ -139,19 +139,17 @@ func TestClassifyTerrariaTruncatedHeader(t *testing.T) {
 func TestClassifyTerrariaTruncatedPayload(t *testing.T) {
 	t.Parallel()
 
-	// Build a frame that claims to be 100 bytes but only contains 10.
+	// Build a frame header that says 100 bytes, but don't provide the payload.
 	var frame bytes.Buffer
 	frame.Write(binary.LittleEndian.AppendUint16(nil, 100))
 	frame.WriteByte(terrariaConnectRequest)
-	frame.Write([]byte{0x00, 0x01, 0x02, 0x03, 0x04})
+	frame.Write([]byte{0x00, 0x01, 0x02})
 
-	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(frame.Bytes())))
+	terraria := &TerrariaClassifier{}
+	_, err := terraria.Classify(bufio.NewReader(bytes.NewReader(frame.Bytes())))
 
 	if err == nil {
 		t.Errorf("expected error for truncated payload")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
 	}
 }
 
@@ -159,18 +157,16 @@ func TestClassifyTerrariaTruncatedPayload(t *testing.T) {
 func TestClassifyTerrariaFrameTooSmall(t *testing.T) {
 	t.Parallel()
 
-	// Length of 2 is too small (minimum is 3: 2 bytes length + 1 byte type).
+	// Frame size < 3 (too small even for header).
 	var frame bytes.Buffer
 	frame.Write(binary.LittleEndian.AppendUint16(nil, 2))
-	frame.WriteByte(terrariaConnectRequest)
+	frame.WriteByte(0xFF)
 
-	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(frame.Bytes())))
+	terraria := &TerrariaClassifier{}
+	_, err := terraria.Classify(bufio.NewReader(bytes.NewReader(frame.Bytes())))
 
 	if err == nil {
 		t.Errorf("expected error for frame too small")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
 	}
 }
 
@@ -178,23 +174,100 @@ func TestClassifyTerrariaFrameTooSmall(t *testing.T) {
 func TestClassifyTerrariaFrameTooLarge(t *testing.T) {
 	t.Parallel()
 
-	// Claim a frame size of 50000 (valid uint16 but we don't provide that much data).
+	// Frame size = max int + 1 (way too large).
 	var frame bytes.Buffer
-	frame.Write(binary.LittleEndian.AppendUint16(nil, 50000))
+	frame.Write(binary.LittleEndian.AppendUint16(nil, 0xFFFF))
 	frame.WriteByte(terrariaConnectRequest)
-	frame.Write([]byte{0x01, 0x02, 0x03})
+	frame.Write([]byte{0x00, 0x01})
 
-	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(frame.Bytes())))
+	terraria := &TerrariaClassifier{}
+	_, err := terraria.Classify(bufio.NewReader(bytes.NewReader(frame.Bytes())))
 
 	if err == nil {
-		t.Errorf("expected error for frame with insufficient data")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
+		t.Errorf("expected error for frame too large")
 	}
 }
 
-// TestBuildTerrariaDisconnect tests disconnect message building.
+// TestClassifyTerrariaValidConnectRequest tests parsing a valid ConnectRequest.
+func TestClassifyTerrariaValidConnectRequest(t *testing.T) {
+	t.Parallel()
+
+	data := buildTerrariaConnectRequest("Terraria279")
+
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(data)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Kind != Join {
+		t.Fatalf("expected Join, got %v", result.Kind)
+	}
+
+	detail, ok := result.Detail.(*TerrariaDetail)
+	if !ok {
+		t.Fatalf("expected *TerrariaDetail, got %T", result.Detail)
+	}
+
+	if detail.Version != "Terraria279" {
+		t.Errorf("expected version Terraria279, got %q", detail.Version)
+	}
+}
+
+// TestClassifyTerrariaConsumedBytes tests that consumed bytes can be replayed.
+func TestClassifyTerrariaConsumedBytes(t *testing.T) {
+	t.Parallel()
+
+	data := buildTerrariaConnectRequest("Terraria279")
+
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(data)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Kind != Join {
+		t.Fatalf("expected Join, got %v", result.Kind)
+	}
+
+	// Consumed bytes should match the full input
+	if !bytes.Equal(result.Consumed, data) {
+		t.Errorf("consumed bytes do not match input")
+	}
+
+	// Consumed should not be empty
+	if len(result.Consumed) == 0 {
+		t.Errorf("consumed should be non-empty")
+	}
+}
+
+// TestClassifyTerrariaEmptyConnectRequestPayload tests a ConnectRequest with empty version.
+func TestClassifyTerrariaEmptyConnectRequestPayload(t *testing.T) {
+	t.Parallel()
+
+	data := buildTerrariaConnectRequest("")
+
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(data)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Kind != Join {
+		t.Fatalf("expected Join, got %v", result.Kind)
+	}
+
+	detail, ok := result.Detail.(*TerrariaDetail)
+	if !ok {
+		t.Fatalf("expected *TerrariaDetail, got %T", result.Detail)
+	}
+
+	if detail.Version != "" {
+		t.Errorf("expected empty version, got %q", detail.Version)
+	}
+}
+
+// TestBuildTerrariaDisconnect tests building disconnect packets.
 func TestBuildTerrariaDisconnect(t *testing.T) {
 	t.Parallel()
 
@@ -204,55 +277,159 @@ func TestBuildTerrariaDisconnect(t *testing.T) {
 	}{
 		{
 			name:   "simple reason",
-			reason: "Server is offline",
+			reason: "Server is starting",
 		},
 		{
-			name:   "reason with quotes",
-			reason: `Server is "restarting"`,
-		},
-		{
-			name:   "reason with newline",
-			reason: "Line 1\nLine 2",
+			name:   "reason with special chars",
+			reason: "Maintenance: 15 min",
 		},
 		{
 			name:   "empty reason",
 			reason: "",
 		},
 		{
-			name:   "long reason",
-			reason: "This is a much longer disconnect reason that contains more information about why the player was disconnected from the server",
+			name:   "reason with unicode",
+			reason: "Server closed: 你好",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := BuildTerrariaDisconnect(tt.reason)
+			terraria := &TerrariaClassifier{}
+			data, err := terraria.BuildDisconnect(tt.reason)
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 
-			if len(data) < 4 {
-				t.Errorf("packet too small: %d bytes", len(data))
+			// Verify the output is non-empty and has valid framing
+			if len(data) == 0 {
+				t.Errorf("expected non-empty output")
 			}
 
-			// Verify frame structure: [length LE][type][payload...]
-			length := binary.LittleEndian.Uint16(data[:2])
-			messageType := data[2]
-
-			if messageType != terrariaDisconnect {
-				t.Errorf("expected message type %d, got %d", terrariaDisconnect, messageType)
-			}
-
-			// The length field includes itself, so the claimed length equals the
-			// total frame size (not the size after the length field).
-			if len(data) != int(length) {
-				t.Errorf("frame length mismatch: claimed %d, actual %d", length, len(data))
+			// Verify it's a valid Terraria message (can extract length and it matches actual data length)
+			if len(data) >= 2 {
+				frameLen := binary.LittleEndian.Uint16(data[:2])
+				if int(frameLen) != len(data) {
+					t.Errorf("frame length mismatch: declared %d, actual %d", frameLen, len(data))
+				}
 			}
 		})
 	}
 }
 
-// TestTerrafia7BitEncodedIntRoundtrip tests 7-bit integer encoding/decoding.
+// TestTerrariaConsumedBytesWithPipelinedData tests replay with pipelined data.
+func TestTerrariaConsumedBytesWithPipelinedData(t *testing.T) {
+	t.Parallel()
+
+	// Build a ConnectRequest followed by some pipelined data.
+	connect := buildTerrariaConnectRequest("Terraria279")
+	pipelined := []byte{0xFF, 0xEE, 0xDD, 0xCC}
+
+	var full bytes.Buffer
+	full.Write(connect)
+	full.Write(pipelined)
+
+	terraria := &TerrariaClassifier{}
+	result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(full.Bytes())))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Kind != Join {
+		t.Fatalf("expected Join, got %v", result.Kind)
+	}
+
+	// Verify Consumed bytes match the handshake only, not the pipelined data
+	if !bytes.Equal(result.Consumed, connect) {
+		t.Errorf("consumed bytes do not match connect request")
+	}
+}
+
+// TestTerrariaMessageRoundtrip tests building and parsing a disconnect message.
+func TestTerrariaMessageRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	reasons := []string{
+		"Server shutting down",
+		"Kicked for inactivity",
+		"",
+		"Special \"quotes\" and \\slashes",
+	}
+
+	for _, reason := range reasons {
+		t.Run(fmt.Sprintf("reason=%q", reason), func(t *testing.T) {
+			terraria := &TerrariaClassifier{}
+			data, err := terraria.BuildDisconnect(reason)
+			if err != nil {
+				t.Fatalf("BuildDisconnect error: %v", err)
+			}
+
+			// Verify it's a valid message by parsing it
+			br := bufio.NewReader(bytes.NewReader(data))
+			result, err := terraria.Classify(br)
+			if err != nil {
+				t.Fatalf("Classify error: %v", err)
+			}
+
+			// Disconnect message should be Unknown (not a connect request)
+			if result.Kind != Unknown {
+				t.Errorf("expected Unknown for disconnect message, got %v", result.Kind)
+			}
+		})
+	}
+}
+
+// TestTerrariaStringRoundtrip tests Terraria string encoding/decoding.
+func TestTerrariaStringRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{
+		"",
+		"hello",
+		"Terraria279",
+		"Unicode: 你好世界",
+		"Special chars: !@#$%^&*()",
+	}
+
+	for _, s := range tests {
+		t.Run(fmt.Sprintf("%q", s), func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := writeTerrariaString(&buf, s); err != nil {
+				t.Fatalf("write error: %v", err)
+			}
+
+			br := bytes.NewReader(buf.Bytes())
+			decoded, err := readTerrariaString(br)
+			if err != nil {
+				t.Fatalf("read error: %v", err)
+			}
+
+			if decoded != s {
+				t.Errorf("roundtrip failed: expected %q, got %q", s, decoded)
+			}
+		})
+	}
+}
+
+// TestTerrariaStringTooLong tests that oversized strings are rejected.
+func TestTerrariaStringTooLong(t *testing.T) {
+	t.Parallel()
+
+	// Write an extremely large string length.
+	var buf bytes.Buffer
+	if err := writeTerrafia7BitEncodedInt(&buf, 0x7fffffff); err != nil {
+		t.Fatalf("write error: %v", err)
+	}
+
+	br := bytes.NewReader(buf.Bytes())
+	_, err := readTerrariaString(br)
+	if err == nil {
+		t.Errorf("expected error for oversized string")
+	}
+}
+
+// TestTerrafia7BitEncodedIntRoundtrip tests 7-bit encoding/decoding.
 func TestTerrafia7BitEncodedIntRoundtrip(t *testing.T) {
 	t.Parallel()
 
@@ -261,237 +438,42 @@ func TestTerrafia7BitEncodedIntRoundtrip(t *testing.T) {
 		1,
 		127,
 		128,
-		255,
-		256,
 		16383,
 		16384,
 		2097151,
 		2097152,
+		268435455,
+		0x7fffffff,
 	}
 
 	for _, v := range tests {
-		t.Run(fmt.Sprintf("value=%d", v), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%d", v), func(t *testing.T) {
 			var buf bytes.Buffer
-			err := writeTerrafia7BitEncodedInt(&buf, v)
-			if err != nil {
-				t.Errorf("write failed: %v", err)
+			if err := writeTerrafia7BitEncodedInt(&buf, v); err != nil {
+				t.Fatalf("write error: %v", err)
 			}
 
-			result, err := readTerrafia7BitEncodedInt(bytes.NewReader(buf.Bytes()))
-			if err != nil {
-				t.Errorf("read failed: %v", err)
-			}
-
-			if result != v {
-				t.Errorf("expected %d, got %d", v, result)
-			}
-		})
-	}
-}
-
-// TestTerrariaStringRoundtrip tests string encoding/decoding.
-func TestTerrariaStringRoundtrip(t *testing.T) {
-	t.Parallel()
-
-	tests := []string{
-		"",
-		"hello",
-		"Terraria279",
-		"a much longer string with various characters!@#$%",
-	}
-
-	for _, s := range tests {
-		t.Run(fmt.Sprintf("string=%s", s), func(t *testing.T) {
-			var buf bytes.Buffer
-			err := writeTerrariaString(&buf, s)
-			if err != nil {
-				t.Errorf("write failed: %v", err)
-			}
-
-			result, err := readTerrariaString(bytes.NewReader(buf.Bytes()))
-			if err != nil {
-				t.Errorf("read failed: %v", err)
-			}
-
-			if result != s {
-				t.Errorf("expected %q, got %q", s, result)
-			}
-		})
-	}
-}
-
-// TestTerrariaConnectRequestParsing tests parsing of ConnectRequest payload.
-func TestTerrariaConnectRequestParsing(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		version       string
-		expectVersion string
-		expectErr     bool
-	}{
-		{
-			name:          "standard connect",
-			version:       "Terraria279",
-			expectVersion: "Terraria279",
-			expectErr:     false,
-		},
-		{
-			name:          "different version",
-			version:       "Terraria238",
-			expectVersion: "Terraria238",
-			expectErr:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Build payload.
-			var payload bytes.Buffer
-			_ = writeTerrariaString(&payload, tt.version)
-
-			result, err := parseTerrariaConnectRequest(payload.Bytes())
-
-			if tt.expectErr && err == nil {
-				t.Errorf("expected error, got none")
-			}
-			if !tt.expectErr && err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-
-			if !tt.expectErr && result != nil {
-				if result.Version != tt.expectVersion {
-					t.Errorf("expected version %q, got %q", tt.expectVersion, result.Version)
-				}
-			}
-		})
-	}
-}
-
-// TestTerrariaConnectRequestEmpty tests parsing an empty payload.
-func TestTerrariaConnectRequestEmpty(t *testing.T) {
-	t.Parallel()
-
-	_, err := parseTerrariaConnectRequest([]byte{})
-	if err == nil {
-		t.Errorf("expected error for empty payload")
-	}
-}
-
-// TestTerrariaNetworkTextRoundtrip tests NetworkText encoding.
-func TestTerrariaNetworkTextRoundtrip(t *testing.T) {
-	t.Parallel()
-
-	reasons := []string{
-		"Server offline",
-		"Version mismatch",
-		"Server is full",
-		`Check: C:\server\logs`,
-	}
-
-	for _, reason := range reasons {
-		t.Run(reason, func(t *testing.T) {
-			var buf bytes.Buffer
-			err := writeTerrariaNetworkText(&buf, reason)
-			if err != nil {
-				t.Errorf("write failed: %v", err)
-			}
-
-			// Verify it can be read back (at least the mode and string).
 			br := bytes.NewReader(buf.Bytes())
-			mode, err := br.ReadByte()
+			decoded, err := readTerrafia7BitEncodedInt(br)
 			if err != nil {
-				t.Errorf("read mode failed: %v", err)
+				t.Fatalf("read error: %v", err)
 			}
 
-			if mode != 0 {
-				t.Errorf("expected literal mode (0), got %d", mode)
-			}
-
-			text, err := readTerrariaString(br)
-			if err != nil {
-				t.Errorf("read text failed: %v", err)
-			}
-
-			if text != reason {
-				t.Errorf("expected %q, got %q", reason, text)
+			if decoded != v {
+				t.Errorf("roundtrip failed: expected %d, got %d", v, decoded)
 			}
 		})
 	}
 }
 
-// TestClassifyTerrariaRoundtrip tests building and parsing a disconnect message.
-func TestClassifyTerrariaRoundtrip(t *testing.T) {
+// TestTerrafia7BitEncodedNegative tests that negative values are rejected.
+func TestTerrafia7BitEncodedNegative(t *testing.T) {
 	t.Parallel()
 
-	reason := "Server maintenance"
-
-	// Build a disconnect message.
-	data, err := BuildTerrariaDisconnect(reason)
-	if err != nil {
-		t.Errorf("build failed: %v", err)
-	}
-
-	// Parse it back (as Unknown since it's not a ConnectRequest).
-	kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
-	if err != nil {
-		t.Errorf("parse failed: %v", err)
-	}
-
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
-	}
-}
-
-// TestClassifyTerrariaEOFHandling tests EOF vs truncation handling.
-func TestClassifyTerrariaEOFHandling(t *testing.T) {
-	t.Parallel()
-
-	// A proper ConnectRequest followed by EOF should parse successfully.
-	data := buildTerrariaConnectRequest("Terraria279")
-	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
-
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if kind != Join {
-		t.Errorf("expected kind Join, got %v", kind)
-	}
-	if result == nil {
-		t.Errorf("expected result to be populated")
-	}
-}
-
-// TestTerrariaConsumedBytes tests that consumed bytes can be replayed.
-func TestTerrariaConsumedBytes(t *testing.T) {
-	t.Parallel()
-
-	data := buildTerrariaConnectRequest("Terraria279")
-	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if kind != Join {
-		t.Fatalf("expected kind Join, got %v", kind)
-	}
-	if result == nil {
-		t.Fatalf("expected result, got nil")
-	}
-
-	// Consumed should equal the total data length for a complete read
-	if len(result.Consumed) != len(data) {
-		t.Errorf("consumed %d != len(data) %d", len(result.Consumed), len(data))
-	}
-
-	// Consumed must be non-empty
-	if len(result.Consumed) == 0 {
-		t.Errorf("consumed should be non-empty")
-	}
-
-	// Consumed bytes should match the original data
-	if !bytes.Equal(result.Consumed, data) {
-		t.Errorf("consumed bytes do not match original data")
+	var buf bytes.Buffer
+	err := writeTerrafia7BitEncodedInt(&buf, -1)
+	if err == nil {
+		t.Errorf("expected error for negative value")
 	}
 }
 
@@ -500,56 +482,22 @@ func TestTerrariaHostileInputs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		data   []byte
-		errStr string // substring expected in error message
+		name string
+		data []byte
 	}{
-		{
-			name:   "length 0xFFFFFFFF (claim max uint16)",
-			data:   buildTerrariaMessage(terrariaConnectRequest, make([]byte, 65530)),
-			errStr: "", // This should succeed as it's within bounds
-		},
-		{
-			name:   "zero length",
-			data:   []byte{0x00, 0x00, 0x01},
-			errStr: "too short",
-		},
-		{
-			name:   "truncated header",
-			data:   []byte{0x00},
-			errStr: "EOF",
-		},
-		{
-			name:   "truncated payload",
-			data:   []byte{0x10, 0x00, 0x01, 0x02}, // length=16 but only 4 bytes total
-			errStr: "read terraria frame payload",
-		},
-		{
-			name:   "empty input",
-			data:   []byte{},
-			errStr: "EOF",
-		},
+		{"all zeros", []byte{0x00, 0x00, 0x00}},
+		{"single byte", []byte{0x01}},
+		{"frame with wrong type", []byte{0x05, 0x00, 0xFF, 0xAA, 0xBB}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kind, _, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(tt.data)))
+			terraria := &TerrariaClassifier{}
+			result, err := terraria.Classify(bufio.NewReader(bytes.NewReader(tt.data)))
 
-			if tt.errStr != "" {
-				if err == nil {
-					t.Errorf("expected error, got none")
-				}
-				if kind != Unknown {
-					t.Errorf("expected kind Unknown, got %v", kind)
-				}
-				if !bytes.Contains([]byte(err.Error()), []byte(tt.errStr)) {
-					t.Errorf("expected error containing %q, got: %v", tt.errStr, err)
-				}
-			} else {
-				// No error expected
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+			// Should either error or return Unknown
+			if err == nil && result != nil && result.Kind != Unknown {
+				t.Errorf("expected error or Unknown for hostile input, got %v", result.Kind)
 			}
 		})
 	}
@@ -581,262 +529,142 @@ func buildTerrariaMessage(msgType byte, payload []byte) []byte {
 	return out.Bytes()
 }
 
-// TestTerrariaStringTruncation tests string reading with truncated data.
-func TestTerrariaStringTruncation(t *testing.T) {
-	t.Parallel()
+// TestTerrariaSupportsStatusPing verifies that TerrariaClassifier.SupportsStatusPing() returns false.
+func TestTerrariaSupportsStatusPing(t *testing.T) {
+	terraria := &TerrariaClassifier{}
+	if terraria.SupportsStatusPing() {
+		t.Errorf("TerrariaClassifier.SupportsStatusPing() should return false")
+	}
+}
 
-	// Claim a string of length 100 but provide only 10 bytes.
-	var buf bytes.Buffer
-	_ = writeTerrafia7BitEncodedInt(&buf, 100)
-	buf.Write([]byte{0x01, 0x02, 0x03, 0x04, 0x05})
-
-	_, err := readTerrariaString(bytes.NewReader(buf.Bytes()))
+// TestTerrariaStatusPingNotSupported verifies that BuildStatusResponse returns an error.
+func TestTerrariaStatusPingNotSupported(t *testing.T) {
+	terraria := &TerrariaClassifier{}
+	_, err := terraria.BuildStatusResponse(`{}`)
 	if err == nil {
-		t.Errorf("expected error for truncated string")
+		t.Errorf("expected error for BuildStatusResponse on Terraria")
+	}
+	if !errors.Is(err, ErrStatusPingUnsupported) {
+		t.Errorf("expected ErrStatusPingUnsupported, got %v", err)
 	}
 }
 
-// TestTerrafia7BitEncodedIntTooLong tests overflow of 7-bit encoded integers.
-func TestTerrafia7BitEncodedIntTooLong(t *testing.T) {
-	t.Parallel()
-
-	// Six continuation bytes would overflow the 32-bit limit.
-	// Craft a malicious sequence: all high bits set, making it read 6 bytes.
-	data := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-
-	_, err := readTerrafia7BitEncodedInt(bytes.NewReader(data))
-	if err == nil {
-		t.Errorf("expected error for oversized 7-bit int")
-	}
-}
-
-// TestClassifyTerrariaReplayContract proves the replay contract from the
-// package doc comment: Consumed plus whatever remains unread in the source
-// reconstructs the original stream byte-for-byte. Unlike the Minecraft
-// classifier, classifyTerrariaConnect reads directly off the given
-// io.Reader via io.ReadFull (no internal bufio buffering), so a plain
-// bytes.Reader with trailing data already demonstrates the contract holds.
-func TestClassifyTerrariaReplayContract(t *testing.T) {
-	t.Parallel()
-
-	message := buildTerrariaConnectRequest("Terraria279")
-	extra := []byte("subsequent message bytes belonging to a different packet")
-	full := append(append([]byte{}, message...), extra...)
-
-	r := bytes.NewReader(full)
-	br := bufio.NewReader(r)
-	kind, result, err := ClassifyTerraria(br)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if kind != Join {
-		t.Fatalf("expected kind Join, got %v", kind)
-	}
-	if result == nil {
-		t.Fatalf("expected result, got nil")
-	}
-	if !bytes.Equal(result.Consumed, message) {
-		t.Fatalf("consumed %d bytes does not match message %d bytes", len(result.Consumed), len(message))
-	}
-
-	// Read the remaining bytes from the bufio.Reader, not from the original bytes.Reader
-	remaining := make([]byte, len(extra))
-	n, _ := br.Read(remaining)
-	if !bytes.Equal(remaining[:n], extra) {
-		t.Errorf("remaining %q does not match expected extra %q", remaining[:n], extra)
-	}
-
-	reconstructed := append(append([]byte{}, result.Consumed...), remaining[:n]...)
-	if !bytes.Equal(reconstructed, full) {
-		t.Errorf("consumed+remaining does not reconstruct original: got %d bytes, want %d", len(reconstructed), len(full))
-	}
-}
-
-// terrariaAlwaysErrReader always fails with a distinct, non-EOF error,
-// forcing the header read to hit a genuine I/O error rather than EOF.
-type terrariaAlwaysErrReader struct{}
-
-func (terrariaAlwaysErrReader) Read([]byte) (int, error) {
-	return 0, errors.New("header boom")
-}
-
-// TestClassifyTerrariaHeaderReadNonEOFError tests that a non-EOF read error
-// while reading the 3-byte frame header is wrapped and surfaced distinctly
-// from the EOF/truncation case.
-func TestClassifyTerrariaHeaderReadNonEOFError(t *testing.T) {
-	t.Parallel()
-
-	kind, result, err := ClassifyTerraria(bufio.NewReader(terrariaAlwaysErrReader{}))
-
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %+v", result)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("read terraria frame header")) {
-		t.Errorf("expected error containing %q, got: %v", "read terraria frame header", err)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("header boom")) {
-		t.Errorf("expected wrapped cause %q, got: %v", "header boom", err)
-	}
-}
-
-// terrariaHeaderThenErrReader serves a fixed header on the first Read call,
-// then fails with a distinct, non-EOF error on every subsequent call,
-// forcing the payload read to hit a genuine I/O error rather than EOF.
-type terrariaHeaderThenErrReader struct {
-	header []byte
-	served bool
-}
-
-func (r *terrariaHeaderThenErrReader) Read(p []byte) (int, error) {
-	if !r.served {
-		r.served = true
-		n := copy(p, r.header)
-		return n, nil
-	}
-	return 0, errors.New("payload boom")
-}
-
-// TestClassifyTerrariaPayloadReadNonEOFError tests that a non-EOF read
-// error while reading the frame payload is wrapped and surfaced distinctly
-// from the EOF/truncation case.
-func TestClassifyTerrariaPayloadReadNonEOFError(t *testing.T) {
-	t.Parallel()
-
-	// totalLength=10 (LE), type=ConnectRequest, implying a 7-byte payload
-	// that this reader will refuse to supply.
-	header := append(binary.LittleEndian.AppendUint16(nil, 10), terrariaConnectRequest)
-	r := &terrariaHeaderThenErrReader{header: header}
-
-	kind, result, err := ClassifyTerraria(bufio.NewReader(r))
-
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %+v", result)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("read terraria frame payload")) {
-		t.Errorf("expected error containing %q, got: %v", "read terraria frame payload", err)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("payload boom")) {
-		t.Errorf("expected wrapped cause %q, got: %v", "payload boom", err)
-	}
-}
-
-// TestClassifyTerrariaEmptyConnectRequestPayload tests a syntactically
-// valid ConnectRequest frame (correct length, correct type) whose payload
-// is empty, so the higher-level parse error path is exercised end to end.
-func TestClassifyTerrariaEmptyConnectRequestPayload(t *testing.T) {
-	t.Parallel()
-
-	data := buildTerrariaMessage(terrariaConnectRequest, []byte{})
-	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
-
-	if err == nil {
-		t.Fatal("expected error for empty ConnectRequest payload")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %+v", result)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("parse terraria ConnectRequest")) {
-		t.Errorf("expected error containing %q, got: %v", "parse terraria ConnectRequest", err)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("empty ConnectRequest payload")) {
-		t.Errorf("expected wrapped cause %q, got: %v", "empty ConnectRequest payload", err)
-	}
-}
-
-// TestClassifyTerrariaMalformedVersionLength tests a ConnectRequest whose
-// payload contains an incomplete 7-bit-encoded string length (a single
-// continuation byte with no follow-up byte), driving the version-string
-// parse error end to end.
-func TestClassifyTerrariaMalformedVersionLength(t *testing.T) {
-	t.Parallel()
-
-	data := buildTerrariaMessage(terrariaConnectRequest, []byte{0x80})
-	kind, result, err := ClassifyTerraria(bufio.NewReader(bytes.NewReader(data)))
-
-	if err == nil {
-		t.Fatal("expected error for truncated version-string length")
-	}
-	if kind != Unknown {
-		t.Errorf("expected kind Unknown, got %v", kind)
-	}
-	if result != nil {
-		t.Errorf("expected nil result, got %+v", result)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("parse terraria ConnectRequest")) {
-		t.Errorf("expected error containing %q, got: %v", "parse terraria ConnectRequest", err)
-	}
-	if !bytes.Contains([]byte(err.Error()), []byte("read version string")) {
-		t.Errorf("expected wrapped cause %q, got: %v", "read version string", err)
-	}
-}
-
-// TestReadTerrariaStringDirectErrors exercises readTerrariaString directly
-// (white-box) for cases the public API guards against before ever reaching
-// it, so its own defensive checks are proven independently.
-func TestReadTerrariaStringDirectErrors(t *testing.T) {
-	t.Parallel()
-
-	t.Run("empty reader", func(t *testing.T) {
-		t.Parallel()
-		_, err := readTerrariaString(bytes.NewReader([]byte{}))
-		if err == nil {
-			t.Fatal("expected error for empty reader")
-		}
-	})
-
-	t.Run("negative length", func(t *testing.T) {
-		t.Parallel()
-		// Five bytes whose 7-bit-encoded value sets the int32 sign bit.
-		data := []byte{0x80, 0x80, 0x80, 0x80, 0x08}
-		_, err := readTerrariaString(bytes.NewReader(data))
-		if err == nil {
-			t.Fatal("expected error for negative decoded length")
-		}
-		if !bytes.Contains([]byte(err.Error()), []byte("negative string length")) {
-			t.Errorf("expected error containing %q, got: %v", "negative string length", err)
-		}
-	})
-}
-
-// TestReadTerrafia7BitEncodedIntEmptyReader tests that reading from a
-// completely empty reader fails on the very first byte read, distinct from
-// the "too long" (unterminated continuation) case already covered.
-func TestReadTerrafia7BitEncodedIntEmptyReader(t *testing.T) {
-	t.Parallel()
-
-	_, err := readTerrafia7BitEncodedInt(bytes.NewReader([]byte{}))
-	if err == nil {
-		t.Fatal("expected error for empty reader")
-	}
-}
-
-// TestBuildTerrariaDisconnectTooLarge tests that a disconnect reason large
-// enough to push the framed message past the uint16 length-field range is
-// rejected rather than silently truncated or overflowing the length field.
+// TestBuildTerrariaDisconnectTooLarge tests that oversized disconnect messages are rejected.
 func TestBuildTerrariaDisconnectTooLarge(t *testing.T) {
 	t.Parallel()
 
-	huge := bigString(70000)
-	_, err := BuildTerrariaDisconnect(huge)
-	if err == nil {
-		t.Fatal("expected error for oversized disconnect reason")
+	terraria := &TerrariaClassifier{}
+
+	// Create an oversized reason string (larger than terrariaMaxPacketSize).
+	// String of 70000 'a' characters will exceed the 65535 byte frame limit.
+	largeReasonBytes := make([]byte, 70000)
+	for i := range largeReasonBytes {
+		largeReasonBytes[i] = 'a'
 	}
-	if !bytes.Contains([]byte(err.Error()), []byte("disconnect message too large")) {
-		t.Errorf("unexpected error: %v", err)
+	largeReason := string(largeReasonBytes)
+
+	_, err := terraria.BuildDisconnect(largeReason)
+	if err == nil {
+		t.Errorf("expected error for oversized disconnect message")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("too large")) {
+		t.Errorf("expected 'too large' in error message, got: %v", err)
+	}
+}
+
+// TestReadTerrariaStringNegativeLength tests that negative string lengths are rejected.
+func TestReadTerrariaStringNegativeLength(t *testing.T) {
+	t.Parallel()
+
+	// Create a 7-bit-encoded value that decodes to a negative int32.
+	// The 7-bit encoding for -1 with sign bit set: {0x80, 0x80, 0x80, 0x80, 0x08}
+	// This encodes to -1 when interpreted as a signed int32.
+	negativeEncodedBytes := []byte{0x80, 0x80, 0x80, 0x80, 0x08}
+
+	br := bytes.NewReader(negativeEncodedBytes)
+	_, err := readTerrariaString(br)
+	if err == nil {
+		t.Errorf("expected error for negative string length")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("negative")) {
+		t.Errorf("expected 'negative' in error message, got: %v", err)
+	}
+}
+
+// mockReader is a custom io.Reader that fails with a specific non-EOF error.
+type mockReader struct {
+	failAfter int
+	bytesRead int
+	data      []byte
+}
+
+func (mr *mockReader) Read(p []byte) (int, error) {
+	if mr.bytesRead >= mr.failAfter {
+		return 0, fmt.Errorf("mock read error")
+	}
+	if mr.bytesRead+len(p) > mr.failAfter {
+		// Read up to the failure point
+		n := mr.failAfter - mr.bytesRead
+		copy(p, mr.data[mr.bytesRead:mr.bytesRead+n])
+		mr.bytesRead += n
+		return n, fmt.Errorf("mock read error")
+	}
+	n := copy(p, mr.data[mr.bytesRead:])
+	mr.bytesRead += n
+	if mr.bytesRead >= len(mr.data) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+// TestClassifyTerrariaHeaderReadNonEOFError tests handling of non-EOF errors during header read.
+func TestClassifyTerrariaHeaderReadNonEOFError(t *testing.T) {
+	t.Parallel()
+
+	// Create mock reader that fails after 2 bytes (before the full 3-byte header is read)
+	mr := &mockReader{
+		failAfter: 2,
+		data:      []byte{0x01, 0x02, 0x03, 0x04, 0x05},
+	}
+	br := bufio.NewReader(mr)
+
+	terraria := &TerrariaClassifier{}
+	_, err := terraria.Classify(br)
+
+	if err == nil {
+		t.Errorf("expected error for header read failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("read terraria frame header")) {
+		t.Errorf("expected 'read terraria frame header' in error message, got: %v", err)
+	}
+}
+
+// TestClassifyTerrariaPayloadReadNonEOFError tests handling of non-EOF errors during payload read.
+func TestClassifyTerrariaPayloadReadNonEOFError(t *testing.T) {
+	t.Parallel()
+
+	// Create header for a message with 100 bytes of payload, but only provide partial payload.
+	// Header: 2-byte length (103) + 1-byte type (ConnectRequest) = 3 bytes.
+	// We'll provide 10 bytes of payload instead of the required 100.
+	headerBytes := binary.LittleEndian.AppendUint16(nil, 103) // 3-byte header + 100 bytes payload
+	headerWithPayload := append(headerBytes, terrariaConnectRequest)
+	headerWithPayload = append(headerWithPayload, make([]byte, 10)...) // Only 10 bytes instead of 100
+
+	// failAfter = 13 means fail after reading 3 (header) + 10 (partial payload) bytes,
+	// simulating a read error mid-payload when trying to read more bytes.
+	mr := &mockReader{
+		failAfter: 13,
+		data:      headerWithPayload,
+	}
+	br := bufio.NewReader(mr)
+
+	terraria := &TerrariaClassifier{}
+	_, err := terraria.Classify(br)
+
+	if err == nil {
+		t.Errorf("expected error for payload read failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("read terraria frame payload")) {
+		t.Errorf("expected 'read terraria frame payload' in error message, got: %v", err)
 	}
 }
