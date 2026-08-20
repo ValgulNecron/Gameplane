@@ -61,11 +61,24 @@ func TestRegistry_ExpectedProtocols(t *testing.T) {
 func TestRegistry_LookupHit(t *testing.T) {
 	tests := []struct {
 		name      string
-		wantType  interface{}
+		checkType func(Classifier) bool
+		typeName  string
 	}{
-		{"minecraft", (*MinecraftClassifier)(nil)},
-		{"terraria", (*TerrariaClassifier)(nil)},
-		{"demo", (*DemoClassifier)(nil)},
+		{
+			"minecraft",
+			func(c Classifier) bool { _, ok := c.(*MinecraftClassifier); return ok },
+			"*MinecraftClassifier",
+		},
+		{
+			"terraria",
+			func(c Classifier) bool { _, ok := c.(*TerrariaClassifier); return ok },
+			"*TerrariaClassifier",
+		},
+		{
+			"demo",
+			func(c Classifier) bool { _, ok := c.(*DemoClassifier); return ok },
+			"*DemoClassifier",
+		},
 	}
 
 	for _, tt := range tests {
@@ -78,11 +91,9 @@ func TestRegistry_LookupHit(t *testing.T) {
 				t.Fatalf("Lookup(%q) returned nil Classifier", tt.name)
 			}
 
-			// Verify concrete type matches.
-			expectedType := reflect.TypeOf(tt.wantType).Elem()
-			actualType := reflect.TypeOf(classifier)
-			if actualType != expectedType {
-				t.Fatalf("Lookup(%q) returned %T, want %T", tt.name, classifier, tt.wantType)
+			// Verify concrete type matches using type assertion.
+			if !tt.checkType(classifier) {
+				t.Fatalf("Lookup(%q) returned %T, want %s", tt.name, classifier, tt.typeName)
 			}
 		})
 	}
@@ -170,11 +181,11 @@ func TestRegistry_TransportAgnostic(t *testing.T) {
 	if !ok {
 		t.Fatal("Classifier interface missing Classify method")
 	}
-	if classifyMethod.Type.NumIn() != 2 {
-		t.Fatalf("Classify has %d inputs, want 2 (receiver + *bufio.Reader)", classifyMethod.Type.NumIn())
+	if classifyMethod.Type.NumIn() != 1 {
+		t.Fatalf("Classify has %d inputs, want 1 (*bufio.Reader; receiver is implicit for interface methods)", classifyMethod.Type.NumIn())
 	}
-	// Input 1 (after receiver) should be *bufio.Reader.
-	brType := classifyMethod.Type.In(1)
+	// Input 0 should be *bufio.Reader (receiver is not counted for interface methods).
+	brType := classifyMethod.Type.In(0)
 	expectedBRType := reflect.TypeOf((*bufio.Reader)(nil))
 	if brType != expectedBRType {
 		t.Fatalf("Classify input is %v, want *bufio.Reader", brType)

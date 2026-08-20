@@ -3,6 +3,7 @@ package gameproto
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 )
@@ -101,7 +102,7 @@ func TestDemoClassifier_BuildStatusResponse(t *testing.T) {
 			if payload != nil {
 				t.Fatalf("BuildStatusResponse() returned payload %v, want nil", payload)
 			}
-			if err != ErrStatusPingUnsupported {
+			if !errors.Is(err, ErrStatusPingUnsupported) {
 				t.Fatalf("BuildStatusResponse() returned error %v, want ErrStatusPingUnsupported", err)
 			}
 		})
@@ -137,6 +138,6 @@ func TestDemoClassifier_BuildDisconnect(t *testing.T) {
 
 // TestDemoClassifier_ImplementsClassifier is a compile-time assertion that
 // *DemoClassifier satisfies the Classifier interface.
-func TestDemoClassifier_ImplementsClassifier(t *testing.T) {
+func TestDemoClassifier_ImplementsClassifier(_ *testing.T) {
 	var _ Classifier = (*DemoClassifier)(nil)
 }

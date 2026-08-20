@@ -263,9 +263,11 @@ func (tc *TerrariaClassifier) SupportsStatusPing() bool {
 }
 
 // BuildStatusResponse is not supported for Terraria and returns an error.
+// Terraria has no out-of-band status ping concept, so this method ignores
+// its JSON payload parameter and always returns ErrStatusPingUnsupported.
 // The caller should have checked SupportsStatusPing() first; this method
 // exists only as a defensive path and should never be called in correct usage.
-func (tc *TerrariaClassifier) BuildStatusResponse(payload string) ([]byte, error) {
+func (tc *TerrariaClassifier) BuildStatusResponse(_ string) ([]byte, error) {
 	return nil, ErrStatusPingUnsupported
 }
 

@@ -160,8 +160,8 @@ func TestMinecraftBuildStatusResponseEquivalence(t *testing.T) {
 			if !bytes.Equal(oldData, newData) {
 				t.Errorf("BuildStatusResponse output mismatch: old %d bytes, new %d bytes", len(oldData), len(newData))
 				if len(oldData) > 0 && len(newData) > 0 {
-					t.Logf("old[0:10]: %v", oldData[:min(10, len(oldData))])
-					t.Logf("new[0:10]: %v", newData[:min(10, len(newData))])
+					t.Logf("old[0:10]: %v", oldData[:minInt(10, len(oldData))])
+					t.Logf("new[0:10]: %v", newData[:minInt(10, len(newData))])
 				}
 			}
 		})
@@ -418,12 +418,23 @@ func TestNonMatchingBytesEquivalence(t *testing.T) {
 			// Test Minecraft facade vs classifier
 			{
 				oldReader := bufio.NewReader(bytes.NewReader(tt.data))
-				oldKind, _, _ := ClassifyMinecraft(oldReader)
+				oldKind, _, oldErr := ClassifyMinecraft(oldReader)
 
 				newReader := bufio.NewReader(bytes.NewReader(tt.data))
 				minecraft := &MinecraftClassifier{}
-				newResult, _ := minecraft.Classify(newReader)
+				newResult, newErr := minecraft.Classify(newReader)
 
+				// Verify error parity
+				if (oldErr != nil) != (newErr != nil) {
+					t.Errorf("Minecraft error parity mismatch: old had error %v, new had error %v", oldErr, newErr)
+				}
+
+				// If there was an error, skip remaining checks
+				if newErr != nil {
+					return
+				}
+
+				// Now we can safely dereference newResult
 				if oldKind != Unknown {
 					// Old facade returned non-Unknown, verify new does too for consistency
 					if newResult.Kind == Unknown {
@@ -440,12 +451,23 @@ func TestNonMatchingBytesEquivalence(t *testing.T) {
 			// Test Terraria facade vs classifier
 			{
 				oldReader := bufio.NewReader(bytes.NewReader(tt.data))
-				oldKind, _, _ := ClassifyTerraria(oldReader)
+				oldKind, _, oldErr := ClassifyTerraria(oldReader)
 
 				newReader := bufio.NewReader(bytes.NewReader(tt.data))
 				terraria := &TerrariaClassifier{}
-				newResult, _ := terraria.Classify(newReader)
+				newResult, newErr := terraria.Classify(newReader)
 
+				// Verify error parity
+				if (oldErr != nil) != (newErr != nil) {
+					t.Errorf("Terraria error parity mismatch: old had error %v, new had error %v", oldErr, newErr)
+				}
+
+				// If there was an error, skip remaining checks
+				if newErr != nil {
+					return
+				}
+
+				// Now we can safely dereference newResult
 				if oldKind != Unknown {
 					// Old facade returned non-Unknown, verify new does too for consistency
 					if newResult.Kind == Unknown {
@@ -522,8 +544,8 @@ func TestClassifierDetailNotNilForNonUnknown(t *testing.T) {
 	})
 }
 
-// min returns the minimum of two integers.
-func min(a, b int) int {
+// minInt returns the minimum of two integers.
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

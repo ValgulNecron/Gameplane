@@ -19,7 +19,9 @@ type DemoClassifier struct{}
 // Classify implements Classifier.Classify for the demo protocol.
 // This stub always classifies as Unknown without reading any bytes,
 // which ensures stream replay cannot fail — no bytes are consumed.
-func (d *DemoClassifier) Classify(br *bufio.Reader) (*ClassificationResult, error) {
+// The br parameter (bufio.Reader) is intentionally unused because this
+// stub performs no actual protocol handshake parsing.
+func (d *DemoClassifier) Classify(_ *bufio.Reader) (*ClassificationResult, error) {
 	return &ClassificationResult{
 		Kind:     Unknown,
 		Consumed: nil,
@@ -35,12 +37,16 @@ func (d *DemoClassifier) SupportsStatusPing() bool {
 
 // BuildStatusResponse implements Classifier.BuildStatusResponse for the demo protocol.
 // Since SupportsStatusPing returns false, this method always returns an error.
-func (d *DemoClassifier) BuildStatusResponse(payload string) ([]byte, error) {
+// The payload parameter is intentionally unused because this stub does not
+// support status pings and will never be called by well-behaved code.
+func (d *DemoClassifier) BuildStatusResponse(_ string) ([]byte, error) {
 	return nil, ErrStatusPingUnsupported
 }
 
 // BuildDisconnect implements Classifier.BuildDisconnect for the demo protocol.
 // This stub has no wire format; it returns empty bytes and no error.
-func (d *DemoClassifier) BuildDisconnect(reason string) ([]byte, error) {
+// The reason parameter is intentionally unused because this stub has no
+// protocol-specific disconnect message to encode.
+func (d *DemoClassifier) BuildDisconnect(_ string) ([]byte, error) {
 	return nil, nil
 }
