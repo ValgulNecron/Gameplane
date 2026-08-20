@@ -3,6 +3,7 @@ package gameproto
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"testing"
 )
 
@@ -60,7 +61,7 @@ func TestDemoClassifier_ConsumesNothing(t *testing.T) {
 	}
 
 	// Read the remaining bytes from the reader.
-	remaining, err := bytes.ReadAll(br)
+	remaining, err := io.ReadAll(br)
 	if err != nil {
 		t.Fatalf("ReadAll() returned error %v", err)
 	}
