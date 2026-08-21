@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -412,5 +413,329 @@ func TestGetAdvertisedPortNamesEmpty(t *testing.T) {
 	got := getAdvertisedPortNames(tmpl)
 	if len(got) != 0 {
 		t.Errorf("expected 0 advertised ports, got %d", len(got))
+	}
+}
+
+// condByType indexes a condition list for the address-assignment tests below.
+func condByType(conds []metav1.Condition, condType string) (metav1.Condition, bool) {
+	for _, c := range conds {
+		if c.Type == condType {
+			return c, true
+		}
+	}
+	return metav1.Condition{}, false
+}
+
+// lbService builds a LoadBalancer game Service carrying one port, optionally
+// with an address already published by the cluster's address manager.
+func lbService(ingressIP string) *corev1.Service {
+	svc := &corev1.Service{
+		Spec: corev1.ServiceSpec{
+			Type:      corev1.ServiceTypeLoadBalancer,
+			ClusterIP: "10.96.0.10",
+			Ports: []corev1.ServicePort{
+				{Name: "game", Port: 25565, Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
+	if ingressIP != "" {
+		svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: ingressIP}}
+	}
+	return svc
+}
+
+// gsWithAddressRequest builds a GameServer asking for a pool and/or address
+// under the given expose mode.
+func gsWithAddressRequest(expose, pool, address string) *gameplanev1alpha1.GameServer {
+	return &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      expose,
+				AddressPool: pool,
+				Address:     address,
+			},
+		},
+	}
+}
+
+func TestEndpointsFromServicePool(t *testing.T) {
+	cases := []struct {
+		name     string
+		svc      *corev1.Service
+		plan     addressPlan
+		wantHost string
+		wantPool string
+	}{
+		{
+			// The whole point of the field: a translated request that the
+			// address manager has answered stamps the pool it was asked for.
+			name:     "translated request with an assigned address stamps the pool",
+			svc:      lbService("203.0.113.7"),
+			plan:     addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanTranslated},
+			wantHost: "203.0.113.7",
+			wantPool: "games",
+		},
+		{
+			// Backward compatibility: an untouched server's endpoints must
+			// look exactly as they did before the field existed.
+			name:     "no request leaves the pool empty",
+			svc:      lbService("203.0.113.7"),
+			plan:     addressPlan{Manager: addressManagerMetalLB, Outcome: addressPlanNotRequested},
+			wantHost: "203.0.113.7",
+			wantPool: "",
+		},
+		{
+			name:     "address-only request leaves the pool empty",
+			svc:      lbService("203.0.113.7"),
+			plan:     addressPlan{Manager: addressManagerMetalLB, Address: "203.0.113.7", Outcome: addressPlanTranslated},
+			wantHost: "203.0.113.7",
+			wantPool: "",
+		},
+		{
+			// The ClusterIP fallback shown while assignment is pending was
+			// not drawn from any pool, so it must not claim one.
+			name:     "pending assignment falls back to the cluster IP with no pool",
+			svc:      lbService(""),
+			plan:     addressPlan{Manager: addressManagerCilium, Pool: "games", Outcome: addressPlanTranslated},
+			wantHost: "10.96.0.10",
+			wantPool: "",
+		},
+		{
+			name:     "no address manager configured claims no pool",
+			svc:      lbService("203.0.113.7"),
+			plan:     addressPlan{Pool: "games", Outcome: addressPlanNoAddressManagerConfigured},
+			wantHost: "203.0.113.7",
+			wantPool: "",
+		},
+		{
+			name:     "request ignored for the expose mode claims no pool",
+			svc:      lbService("203.0.113.7"),
+			plan:     addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanIgnoredForExposureMode},
+			wantHost: "203.0.113.7",
+			wantPool: "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			eps := endpointsFromService(tc.svc, tc.plan)
+			if len(eps) != 1 {
+				t.Fatalf("got %d endpoints, want 1", len(eps))
+			}
+			if eps[0].Host != tc.wantHost {
+				t.Errorf("Host = %q, want %q", eps[0].Host, tc.wantHost)
+			}
+			if eps[0].Pool != tc.wantPool {
+				t.Errorf("Pool = %q, want %q", eps[0].Pool, tc.wantPool)
+			}
+		})
+	}
+}
+
+func TestEndpointsFromServicePoolStampsEveryPort(t *testing.T) {
+	svc := lbService("203.0.113.7")
+	svc.Spec.Ports = append(svc.Spec.Ports,
+		corev1.ServicePort{Name: "query", Port: 25565, Protocol: corev1.ProtocolUDP})
+	plan := addressPlan{Manager: addressManagerCilium, Pool: "games", Outcome: addressPlanTranslated}
+
+	eps := endpointsFromService(svc, plan)
+	if len(eps) != 2 {
+		t.Fatalf("got %d endpoints, want 2", len(eps))
+	}
+	for _, ep := range eps {
+		if ep.Pool != "games" {
+			t.Errorf("endpoint %q: Pool = %q, want %q", ep.Name, ep.Pool, "games")
+		}
+	}
+}
+
+func TestAddressAssignmentCondition(t *testing.T) {
+	cases := []struct {
+		name       string
+		gs         *gameplanev1alpha1.GameServer
+		plan       addressPlan
+		svc        *corev1.Service
+		wantStatus metav1.ConditionStatus
+		wantReason string
+		wantInMsg  string
+	}{
+		{
+			name:       "assigned from a requested pool",
+			gs:         gsWithAddressRequest("LoadBalancer", "games", ""),
+			plan:       addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanTranslated},
+			svc:        lbService("203.0.113.7"),
+			wantStatus: metav1.ConditionTrue,
+			wantReason: "Assigned",
+			wantInMsg:  "from pool 'games'",
+		},
+		{
+			name:       "assigned for an address-only request",
+			gs:         gsWithAddressRequest("LoadBalancer", "", "203.0.113.7"),
+			plan:       addressPlan{Manager: addressManagerCilium, Address: "203.0.113.7", Outcome: addressPlanTranslated},
+			svc:        lbService("203.0.113.7"),
+			wantStatus: metav1.ConditionTrue,
+			wantReason: "Assigned",
+			wantInMsg:  "203.0.113.7",
+		},
+		{
+			name:       "pending while the address manager has not answered",
+			gs:         gsWithAddressRequest("LoadBalancer", "games", ""),
+			plan:       addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanTranslated},
+			svc:        lbService(""),
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "AssignmentPending",
+			wantInMsg:  "pool 'games'",
+		},
+		{
+			name:       "waiting for the Service to exist",
+			gs:         gsWithAddressRequest("LoadBalancer", "games", ""),
+			plan:       addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanTranslated},
+			svc:        nil,
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "ServiceNotReady",
+			wantInMsg:  "waiting for the LoadBalancer Service",
+		},
+		{
+			name:       "ignored on a NodePort server",
+			gs:         gsWithAddressRequest("NodePort", "games", ""),
+			plan:       addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanIgnoredForExposureMode},
+			svc:        nil,
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "IgnoredForExposureMode",
+			wantInMsg:  "'NodePort'",
+		},
+		{
+			// An unset Expose is ClusterIP; the message must name that
+			// rather than an empty string.
+			name:       "ignored on a default-expose server names ClusterIP",
+			gs:         gsWithAddressRequest("", "games", ""),
+			plan:       addressPlan{Manager: addressManagerMetalLB, Pool: "games", Outcome: addressPlanIgnoredForExposureMode},
+			svc:        nil,
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "IgnoredForExposureMode",
+			wantInMsg:  "'ClusterIP'",
+		},
+		{
+			// Flavor "none": the Service is untouched, but the request must
+			// still be reported so it never looks silently honored.
+			name:       "no address manager configured",
+			gs:         gsWithAddressRequest("LoadBalancer", "games", "203.0.113.7"),
+			plan:       addressPlan{Pool: "games", Address: "203.0.113.7", Outcome: addressPlanNoAddressManagerConfigured},
+			svc:        lbService("198.51.100.4"),
+			wantStatus: metav1.ConditionFalse,
+			wantReason: "NoAddressManagerConfigured",
+			wantInMsg:  "address '203.0.113.7' from pool 'games'",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conds := addressAssignmentCondition(nil, tc.gs, tc.plan, tc.svc)
+			got, ok := condByType(conds, gameplanev1alpha1.GameServerConditionAddressAssignment)
+			if !ok {
+				t.Fatalf("no %s condition", gameplanev1alpha1.GameServerConditionAddressAssignment)
+			}
+			if got.Status != tc.wantStatus {
+				t.Errorf("Status = %q, want %q", got.Status, tc.wantStatus)
+			}
+			if got.Reason != tc.wantReason {
+				t.Errorf("Reason = %q, want %q", got.Reason, tc.wantReason)
+			}
+			if !strings.Contains(got.Message, tc.wantInMsg) {
+				t.Errorf("Message = %q, want it to contain %q", got.Message, tc.wantInMsg)
+			}
+		})
+	}
+}
+
+// TestAddressAssignmentConditionAbsentWhenNotRequested is the backward-
+// compatibility guard: every GameServer that predates this feature must keep
+// exactly the conditions it had, so a server that asked for nothing carries no
+// AddressAssignment condition at all — not a False one.
+func TestAddressAssignmentConditionAbsentWhenNotRequested(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{}
+	plan := planAddressPreference(gs, addressManagerMetalLB)
+
+	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseRunning, nil, idleAwake, plan, lbService("203.0.113.7"))
+	if _, ok := condByType(conds, gameplanev1alpha1.GameServerConditionAddressAssignment); ok {
+		t.Error("a server that requested no pool or address must carry no AddressAssignment condition")
+	}
+	// The conditions it does own are untouched.
+	for _, want := range []string{"Ready", "Progressing", "Healthy"} {
+		if _, ok := condByType(conds, want); !ok {
+			t.Errorf("missing %s condition", want)
+		}
+	}
+}
+
+// TestAddressAssignmentConditionClearedOnRequestRemoval covers the other half
+// of the same rule: clearing the spec fields drops the condition on the next
+// reconcile rather than leaving a stale report behind.
+func TestAddressAssignmentConditionClearedOnRequestRemoval(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{}
+	gs.Status.Conditions = []metav1.Condition{
+		{
+			Type:               gameplanev1alpha1.GameServerConditionAddressAssignment,
+			Status:             metav1.ConditionTrue,
+			Reason:             "Assigned",
+			LastTransitionTime: metav1.Now(),
+		},
+	}
+	plan := planAddressPreference(gs, addressManagerMetalLB)
+
+	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseRunning, nil, idleAwake, plan, lbService("203.0.113.7"))
+	if _, ok := condByType(conds, gameplanev1alpha1.GameServerConditionAddressAssignment); ok {
+		t.Error("clearing the request must remove the stale AddressAssignment condition")
+	}
+}
+
+func TestAddressRequestSummary(t *testing.T) {
+	cases := []struct {
+		name string
+		plan addressPlan
+		want string
+	}{
+		{"pool only", addressPlan{Pool: "games"}, "pool 'games'"},
+		{"address only", addressPlan{Address: "203.0.113.7"}, "address '203.0.113.7'"},
+		{
+			"both", addressPlan{Pool: "games", Address: "203.0.113.7"},
+			"address '203.0.113.7' from pool 'games'",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := addressRequestSummary(tc.plan); got != tc.want {
+				t.Errorf("addressRequestSummary() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadBalancerAddress(t *testing.T) {
+	cases := []struct {
+		name string
+		svc  *corev1.Service
+		want string
+	}{
+		{"nil service", nil, ""},
+		{"not a load balancer", &corev1.Service{
+			Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeClusterIP, ClusterIP: "10.96.0.10"},
+		}, ""},
+		{"no ingress yet", lbService(""), ""},
+		{"ingress ip", lbService("203.0.113.7"), "203.0.113.7"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := loadBalancerAddress(tc.svc); got != tc.want {
+				t.Errorf("loadBalancerAddress() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A cloud load balancer that publishes both wants players resolving the name.
+func TestLoadBalancerAddressPrefersHostname(t *testing.T) {
+	svc := lbService("203.0.113.7")
+	svc.Status.LoadBalancer.Ingress[0].Hostname = "lb.example.com"
+	if got := loadBalancerAddress(svc); got != "lb.example.com" {
+		t.Errorf("loadBalancerAddress() = %q, want the hostname", got)
 	}
 }

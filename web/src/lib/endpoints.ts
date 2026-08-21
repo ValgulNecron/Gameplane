@@ -78,6 +78,10 @@ export interface ServerCreate {
     hostname?: string;
     sourceRanges?: string[];
     portOverrides?: PortOverride[];
+    // Load-balancer address pool preference; only meaningful for
+    // expose: LoadBalancer.
+    addressPool?: string;
+    address?: string;
   };
   resources?: unknown;
   nodeSelector?: Record<string, string>;

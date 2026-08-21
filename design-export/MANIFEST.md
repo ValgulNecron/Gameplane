@@ -48,3 +48,15 @@ None. All 215 discovered objects (67 screens + 148 components) have both a JSON 
 ## Filename sanitization
 
 Component IDs prefixed `c:` (e.g. `c:xCEfn`) were saved as `c_xCEfn.json` in `json/` (`:` → `_`, per instructions — filesystem/tool safety). `export_nodes` screenshot filenames were left under its own control and it wrote them with the literal `:` intact (e.g. `c:xCEfn.png`) without erroring, so no renaming was needed on the screenshot side.
+
+## In scope for spec 002 (Track B — address-pool override)
+
+Three exported screens are in scope for the load-balancer address-pool override (`spec.networking.addressPool` / `spec.networking.address`). No design pass has been made yet; these exports still reflect the pre-feature design and are expected to be refreshed (JSON + screenshot) when that pass happens.
+
+| ID | Screen |
+|---|---|
+| `f1Vga` | `Screen/Create Server — Step 4 Network` |
+| `J5pjJ3` | `Screen/Server Detail — Settings · Networking` |
+| `EZFW0` | `Screen/Server Detail — Overview` |
+
+All three currently have both a `json/<id>.json` and a `screenshots/<id>.png` file, as recorded above.

@@ -2,7 +2,9 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -45,6 +47,24 @@ func (f *cidrListFlag) Set(value string) error {
 	return nil
 }
 
+// errUnknownAddressManager is returned for an --address-manager value outside
+// the supported set. Startup fails on it rather than silently degrading to
+// "none": a cluster admin who names a pool expects the request translated, and
+// a typo'd flavor would otherwise leave every pool preference unapplied while
+// the address manager quietly hands out default-pool addresses.
+var errUnknownAddressManager = errors.New("unknown cluster address-manager flavor")
+
+// validateAddressManager accepts only the flavors reconcileService knows how
+// to translate a pool/address preference into.
+func validateAddressManager(flavor string) error {
+	switch flavor {
+	case "metallb", "cilium", "none":
+		return nil
+	default:
+		return fmt.Errorf("%w %q: want metallb, cilium or none", errUnknownAddressManager, flavor)
+	}
+}
+
 // Version is the operator build version, overridden at build time via
 // -ldflags. Compared against a module bundle's gameplaneMinVersion to refuse
 // modules that need a newer operator. Mirrors api/cmd and agent/cmd.
@@ -81,6 +101,7 @@ func main() {
 		moduleNamespace        string
 		moduleLocalRoot        string
 		controlPlaneNamespace  string
+		addressManager         string
 		gameIngressPolicy      bool
 		gameIngressFromCIDR    cidrListFlag
 	)
@@ -137,6 +158,17 @@ func main() {
 	}
 	flag.StringVar(&controlPlaneNamespace, "control-plane-namespace", controlPlaneNamespaceDefault,
 		"Namespace where the operator runs and where cluster kubeconfig Secrets are stored.")
+	addressManagerDefault := os.Getenv("GAMEPLANE_ADDRESS_MANAGER")
+	if addressManagerDefault == "" {
+		addressManagerDefault = "none"
+	}
+	flag.StringVar(&addressManager, "address-manager", addressManagerDefault,
+		"Cluster load-balancer address manager (metallb, cilium, or none) the operator translates a "+
+			"GameServer's spec.networking.addressPool/address preference for. metallb writes the "+
+			"metallb.io annotations; cilium writes the gameplane.local/lb-pool label plus the "+
+			"lbipam.cilium.io/ips annotation. none (the default) mutates no Service and instead reports "+
+			"the unhonored request on the GameServer's AddressAssignment condition, so a pool preference "+
+			"never silently falls back to the default pool. Also settable as GAMEPLANE_ADDRESS_MANAGER.")
 	flag.BoolVar(&gameIngressPolicy, "game-ingress-policy", true,
 		"Reconcile a per-GameServer ingress NetworkPolicy admitting player traffic to the template's "+
 			"advertised ports. When false, the operator ensures the policy is absent instead of merely "+
@@ -151,6 +183,11 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog := ctrl.Log.WithName("setup")
+
+	if err := validateAddressManager(addressManager); err != nil {
+		setupLog.Error(err, "invalid --address-manager value")
+		os.Exit(1)
+	}
 
 	// Games are meant to be publicly reachable, so an unset
 	// --game-ingress-from-cidr defaults to wide-open rather than an empty
@@ -220,6 +257,7 @@ func main() {
 			Config:    mgr.GetConfig(),
 			Clientset: kubernetes.NewForConfigOrDie(mgr.GetConfig()),
 		},
+		AddressManager:           addressManager,
 		GameIngressPolicyEnabled: gameIngressPolicy,
 		GameIngressFromCIDRs:     gameIngressFromCIDR,
 	}).SetupWithManager(mgr); err != nil {

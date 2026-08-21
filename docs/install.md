@@ -162,6 +162,22 @@ Top-level knobs (see `values.yaml` for the full list):
   per sleeping server, so disabled by default. See `docs/roadmap.md` for design
   details, caveats (Hostport asymmetry), and why only Minecraft and Terraria get
   real handshake parsing (other games use a generic packets-in-window heuristic).
+- `operator.addressManager` — which load-balancer address manager runs in this
+  cluster, so the operator knows how to express a GameServer's
+  `spec.networking.addressPool` / `spec.networking.address` preference. One of:
+  - `metallb` — Service annotations `metallb.io/address-pool` and
+    `metallb.io/loadBalancerIPs`.
+  - `cilium` — Service label `gameplane.local/lb-pool` plus annotation
+    `lbipam.cilium.io/ips`. The label is a Gameplane convention, not something
+    Cilium recognises on its own: mirror it in your
+    `CiliumLoadBalancerIPPool`'s `spec.serviceSelector` or the pool preference
+    selects nothing.
+  - `none` (default) — no Service is mutated. A pool/address preference is
+    reported on the GameServer's `AddressAssignment` condition as unhonored
+    rather than silently falling back to the cluster's default pool.
+
+  Any other value fails the operator at startup. The operator never writes the
+  deprecated `service.spec.loadBalancerIP`.
 
 ## Observability
 

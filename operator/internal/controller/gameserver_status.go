@@ -58,6 +58,15 @@ func (r *GameServerReconciler) reconcileStatus(
 		return 0, svcErr
 	}
 	svcExists := svcErr == nil
+	var svcPtr *corev1.Service
+	if svcExists {
+		svcPtr = &svc
+	}
+
+	// Recomputed rather than threaded down from reconcileService: the plan is
+	// a pure function of the GameServer and the configured flavor, so both
+	// callers reach the same decision without the reconcile carrying it.
+	addrPlan := r.addressPlanFor(gs)
 
 	phase := derivePhase(gs, ssExists, ss.Status.ReadyReplicas > 0, heartbeatFresh(gs), idle)
 
@@ -93,7 +102,7 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
-	gs.Status.Conditions = computeConditions(gs, phase, prov, idle)
+	gs.Status.Conditions = computeConditions(gs, phase, prov, idle, addrPlan, svcPtr)
 
 	// Fetch tunnel Deployment to compute TunnelReady condition.
 	var tunnelDep *appsv1.Deployment
@@ -147,7 +156,7 @@ func (r *GameServerReconciler) reconcileStatus(
 	// Endpoints: tunnel endpoints come first (when present) so the dashboard's
 	// Connection card reads the address players actually use.
 	if svcExists {
-		gs.Status.Endpoints = endpointsFromService(&svc)
+		gs.Status.Endpoints = endpointsFromService(&svc, addrPlan)
 	}
 	if tunnelPlan.wantTunnel && len(tunnelPlan.endpoints) > 0 {
 		gs.Status.Endpoints = append(tunnelPlan.endpoints, gs.Status.Endpoints...)
@@ -208,11 +217,17 @@ func heartbeatFresh(gs *gameplanev1alpha1.GameServer) bool {
 	return time.Since(gs.Status.Agent.LastHeartbeat.Time) < heartbeatFreshness
 }
 
+// computeConditions derives Ready / Progressing / Healthy from the phase, plus
+// AddressAssignment for the servers that requested a load-balancer pool or
+// address. addrPlan is the reconciler's decision about that request and svc is
+// the game Service as observed this pass (nil when it does not exist yet).
 func computeConditions(
 	gs *gameplanev1alpha1.GameServer,
 	phase gameplanev1alpha1.GameServerPhase,
 	prov *provisioningInfo,
 	idle idleState,
+	addrPlan addressPlan,
+	svc *corev1.Service,
 ) []metav1.Condition {
 	conds := gs.Status.Conditions
 
@@ -296,7 +311,98 @@ func computeConditions(
 	conds = upsertCondition(conds, ready)
 	conds = upsertCondition(conds, progressing)
 	conds = upsertCondition(conds, healthy)
-	return conds
+	return addressAssignmentCondition(conds, gs, addrPlan, svc)
+}
+
+// addressAssignmentCondition reports what became of a
+// spec.networking.addressPool / .address request on the AddressAssignment
+// condition, or removes the condition when nothing was requested.
+//
+// A server that never asked for a pool or an address carries no
+// AddressAssignment condition at all rather than a False one: emitting it
+// unconditionally would add a permanent condition to every GameServer in the
+// cluster for a feature they do not use. Removing it also means clearing the
+// spec fields clears the report on the next reconcile.
+//
+// Known gap: PoolNotFound, PoolExhausted and AddressInUse are not derivable
+// from the Service object alone, and the two address managers do not even
+// report them the same way — MetalLB emits Warning *events* against the
+// Service, while Cilium writes *conditions* onto the Service's own status.
+// Neither source is watched here yet (the event watch and its RBAC are a
+// later task), so a request the address manager rejected is currently
+// indistinguishable from one it has not answered yet and reports as
+// AssignmentPending. That is honest about what is known; guessing a cause
+// would not be.
+func addressAssignmentCondition(
+	conds []metav1.Condition,
+	gs *gameplanev1alpha1.GameServer,
+	plan addressPlan,
+	svc *corev1.Service,
+) []metav1.Condition {
+	if !plan.requested() {
+		return removeCondition(conds, gameplanev1alpha1.GameServerConditionAddressAssignment)
+	}
+
+	cond := metav1.Condition{
+		Type:               gameplanev1alpha1.GameServerConditionAddressAssignment,
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: gs.Generation,
+	}
+	assigned := loadBalancerAddress(svc)
+	switch {
+	case plan.Outcome == addressPlanIgnoredForExposureMode:
+		expose := gs.Spec.Networking.Expose
+		if expose == "" {
+			expose = "ClusterIP"
+		}
+		cond.Reason = "IgnoredForExposureMode"
+		cond.Message = fmt.Sprintf(
+			"Requested %s is ignored: it applies only to expose mode 'LoadBalancer', "+
+				"and this server is exposed as '%s'.",
+			addressRequestSummary(plan), expose)
+	case plan.Outcome == addressPlanNoAddressManagerConfigured:
+		// Reported rather than passed over in silence: with no address manager
+		// the server still comes up on whatever the cluster's default policy
+		// hands out, which looks assigned but honors nothing that was asked for.
+		cond.Reason = "NoAddressManagerConfigured"
+		cond.Message = fmt.Sprintf(
+			"Requested %s cannot be honored: this cluster has no load-balancer address manager configured, "+
+				"so any address the server receives comes from the default assignment policy.",
+			addressRequestSummary(plan))
+	case svc == nil || svc.Spec.Type != corev1.ServiceTypeLoadBalancer:
+		cond.Reason = "ServiceNotReady"
+		cond.Message = fmt.Sprintf(
+			"Requested %s: waiting for the LoadBalancer Service carrying the request to exist.",
+			addressRequestSummary(plan))
+	case assigned == "":
+		cond.Reason = "AssignmentPending"
+		cond.Message = fmt.Sprintf(
+			"Requested %s: the address manager has not assigned an address yet.",
+			addressRequestSummary(plan))
+	case plan.Pool != "":
+		cond.Status = metav1.ConditionTrue
+		cond.Reason = "Assigned"
+		cond.Message = fmt.Sprintf("Address %s assigned from pool '%s'.", assigned, plan.Pool)
+	default:
+		cond.Status = metav1.ConditionTrue
+		cond.Reason = "Assigned"
+		cond.Message = fmt.Sprintf("Address %s assigned.", assigned)
+	}
+	return upsertCondition(conds, cond)
+}
+
+// addressRequestSummary renders a pool/address request the way a condition
+// message names it back to the user. The values are quoted verbatim: they are
+// what was spec'd, not what the address manager resolved them to.
+func addressRequestSummary(plan addressPlan) string {
+	switch {
+	case plan.Pool != "" && plan.Address != "":
+		return fmt.Sprintf("address '%s' from pool '%s'", plan.Address, plan.Pool)
+	case plan.Address != "":
+		return fmt.Sprintf("address '%s'", plan.Address)
+	default:
+		return fmt.Sprintf("pool '%s'", plan.Pool)
+	}
 }
 
 // gameContainerName is the name the controller gives the game container in
@@ -613,19 +719,50 @@ func removeCondition(conds []metav1.Condition, condType string) []metav1.Conditi
 	return out
 }
 
+// loadBalancerAddress returns the external address the cluster's address
+// manager has published on a LoadBalancer Service, or "" while none is
+// assigned (or the Service is not a LoadBalancer at all). Only the first
+// ingress entry is read, and a hostname wins over an IP: a cloud LB that
+// publishes both wants players resolving the name.
+func loadBalancerAddress(svc *corev1.Service) string {
+	if svc == nil || svc.Spec.Type != corev1.ServiceTypeLoadBalancer ||
+		len(svc.Status.LoadBalancer.Ingress) == 0 {
+		return ""
+	}
+	ing := svc.Status.LoadBalancer.Ingress[0]
+	if ing.Hostname != "" {
+		return ing.Hostname
+	}
+	return ing.IP
+}
+
 // endpointsFromService lists the per-port externally reachable address
 // for a Service. For ClusterIP we report the cluster IP; for NodePort
 // we report the Service's declared port (the node IP is left to the API
 // layer since the operator doesn't know which node a user will hit).
-func endpointsFromService(svc *corev1.Service) []gameplanev1alpha1.GameServerEndpoint {
+//
+// plan supplies the pool each endpoint's address was drawn from. That name is
+// the pool the operator *requested*, not one the address manager confirmed:
+// neither MetalLB nor Cilium writes the pool it allocated from back onto the
+// Service, so there is no authoritative source to read and the request is the
+// honest one. Consumers must read endpoint.Pool as "asked for from", not
+// "verified to be from".
+//
+// It is stamped only once an address has actually been published and only on a
+// translated request, so it never claims a pool for the ClusterIP fallback
+// address shown while assignment is pending, for a request no address manager
+// was configured to act on, or for one ignored because the expose mode is not
+// LoadBalancer.
+func endpointsFromService(
+	svc *corev1.Service, plan addressPlan,
+) []gameplanev1alpha1.GameServerEndpoint {
 	out := make([]gameplanev1alpha1.GameServerEndpoint, 0, len(svc.Spec.Ports))
 	host := svc.Spec.ClusterIP
-	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer && len(svc.Status.LoadBalancer.Ingress) > 0 {
-		ing := svc.Status.LoadBalancer.Ingress[0]
-		if ing.Hostname != "" {
-			host = ing.Hostname
-		} else if ing.IP != "" {
-			host = ing.IP
+	pool := ""
+	if addr := loadBalancerAddress(svc); addr != "" {
+		host = addr
+		if plan.Outcome == addressPlanTranslated {
+			pool = plan.Pool
 		}
 	}
 	for _, p := range svc.Spec.Ports {
@@ -634,6 +771,7 @@ func endpointsFromService(svc *corev1.Service) []gameplanev1alpha1.GameServerEnd
 			Host:     host,
 			Port:     p.Port,
 			Protocol: p.Protocol,
+			Pool:     pool,
 		}
 		if svc.Spec.Type == corev1.ServiceTypeNodePort && p.NodePort != 0 {
 			ep.Port = p.NodePort

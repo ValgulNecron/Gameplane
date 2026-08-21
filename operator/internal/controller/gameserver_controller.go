@@ -99,6 +99,15 @@ type GameServerReconciler struct {
 	// one with no usable transport at all.
 	PodAttacher PodStopAttacher
 
+	// AddressManager names the cluster's load-balancer address manager
+	// ("metallb", "cilium" or "none"), set from the operator's
+	// --address-manager flag and validated at startup. It selects how a
+	// GameServer's spec.networking.addressPool / .address preference is
+	// translated onto the game Service (see planAddressPreference). Empty
+	// is treated exactly as "none": mutate nothing and report the
+	// unhonored request, never silently fall back to the default pool.
+	AddressManager string
+
 	// GameIngressPolicyEnabled controls whether the operator reconciles a
 	// per-GameServer ingress NetworkPolicy admitting player traffic to the
 	// template's advertised ports (see reconcileNetworkPolicy). Set from
@@ -465,7 +474,23 @@ func (r *GameServerReconciler) reconcileService(
 			}
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
-		applyManagedServiceAnnotations(svc, desiredServiceAnnotations(gs))
+		// Address-pool translation. NOTE: svc.Spec.LoadBalancerIP is never
+		// written here or anywhere else — Kubernetes deprecated it in 1.24
+		// and both address managers take the request through metadata.
+		// The plan's metadata is applied last so an address-manager key
+		// wins over a same-key entry in spec.networking.serviceAnnotations,
+		// for the same reason the typed hostname field does: it is the
+		// explicit, validated, UI-backed field.
+		plan := r.addressPlanFor(gs)
+		desired := desiredServiceAnnotations(gs)
+		for k, v := range plan.serviceAnnotations() {
+			desired[k] = v
+		}
+		applyManagedServiceAnnotations(svc, desired)
+		// After applyManagedServiceAnnotations: the managed-label bookkeeping
+		// lives in an annotation, and applying it second keeps that annotation
+		// from being pruned as an unmanaged leftover.
+		applyManagedServiceLabels(svc, plan.serviceLabels())
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
@@ -528,6 +553,204 @@ func applyManagedServiceAnnotations(svc *corev1.Service, desired map[string]stri
 	}
 	sort.Strings(keys)
 	svc.Annotations[managedServiceAnnotationsKey] = strings.Join(keys, ",")
+}
+
+// managedServiceLabelsKey records which *label* keys the operator applied to
+// the game Service on the previous reconcile, so a preference that goes away
+// takes its label with it instead of leaving, say, a Cilium pool selector
+// orphaned on the Service forever — pointing a live server at a pool nobody
+// asked for any more.
+//
+// It is deliberately an annotation, not a label: the value is a comma-joined
+// key list, and commas and slashes are not legal in a label value.
+const managedServiceLabelsKey = "gameplane.local/managed-service-labels"
+
+// applyManagedServiceLabels is applyManagedServiceAnnotations' twin for
+// labels, with the same prune-then-apply-then-record shape and the same
+// reason for existing: merging alone leaves a removed key active on the
+// Service. Labels on the game Service are otherwise not ours (the selector
+// side is spec.selector, written above), so only the keys we recorded last
+// time are ever deleted.
+//
+// It is a no-op when nothing is desired and nothing was managed before, which
+// is what keeps a GameServer with no pool preference producing byte-identical
+// Service metadata to the pre-feature operator.
+func applyManagedServiceLabels(svc *corev1.Service, desired map[string]string) {
+	prev := svc.Annotations[managedServiceLabelsKey]
+	if prev == "" && len(desired) == 0 {
+		return
+	}
+	if prev != "" {
+		for _, k := range strings.Split(prev, ",") {
+			if _, keep := desired[k]; !keep {
+				delete(svc.Labels, k)
+			}
+		}
+	}
+	if len(desired) > 0 && svc.Labels == nil {
+		svc.Labels = map[string]string{}
+	}
+	keys := make([]string, 0, len(desired))
+	for k, v := range desired {
+		svc.Labels[k] = v
+		keys = append(keys, k)
+	}
+	if svc.Annotations == nil {
+		svc.Annotations = map[string]string{}
+	}
+	if len(keys) == 0 {
+		delete(svc.Annotations, managedServiceLabelsKey)
+		return
+	}
+	sort.Strings(keys)
+	svc.Annotations[managedServiceLabelsKey] = strings.Join(keys, ",")
+}
+
+// Cluster address-manager flavors the operator has a translation branch for,
+// mirroring the --address-manager flag in operator/cmd/main.go (which
+// validates the value at startup, so an unknown flavor never reaches here).
+// The third accepted flavor, "none", has no constant because it has no
+// branch: it is every value that is not one of these two.
+const (
+	addressManagerMetalLB = "metallb"
+	addressManagerCilium  = "cilium"
+)
+
+// Service metadata keys each address manager reads a pool/address request
+// from. MetalLB takes both as annotations; Cilium takes the address as an
+// annotation but selects a pool by *label*, which is the whole reason
+// applyManagedServiceLabels exists.
+//
+// ciliumPoolLabel is a Gameplane convention, not a key Cilium knows: the
+// cluster admin must mirror it in CiliumLoadBalancerIPPool's
+// spec.serviceSelector for pool selection to bind. Where they have not, the
+// label is inert — which is why the AddressAssignment condition reports the
+// request rather than letting it pass for honored.
+//
+// The deprecated metallb.universe.tf/* prefixes are still honored by MetalLB
+// but are not written for new servers.
+const (
+	metalLBAddressPoolAnnotation     = "metallb.io/address-pool"
+	metalLBLoadBalancerIPsAnnotation = "metallb.io/loadBalancerIPs"
+	ciliumAddressAnnotation          = "lbipam.cilium.io/ips"
+	ciliumPoolLabel                  = "gameplane.local/lb-pool"
+)
+
+// addressPlanOutcome is what the operator did with a pool/address preference
+// on this pass. gameserver_status.go maps it onto the AddressAssignment
+// condition's reason; the zero value means nothing was requested, so there is
+// nothing to report.
+type addressPlanOutcome string
+
+const (
+	addressPlanNotRequested               addressPlanOutcome = ""
+	addressPlanTranslated                 addressPlanOutcome = "Translated"
+	addressPlanIgnoredForExposureMode     addressPlanOutcome = "IgnoredForExposureMode"
+	addressPlanNoAddressManagerConfigured addressPlanOutcome = "NoAddressManagerConfigured"
+)
+
+// addressPlan is the decision reconcileService reached about a GameServer's
+// spec.networking.addressPool / .address preference: what was asked for, and
+// whether this cluster can honor it.
+type addressPlan struct {
+	// Manager is the flavor the plan was made against.
+	Manager string
+	// Pool and Address are the request as spec'd, verbatim and unvalidated —
+	// they are what the status reports back to the user, so they must not be
+	// normalized here.
+	Pool    string
+	Address string
+	Outcome addressPlanOutcome
+}
+
+// requested reports whether the user asked for a pool or an address at all.
+func (p addressPlan) requested() bool {
+	return p.Pool != "" || p.Address != ""
+}
+
+// planAddressPreference decides how to translate a GameServer's pool/address
+// preference for the given address-manager flavor.
+//
+// It is a pure function of the GameServer and the flavor so gameserver_status.go
+// can recompute the identical decision when building the AddressAssignment
+// condition, instead of the reconcile threading it through every call.
+//
+// An unrequestable preference is never silently dropped: it comes back as
+// IgnoredForExposureMode (the request is meaningless outside
+// Expose=LoadBalancer) or NoAddressManagerConfigured (nothing in this cluster
+// can act on it, so leaving it unreported would let the server come up on a
+// default-pool address that looks assigned but honors nothing). Exposure mode
+// is checked first because it is the more actionable of the two — the user
+// owns the expose mode, the cluster admin owns the flavor.
+func planAddressPreference(gs *gameplanev1alpha1.GameServer, manager string) addressPlan {
+	p := addressPlan{
+		Manager: manager,
+		Pool:    gs.Spec.Networking.AddressPool,
+		Address: gs.Spec.Networking.Address,
+	}
+	if !p.requested() {
+		p.Outcome = addressPlanNotRequested
+		return p
+	}
+	switch {
+	case gs.Spec.Networking.Expose != "LoadBalancer":
+		p.Outcome = addressPlanIgnoredForExposureMode
+	case manager == addressManagerMetalLB, manager == addressManagerCilium:
+		p.Outcome = addressPlanTranslated
+	default:
+		// Flavor "none", the empty flag value that means the same, and —
+		// unreachable, since main.go validates the flag at startup — any
+		// unknown flavor. All fail closed: the request is reported, never
+		// quietly allowed to land on a default-pool address.
+		p.Outcome = addressPlanNoAddressManagerConfigured
+	}
+	return p
+}
+
+// addressPlanFor plans this reconciler's configured flavor against gs.
+func (r *GameServerReconciler) addressPlanFor(gs *gameplanev1alpha1.GameServer) addressPlan {
+	return planAddressPreference(gs, r.AddressManager)
+}
+
+// serviceAnnotations is the address-manager metadata this plan wants carried
+// on the game Service as annotations. Nil for every non-translated outcome:
+// flavor "none" and the ignored expose modes mutate the Service not at all,
+// and an unset preference leaves no trace.
+func (p addressPlan) serviceAnnotations() map[string]string {
+	if p.Outcome != addressPlanTranslated {
+		return nil
+	}
+	out := make(map[string]string, 2)
+	switch p.Manager {
+	case addressManagerMetalLB:
+		if p.Pool != "" {
+			out[metalLBAddressPoolAnnotation] = p.Pool
+		}
+		if p.Address != "" {
+			out[metalLBLoadBalancerIPsAnnotation] = p.Address
+		}
+	case addressManagerCilium:
+		// Cilium's pool preference is a label, not an annotation; see
+		// serviceLabels.
+		if p.Address != "" {
+			out[ciliumAddressAnnotation] = p.Address
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// serviceLabels is the address-manager metadata this plan wants carried on
+// the game Service as labels — today only Cilium's pool selector. Nil
+// otherwise, which prunes the label back off the Service when the preference
+// is unset or the flavor changes away from Cilium.
+func (p addressPlan) serviceLabels() map[string]string {
+	if p.Outcome != addressPlanTranslated || p.Manager != addressManagerCilium || p.Pool == "" {
+		return nil
+	}
+	return map[string]string{ciliumPoolLabel: p.Pool}
 }
 
 // reconcileAgentService maintains a dedicated ClusterIP Service

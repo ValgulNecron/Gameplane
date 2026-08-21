@@ -21,6 +21,15 @@ const (
 	GameServerPhaseFailed    GameServerPhase = "Failed"
 )
 
+// GameServer condition types.
+const (
+	// GameServerConditionAddressAssignment reports the outcome of a
+	// spec.networking.addressPool / .address request: True once the address
+	// manager has assigned the address, False while it is pending, was
+	// ignored for the expose mode, or failed.
+	GameServerConditionAddressAssignment = "AddressAssignment"
+)
+
 // GameServerSpec is the desired state of a single game server instance.
 type GameServerSpec struct {
 	// TemplateRef references a GameTemplate that provides defaults for
@@ -267,6 +276,40 @@ type GameServerNetworking struct {
 	// +optional
 	SourceRanges []string `json:"sourceRanges,omitempty"`
 
+	// AddressPool names the load-balancer address pool the operator should
+	// request this server's external address from. It only takes effect when
+	// Expose=LoadBalancer; other expose modes ignore it (and the operator
+	// flags the ignored preference on the AddressAssignment condition). The
+	// operator translates the name per the cluster's address-manager flavor —
+	// a metallb.io/address-pool annotation for MetalLB, a
+	// gameplane.local/lb-pool label for Cilium — so the same spec works on
+	// either. The value is the address manager's own pool object name, so it
+	// must be an RFC 1123 subdomain — dotted labels of 1-63 alphanumeric
+	// characters or hyphens, no leading/trailing hyphen. A label-only pattern
+	// would reject a legitimately named pool such as "pool.us-east" at
+	// admission, with no operator-side escape hatch. MaxLength 63 is the real
+	// bound; the pattern only constrains the shape.
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$`
+	// +optional
+	AddressPool string `json:"addressPool,omitempty"`
+
+	// Address requests one specific external address for this server. Like
+	// AddressPool it only takes effect when Expose=LoadBalancer. When both
+	// are set, Address wins for the assignment itself: the operator asks the
+	// address manager for exactly this address and reports a failure rather
+	// than silently falling back to any address in the pool.
+	//
+	// The format is deliberately not validated here: no CEL rule and no
+	// Pattern, because unbounded CEL on this CRD has been rejected by the
+	// apiserver on its cost budget. The operator parses the value during
+	// reconciliation and reports a bad one through the AddressAssignment
+	// condition instead. MaxLength 45 is the longest textual IPv6 form
+	// (an IPv4-mapped address with a zone id).
+	// +kubebuilder:validation:MaxLength=45
+	// +optional
+	Address string `json:"address,omitempty"`
+
 	// Tunnel routes players through a relay instead of relying on cluster
 	// ingress, for installs with no public IP and no ability to port-forward.
 	// It layers over the backing Service rather than replacing it, so it
@@ -508,6 +551,13 @@ type GameServerEndpoint struct {
 	// provider (frp, tailscale, playit) rather than the backing Service.
 	// +optional
 	TunnelProvider string `json:"tunnelProvider,omitempty"`
+
+	// Pool is the load-balancer address pool this endpoint's address was
+	// requested from. It is reconciler-owned — users express the preference
+	// through spec.networking.addressPool, never here — and is empty when no
+	// pool was requested or the cluster has no address manager configured.
+	// +optional
+	Pool string `json:"pool,omitempty"`
 }
 
 // AgentStatus is runtime state the sidecar reports via status updates.
