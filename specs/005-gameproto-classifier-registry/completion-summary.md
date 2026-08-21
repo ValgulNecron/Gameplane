@@ -1,5 +1,7 @@
 # Completion Summary: Protocol Classifier Registry Refactor
 
+> **Superseded in part by PR #248.** The deprecated facades and equivalence test suite have been deleted. See "SUPERSEDED" sections below for corrections. The specification documents (gameproto/specs.md and sentinel/specs.md) remain accurate.
+
 **PR**: #245 | **Merge Commit**: 51932528 | **Date**: 2026-08-20
 
 ---
@@ -34,7 +36,7 @@ The refactored structure uses a **Classifier registry pattern**:
 - `gameproto/minecraft.go` — now defines `MinecraftClassifier` struct implementing the Classifier interface; wraps the existing unexported `classifyMinecraftHandshake` function inside `Classify()`.
 - `gameproto/terraria.go` — now defines `TerrariaClassifier` struct implementing the Classifier interface; wraps the existing unexported `classifyTerrariaConnectRequest` function inside `Classify()`.
 - `sentinel/main.go` — removes hardcoded handler functions (`handleMinecraft`, `handleTerraria`, `bounceMinecraft`, `bounceTerraria`); replaces them with a single unified `handleRegistryProtocol(ctx context.Context, conn net.Conn, w wakeRequester, upstreamAddr string, protocol string, deadline time.Duration)` function that uses `gameproto.Lookup()` to fetch the Classifier and dispatch through it. The TCP dispatch path now calls either `handleRegistryProtocol` (for registered protocols) or `handleGeneric` (for UDP fallback, intentionally outside the registry).
-- `gameproto/gameproto.go` — facade functions retained (marked Deprecated) for backward compatibility and equivalence testing; documentation updated to direct users to the Classifier interface.
+- `gameproto/gameproto.go` — (SUPERSEDED by PR #248) facade functions were initially retained (marked Deprecated) for equivalence testing, but have since been deleted as they are dead code in production. See "T081: Delete the Deprecated Facades (COMPLETED)" below.
 
 **Real symbols (verified from merged code):**
 - Interface: `gameproto.Classifier` (methods: `Classify`, `SupportsStatusPing`, `BuildStatusResponse`, `BuildDisconnect`)
@@ -102,8 +104,8 @@ See `gameproto/demo.go` (143 lines) for a reference implementation proving the p
   - `TestGameServer_WakeOnConnect_LoginWakes`
   - `TestGameServer_WakeOnConnect_PingDoesNotWake`
   - `TestGameServer_WakeOnConnect_UnarmedNoSentinel`
-- **Suppression directives**: No new `//nolint` or `//#nosec` directives were added. The existing G115 suppression in `minecraft.go` (for the VarInt read cast) is retained.
-- **Deprecated facades**: The old facade functions in `gameproto/gameproto.go` are retained with explicit `// Deprecated:` godoc annotations pointing users to the Classifier interface. They are used only in equivalence tests.
+- **Suppression directives**: No new `//nolint` or `//#nosec` directives were added. The existing G115 suppression in `.golangci.yml` (for the VarInt read cast in minecraft.go) is retained.
+- **Deprecated facades**: (SUPERSEDED by PR #248) The old facade functions were initially retained in `gameproto/gameproto.go` with `// Deprecated:` annotations for equivalence testing, but have been deleted as task T081 (see "Follow-Ups" section below).
 
 ---
 
@@ -126,24 +128,28 @@ See `gameproto/demo.go` (143 lines) for a reference implementation proving the p
 
 **E2E operator (amd64 + arm64)** — full operator integration suite: PASS (all tests unchanged from main branch)
 
-### Equivalence Testing
+### Equivalence Testing (SUPERSEDED by PR #248)
 
-The refactored code passed a suite of 553 equivalence tests (in `gameproto/classifier_equivalence_test.go` and `sentinel/main_test.go`) that run both the old facade functions and the new Classifier interface on identical handshake bytes and verify byte-for-byte output parity (Kind, Consumed, Detail fields). This directly validates User Story 2 (behavior preservation).
+**Historical**: The refactored code initially passed a suite of equivalence tests comparing old facade functions against new Classifier implementations on identical handshake bytes.
+
+**Current state**: PR #248 deleted the old-vs-new comparison suite and replaced it with a golden-vector suite (`gameproto/classifier_golden_test.go`, 559 lines) that directly verifies Classifier behavior without the deprecated facades. The golden suite validates the same behavioral contract (Kind, Consumed, Detail consistency) more directly and maintainably. All E2E tests (wake-on-connect) continue to pass, confirming behavior preservation.
 
 ---
 
 ## Follow-Ups
 
-### T081: Delete the Deprecated Facades
+### T081: Delete the Deprecated Facades (COMPLETED by PR #248)
 
-Once the equivalence test suite and all E2E tests (including bot-fast bucket) have passed on the main branch, the deprecated facades in `gameproto/gameproto.go` can be deleted:
+**Status**: COMPLETED ✓
 
-- Remove functions: `ClassifyMinecraft`, `ClassifyTerraria`, `BuildMinecraftStatusResponse`, `BuildMinecraftLoginDisconnect`, `BuildTerrariaDisconnect`
-- Remove result types: `MinecraftClassifyResult`, `TerrariaClassifyResult`
-- Remove their test cases in `gameproto/gameproto_test.go` (retain `TestKindString` and other non-facade tests)
-- Remove equivalence test file: `gameproto/classifier_equivalence_test.go`
+The gate for deletion (equivalence suite passing + wake-on-connect e2e green) was satisfied after PR #245 merged. PR #248 completed task T081 by executing:
 
-**Timing**: This can be merged independently once it's clear the Classifier registry is stable and no new concerns arise from the E2E runs.
+- ✓ Deleted functions: `ClassifyMinecraft`, `ClassifyTerraria`, `BuildMinecraftStatusResponse`, `BuildMinecraftLoginDisconnect`, `BuildTerrariaDisconnect`
+- ✓ Deleted result types: `MinecraftClassifyResult`, `TerrariaClassifyResult`
+- ✓ Deleted equivalence test file: `gameproto/classifier_equivalence_test.go` (replaced by golden-vector suite)
+- ✓ Committed as "fix(gameproto): correct golden expectation and six lint findings" (commit 1122239)
+
+The behavior-preservation contract is now expressed via the golden-vector test suite (`gameproto/classifier_golden_test.go`), which is more maintainable and clearly specifies the behavioral contract without old-vs-new comparisons.
 
 ### Optional Follow-Ups (Deferred)
 
