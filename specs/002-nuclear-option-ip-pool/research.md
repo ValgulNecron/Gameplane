@@ -190,6 +190,48 @@ This document resolves the five **Verification Required Before Implementation** 
 
 ---
 
+## Part 1b: Player Display-Name Resolution (Track A)
+
+### Decision NO-1: Hydrate player display names in the API server via the Steam Web API
+
+**Status**: DECIDED by the maintainer. Spec FR-007 and User Story 3 / Acceptance Scenario 1 stand as written and are **not** amended. This closes the previously-open gate recorded in `plan.md`; the corresponding entry there now points at Key Technical Decisions → Decision 9.
+
+**Problem**
+
+Spec FR-007 and US3/AC1 promise a player list showing Steam ID, display name, and faction. The dedicated server cannot supply the display name. The publisher's own protocol documentation for `get-player-list` states the server "returns only the steamId and faction fields (the displayName field has been removed since the server runs headlessly and does not cache names)", and directs integrators to "fetch steam name using Steam's Web API" (source: `ServerCommands/Readme.md`, Shockfront-Studios `Nuclear-Option-Server-Tools`, saved locally as `nocmd.md` — the same publisher-official document used for Claim 3). So the field the spec promises exists nowhere in the game's wire protocol; it must come from Steam or not at all.
+
+**Decision**
+
+- The lookup lives in the **API server** (`api/internal/…`), never in the agent sidecar.
+- The agent's contract is unchanged: it returns exactly what the game returns — `steamId` and `faction`. Name hydration is a presentation concern layered on in the API, consistent with the project rule that the API is a UX layer.
+- Outbound calls dial through the in-repo `netguard` SSRF dial-guard using the **strict `IsPublic` policy** (the one the agent uses for mod downloads), because Steam's Web API is a public internet endpoint — not the permissive `IsAllowed` policy the operator uses for self-hosted registries.
+- Endpoint: `ISteamUser/GetPlayerSummaries/v2`, which accepts up to 100 `steamids` per call. The resolver **batches** a whole player list into one request rather than one request per player.
+- The Steam Web API key is an **optional** credential: a Kubernetes Secret surfaced through a Helm value, never logged, never returned to the browser, never committed.
+- **Graceful degradation is mandatory.** Key absent, Steam unreachable, request timed out, or a single id unresolved — the player list still renders, with the raw Steam ID in the name column. Name resolution never blocks, fails, or errors the player-list response, and carries a hard bounded timeout so SC-004's 5-second moderation-command budget is met by degrading rather than waiting.
+- Results are **cached with a TTL** so repeated player-list calls do not hammer Steam.
+- **Steam ID remains the identifier.** Kick, ban, and unban continue to key on Steam ID; the display name is display-only and must never become the identifier used for a moderation action.
+
+**Rationale**
+
+The decisive constraint is network policy, not taste. `charts/gameplane/templates/networkpolicies.yaml` installs a `default-deny-egress` NetworkPolicy in the games namespace (policy at line 24, `podSelector: {}` at line 28) that applies to **every** pod in that namespace and opens only DNS; game pods reach the internet solely through the opt-in `allow-game-public-egress` policy (line 149) that exists for SteamCMD/asset/mod downloads. The API server runs in the control-plane namespace and already has an egress path, so putting the resolver there yields one egress path, one Secret, and one shared cache — instead of a new hole and a distributed credential in every game pod.
+
+**Wiring note**: `api/` is *already* a netguard importer — `api/go.mod` lines 5–9 declare the requirement plus the local `replace`, and `api/internal/notify/notify.go:17` and `api/internal/notify/deliver.go:18` import it today. No new `go.work`/`go.mod` wiring is required. `netguard/.testcoverage.yml` (total 91%) still gates any change made inside that package for this feature; the resolver's own tests land under the `api` gate (80%).
+
+**Alternatives considered**
+
+1. **Resolve in the agent sidecar, next to the game.** *Rejected.* Blocked by the games-namespace `default-deny-egress` policy above: it would require punching a new outbound hole into every game pod, and it would distribute the Steam Web API key to every game pod — multiplying both the egress surface and the credential's blast radius for a cosmetic field. It would also put a third-party HTTP call inside the component whose job is to speak the game's protocol.
+2. **Amend the spec to drop `displayName` from the player list** (show Steam ID and faction only). *Rejected by the maintainer*, who chose to keep the promised UX. This was the cheapest option — no credential, no third-party dependency, no cache — but it would have made the moderation UI a wall of 17-digit numbers, which is precisely the usability problem FR-007 exists to prevent.
+3. **Resolve names in the browser, calling Steam directly from the dashboard.** *Rejected.* It would expose the API key to every client (or require an unauthenticated proxy), makes name display dependent on each operator's browser being able to reach Steam, and provides no shared cache.
+
+**Operational consequences (recorded honestly)**
+
+- **New configuration surface.** An optional Steam Web API key becomes a new thing to provision, document, rotate, and support. Installs that skip it are a first-class supported configuration, not a broken one.
+- **The feature degrades to raw Steam IDs** whenever the key is absent, Steam is down, or the call times out. Operators will see IDs instead of names and must not read that as a Gameplane fault; the dashboard copy and module `specs.md` should say so plainly.
+- **A third-party runtime dependency on Steam's availability** is introduced for a cosmetic field. This is the real cost of choosing this design over rejected alternative 2 above. It is bounded by the mandatory timeout, the TTL cache, and the rule that name resolution can never fail the player-list response — but the dependency is now permanently in the request path for that view.
+- **Rate limits and quotas.** Steam Web API keys are rate-limited per key; batching (100 ids/call) plus the TTL cache is what keeps a busy multi-server install inside that budget.
+
+---
+
 ## Part 2: Load-Balancer Address-Pool Technical Decisions
 
 This section documents the LB-pool feature's design decisions after upstream research.

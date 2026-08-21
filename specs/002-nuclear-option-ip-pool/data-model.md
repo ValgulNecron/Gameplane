@@ -544,13 +544,19 @@ The following server commands (per spec Claim 3) are **not yet modeled as action
 
 These entities are returned by remote-console commands and logged/displayed by the dashboard, but do not require CRD changes.
 
-#### Player Entry
+#### Player Entry — modelled as TWO distinct entities
 
-**Returned by**: `get-player-list`
+Spec 002 FR-007 and User Story 3 Acceptance Scenario 1 promise operators a player list including a display name. The dedicated server cannot supply one — it runs headlessly and does not cache player names.
 
-**Shape** (verified from upstream documentation):
+**RESOLUTION (decided; not open)**: the spec **stands as written** — FR-007 and US3/AC1 are **not** amended. Display names are hydrated by a **Steam Web API lookup performed in the API server** (`api/internal/...`), layered on top of the unchanged wire response. The previously-open gate on this question is **CLOSED**.
 
-The dedicated server returns only the `steamId` and `faction` fields. The `displayName` field has been removed since the server runs headlessly and does not cache names. The external server can fetch steam name using Steam's Web API.
+Because of that, "Player Entry" is two different things and must be modelled as two, never merged:
+
+##### 8a. Player Entry (WIRE) — what the game returns, what the agent returns
+
+**Returned by**: `get-player-list` over the `nuclearoption` remote-command protocol.
+
+**Shape** (verified from upstream documentation) — **unchanged, and it must stay unchanged**:
 
 ```json
 {
@@ -569,10 +575,114 @@ The dedicated server returns only the `steamId` and `faction` fields. The `displ
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `steamId` | string | 64-bit Steam ID as a decimal string. Used for kick/ban operations. |
+| `steamId` | string | 64-bit Steam ID as a decimal string. The identifier. Used for kick/ban/unban operations. |
 | `faction` | string | Team or faction affiliation (e.g., "Boscali", "Primeva", etc.). Field name and enum values per upstream documentation. |
 
-**SPEC CONFLICT**: Spec 002 FR-007 and User Story 3 Acceptance Scenario 1 both promise operators a player list including "display name". However, the dedicated server cannot supply display names — it runs headlessly and does not cache player names. Two options for resolution: (1) Resolve names out-of-band via the Steam Web API (new external dependency and new egress path, with SSRF/netguard implications); (2) Amend the spec to drop display name from the player list. This conflict must be resolved before implementation.
+**Hard constraint**: the wire entity has **no `displayName` field**, and none may be added to the protocol codec, the frame parser, or the agent's response struct. The wrapper key is `Players` (capital `P`); the id field is `steamId` (lowercase `d`). The agent returns exactly what the game returns — nothing more. Name hydration is a presentation concern layered on top in the API, consistent with the project rule that the API is a UX layer and the agent mirrors the game.
+
+##### 8b. Player Entry (PRESENTATION) — what the API serves to the dashboard
+
+The API's `/servers/{name}/players` response carries `players` as a flat `string[]` today (`agent/internal/players/players.go:61`, `web/src/types.ts:742`). §8b is therefore a **change** to that contract, gated on the T023 players-capability decision: flat-string entries must keep working unchanged for every other game.
+
+The API server takes the wire entries, resolves names in a batch, and serves an enriched entity:
+
+| Field | Type | Optional? | Purpose |
+|-------|------|-----------|---------|
+| `steamId` | string | required | Carried through verbatim from the wire entity. **The identifier.** |
+| `faction` | string | **OPTIONAL** | Carried through verbatim from the wire entity when the game supplies one. Absent for every game that has no faction concept — the shared `/players` route serves all games. |
+| `displayName` | string | **OPTIONAL / nullable** | Steam persona name resolved via the Steam Web API. Absent/null whenever resolution did not succeed. |
+
+`displayName` is modelled as optional/nullable **precisely because resolution can fail** — no key configured, Steam unreachable, request timed out, rate-limited, or the individual id simply not returned by Steam. When it is absent, **the dashboard falls back to rendering the raw Steam ID in the name column**. The player list renders either way.
+
+**Moderation keys on `steamId` only.** Kick, ban, and unban continue to take the Steam ID as their argument, exactly as today. `displayName` is display-only and must never become the identifier used for a moderation action.
+
+**Graceful degradation is mandatory, not best-effort.** Name resolution must never block, fail, or error the player-list response. Spec SC-004 bounds a moderation command result at 5 seconds, so the lookup carries a hard bounded timeout and degrades (drops names) rather than exceeding it.
+
+##### 8c. Steam Name Resolver (API-server component)
+
+Not a persisted entity; the behavioural contract the two entities above depend on.
+
+| Property | Value |
+|----------|-------|
+| Location | API server, package `api/internal/steam/` — **never the agent sidecar** |
+| Why not the agent | `charts/gameplane/templates/networkpolicies.yaml` declares `default-deny-egress` (policy at line 24, `podSelector: {}` at line 28) over every pod in the games namespace; the only outbound path is the opt-in `allow-game-public-egress` policy (line 149) that exists for SteamCMD downloads. A resolver in the agent would need a new egress hole in **every** game pod and the Steam API key distributed to **every** game pod. The API server sits in the control-plane namespace: one egress path, one Secret, one shared cache. |
+| Endpoint | Steam Web API `ISteamUser/GetPlayerSummaries/v2` |
+| Batching | The endpoint accepts up to **100** steamids per call, so the resolver batches ids from one player list into as few calls as possible — never one request per player. |
+| Egress guard | All outbound calls dial through this repo's `netguard` package using the **strict `IsPublic`** policy (Steam is a public internet endpoint; `IsAllowed` is the permissive operator policy and is wrong here). `api/` is **already** a netguard importer — `api/go.mod` lines 5–9 declare the requirement plus the local `replace`, and `api/internal/notify` imports it today — so **no new `go.work`/`go.mod` wiring is required**. What is in scope: `netguard`'s 91% coverage gate applies to any change made inside that package, and the resolver's own tests land under the `api` 80% gate. |
+| Failure behaviour | Degrade, never fail: return the wire entries with `displayName` absent. |
+
+##### 8d. Name Resolution Cache
+
+A **small, bounded, in-process RAM cache** inside the API server. It exists for exactly one reason: to stop the dashboard from spamming Steam. Everything else in this data model is backed by a CRD or by the database — **this is not**. There is no table, no migration, no Redis, no file on disk.
+
+###### 8d-i. Cache Entry (the stored value)
+
+One entry per Steam ID. An entry is either **positive** (a name was resolved) or **negative** (resolution failed for this id). **A negative entry is a first-class cached value, not an absence** — it occupies a slot, it has its own expiry, and while it is live the id is *not* re-sent to Steam.
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `steamID` (key) | string | The 64-bit Steam ID as a decimal string. The sole cache key — one entry per player, shared across every server and every dashboard session in the install. |
+| `displayName` | string | The resolved Steam persona name. Meaningful **only** on a positive entry. On a negative entry it is the empty string and must never be served. |
+| `negative` | bool | `false` = positive entry (`displayName` is authoritative and is served to the dashboard). `true` = Steam did not yield a usable name for this id; the dashboard renders the raw Steam ID. |
+| `expiresAt` | timestamp | Absolute expiry. Computed at insert as `now + ttl` for a positive entry, `now + negativeTTL` for a negative one. An entry at or past `expiresAt` is treated as a miss and re-resolved on next demand. |
+
+**What produces a negative entry**: Steam returned no `player` object for that id (private profile, deleted/nonexistent account, malformed or non-numeric id). These are *permanent-ish* conditions, and without negative caching **every player-list refresh would retry every unresolvable id forever** — precisely the Steam spam this cache exists to prevent. Negative caching is therefore mandatory, not an optimization.
+
+**What does NOT produce a negative entry**: a transport-level failure of the *call itself* — no API key configured, Steam unreachable, HTTP 5xx, rate-limited (429), or the request exceeding its timeout. Those say nothing about the individual id, so nothing is written and the ids stay plain misses, eligible for the next attempt.
+
+###### 8d-ii. Cache Configuration
+
+Its own small entity. Every knob is bounded by design; none of them can be set to "unlimited". These are the identifiers the implementation uses end to end — `MaxEntries` / `TTL` / `NegativeTTL` / `Timeout` in Go, `maxEntries` / `ttl` / `negativeTTL` / `timeout` under `api.steam.cache` in the chart, and `GAMEPLANE_STEAM_CACHE_MAX_ENTRIES` / `GAMEPLANE_STEAM_CACHE_TTL` / `GAMEPLANE_STEAM_CACHE_NEGATIVE_TTL` / `GAMEPLANE_STEAM_TIMEOUT` in the environment. A zero or negative value falls back to the default; it never disables the bound or the timeout.
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `maxEntries` | **10000** | Hard upper bound on the **number of entries**, not on bytes. Reaching it evicts the least-recently-used entry to make room. Positive and negative entries share the one budget. A Steam ID plus a persona name is tens of bytes, so even a full cache stays well under a megabyte (§8d-vii). |
+| `ttl` | **12 hours** | Lifetime of a resolved name. Deliberately **hours, not minutes**: Steam persona names change rarely, and a stale name is harmless because every moderation action keys on `steamId` and never on the name. Long TTL is what collapses the Steam call volume. |
+| `negativeTTL` | **15 minutes** | Lifetime of a negative entry. **Shorter than `ttl`** so a player who unlocks a private profile or fixes their account recovers a name within a reasonable window, while a tight refresh loop still cannot re-ask Steam about them. |
+| `timeout` | **2 seconds** | Hard bound on one upstream Steam call, well inside the 5s SC-004 budget (§8b). On expiry the call is abandoned, nothing is cached, and the affected players render as raw Steam IDs. |
+
+###### 8d-iii. Single-Flight De-duplication
+
+Concurrent player-list requests needing the same unresolved ids **must collapse into one upstream Steam call**, not N identical ones. Two dashboards open on the same server, or one dashboard polling while another loads, must not multiply Steam traffic.
+
+`golang.org/x/sync/singleflight` is the idiomatic implementation and is **already available and already in use in this very module**: `golang.org/x/sync v0.22.0` is a direct requirement in `api/go.mod`, and `api/internal/registry/registry.go` imports `golang.org/x/sync/singleflight` (line 38) and holds a `singleflight.Group` (line 195) today. Adopting it here adds **no new dependency** and follows an in-repo precedent. If for any reason the package is not adopted, the *behaviour* above is still required, and a small hand-rolled equivalent (a mutex-guarded map of in-flight keys to a shared result channel) satisfies it without pulling in anything new.
+
+###### 8d-iv. Batching (unchanged, restated here because it is what makes the numbers work)
+
+`ISteamUser/GetPlayerSummaries/v2` accepts up to **100 steamids per call**. A cache miss covering several players is therefore **one request, not one per player** (§8c). Batching and the 12-hour TTL are the two multipliers behind the capacity note below.
+
+###### 8d-v. Invariants
+
+1. **Bounded**: the cache never holds more than `maxEntries` entries. On insert into a full cache the least-recently-used entry is evicted (**LRU**). Memory use has a ceiling that does not depend on player churn, uptime, or number of servers.
+2. **Concurrency-safe**: the cache is read and written from concurrent HTTP handlers and must be safe for concurrent use. Reads, writes, expiry checks, and eviction all happen under the cache's own synchronization; callers never coordinate externally.
+3. **No durability requirement**: the cache holds nothing that must survive a restart. A cold start is a cold cache; the next player list simply re-resolves. Loss of the entire cache is a performance event, never a correctness event.
+4. **Miss degrades, never fails**: a miss, an expired entry, a negative entry, or a timed-out batch yields the raw Steam ID in the name column (§8b). Nothing about the cache may block, error, or fail the player-list response.
+5. **Never an identifier**: cached names are display-only. Kick, ban, and unban key on `steamId` only — a stale or wrong cached name can never mis-target a moderation action.
+6. **Negative is a value**: a live negative entry suppresses re-querying Steam for that id exactly as a positive entry does. Code must distinguish "cached negative" from "not cached".
+
+###### 8d-vi. Non-Goals (stated explicitly, because everything else here is CRD- or DB-backed)
+
+- **No database table and no migration.** Display names are cosmetic; adding an append-only migration under `api/internal/db/migrations/` for them is explicitly out of scope.
+- **No persistence of any kind** — not to disk, not to a PVC, not to a ConfigMap.
+- **No Redis, memcached, or any external cache service.**
+- **No shared or distributed cache across replicas.** Each API replica keeps its own; with N replicas the worst case is N duplicate Steam calls per TTL window, which is a handful of requests per half-day and is not worth a shared store.
+- **Not an API resource.** The cache is never exposed to the browser, never listed, never invalidated through an endpoint.
+
+###### 8d-vii. Capacity note (substantiating "small")
+
+One entry is a Steam ID (17 ASCII digits) plus a short persona name (Steam caps personas at 32 characters) plus a bool and a timestamp — on the order of **tens of bytes**, call it ~100 bytes with Go map and list overhead. Even at the top of the range, **~10,000 entries is well under a megabyte** — a rounding error against the API server's footprint, and far more distinct players than any single install will hold live.
+
+Call volume falls out the same way: a busy 16-player server needs **one batched call per 12-hour TTL window**, not one per dashboard refresh. Steam's documented quota is on the order of **100,000 calls/day per key**, so even hundreds of servers leave an enormous margin.
+
+##### 8e. Steam Web API Key (configuration)
+
+| Property | Value |
+|----------|-------|
+| Nature | A **credential**. |
+| Storage | Provisioned as a Kubernetes **Secret**, surfaced through a Helm value, mounted/injected into the API server only. |
+| Optionality | **Optional.** Absent is a supported, first-class configuration — not an error, not a startup failure, not a degraded-health condition. |
+| Absent behaviour | The resolver is inert; every player renders with the raw Steam ID. The player list is fully functional; moderation is fully functional. |
+| Handling | Never logged (not at any level, not in error strings), never returned to the browser in any API response or config endpoint, never committed to the repo, never placed in a GameServer CR or a game pod. |
 
 #### Ban List Entry
 
@@ -641,6 +751,14 @@ The remote console does not require modeling as a data structure in the CRD; it 
    - `template.yaml`: Full GameTemplate spec with ports, configSchema, configFiles, RCON (protocol: `nuclearoption`), and actions
 
 2. **New RCON protocol**: `nuclearoption` with length-prefixed JSON request/response framing
+
+### API-Server Addition (display-name hydration)
+
+1. **Steam name resolver** in `api/internal/steam/`: batched `ISteamUser/GetPlayerSummaries/v2` lookups (≤100 ids per call), dialled through `netguard`'s strict `IsPublic` policy, with a hard bounded timeout.
+2. **Small bounded in-process RAM cache** keyed on Steam ID (§8d): entry-count bound with LRU eviction (10000 entries), 12h positive TTL (`ttl`), shorter 15m `negativeTTL` so unresolvable ids are not retried forever, a 2s per-call `timeout`, single-flight de-duplication of concurrent lookups (`golang.org/x/sync/singleflight` is already a direct `api/go.mod` requirement and is already imported by `api/internal/registry`), and safe for concurrent use. A miss degrades to the raw Steam ID rather than erroring. **Non-goals: no database table, no migration, no persistence, no shared/distributed cache across replicas.**
+3. **Optional Steam Web API key** as a Kubernetes Secret surfaced via a Helm value; absent means degrade (raw Steam IDs), never fail.
+4. **No new module wiring**: `api/` already requires and replaces `netguard` (`api/go.mod` lines 5–9, imported by `api/internal/notify`). This is a new *consumer of `netguard.IsPublic`*, not a new importer. The netguard 91% gate still applies to any change made inside that package; the resolver's coverage lands under the api 80% gate.
+5. **No change to the wire protocol**: no `displayName` on the wire, in the codec, or in the agent.
 
 ### Verification Checklist
 

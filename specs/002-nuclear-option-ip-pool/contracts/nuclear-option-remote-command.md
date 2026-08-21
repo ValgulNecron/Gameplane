@@ -303,7 +303,20 @@ All 19 commands are listed below with their request format, required arguments, 
 
 **Note (from official source)**: The dedicated server returns only `steamId` and `faction` fields. The `displayName` field has been removed because the server runs headlessly and does not cache player names. The external server (dashboard/admin console) can fetch display names using Steam's Web API if needed.
 
-**SPEC CONFLICT**: Spec 002 FR-007 and User Story 3 AC1 promise a player list with display names in the dashboard. This protocol cannot provide display names; the agent can return only `steamId` and `faction`. **Flagged for spec owner**: decide whether to (a) defer display-name rendering to a future release, (b) mandate Steam Web API lookups in the agent, or (c) modify the upstream game server's output format.
+**RESOLVED — display names are hydrated outside this protocol**: Spec 002 FR-007 and User Story 3 AC1 promise a player list with display names in the dashboard. Those requirements **stand as written and are not amended**. This protocol cannot supply display names, and it is not being extended to do so: the resolution is a Steam Web API display-name lookup performed in the **API server** (`api/internal/...`), layered on top of the wire response. The question is closed; no further spec-owner decision is pending.
+
+#### Display-Name Hydration Is Out of Scope for This Contract
+
+The following is stated explicitly so that nobody implements a phantom field in the protocol codec:
+
+- **The wire contract is unchanged.** The `get-player-list` response body is exactly the shape documented above: wrapper key `Players` (capital `P`), objects with `steamId` (lowercase `d`) and `faction`. **There is no `displayName` field on the wire, and none may be added to the codec, the frame parser, or the agent's response struct.**
+- **The agent returns exactly what the game returns** — `steamId` and `faction`, nothing more. Adding, defaulting, or synthesizing a name inside the agent is out of scope and prohibited.
+- **Name resolution happens in the API server**, not in the agent. This placement is forced, not stylistic: `charts/gameplane/templates/networkpolicies.yaml` declares `default-deny-egress` (policy at line 24, `podSelector: {}` at line 28) over every pod in the games namespace; the only outbound path is the opt-in `allow-game-public-egress` policy (line 149) that exists for SteamCMD downloads. A resolver in the game pod would therefore require a new egress hole in every game pod plus distribution of the Steam Web API key to every game pod. The API server runs in the control-plane namespace and gives one egress path, one Secret, and one shared cache.
+- **Outbound calls go through this repo's `netguard` SSRF dial-guard**, using the strict `IsPublic` policy (Steam's Web API is a public internet endpoint). The endpoint is `ISteamUser/GetPlayerSummaries/v2`, which accepts up to 100 steamids per call, so the resolver batches rather than issuing one request per player.
+- **The Steam Web API key is optional.** When it is absent, unreachable, timed out, or an id fails to resolve, the player list still renders with the raw Steam ID in place of a name. Name resolution must never block, fail, or error the player-list response (spec SC-004 bounds a moderation command result at 5 seconds, so the lookup carries a hard timeout and degrades rather than exceeding it).
+- **Moderation keys on `steamId` only.** `kick-player`, `banlist-add`, and `banlist-remove` continue to take the Steam ID as their argument. A resolved name is display-only and must never become the identifier used for a moderation action.
+
+The presentation-layer entities (wire vs. presentation player entry, the resolution cache, and the API-key configuration) are modelled in `data-model.md`, section 8.
 
 ---
 

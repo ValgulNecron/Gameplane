@@ -21,6 +21,7 @@ Track B is unblocked and independently shippable; it should ship FIRST. Track A'
 **Primary Dependencies**: 
 - Operator/Agent/API: controller-runtime v0.19.0, client-go v0.35.0, chi v5, coder/websocket v1.8.12
 - Web: TanStack Router, TanStack Query, Radix + shadcn/ui, Tailwind 3.4, lucide-react, Monaco editor, xterm.js
+- **In-repo shared module `netguard`** (Track A, Steam display-name lookup — see Decision 9): the API server's Steam Web API resolver dials through `netguard` using the strict `IsPublic` policy. Wiring status verified: `api/go.mod` already declares `require github.com/ValgulNecron/gameplane/netguard v0.0.0` with a local `replace` (lines 5–9), and `api/` is **already** a netguard importer via `api/internal/notify/notify.go:17` and `api/internal/notify/deliver.go:18` — so no new `go.work` / `go.mod` wiring is needed and the earlier planning assumption that this would be netguard's first API-side importer is superseded. What *is* in scope: `netguard`'s coverage gate (`netguard/.testcoverage.yml`, total 91%) applies to any change made inside that package for this feature, and the new resolver's own coverage lands under the `api` gate (80%).
 
 **Storage**: N/A for this feature (no new database tables). Existing GameServer CRD status fields carry pool/address state.
 
@@ -238,19 +239,38 @@ Gameplane redistributes nothing. This resolves the spec's "BLOCKING RISK" (unver
 **Decision 8: Wake-on-Connect OUT OF SCOPE for v1**
 Nuclear Option module template will NOT declare a `wakeProtocol` field. Idle auto-sleep and wake-on-connect are v1 features, but a dedicated `gameproto` handshake parser for Nuclear Option's UDP 7777 join wire format is deferred to a future feature. Until then, sentinel falls back to its generic UDP packets-in-window heuristic when a server is asleep. This heuristic is not game-specific and is already proven to work for UDP-only games. Rationale: the handshake parser requires access to an authoritative game binary or protocol documentation; the publisher's docs do not cover the wire format. Adding it later is straightforward (gameproto package, no operator changes needed).
 
+**Decision 9: Player Display Names Resolved in the API Server via Steam Web API — DECIDED, GATE CLOSED**
+
+*Status: **DECIDED and closed.** Spec FR-007 and User Story 3 / Acceptance Scenario 1 stand as written and are NOT amended. Do not re-open or re-litigate this; the full design is below and the implementation is tasked as T081–T104 in tasks.md.*
+
+The Nuclear Option dedicated server cannot supply display names: the publisher's own protocol documentation states `get-player-list` "returns only the steamId and faction fields (the displayName field has been removed since the server runs headlessly and does not cache names)" and directs integrators to "fetch steam name using Steam's Web API". Gameplane therefore hydrates names itself.
+
+Design, as decided:
+
+- **Location — the API server (`api/internal/…`), not the agent.** This is forced by the cluster's own network policy, not by style preference: `charts/gameplane/templates/networkpolicies.yaml` installs a `default-deny-egress` NetworkPolicy in the games namespace (policy at line 24, `podSelector: {}` at line 28) that applies to **every** pod in that namespace and opens only DNS. Game pods get outbound internet access solely through the opt-in `allow-game-public-egress` policy (line 149), which exists for SteamCMD/asset/mod downloads. Putting the resolver in the agent sidecar would mean punching a new egress hole into every game pod *and* distributing the Steam Web API key to every game pod. The API server runs in the control-plane namespace, so it yields exactly one egress path, one Secret, and one shared cache.
+- **The agent's contract is unchanged.** The agent returns exactly what the game returns — `steamId` and `faction`. Name hydration is a presentation concern layered on top in the API, consistent with the project rule that the API is a UX layer and never re-implements game behavior.
+- **Outbound calls route through `netguard`, strict policy.** Steam's Web API is a public internet endpoint, so the resolver uses `netguard.IsPublic` (the strict policy the agent uses for mod downloads), not the permissive `IsAllowed` the operator uses for self-hosted registries.
+- **Endpoint and batching.** `ISteamUser/GetPlayerSummaries/v2`, which accepts up to 100 `steamids` in a single call — the resolver batches a player list into one request rather than issuing one request per player.
+- **The key is an optional credential.** Provisioned as a Kubernetes Secret, surfaced through a Helm value, never logged, never returned to the browser, never committed. Absent by default.
+- **Graceful degradation is mandatory.** When the key is absent, Steam is unreachable, the call times out, or an individual id fails to resolve, the player list MUST still render with the raw Steam ID in place of the name. Name resolution must never block, fail, or error the player-list response. SC-004 requires a moderation-command result within 5 seconds, so the lookup carries a hard bounded timeout and degrades rather than exceeding it.
+- **Cached with a TTL** so repeated player-list calls do not hammer Steam.
+- **Steam ID remains the identifier.** Kick, ban, and unban continue to key on Steam ID. The display name is presentation-only and must never become the identifier used for a moderation action.
+
+Rationale: it keeps the promised UX (FR-007 / US3-AC1) intact, confines a third-party dependency and a credential to a single control-plane component that already has an egress path, and reuses the repo's existing SSRF dial-guard instead of inventing a second outbound-HTTP policy.
+
 ## Residual Unknowns
 
 **Unverified 1: On-Disk Log Path**
 Spec Verification Claim 5: Nuclear Option server logs are assumed to be in a standard game directory (e.g., `/game/logs/`, `~/saves/logs/`) but exact path is undocumented. Agent pod's read permissions must be verified. **Action if false**: if logs are inaccessible, operational visibility degrades; backup of config/ban-list still works; documentation notes the limitation.
 
 **Unverified 2: Per-Command JSON Response Body Shapes**
-Spec Verification Claim 3: Remote-command protocol framing (4-byte status + 4-byte length + JSON) is assumed from third-party docs. Exact field names/types in each response (e.g., get-player-list returns array of {steamId, name, faction}?) are undocumented. **Action if false**: E2E test against real server fails, signals the drift, moderation commands are reworked to match actual server behavior. Module coverage status becomes blocked-doc if reverse-engineering is required.
+Spec Verification Claim 3: Remote-command protocol framing (4-byte status + 4-byte length + JSON) is assumed from third-party docs. Exact field names/types in each response are undocumented — with the single exception of `get-player-list`, whose body is documented upstream as `{"Players": [{"steamId", "faction"}]}` with **no name field** (see Decision 9; the name is hydrated in the API server, never on the wire). **Action if false**: E2E test against real server fails, signals the drift, moderation commands are reworked to match actual server behavior. Module coverage status becomes blocked-doc if reverse-engineering is required.
 
 **Unverified 3: Readiness Signal**
 Spec Verification Claim 4: Assumed the dedicated server exposes a signal (log pattern, status port, state file) distinguishing "process started" from "accepting players." If no such signal exists, dashboard readiness must conservatively infer from the same real-protocol probe used by the E2E join test, increasing readiness-check latency. **Action if false**: remote console reports "ready" only after a successful join probe, not just process liveness.
 
-**SPEC-vs-REALITY CONFLICT: Player List Display Name**
-Spec FR-007 and User Story 3 (Acceptance Scenario 1) promise a player list containing `steamId`, `displayName`, and `faction`. However, the publisher's own protocol documentation states the dedicated server returns **only** `steamId` and `faction`, noting that `displayName` "has been removed since the server runs headlessly and does not cache names." The publisher suggests fetching display names via Steam's Web API. This is an **OPEN DESIGN DECISION**: (A) implement a Steam Web API lookup to hydrate player names (requires new outbound network dependency through `netguard` SSRF dial-guard, needs separate security design), or (B) amend the spec to drop `displayName` from the player list. The decision must be made before Track A ships; do not resolve it in this plan.
+**RESOLVED — Player List Display Name** (no longer an unknown)
+The conflict between spec FR-007 / US3-AC1 and the server returning only `steamId` and `faction` is **decided**: the API server hydrates display names via a batched, cached, netguard-guarded Steam Web API lookup that degrades to the raw Steam ID. See **Key Technical Decisions → Decision 9** for the full design and rationale. The spec is unamended and this gate is closed.
 
 These unknowns do NOT block the start of implementation but MUST be resolved before Track A ships. Track B has no unknowns and can ship immediately.
 
