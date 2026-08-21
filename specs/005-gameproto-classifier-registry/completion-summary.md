@@ -30,7 +30,7 @@ The refactored structure uses a **Classifier registry pattern**:
 - `gameproto/classifier.go` — defines the `Classifier` interface (4 methods: `Classify`, `SupportsStatusPing`, `BuildStatusResponse`, `BuildDisconnect`), the unified `ClassificationResult` struct, and the `Detail` interface for protocol-specific metadata.
 - `gameproto/registry.go` — contains the compile-time registry map literal `classifierRegistry` with explicit entries for `"minecraft"`, `"terraria"`, and `"demo"` (test stub); exports `Lookup(name string) (Classifier, bool)` and `ListRegistered() []string`.
 - `gameproto/demo.go` — a minimal reference implementation of the Classifier interface (test-only, always classifies as Unknown).
-- New test files: `gameproto/classifier_equivalence_test.go`, `gameproto/demo_test.go`, `gameproto/registry_test.go`, and extended `sentinel/main_test.go`.
+- New test files: `gameproto/classifier_golden_test.go` (SUPERSEDED: `classifier_equivalence_test.go` was deleted in PR #248), `gameproto/demo_test.go`, `gameproto/registry_test.go`, and extended `sentinel/main_test.go`.
 
 **Modified files:**
 - `gameproto/minecraft.go` — now defines `MinecraftClassifier` struct implementing the Classifier interface; wraps the existing unexported `classifyMinecraftHandshake` function inside `Classify()`.

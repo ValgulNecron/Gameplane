@@ -40,7 +40,7 @@ The merged code successfully implements a registry-based Classifier pattern that
 | SC-004 | Zero in-source suppressions | SATISFIED | As verified in FR-008: no matches for suppression directives across gameproto and sentinel refactored code. Zero `//nolint`, `//#nosec`, `//lint:ignore` or equivalent patterns. |
 | SC-005 | Golangci-lint gate passes | SATISFIED | CI jobs `lint (gameproto)` and `lint (sentinel)` both green. Zero reported findings for either module. Project-standard golangci-lint config applied; no new or existing suppressions needed. |
 | SC-006 | Registry is auditable | SATISFIED | `gameproto/registry.go` (37 lines): Compact, self-documenting registry. `classifierRegistry` is a bare package-level map literal (greppable, no runtime setup). `ListRegistered()` enumerates all registered protocols. `registry_test.go:16-57`: `TestRegistry_ExpectedProtocols` validates exact protocol set and fails with clear message if any protocol is missing or duplicated. All 3 registered protocols (minecraft, terraria, demo) are discoverable without reading implementation files. |
-| SC-007 | Stream replay (Consumed bytes) preserved | SATISFIED | `gameproto/classifier_golden_test.go:124-133` (Minecraft Consumed assertions): Verifies `Consumed` bytes are present and match input for successful parses. `gameproto/classifier_golden_test.go:390-392` (Terraria Consumed assertions): Same verification for Terraria. `sentinel/main.go:511-539`: Uses `result.Consumed` to replay handshake; e2e `TestGameServer_WakeOnConnect_LoginWakes` passes, confirming lossless hand-off to real upstream server. (SUPERSEDED: The equivalence test file has been deleted per PR #248; the golden suite now verifies Consumed-bytes invariants directly.) |
+| SC-007 | Stream replay (Consumed bytes) preserved | SATISFIED | **Minecraft**: `gameproto/classifier_golden_test.go:129-134` contains a real assertion (`bytes.Equal` with `t.Errorf`) verifying that `Consumed` bytes match input for successful parses. **Terraria**: `gameproto/classifier_golden_test.go:390-392` is a non-asserting `t.Logf` note only, not a verification. The actual Terraria Consumed bytes verification rests on: (1) the sentinel e2e replay path (`sentinel/main.go:511-539` uses `result.Consumed` to replay handshake), and (2) e2e `TestGameServer_WakeOnConnect_LoginWakes` passes, confirming lossless hand-off to real upstream server. (SUPERSEDED: The equivalence test file has been deleted per PR #248; the golden suite now verifies Consumed-bytes invariants directly.) |
 | SC-008 | Status ping unsupported is first-class case | SATISFIED | `gameproto/classifier.go:32-36`: `SupportsStatusPing()` is part of Classifier interface contract. `gameproto/terraria.go:259-262`: Terraria explicitly declares `SupportsStatusPing() bool { return false }`. `sentinel/main.go:522-529`: Before calling `BuildStatusResponse()`, dispatcher checks `classifier.SupportsStatusPing()` and skips status reply if unsupported. No panics, errors, or workarounds required in calling code. Terraria is first-class, not an error case. |
 
 ---
@@ -60,7 +60,7 @@ The merged code successfully implements a registry-based Classifier pattern that
   - One line, greppable entry.
 
 - **Zero shared-code edits**:
-  - `gameproto/gameproto.go`: not modified for demo registration (only retained deprecated facades).
+  - `gameproto/gameproto.go`: not modified for demo registration (SUPERSEDED: deprecated facades were deleted in PR #248).
   - `sentinel/main.go`: not modified for demo dispatch (registry lookup handles all protocols).
   - `test/e2e/buckets.sh`: no new test entries for demo (protocol pattern validated via unit tests).
 
@@ -82,27 +82,27 @@ No other protocol-specific dispatch, no hidden or duplicate registrations.
 
 **Note (SUPERSEDED by PR #248)**: The original equivalence suite compared old facade functions against new Classifier implementations on identical inputs. PR #248 deleted the facades and this comparison suite, replacing it with a golden-vector suite that directly verifies Classifier behavior without old-vs-new comparisons. The golden tests lock in the same behavioral invariants: `Kind`, `Consumed` bytes, and `Detail` field consistency.
 
-- **Minecraft classification**: `TestMinecraftClassifyGolden()` (lines 15-169)
+- **Minecraft classification**: `TestMinecraftClassifyGolden()` (lines 15-166)
   - Verifies `MinecraftClassifier.Classify()` produces consistent results across handshake scenarios.
   - Test cases: valid join, valid status ping, different versions, truncated input, empty input, oversized packets, invalid bytes.
   - Assertions: `Kind` correctness, `Consumed` bytes presence and consistency, `Detail` fields populated for Join/Status, nil for Unknown.
   - CI status: `go (gameproto / amd64 + arm64)` passes the test.
 
-- **Minecraft status response**: `TestMinecraftBuildStatusResponseGolden()` (lines 170-227)
+- **Minecraft status response**: `TestMinecraftBuildStatusResponseGolden()` (lines 170-224)
   - Verifies `MinecraftClassifier.BuildStatusResponse()` output consistency for valid JSON, empty JSON, escaped quotes.
 
-- **Minecraft disconnect**: `TestMinecraftBuildDisconnectGolden()` (lines 228-294)
+- **Minecraft disconnect**: `TestMinecraftBuildDisconnectGolden()` (lines 228-292)
   - Verifies `MinecraftClassifier.BuildDisconnect()` message encoding for various reason strings (quotes, newlines, backslashes, empty).
 
-- **Minecraft status ping support**: `TestMinecraftSupportsStatusPing()` (lines 295-303)
+- **Minecraft status ping support**: `TestMinecraftSupportsStatusPing()` (lines 295-300)
   - Verifies `MinecraftClassifier.SupportsStatusPing()` returns true.
 
-- **Terraria classification**: `TestTerrariaClassifyGolden()` (lines 304-422)
+- **Terraria classification**: `TestTerrariaClassifyGolden()` (lines 304-419)
   - Verifies `TerrariaClassifier.Classify()` produces consistent results across handshake scenarios.
   - Test cases: valid connect request, different versions, truncated header/payload, empty input, non-Terraria bytes.
   - Same assertions: Kind correctness, Consumed consistency, Detail field presence.
 
-- **Terraria disconnect**: `TestTerrariaTerrariaBuildDisconnectGolden()` (lines 423-502)
+- **Terraria disconnect**: `TestTerrariaTerrariaBuildDisconnectGolden()` (lines 423-499)
   - Verifies `TerrariaClassifier.BuildDisconnect()` message encoding.
 
 - **Detail nil for Unknown**: `TestClassifierDetailNotNilForNonUnknown()` (lines 503-559)
