@@ -6501,6 +6501,94 @@
                                 },
                                 {
                                   "type": "text",
+                                  "id": "wvkNX",
+                                  "name": "External Address Label",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "EXTERNAL ADDRESS",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "600",
+                                  "letterSpacing": 1
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "LdhK0",
+                                  "name": "External Address Row",
+                                  "width": "fill_container",
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 8,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    10,
+                                    14
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "WlCw7",
+                                      "name": "Label",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "Address",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "ACwDS",
+                                      "name": "stack",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "alignItems": "end",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "qT6hz",
+                                          "name": "line",
+                                          "gap": 8,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "P6IzS",
+                                              "name": "Address",
+                                              "fill": "$c:--foreground",
+                                              "content": "172.18.255.203",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "type": "icon",
+                                              "id": "rujgf",
+                                              "name": "copy",
+                                              "width": 14,
+                                              "height": 14,
+                                              "icon": "copy",
+                                              "library": "lucide",
+                                              "fill": "$c:--muted-foreground"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "vTgzg",
+                                          "name": "PoolNote",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "pool: pool-us-west",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
                                   "id": "Y4uN0B",
                                   "name": "Cluster Address Label",
                                   "fill": "$c:--muted-foreground",
@@ -17651,15 +17739,15 @@
     {
       "type": "frame",
       "id": "J5pjJ3",
-      "x": 19887,
-      "y": 1771,
+      "x": 21362,
+      "y": 1410,
       "name": "Screen/Server Detail — Settings · Networking",
       "theme": {
         "c:Mode": "Dark"
       },
       "clip": true,
       "width": 1440,
-      "height": 1300,
+      "height": 2070,
       "fill": "$c:--background",
       "children": [
         {
@@ -18252,7 +18340,7 @@
                                           "id": "XxAlW",
                                           "name": "t",
                                           "fill": "#F5F5F5",
-                                          "content": "NodePort",
+                                          "content": "LoadBalancer",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 14,
                                           "fontWeight": "normal"
@@ -18917,6 +19005,506 @@
                                       ]
                                     }
                                   ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "bzpTN",
+                                  "name": "Field Current Address Assignment",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "X86bLC",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Ts03W",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Current assignment",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "FPJn8",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Address and pool currently bound to this server by the operator.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "H91kxl",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "ctrl",
+                                      "width": "fill_container",
+                                      "stroke": "#00000000",
+                                      "fill": "$c:--muted",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "type": "frame",
+                                          "id": "DtjPg",
+                                          "name": "ValueRow",
+                                          "gap": 8,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "qcpTQ",
+                                              "name": "Address",
+                                              "fill": "#F5F5F5",
+                                              "content": "172.18.255.203",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 14,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "V5WeGA",
+                                              "name": "PoolNote",
+                                              "fill": "#949494",
+                                              "content": "from pool 'pool-us-west'",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "O1szjE",
+                                  "name": "Field Address Pool",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "LDsjk",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "qcFZr",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Address pool",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "jOxvY",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Name of a load-balancer address pool configured by your cluster admin. Leave blank to let the address manager choose.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "b94iq9",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "pool-us-west",
+                                          "fill": "#F5F5F5"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "ASfT2",
+                                  "name": "Field Requested Address",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "ezSr5",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ZlZVt",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Requested address",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "NFleg",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "A specific address to request from the pool. Must be free — the address manager rejects addresses already in use. Leave blank unless you need a specific address.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "C015a8",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "e.g. 203.0.113.50",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "SdaUn",
+                                  "name": "Field Address Status",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "E2lud",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "K1CwQ",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Address status",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "HtmEQ",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Reflects the GameServer's AddressAssignment condition. See also the alerts below for IgnoredForExposureMode and NoAddressManagerConfigured.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "XF5sT",
+                                      "name": "ctrl",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 8,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "t8ZK7d",
+                                          "name": "StatesCaption",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "Shows exactly one of the following, depending on the condition's reason:",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "SUG76",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "Edon4",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#21C45D33",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Assigned",
+                                                  "fill": "#21C45D",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "JohIc",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Address 172.18.255.203 assigned from pool 'pool-us-west'.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "p1xct",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "k7k1g",
+                                              "type": "ref",
+                                              "ref": "c:L8Rgv",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#FF84001A",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:glumS": {
+                                                  "content": "Pending",
+                                                  "fill": "#FF8400",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "aoI1T",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "LoadBalancer requested — waiting for the address manager to assign an address.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "z9lDl",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "xspe2",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#DC262633",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Pool exhausted",
+                                                  "fill": "#DC2828",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "fv8A9",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Pool 'pool-us-west' has no free addresses left. Choose a different pool or free one up.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "eNwtE",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "ni9a3",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#DC262633",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Pool not found",
+                                                  "fill": "#DC2828",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "GD0jS",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Pool 'pool-us-west' does not exist. Check the pool name with your cluster admin.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "qr3mo",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "zpAiH",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#DC262633",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Address in use",
+                                                  "fill": "#DC2828",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "cfjyu",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Requested address 203.0.113.50 is already assigned to another service.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "NbcRI",
+                                  "name": "AlertStatesCaption",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "These conditions mean the preference is saved but never applied:",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "id": "YlEnp",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert Ignored For Exposure Mode",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "Address preference ignored"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "Expose is set to NodePort. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer."
+                                    }
+                                  }
+                                },
+                                {
+                                  "id": "F1JlIp",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert No Address Manager Configured",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "No address manager configured"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "This cluster has no MetalLB or Cilium address manager. Your pool and address preference will be saved but never applied."
+                                    }
+                                  }
                                 }
                               ]
                             },
@@ -30377,7 +30965,7 @@
       },
       "clip": true,
       "width": 1440,
-      "height": 900,
+      "height": 1170,
       "fill": "$c:--background",
       "children": [
         {
@@ -30483,7 +31071,7 @@
                   "name": "Modal",
                   "clip": true,
                   "width": 960,
-                  "height": 760,
+                  "height": 1030,
                   "fill": "$c:--card",
                   "cornerRadius": 12,
                   "stroke": "$c:--border",
@@ -31342,6 +31930,139 @@
                                       "fontWeight": "normal"
                                     }
                                   ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yJCp2",
+                              "name": "LoadBalancerAddress",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "O9iyo",
+                                  "name": "Label",
+                                  "fill": "#949494",
+                                  "content": "Load balancer address (optional)",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "W0zREs",
+                                  "name": "ColHeader",
+                                  "width": "fill_container",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "WVmjE",
+                                      "name": "Col",
+                                      "fill": "$c:--muted-foreground",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Address pool",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "CBeNk",
+                                      "name": "Col",
+                                      "fill": "$c:--muted-foreground",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Requested address",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "hS7Ci",
+                                  "name": "Row",
+                                  "width": "fill_container",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "id": "hwB7N",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "PoolInput",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "pool-us-west",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": "tMjOP",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "AddressInput",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "203.0.113.50",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "FRjYu",
+                                  "name": "Helper",
+                                  "fill": "$c:--muted-foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Name of a load-balancer address pool configured by your cluster admin, plus an optional specific address to request. Applies only when Expose is set to LoadBalancer — ignored otherwise.",
+                                  "lineHeight": 1.4,
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "id": "ON5EU",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert Exposure Mode Ignored",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "Address preference ignored"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "Expose is set to NodePort. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer."
+                                    }
+                                  }
+                                },
+                                {
+                                  "id": "ynNKu",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert No Address Manager Configured",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "No address manager configured"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "This cluster has no MetalLB or Cilium address manager. Your pool and address preference will be saved but never applied."
+                                    }
+                                  }
                                 }
                               ]
                             }
