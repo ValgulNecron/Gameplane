@@ -4,8 +4,8 @@
     {
       "type": "frame",
       "id": "N1GkB",
-      "x": -4625,
-      "y": -1169,
+      "x": 1640,
+      "y": 4500,
       "name": "Screen/Login",
       "theme": {
         "c:Mode": "Dark"
@@ -664,8 +664,8 @@
     {
       "type": "frame",
       "id": "jmoi3",
-      "x": -4625,
-      "y": -189,
+      "x": 3280,
+      "y": 4500,
       "name": "Screen/Login — Invalid credentials",
       "theme": {
         "c:Mode": "Dark"
@@ -1334,8 +1334,8 @@
     {
       "type": "frame",
       "id": "ljdA5",
-      "x": -4625,
-      "y": 791,
+      "x": 4920,
+      "y": 4500,
       "name": "Screen/Login — SSO only",
       "theme": {
         "c:Mode": "Dark"
@@ -2006,8 +2006,8 @@
     {
       "type": "frame",
       "id": "N13Xud",
-      "x": -3089,
-      "y": -1169,
+      "x": 0,
+      "y": 4500,
       "name": "Screen/App Loading",
       "theme": {
         "c:Mode": "Dark"
@@ -2851,8 +2851,8 @@
     {
       "type": "frame",
       "id": "j24cXg",
-      "x": -1539,
-      "y": -1169,
+      "x": 0,
+      "y": 5700,
       "name": "Screen/Dashboard Home",
       "theme": {
         "c:Mode": "Dark"
@@ -4199,8 +4199,8 @@
     {
       "type": "frame",
       "id": "iGBIs",
-      "x": 0,
-      "y": -1169,
+      "x": 1640,
+      "y": 5700,
       "name": "Screen/Servers",
       "theme": {
         "c:Mode": "Dark"
@@ -5835,8 +5835,8 @@
     {
       "type": "frame",
       "id": "EZFW0",
-      "x": 1600,
-      "y": -1169,
+      "x": 0,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview",
       "theme": {
         "c:Mode": "Dark"
@@ -7469,8 +7469,8 @@
     {
       "type": "frame",
       "id": "P08Uw",
-      "x": 3155,
-      "y": -1169,
+      "x": 0,
+      "y": 9175,
       "name": "Screen/Server Detail — Events",
       "theme": {
         "c:Mode": "Dark"
@@ -8119,8 +8119,8 @@
     {
       "type": "frame",
       "id": "Xn5ns",
-      "x": 4695,
-      "y": -1169,
+      "x": 1640,
+      "y": 9175,
       "name": "Screen/Server Detail — Console",
       "theme": {
         "c:Mode": "Dark"
@@ -8407,8 +8407,8 @@
     {
       "type": "frame",
       "id": "kPmoo",
-      "x": 6252,
-      "y": -1169,
+      "x": 3280,
+      "y": 9175,
       "name": "Screen/Server Detail — Logs",
       "theme": {
         "c:Mode": "Dark"
@@ -8943,8 +8943,8 @@
     {
       "type": "frame",
       "id": "FtdkI",
-      "x": 6252,
-      "y": -182,
+      "x": 4920,
+      "y": 9175,
       "name": "Screen/Server Detail — Logs (Failed)",
       "theme": {
         "c:Mode": "Dark"
@@ -9356,8 +9356,8 @@
     {
       "type": "frame",
       "id": "Burtr",
-      "x": 7797,
-      "y": -1169,
+      "x": 6560,
+      "y": 9175,
       "name": "Screen/Server Detail — Files",
       "theme": {
         "c:Mode": "Dark"
@@ -10530,8 +10530,8 @@
     {
       "type": "frame",
       "id": "sZtDi",
-      "x": 9347,
-      "y": -1169,
+      "x": 8200,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods",
       "theme": {
         "c:Mode": "Dark"
@@ -10845,8 +10845,8 @@
     {
       "type": "frame",
       "id": "GayoL",
-      "x": 10874,
-      "y": -1169,
+      "x": 9840,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods — Browse (added)",
       "theme": {
         "c:Mode": "Dark"
@@ -12244,8 +12244,8 @@
     {
       "type": "frame",
       "id": "Ss0Yr",
-      "x": 12387,
-      "y": -1169,
+      "x": 11480,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods — Install mod (from URL)",
       "theme": {
         "c:Mode": "Dark"
@@ -12708,8 +12708,8 @@
     {
       "type": "frame",
       "id": "V1VhGE",
-      "x": 13907,
-      "y": -1169,
+      "x": 13120,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods — Install mod (upload)",
       "theme": {
         "c:Mode": "Dark"
@@ -13139,8 +13139,8 @@
     {
       "type": "frame",
       "id": "tY6RD",
-      "x": 15425,
-      "y": -1169,
+      "x": 16400,
+      "y": 9175,
       "name": "Screen/Server Detail — Modpacks",
       "theme": {
         "c:Mode": "Dark"
@@ -14053,8 +14053,8 @@
     {
       "type": "frame",
       "id": "dPP50",
-      "x": 16916,
-      "y": -1169,
+      "x": 18040,
+      "y": 9175,
       "name": "Screen/Server Detail — Players",
       "theme": {
         "c:Mode": "Dark"
@@ -14422,8 +14422,8 @@
     {
       "type": "frame",
       "id": "pssCT",
-      "x": 18401,
-      "y": -1169,
+      "x": 19680,
+      "y": 9175,
       "name": "Screen/Server Detail — Backups",
       "theme": {
         "c:Mode": "Dark"
@@ -14886,8 +14886,8 @@
     {
       "type": "frame",
       "id": "hLB9Z",
-      "x": 19887,
-      "y": -1169,
+      "x": 0,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings",
       "theme": {
         "c:Mode": "Dark"
@@ -15660,8 +15660,8 @@
     {
       "type": "frame",
       "id": "swxkJ",
-      "x": 19887,
-      "y": -189,
+      "x": 1640,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Version",
       "theme": {
         "c:Mode": "Dark"
@@ -16745,8 +16745,8 @@
     {
       "type": "frame",
       "id": "E0ypH",
-      "x": 19887,
-      "y": 791,
+      "x": 3280,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Resources",
       "theme": {
         "c:Mode": "Dark"
@@ -17739,8 +17739,8 @@
     {
       "type": "frame",
       "id": "J5pjJ3",
-      "x": 21362,
-      "y": 1410,
+      "x": 4920,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Networking",
       "theme": {
         "c:Mode": "Dark"
@@ -19572,8 +19572,8 @@
     {
       "type": "frame",
       "id": "ugDSa",
-      "x": 19887,
-      "y": 2751,
+      "x": 6560,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Environment",
       "theme": {
         "c:Mode": "Dark"
@@ -20225,8 +20225,8 @@
     {
       "type": "frame",
       "id": "i1bLR",
-      "x": 19887,
-      "y": 3731,
+      "x": 8200,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Lifecycle",
       "theme": {
         "c:Mode": "Dark"
@@ -22068,8 +22068,8 @@
     {
       "type": "frame",
       "id": "KaRFX",
-      "x": 19887,
-      "y": 5431,
+      "x": 9840,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Scheduled backups",
       "theme": {
         "c:Mode": "Dark"
@@ -22777,8 +22777,8 @@
     {
       "type": "frame",
       "id": "Y5cmvI",
-      "x": 19887,
-      "y": 6411,
+      "x": 11480,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Placement",
       "theme": {
         "c:Mode": "Dark"
@@ -23523,8 +23523,8 @@
     {
       "type": "frame",
       "id": "VfB0Y",
-      "x": 19887,
-      "y": 7391,
+      "x": 13120,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · RBAC & access",
       "theme": {
         "c:Mode": "Dark"
@@ -24215,8 +24215,8 @@
     {
       "type": "frame",
       "id": "i8wib",
-      "x": 19887,
-      "y": 8371,
+      "x": 14760,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Danger zone",
       "theme": {
         "c:Mode": "Dark"
@@ -24950,8 +24950,8 @@
     {
       "type": "frame",
       "id": "W8idqY",
-      "x": 21413,
-      "y": -1169,
+      "x": 0,
+      "y": 12745,
       "name": "Screen/Create Server — Step 1 Template",
       "theme": {
         "c:Mode": "Dark"
@@ -27392,8 +27392,8 @@
     {
       "type": "frame",
       "id": "nNL3E",
-      "x": 22963,
-      "y": -1169,
+      "x": 1640,
+      "y": 12745,
       "name": "Screen/Create Server — Step 2 Version",
       "theme": {
         "c:Mode": "Dark"
@@ -28653,8 +28653,8 @@
     {
       "type": "frame",
       "id": "vUqMl",
-      "x": 24545,
-      "y": -1169,
+      "x": 3280,
+      "y": 12745,
       "name": "Screen/Create Server — Step 3 Configure",
       "theme": {
         "c:Mode": "Dark"
@@ -30957,8 +30957,8 @@
     {
       "type": "frame",
       "id": "f1Vga",
-      "x": 26143,
-      "y": -1169,
+      "x": 4920,
+      "y": 12745,
       "name": "Screen/Create Server — Step 4 Network",
       "theme": {
         "c:Mode": "Dark"
@@ -32500,8 +32500,8 @@
     {
       "type": "frame",
       "id": "UMJli",
-      "x": 27726,
-      "y": -1169,
+      "x": 6560,
+      "y": 12745,
       "name": "Screen/Create Server — Step 5 Review",
       "theme": {
         "c:Mode": "Dark"
@@ -33985,8 +33985,8 @@
     {
       "type": "frame",
       "id": "kK8Ji",
-      "x": 29281,
-      "y": -1169,
+      "x": 0,
+      "y": 14865,
       "name": "Screen/Modules Catalog",
       "theme": {
         "c:Mode": "Dark"
@@ -38025,8 +38025,8 @@
     {
       "type": "frame",
       "id": "DPrYX",
-      "x": 30819,
-      "y": -1169,
+      "x": 0,
+      "y": 16315,
       "name": "Screen/Backups — Index",
       "theme": {
         "c:Mode": "Dark"
@@ -38521,8 +38521,8 @@
     {
       "type": "frame",
       "id": "fK8Bi",
-      "x": 32332,
-      "y": -1169,
+      "x": 1640,
+      "y": 16315,
       "name": "Screen/Backups — Schedules",
       "theme": {
         "c:Mode": "Dark"
@@ -39994,8 +39994,8 @@
     {
       "type": "frame",
       "id": "tTSdi",
-      "x": 33856,
-      "y": -1169,
+      "x": 3280,
+      "y": 16315,
       "name": "Screen/Backups — Restores",
       "theme": {
         "c:Mode": "Dark"
@@ -40777,8 +40777,8 @@
     {
       "type": "frame",
       "id": "j9W8A",
-      "x": 35438,
-      "y": -1169,
+      "x": 0,
+      "y": 17765,
       "name": "Screen/Cluster Settings",
       "theme": {
         "c:Mode": "Dark"
@@ -42022,8 +42022,8 @@
     {
       "type": "frame",
       "id": "bYDHC",
-      "x": 36985,
-      "y": -1169,
+      "x": 0,
+      "y": 18965,
       "name": "Screen/Users & RBAC",
       "theme": {
         "c:Mode": "Dark"
@@ -42903,8 +42903,8 @@
     {
       "type": "frame",
       "id": "e9lV4",
-      "x": 38482,
-      "y": -1169,
+      "x": 1640,
+      "y": 18965,
       "name": "Screen/Users & RBAC — Roles",
       "theme": {
         "c:Mode": "Dark"
@@ -43649,8 +43649,8 @@
     {
       "type": "frame",
       "id": "TBvTC",
-      "x": 39971,
-      "y": -1169,
+      "x": 3280,
+      "y": 18965,
       "name": "Screen/Users & RBAC — Service accounts",
       "theme": {
         "c:Mode": "Dark"
@@ -44019,8 +44019,8 @@
     {
       "type": "frame",
       "id": "Dpb9f",
-      "x": 41524,
-      "y": -1169,
+      "x": 4920,
+      "y": 18965,
       "name": "Screen/Users & RBAC — Identity providers",
       "theme": {
         "c:Mode": "Dark"
@@ -44389,8 +44389,8 @@
     {
       "type": "frame",
       "id": "DxKOh",
-      "x": 43069,
-      "y": -1169,
+      "x": 0,
+      "y": 20165,
       "name": "Screen/Audit Log",
       "theme": {
         "c:Mode": "Dark"
@@ -46337,8 +46337,8 @@
     {
       "type": "frame",
       "id": "Bq2Yg",
-      "x": 44598,
-      "y": -1169,
+      "x": 0,
+      "y": 21365,
       "name": "Screen/Admin — System Logs",
       "theme": {
         "c:Mode": "Dark"
@@ -47843,8 +47843,8 @@
     {
       "type": "frame",
       "id": "WZdnw",
-      "x": 46218,
-      "y": -1169,
+      "x": 1640,
+      "y": 21365,
       "name": "Screen/Admin Settings",
       "theme": {
         "c:Mode": "Dark"
@@ -48532,8 +48532,8 @@
     {
       "type": "frame",
       "id": "uMiwd",
-      "x": 46218,
-      "y": -189,
+      "x": 3280,
+      "y": 21365,
       "name": "Screen/Admin Settings — Authentication",
       "theme": {
         "c:Mode": "Dark"
@@ -49232,8 +49232,8 @@
     {
       "type": "frame",
       "id": "RC3Kf",
-      "x": 46218,
-      "y": 842,
+      "x": 4920,
+      "y": 21365,
       "name": "Screen/Admin Settings — Backup destinations",
       "theme": {
         "c:Mode": "Dark"
@@ -49797,8 +49797,8 @@
     {
       "type": "frame",
       "id": "g5mEpx",
-      "x": 46218,
-      "y": 1825,
+      "x": 6560,
+      "y": 21365,
       "name": "Screen/Admin Settings — Module sources",
       "theme": {
         "c:Mode": "Dark"
@@ -50759,8 +50759,8 @@
     {
       "type": "frame",
       "id": "n6Xlo",
-      "x": 46218,
-      "y": 3915,
+      "x": 9840,
+      "y": 21365,
       "name": "Screen/Admin Settings — Notifications",
       "theme": {
         "c:Mode": "Dark"
@@ -51699,8 +51699,8 @@
     {
       "type": "frame",
       "id": "uoxQW",
-      "x": 46218,
-      "y": 4997,
+      "x": 11480,
+      "y": 21365,
       "name": "Screen/Admin Settings — Telemetry",
       "theme": {
         "c:Mode": "Dark"
@@ -52295,8 +52295,8 @@
     {
       "type": "frame",
       "id": "M2sA4u",
-      "x": 46218,
-      "y": 6151,
+      "x": 13120,
+      "y": 21365,
       "name": "Screen/Admin Settings — Updates",
       "theme": {
         "c:Mode": "Dark"
@@ -52915,8 +52915,8 @@
     {
       "type": "frame",
       "id": "zM0VF",
-      "x": 46218,
-      "y": 7151,
+      "x": 14760,
+      "y": 21365,
       "name": "Screen/Admin Settings — About",
       "theme": {
         "c:Mode": "Dark"
@@ -53558,8 +53558,8 @@
     {
       "type": "frame",
       "id": "tooKB",
-      "x": 47848,
-      "y": -1169,
+      "x": 0,
+      "y": 22565,
       "name": "Screen/Mobile — Servers",
       "theme": {
         "c:Mode": "Dark"
@@ -54775,8 +54775,8 @@
     {
       "type": "frame",
       "id": "SeizD",
-      "x": 48318,
-      "y": -1169,
+      "x": 590,
+      "y": 22565,
       "name": "Screen/Mobile — Nav Drawer",
       "theme": {
         "c:Mode": "Dark"
@@ -56265,8 +56265,8 @@
     {
       "type": "frame",
       "id": "aI9PL",
-      "x": 19329,
-      "y": -6723,
+      "x": 5962,
+      "y": 25209,
       "name": "Gameplane/Cluster Selector",
       "theme": {
         "c:Mode": "Dark"
@@ -56504,8 +56504,8 @@
     {
       "type": "frame",
       "id": "kIxaJ",
-      "x": 19700,
-      "y": -6723,
+      "x": 6362,
+      "y": 25209,
       "name": "Gameplane/Audit Integrity Banner",
       "theme": {
         "c:Mode": "Dark"
@@ -56563,8 +56563,8 @@
     {
       "type": "note",
       "id": "ZThbo",
-      "x": 20457,
-      "y": -6868,
+      "x": 0,
+      "y": 25209,
       "name": "Shared Components Band",
       "width": 0,
       "height": 0,
@@ -56573,8 +56573,8 @@
     {
       "type": "frame",
       "id": "kKFX9",
-      "x": 20447,
-      "y": -6723,
+      "x": 450,
+      "y": 25209,
       "name": "Gameplane/App Sidebar",
       "theme": {
         "c:Mode": "Dark"
@@ -57078,8 +57078,8 @@
     {
       "type": "frame",
       "id": "gu5WY",
-      "x": 20756,
-      "y": -6700,
+      "x": 910,
+      "y": 25209,
       "name": "Gameplane/Top Bar",
       "theme": {
         "c:Mode": "Dark"
@@ -57283,8 +57283,8 @@
     {
       "type": "frame",
       "id": "ZWcwn",
-      "x": 19317,
-      "y": -6491,
+      "x": 600,
+      "y": 27518,
       "name": "Gameplane/Stat Card",
       "theme": {
         "c:Mode": "Dark"
@@ -57357,8 +57357,8 @@
     {
       "type": "frame",
       "id": "xCDF7",
-      "x": 20756,
-      "y": -6334,
+      "x": 2270,
+      "y": 25209,
       "name": "Gameplane/Page Header",
       "theme": {
         "c:Mode": "Dark"
@@ -57413,8 +57413,8 @@
     {
       "type": "frame",
       "id": "I9kvlZ",
-      "x": 20756,
-      "y": -6513,
+      "x": 3370,
+      "y": 25209,
       "name": "Gameplane/Server Detail Tabs",
       "theme": {
         "c:Mode": "Dark"
@@ -57714,8 +57714,8 @@
     {
       "type": "frame",
       "id": "S4k0x",
-      "x": 20756,
-      "y": -6197,
+      "x": 4666,
+      "y": 25209,
       "name": "Gameplane/Server Detail Header",
       "theme": {
         "c:Mode": "Dark"
@@ -57947,8 +57947,8 @@
     {
       "type": "frame",
       "id": "BPEpm",
-      "x": 22200,
-      "y": -6723,
+      "x": 0,
+      "y": 26409,
       "name": "Gameplane/Dropdown Menu",
       "theme": {
         "c:Mode": "Dark"
@@ -58130,8 +58130,8 @@
     {
       "type": "frame",
       "id": "WwNlX",
-      "x": 22560,
-      "y": -6723,
+      "x": 0,
+      "y": 28161,
       "name": "Gameplane/Confirm Dialog",
       "theme": {
         "c:Mode": "Dark"
@@ -58346,8 +58346,8 @@
     {
       "type": "frame",
       "id": "x3beP",
-      "x": 23090,
-      "y": -6723,
+      "x": 640,
+      "y": 28161,
       "name": "Gameplane/Modal",
       "theme": {
         "c:Mode": "Dark"
@@ -58554,8 +58554,8 @@
     {
       "type": "frame",
       "id": "FyV6E",
-      "x": 23650,
-      "y": -6723,
+      "x": 2872,
+      "y": 27518,
       "name": "Gameplane/Filter Popover",
       "theme": {
         "c:Mode": "Dark"
@@ -58742,8 +58742,8 @@
     {
       "type": "frame",
       "id": "tpKRk",
-      "x": 24200,
-      "y": -6723,
+      "x": 0,
+      "y": 26846,
       "name": "Gameplane/Button/Default",
       "theme": {
         "c:Mode": "Dark"
@@ -58785,8 +58785,8 @@
     {
       "type": "frame",
       "id": "rNhll",
-      "x": 24340,
-      "y": -6723,
+      "x": 300,
+      "y": 26846,
       "name": "Gameplane/Button/Outline",
       "theme": {
         "c:Mode": "Dark"
@@ -58830,8 +58830,8 @@
     {
       "type": "frame",
       "id": "LMIom",
-      "x": 24490,
-      "y": -6723,
+      "x": 600,
+      "y": 26846,
       "name": "Gameplane/Button/Ghost",
       "theme": {
         "c:Mode": "Dark"
@@ -58872,8 +58872,8 @@
     {
       "type": "frame",
       "id": "XoX7L",
-      "x": 24640,
-      "y": -6723,
+      "x": 900,
+      "y": 26846,
       "name": "Gameplane/Button/Danger",
       "theme": {
         "c:Mode": "Dark"
@@ -58915,8 +58915,8 @@
     {
       "type": "frame",
       "id": "z9ShNE",
-      "x": 24790,
-      "y": -6723,
+      "x": 1200,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Default",
       "theme": {
         "c:Mode": "Dark"
@@ -58958,8 +58958,8 @@
     {
       "type": "frame",
       "id": "d5N3W3",
-      "x": 24920,
-      "y": -6723,
+      "x": 1484,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Outline",
       "theme": {
         "c:Mode": "Dark"
@@ -59003,8 +59003,8 @@
     {
       "type": "frame",
       "id": "J09iP",
-      "x": 25050,
-      "y": -6723,
+      "x": 1768,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Ghost",
       "theme": {
         "c:Mode": "Dark"
@@ -59045,8 +59045,8 @@
     {
       "type": "frame",
       "id": "D0cDM",
-      "x": 25180,
-      "y": -6723,
+      "x": 0,
+      "y": 27182,
       "name": "Gameplane/Input",
       "theme": {
         "c:Mode": "Dark"
@@ -59080,8 +59080,8 @@
     {
       "type": "frame",
       "id": "Lmaf1",
-      "x": 25490,
-      "y": -6723,
+      "x": 480,
+      "y": 27182,
       "name": "Gameplane/Search Input",
       "theme": {
         "c:Mode": "Dark"
@@ -59126,8 +59126,8 @@
     {
       "type": "frame",
       "id": "AT7ya",
-      "x": 25800,
-      "y": -6723,
+      "x": 960,
+      "y": 27182,
       "name": "Gameplane/Select",
       "theme": {
         "c:Mode": "Dark"
@@ -59172,8 +59172,8 @@
     {
       "type": "frame",
       "id": "hl7R3",
-      "x": 26110,
-      "y": -6723,
+      "x": 1440,
+      "y": 27182,
       "name": "Gameplane/Switch/On",
       "theme": {
         "c:Mode": "Dark"
@@ -59200,8 +59200,8 @@
     {
       "type": "frame",
       "id": "rh2QH",
-      "x": 26170,
-      "y": -6723,
+      "x": 1676,
+      "y": 27182,
       "name": "Gameplane/Switch/Off",
       "theme": {
         "c:Mode": "Dark"
@@ -59228,8 +59228,8 @@
     {
       "type": "frame",
       "id": "k38Uta",
-      "x": 26240,
-      "y": -6723,
+      "x": 0,
+      "y": 27518,
       "name": "Gameplane/Card",
       "theme": {
         "c:Mode": "Dark"
@@ -59273,8 +59273,8 @@
     {
       "type": "frame",
       "id": "IU7OG",
-      "x": 25180,
-      "y": -6650,
+      "x": 2052,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Danger",
       "theme": {
         "c:Mode": "Dark"
@@ -59316,8 +59316,8 @@
     {
       "type": "frame",
       "id": "hboVw",
-      "x": 26700,
-      "y": -6723,
+      "x": 420,
+      "y": 26409,
       "name": "Gameplane/Notifications Panel",
       "theme": {
         "c:Mode": "Dark"
@@ -59474,8 +59474,8 @@
     {
       "type": "frame",
       "id": "IdaU7",
-      "x": 27030,
-      "y": -6723,
+      "x": 3312,
+      "y": 27518,
       "name": "Gameplane/Search Results",
       "theme": {
         "c:Mode": "Dark"
@@ -59577,8 +59577,8 @@
     {
       "type": "frame",
       "id": "zhLZN",
-      "x": 27360,
-      "y": -6723,
+      "x": 2000,
+      "y": 28161,
       "name": "Gameplane/Backup Detail Drawer",
       "theme": {
         "c:Mode": "Dark"
@@ -59944,8 +59944,8 @@
     {
       "type": "frame",
       "id": "CqaSq",
-      "x": 27860,
-      "y": -6723,
+      "x": 1320,
+      "y": 28161,
       "name": "Gameplane/Role Editor Modal",
       "theme": {
         "c:Mode": "Dark"
@@ -60716,8 +60716,8 @@
     {
       "type": "frame",
       "id": "igj2U",
-      "x": 28380,
-      "y": -6723,
+      "x": 1072,
+      "y": 27518,
       "name": "Gameplane/Error Banner",
       "theme": {
         "c:Mode": "Dark"
@@ -60749,8 +60749,8 @@
     {
       "type": "frame",
       "id": "w4ntSc",
-      "x": 28810,
-      "y": -6723,
+      "x": 2272,
+      "y": 27518,
       "name": "Gameplane/Loading Card",
       "theme": {
         "c:Mode": "Dark"
@@ -60779,8 +60779,8 @@
     {
       "type": "frame",
       "id": "zzx8f",
-      "x": 29240,
-      "y": -6723,
+      "x": 1672,
+      "y": 27518,
       "name": "Gameplane/Error Card",
       "theme": {
         "c:Mode": "Dark"
@@ -60811,8 +60811,8 @@
     {
       "type": "frame",
       "id": "Wj0V4",
-      "x": 46218,
-      "y": 2863,
+      "x": 8200,
+      "y": 21365,
       "name": "Screen/Admin Settings — Mod registries",
       "theme": {
         "c:Mode": "Dark"
@@ -61793,8 +61793,8 @@
     {
       "type": "frame",
       "id": "KhYNc",
-      "x": 9347,
-      "y": -165,
+      "x": 14760,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods (by ID)",
       "theme": {
         "c:Mode": "Dark"
@@ -62629,8 +62629,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Clone Server",
       "width": 440,
-      "x": 23880,
-      "y": -6020,
+      "x": 0,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Clone server"
@@ -62685,8 +62685,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Transfer Ownership",
       "width": 440,
-      "x": 24500,
-      "y": -6020,
+      "x": 640,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Transfer mc-survival"
@@ -62730,8 +62730,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Install Module",
-      "x": 25120,
-      "y": -6020,
+      "x": 1280,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Install Minecraft (Java Edition)"
@@ -62854,8 +62854,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Upload Module",
-      "x": 25740,
-      "y": -6020,
+      "x": 1960,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Upload module"
@@ -62951,8 +62951,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Add Module Source",
-      "x": 23880,
-      "y": -5320,
+      "x": 2640,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Add module source"
@@ -63085,8 +63085,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Restore Backup",
-      "x": 24500,
-      "y": -5320,
+      "x": 3320,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Restore backup"
@@ -63180,8 +63180,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Invite User",
-      "x": 25120,
-      "y": -5320,
+      "x": 4000,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Invite user"
@@ -63337,8 +63337,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Edit User",
-      "x": 25740,
-      "y": -5320,
+      "x": 4680,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Edit user"
@@ -63462,8 +63462,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Reset Password",
-      "x": 23880,
-      "y": -4620,
+      "x": 5360,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Reset password for smoke-collab"
@@ -63527,8 +63527,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/New Folder",
       "width": 440,
-      "x": 24500,
-      "y": -4620,
+      "x": 6040,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "New folder"
@@ -63583,8 +63583,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/New File",
       "width": 440,
-      "x": 25120,
-      "y": -4620,
+      "x": 6680,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "New file"
@@ -63638,8 +63638,8 @@
       "reusable": true,
       "ref": "WwNlX",
       "name": "Gameplane/Dialog/Wipe World",
-      "x": 25740,
-      "y": -4620,
+      "x": 0,
+      "y": 29918,
       "descendants": {
         "w08wp": {
           "content": "Wipe mc-survival's world data?"
@@ -63658,8 +63658,8 @@
     {
       "type": "frame",
       "id": "mQ1zB",
-      "x": 1600,
-      "y": 231,
+      "x": 1640,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview (Idle armed)",
       "theme": {
         "c:Mode": "Dark"
@@ -65394,8 +65394,8 @@
     {
       "type": "frame",
       "id": "IzuY2",
-      "x": 1600,
-      "y": 1953,
+      "x": 3280,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview (Never sleeps)",
       "theme": {
         "c:Mode": "Dark"
@@ -67088,8 +67088,8 @@
     {
       "type": "frame",
       "id": "TE2jI",
-      "x": 1600,
-      "y": 3778,
+      "x": 4920,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview (Asleep)",
       "theme": {
         "c:Mode": "Dark"
@@ -68966,8 +68966,8 @@
     {
       "type": "frame",
       "id": "x7MJI",
-      "x": 1600,
-      "y": 4960,
+      "x": 3800,
+      "y": 27518,
       "name": "Gameplane/Connection Card — Tunnel States (reference)",
       "theme": {
         "c:Mode": "Dark"
@@ -69486,8 +69486,8 @@
     {
       "type": "frame",
       "id": "xCJlu",
-      "x": 19887,
-      "y": 9351,
+      "x": 16400,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Share links",
       "theme": {
         "c:Mode": "Dark"
@@ -70480,8 +70480,8 @@
     {
       "type": "frame",
       "id": "dQV9N",
-      "x": 19887,
-      "y": 10331,
+      "x": 18040,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Share links (Empty)",
       "theme": {
         "c:Mode": "Dark"
@@ -71552,8 +71552,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Create Share Link",
-      "x": 25740,
-      "y": -4304,
+      "x": 640,
+      "y": 29918,
       "descendants": {
         "E7Whx": {
           "content": "Create share link for mc-survival"
@@ -71749,8 +71749,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Share Link Created",
-      "x": 25740,
-      "y": -3924,
+      "x": 1320,
+      "y": 29918,
       "descendants": {
         "E7Whx": {
           "content": "Share link created"
@@ -71915,8 +71915,8 @@
       "reusable": true,
       "ref": "WwNlX",
       "name": "Gameplane/Dialog/Revoke Share Link",
-      "x": 25740,
-      "y": -3512,
+      "x": 2000,
+      "y": 29918,
       "descendants": {
         "w08wp": {
           "content": "Revoke this share link?"
@@ -71935,8 +71935,8 @@
     {
       "type": "frame",
       "id": "C2LQE4",
-      "x": 25740,
-      "y": -3228,
+      "x": 0,
+      "y": 23709,
       "name": "Screen/Share Link — Up",
       "theme": {
         "c:Mode": "Dark"
@@ -72165,8 +72165,8 @@
     {
       "type": "frame",
       "id": "q31B6w",
-      "x": 25740,
-      "y": -2248,
+      "x": 1640,
+      "y": 23709,
       "name": "Screen/Share Link — Asleep (can start)",
       "theme": {
         "c:Mode": "Dark"
@@ -72396,8 +72396,8 @@
     {
       "type": "frame",
       "id": "qFLfB",
-      "x": 25740,
-      "y": 731,
+      "x": 3280,
+      "y": 23709,
       "name": "Screen/Share Link — Asleep (view only)",
       "theme": {
         "c:Mode": "Dark"
@@ -72595,8 +72595,8 @@
     {
       "type": "frame",
       "id": "EcoGD",
-      "x": 25740,
-      "y": 1711,
+      "x": 4920,
+      "y": 23709,
       "name": "Screen/Share Link — Starting",
       "theme": {
         "c:Mode": "Dark"
@@ -72796,8 +72796,8 @@
     {
       "type": "frame",
       "id": "epZO2",
-      "x": 25740,
-      "y": 2691,
+      "x": 6560,
+      "y": 23709,
       "name": "Screen/Share Link — Invalid or expired",
       "theme": {
         "c:Mode": "Dark"
