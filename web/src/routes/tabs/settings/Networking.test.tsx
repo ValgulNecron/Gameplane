@@ -1,7 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
+import type { ReactNode } from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQuery } from "@/test/render";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 import { NetworkingSection } from "./Networking";
 import { makeServer } from "@/test/factories";
 
@@ -458,6 +468,90 @@ describe("NetworkingSection", () => {
 
       const lastCall = onChange.mock.calls.at(-1)![0];
       expect(lastCall.spec.networking).toBeUndefined();
+    });
+
+    it("renders AddressInUse condition with a link to the conflicting server (T044, T065, T109)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { address: "203.0.113.50" },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "AddressInUse",
+              message:
+                'Requested address "203.0.113.50" is already in use by GameServer "competing-server".',
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Error")).toBeInTheDocument();
+      // Check that the link to the conflicting server is rendered
+      const link = screen.getByRole("link", { name: 'GameServer "competing-server"' });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute("href", expect.stringContaining("/servers/competing-server"));
+    });
+
+    it("renders PoolNotFound condition message (T109)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { addressPool: "missing-pool" },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "PoolNotFound",
+              message:
+                "Requested address pool 'missing-pool' could not be found.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Error")).toBeInTheDocument();
+      expect(
+        screen.getByText("Requested address pool 'missing-pool' could not be found."),
+      ).toBeInTheDocument();
+    });
+
+    it("renders AllocationFailed condition message (T109)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { addressPool: "exhausted-pool" },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "AllocationFailed",
+              message:
+                "Requested address pool 'exhausted-pool': the pool has no available addresses.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Error")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Requested address pool 'exhausted-pool': the pool has no available addresses.",
+        ),
+      ).toBeInTheDocument();
     });
   });
 });

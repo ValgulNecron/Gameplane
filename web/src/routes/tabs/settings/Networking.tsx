@@ -3,6 +3,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { Expose, GameServer, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
@@ -547,7 +548,11 @@ function AddressAssignmentSection({
         />
       </Field>
 
-      <AddressStatusField condition={condition} />
+      <AddressStatusField
+        condition={condition}
+        serverName={draft.metadata.name}
+        serverNamespace={draft.metadata.namespace}
+      />
 
       {condition?.reason === "IgnoredForExposureMode" && (
         <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
@@ -582,8 +587,12 @@ function AddressAssignmentSection({
 
 function AddressStatusField({
   condition,
+  serverName,
+  serverNamespace,
 }: {
   condition?: { reason?: string; message?: string; status?: string };
+  serverName?: string;
+  serverNamespace?: string;
 }) {
   if (!condition) {
     return null;
@@ -617,7 +626,42 @@ function AddressStatusField({
     };
   };
 
+  // Parse AddressInUse message to extract the conflicting server name.
+  // Message format: "Requested address "<address>" is already in use by GameServer "<name>"."
+  // The operator names conflicting servers as:
+  // - "namespace/name" if from a different namespace
+  // - bare "name" if from the same namespace
+  const parseConflictingServer = (
+    message?: string,
+  ): { name: string; namespace?: string } | null => {
+    if (!message || !message.includes('is already in use by GameServer')) {
+      return null;
+    }
+    // Extract the server identifier between the last pair of quotes.
+    // Pattern: GameServer "name" or GameServer "namespace/name"
+    const match = message.match(/GameServer "([^"]+)"/);
+    if (!match || !match[1]) {
+      return null;
+    }
+    const identifier = match[1];
+    // Check if the identifier contains a "/" separator (cross-namespace)
+    if (identifier.includes('/')) {
+      const parts = identifier.split('/');
+      // Guard against malformed input: must be exactly 2 parts, both non-empty
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        return { name: parts[1], namespace: parts[0] };
+      }
+      // Malformed cross-namespace identifier; return null to fall back to plain message
+      return null;
+    }
+    // Same namespace: use the viewed server's namespace
+    return { name: identifier, namespace: serverNamespace };
+  };
+
   const badge = getBadgeColor(condition.reason, condition.status);
+  const conflictingServer = condition.reason === "AddressInUse"
+    ? parseConflictingServer(condition.message)
+    : null;
 
   return (
     <Field
@@ -631,7 +675,26 @@ function AddressStatusField({
           >
             {badge.label}
           </div>
-          <div className="flex-1 pt-1 text-sm text-fg">{condition.message}</div>
+          <div className="flex-1 pt-1 text-sm text-fg">
+            {conflictingServer ? (
+              <>
+                Requested address {condition.message?.match(/"([^"]+)"/)?.[1]} is already in use by{" "}
+                <Link
+                  to="/servers/$name"
+                  params={{ name: conflictingServer.name }}
+                  search={
+                    conflictingServer.namespace ? { ns: conflictingServer.namespace } : {}
+                  }
+                  className="text-primary hover:underline"
+                >
+                  GameServer "{conflictingServer.name}"
+                </Link>
+                .
+              </>
+            ) : (
+              condition.message
+            )}
+          </div>
         </div>
       </div>
     </Field>

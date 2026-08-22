@@ -1,7 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
+import type { ReactNode } from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 import { NetworkingSection } from "./Networking";
 import { makeServer } from "@/test/factories";
 
@@ -94,5 +104,73 @@ describe("NetworkingSection PortOverridesEditor", () => {
     await userEvent.click(removes[0]);
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.networking).toBeUndefined();
+  });
+});
+
+describe("NetworkingSection AddressInUse rendering (T065)", () => {
+  it("covers explicit-address field and renders AddressInUse message with link to conflicting server", () => {
+    const draft = {
+      ...baseDraft,
+      spec: {
+        ...baseDraft.spec,
+        networking: { address: "203.0.113.50" },
+      },
+      status: {
+        conditions: [
+          {
+            type: "AddressAssignment",
+            status: "False",
+            reason: "AddressInUse",
+            message:
+              'Requested address "203.0.113.50" is already in use by GameServer "competing-server".',
+          },
+        ],
+      },
+    };
+    const onChange = vi.fn();
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+    // Verify the explicit-address field exists and shows the requested value
+    const addressInput = screen.getByPlaceholderText(
+      "e.g. 203.0.113.50",
+    ) as HTMLInputElement;
+    expect(addressInput).toBeInTheDocument();
+    expect(addressInput.value).toBe("203.0.113.50");
+
+    // Verify the AddressInUse condition is rendered with a link to the conflicting server
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: 'GameServer "competing-server"' });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", expect.stringContaining("/servers/competing-server"));
+  });
+
+  it("renders a link to cross-namespace conflicting server with correct namespace", () => {
+    const draft = {
+      ...baseDraft,
+      spec: {
+        ...baseDraft.spec,
+        networking: { address: "203.0.113.50" },
+      },
+      status: {
+        conditions: [
+          {
+            type: "AddressAssignment",
+            status: "False",
+            reason: "AddressInUse",
+            message:
+              'Requested address "203.0.113.50" is already in use by GameServer "other-ns/other-server".',
+          },
+        ],
+      },
+    };
+    const onChange = vi.fn();
+    renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+    // Verify the link is rendered to the conflicting server in the other namespace
+    const link = screen.getByRole("link", { name: 'GameServer "other-ns/other-server"' });
+    expect(link).toBeInTheDocument();
+    // The href should contain the server name, and the search params should include the correct namespace
+    expect(link).toHaveAttribute("href", expect.stringContaining("/servers/other-server"));
+    expect(link).toHaveAttribute("href", expect.stringContaining("ns=other-ns"));
   });
 });
