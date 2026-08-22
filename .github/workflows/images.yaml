@@ -157,9 +157,10 @@ jobs:
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           echo "name=${owner_lc}" >> $GITHUB_OUTPUT
-      # On PRs, build the base image locally to ensure it exists in this runner's daemon.
-      # The base job runs on a separate runner and its local image doesn't transfer.
-      # On master, the base is already pushed and we reference it via digest instead.
+      # On PRs, build the base image and export as OCI layout.
+      # The buildx builder is isolated (docker-container driver), so it cannot read from the Docker daemon.
+      # We export to OCI format and pass it as a named context to the game build via oci-layout:// URI.
+      # On master, the base is already pushed to the registry and we reference it via digest instead.
       # Build amd64 only (game binary is x86_64-only; loading multi-platform is not supported).
       - if: github.event_name == 'pull_request'
         id: build-base-pr
@@ -167,24 +168,37 @@ jobs:
         with:
           context: images/common/steamcmd
           platforms: linux/amd64
-          load: true
-          tags: gameplane-steamcmd-base:pr
+          push: false
+          outputs: type=oci,dest=/tmp/steamcmd-base-oci.tar
           build-args: |
             VERSION=dev
+      # On PRs only: unpack the OCI layout so it can be passed as a named context to the game build.
+      - if: github.event_name == 'pull_request'
+        name: unpack base OCI layout
+        run: |
+          mkdir -p /tmp/steamcmd-base
+          tar -xf /tmp/steamcmd-base-oci.tar -C /tmp/steamcmd-base
       - id: base-tag
-        # On PR: use the fixed local tag built above. On master: use the pushed digest.
+        # On PR: use the named context from the OCI layout built above. On master: use the pushed digest.
         env:
           OWNER: ${{ steps.owner-lowercase.outputs.name }}
           DIGEST: ${{ needs.common-base.outputs.steamcmd-digest }}
+          EVENT: ${{ github.event_name }}
         run: |
           if [ -z "$DIGEST" ]; then
-            # PR: use the local tag built in this job (guaranteed to exist in this runner's daemon).
+            # PR: use the named context (resolved via oci-layout:// URI passed to buildx).
             base_image="gameplane-steamcmd-base:pr"
+            # Named context tells buildx where to find the base image built in this job.
+            # The buildx builder cannot read from the Docker daemon, so we pass the OCI layout.
+            build_contexts="gameplane-steamcmd-base:pr=oci-layout:///tmp/steamcmd-base"
           else
             # Master: digest is available from the pushed base image (immutable pinning).
+            # No named context needed; FROM resolves directly in the registry.
             base_image="ghcr.io/${OWNER}/gameplane/common-steamcmd@${DIGEST}"
+            build_contexts=""
           fi
           echo "image=${base_image}" >> $GITHUB_OUTPUT
+          echo "build-contexts=${build_contexts}" >> $GITHUB_OUTPUT
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -206,6 +220,9 @@ jobs:
           build-args: |
             VERSION=dev
             STEAMCMD_BASE_IMAGE=${{ steps.base-tag.outputs.image }}
+          # On PRs: pass the base OCI layout as a named context so buildx can resolve it.
+          # On master: build-contexts is empty (base is resolved from registry digest).
+          build-contexts: ${{ steps.base-tag.outputs.build-contexts }}
       # Signing is mandatory when publishing to a registry. Skip on PRs where digest is empty.
       - if: github.event_name != 'pull_request'
         name: require signing key
