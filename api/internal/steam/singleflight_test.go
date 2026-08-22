@@ -24,7 +24,7 @@ func TestSingleflightCollapse(t *testing.T) {
 	// Launch N goroutines requesting the same ids.
 	for i := 0; i < n; i++ {
 		go func() {
-			res, err := sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
+			res, err := sf.Do(ids, func(_ context.Context) (map[string]string, error) {
 				mu.Lock()
 				callCount++
 				mu.Unlock()
@@ -78,7 +78,7 @@ func TestSingleflightDisjointSetsNotCollapsed(t *testing.T) {
 
 	// Goroutine 1: request ids {id1, id2}
 	go func() {
-		sf.Do([]string{"id1", "id2"}, func(ctx context.Context) (map[string]string, error) {
+		sf.Do([]string{"id1", "id2"}, func(_ context.Context) (map[string]string, error) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
@@ -90,7 +90,7 @@ func TestSingleflightDisjointSetsNotCollapsed(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 
 	// Goroutine 2: request ids {id3, id4}
-	sf.Do([]string{"id3", "id4"}, func(ctx context.Context) (map[string]string, error) {
+	sf.Do([]string{"id3", "id4"}, func(_ context.Context) (map[string]string, error) {
 		mu.Lock()
 		callCount++
 		mu.Unlock()
@@ -117,17 +117,22 @@ func TestSingleflightErrorFansOut(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		go func() {
-			_, err := sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
+			_, err := sf.Do(ids, func(_ context.Context) (map[string]string, error) {
 				mu.Lock()
 				callCount++
 				mu.Unlock()
+
+				// Simulate a slow upstream call to keep the flight in-flight
+				// long enough for other callers to join the same flight.
+				time.Sleep(10 * time.Millisecond)
+
 				return nil, fmt.Errorf("upstream failed")
 			})
 			errChan <- err
 		}()
 	}
 
-	// Wait for all.
+	// Wait for all to complete.
 	for i := 0; i < n; i++ {
 		err := <-errChan
 		if err == nil {
@@ -141,12 +146,14 @@ func TestSingleflightErrorFansOut(t *testing.T) {
 	}
 }
 
-func TestSingleflightContextCancellation(t *testing.T) {
-	// Test that one waiter's context cancellation doesn't cancel the shared flight for others.
+func TestSingleflightSecondCallerJoinsInFlight(t *testing.T) {
+	// Test that a second caller joining an in-flight call receives the shared result
+	// without triggering a second upstream invocation.
 	callCount := 0
 	var mu sync.Mutex
 	callStarted := make(chan struct{})
 	callBlocked := make(chan struct{})
+	done := make(chan struct{})
 
 	sf := &singleflightGroup{}
 
@@ -157,7 +164,7 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	var err1 error
 
 	go func() {
-		result1, err1 = sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
+		result1, err1 = sf.Do(ids, func(_ context.Context) (map[string]string, error) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
@@ -167,6 +174,7 @@ func TestSingleflightContextCancellation(t *testing.T) {
 
 			return map[string]string{"id1": "Player1"}, nil
 		})
+		close(done)
 	}()
 
 	// Wait for the call to start.
@@ -177,7 +185,7 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	errChan := make(chan error, 1)
 
 	go func() {
-		res, err := sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
+		res, err := sf.Do(ids, func(_ context.Context) (map[string]string, error) {
 			// Should not reach here; should reuse the in-flight call.
 			return nil, fmt.Errorf("unexpected call")
 		})
@@ -188,31 +196,26 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	// Give goroutine 2 time to join the flight.
 	time.Sleep(10 * time.Millisecond)
 
+	// Release the shared flight before reading results.
+	// This allows goroutine 1 to complete and deliver the result to goroutine 2.
+	callBlocked <- struct{}{}
+
 	// Wait for goroutine 2's result.
 	result2 := <-resultChan
 	err2 := <-errChan
 
-	// Goroutine 2's context was cancelled, but since singleflight uses an independent context,
-	// the goroutine should still succeed and receive the shared result (once the flight completes).
-	// The waiter's context cancellation does not affect the shared flight result.
-	// For now, goroutine 2 receives the result from the shared flight (not cancelled).
 	if err2 != nil {
-		// With the new independent-context API, cancelling a waiter's context should not
-		// cause the shared flight to fail. The waiter still gets the successful result.
-		t.Errorf("expected no error for goroutine 2 (independent context), got %v", err2)
+		t.Errorf("expected no error for goroutine 2, got %v", err2)
 	}
 
 	if result2 == nil || result2["id1"] != "Player1" {
-		t.Errorf("expected valid result for goroutine 2 despite context cancellation, got %v", result2)
+		t.Errorf("expected valid result for goroutine 2, got %v", result2)
 	}
 
-	// Now let the shared flight proceed.
-	callBlocked <- struct{}{}
-
 	// Wait for goroutine 1 to complete.
-	time.Sleep(50 * time.Millisecond)
+	<-done
 
-	// Goroutine 1 should succeed (its context was never cancelled).
+	// Goroutine 1 should succeed.
 	if err1 != nil {
 		t.Errorf("expected success for goroutine 1, got %v", err1)
 	}
@@ -226,4 +229,3 @@ func TestSingleflightContextCancellation(t *testing.T) {
 		t.Errorf("expected 1 upstream call, got %d", callCount)
 	}
 }
-

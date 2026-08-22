@@ -154,7 +154,7 @@ func TestCacheZeroMaxEntriesFallback(t *testing.T) {
 	}
 }
 
-func TestCacheConcurrentReadWrite(t *testing.T) {
+func TestCacheConcurrentReadWrite(_ *testing.T) {
 	// Test that concurrent readers and writers don't cause a race.
 	// This is best verified with `go test -race`.
 	cache := NewCache(&Options{MaxEntries: 100}, nil)

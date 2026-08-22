@@ -66,7 +66,7 @@ func NewResolver(apiKey string, opts *Options, clock Clock) *Resolver {
 // includes the API key or any queried ids.
 //
 // Concurrent lookups of the same uncached ids are collapsed into a single upstream call by singleflight.
-func (r *Resolver) Resolve(ctx context.Context, steamIDs []string) map[string]string {
+func (r *Resolver) Resolve(_ context.Context, steamIDs []string) map[string]string {
 	result := make(map[string]string)
 
 	if r == nil {
@@ -80,11 +80,10 @@ func (r *Resolver) Resolve(ctx context.Context, steamIDs []string) map[string]st
 		if cached && val != "" {
 			// Positive hit.
 			result[id] = val
-		} else if cached && val == "" {
-			// Negative hit; this id was tried before and failed. Don't re-query.
-			// Leave it absent from the result map; caller falls back to the raw id.
 		}
 		// If not cached at all, add to uncached list.
+		// If cached but val=="", this is a negative hit (tried before and failed);
+		// leave it absent from the result map; caller falls back to the raw id.
 		if !cached {
 			uncached = append(uncached, id)
 		}
@@ -200,7 +199,7 @@ func (r *Resolver) getPlayerSummaries(ctx context.Context, ids []string) (map[st
 		// For non-URL errors, wrap directly; they don't contain the URL.
 		return nil, fmt.Errorf("http request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("steam api returned %d", resp.StatusCode)

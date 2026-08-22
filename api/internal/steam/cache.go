@@ -1,3 +1,8 @@
+// Package steam resolves Steam IDs to display names via the public Steam Web API.
+// Resolution is optional: if no API key is configured, callers fall back to raw
+// Steam IDs. Results are cached in a bounded in-process LRU cache with positive
+// and negative TTLs, and concurrent resolution requests are de-duplicated via
+// singleflight to avoid redundant API calls.
 package steam
 
 import (
@@ -34,11 +39,11 @@ type entry struct {
 // The cache is in-process memory only: no persistence, no distribution across replicas.
 // A cold start simply re-resolves; the handful of duplicate Steam calls across replicas is accepted.
 type Cache struct {
-	opts   *Options
-	clock  Clock
-	mu     sync.Mutex
-	m      map[string]*list.Element // id -> position in recency list
-	list   *list.List               // LRU order
+	opts  *Options
+	clock Clock
+	mu    sync.Mutex
+	m     map[string]*list.Element // id -> position in recency list
+	list  *list.List               // LRU order
 }
 
 // NewCache returns a Cache ready to use.
@@ -70,7 +75,7 @@ func (c *Cache) Get(id string) (value string, cached bool) {
 	if !ok {
 		return "", false
 	}
-	ent := el.Value.(entry)
+	ent, _ := el.Value.(entry) // Safe: el.Value is always an entry since we control what gets stored
 
 	if c.clock.Now().After(ent.expiry) {
 		// Expired; clean it up.
@@ -109,7 +114,7 @@ func (c *Cache) Set(id, value string, ttl time.Duration) {
 		// Evict the least recently used (tail).
 		tail := c.list.Back()
 		c.list.Remove(tail)
-		tailEnt := tail.Value.(entry)
+		tailEnt, _ := tail.Value.(entry) // Safe: tail.Value is always an entry since we control what gets stored
 		delete(c.m, tailEnt.id)
 	}
 

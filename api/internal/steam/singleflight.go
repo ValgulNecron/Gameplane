@@ -2,6 +2,7 @@ package steam
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -39,22 +40,18 @@ func (g *singleflightGroup) Do(ids []string, f func(context.Context) (map[string
 	// This ensures that if one caller's context is cancelled, others are not affected.
 	sfCtx := context.Background()
 
-	// Start the singleflight call in a goroutine so we can handle context cancellation.
-	// The singleflight call itself doesn't understand context, so we wrap it.
-	done := make(chan struct{})
-	var res result
-	go func() {
-		v, _, _ := g.g.Do(key, func() (interface{}, error) {
-			resolutions, err := f(sfCtx)
-			return result{resolutions, err}, nil
-		})
-		res = v.(result)
-		close(done)
-	}()
+	// Call singleflight.Group.Do directly. Multiple callers arrive concurrently and
+	// singleflight collapses them into a single upstream invocation. The closure always
+	// returns nil as the error (error is wrapped in the result struct), so err will always
+	// be nil; we check it explicitly to satisfy errcheck.
+	v, err, _ := g.g.Do(key, func() (interface{}, error) {
+		resolutions, err := f(sfCtx)
+		return result{resolutions, err}, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error from singleflight: %w", err)
+	}
 
-	// Wait for either the result or no event (blocking until done).
-	// We don't handle context cancellation here; callers that want timeout behavior
-	// should use a separate context.WithCancel mechanism.
-	<-done
+	res := v.(result)
 	return res.resolutions, res.err
 }

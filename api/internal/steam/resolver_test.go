@@ -158,7 +158,7 @@ func TestResolverNegativeCacheExpiry(t *testing.T) {
 
 func TestResolverPartialResponse(t *testing.T) {
 	// Test that a response with fewer players than requested ids is handled gracefully.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Only return one of the three requested ids.
 		response := `{
   "response": {
@@ -199,7 +199,7 @@ func TestResolverPartialResponse(t *testing.T) {
 
 func TestResolverNon200Status(t *testing.T) {
 	// Test that non-200 responses are treated as errors.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"response": {}}`)
 	}))
@@ -235,7 +235,7 @@ func TestResolverNon200Status(t *testing.T) {
 
 func TestResolverMalformedJSON(t *testing.T) {
 	// Test that malformed JSON responses are handled gracefully.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{invalid json}`)
 	}))
@@ -274,7 +274,7 @@ func TestResolverNetworkFailure(t *testing.T) {
 	resolver := &Resolver{
 		apiKey:  "sensitive-api-key",
 		baseURL: "https://127.0.0.1:1/ISteamUser/GetPlayerSummaries/v2/", // Unreachable address
-		client:  &http.Client{Timeout: 100 * time.Millisecond},            // Short timeout
+		client:  &http.Client{Timeout: 100 * time.Millisecond},           // Short timeout
 		cache:   NewCache(&Options{}, nil),
 		opts:    (&Options{}).Normalize(),
 		sf:      &singleflightGroup{},
