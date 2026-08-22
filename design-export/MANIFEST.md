@@ -51,12 +51,12 @@ Component IDs prefixed `c:` (e.g. `c:xCEfn`) were saved as `c_xCEfn.json` in `js
 
 ## In scope for spec 002 (Track B — address-pool override)
 
-Three exported screens are in scope for the load-balancer address-pool override (`spec.networking.addressPool` / `spec.networking.address`). No design pass has been made yet; these exports still reflect the pre-feature design and are expected to be refreshed (JSON + screenshot) when that pass happens.
+Three exported screens are in scope for the load-balancer address-pool override (`spec.networking.addressPool` / `spec.networking.address`). A design pass was completed in commit 7de0880 (2026-08-22) and all three screens' exports were refreshed (JSON + screenshot) to include the address-pool UI elements.
 
-| ID | Screen |
-|---|---|
-| `f1Vga` | `Screen/Create Server — Step 4 Network` |
-| `J5pjJ3` | `Screen/Server Detail — Settings · Networking` |
-| `EZFW0` | `Screen/Server Detail — Overview` |
+| ID | Screen | Export coverage |
+|---|---|---|
+| `f1Vga` | `Screen/Create Server — Step 4 Network` | Optional address-pool and requested-address inputs; alerts for preference-saved-but-not-applied states. |
+| `J5pjJ3` | `Screen/Server Detail — Settings · Networking` | Current assignment display, both edit fields, five AddressAssignment status treatments, ignored/no-manager alerts as alternate states. |
+| `EZFW0` | `Screen/Server Detail — Overview` | External address row showing the address with the pool it came from. |
 
-All three currently have both a `json/<id>.json` and a `screenshots/<id>.png` file, as recorded above.
+All three have both a `json/<id>.json` and a `screenshots/<id>.png` file, with JSON/PNG timestamped to commit 7de0880.

@@ -452,3 +452,13 @@ Each step adds value without breaking the previous one; the two tracks can be re
 - One branch per unit of work, deleted once merged.
 - Fix lint findings; never suppress them.
 - The Steam Web API key is optional and never required for any test: every path in T097–T102 must pass with no key configured, and the cache tests must not require network access at all.
+
+---
+
+## Phase 10: Convergence
+
+- [ ] T136 CRITICAL — Update /home/valgul/project/kubernetes-game-dashboard/operator/specs.md to document the address-pool behaviour already shipped in the operator: the `spec.networking.addressPool` / `spec.networking.address` inputs, the `--address-manager` flavor flag (`metallb` | `cilium` | `none`) and its per-flavor Service translation (MetalLB annotations, Cilium label + annotation, `none` no-op), the managed-label pruning invariant, and the `AddressAssignment` condition with its `Assigned` / `AssignmentPending` / `ServiceNotReady` / `IgnoredForExposureMode` / `NoAddressManagerConfigured` reasons, per Constitution IV (contradicts)
+- [ ] T137 Update /home/valgul/project/kubernetes-game-dashboard/web/specs.md so the Networking settings sub-section and the typed endpoint-namespace description reflect the widened `GameServerNetworking` / `GameServerEndpoint` contract (`addressPool`, `address`, `pool`) now carried by `web/src/types.ts` and `web/src/lib/endpoints.ts`, per Constitution IV (partial)
+- [ ] T138 Correct the now-stale scope note in /home/valgul/project/kubernetes-game-dashboard/design-export/MANIFEST.md, which still claims "No design pass has been made yet; these exports still reflect the pre-feature design" even though the pass landed and re-exported `f1Vga`, `J5pjJ3` and `EZFW0`, per Constitution II (partial)
+- [ ] T139 Verify and record that the dashboard renders Nuclear Option configuration and status through the same generic template-driven surface as every other game type, with no game-specific branching, per FR-024 (missing)
+- [ ] T140 State in /home/valgul/project/kubernetes-game-dashboard/docs/networking.md what happens to connected players when the address pool of a live server is changed — whether the assigned address is sticky or a brief disconnect occurs — per spec edge case EC-2 (missing)

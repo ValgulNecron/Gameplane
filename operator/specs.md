@@ -127,6 +127,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Graceful stop: if template has Lifecycle.Stop sequence, orchestrate via agent before scaling down.
   - Node affinity: honor spec.nodeSelector and spec.affinity preferences.
   - Ingress NetworkPolicy: enforce per-template advertised ports, admit CIDRs from `--game-ingress-from-cidr`.
+  - Load-balancer address management: translate spec.networking.addressPool / .address preferences onto the Service based on the cluster's address-manager flavor (MetalLB, Cilium, or none), report assignment status via the AddressAssignment condition.
 - **Split concerns:**
   - `gameserver_config.go`: render config files, template variable substitution.
   - `gameserver_modcreds.go`: mount mod credentials Secrets.
@@ -135,10 +136,30 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - `gameserver_wipe.go`: data wipe sequence (delete PVC, recreate).
   - `gameserver_version.go`: track/propagate game version.
   - `gameserver_node.go`: node affinity, pod anti-affinity.
-  - `gameserver_status.go`: phase computation from StatefulSet/Pod state + agent heartbeat.
+  - `gameserver_status.go`: phase computation from StatefulSet/Pod state + agent heartbeat, AddressAssignment condition.
   - `gameserver_stop_attach.go`: pod exec attachment for graceful stop commands.
   - `gameserver_extravolumes.go`: user-supplied additional volume mounts.
 - **Status phases:** Pending, Starting, Running, Suspended, Stopping, Stopped, Failed.
+- **Address pool & assignment:**
+  - **Inputs:** spec.networking.addressPool (pool name) and spec.networking.address (explicit IP).
+  - **Manager flavor:** Selected via operator CLI flag `--address-manager`, one of `metallb` | `cilium` | `none` (default). Validated at startup; invalid flavors fail the operator.
+  - **Service translation per flavor:**
+    - MetalLB: addressPool → `metallb.io/address-pool` annotation; address → `metallb.io/loadBalancerIPs` annotation.
+    - Cilium: addressPool → `gameplane.local/lb-pool` label (Gameplane convention; admin mirrors it in `CiliumLoadBalancerIPPool.spec.serviceSelector`); address → `lbipam.cilium.io/ips` annotation.
+    - None: records the request but mutates no Service metadata; operator flags the ignored preference on AddressAssignment.
+  - **Managed metadata:** All address-manager-applied annotations and labels are tracked and pruned when the preference is unset, ensuring no stale metadata lingers.
+  - **AddressAssignment condition:** Reports the outcome of a pool/address request with one of eight reason codes:
+    - `Assigned`: request honored; address manager assigned an address (True status).
+    - `AssignmentPending`: LoadBalancer Service exists but no address assigned yet (False).
+    - `ServiceNotReady`: Service doesn't exist or isn't type LoadBalancer (False).
+    - `IgnoredForExposureMode`: request ignored because Expose ≠ LoadBalancer (False; the request is meaningless for ClusterIP/NodePort/Hostport).
+    - `NoAddressManagerConfigured`: request recorded but no address manager in this cluster to act on it, so default-pool address will be used — explicitly reported to avoid silent misunderstanding (False).
+    - `PoolNotFound`: the address manager reported the requested pool does not exist (False). Derived best-effort from Warning events on the Service (`extractAddressFailureFromEvents`), so it is not guaranteed to fire — an address manager that emits no matching event leaves the condition on `AssignmentPending`.
+    - `PoolExhausted`: the address manager reported the requested pool has no free addresses (False). Same best-effort event derivation, and the same caveat, as `PoolNotFound`.
+    - `AddressInUse`: the requested explicit address is already taken (False). Two sources: a direct check (`findAddressConflict`) that finds another GameServer in the cluster already carrying the address in `status.endpoints` (named as `namespace/name` if from a different namespace) — this path names the conflicting server in the message and takes precedence — and, failing that, the same best-effort event derivation, which catches clashes with non-Gameplane Services or hosts on the network.
+    - Unset (condition absent): no pool or address requested; no condition emitted.
+    - Precedence when several apply: `IgnoredForExposureMode` → `NoAddressManagerConfigured` → direct-conflict `AddressInUse` → event-derived failure → `ServiceNotReady` → `AssignmentPending` → `Assigned`.
+  - **Endpoint population:** `endpointsFromService()` populates `GameServerEndpoint.pool` only when a pool request was actually translated (outcome == Assigned and Manager supports it); never claims a pool for the ClusterIP address shown while assignment is pending, for an ignored request, or for a cluster without an address manager.
 
 ### GameTemplateReconciler
 - **Responsibility:** Lightweight; only maintains status.inUseCount (how many GameServers ref this template).
@@ -236,6 +257,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 | `--control-plane-namespace` | string | `gameplane-system` or `POD_NAMESPACE` env | Namespace where operator runs and where cluster kubeconfig Secrets live. |
 | `--game-ingress-policy` | bool | `true` | Reconcile per-GameServer ingress NetworkPolicy. |
 | `--game-ingress-from-cidr` | strings | `0.0.0.0/0` | Source CIDR(s) admitted to game ports; repeatable; canonical form enforced. |
+| `--address-manager` | string | `none` | Load-balancer address-manager flavor (metallb, cilium, or none). Validated at startup; controls how spec.networking.addressPool / .address preferences are translated onto the Service. |
 
 **Manager configuration:**
 - CacheSyncTimeout: 5 minutes (extended from default 2m to tolerate slow apiservers on resource-constrained nodes).
