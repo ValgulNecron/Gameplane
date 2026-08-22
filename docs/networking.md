@@ -119,8 +119,8 @@ This shows the current state and a human-readable message. Common reasons:
 | `ServiceNotReady` | The LoadBalancer Service does not exist yet or is not typed LoadBalancer. | Verify expose mode is set to `LoadBalancer`. Check that the service object was created: `kubectl get svc my-server`. |
 | `IgnoredForExposureMode` | Pool/address was set, but expose mode is not LoadBalancer. | Change expose mode to `LoadBalancer` to honor the preference, or remove the pool/address preference. |
 | `NoAddressManagerConfigured` | Preference set, but the cluster has no address manager configured. | Contact your cluster admin to configure `operator.addressManager` in the Helm chart, or unset the preference. |
-| `PoolNotFound` | The address manager reported that the requested pool does not exist. Derived best-effort from Warning events on the Service, so it is not guaranteed to appear — an address manager that stays silent leaves the condition on `AssignmentPending` instead. | Check the pool name against the address manager's own resources (`kubectl get ipaddresspool -A` for MetalLB, `kubectl get ciliumloadbalancerippool` for Cilium), then correct `spec.networking.addressPool`. |
-| `PoolExhausted` | The address manager reported that the requested pool has no free addresses left. Also derived best-effort from Service events, with the same caveat as `PoolNotFound`. | Free an address by deleting or re-pooling another Service, widen the pool's CIDR, or point the server at a different pool. |
+| `PoolNotFound` | The requested pool does not exist in the cluster. For Cilium, this is derived directly from the Service condition `cilium.io/IPAMRequestSatisfied=False` (reason `no_pool`). For MetalLB, this is a best-effort detection via direct IPAddressPool lookup, so it is not guaranteed to appear — a MetalLB that stays silent leaves the condition on `AssignmentPending` instead. | Check the pool name against the address manager's own resources (`kubectl get ipaddresspool -A` for MetalLB, `kubectl get ciliumloadbalancerippool` for Cilium), then correct `spec.networking.addressPool`. |
+| `AllocationFailed` | The address manager could not allocate an address from the requested pool. For MetalLB, this covers exhausted pools, addresses outside the pool's range, and other allocation errors — the specific cause is in the condition message. For Cilium, this is derived from the Service condition `cilium.io/IPAMRequestSatisfied=False` (reason `out_of_ips`). | Free an address by deleting or re-pooling another Service, widen the pool's CIDR, or point the server at a different pool. Check the condition message for the specific cause. |
 | `AddressInUse` | The requested explicit address is already taken. The operator detects this directly when another GameServer anywhere in the cluster already reports that address in its `status.endpoints` (named as `namespace/name` if the conflict is in a different namespace); it is also derived best-effort from address-manager Warning events when the clash is with a non-Gameplane Service or a host on the network. | Pick a free address, or release it on the server that holds it. The condition message names the conflicting GameServer when the operator found it itself. |
 
 ### Checking the Service Metadata
@@ -172,14 +172,22 @@ Common causes: pool does not exist, pool has no free addresses, or an IP conflic
 
 When you change `spec.networking.addressPool` or `spec.networking.address` on a running server (one with connected players), the following happens:
 
-1. The operator updates the Service's annotations/labels to reflect the new preference.
-2. The load-balancer controller (MetalLB or Cilium) observes the new metadata.
-3. If the new pool contains the current address, the address typically remains unchanged—players stay connected.
-4. If the new pool does not contain the current address, or if a different specific address is now requested, the load-balancer may assign a new address. This can cause a brief disruption: existing player connections use the old address and will disconnect if that address is revoked. New connection attempts use the new address. Players need to reconnect or wait for DNS cache expiry (if using a hostname).
+1. The operator updates the Service's annotations (for MetalLB) or labels (for Cilium) on the next reconcile to reflect the new preference.
+2. The load-balancer controller observes the updated Service metadata.
+3. The load-balancer then re-evaluates the address assignment based on the new preference.
 
-This behavior is load-balancer-dependent and not guaranteed to be seamless. For this reason, **changing the pool on a live server should be avoided when possible**. If you must change it, do so during low-traffic windows and notify players.
+**What happens to the assigned address:**
 
-**Note:** This behavior is based on expected Kubernetes LoadBalancer Service semantics and has not been verified against a live cluster with both address managers. If you encounter unexpected behavior, file an issue with details of your load-balancer configuration and Gameplane version.
+The exact behavior depends on the load-balancer implementation and is not fully determined by the operator code alone:
+
+- **MetalLB**: When the `metallb.io/address-pool` annotation changes, MetalLB's controller may either reassign an address from the new pool or leave the current address in place (if it belongs to the new pool). The specific behavior depends on MetalLB's allocation policy and your pool configuration. Reassignment, if it occurs, causes existing player connections using the old address to drop; new join attempts use the new address.
+- **Cilium**: Similarly, when the `gameplane.local/lb-pool` label changes, Cilium's LB IPAM re-evaluates the pool selection and may reassign the address. The specific behavior is configuration-dependent.
+
+For this reason, **changing the pool on a live server should be avoided when possible**. If you must change it, do so during low-traffic windows and notify players that a brief connectivity interruption may occur.
+
+**Verification:**
+
+The project's e2e test `TestAddressPool_ChangePoolOnRunningServer` verifies that the pool assignment metadata is updated on the GameServer's status; it does not verify whether the actual IP address remains stable or changes, as this is load-balancer dependent. To determine the exact behavior in your deployment, test the address-change scenario against your specific load-balancer version and pool configuration before relying on it in production.
 
 ## Related
 
