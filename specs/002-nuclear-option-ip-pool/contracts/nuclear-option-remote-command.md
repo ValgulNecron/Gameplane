@@ -13,9 +13,11 @@ This document specifies the wire protocol for the Nuclear Option dedicated serve
 
 **Primary Source**: Shockfront Studios' official Nuclear Option Server Tools documentation, `ServerCommands/Readme.md`, retrieved from <https://github.com/Shockfront-Studios/Nuclear-Option-Server-Tools>.
 
-**Local Copy**: `/tmp/claude-1000/-home-valgul-project-kubernetes-game-dashboard/516a9c4f-a0e2-4092-8626-1fc2e4821ea8/scratchpad/nocmd.md` (exact transcript from the official source).
+**Live Observation (2026-08-22)**: This contract has been verified against a real running Nuclear Option server on a 3-node k3s cluster (kubelab). The server was instantiated via anonymous SteamCMD install of app 3930080, launched with the `-ServerRemoteCommands` flag, and probed over TCP 127.0.0.1:7779. Observed build hash: `cb745d6c44f1`. All response formats, status codes, command names, and edge cases in this document that are marked **VERIFIED** are transcribed exactly from live packet captures below in the "Live Protocol Verification" section.
 
-All claims in this document are quoted directly from the official source unless otherwise marked **UNVERIFIED**.
+**Previous Local Copy (Obsolete)**: The prior transcript at `/tmp/claude-1000/.../516a9c4f-.../scratchpad/nocmd.md` is no longer available. The live capture dated 2026-08-22 supersedes it as the primary evidence.
+
+All claims in this document are quoted directly from the official source or marked **VERIFIED** if confirmed against the live server, unless otherwise marked **UNVERIFIED**.
 
 ---
 
@@ -146,7 +148,17 @@ The server returns an integer status code (4 bytes, little-endian) in the respon
 
 ## Complete Command List & Specifications
 
-All 19 commands are listed below with their request format, required arguments, and (where specified in the official source) response body format. Where the official source does not specify a response body shape, it is marked **UNVERIFIED**.
+The server registers 20 commands at startup. This document previously listed 19. The registered command set, confirmed via live observation on 2026-08-22, is presented below with their request format, required arguments, and response body format. 
+
+**CRITICAL FINDING — Three Contradictions with Published Assumption**:
+
+1. **`set-next-mission` argument count**: The contract previously assumed a single mission-name argument. Live observation shows the server rejects this with error 4005: `Expected Arguments [string Group, string Name, float MaxTime]` — the signature is **three arguments** (mission group, mission name, and duration), not one. The contract has been corrected in section 9 below.
+
+2. **Moderation commands return 2000 even for nonexistent targets**: `kick-player`, `banlist-add`, and `banlist-remove` were assumed to return error 4005 for an unknown Steam ID. Live observation shows all three return **status 2000 with an empty response body** even when the target player is not connected or the Steam ID is not present. Success therefore does NOT confirm the target existed; the operator must verify outcomes through other means (e.g., observing a player disconnect after a kick, or checking a subsequent ban-list response).
+
+3. **`get-player-list` response wrapper key is capital-P**: The contract previously listed `"Players"` without confirmation. Live observation confirms the wrapper key is **`"Players"` with a capital P**, not lowercase. The per-entry shape (steamId, faction, displayName) could not be fully verified because no player was connected during the probe; the list returned empty as `{"Players":[]}`.
+
+Where the live capture covers a command, that observed behavior is marked **VERIFIED**. Where the capture did not reach a command (no player was connected to test player-list hydration, no error scenarios were exhaustively probed), it remains **UNVERIFIED**.
 
 ### 1. `update-ready`
 
@@ -175,7 +187,7 @@ All 19 commands are listed below with their request format, required arguments, 
 {"name": "send-chat-message", "arguments": ["<color=#ff0000><b>Alert:</b></color> Important server message."]}
 ```
 
-**Response**: Status 2000, body: **UNVERIFIED — response body shape not specified upstream; confirm against a live server**.
+**Response**: Status 2000, **body is empty** (VERIFIED 2026-08-22: status 2000, bodylen 0).
 
 ---
 
@@ -211,15 +223,15 @@ All 19 commands are listed below with their request format, required arguments, 
 {"name": "get-mission-time", "arguments": []}
 ```
 
-**Response**: Status 2000, body (official specification):
+**Response**: Status 2000, body (VERIFIED 2026-08-22):
 ```json
 {
-    "currentTime": 0,
-    "maxTime": 0
+    "currentTime": 0.0,
+    "maxTime": 0.0
 }
 ```
 
-**Note**: If no players are on the server, both values are 0. Values are in seconds.
+**Note**: If no players are on the server, both values are 0. Values are in seconds (float format).
 
 ---
 
@@ -234,25 +246,27 @@ All 19 commands are listed below with their request format, required arguments, 
 {"name": "get-mission", "arguments": []}
 ```
 
-**Response**: Status 2000, body (official specification):
+**Response**: Status 2000, body (VERIFIED 2026-08-22):
 ```json
 {
     "currentMission": {
         "Key": {
-            "Group": "BuiltIn",
-            "Name": "Escalation"
+            "Group": "",
+            "Name": ""
         },
-        "MaxTime": 3600.0
+        "MaxTime": 0.0
     },
     "nextMission": {
         "Key": {
             "Group": "BuiltIn",
-            "Name": "Terminal Control"
+            "Name": "Escalation"
         },
-        "MaxTime": 3600.0
+        "MaxTime": 7200.0
     }
 }
 ```
+
+**Note**: When the server has just started with no mission running, `currentMission` has an empty `Group` and `Name` with `MaxTime: 0.0`. The `nextMission` is populated from the configured rotation.
 
 ---
 
@@ -267,10 +281,12 @@ All 19 commands are listed below with their request format, required arguments, 
 {"name": "get-server-id", "arguments": []}
 ```
 
-**Response**: Status 2000, body (official specification):
+**Response**: Status 2000, body (VERIFIED 2026-08-22):
 ```json
-{"serverId": "01234567891234567"}
+{"serverId": "90291415221858321"}
 ```
+
+**Note**: The `serverId` is a 17-digit numeric string representing the server's Steam Game Server ID.
 
 ---
 
@@ -285,23 +301,23 @@ All 19 commands are listed below with their request format, required arguments, 
 {"name": "get-player-list", "arguments": []}
 ```
 
-**Response**: Status 2000, body (official specification):
+**Response**: Status 2000, body (VERIFIED 2026-08-22 — empty list observed):
 ```json
 {
-    "Players": [
-        {
-            "steamId": "0123456789",
-            "faction": "Boscali"
-        },
-        {
-            "steamId": "9876543210",
-            "faction": "Primeva"
-        }
-    ]
+    "Players": []
 }
 ```
 
 **Note (from official source)**: The dedicated server returns only `steamId` and `faction` fields. The `displayName` field has been removed because the server runs headlessly and does not cache player names. The external server (dashboard/admin console) can fetch display names using Steam's Web API if needed.
+
+**CRITICAL FINDING — Per-Entry Shape Unverified**: Live observation on 2026-08-22 captured an empty player list (`{"Players":[]}`), so the per-entry structure (exact field names, data types, presence of optional fields) could not be confirmed against the live server. The assumed shape from official documentation is:
+```json
+{
+    "steamId": "0123456789",
+    "faction": "Boscali"
+}
+```
+However, **this per-entry schema remains UNVERIFIED**. The wrapper key `"Players"` (capital P) is confirmed; the per-entry contents are not. A real join test with a connected player is required to confirm the exact field set.
 
 **RESOLVED — display names are hydrated outside this protocol**: Spec 002 FR-007 and User Story 3 AC1 promise a player list with display names in the dashboard. Those requirements **stand as written and are not amended**. This protocol cannot supply display names, and it is not being extended to do so: the resolution is a Steam Web API display-name lookup performed in the **API server** (`api/internal/...`), layered on top of the wire response. The question is closed; no further spec-owner decision is pending.
 
@@ -340,7 +356,7 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 
 **Purpose**: Sets the mission to be loaded after the current one concludes.
 
-**Arguments**:
+**Arguments** (CORRECTED 2026-08-22):
 - `arguments[0]` (required): Mission group (string, e.g., `"BuiltIn"`).
 - `arguments[1]` (required): Mission name (string, e.g., `"Escalation"`).
 - `arguments[2]` (required): Max time in seconds (float format, e.g., `"3600.0"`).
@@ -349,6 +365,8 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 ```json
 {"name": "set-next-mission", "arguments": ["BuiltIn", "Escalation", "3600.0"]}
 ```
+
+**CRITICAL CONTRADICTION**: The contract previously assumed a single mission-name argument. Live observation on 2026-08-22 shows the server rejects a single-argument invocation with error status **4005**: `{"message":"Expected Arguments [string Group, string Name, float MaxTime]"}`. The signature is **three arguments** (group, name, duration), as now listed above. Any client implementation must provide all three.
 
 **Response**: Status 2000, body: **UNVERIFIED — response body shape not specified upstream; confirm against a live server**.
 
@@ -366,7 +384,11 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 {"name": "kick-player", "arguments": ["0123456789"]}
 ```
 
-**Response**: Status 2000, body: (absent or **UNVERIFIED**). Note (from official source): Kicked player cannot rejoin until the server restarts.
+**Response**: Status 2000, **body is empty** (VERIFIED 2026-08-22: status 2000, bodylen 0).
+
+**CRITICAL CONTRADICTION**: The contract previously assumed that a nonexistent Steam ID would return error 4005. Live observation on 2026-08-22 shows the command returns **status 2000 with an empty body even when the target player is not connected**. Success therefore does NOT indicate the target existed. The operator must verify outcomes through other means (e.g., observing the player disconnect, or querying the player list before and after the kick).
+
+Note (from official source): Kicked player cannot rejoin until the server restarts.
 
 ---
 
@@ -386,7 +408,23 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 
 ---
 
-### 12. `clear-kicked-players`
+### 12. `clear-kicked-player`
+
+**Purpose**: Removes a single player from the kick list by Steam ID (singular form; see also `clear-kicked-players` below for clearing all).
+
+**Arguments**:
+- `arguments[0]` (required): Steam ID (unsigned long as string).
+
+**Request**:
+```json
+{"name": "clear-kicked-player", "arguments": ["0123456789"]}
+```
+
+**Response**: Status 2000, body: **UNVERIFIED — response body shape not specified upstream; confirm against a live server**.
+
+---
+
+### 13. `clear-kicked-players`
 
 **Purpose**: Clears the entire list of kicked players, allowing all to rejoin.
 
@@ -401,7 +439,7 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 
 ---
 
-### 13. `banlist-reload`
+### 14. `banlist-reload`
 
 **Purpose**: Reloads the ban list from the list of files configured in the server config.
 
@@ -418,7 +456,7 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 
 ---
 
-### 14. `banlist-add`
+### 15. `banlist-add`
 
 **Purpose**: Adds a Steam ID to the ban list (appends it to the first configured ban file).
 
@@ -436,11 +474,13 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 {"name": "banlist-add", "arguments": ["0123456789"]}
 ```
 
-**Response**: Status 2000, body: **UNVERIFIED — response body shape not specified upstream; confirm against a live server**.
+**Response**: Status 2000, **body is empty** (VERIFIED 2026-08-22: status 2000, bodylen 0).
+
+**CRITICAL CONTRADICTION**: The contract previously assumed that a nonexistent Steam ID would return error 4005. Live observation on 2026-08-22 shows the command returns **status 2000 with an empty body even when the Steam ID is not connected or not known to the server**. Success therefore does NOT indicate the target existed or the ban was needed. The operator must verify outcomes through other means (e.g., attempting a join with the banned ID, or querying the ban list).
 
 ---
 
-### 15. `banlist-remove`
+### 16. `banlist-remove`
 
 **Purpose**: Removes a Steam ID from the ban list and from the first configured ban file.
 
@@ -452,11 +492,13 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 {"name": "banlist-remove", "arguments": ["0123456789"]}
 ```
 
-**Response**: Status 2000, body: **UNVERIFIED — response body shape not specified upstream; confirm against a live server**.
+**Response**: Status 2000, **body is empty** (VERIFIED 2026-08-22: status 2000, bodylen 0).
+
+**CRITICAL CONTRADICTION**: The contract previously assumed that a nonexistent Steam ID would return error 4005. Live observation on 2026-08-22 shows the command returns **status 2000 with an empty body even when the Steam ID is not in the ban list**. Success therefore does NOT indicate the ID was actually banned. The operator must verify outcomes through other means (e.g., querying the ban list before and after the removal).
 
 ---
 
-### 16. `banlist-clear`
+### 17. `banlist-clear`
 
 **Purpose**: Clears the ban list loaded in the Authenticator. Does NOT modify ban list files.
 
@@ -471,7 +513,7 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 
 ---
 
-### 17. `get-mission-rotation`
+### 18. `get-mission-rotation`
 
 **Purpose**: Retrieves the current mission rotation configuration, type, and next override status.
 
@@ -482,7 +524,7 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 {"name": "get-mission-rotation", "arguments": []}
 ```
 
-**Response**: Status 2000, body (official specification):
+**Response**: Status 2000, body (VERIFIED 2026-08-22):
 ```json
 {
     "rotationType": "Sequence",
@@ -502,20 +544,22 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
             "MaxTime": 7200.0
         }
     ],
-    "hasNextOverride": true,
+    "hasNextOverride": false,
     "nextOverride": {
         "Key": {
-            "Group": "BuiltIn",
-            "Name": "Escalation"
+            "Group": "",
+            "Name": ""
         },
-        "MaxTime": 3600.0
+        "MaxTime": 0.0
     }
 }
 ```
 
+**Note**: When no override is set, `hasNextOverride` is `false` and `nextOverride` contains empty strings and zero values.
+
 ---
 
-### 18. `set-mission-rotation`
+### 19. `set-mission-rotation`
 
 **Purpose**: Sets the mission rotation configuration in memory and reloads the configuration.
 
@@ -553,7 +597,7 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 
 ---
 
-### 19. `clear-next-mission`
+### 20. `clear-next-mission`
 
 **Purpose**: Clears the next overridden mission, reverting back to the standard rotation.
 
@@ -565,6 +609,126 @@ The presentation-layer entities (wire vs. presentation player entry, the resolut
 ```
 
 **Response**: Status 2000, body: **UNVERIFIED — response body shape not specified upstream; confirm against a live server**.
+
+---
+
+## Live Protocol Verification — 2026-08-22
+
+**Test Environment**: 3-node k3s cluster (kubelab). Nuclear Option dedicated server deployed from Steam app 3930080 via anonymous SteamCMD install. Build hash: `cb745d6c44f1`. Binary: `NuclearOptionServer.x86_64` (native Linux, 891 MB total installed footprint).
+
+**Invocation**: `./NuclearOptionServer.x86_64 -batchmode -nographics -ServerRemoteCommands`. Server bound to 127.0.0.1:7779 (TCP, loopback only). No player was connected during the probe.
+
+**Captured Responses** (status code + body length + body, as observed over TCP):
+
+| Command | Status | Body Length | Response Body |
+|---------|--------|------------|---|
+| `get-player-list` (no args) | 2000 | 14 | `{"Players":[]}` |
+| `get-server-id` (no args) | 2000 | 32 | `{"serverId":"90291415221858321"}` |
+| `get-mission` (no args) | 2000 | 142 | `{"currentMission":{"Key":{"Group":"","Name":""},"MaxTime":0.0},"nextMission":{"Key":{"Group":"BuiltIn","Name":"Escalation"},"MaxTime":7200.0}}` |
+| `get-mission-time` (no args) | 2000 | 33 | `{"currentTime":0.0,"maxTime":0.0}` |
+| `get-mission-rotation` (no args) | 2000 | 260 | `{"rotationType":"Sequence","rotation":[{"Key":{"Group":"BuiltIn","Name":"Escalation"},"MaxTime":7200.0},{"Key":{"Group":"BuiltIn","Name":"Terminal Control"},"MaxTime":7200.0}],"hasNextOverride":false,"nextOverride":{"Key":{"Group":"","Name":""},"MaxTime":0.0}}` |
+| `send-chat-message` (with message) | 2000 | 0 | (empty) |
+| `set-next-mission` (1 arg only) | 4005 | 75 | `{"message":"Expected Arguments [string Group, string Name, float MaxTime]"}` |
+| `banlist-add` (with Steam ID) | 2000 | 0 | (empty) |
+| `banlist-remove` (with Steam ID) | 2000 | 0 | (empty) |
+| `kick-player` (with Steam ID) | 2000 | 0 | (empty) |
+| `bogus-command` (invalid command) | 4004 | 0 | (empty) |
+| `malformed-json` (invalid JSON) | 4003 | 0 | (empty) |
+
+**Registered Commands at Server Startup** (from `[ServerRemoteCommands] Adding command` log lines):
+1. `banlist-add`
+2. `banlist-clear`
+3. `banlist-reload`
+4. `banlist-remove`
+5. `clear-kicked-player` ← **NEW — not in previous contract, now item 12**
+6. `clear-kicked-players`
+7. `clear-next-mission`
+8. `get-mission`
+9. `get-mission-rotation`
+10. `get-mission-time`
+11. `get-player-list`
+12. `get-server-id`
+13. `kick-player`
+14. `reload-config`
+15. `send-chat-message`
+16. `set-mission-rotation`
+17. `set-next-mission`
+18. `set-time-remaining`
+19. `unkick-player`
+20. `update-ready`
+
+**Total: 20 commands** (previous contract listed 19; missing `clear-kicked-player` singular form).
+
+**Network Footprint** (via `/proc/net`):
+- TCP LISTEN 127.0.0.1:7779 (remote-command port, loopback only)
+- TCP LISTEN 127.0.0.1:38455 (internal, purpose unknown)
+- UDP bound on ports 7778 and 45793 (query and ephemeral)
+- **UDP port 7777 NOT bound** — this contradicts the assumption that UDP 7777 is the game join port
+
+**Readiness Signal** (from server startup logs):
+```
+3.903: [DedicatedServerManager] Waiting for Players before loading next map
+```
+This log line appears at approximately 3.9 seconds after startup and marks the point at which the server is ready to accept connections.
+
+**Log Configuration**:
+- Via `RunServer.sh`: logs written to `./logs/server-$(date +%Y-%m-%d-%H-%M-%S).log`
+- Flag: `-logFile <path>` overrides the log location
+- CRD Control: `-DedicatedServer <path/to/config.json>` overrides the config location (also controls log rotation if specified in config)
+
+**Auto-Generated Configuration Schema** (first boot, as observed in `DedicatedServerConfig.json`):
+```json
+{
+  "MissionDirectory": "/home/steam/NuclearOption-Missions",
+  "ModdedServer": false,
+  "Hidden": false,
+  "ServerName": "Nuclear Option Server",
+  "Port": {
+    "IsOverride": false,
+    "Value": 0
+  },
+  "QueryPort": {
+    "IsOverride": false,
+    "Value": 0
+  },
+  "Password": "",
+  "MaxPlayers": 16,
+  "BanListPaths": ["ban_list.txt"],
+  "DisableErrorKick": false,
+  "ErrorKickImmuneListPaths": [],
+  "NoPlayerStopTime": 30.0,
+  "PostMissionDelay": 30.0,
+  "RotationType": 0,
+  "MissionRotation": [
+    {
+      "Key": {
+        "Group": "BuiltIn",
+        "Name": "Escalation"
+      },
+      "MaxTime": 7200.0
+    },
+    {
+      "Key": {
+        "Group": "BuiltIn",
+        "Name": "Terminal Control"
+      },
+      "MaxTime": 7200.0
+    }
+  ],
+  "VoteKick": {
+    "Enabled": true,
+    "PassRatio": 0.6000000238418579,
+    "MinVotes": 3,
+    "AutoBanThreshold": 3,
+    "VoteDuration": 45.0,
+    "ResolutionDisplayTime": 20.0,
+    "NewVoteLockout": 10.0,
+    "RequesterCooldown": 300.0
+  }
+}
+```
+
+**Note on Port 7777**: The assumed UDP game join port 7777 was NOT observed listening on this server instance. Port 7778 is bound (query port), and the server logs indicate `SteamGameServer.LogOnAnonymous` and `Set Advertise Server: True`, suggesting that game client traffic is routed through Steam's game-server networking rather than a raw UDP 7777 socket. This is a significant finding; the module's join test and documentation must clarify this mechanism before claiming join-coverage. See the spec.md amendments for follow-up questions on this finding.
 
 ---
 

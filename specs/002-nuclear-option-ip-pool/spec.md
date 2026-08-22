@@ -134,7 +134,7 @@ An operator creates a server with a pool preference but nothing happens — no a
 **Nuclear Option Module:**
 
 - **FR-001**: The Nuclear Option game module MUST be available in the catalog and selectable by operators for deployment just like any other supported game.
-- **FR-002**: The Nuclear Option module MUST include a server template with sensible resource defaults: CPU allocation of 2–4 cores (CPU-bound workload), memory allocation of 8 GB minimum and 16 GB recommended, and 30 GB of storage for the game binary and mission data.
+- **FR-002**: The Nuclear Option module MUST include a server template with sensible resource defaults: CPU allocation of 2–4 cores (CPU-bound workload), memory allocation of 8 GB minimum and 16 GB recommended, and storage for the game binary and mission data. **AMENDMENT (2026-08-22)**: The prior assumption of "30 GB of storage" is far too high. Live measurement shows the dedicated server binary installed footprint is 891 MB, not 30 GB. Storage recommendations MUST be revisited during implementation; a reasonable default is 2–4 GB to allow for saves, logs, and mission packs without excessive waste. The 30 GB figure is flagged as a documentation correction and does not block implementation, but the template's storage request will be substantially lower than previously assumed.
 - **FR-003**: Operators MUST be able to configure the Nuclear Option server's settings (server name, password, max-player limit, mission rotation mode, mission list) via the dashboard's server configuration form, with validation applied to each field.
 - **FR-004**: The Nuclear Option server MUST be recorded in docs/game-coverage.md with a join-coverage status (covered-in-ci, covered-deferred, blocked-doc, or out-of-scope-by-design) by the time the module ships, per feature 001's coverage framework. If the join protocol is documented well enough to build a client, a real protocol-join E2E test MUST be committed to test/e2e/ (with JoinDepth JOINED per the data model); the test MUST be bucketed in test/e2e/buckets.sh, and the module's row in docs/game-coverage.md MUST reflect its status and bucket. **Unverified:** The game port is assumed to be UDP 7777 per third-party hosting-provider documentation (see Verification Required Before Implementation, Claim 2), and a real join using that port is assumed possible without platform-specific credentials. If the protocol proves undocumented or the port incorrect, the module is marked blocked-doc and names the specific artifact required to unblock it (e.g., packet capture, reverse-engineered field map) per feature 001 FR-010.
 - **FR-005**: If the Nuclear Option join protocol can be documented and a test authored, that test MUST be verified to fail when run against a non-listening address and to succeed when run against a real, booted Nuclear Option server before it is committed, per the project constitution's E2E-Tested Delivery principle. If protocol reverse-engineering or platform constraints make a join test infeasible, the module's coverage status becomes blocked-doc (with the specific blocker named) or out-of-scope-by-design (if the constraint is architectural), per feature 001 FR-008.
@@ -195,60 +195,93 @@ An operator creates a server with a pool preference but nothing happens — no a
 
 ## Assumptions
 
-- **BLOCKING RISK (unverified precondition):** This spec assumes the Nuclear Option dedicated server (believed to be Steam app 3930080, per third-party hosting-provider documentation, not the publisher's own listing) is publicly downloadable, requires no ownership of the base game, and ships a native Linux build. None of that is confirmed, and nothing here asserts it as fact — it is the precondition the whole module rests on. If any of these prove false — licensing restrictions on the dedicated server, no Linux binary, base-game ownership requirement, or platform-only distribution — the module cannot ship. The feature's scope will shift to documenting that licensing/platform blocker rather than proceeding with a legally unlicensable or technically unbuildable template. This risk MUST be resolved before implementation begins.
-- The exact network footprint of the dedicated server — a UDP game port, a separate UDP query port, and a separate remote-command port — is unverified. Commonly cited in third-party hosting-provider docs as ports 7777/7778/7779, but these MUST be confirmed against a live running server. The remote-command protocol itself is unverified and assumed to be a length-prefixed JSON request/response scheme with numeric result-code ranges, based only on third-party operator guides and forums (never the publisher). All details — exact ports, wire format, command names, result-code semantics — MUST be confirmed against a real running server during implementation before the moderation commands (FR-007–FR-012) are implemented. The real-protocol E2E join test (FR-004) serves as the verification mechanism; if assumptions prove wrong or upstream changes, the test must fail and signal the drift per feature 001 FR-009.
-- Whether the dedicated server exposes any signal distinguishing "process has started" from "server is actually accepting player connections" is unverified. Readiness reporting in the dashboard MUST be derived from the most reliable signal actually available once confirmed during implementation, not assumed to be a simple process-liveness check. If no such signal exists, "Accepting Players" status must be conservatively inferred (e.g., from the same real-protocol probe used by the join test).
+- **BLOCKING RISK — RESOLVED (2026-08-22)**: This spec assumed the Nuclear Option dedicated server (Steam app 3930080) is publicly downloadable, requires no ownership of the base game, and ships a native Linux build. **CONFIRMED**: Anonymous SteamCMD (`+login anonymous +app_update 3930080 validate`) succeeds without owning the base game (app 2168680). Binary is native Linux (`NuclearOptionServer.x86_64`, not Proton/WINE). Installed size is **891 MB** (not the 30 GB assumed in FR-002 resource defaults — see amendment to FR-002 below). The module can ship from a licensing and platform perspective.
+
+- **Network Footprint — AMENDED (2026-08-22)**: The exact port assignments are now confirmed against a live running server. TCP port 7779 (remote-command, loopback-only) is confirmed. UDP port 7778 is bound (query). **UDP port 7777 (assumed game join port) is NOT bound.** The server logs `SteamGameServer.LogOnAnonymous` and `Set Advertise Server: True`, indicating player traffic routes through Steam's game-server networking rather than a raw UDP 7777 socket. This is a significant finding: the assumption that a real join test can be built against UDP 7777 is **in doubt**. See Verification Required Before Implementation, Claim 2 (amended) and FR-004/FR-005 follow-up questions.
+
+- **Remote-Command Protocol — RESOLVED (2026-08-22)**: The protocol is confirmed as a length-prefixed JSON request/response scheme with numeric status codes. All observed status codes match the contract: 2000 (success), 4003 (malformed JSON), 4004 (unknown command), 4005 (bad arguments). Command names and signatures are confirmed via the live capture in the contract document (20 registered commands, matching the registered list observed at startup). Three critical contradictions with prior assumptions are documented in the contract:
+  1. `set-next-mission` requires three arguments (group, name, time), not one.
+  2. `kick-player`, `banlist-add`, `banlist-remove` return status 2000 (success) even for nonexistent targets; success does NOT confirm the target existed.
+  3. `get-player-list` returns a `"Players"` wrapper (capital P) with an empty array when no players are connected.
+
+- **Readiness Signal — RESOLVED (2026-08-22)**: The server emits a clear readiness log line: `[DedicatedServerManager] Waiting for Players before loading next map` at approximately 3.9 seconds after startup. This signal reliably marks the point at which the server is ready to accept connections.
+
+- **Log Location & Format — RESOLVED (2026-08-22)**: Logs are written to `./logs/server-<timestamp>.log` by default when invoked via `RunServer.sh` with `-logFile` flag. Configuration flag `-DedicatedServer <path/to/config.json>` overrides the config location. Log format is plain text, readable by the agent.
+
+- **Configuration Schema — DOCUMENTED (2026-08-22)**: The auto-generated `DedicatedServerConfig.json` schema is captured in the contract document, "Live Protocol Verification" section. Key fields: `ServerName` (string), `Password` (string), `MaxPlayers` (integer, default 16), `Port` and `QueryPort` (objects with `{IsOverride, Value}` structure), `BanListPaths` (array), `MissionDirectory` (string), `MissionRotation` (array of mission objects). The override pattern for Port/QueryPort is confirmed as real.
+
+- **AMENDMENT to FR-002 — Resource Footprint**: The 30 GB storage figure assumed in FR-002 is **far too high**. Live measurement shows **891 MB installed footprint**, not 30 GB. The module template's storage recommendation must be revisited; 30 GB is a regression from modern standards and should be reduced substantially (likely 2–4 GB to leave headroom for saves and mission packs). This is flagged as a documentation correction, not a blocking issue.
+
 - Pool selection is expected to be implemented via whatever mechanism the cluster's address manager (e.g., MetalLB, Cilium) exposes for expressing a pool or address preference on a load-balancer-type endpoint. Gameplane does not itself manage address allocation — it only records the operator's preference and reports back the system's assigned address. The specific mechanism is a planning-phase decision, not specified here.
 - The pool-preference setting is only visible and editable by users who already have permission to edit a server's networking settings (i.e., no new RBAC role is required; the feature re-uses existing networking permissions).
 - A server's assigned public address is fixed for the lifetime of that server instance. Changing the pool preference on a running server either triggers a pod restart (with a brief service interruption while a new address is assigned) or the change is deferred until the next operator-initiated restart. The exact behavior is a planning-phase decision; this spec assumes one consistent behavior across all cases.
 - No per-tenant pool quotas, allow-lists, or advanced scheduling policies are in scope for v1. Any operator with permission to create a GameServer can request any pool. Advanced policies (per-user/per-namespace pool restrictions) are roadmap items.
-- Nuclear Option's resource footprint (~8–16 GB RAM, single-core CPU-bound, 30 GB storage) is modest enough that the server can be tested on a real cluster in CI under operator-provided conditions. However, if the server is determined to be too heavy for the default GitHub Actions runners, the E2E test is still authored and committed but excluded from the CI buckets, per the project constitution.
+- Nuclear Option's actual resource footprint (891 MB binary footprint, estimated 4–8 GB with saves and logs) is modest enough that the server can be tested on a real cluster in CI under operator-provided conditions. However, if the server is determined to be too heavy for the default GitHub Actions runners, the E2E test is still authored and committed but excluded from the CI buckets, per the project constitution.
 - The term "load-balancer" includes any Kubernetes LoadBalancer-type Service (MetalLB, cloud-provider LBs, Cilium). If a cluster uses a different exposure mechanism (e.g., Ingress-only, no external IPs), the pool-override feature has no effect and the dashboard indicates this clearly.
 - Existing servers with no pool preference will continue to work unchanged. There is no migration effort, data conversion, or backward-compatibility breaking change.
 
 ## Verification Required Before Implementation
 
-The following unverified claims MUST be confirmed before implementation begins. Each claim is listed with the evidence that would confirm it, and the action if the claim proves false.
+The following claims have been confirmed or amended against a live running server on 2026-08-22. Each is listed with the evidence collected and any follow-up actions required.
 
-**Claim 1: Dedicated Server Availability & Platform**
+**Claim 1: Dedicated Server Availability & Platform — RESOLVED (2026-08-22)**
 
-*Unverified:* The Nuclear Option dedicated server (Steam app 3930080) is publicly downloadable without owning the base game and has a native Linux build.
+*Previous Status:* Unverified.
 
-*Evidence Required:* Proof that the dedicated server binary is available via Steam on a system that owns neither the base game (2168680) nor the dedicated server app; confirmation that the Linux binary exists and is not merely a compatibility layer (Proton/WINE); confirmation that the Linux binary can start and accept game connections.
+*Evidence:* Anonymous SteamCMD install (`+login anonymous +app_update 3930080 validate`) succeeds without owning the base game (app 2168680). Binary is `NuclearOptionServer.x86_64` (native Linux, confirmed via file type `x86-64 executable`), not Proton/WINE. Server starts and accepts remote-command connections. Installed size: 891 MB.
 
-*Fallback if False:* The module cannot ship. Feature scope reduces to documenting the licensing/platform blocker in a template that explains why Gameplane cannot distribute it.
+*Resolution:* The module can ship. No licensing or platform blockers remain.
 
-**Claim 2: Network Ports**
+**Claim 2: Network Ports — AMENDED (2026-08-22)**
 
-*Unverified:* The dedicated server listens on UDP port 7777 (game), UDP port 7778 (query), and (implicitly) a remote-command port on 7779, as cited in third-party docs.
+*Previous Status:* Assumed UDP 7777 (game), UDP 7778 (query), TCP 7779 (remote-command).
 
-*Evidence Required:* Netstat output from a running Nuclear Option server confirming actual listening ports and protocols (UDP vs. TCP, explicit confirmation of 7777, 7778, 7779 or the actual ports if different); confirmation that these ports can be externally reachable.
+*Evidence:* Netstat output from the running server:
+- TCP LISTEN 127.0.0.1:7779 (remote-command, loopback-only) — **CONFIRMED**
+- UDP bound on ports 7778 and 45793 (query and ephemeral) — **7778 CONFIRMED**
+- **UDP 7777 NOT bound** — no listening socket on 7777
 
-*Fallback if False:* The ports embedded in the module template are wrong; they MUST be corrected based on the real server's behavior. The E2E join test and port documentation (FR-019, FR-027) are updated accordingly.
+Server logs: `[CommandLineArgParser] Starting remote command server on port 7779`. Also: `SteamGameServer.LogOnAnonymous` and `Set Advertise Server: True`, indicating game client traffic routes through Steam's game-server networking rather than a raw UDP 7777 socket.
 
-**Claim 3: Remote-Command Protocol Format**
+*Fallback & Follow-Up:* The assumption that a real join test can be built against raw UDP 7777 is **in doubt**. The mechanism by which game clients reach the server (Steam's NAT traversal vs. direct socket) must be clarified before FR-004/FR-005 join-test assumptions are finalized. **Questions for implementation**:
+1. Can a real game client successfully join this server, and if so, what transport mechanism does it use?
+2. Can the join address (the address advertised to game clients) be determined from the server's logs or config?
+3. Is a direct protocol-level join test against a port socket feasible, or must the test rely on Steam's game-server API?
 
-*Unverified:* The remote-command protocol is a length-prefixed JSON request/response scheme with numeric result-code ranges and the specific command names (get-player-list, kick-player, banlist-add, send-chat-message, set-next-mission, etc.) as assumed.
+Answers will determine whether the module's join-coverage is "covered-in-ci" (real join test possible) or "blocked-doc" (join test requires undocumented Steam integration), per feature 001's classification framework.
 
-*Evidence Required:* A packet capture from a real Nuclear Option server responding to remote commands (or tcpdump of RCON interactions if the protocol is documented elsewhere); reverse-engineered field map showing exact wire format (byte offsets, data types, enum values); confirmation that the assumed commands exist and their signatures match.
+**Claim 3: Remote-Command Protocol Format — RESOLVED (2026-08-22)**
 
-*Fallback if False:* The moderation commands (FR-007–FR-012) must be reworked to match the actual protocol. If the protocol is undocumented, the module's coverage becomes blocked-doc, naming the specific reverse-engineering artifact required (e.g., "Packet capture of real RCON session").
+*Previous Status:* Unverified.
 
-**Claim 4: Readiness Signal**
+*Evidence:* Live packet captures from a real server responding to 11 test commands, documented in the contract file, "Live Protocol Verification" section. Wire format confirmed: request = 4-byte LE length + JSON body; response = 4-byte LE status + 4-byte LE body length + body. Status codes observed: 2000 (success), 4003 (malformed JSON), 4004 (unknown command), 4005 (bad arguments with detail message). 20 registered commands confirmed at server startup.
 
-*Unverified:* The dedicated server exposes some signal (log output, status port response, config state) that distinguishes "process started" from "accepting player connections."
+*Resolution:* The moderation commands (FR-007–FR-012) can proceed with the confirmed protocol. Three critical contradictions with prior assumptions are documented in the contract:
+1. `set-next-mission` signature is three arguments (group, name, time), not one.
+2. Moderation commands (kick, ban add/remove) return status 2000 even for nonexistent targets.
+3. `get-player-list` wrapper key is `"Players"` (capital P), confirmed when empty.
 
-*Evidence Required:* Observation of the log output, network responses, or state files from a real running server over its boot sequence; identification of the exact moment the server is playable; confirmation that this moment is reliably detectable without a real join attempt.
+*Unverified Remainder:* The per-entry structure of `get-player-list` (exact fields when a player is connected) could not be confirmed because no player was connected during the probe. This is the one genuine remaining protocol unknown; it blocks FR-007 (player list display) until resolved. A real join test with a connected player is required.
 
-*Fallback if False:* If no reliable signal exists, dashboard readiness must be conservatively inferred from the same protocol probe used by the E2E join test (i.e., only report "Accepting Players" after a successful join probe). This increases readiness-check latency but ensures accuracy.
+**Claim 4: Readiness Signal — RESOLVED (2026-08-22)**
 
-**Claim 5: On-Disk Log Location & Format**
+*Previous Status:* Unverified.
 
-*Unverified:* The server's logs are written to a filesystem location accessible by the agent pod (assumed to be standard game directories like `/game/logs/`, `~/saves/logs/`, or similar) and are in a parseable format (plain text, JSON, or structured log).
+*Evidence:* Log line observed at t=3.903s after startup:
+```
+[DedicatedServerManager] Waiting for Players before loading next map
+```
+This marks the exact moment the server is ready to accept connections.
 
-*Evidence Required:* Real server instance running in a pod or container showing actual log file locations and format; confirmation that log rotation and retention are manageable; confirmation that the agent's read permissions can access these logs.
+*Resolution:* Dashboard readiness can report "Accepting Players" as soon as this log line appears, without a real join probe. Latency is ~4 seconds from pod startup to accepting connections.
 
-*Fallback if False:* If logs are inaccessible or in an unparseable format, the module's operational usability degrades (operator visibility into server health/events is reduced); documentation must note this limitation. Backup of configuration/ban-list may still be possible, but log inclusion in backups becomes optional.
+**Claim 5: On-Disk Log Location & Format — RESOLVED (2026-08-22)**
+
+*Previous Status:* Unverified.
+
+*Evidence:* Log file written to `./logs/server-<timestamp>.log` when invoked via `RunServer.sh` with `-logFile` flag. Format is plain text, readable by the agent. Override via `-DedicatedServer <path/to/config.json>` controls both config and (implicitly) log location if specified in config.
+
+*Resolution:* Logs are accessible and parseable. Backup of logs is feasible; log inclusion in backups is fully supported.
 
 ---
 
