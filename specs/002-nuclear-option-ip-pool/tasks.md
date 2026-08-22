@@ -18,9 +18,9 @@ description: "Task list for feature 002 — Nuclear Option Module & Load-Balance
 This feature is **two independent tracks that share no code**.
 
 - **Track B — load-balancer address-pool override** (US2, US4, US6). **No external unknowns.** Everything it needs is decided: two typed fields on `GameServerNetworking`, MetalLB annotation translation, Cilium label + annotation translation, status conditions, dashboard surfacing. **Track B ships FIRST and is the MVP.**
-- **Track A — Nuclear Option game module** (US1, US3, US5). **STILL GATED — the display-name decision is now closed; the two protocol-verification gates remain open.**
+- **Track A — Nuclear Option game module** (US1, US3, US5). **The critical gate is T016**; display-name decision is closed.
   1. **The display-name spec conflict (T022) — CLOSED.** The maintainer resolved it: display names are hydrated through a **Steam Web API lookup** (`ISteamUser/GetPlayerSummaries/v2`) that lives in the **API server** (`api/internal/steam/`), dials through this repo's `netguard` SSRF dial-guard using the **strict `IsPublic`** policy, takes an **optional** key from a Kubernetes Secret, batches ids (≤100 per call), and keeps results in a **small, bounded, in-process RAM cache** — LRU-capped by entry count, a ~12-hour positive TTL, a shorter negative TTL for ids that never resolve, and single-flight de-duplication, with **no** database table, migration, Redis or cross-replica sharing — and **degrades to the raw Steam ID** rather than ever blocking or failing the player list. **FR-007 and US3 Acceptance Scenario 1 stand exactly as written and are NOT amended.** The implementation is tasked as T081–T104 in Phase 6.
-  2. **The protocol-verification gates (T018 framing, T019 per-command JSON response body shapes) — STILL OPEN.** They are undocumented and must be confirmed against a real running server started with `-ServerRemoteCommands 7779`. **Track A remains gated on both.** Closing the display-name question does not ungate Track A; T018 and T019 still block every Track A story from being considered shippable.
+  2. **The true blocking gate is T016 (server availability).** T018 (wire framing) is **already satisfied** by the contract's publisher-official status; T019 (per-command response body shapes for four unverified fire-and-forget commands) is informational and does not block transport implementation. See the evidence note in Phase 2 below for details.
 
 Additional standing constraints for every task below:
 
@@ -66,7 +66,7 @@ Additional standing constraints for every task below:
 
 **Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented. Track B foundational work (T006–T015) unblocks US2/US4/US6; Track A gates and foundations (T016–T036) unblock US1/US3/US5.
 
-**⚠️ CRITICAL**: No user story work can begin until the relevant half of this phase is complete. Track A's remaining open gates T018 and T019 block **all** Track A stories. T022 is no longer a gate — it is a decision **record** (see below) whose implementation is tasked in Phase 6.
+**⚠️ CRITICAL**: No user story work can begin until the relevant half of this phase is complete. **Track A's blocking gate is T016** — if the Steam app 3930080 does not download with a native Linux binary, the entire track dies. T017/T020/T021/T053 are observation gates (ports, readiness signal, log location) that flow into the module spec. T018 (wire framing) is effectively **already satisfied** (see evidence note below); T019 (per-command response bodies) gates only four fire-and-forget commands (banlist-add, send-chat-message, banlist-remove, set-next-mission) and does **not block** the transport implementation or fire-and-forget execution — see evidence note below. T022 is no longer a gate — it is a decision **record** (see below) whose implementation is tasked in Phase 6.
 
 ### Track B foundation — CRD, flavor selection, Service translation
 
@@ -93,6 +93,25 @@ Additional standing constraints for every task below:
 - [X] T023 **DECISION** — The players capability is parsed by regex over console text (`PlayerList.EntryRegex` in /home/valgul/project/kubernetes-game-dashboard/agent/internal/caps/caps.go, ~lines 96–123), which is a poor fit for this protocol's JSON response body; the Players tab, `status.agent.playersOnline` and idle auto-sleep all flow through it. Write up the options (regex over the rendered JSON, a protocol-aware parser, or declaring no players capability for v1) with consequences and record the outcome in /home/valgul/project/kubernetes-game-dashboard/specs/002-nuclear-option-ip-pool/plan.md
 - [X] T024 **DECISION** — The operator mints and mounts a per-GameServer RCON password Secret (`reconcileRCONSecret`, /home/valgul/project/kubernetes-game-dashboard/operator/internal/controller/gameserver_rcon.go ~line 73) for every template declaring an RCON protocol, but the Nuclear Option remote-command port has no authentication; decide whether `nuclearoption` is exempted or a dead Secret per server is accepted, recording the outcome in /home/valgul/project/kubernetes-game-dashboard/specs/002-nuclear-option-ip-pool/plan.md
 
+---
+
+### ℹ️ Evidence Note — T018/T019 Framing Correction (2026-08-22)
+
+**Background**: An earlier draft claimed T018 and T019 block all Track A stories. This was corrected after evidence review:
+
+1. **T018 (wire framing verification) is already satisfied.** The contract `/specs/002-nuclear-option-ip-pool/contracts/nuclear-option-remote-command.md` (lines 1–8) states: "All details are **PUBLISHER-OFFICIAL** and transcribed exactly from the game's developer documentation... Primary Source: Shockfront Studios' official Nuclear Option Server Tools documentation." The request and response framing (4-byte little-endian length, asymmetric status+length+body response) are sourced from the publisher's own `ServerCommands/Readme.md` and are **not** marked UNVERIFIED. Thus T018's verification gate is already closed by the contract's publisher-official status.
+
+2. **T019 (per-command response body shapes) does not block transport implementation or fire-and-forget execution.** Verification shows:
+   - Every RCON transport in `agent/internal/rcon/*.go` (battleye, palworld, satisfactory, websocket, telnet, source) has the signature `Exec(cmd string) (string, error)` and returns no typed response struct.
+   - In the contract, `get-player-list` (the only command whose response body must be decoded for the Players tab) has **no** UNVERIFIED marker; `banlist-add`, `send-chat-message`, `banlist-remove` and `set-next-mission` have **UNVERIFIED response body** markers but are fire-and-forget commands where success is determined by status code alone.
+   - This repo's RCON pattern — returning `(string, error)` — never requires typed per-command response parsing. Hence T019 gates nothing that the implementation pattern actually needs.
+
+3. **The real Track A precondition is T016.** If Steam app 3930080 does not download with a native Linux binary, the entire feature dies. T017/T020/T021/T053 are observation gates (confirming ports, readiness signals, log locations) that inform the module spec.
+
+**Result**: Phase 2 framing, Dependencies & Execution Order, and Parallel Opportunities sections have been re-baselined to reflect this evidence. T018 and T019 no longer appear as blanket blockers; T016 is identified as the critical gate.
+
+---
+
 ### Track A foundation — module bundle, agent protocol, protocol registration
 
 - [ ] T025 Author the module manifest (name, version, maintainer, game metadata, no wake-on-connect protocol) in /home/valgul/project/kubernetes-game-dashboard/modules/nuclear-option/module.yaml (NEW)
@@ -108,7 +127,7 @@ Additional standing constraints for every task below:
 - [X] T035 Add `nuclearoption` to the enumerated `rcon.protocol` values (~line 701) in /home/valgul/project/kubernetes-game-dashboard/docs/module-authoring.md
 - [ ] T036 Configure the readiness probe to match the startup log line verified in T020, in /home/valgul/project/kubernetes-game-dashboard/modules/nuclear-option/template.yaml
 
-**Checkpoint**: Track B foundation (T006–T015) ready → US2 can start. Track A's remaining gates (T018, T019) resolved, its decisions (T022 recorded, T023, T024) settled and its foundation (T025–T036) landed → US1 can start; US3 and US5 additionally need the US1 image (see their phase headers).
+**Checkpoint**: Track B foundation (T006–T015) ready → US2 can start. Track A's critical gate T016 resolved (or documented as a blocker), its observations T017/T020/T021 recorded, its decisions T022 (recorded), T023, T024 settled and its foundation (T025–T036) landed → US1 can start; US3 and US5 additionally need the US1 image (see their phase headers). T018 (already satisfied) and T019 (informational) are no longer blocking gates.
 
 ---
 
@@ -197,7 +216,7 @@ Additional standing constraints for every task below:
 
 **Independent Test**: With a running Nuclear Option server and one connected player, run each moderation command from the Remote Console and confirm the effect on the server (player disconnects, message appears in game chat, mission rotates) within five seconds — no new dashboard screens involved. Then, with the Steam key Secret absent, confirm the player list still renders every connected player with the raw Steam ID in the name column and kick still works.
 
-**Depends on**: T018/T019 (framing and per-command body shapes), T022 (the **recorded, closed** display-name decision), T023 (players capability decision), T030/T031 (transport + registration), **and the whole of Phase 4 (US1)** — the independent test needs a running server, which needs the image from T054–T057. US3 is not independent of US1.
+**Depends on**: T022 (recorded decision), T023 (players capability decision), T024 (RCON password decision), T030/T031 (transport + registration), **and the whole of Phase 4 (US1)** — the independent test needs a running server, which needs the image from T054–T057. US3 is not independent of US1. T018's wire framing is already verified; T019 (unverified per-command response bodies) is informational and does not block implementation.
 
 **Serialization warning**: T066, T068, T070, T071, T073 and T074 all edit the same file (`agent/internal/rcon/nuclearoption.go`) and T067, T069, T072, T075, T076, T077 and T078 all edit the same test file. They are **serial**, not parallel. The Steam-resolver tasks T081–T104 touch the API, chart, web and docs instead, so they are independent of the agent-side block — but T081, T082 and T089 are themselves serial on `api/internal/steam/resolver.go`, T085 → T086 are serial on `api/internal/steam/cache.go`, and T098 → T099 are serial on `api/internal/steam/cache_test.go`.
 
@@ -321,11 +340,11 @@ Additional standing constraints for every task below:
 - **Setup (Phase 1)**: no dependencies — start immediately. T002 requires T001.
 - **Foundational (Phase 2)**: depends on Setup. Splits cleanly in two:
   - T006–T015 (Track B) block Phase 3 (US2), Phase 5 (US4) and Phase 7 (US6).
-  - T016–T036 (Track A) block Phase 4 (US1), Phase 6 (US3) and Phase 8 (US5). **T018 and T019 are the hard gates**: no Track A story is shippable while either is open, and T016 returning false kills the whole track. T022 is closed — it is now a write-up task, not a blocker, and its implementation lives in T081–T104.
+  - T016–T036 (Track A) block Phase 4 (US1), Phase 6 (US3) and Phase 8 (US5). **T016 is the critical gate**: if Steam app 3930080 does not download with a native Linux binary, the entire track dies. T017/T020/T021/T053 are observation gates feeding the module spec. T018's wire-framing verification is already satisfied by the contract's publisher-official status; T019 (per-command response bodies) does not block transport or fire-and-forget execution and is informational only (see evidence note above). T022 is closed — it is now a write-up task, not a blocker, and its implementation lives in T081–T104.
 - **Phase 3 (US2, MVP)**: depends on T003/T004 and T006–T015. The only genuinely story-independent phase.
 - **Phase 4 (US1)**: depends on T016 and T025–T036.
 - **Phase 5 (US4)**: depends on T006–T015, T040 and T044 — i.e. on US2 having landed.
-- **Phase 6 (US3)**: depends on T018, T019, T022 (recorded), T023, T030, T031 **and all of Phase 4** (its independent test needs a running server built by T054–T057).
+- **Phase 6 (US3)**: depends on T022 (recorded), T023, T024, T030, T031 **and all of Phase 4** (its independent test needs a running server built by T054–T057). T018's wire framing is already verified; T019 (unverified per-command bodies on four fire-and-forget commands) does not block the transport implementation (see evidence note above).
 - **Phase 7 (US6)**: depends on T040 and T044 (US2), and on T105 for the RBAC T106 needs.
 - **Phase 8 (US5)**: depends on T051 and all of Phase 4, and on the constraint mechanism T110–T113 which does not exist yet.
 - **Phase 9 (Polish)**: T119–T125 and T135 depend on Track B stories; T126–T134 depend on Track A stories. Track B's polish subset can be completed and shipped before Track A starts.
@@ -388,7 +407,7 @@ Concrete examples that touch disjoint files with no incomplete dependency:
 
 **Setup wave** — launch together: T003 (e2e kind MetalLB + pools), T004 (dev kind MetalLB + pools), T005 (design manifest). T002 waits for T001.
 
-**Foundational wave 1** — launch together: T006 (CRD types), T009 (Helm value), T016 (availability claim), T018 (protocol framing gate). T017, T020 and T021 append to the same `specs.md` T016 creates and are therefore serial behind it; T019 appends to the same contract file as T018.
+**Foundational wave 1** — launch together: T006 (CRD types), T009 (Helm value), T016 (availability gate — blocking precondition for all Track A), T018 (wire framing documentation — publisher-official, already verified). T017, T020 and T021 append to the same `specs.md` T016 creates and are therefore serial behind it; T019 appends to the same contract file as T018. T019 is informational; it does not block the transport or fire-and-forget command implementation (see evidence note in Phase 2 above).
 
 **Foundational wave 2** — launch together: T027 (module README), T029 (icon), T030 (agent protocol transport), T034 (validate.py), T035 (module-authoring docs) — five different files. T028 waits for T016–T021.
 
@@ -428,7 +447,7 @@ Concrete examples that touch disjoint files with no incomplete dependency:
 2. **US2 (P1, Track B)** → validate → ship. **MVP.**
 3. **US4 (P2, Track B)** → fixed-address pinning → ship.
 4. **US6 (P3, Track B)** → failure diagnostics → ship. Track B is now complete.
-5. Resolve the remaining Track A gate T019 and the open decisions T023/T024, and write up the closed T022 decision. If T016 fails, document the blocker and stop — Track A is dead and Track B is unaffected.
+5. Resolve the critical Track A gate T016 (can Steam app 3930080 download and run with a native Linux binary?). Record the open decisions T023/T024, and write up the closed T022 decision. T019 (unverified per-command response bodies) is informational and does not block implementation. If T016 fails, document the blocker and stop — Track A is dead and Track B is unaffected.
 6. **US1 (P1, Track A)** → a playable server → ship.
 7. **US3 (P2, Track A)** → remote administration, including the Steam display-name resolver (T081–T104) → ship.
 8. **US5 (P3, Track A)** → configuration validation → ship.
