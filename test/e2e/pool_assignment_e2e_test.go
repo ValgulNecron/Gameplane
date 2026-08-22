@@ -415,28 +415,34 @@ func TestAddressPool_ChangePoolOnRunningServer(t *testing.T) {
 		t.Fatalf("failed to get initial address after 60 seconds")
 	}
 
-	// Fetch current GameServer, change pool to pool-us-west.
-	got, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-		Get(ctx, gsName, metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("fetch gameserver for update: %v", err)
-	}
+	// Update pool with retry on conflict. The operator writes status frequently
+	// during pool assignment, so the resourceVersion changes between GET and UPDATE.
+	// Wrap the entire GET-modify-UPDATE sequence in a retry that re-fetches on conflict.
+	envInstance.EventuallyNoErr(t, 60*time.Second, func() error {
+		// Fetch current GameServer, change pool to pool-us-west.
+		got, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("fetch gameserver for update: %w", err)
+		}
 
-	// Update networking.addressPool to pool-us-west.
-	networking, _, _ := unstructured.NestedMap(got.Object, "spec", "networking")
-	if networking == nil {
-		networking = make(map[string]any)
-	}
-	networking["addressPool"] = "pool-us-west"
-	if err := unstructured.SetNestedMap(got.Object, networking, "spec", "networking"); err != nil {
-		t.Fatalf("update networking in gameserver: %v", err)
-	}
+		// Update networking.addressPool to pool-us-west.
+		networking, _, _ := unstructured.NestedMap(got.Object, "spec", "networking")
+		if networking == nil {
+			networking = make(map[string]any)
+		}
+		networking["addressPool"] = "pool-us-west"
+		if err := unstructured.SetNestedMap(got.Object, networking, "spec", "networking"); err != nil {
+			return fmt.Errorf("update networking in gameserver: %w", err)
+		}
 
-	// Apply the update.
-	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
-		Update(ctx, got, metav1.UpdateOptions{}); err != nil {
-		t.Fatalf("update gameserver: %v", err)
-	}
+		// Apply the update. This may fail on conflict if the operator's status
+		// write incremented resourceVersion; EventuallyNoErr will retry the whole
+		// GET-modify-UPDATE sequence until it succeeds.
+		_, err = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Update(ctx, got, metav1.UpdateOptions{})
+		return err
+	})
 
 	// Wait for the endpoint's pool to be updated. The exact behavior
 	// (address change vs. just pool name update) is implementation-dependent,
