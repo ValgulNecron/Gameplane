@@ -127,6 +127,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: azure/setup-helm@v5
+      # cosign sign reads credentials from ~/.docker/config.json, which helm
+      # registry login does not populate (it uses HELM_REGISTRY_CONFIG instead).
+      # Add docker login to provide cosign with GHCR credentials.
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: chart version
         run: |
           sed -i "s/^version: .*/version: ${GITHUB_REF_NAME#v}/" charts/gameplane/Chart.yaml
