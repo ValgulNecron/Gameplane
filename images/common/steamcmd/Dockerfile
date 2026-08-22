@@ -50,8 +50,8 @@ FROM steamcmd/steamcmd:latest
 # empty strings, and `useradd -u ""` would fail. Do not "clean up" this
 # apparent duplication — it is required. See:
 # https://docs.docker.com/reference/dockerfile/#understand-how-arg-and-from-interact
-ARG GAMESERVER_UID=1000
-ARG GAMESERVER_GID=1000
+ARG GAMESERVER_UID=10000
+ARG GAMESERVER_GID=10000
 
 # Install dependencies needed by SteamCMD and game servers.
 # ca-certificates is needed for HTTPS to the Steam CDN. Whether the upstream
@@ -73,7 +73,7 @@ RUN chmod +x /usr/local/bin/steam-install.sh
 # to a value that modules/validate.py can enforce matches numerically.
 #
 # --no-log-init avoids useradd writing a sparse /var/log/lastlog entry sized
-# to the UID (harmless at UID 1000, but avoids surprises if an operator picks
+# to the UID (harmless at UID 10000, but avoids surprises if an operator picks
 # a large custom GAMESERVER_UID).
 #
 # -m creates a home directory (owned by the new user) — SteamCMD writes its

@@ -26,7 +26,7 @@ images/
 
 ### `common/` — reusable base images
 
-Common bases are built first and used by multiple game images. Today: **`steamcmd/`** — an Ubuntu 26.04 LTS image with the official SteamCMD client at `/usr/bin/steamcmd` and the `steam-install.sh` helper on PATH. The base runs as a non-root user `gameserver` (UID 1000, GID 1000 by default; both are customizable via `GAMESERVER_UID` and `GAMESERVER_GID` build-args).
+Common bases are built first and used by multiple game images. Today: **`steamcmd/`** — an Ubuntu 26.04 LTS image with the official SteamCMD client at `/usr/bin/steamcmd` and the `steam-install.sh` helper on PATH. The base runs as a non-root user `gameserver` (UID 10000, GID 10000 by default; both are customizable via `GAMESERVER_UID` and `GAMESERVER_GID` build-args).
 
 The base contains **no game files**. Individual games download at runtime into a persistent volume, keeping the image small and avoiding binary redistribution.
 
@@ -146,21 +146,21 @@ exec ./srcds_run -game hl2dm +mapname dm_lockdown
 
 ### Running as Non-Root
 
-The SteamCMD base image runs as a non-root user `gameserver` with default UID 1000 and GID 1000. These are customizable via `GAMESERVER_UID` and `GAMESERVER_GID` build-args if needed by your environment.
+The SteamCMD base image runs as a non-root user `gameserver` with default UID 10000 and GID 10000. These are customizable via `GAMESERVER_UID` and `GAMESERVER_GID` build-args if needed by your environment.
 
 When deploying a game server via the Gameplane operator, you **must** set `spec.security.runAsUser` to match the image's UID. By default:
 
 ```yaml
 spec:
   security:
-    runAsUser: 1000
-    fsGroup: 1000  # Ensures mounted volumes are writable by the non-root user
+    runAsUser: 10000
+    fsGroup: 10000  # Ensures mounted volumes are writable by the non-root user
 ```
 
 **Why this matters:** The module validator (`modules/validate.py`, Rule 2: `rule_nonroot_requires_runasuser`) enforces that:
 
 1. If the image declares a non-root User (as this one does), `spec.security.runAsUser` **must** be set — omitting it causes the container to fail because a freshly-provisioned PersistentVolume is root-owned and unwritable by the non-root process.
-2. The `spec.security.runAsUser` value **must** match the image's User UID numerically. A mismatch (e.g., `runAsUser: 1001` when the image is UID 1000) causes the same write-permission failure; Project Zomboid (uid 10000, not 1000 as its own README claimed) was the original regression case, documented in `modules/validate.py` lines 14-20.
+2. The `spec.security.runAsUser` value **must** match the image's User UID numerically. A mismatch (e.g., `runAsUser: 1001` when the image is UID 10000) causes the same write-permission failure; Project Zomboid (uid 10000, not 1000 as its own README claimed) was the original regression case, documented in `modules/validate.py` lines 14-20.
 
 Additionally, set `spec.security.fsGroup` (matching or compatible with the image UID) to ensure PersistentVolume mounts are writable by the non-root server process. Consider `allowPrivilegeEscalation: false` to prevent the container from gaining additional capabilities at runtime.
 
