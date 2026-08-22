@@ -77,6 +77,7 @@ TestAddressPool_NonexistentPoolError
 TestAddressPool_ChangePoolOnRunningServer
 TestAddressPool_RESTAPICarriesPool
 TestAddressPool_StatusVisibleInAddressAssignmentCondition
+TestAddressPool_ExplicitAddressRequest
 EOF
 }
 

@@ -646,3 +646,121 @@ func TestAddressPool_StatusVisibleInAddressAssignmentCondition(t *testing.T) {
 		t.Logf("condition message does not mention assignment or pool: %q", condMessage)
 	}
 }
+
+// TestAddressPool_ExplicitAddressRequest covers FR-015 / User Story 4: a
+// GameServer requesting a specific address via spec.networking.address,
+// with exposure mode LoadBalancer, receives exactly that address from a real
+// MetalLB running in the e2e cluster, and the AddressAssignment condition
+// reaches reason Assigned.
+//
+// This is the only end-to-end coverage of the explicit-address path;
+// envtest covers it only at the fake-client level (T061–T065).
+func TestAddressPool_ExplicitAddressRequest(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmplName := fmt.Sprintf("e2e-pool-explicit-%d", time.Now().UnixNano())
+	gsName := fmt.Sprintf("e2e-gs-explicit-%d", time.Now().UnixNano())
+
+	applyBusyboxTemplate(t, tmplName)
+
+	// Request a specific address from pool-us-west. The MetalLB pool-us-west
+	// is configured with range 172.18.255.200-172.18.255.210 (11 IPs). We pick
+	// 172.18.255.205 (middle of the range) to avoid collision with auto-assigned
+	// addresses from the other parallel tests (TestAddressPool_NamedPoolAssignment
+	// and TestAddressPool_StatusVisibleInAddressAssignmentCondition), which do
+	// not specify explicit addresses and will auto-assign from the low end of
+	// the range. Since no other test explicitly requests an address (this is the
+	// first), collision risk is minimal.
+	requestedAddr := "172.18.255.205"
+
+	gs := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata":   map[string]any{"name": gsName, "namespace": ns},
+		"spec": map[string]any{
+			"templateRef": map[string]any{"name": tmplName},
+			"networking": map[string]any{
+				"expose":          "LoadBalancer",
+				"addressPool":     "pool-us-west",
+				"address":         requestedAddr,
+			},
+		},
+	}}
+	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+		Create(ctx, gs, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Delete(context.Background(), gsName, metav1.DeleteOptions{})
+	})
+
+	// Wait for address assignment and verify the Service received the exact
+	// requested address from MetalLB.
+	var assignedAddr string
+	var assignedPool string
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		got, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+
+		// Check AddressAssignment condition.
+		cond := findCondition(got.Object, "AddressAssignment")
+		if cond == nil {
+			return false, "AddressAssignment condition not found"
+		}
+		if cond["status"] != "True" {
+			return false, fmt.Sprintf("AddressAssignment status=%v", cond["status"])
+		}
+		if cond["reason"] != "Assigned" {
+			return false, fmt.Sprintf("AddressAssignment reason=%v, want Assigned", cond["reason"])
+		}
+
+		// Extract the assigned address from the endpoint and the Service's
+		// load-balancer status.
+		endpoints, _, _ := unstructured.NestedSlice(got.Object, "status", "endpoints")
+		if len(endpoints) == 0 {
+			return false, "no endpoints"
+		}
+		ep, ok := endpoints[0].(map[string]any)
+		if !ok || ep["host"] == nil {
+			return false, "endpoint malformed"
+		}
+		assignedAddr = ep["host"].(string)
+		if pool, ok := ep["pool"].(string); ok {
+			assignedPool = pool
+		}
+
+		// Also verify the Service status carries the same address.
+		svc, err := envInstance.K8s.CoreV1().Services(ns).Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get service: " + err.Error()
+		}
+		if len(svc.Status.LoadBalancer.Ingress) == 0 {
+			return false, "service has no loadBalancer ingress yet"
+		}
+		lbAddr := svc.Status.LoadBalancer.Ingress[0].IP
+		if lbAddr == "" {
+			return false, "service loadBalancer ingress IP is empty"
+		}
+		if lbAddr != requestedAddr {
+			return false, fmt.Sprintf("service LB address=%q, want %q", lbAddr, requestedAddr)
+		}
+
+		return true, ""
+	})
+
+	// Assert the address matches what was requested.
+	if assignedAddr != requestedAddr {
+		t.Errorf("assigned address = %q, want %q", assignedAddr, requestedAddr)
+	}
+
+	// Assert the pool is correct.
+	if assignedPool != "pool-us-west" {
+		t.Errorf("assigned pool = %q, want pool-us-west", assignedPool)
+	}
+}
