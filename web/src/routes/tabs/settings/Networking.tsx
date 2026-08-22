@@ -478,6 +478,33 @@ function AddressAssignmentSection({
 
   const currentAddress = draft.status?.endpoints?.[0];
 
+  // Locally-tracked field values, seeded from the spec and re-synced whenever
+  // the underlying draft changes them (e.g. switching servers, or a save
+  // round-trip). Deriving these two fields from `net` alone — the way the
+  // rest of this form does — breaks when a caller edits both fields back to
+  // back without an intervening re-render carrying the updated draft back
+  // in as props: each edit would recompute against the same stale `net`
+  // snapshot and the second edit could resurrect the first one's clear.
+  // Tracking them locally makes consecutive edits within one render
+  // cumulative instead of independently-stale.
+  const [addressPool, setAddressPool] = useState(net.addressPool ?? "");
+  const [address, setAddress] = useState(net.address ?? "");
+
+  useEffect(() => {
+    setAddressPool(net.addressPool ?? "");
+    setAddress(net.address ?? "");
+  }, [draft.metadata.name, draft.metadata.namespace, net.addressPool, net.address]);
+
+  const updateAddressPool = (value: string) => {
+    setAddressPool(value);
+    setNet({ ...net, addressPool: value || undefined, address: address || undefined });
+  };
+
+  const updateAddress = (value: string) => {
+    setAddress(value);
+    setNet({ ...net, addressPool: addressPool || undefined, address: value || undefined });
+  };
+
   return (
     <div className="space-y-4 border-t border-border pt-6">
       {currentAddress && (
@@ -501,8 +528,8 @@ function AddressAssignmentSection({
         hint="Name of a load-balancer address pool configured by your cluster admin. Leave blank to let the address manager choose."
       >
         <Input
-          value={net.addressPool ?? ""}
-          onChange={(e) => setNet({ ...net, addressPool: e.target.value || undefined })}
+          value={addressPool}
+          onChange={(e) => updateAddressPool(e.target.value)}
           placeholder="pool-name"
           spellCheck={false}
         />
@@ -513,8 +540,8 @@ function AddressAssignmentSection({
         hint="A specific address to request from the pool. Must be free — the address manager rejects addresses already in use. Leave blank unless you need a specific address."
       >
         <Input
-          value={net.address ?? ""}
-          onChange={(e) => setNet({ ...net, address: e.target.value || undefined })}
+          value={address}
+          onChange={(e) => updateAddress(e.target.value)}
           placeholder="e.g. 203.0.113.50"
           spellCheck={false}
         />

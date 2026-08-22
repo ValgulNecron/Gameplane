@@ -192,8 +192,10 @@ describe("NetworkingSection", () => {
       fireEvent.change(poolInput, { target: { value: "" } });
 
       const lastCall = onChange.mock.calls.at(-1)![0];
-      // Empty value should not be sent; addressPool should be undefined
-      expect(lastCall.spec.networking.addressPool).toBeUndefined();
+      // Empty value should not be sent; addressPool was the only field set,
+      // so clearing it drops networking to undefined entirely (same
+      // convention as "clears networking entirely when no fields remain").
+      expect(lastCall.spec.networking?.addressPool).toBeUndefined();
     });
 
     it("renders Assigned condition with green badge (T109)", () => {
