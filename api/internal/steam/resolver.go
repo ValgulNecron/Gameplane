@@ -66,7 +66,7 @@ func NewResolver(apiKey string, opts *Options, clock Clock) *Resolver {
 // includes the API key or any queried ids.
 //
 // Concurrent lookups of the same uncached ids are collapsed into a single upstream call by singleflight.
-func (r *Resolver) Resolve(_ context.Context, steamIDs []string) map[string]string {
+func (r *Resolver) Resolve(ctx context.Context, steamIDs []string) map[string]string {
 	result := make(map[string]string)
 
 	if r == nil {
@@ -94,7 +94,7 @@ func (r *Resolver) Resolve(_ context.Context, steamIDs []string) map[string]stri
 	}
 
 	// Collapse concurrent identical requests via singleflight.
-	batchRes, err := r.sf.Do(uncached, func(sfCtx context.Context) (map[string]string, error) {
+	batchRes, err := r.sf.Do(ctx, uncached, func(sfCtx context.Context) (map[string]string, error) {
 		return r.resolveBatch(sfCtx, uncached)
 	})
 

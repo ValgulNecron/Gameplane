@@ -25,20 +25,24 @@ type result struct {
 // Do executes the function f once for the sorted set of ids, even if multiple callers invoke Do
 // concurrently with the same set of ids. All callers receive the same result.
 //
-// The function f is invoked with an internally-owned context independent of any caller.
-// No caller's deadline or cancellation affects the shared flight; every caller waits
-// unconditionally for the upstream call to complete. The upstream call is bounded only by
-// the HTTP client's own timeout. All waiting callers receive the same result.
-func (g *singleflightGroup) Do(ids []string, f func(context.Context) (map[string]string, error)) (map[string]string, error) {
+// The function f is invoked with a context derived from ctx via context.WithoutCancel.
+// This ensures that no single caller's deadline or cancellation affects the shared flight;
+// every caller waits unconditionally for the upstream call to complete. However, context
+// values (for tracing, request metadata, etc.) are preserved from the caller's context.
+// The upstream call is bounded only by the HTTP client's own timeout. All waiting callers
+// receive the same result.
+func (g *singleflightGroup) Do(ctx context.Context, ids []string, f func(context.Context) (map[string]string, error)) (map[string]string, error) {
 	// Create a deterministic key from the sorted ids.
 	sorted := make([]string, len(ids))
 	copy(sorted, ids)
 	sort.Strings(sorted)
 	key := strings.Join(sorted, ",")
 
-	// Create a context independent of any caller's context for the shared upstream work.
-	// This ensures that if one caller's context is cancelled, others are not affected.
-	sfCtx := context.Background()
+	// Create a context independent of any caller's cancellation for the shared upstream work.
+	// WithoutCancel strips the cancellation and deadline from ctx but preserves values.
+	// This ensures that if one caller's context is cancelled, others are not affected,
+	// while retaining tracing and request metadata from the original context.
+	sfCtx := context.WithoutCancel(ctx)
 
 	// Call singleflight.Group.Do directly. Multiple callers arrive concurrently and
 	// singleflight collapses them into a single upstream invocation. The closure always
@@ -52,6 +56,9 @@ func (g *singleflightGroup) Do(ids []string, f func(context.Context) (map[string
 		return nil, fmt.Errorf("unexpected error from singleflight: %w", err)
 	}
 
-	res := v.(result)
+	res, ok := v.(result)
+	if !ok {
+		return nil, fmt.Errorf("singleflight returned unexpected type: %T", v)
+	}
 	return res.resolutions, res.err
 }

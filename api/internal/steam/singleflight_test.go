@@ -24,7 +24,7 @@ func TestSingleflightCollapse(t *testing.T) {
 	// Launch N goroutines requesting the same ids.
 	for i := 0; i < n; i++ {
 		go func() {
-			res, err := sf.Do(ids, func(_ context.Context) (map[string]string, error) {
+			res, err := sf.Do(context.Background(), ids, func(_ context.Context) (map[string]string, error) {
 				mu.Lock()
 				callCount++
 				mu.Unlock()
@@ -78,7 +78,7 @@ func TestSingleflightDisjointSetsNotCollapsed(t *testing.T) {
 
 	// Goroutine 1: request ids {id1, id2}
 	go func() {
-		sf.Do([]string{"id1", "id2"}, func(_ context.Context) (map[string]string, error) {
+		sf.Do(context.Background(), []string{"id1", "id2"}, func(_ context.Context) (map[string]string, error) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
@@ -90,7 +90,7 @@ func TestSingleflightDisjointSetsNotCollapsed(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 
 	// Goroutine 2: request ids {id3, id4}
-	sf.Do([]string{"id3", "id4"}, func(_ context.Context) (map[string]string, error) {
+	sf.Do(context.Background(), []string{"id3", "id4"}, func(_ context.Context) (map[string]string, error) {
 		mu.Lock()
 		callCount++
 		mu.Unlock()
@@ -117,7 +117,7 @@ func TestSingleflightErrorFansOut(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		go func() {
-			_, err := sf.Do(ids, func(_ context.Context) (map[string]string, error) {
+			_, err := sf.Do(context.Background(), ids, func(_ context.Context) (map[string]string, error) {
 				mu.Lock()
 				callCount++
 				mu.Unlock()
@@ -164,7 +164,7 @@ func TestSingleflightSecondCallerJoinsInFlight(t *testing.T) {
 	var err1 error
 
 	go func() {
-		result1, err1 = sf.Do(ids, func(_ context.Context) (map[string]string, error) {
+		result1, err1 = sf.Do(context.Background(), ids, func(_ context.Context) (map[string]string, error) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
@@ -185,7 +185,7 @@ func TestSingleflightSecondCallerJoinsInFlight(t *testing.T) {
 	errChan := make(chan error, 1)
 
 	go func() {
-		res, err := sf.Do(ids, func(_ context.Context) (map[string]string, error) {
+		res, err := sf.Do(context.Background(), ids, func(_ context.Context) (map[string]string, error) {
 			// Should not reach here; should reuse the in-flight call.
 			return nil, fmt.Errorf("unexpected call")
 		})
