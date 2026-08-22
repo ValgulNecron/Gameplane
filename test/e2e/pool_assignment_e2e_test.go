@@ -640,4 +640,3 @@ func TestAddressPool_StatusVisibleInAddressAssignmentCondition(t *testing.T) {
 		t.Logf("condition message does not mention assignment or pool: %q", condMessage)
 	}
 }
-

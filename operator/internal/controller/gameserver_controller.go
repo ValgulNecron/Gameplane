@@ -1828,20 +1828,23 @@ func (r *GameServerReconciler) listServiceEvents(
 // permanently block a live server behind a server that is already on its
 // way out.
 //
-// Caveats: the no-mutual-pair property holds only under the following conditions:
-//   (a) CROSS-ADDRESS PAIR: this assumes every contender's spec.networking.address
-//     is either empty or the contended address. Two servers with swapped explicit
-//     addresses while their status shows the old ones can name each other
-//     permanently. Impact is bounded to the status condition; it does not block
-//     reconciliation.
-//   (b) UNREPORTED DUPLICATE HOLD: an older server both holding and requesting,
-//     plus a younger pure holder of the same address, is reported by neither.
-//     The older server is the minimum and returns "no conflict"; the pure holder
-//     hits the early return. This is a known gap.
-//   (c) CACHE STALENESS: the invariant assumes every contender observes the same
-//     holds flags. Reconciles read through informer caches, so a transient mutual
-//     pair is possible while caches disagree. It self-heals on the next status
-//     transition, unlike a permanent livelock.
+// Caveats: the no-mutual-pair property holds only under these conditions.
+//
+// Cross-address pair: this assumes every contender's spec.networking.address is
+// either empty or the contended address. Two servers with swapped explicit
+// addresses while their status shows the old ones can name each other
+// permanently. Impact is bounded to the status condition; it does not block
+// reconciliation.
+//
+// Unreported duplicate hold: an older server both holding and requesting, plus
+// a younger pure holder of the same address, is reported by neither. The older
+// server is the minimum and returns "no conflict"; the pure holder hits the
+// early return. This is a known gap.
+//
+// Cache staleness: the invariant assumes every contender observes the same
+// holds flags. Reconciles read through informer caches, so a transient mutual
+// pair is possible while caches disagree. It self-heals on the next status
+// transition, unlike a permanent livelock.
 func (r *GameServerReconciler) findAddressConflict(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) (string, error) {

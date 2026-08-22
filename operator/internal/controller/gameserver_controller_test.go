@@ -651,8 +651,8 @@ func TestFindAddressConflict_BothRequestingWithYoungerHolder(t *testing.T) {
 		},
 		Spec: gameplanev1alpha1.GameServerSpec{
 			Networking: gameplanev1alpha1.GameServerNetworking{
-				Address:  "10.0.0.5",
-				Expose:   "LoadBalancer",
+				Address: "10.0.0.5",
+				Expose:  "LoadBalancer",
 			},
 		},
 		Status: gameplanev1alpha1.GameServerStatus{
