@@ -696,9 +696,9 @@ Rules and semantics:
 
 ### RCON
 
-The console protocol is selected via `rcon.protocol`. Seven protocols are
+The console protocol is selected via `rcon.protocol`. Eight protocols are
 supported: `source`, `telnet`, `websocket`, `battleye`, `satisfactory`,
-`palworld`, and `none`. Each game's template declares the one(s) it uses.
+`palworld`, `nuclearoption`, and `none`. Each game's template declares the one(s) it uses.
 
 #### Source (Valve / Minecraft)
 
@@ -786,6 +786,17 @@ rcon:
   protocol: palworld
   port: 8212
   passwordEnv: ADMIN_PASSWORD
+```
+
+#### NuclearOption (JSON request/response)
+
+NuclearOption is a length-prefixed JSON request/response protocol on a
+dedicated pod-local remote-command port with no authentication:
+
+```yaml
+rcon:
+  protocol: nuclearoption
+  port: 7779
 ```
 
 #### No console
