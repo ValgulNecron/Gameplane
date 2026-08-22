@@ -50,6 +50,7 @@ func withGameServerReconcilerStopper(t *testing.T, ns string, stop AgentStopper)
 	return func(mgr manager.Manager) error {
 		return (&GameServerReconciler{
 			Client:                 mgr.GetClient(),
+			APIReader:              mgr.GetAPIReader(),
 			Scheme:                 mgr.GetScheme(),
 			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
 			AgentCASecretName:      "agent-ca",
@@ -98,6 +99,7 @@ func withGameServerReconcilerAttacher(t *testing.T, ns string, attach PodStopAtt
 	return func(mgr manager.Manager) error {
 		return (&GameServerReconciler{
 			Client:                 mgr.GetClient(),
+			APIReader:              mgr.GetAPIReader(),
 			Scheme:                 mgr.GetScheme(),
 			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
 			AgentCASecretName:      "agent-ca",

@@ -16,9 +16,12 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -34,7 +37,8 @@ import (
 // Service, and PVC. The agent sidecar is injected at pod-spec build time.
 type GameServerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// AgentImage is the container image used for the sidecar agent
 	// injected into every game pod. Set from an operator flag so the
@@ -98,6 +102,27 @@ type GameServerReconciler struct {
 	// it), in which case softStop treats a pty-only template the same as
 	// one with no usable transport at all.
 	PodAttacher PodStopAttacher
+
+	// AddressManager names the cluster's load-balancer address manager
+	// ("metallb", "cilium" or "none"), set from the operator's
+	// --address-manager flag and validated at startup. It selects how a
+	// GameServer's spec.networking.addressPool / .address preference is
+	// translated onto the game Service (see planAddressPreference). Empty
+	// is treated exactly as "none": mutate nothing and report the
+	// unhonored request, never silently fall back to the default pool.
+	AddressManager string
+
+	// MetalLBNamespace is the namespace MetalLB's IPAddressPool custom
+	// resources (metallb.io/v1beta1, namespaced) live in. Used only when
+	// AddressManager == "metallb" and a pool was requested: reconcileStatus
+	// GETs the requested pool directly here so a missing pool can be
+	// reported as PoolNotFound without waiting for a MetalLB event. Set
+	// from the operator's --metallb-namespace flag. "metallb-system" is
+	// MetalLB's own install convention, not a contract, hence configurable.
+	// Empty is treated as "metallb-system" (see metalLBNamespace()) — this
+	// keeps envtest/unit-test reconcilers that construct the struct
+	// directly, without setting every field, working unchanged.
+	MetalLBNamespace string
 
 	// GameIngressPolicyEnabled controls whether the operator reconciles a
 	// per-GameServer ingress NetworkPolicy admitting player traffic to the
@@ -170,6 +195,12 @@ const (
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
+//
+// checkMetalLBPoolExists GETs MetalLB's namespaced IPAddressPool CR by name
+// (see poolExistence) — read-only, and deliberately narrow (no list/delete)
+// since the operator only ever needs to know whether one named pool exists.
+// +kubebuilder:rbac:groups=metallb.io,resources=ipaddresspools,verbs=get;list;watch
 
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -334,7 +365,27 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan, &tmpl)
+	// Fetch Service events for address-manager failure reason derivation.
+	// Errors are logged but not fatal — missing events should not stall reconciliation.
+	var svcEvents []corev1.Event
+	if gs.Spec.Networking.AddressPool != "" || gs.Spec.Networking.Address != "" {
+		if err := r.listServiceEvents(ctx, &gs, &svcEvents); err != nil {
+			logger.Error(err, "list service events")
+		}
+	}
+
+	// Detect address conflicts: if an explicit address was requested,
+	// check if another GameServer in the cluster already holds it.
+	conflictingServer := ""
+	if gs.Spec.Networking.Address != "" {
+		if conflict, err := r.findAddressConflict(ctx, &gs); err != nil {
+			logger.Error(err, "check address conflicts")
+		} else if conflict != "" {
+			conflictingServer = conflict
+		}
+	}
+
+	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan, &tmpl, svcEvents, conflictingServer)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -465,7 +516,23 @@ func (r *GameServerReconciler) reconcileService(
 			}
 		}
 		svc.Spec.Ports = svcPortsFromTemplate(tmpl, gs)
-		applyManagedServiceAnnotations(svc, desiredServiceAnnotations(gs))
+		// Address-pool translation. NOTE: svc.Spec.LoadBalancerIP is never
+		// written here or anywhere else — Kubernetes deprecated it in 1.24
+		// and both address managers take the request through metadata.
+		// The plan's metadata is applied last so an address-manager key
+		// wins over a same-key entry in spec.networking.serviceAnnotations,
+		// for the same reason the typed hostname field does: it is the
+		// explicit, validated, UI-backed field.
+		plan := r.addressPlanFor(gs)
+		desired := desiredServiceAnnotations(gs)
+		for k, v := range plan.serviceAnnotations() {
+			desired[k] = v
+		}
+		applyManagedServiceAnnotations(svc, desired)
+		// After applyManagedServiceAnnotations: the managed-label bookkeeping
+		// lives in an annotation, and applying it second keeps that annotation
+		// from being pruned as an unmanaged leftover.
+		applyManagedServiceLabels(svc, plan.serviceLabels())
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
@@ -528,6 +595,266 @@ func applyManagedServiceAnnotations(svc *corev1.Service, desired map[string]stri
 	}
 	sort.Strings(keys)
 	svc.Annotations[managedServiceAnnotationsKey] = strings.Join(keys, ",")
+}
+
+// managedServiceLabelsKey records which *label* keys the operator applied to
+// the game Service on the previous reconcile, so a preference that goes away
+// takes its label with it instead of leaving, say, a Cilium pool selector
+// orphaned on the Service forever — pointing a live server at a pool nobody
+// asked for any more.
+//
+// It is deliberately an annotation, not a label: the value is a comma-joined
+// key list, and commas and slashes are not legal in a label value.
+const managedServiceLabelsKey = "gameplane.local/managed-service-labels"
+
+// applyManagedServiceLabels is applyManagedServiceAnnotations' twin for
+// labels, with the same prune-then-apply-then-record shape and the same
+// reason for existing: merging alone leaves a removed key active on the
+// Service. Labels on the game Service are otherwise not ours (the selector
+// side is spec.selector, written above), so only the keys we recorded last
+// time are ever deleted.
+//
+// It is a no-op when nothing is desired and nothing was managed before, which
+// is what keeps a GameServer with no pool preference producing byte-identical
+// Service metadata to the pre-feature operator.
+func applyManagedServiceLabels(svc *corev1.Service, desired map[string]string) {
+	prev := svc.Annotations[managedServiceLabelsKey]
+	if prev == "" && len(desired) == 0 {
+		return
+	}
+	if prev != "" {
+		for _, k := range strings.Split(prev, ",") {
+			if _, keep := desired[k]; !keep {
+				delete(svc.Labels, k)
+			}
+		}
+	}
+	if len(desired) > 0 && svc.Labels == nil {
+		svc.Labels = map[string]string{}
+	}
+	keys := make([]string, 0, len(desired))
+	for k, v := range desired {
+		svc.Labels[k] = v
+		keys = append(keys, k)
+	}
+	if svc.Annotations == nil {
+		svc.Annotations = map[string]string{}
+	}
+	if len(keys) == 0 {
+		delete(svc.Annotations, managedServiceLabelsKey)
+		return
+	}
+	sort.Strings(keys)
+	svc.Annotations[managedServiceLabelsKey] = strings.Join(keys, ",")
+}
+
+// Cluster address-manager flavors the operator has a translation branch for,
+// mirroring the --address-manager flag in operator/cmd/main.go (which
+// validates the value at startup, so an unknown flavor never reaches here).
+// The third accepted flavor, "none", has no constant because it has no
+// branch: it is every value that is not one of these two.
+const (
+	addressManagerMetalLB = "metallb"
+	addressManagerCilium  = "cilium"
+)
+
+// Service metadata keys each address manager reads a pool/address request
+// from. MetalLB takes both as annotations; Cilium takes the address as an
+// annotation but selects a pool by *label*, which is the whole reason
+// applyManagedServiceLabels exists.
+//
+// ciliumPoolLabel is a Gameplane convention, not a key Cilium knows: the
+// cluster admin must mirror it in CiliumLoadBalancerIPPool's
+// spec.serviceSelector for pool selection to bind. Where they have not, the
+// label is inert — which is why the AddressAssignment condition reports the
+// request rather than letting it pass for honored.
+//
+// The deprecated metallb.universe.tf/* prefixes are still honored by MetalLB
+// but are not written for new servers.
+const (
+	metalLBAddressPoolAnnotation     = "metallb.io/address-pool"
+	metalLBLoadBalancerIPsAnnotation = "metallb.io/loadBalancerIPs"
+	ciliumAddressAnnotation          = "lbipam.cilium.io/ips"
+	ciliumPoolLabel                  = "gameplane.local/lb-pool"
+)
+
+// metalLBIPAddressPoolGVK identifies MetalLB's namespaced IPAddressPool
+// custom resource (metallb.io/v1beta1). Read via an unstructured GET
+// (checkMetalLBPoolExists) rather than a vendored MetalLB Go type — the
+// operator needs to know only whether a named pool exists, not to decode its
+// spec.
+var metalLBIPAddressPoolGVK = schema.GroupVersionKind{
+	Group:   "metallb.io",
+	Version: "v1beta1",
+	Kind:    "IPAddressPool",
+}
+
+// poolExistence is the tri-state result of checkMetalLBPoolExists.
+type poolExistence int
+
+const (
+	// poolExistenceUnknown means the check could not determine an answer:
+	// the IPAddressPool kind isn't registered with the API server (MetalLB
+	// not installed) or the GET was forbidden by RBAC. Both are legitimate
+	// cluster states — a cluster admin can select the metallb flavor before
+	// MetalLB itself is installed — so callers MUST fail soft on this value:
+	// fall through to the event-derived path rather than report
+	// PoolNotFound, which would be a false positive.
+	poolExistenceUnknown poolExistence = iota
+	// poolExistenceFound means the GET succeeded: the pool exists.
+	poolExistenceFound
+	// poolExistenceMissing means the GET returned NotFound: the pool does
+	// not exist in the configured namespace, so PoolNotFound can be reported
+	// directly without waiting for a MetalLB event.
+	poolExistenceMissing
+)
+
+// checkMetalLBPoolExists GETs the named IPAddressPool in the configured
+// MetalLB namespace (r.metalLBNamespace()). It fails SOFT: any error other
+// than a clean NotFound — the CRD not being registered, an RBAC Forbidden, a
+// transient apiserver error — is reported as poolExistenceUnknown rather than
+// treated as evidence the pool is missing. See poolExistence's doc comment
+// for why that distinction matters to callers.
+func (r *GameServerReconciler) checkMetalLBPoolExists(ctx context.Context, name string) poolExistence {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(metalLBIPAddressPoolGVK)
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: r.metalLBNamespace()}, u)
+	switch {
+	case err == nil:
+		return poolExistenceFound
+	case apierrors.IsNotFound(err):
+		return poolExistenceMissing
+	default:
+		return poolExistenceUnknown
+	}
+}
+
+// metalLBNamespace returns r.MetalLBNamespace, defaulting to MetalLB's own
+// "metallb-system" install convention when the field was left unset — e.g.
+// by tests that construct a GameServerReconciler directly without going
+// through main.go's flag wiring.
+func (r *GameServerReconciler) metalLBNamespace() string {
+	if r.MetalLBNamespace == "" {
+		return "metallb-system"
+	}
+	return r.MetalLBNamespace
+}
+
+// addressPlanOutcome is what the operator did with a pool/address preference
+// on this pass. gameserver_status.go maps it onto the AddressAssignment
+// condition's reason; the zero value means nothing was requested, so there is
+// nothing to report.
+type addressPlanOutcome string
+
+const (
+	addressPlanNotRequested               addressPlanOutcome = ""
+	addressPlanTranslated                 addressPlanOutcome = "Translated"
+	addressPlanIgnoredForExposureMode     addressPlanOutcome = "IgnoredForExposureMode"
+	addressPlanNoAddressManagerConfigured addressPlanOutcome = "NoAddressManagerConfigured"
+)
+
+// addressPlan is the decision reconcileService reached about a GameServer's
+// spec.networking.addressPool / .address preference: what was asked for, and
+// whether this cluster can honor it.
+type addressPlan struct {
+	// Manager is the flavor the plan was made against.
+	Manager string
+	// Pool and Address are the request as spec'd, verbatim and unvalidated —
+	// they are what the status reports back to the user, so they must not be
+	// normalized here.
+	Pool    string
+	Address string
+	Outcome addressPlanOutcome
+}
+
+// requested reports whether the user asked for a pool or an address at all.
+func (p addressPlan) requested() bool {
+	return p.Pool != "" || p.Address != ""
+}
+
+// planAddressPreference decides how to translate a GameServer's pool/address
+// preference for the given address-manager flavor.
+//
+// It is a pure function of the GameServer and the flavor so gameserver_status.go
+// can recompute the identical decision when building the AddressAssignment
+// condition, instead of the reconcile threading it through every call.
+//
+// An unrequestable preference is never silently dropped: it comes back as
+// IgnoredForExposureMode (the request is meaningless outside
+// Expose=LoadBalancer) or NoAddressManagerConfigured (nothing in this cluster
+// can act on it, so leaving it unreported would let the server come up on a
+// default-pool address that looks assigned but honors nothing). Exposure mode
+// is checked first because it is the more actionable of the two — the user
+// owns the expose mode, the cluster admin owns the flavor.
+func planAddressPreference(gs *gameplanev1alpha1.GameServer, manager string) addressPlan {
+	p := addressPlan{
+		Manager: manager,
+		Pool:    gs.Spec.Networking.AddressPool,
+		Address: gs.Spec.Networking.Address,
+	}
+	if !p.requested() {
+		p.Outcome = addressPlanNotRequested
+		return p
+	}
+	switch {
+	case gs.Spec.Networking.Expose != "LoadBalancer":
+		p.Outcome = addressPlanIgnoredForExposureMode
+	case manager == addressManagerMetalLB, manager == addressManagerCilium:
+		p.Outcome = addressPlanTranslated
+	default:
+		// Flavor "none", the empty flag value that means the same, and —
+		// unreachable, since main.go validates the flag at startup — any
+		// unknown flavor. All fail closed: the request is reported, never
+		// quietly allowed to land on a default-pool address.
+		p.Outcome = addressPlanNoAddressManagerConfigured
+	}
+	return p
+}
+
+// addressPlanFor plans this reconciler's configured flavor against gs.
+func (r *GameServerReconciler) addressPlanFor(gs *gameplanev1alpha1.GameServer) addressPlan {
+	return planAddressPreference(gs, r.AddressManager)
+}
+
+// serviceAnnotations is the address-manager metadata this plan wants carried
+// on the game Service as annotations. Nil for every non-translated outcome:
+// flavor "none" and the ignored expose modes mutate the Service not at all,
+// and an unset preference leaves no trace.
+func (p addressPlan) serviceAnnotations() map[string]string {
+	if p.Outcome != addressPlanTranslated {
+		return nil
+	}
+	out := make(map[string]string, 2)
+	switch p.Manager {
+	case addressManagerMetalLB:
+		if p.Pool != "" {
+			out[metalLBAddressPoolAnnotation] = p.Pool
+		}
+		if p.Address != "" {
+			out[metalLBLoadBalancerIPsAnnotation] = p.Address
+		}
+	case addressManagerCilium:
+		// Cilium's pool preference is a label, not an annotation; see
+		// serviceLabels.
+		if p.Address != "" {
+			out[ciliumAddressAnnotation] = p.Address
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// serviceLabels is the address-manager metadata this plan wants carried on
+// the game Service as labels — today only Cilium's pool selector. Nil
+// otherwise, which prunes the label back off the Service when the preference
+// is unset or the flavor changes away from Cilium.
+func (p addressPlan) serviceLabels() map[string]string {
+	if p.Outcome != addressPlanTranslated || p.Manager != addressManagerCilium || p.Pool == "" {
+		return nil
+	}
+	return map[string]string{ciliumPoolLabel: p.Pool}
 }
 
 // reconcileAgentService maintains a dedicated ClusterIP Service
@@ -1423,4 +1750,329 @@ func (r *GameServerReconciler) setPhase(
 		ObservedGeneration: gs.Generation,
 	})
 	return r.Status().Patch(ctx, gs, client.MergeFrom(base))
+}
+
+// listServiceEvents fetches the recent events on the game Service into the
+// provided slice. Errors are logged but not fatal — if event fetching fails,
+// the reconciliation continues without event-derived failure reasons.
+//
+// The namespace is the only server-side filter: controller-runtime's cached
+// client can only serve client.MatchingFields for keys registered with
+// mgr.GetFieldIndexer().IndexField, and this operator registers no index on
+// involvedObject. Filtering on involvedObject there would make every List
+// fail, silently disabling the whole feature, so the involvedObject match is
+// done in Go over the returned items instead. Per-namespace event volume is
+// small enough for that to be cheap.
+// listServiceEvents fetches the recent events on the game Service into the
+// provided events slice. To reduce apiserver load (namespace Event LIST is
+// O(Events)), this skips the read when the AddressAssignment condition is
+// already in a terminal state that won't be affected by events:
+//   - Condition True (Assigned): address was successfully assigned
+//   - Condition False with terminal reason: IgnoredForExposureMode,
+//     NoAddressManagerConfigured, AddressInUse, PoolNotFound (re-derived
+//     live from a direct IPAddressPool GET every pass regardless of this
+//     skip — see reconcileStatus — so skipping the event LIST here never
+//     staleness-locks it), or AllocationFailed (an event-derived failure,
+//     latched by addressAssignmentCondition once observed — see its doc
+//     comment — so skipping the re-LIST here is exactly what the latch is
+//     for: it need not survive on a fresh event every pass)
+//
+// Special case: if the condition was True but the address has since
+// disappeared (regression), the read resumes to detect a new failure reason.
+// This is checked by verifying the address still exists in status.endpoints.
+func (r *GameServerReconciler) listServiceEvents(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, events *[]corev1.Event,
+) error {
+	// Check if the AddressAssignment condition already signals a stable state.
+	addrCond := meta.FindStatusCondition(gs.Status.Conditions, gameplanev1alpha1.GameServerConditionAddressAssignment)
+	if addrCond != nil {
+		if addrCond.Status == metav1.ConditionTrue {
+			// Condition is True (Assigned). Check if the address is still present
+			// in status to detect regression.
+			if len(gs.Status.Endpoints) > 0 {
+				// Address still assigned; no need to read events.
+				*events = nil
+				return nil
+			}
+			// Address is gone (regression); fall through to read events.
+		} else {
+			// Condition is False. Check if the reason is terminal.
+			// Terminal reasons: those derived from spec (IgnoredForExposureMode,
+			// NoAddressManagerConfigured, AddressInUse), from a direct pool
+			// check (PoolNotFound), or from an event (AllocationFailed).
+			// Non-terminal reasons: ServiceNotReady, AssignmentPending.
+			switch addrCond.Reason {
+			case "IgnoredForExposureMode", "NoAddressManagerConfigured", "AddressInUse",
+				"PoolNotFound", "AllocationFailed":
+				// Terminal failure; no need to read events.
+				*events = nil
+				return nil
+			case "ServiceNotReady", "AssignmentPending":
+				// Non-terminal; fall through to read events.
+			default:
+				// Unknown reason; assume it came from events and fall through.
+			}
+		}
+	}
+
+	var svc corev1.Service
+	svcKnown := r.Get(ctx, types.NamespacedName{Name: gs.Name, Namespace: gs.Namespace}, &svc) == nil
+
+	var eventList corev1.EventList
+	reader := r.APIReader
+	if reader == nil {
+		reader = r.Client
+	}
+	if err := reader.List(ctx, &eventList, client.InNamespace(gs.Namespace)); err != nil {
+		return fmt.Errorf("list events in namespace %s: %w", gs.Namespace, err)
+	}
+
+	matched := make([]corev1.Event, 0, len(eventList.Items))
+	for i := range eventList.Items {
+		ev := eventList.Items[i]
+		if ev.InvolvedObject.Kind != "Service" || ev.InvolvedObject.Name != gs.Name {
+			continue
+		}
+		// When the live Service is readable, pin the match to its UID so
+		// events left over from a previous Service of the same name are not
+		// attributed to the current one. If it is not readable, fall back to
+		// the name match rather than dropping every event.
+		if svcKnown && ev.InvolvedObject.UID != "" && ev.InvolvedObject.UID != svc.UID {
+			continue
+		}
+		matched = append(matched, ev)
+	}
+	*events = matched
+	return nil
+}
+
+// findAddressConflict checks whether another GameServer in the cluster
+// already has the same explicit address assigned (in status.endpoints) or
+// requested (in spec.networking.address).
+//
+// Returns the conflicting GameServer's name, or empty string if none found.
+// Errors are logged but not fatal.
+//
+// The whole candidate set — every other server that either holds the
+// address or requests it — is resolved as ONE ordered comparison rather
+// than two independent branches. Splitting "holds" and "requests" into
+// separate branches (one of them unconditional) used to make the ordering
+// non-total: a server B that merely requested an address, created before a
+// server A that already held it, could report A as a conflict while A
+// simultaneously reported B as a conflict back — a permanent livelock, and
+// with 3+ contenders the *reported name* also flapped because it was
+// whichever candidate the cached List happened to yield first (List order
+// from controller-runtime is not stable).
+//
+// The fix: gather every holder/requester of the address into one slice,
+// sort it by a strict total order — holds ranks before merely requests,
+// then creationTimestamp, namespace, name — and report a conflict iff the
+// minimum of that sorted set sorts strictly before gs itself. At least one
+// server in any contending set is told "no conflict" (see addressConflictLess
+// below for why it is "at least one" and not "exactly one"), and the
+// reported name is deterministic regardless of List's return order.
+//
+// A candidate can join the set two independent ways: it "requests" the
+// address (spec.networking.address matches) or it "holds" the address
+// (status.endpoints carries it). "Holds" is judged independently of
+// "requests" — a pool-assigned server with no explicit spec address must
+// still be caught when another server explicitly requests the address it
+// was assigned. An actual holder must outrank a mere requester regardless
+// of creation order — the address was already handed to the holder by the
+// address manager, so a requester created earlier has no real claim over
+// it — which is why "holds" is a leading key in the total order, not a
+// second-order tiebreak. See addressConflictLess for the precedence rule
+// and why it cannot produce a mutual pair between the two.
+//
+// Two discriminators keep "holds" from false-positiving on endpoints that
+// were never a real LoadBalancer address assignment:
+//   - GameServerEndpoint.TunnelProvider is set for every tunnel-sourced
+//     endpoint that reaches status.endpoints through a code path that
+//     stamps it (frp, tailscale, and both branches — success and
+//     validation-failure — of playit); only a TunnelProvider == "" endpoint
+//     is eligible.
+//   - endpointsFromService falls back to svc.Spec.ClusterIP as Host when the
+//     Service has no LoadBalancer ingress yet, so a Host match only counts
+//     as holding when the candidate's own expose mode is LoadBalancer.
+//     This narrows, but does not close, the false-positive: an
+//     LB-exposed candidate awaiting ingress assignment still carries its
+//     ClusterIP as Host, so if a requested address happens to fall inside
+//     the Service CIDR (not the LB pool's range — an unlikely but not
+//     impossible operator misconfiguration) that candidate would still
+//     read as "holding" it. GameServerEndpoint.Pool cannot be used to
+//     close this: it is stamped only for a translated pool request
+//     (addressPlanTranslated), never for an explicit spec.networking.address
+//     request served directly off the Service's real LB ingress, so an
+//     empty Pool does not distinguish a genuine explicit-address holder
+//     from a pending ClusterIP fallback. Closing it fully would need a
+//     new discriminator field on GameServerEndpoint (a CRD type change),
+//     which is out of scope here.
+//
+// Candidates being deleted (a non-nil metadata.deletionTimestamp) are
+// skipped entirely: a terminating server cannot legitimately hold or claim
+// an address going forward, and letting it win the tiebreak would
+// permanently block a live server behind a server that is already on its
+// way out.
+//
+// Caveats: the no-mutual-pair property holds only under these conditions.
+//
+// Cross-address pair: this assumes every contender's spec.networking.address is
+// either empty or the contended address. Two servers with swapped explicit
+// addresses while their status shows the old ones can name each other
+// permanently. Impact is bounded to the status condition; it does not block
+// reconciliation.
+//
+// Unreported duplicate hold: an older server both holding and requesting, plus
+// a younger pure holder of the same address, is reported by neither. The older
+// server is the minimum and returns "no conflict"; the pure holder hits the
+// early return. This is a known gap.
+//
+// Cache staleness: the invariant assumes every contender observes the same
+// holds flags. Reconciles read through informer caches, so a transient mutual
+// pair is possible while caches disagree. It self-heals on the next status
+// transition, unlike a permanent livelock.
+func (r *GameServerReconciler) findAddressConflict(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
+) (string, error) {
+	if gs.Spec.Networking.Address == "" {
+		return "", nil
+	}
+
+	// Listed cluster-wide, not namespace-scoped: load-balancer addresses are a
+	// cluster-wide resource, so a conflicting holder can live in any namespace.
+	// The operator's ClusterRole already grants cluster-wide list on gameservers.
+	var gsList gameplanev1alpha1.GameServerList
+	if err := r.List(ctx, &gsList); err != nil {
+		return "", fmt.Errorf("list gameservers: %w", err)
+	}
+
+	requestedAddr := gs.Spec.Networking.Address
+
+	var candidates []addressCandidate
+	for i := range gsList.Items {
+		other := &gsList.Items[i]
+		// Skip self — matched on namespace *and* name, so a same-named server
+		// in another namespace is still considered a genuine candidate.
+		if other.Namespace == gs.Namespace && other.Name == gs.Name {
+			continue
+		}
+		// A terminating server cannot legitimately hold or claim an address
+		// going forward.
+		if other.GetDeletionTimestamp() != nil {
+			continue
+		}
+
+		requests := other.Spec.Networking.Address == requestedAddr
+		holds := candidateHoldsAddress(other, requestedAddr)
+
+		if holds || requests {
+			candidates = append(candidates, addressCandidate{gs: other, holds: holds})
+		}
+	}
+	if len(candidates) == 0 {
+		return "", nil
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return addressConflictLess(candidates[i], candidates[j])
+	})
+
+	winner := candidates[0]
+	// gs's own hold status matters too: a requester (gs) that has not yet
+	// been granted the address it asked for must not outrank an actual
+	// holder just because gs asked first — see the precedence-order note
+	// on addressConflictLess.
+	self := addressCandidate{gs: gs, holds: candidateHoldsAddress(gs, requestedAddr)}
+	if !addressConflictLess(winner, self) {
+		// gs itself is the minimum of the full contending set: no conflict.
+		return "", nil
+	}
+
+	// Namespace-qualify a cross-namespace holder so the reported name is
+	// unambiguous; a same-namespace one stays bare.
+	if winner.gs.Namespace != gs.Namespace {
+		return winner.gs.Namespace + "/" + winner.gs.Name, nil
+	}
+	return winner.gs.Name, nil
+}
+
+// candidateHoldsAddress reports whether gs is a genuine LoadBalancer holder
+// of addr — its expose mode is LoadBalancer and one of its status.endpoints
+// carries addr as Host with no TunnelProvider. See the discriminator notes
+// on findAddressConflict for what this deliberately excludes (tunnel-sourced
+// endpoints, and the residual ClusterIP-fallback edge case).
+func candidateHoldsAddress(gs *gameplanev1alpha1.GameServer, addr string) bool {
+	if gs.Spec.Networking.Expose != "LoadBalancer" {
+		return false
+	}
+	for _, endpoint := range gs.Status.Endpoints {
+		if endpoint.TunnelProvider == "" && endpoint.Host == addr {
+			return true
+		}
+	}
+	return false
+}
+
+// addressCandidate pairs a contending GameServer with its precomputed hold
+// status against the address in question, so the total order below can rank
+// "holds" without recomputing it (recomputing it against the wrong address
+// would be an easy bug once gs's own status is folded into the same
+// comparison as the listed candidates').
+type addressCandidate struct {
+	gs    *gameplanev1alpha1.GameServer
+	holds bool
+}
+
+// addressConflictLess reports whether a sorts strictly before b under the
+// address-conflict precedence order: a genuine holder always sorts before a
+// mere requester, regardless of creation order; among two candidates with
+// the same hold status, the tiebreak is earlier metadata.creationTimestamp,
+// then namespace (lexicographic), then name (lexicographic). This is a
+// strict total order over (GameServer, holds) pairs.
+//
+// It is NOT true that exactly one server in a contending set is ever told
+// "no conflict" — a pure holder (spec.networking.address == "") never
+// reaches this comparison at all, because findAddressConflict's own
+// early-return sends it home with "no conflict" before it lists anyone.
+// So a set with both a pure holder and a requester can produce two "no
+// conflict" outcomes: the pure holder's from the early return, and the
+// requester's if it happens to be the set's minimum too. At least one
+// server is always told "no conflict" (the set is never left with every
+// member reporting), which is the livelock-breaking property that matters.
+//
+// Folding "holds" in as the leading key — rather than leaving the order as
+// pure (creationTimestamp, namespace, name) and special-casing holders
+// separately — is also what keeps this precedence rule from reintroducing
+// the mutual-pair livelock it replaces. Case walk, for a holder-vs-requester
+// pair (H holds+requests addr, R only requests addr, R older than H):
+//   - From R's reconcile: R's own hold status is computed fresh against
+//     addr (false, since R never got it) and compared against H (holds).
+//     H sorts first regardless of R being older, so R reports H as the
+//     conflict.
+//   - From H's reconcile: H's own hold status is computed fresh (true) and
+//     compared against R (requests only, no hold). H sorts first, so H
+//     reports "no conflict" — it never names R.
+//     Exactly one direction fires; never both. The reason this differs from
+//     naively saying "if any candidate holds, always report it" (which WOULD
+//     produce a mutual pair here, since that naive rule ignores gs's own hold
+//     status) is that gs's own holds flag is folded into the same comparison
+//     as every candidate's, making the order symmetric no matter which of the
+//     pair is doing the asking.
+//   - A pure holder (spec address == "") never runs this comparison at all
+//     (early return), so it can never be the R or H side of a mutual pair
+//     either — it can only ever be a silent winner named by someone else's
+//     reconcile.
+func addressConflictLess(a, b addressCandidate) bool {
+	if a.holds != b.holds {
+		return a.holds
+	}
+	at := a.gs.GetCreationTimestamp()
+	bt := b.gs.GetCreationTimestamp()
+	if !at.Time.Equal(bt.Time) {
+		return at.Time.Before(bt.Time)
+	}
+	if a.gs.Namespace != b.gs.Namespace {
+		return a.gs.Namespace < b.gs.Namespace
+	}
+	return a.gs.Name < b.gs.Name
 }

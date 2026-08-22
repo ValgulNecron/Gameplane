@@ -47,7 +47,7 @@ func TestReconcileWipe_CreatesJobWhenSuspended(t *testing.T) {
 	tmpl.Name = "mc"
 
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	if err := r.reconcileWipe(context.Background(), gs, tmpl); err != nil {
 		t.Fatalf("reconcileWipe: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestReconcileWipe_SkipsWhenNotSuspended(t *testing.T) {
 	tmpl.Name = "mc"
 
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	if err := r.reconcileWipe(context.Background(), gs, tmpl); err != nil {
 		t.Fatalf("reconcileWipe: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestReconcileWipe_AcksWhenJobSucceeded(t *testing.T) {
 		Status: batchv1.JobStatus{Succeeded: 1},
 	}
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs, job).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	if err := r.reconcileWipe(context.Background(), gs, tmpl); err != nil {
 		t.Fatalf("reconcileWipe: %v", err)
 	}

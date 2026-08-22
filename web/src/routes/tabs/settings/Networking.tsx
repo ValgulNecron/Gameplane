@@ -3,8 +3,9 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Expose, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
+import type { Expose, GameServer, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { Servers } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
@@ -55,6 +56,8 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     if (next.sourceRanges && next.sourceRanges.length) {
       cleaned.sourceRanges = next.sourceRanges;
     }
+    if (next.addressPool) cleaned.addressPool = next.addressPool;
+    if (next.address) cleaned.address = next.address;
     if (next.tunnel) cleaned.tunnel = next.tunnel;
     onChange({
       ...draft,
@@ -448,7 +451,250 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
           />
         </Field>
       )}
+
+      <AddressAssignmentSection
+        draft={draft}
+        net={net}
+        setNet={setNet}
+      />
     </div>
+  );
+}
+
+interface AddressAssignmentSectionProps {
+  draft: GameServer;
+  net: GameServerNetworking;
+  setNet: (next: GameServerNetworking) => void;
+}
+
+function AddressAssignmentSection({
+  draft,
+  net,
+  setNet,
+}: AddressAssignmentSectionProps) {
+  const status = draft.status;
+  const condition = status?.conditions?.find(
+    (c) => c.type === "AddressAssignment",
+  );
+
+  const currentAddress = draft.status?.endpoints?.[0];
+
+  // Locally-tracked field values, seeded from the spec and re-synced whenever
+  // the underlying draft changes them (e.g. switching servers, or a save
+  // round-trip). Deriving these two fields from `net` alone — the way the
+  // rest of this form does — breaks when a caller edits both fields back to
+  // back without an intervening re-render carrying the updated draft back
+  // in as props: each edit would recompute against the same stale `net`
+  // snapshot and the second edit could resurrect the first one's clear.
+  // Tracking them locally makes consecutive edits within one render
+  // cumulative instead of independently-stale.
+  const [addressPool, setAddressPool] = useState(net.addressPool ?? "");
+  const [address, setAddress] = useState(net.address ?? "");
+
+  useEffect(() => {
+    setAddressPool(net.addressPool ?? "");
+    setAddress(net.address ?? "");
+  }, [draft.metadata.name, draft.metadata.namespace, net.addressPool, net.address]);
+
+  const updateAddressPool = (value: string) => {
+    setAddressPool(value);
+    setNet({ ...net, addressPool: value || undefined, address: address || undefined });
+  };
+
+  const updateAddress = (value: string) => {
+    setAddress(value);
+    setNet({ ...net, addressPool: addressPool || undefined, address: value || undefined });
+  };
+
+  return (
+    <div className="space-y-4 border-t border-border pt-6">
+      {currentAddress && (
+        <Field
+          label="Current assignment"
+          hint="Address and pool currently bound to this server by the operator."
+        >
+          <div className="rounded-md border border-border bg-surface px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-fg">{currentAddress.host}</span>
+              {currentAddress.pool && (
+                <span className="text-xs text-muted">from pool '{currentAddress.pool}'</span>
+              )}
+            </div>
+          </div>
+        </Field>
+      )}
+
+      <Field
+        label="Address pool"
+        hint="Name of a load-balancer address pool configured by your cluster admin. Leave blank to let the address manager choose."
+      >
+        <Input
+          value={addressPool}
+          onChange={(e) => updateAddressPool(e.target.value)}
+          placeholder="pool-name"
+          spellCheck={false}
+        />
+      </Field>
+
+      <Field
+        label="Requested address"
+        hint="A specific address to request from the pool. Must be free — the address manager rejects addresses already in use. Leave blank unless you need a specific address."
+      >
+        <Input
+          value={address}
+          onChange={(e) => updateAddress(e.target.value)}
+          placeholder="e.g. 203.0.113.50"
+          spellCheck={false}
+        />
+      </Field>
+
+      <AddressStatusField
+        condition={condition}
+        serverNamespace={draft.metadata.namespace}
+      />
+
+      {condition?.reason === "IgnoredForExposureMode" && (
+        <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
+          <div className="flex gap-2">
+            <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+            <div>
+              <div className="font-medium text-warning">Address preference ignored</div>
+              <div className="pt-0.5 text-xs text-warning/80">
+                Expose is set to {net.expose || "ClusterIP"}. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {condition?.reason === "NoAddressManagerConfigured" && (
+        <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
+          <div className="flex gap-2">
+            <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+            <div>
+              <div className="font-medium text-warning">No address manager configured</div>
+              <div className="pt-0.5 text-xs text-warning/80">
+                This cluster has no MetalLB or Cilium address manager. Your pool and address preference will be saved but never applied.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddressStatusField({
+  condition,
+  serverNamespace,
+}: {
+  condition?: { reason?: string; message?: string; status?: string };
+  serverNamespace?: string;
+}) {
+  if (!condition) {
+    return null;
+  }
+
+  const getBadgeColor = (
+    reason?: string,
+    status?: string,
+  ): { bgColor: string; textColor: string; label: string } => {
+    if (status === "True") {
+      return {
+        bgColor: "bg-success/20",
+        textColor: "text-success",
+        label: "Assigned",
+      };
+    }
+
+    // For False status, determine label from reason or message
+    if (reason === "AssignmentPending" || reason === "ServiceNotReady") {
+      return {
+        bgColor: "bg-warning/20",
+        textColor: "text-warning",
+        label: "Pending",
+      };
+    }
+
+    return {
+      bgColor: "bg-danger/20",
+      textColor: "text-danger",
+      label: reason === "IgnoredForExposureMode" ? "Ignored" : "Error",
+    };
+  };
+
+  // Parse AddressInUse message to extract the conflicting server name.
+  // Message format: "Requested address "<address>" is already in use by GameServer "<name>"."
+  // The operator names conflicting servers as:
+  // - "namespace/name" if from a different namespace
+  // - bare "name" if from the same namespace
+  const parseConflictingServer = (
+    message?: string,
+  ): { name: string; namespace?: string } | null => {
+    if (!message || !message.includes('is already in use by GameServer')) {
+      return null;
+    }
+    // Extract the server identifier between the last pair of quotes.
+    // Pattern: GameServer "name" or GameServer "namespace/name"
+    const match = message.match(/GameServer "([^"]+)"/);
+    if (!match || !match[1]) {
+      return null;
+    }
+    const identifier = match[1];
+    // Check if the identifier contains a "/" separator (cross-namespace)
+    if (identifier.includes('/')) {
+      const parts = identifier.split('/');
+      // Guard against malformed input: must be exactly 2 parts, both non-empty
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        return { name: parts[1], namespace: parts[0] };
+      }
+      // Malformed cross-namespace identifier; return null to fall back to plain message
+      return null;
+    }
+    // Same namespace: use the viewed server's namespace
+    return { name: identifier, namespace: serverNamespace };
+  };
+
+  const badge = getBadgeColor(condition.reason, condition.status);
+  const conflictingServer = condition.reason === "AddressInUse"
+    ? parseConflictingServer(condition.message)
+    : null;
+
+  return (
+    <Field
+      label="Address status"
+      hint="Reflects the GameServer's AddressAssignment condition."
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={`${badge.bgColor} rounded px-2 py-1 text-xs font-medium ${badge.textColor} shrink-0`}
+          >
+            {badge.label}
+          </div>
+          <div className="flex-1 pt-1 text-sm text-fg">
+            {conflictingServer ? (
+              <>
+                Requested address {condition.message?.match(/"([^"]+)"/)?.[1]} is already in use by{" "}
+                <Link
+                  to="/servers/$name"
+                  params={{ name: conflictingServer.name }}
+                  search={
+                    conflictingServer.namespace ? { ns: conflictingServer.namespace } : {}
+                  }
+                  className="text-primary hover:underline"
+                >
+                  GameServer "{conflictingServer.name}"
+                </Link>
+                .
+              </>
+            ) : (
+              condition.message
+            )}
+          </div>
+        </div>
+      </div>
+    </Field>
   );
 }
 

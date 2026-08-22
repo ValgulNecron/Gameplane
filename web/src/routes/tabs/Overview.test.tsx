@@ -170,3 +170,47 @@ describe("OverviewTab players card", () => {
     expect(await screen.findByText(/View all/i)).toBeInTheDocument();
   });
 });
+
+describe("OverviewTab endpoint rendering", () => {
+  it("annotates the single address row with the pool it came from", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    renderWithQuery(<OverviewTab gs={gs({
+      endpoints: [
+        { name: "game", host: "172.18.255.203", port: 25565, pool: "pool-us-west" },
+      ],
+    })} name="s1" />);
+    // The address appears exactly once — no duplicate external/cluster rows.
+    expect(await screen.findAllByText("172.18.255.203")).toHaveLength(1);
+    expect(screen.getByText("from pool 'pool-us-west'")).toBeInTheDocument();
+  });
+
+  it("renders the address cleanly when no pool is assigned", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    renderWithQuery(<OverviewTab gs={gs({
+      endpoints: [
+        { name: "game", host: "10.107.129.42", port: 30812 },
+      ],
+    })} name="s1" />);
+    // SC-008: the address stays visible even without a pool…
+    expect(await screen.findByText("10.107.129.42")).toBeInTheDocument();
+    // …with no dangling pool label and no "undefined" leaking into the markup.
+    expect(screen.queryByText(/from pool/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
+  });
+
+  it("renders host and port rows for the bound endpoint", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonRes({ online: 0, max: 20, players: [], asOf: "now" })));
+    renderWithQuery(<OverviewTab gs={gs({
+      endpoints: [
+        { name: "game", host: "10.107.129.42", port: 30812 },
+      ],
+    })} name="s1" />);
+    expect(await screen.findByText("Host")).toBeInTheDocument();
+    expect(screen.getByText("10.107.129.42")).toBeInTheDocument();
+    expect(screen.getByText("Port")).toBeInTheDocument();
+    expect(screen.getByText("30812")).toBeInTheDocument();
+  });
+});

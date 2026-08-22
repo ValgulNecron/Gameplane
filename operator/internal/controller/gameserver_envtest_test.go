@@ -380,8 +380,8 @@ func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
 	// only writer and the test is deterministic.
 	stale := seeded.DeepCopy()
 	stale.Status.Agent = nil
-	r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
-	if _, err := r.reconcileStatus(ctx, stale, idleAwake, nil, tunnelPlan{}, tmpl); err != nil {
+	r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
+	if _, err := r.reconcileStatus(ctx, stale, idleAwake, nil, tunnelPlan{}, tmpl, nil, ""); err != nil {
 		t.Fatalf("reconcileStatus: %v", err)
 	}
 
@@ -2359,6 +2359,7 @@ func TestGameServer_NetworkPolicyAdvertisedPortsOnly(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"10.0.0.0/8", "192.168.1.0/24"},
@@ -2444,6 +2445,7 @@ func TestGameServer_NetworkPolicyPortProtocolDefaultsToTCP(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2494,6 +2496,7 @@ func TestGameServer_NetworkPolicyZeroAdvertisedPortsNoPolicy(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2535,6 +2538,7 @@ func TestGameServer_NetworkPolicyDisabledRemovesExisting(t *testing.T) {
 
 	enabled := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2549,6 +2553,7 @@ func TestGameServer_NetworkPolicyDisabledRemovesExisting(t *testing.T) {
 
 	disabled := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: false,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2625,6 +2630,7 @@ func TestGameServer_TemplateAdvertiseFalseSurvivesTypedRoundTrip(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2792,4 +2798,759 @@ func TestGameServer_PlanTunnelDisabledReturnsEmpty(t *testing.T) {
 	if len(plan.endpoints) != 0 {
 		t.Fatalf("expected no endpoints, got %d", len(plan.endpoints))
 	}
+}
+
+// ---------------------------------------------------------------------
+// Address-pool override — spec.networking.addressPool / .address
+//
+// Two tiers here. The CRD-validation test goes through the real apiserver
+// (that is the only thing that can prove the generated schema's bounds are
+// live). The translation tests call r.reconcileService directly against the
+// envtest client, the same direct-call style the reconcileNetworkPolicy
+// block above uses and for the same reason: AddressManager has to vary per
+// case, which the shared withGameServerReconciler helper (fixed fields)
+// doesn't support. The GameTemplate is not persisted — reconcileService
+// takes it as a plain argument and never fetches it.
+// ---------------------------------------------------------------------
+
+// addressManagerAnnotationKeys is every Service annotation an address-manager
+// branch can write. Cases assert on the whole set — the keys a case wants
+// present *and* the ones it wants absent — so a translation leaking into the
+// wrong flavor's key fails instead of going unnoticed.
+var addressManagerAnnotationKeys = []string{
+	metalLBAddressPoolAnnotation,
+	metalLBLoadBalancerIPsAnnotation,
+	ciliumAddressAnnotation,
+}
+
+// newAddressPoolServer persists a uniquely-named GameServer carrying the
+// given networking preference and returns a reconciler pinned to the named
+// address-manager flavor, the GameServer as the apiserver stored it (needed
+// for its UID, which SetControllerReference reads), and an in-memory
+// GameTemplate.
+func newAddressPoolServer(
+	ctx context.Context, t *testing.T, ns, manager string, net gameplanev1alpha1.GameServerNetworking,
+) (*GameServerReconciler, *gameplanev1alpha1.GameServer, *gameplanev1alpha1.GameTemplate) {
+	t.Helper()
+
+	tmpl := buildGameTemplate(uniqueName("pooltmpl"))
+	gs := buildGameServer(ns, uniqueName("pool"), tmpl.Name)
+	gs.Spec.Networking = net
+	if err := k8sClient.Create(ctx, gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	var cur gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(ctx,
+		types.NamespacedName{Namespace: ns, Name: gs.Name}, &cur); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+	r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme, AddressManager: manager}
+	return r, &cur, tmpl
+}
+
+// addressPoolService fetches the game Service and, on the way past, asserts
+// the one invariant that holds for every case in this block:
+// svc.Spec.LoadBalancerIP is never written. Kubernetes deprecated the field
+// in 1.24 and both address managers take the request through metadata, so a
+// value appearing there is a bug no matter which flavor produced it.
+func addressPoolService(ctx context.Context, t *testing.T, ns, name string) *corev1.Service {
+	t.Helper()
+	var svc corev1.Service
+	if err := k8sClient.Get(ctx,
+		types.NamespacedName{Namespace: ns, Name: name}, &svc); err != nil {
+		t.Fatalf("get service %s/%s: %v", ns, name, err)
+	}
+	if svc.Spec.LoadBalancerIP != "" {
+		t.Fatalf("svc.Spec.LoadBalancerIP = %q, want empty (deprecated since K8s 1.24; never written)",
+			svc.Spec.LoadBalancerIP)
+	}
+	return &svc
+}
+
+// assertAddressAnnotations checks the address-manager annotation keys as a
+// set: every key in want carries its value, and every other address-manager
+// key is absent.
+func assertAddressAnnotations(t *testing.T, svc *corev1.Service, want map[string]string) {
+	t.Helper()
+	for _, k := range addressManagerAnnotationKeys {
+		got, present := svc.Annotations[k]
+		if wantVal, expected := want[k]; expected {
+			if got != wantVal {
+				t.Fatalf("annotation %s = %q (present=%v), want %q", k, got, present, wantVal)
+			}
+			continue
+		}
+		if present {
+			t.Fatalf("annotation %s = %q, want absent", k, got)
+		}
+	}
+}
+
+// TestGameServer_AddressPoolCRDValidation proves the generated CRD schema
+// bounds both new fields and — just as deliberately — does *not* validate the
+// address's format. Format checking is operator-side (reported through the
+// AddressAssignment condition) precisely because an unbounded CEL rule on
+// this CRD has been rejected by the apiserver on its cost budget, so a
+// non-IP string within MaxLength must be accepted here.
+//
+// The accepted cases read the object back and compare: an un-regenerated CRD
+// would prune the unknown fields silently, and only the round-trip catches it.
+func TestGameServer_AddressPoolCRDValidation(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	cases := []struct {
+		name       string
+		pool       string
+		address    string
+		wantReject bool
+	}{
+		{name: "pool-and-address-accepted", pool: "prod-pool", address: "203.0.113.10"},
+		{name: "pool-max-length-accepted", pool: strings.Repeat("a", 63)},
+		// Pool names are the address manager's own object names, i.e. DNS-1123
+		// subdomains — a dotted one must survive admission.
+		{name: "dotted-pool-accepted", pool: "pool.us-east"},
+		{name: "address-max-length-accepted", address: strings.Repeat("a", 45)},
+		{name: "non-ip-address-accepted-format-is-operator-side", address: "not-an-ip"},
+		{name: "pool-over-63-rejected", pool: strings.Repeat("a", 64), wantReject: true},
+		{name: "address-over-45-rejected", address: strings.Repeat("a", 46), wantReject: true},
+		{name: "pool-uppercase-rejected", pool: "Prod-Pool", wantReject: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := buildGameServer(ns, uniqueName("crdval"), "irrelevant-template")
+			gs.Spec.Networking = gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: tc.pool,
+				Address:     tc.address,
+			}
+			err := k8sClient.Create(ctx, gs)
+			if tc.wantReject {
+				if err == nil {
+					t.Fatalf("create accepted pool=%q address=%q, want rejection", tc.pool, tc.address)
+				}
+				if !apierrors.IsInvalid(err) {
+					t.Fatalf("create failed with %v, want an Invalid (schema validation) error", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("create rejected pool=%q address=%q: %v", tc.pool, tc.address, err)
+			}
+			var cur gameplanev1alpha1.GameServer
+			if err := k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: ns, Name: gs.Name}, &cur); err != nil {
+				t.Fatalf("get gameserver: %v", err)
+			}
+			if cur.Spec.Networking.AddressPool != tc.pool {
+				t.Fatalf("stored addressPool = %q, want %q (pruned? regenerate the CRD)",
+					cur.Spec.Networking.AddressPool, tc.pool)
+			}
+			if cur.Spec.Networking.Address != tc.address {
+				t.Fatalf("stored address = %q, want %q (pruned? regenerate the CRD)",
+					cur.Spec.Networking.Address, tc.address)
+			}
+		})
+	}
+}
+
+// TestGameServer_AddressPoolTranslationPerFlavor walks every
+// (flavor × requested field) combination through reconcileService and pins
+// the resulting Service metadata. The Cilium pool case is the interesting
+// one: the pool preference must land as a *label*, and explicitly not as an
+// annotation of the same key, because the cluster admin selects on it from
+// CiliumLoadBalancerIPPool.spec.serviceSelector.
+func TestGameServer_AddressPoolTranslationPerFlavor(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	cases := []struct {
+		name      string
+		manager   string
+		pool      string
+		address   string
+		wantAnns  map[string]string
+		wantLabel string
+	}{
+		{
+			name: "metallb-pool", manager: "metallb", pool: "prod-pool",
+			wantAnns: map[string]string{metalLBAddressPoolAnnotation: "prod-pool"},
+		},
+		{
+			name: "metallb-address", manager: "metallb", address: "203.0.113.10",
+			wantAnns: map[string]string{metalLBLoadBalancerIPsAnnotation: "203.0.113.10"},
+		},
+		{
+			name: "metallb-pool-and-address", manager: "metallb", pool: "prod-pool", address: "203.0.113.10",
+			wantAnns: map[string]string{
+				metalLBAddressPoolAnnotation:     "prod-pool",
+				metalLBLoadBalancerIPsAnnotation: "203.0.113.10",
+			},
+		},
+		{
+			name: "cilium-pool-is-a-label", manager: "cilium", pool: "prod-pool",
+			wantLabel: "prod-pool",
+		},
+		{
+			name: "cilium-address", manager: "cilium", address: "203.0.113.10",
+			wantAnns: map[string]string{ciliumAddressAnnotation: "203.0.113.10"},
+		},
+		{
+			name: "cilium-pool-and-address", manager: "cilium", pool: "prod-pool", address: "203.0.113.10",
+			wantAnns:  map[string]string{ciliumAddressAnnotation: "203.0.113.10"},
+			wantLabel: "prod-pool",
+		},
+		{
+			// Flavor none mutates nothing: the request is reported on the
+			// AddressAssignment condition instead, never translated.
+			name: "none-mutates-nothing", manager: "none", pool: "prod-pool", address: "203.0.113.10",
+		},
+		{
+			// The empty flag value means exactly "none".
+			name: "empty-flavor-mutates-nothing", manager: "", pool: "prod-pool", address: "203.0.113.10",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, gs, tmpl := newAddressPoolServer(ctx, t, ns, tc.manager, gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: tc.pool,
+				Address:     tc.address,
+			})
+			if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+				t.Fatalf("reconcileService: %v", err)
+			}
+
+			svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
+			assertAddressAnnotations(t, svc, tc.wantAnns)
+
+			if got, present := svc.Annotations[ciliumPoolLabel]; present {
+				t.Fatalf("%s = %q as an annotation, want it applied as a label only", ciliumPoolLabel, got)
+			}
+			got, present := svc.Labels[ciliumPoolLabel]
+			switch {
+			case tc.wantLabel != "":
+				if got != tc.wantLabel {
+					t.Fatalf("label %s = %q (present=%v), want %q",
+						ciliumPoolLabel, got, present, tc.wantLabel)
+				}
+				if !strings.Contains(svc.Annotations[managedServiceLabelsKey], ciliumPoolLabel) {
+					t.Fatalf("managed-labels sentinel = %q, want it to record %s (else the label orphans)",
+						svc.Annotations[managedServiceLabelsKey], ciliumPoolLabel)
+				}
+			case present:
+				t.Fatalf("label %s = %q, want absent", ciliumPoolLabel, got)
+			}
+		})
+	}
+}
+
+// TestGameServer_AddressPoolIgnoredForNonLoadBalancerExpose — the preference
+// only means anything on a LoadBalancer Service, so on any other expose mode
+// the operator leaves the Service untouched (and flags the ignored request on
+// the AddressAssignment condition, which the status tests cover).
+func TestGameServer_AddressPoolIgnoredForNonLoadBalancerExpose(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	for _, expose := range []string{"", "ClusterIP", "NodePort", "Hostport"} {
+		t.Run("expose-"+expose, func(t *testing.T) {
+			r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+				Expose:      expose,
+				AddressPool: "prod-pool",
+				Address:     "203.0.113.10",
+			})
+			if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+				t.Fatalf("reconcileService: %v", err)
+			}
+			svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
+			assertAddressAnnotations(t, svc, nil)
+			if got, present := svc.Labels[ciliumPoolLabel]; present {
+				t.Fatalf("label %s = %q, want absent", ciliumPoolLabel, got)
+			}
+		})
+	}
+}
+
+// TestGameServer_AddressPoolUnsetPrunesManagedKeys is the regression this
+// tier exists to catch: a pool that is set and then cleared must take its
+// Service metadata with it. A merge-only apply would leave a live server
+// pinned to a pool nobody asked for any more — silently, since the Service
+// keeps working.
+//
+// The GameServer's spec is mutated in memory rather than through the
+// apiserver: reconcileService reads the preference off the struct it is
+// handed, and the pruning path under test is driven by the *Service* the
+// second pass finds already stored.
+func TestGameServer_AddressPoolUnsetPrunesManagedKeys(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	t.Run("metallb-annotations", func(t *testing.T) {
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+			Expose:      "LoadBalancer",
+			AddressPool: "prod-pool",
+			Address:     "203.0.113.10",
+		})
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (set): %v", err)
+		}
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
+			metalLBAddressPoolAnnotation:     "prod-pool",
+			metalLBLoadBalancerIPsAnnotation: "203.0.113.10",
+		})
+
+		gs.Spec.Networking.AddressPool = ""
+		gs.Spec.Networking.Address = ""
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (unset): %v", err)
+		}
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), nil)
+	})
+
+	t.Run("cilium-label", func(t *testing.T) {
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "cilium", gameplanev1alpha1.GameServerNetworking{
+			Expose:      "LoadBalancer",
+			AddressPool: "prod-pool",
+		})
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (set): %v", err)
+		}
+		if got := addressPoolService(ctx, t, gs.Namespace, gs.Name).Labels[ciliumPoolLabel]; got != "prod-pool" {
+			t.Fatalf("label %s = %q, want prod-pool", ciliumPoolLabel, got)
+		}
+
+		gs.Spec.Networking.AddressPool = ""
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (unset): %v", err)
+		}
+		svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
+		if got, present := svc.Labels[ciliumPoolLabel]; present {
+			t.Fatalf("label %s = %q, want pruned once the pool was cleared", ciliumPoolLabel, got)
+		}
+		if got, present := svc.Annotations[managedServiceLabelsKey]; present {
+			t.Fatalf("managed-labels sentinel = %q, want removed with the last managed label", got)
+		}
+	})
+}
+
+// TestGameServer_AddressPoolChangeMutatesServiceInPlace covers the other
+// half of the prune path: switching a live server from one pool to another.
+// A merge-only apply would leave the old pool name sitting alongside the new
+// one — for MetalLB the annotation would simply be overwritten, but for
+// Cilium a surviving second label keeps matching the old pool's
+// serviceSelector and pins a running server to the wrong pool.
+func TestGameServer_AddressPoolChangeMutatesServiceInPlace(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	t.Run("metallb-annotation", func(t *testing.T) {
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+			Expose:      "LoadBalancer",
+			AddressPool: "pool-us-east",
+		})
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (pool-us-east): %v", err)
+		}
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
+			metalLBAddressPoolAnnotation: "pool-us-east",
+		})
+
+		gs.Spec.Networking.AddressPool = "pool-us-west"
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (pool-us-west): %v", err)
+		}
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
+			metalLBAddressPoolAnnotation: "pool-us-west",
+		})
+	})
+
+	t.Run("cilium-label", func(t *testing.T) {
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "cilium", gameplanev1alpha1.GameServerNetworking{
+			Expose:      "LoadBalancer",
+			AddressPool: "pool-us-east",
+		})
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (pool-us-east): %v", err)
+		}
+		if got := addressPoolService(ctx, t, gs.Namespace, gs.Name).Labels[ciliumPoolLabel]; got != "pool-us-east" {
+			t.Fatalf("label %s = %q, want pool-us-east", ciliumPoolLabel, got)
+		}
+
+		gs.Spec.Networking.AddressPool = "pool-us-west"
+		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+			t.Fatalf("reconcileService (pool-us-west): %v", err)
+		}
+		svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
+		if got := svc.Labels[ciliumPoolLabel]; got != "pool-us-west" {
+			t.Fatalf("label %s = %q, want pool-us-west", ciliumPoolLabel, got)
+		}
+		// The pool label is a single key, so "the old value is gone" and
+		// "only one pool label exists" are the same assertion — but the
+		// sentinel must still name exactly that one key, or the next unset
+		// leaves the label orphaned.
+		if got := svc.Annotations[managedServiceLabelsKey]; got != ciliumPoolLabel {
+			t.Fatalf("managed-labels sentinel = %q, want exactly %q", got, ciliumPoolLabel)
+		}
+	})
+}
+
+// TestGameServer_AddressPoolBeatsServiceAnnotations pins the precedence the
+// contract promises: the typed addressPool field wins over a hand-written
+// entry of the same key in spec.networking.serviceAnnotations, the same way
+// the typed hostname field wins over an external-dns key set by hand. Without
+// this, reordering the two merge lines in reconcileService would silently
+// invert it.
+func TestGameServer_AddressPoolBeatsServiceAnnotations(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+		Expose:             "LoadBalancer",
+		AddressPool:        "typed-pool",
+		ServiceAnnotations: map[string]string{metalLBAddressPoolAnnotation: "hand-written-pool"},
+	})
+	if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+		t.Fatalf("reconcileService: %v", err)
+	}
+	assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
+		metalLBAddressPoolAnnotation: "typed-pool",
+	})
+}
+
+// TestGameServer_AddressPoolFlavorChangePrunesStaleKeys — an operator
+// restarted with a different --address-manager must not leave the previous
+// flavor's metadata behind. Cilium's pool label is the dangerous direction:
+// unlike the MetalLB annotations, a stale label keeps matching a
+// CiliumLoadBalancerIPPool serviceSelector forever.
+func TestGameServer_AddressPoolFlavorChangePrunesStaleKeys(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	net := gameplanev1alpha1.GameServerNetworking{
+		Expose:      "LoadBalancer",
+		AddressPool: "prod-pool",
+		Address:     "203.0.113.10",
+	}
+	cilium, gs, tmpl := newAddressPoolServer(ctx, t, ns, "cilium", net)
+	if err := cilium.reconcileService(ctx, gs, tmpl, false); err != nil {
+		t.Fatalf("reconcileService (cilium): %v", err)
+	}
+	svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
+	if got := svc.Labels[ciliumPoolLabel]; got != "prod-pool" {
+		t.Fatalf("label %s = %q, want prod-pool", ciliumPoolLabel, got)
+	}
+	assertAddressAnnotations(t, svc, map[string]string{ciliumAddressAnnotation: "203.0.113.10"})
+
+	metallb := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme, AddressManager: "metallb"}
+	if err := metallb.reconcileService(ctx, gs, tmpl, false); err != nil {
+		t.Fatalf("reconcileService (metallb): %v", err)
+	}
+	svc = addressPoolService(ctx, t, gs.Namespace, gs.Name)
+	if got, present := svc.Labels[ciliumPoolLabel]; present {
+		t.Fatalf("label %s = %q, want pruned after the flavor changed", ciliumPoolLabel, got)
+	}
+	assertAddressAnnotations(t, svc, map[string]string{
+		metalLBAddressPoolAnnotation:     "prod-pool",
+		metalLBLoadBalancerIPsAnnotation: "203.0.113.10",
+	})
+}
+
+// TestGameServer_NoAddressPreferenceLeavesServiceMetadataUntouched is the
+// backward-compatibility guard (FR-017 / SC-006): with neither field set, the
+// Service must look exactly as it did before this feature existed — no
+// address-manager annotations, no pool label, and no managed-labels sentinel
+// — whatever flavor the operator happens to be configured for.
+//
+// The two flavors' Services are compared by annotation key *set* rather than
+// by count so unrelated metadata written by another controller can't turn
+// this into a flake.
+func TestGameServer_NoAddressPreferenceLeavesServiceMetadataUntouched(t *testing.T) {
+	ns := newNamespace(t)
+	ctx := context.Background()
+
+	keySet := func(m map[string]string) map[string]bool {
+		out := make(map[string]bool, len(m))
+		for k := range m {
+			out[k] = true
+		}
+		return out
+	}
+
+	var reference map[string]bool
+	for _, manager := range []string{"none", "metallb", "cilium"} {
+		t.Run("manager-"+manager, func(t *testing.T) {
+			r, gs, tmpl := newAddressPoolServer(ctx, t, ns, manager, gameplanev1alpha1.GameServerNetworking{
+				Expose: "LoadBalancer",
+			})
+			if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
+				t.Fatalf("reconcileService: %v", err)
+			}
+			svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
+
+			assertAddressAnnotations(t, svc, nil)
+			if got, present := svc.Labels[ciliumPoolLabel]; present {
+				t.Fatalf("label %s = %q, want absent with no preference set", ciliumPoolLabel, got)
+			}
+			if got, present := svc.Annotations[managedServiceLabelsKey]; present {
+				t.Fatalf("managed-labels sentinel = %q, want unwritten with no preference set", got)
+			}
+
+			got := keySet(svc.Annotations)
+			if reference == nil {
+				reference = got
+				return
+			}
+			for k := range got {
+				if !reference[k] {
+					t.Fatalf("flavor %q added annotation %q to a Service with no preference set", manager, k)
+				}
+			}
+			for k := range reference {
+				if !got[k] {
+					t.Fatalf("flavor %q dropped annotation %q from a Service with no preference set", manager, k)
+				}
+			}
+		})
+	}
+}
+
+// TestGameServer_AddressConflictDetection — when two GameServers request the
+// same explicit address, the second one detects the conflict and reports
+// AddressInUse on its AddressAssignment condition.
+func TestGameServer_AddressConflictDetection(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerAddressManager(t, ns, "metallb"))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	// Create the first server with an explicit address.
+	gs1 := buildGameServer(ns, "server1", tmpl.Name)
+	gs1.Spec.Networking.Expose = "LoadBalancer"
+	gs1.Spec.Networking.Address = "203.0.113.10"
+	if err := k8sClient.Create(context.Background(), gs1); err != nil {
+		t.Fatalf("create server1: %v", err)
+	}
+
+	// Wait for server1's Service to be created.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return false, "service: " + err.Error()
+		}
+		return true, ""
+	})
+
+	// envtest runs apiserver+etcd only — there is no cloud-provider or MetalLB
+	// controller to populate a LoadBalancer Service's status. Seeding the
+	// GameServer's status.endpoints directly doesn't work either: SetupWithManager
+	// uses a bare For(&GameServer{}) with no predicate, so the seeded status is
+	// immediately overwritten by the next reconcile's reconcileStatus, which
+	// derives Endpoints from the Service (falling back to ClusterIP whenever the
+	// Service has no LoadBalancer ingress). So instead we write the Service's
+	// status subresource ourselves, exactly as a real address manager would —
+	// this persists across reconciles because it is now real cluster state, not
+	// something the controller reconciles away.
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return err
+		}
+		svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "203.0.113.10"}}
+		return k8sClient.Status().Update(context.Background(), &svc)
+	}); err != nil {
+		t.Fatalf("update server1 service status: %v", err)
+	}
+
+	// Wait for the controller to pick up the LB ingress and reflect it in
+	// server1's status.endpoints before introducing the conflicting server.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &gs); err != nil {
+			return false, "get server1: " + err.Error()
+		}
+		for _, ep := range gs.Status.Endpoints {
+			if ep.Host == "203.0.113.10" {
+				return true, ""
+			}
+		}
+		return false, "server1 endpoints do not yet reflect 203.0.113.10"
+	})
+
+	// Create the second server requesting the same address.
+	gs2 := buildGameServer(ns, "server2", tmpl.Name)
+	gs2.Spec.Networking.Expose = "LoadBalancer"
+	gs2.Spec.Networking.Address = "203.0.113.10"
+	if err := k8sClient.Create(context.Background(), gs2); err != nil {
+		t.Fatalf("create server2: %v", err)
+	}
+
+	// server2's AddressAssignment condition should report AddressInUse.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server2"}, &gs); err != nil {
+			return false, "get server2: " + err.Error()
+		}
+		for _, cond := range gs.Status.Conditions {
+			if cond.Type == gameplanev1alpha1.GameServerConditionAddressAssignment {
+				if cond.Reason != "AddressInUse" {
+					return false, "AddressAssignment reason = " + cond.Reason + ", want AddressInUse"
+				}
+				if !strings.Contains(cond.Message, "server1") {
+					return false, "AddressAssignment message should mention server1, got: " + cond.Message
+				}
+				return true, ""
+			}
+		}
+		return false, "AddressAssignment condition not found"
+	})
+}
+
+// TestGameServer_ReleasedAddressBecomesAvailable — when a GameServer with
+// an assigned explicit address is deleted, the address is released and becomes
+// available for another GameServer to use (no orphaning).
+func TestGameServer_ReleasedAddressBecomesAvailable(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerAddressManager(t, ns, "metallb"))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	// Create server1 with an explicit address.
+	gs1 := buildGameServer(ns, "server1", tmpl.Name)
+	gs1.Spec.Networking.Expose = "LoadBalancer"
+	gs1.Spec.Networking.Address = "203.0.113.20"
+	if err := k8sClient.Create(context.Background(), gs1); err != nil {
+		t.Fatalf("create server1: %v", err)
+	}
+
+	// Wait for server1's Service to be created.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return false, "service: " + err.Error()
+		}
+		return true, ""
+	})
+
+	// envtest runs apiserver+etcd only — there is no cloud-provider or MetalLB
+	// controller to populate a LoadBalancer Service's status. Seeding the
+	// GameServer's status.endpoints directly doesn't work either: SetupWithManager
+	// uses a bare For(&GameServer{}) with no predicate, so the seeded status is
+	// immediately overwritten by the next reconcile's reconcileStatus, which
+	// derives Endpoints from the Service (falling back to ClusterIP whenever the
+	// Service has no LoadBalancer ingress). So instead we write the Service's
+	// status subresource ourselves, exactly as a real address manager would —
+	// this persists across reconciles because it is now real cluster state, not
+	// something the controller reconciles away.
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return err
+		}
+		svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "203.0.113.20"}}
+		return k8sClient.Status().Update(context.Background(), &svc)
+	}); err != nil {
+		t.Fatalf("update server1 service status: %v", err)
+	}
+
+	// Wait for the controller to pick up the LB ingress and reflect it in
+	// server1's status.endpoints before introducing the conflicting server.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &gs); err != nil {
+			return false, "get server1: " + err.Error()
+		}
+		for _, ep := range gs.Status.Endpoints {
+			if ep.Host == "203.0.113.20" {
+				return true, ""
+			}
+		}
+		return false, "server1 endpoints do not yet reflect 203.0.113.20"
+	})
+
+	// Create server2 requesting the same address; it should report conflict.
+	gs2 := buildGameServer(ns, "server2", tmpl.Name)
+	gs2.Spec.Networking.Expose = "LoadBalancer"
+	gs2.Spec.Networking.Address = "203.0.113.20"
+	if err := k8sClient.Create(context.Background(), gs2); err != nil {
+		t.Fatalf("create server2: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server2"}, &gs); err != nil {
+			return false, "get server2: " + err.Error()
+		}
+		for _, cond := range gs.Status.Conditions {
+			if cond.Type == gameplanev1alpha1.GameServerConditionAddressAssignment {
+				if cond.Reason != "AddressInUse" {
+					return false, "initial reason = " + cond.Reason + ", want AddressInUse"
+				}
+				return true, ""
+			}
+		}
+		return false, "AddressAssignment condition not found"
+	})
+
+	// Now delete server1 to release the address.
+	if err := k8sClient.Delete(context.Background(), gs1); err != nil {
+		t.Fatalf("delete server1: %v", err)
+	}
+
+	// Wait for server1 to be actually deleted.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &gs)
+		if apierrors.IsNotFound(err) {
+			return true, ""
+		}
+		if err != nil {
+			return false, err.Error()
+		}
+		return false, "server1 still exists"
+	})
+
+	// server2's AddressAssignment condition should change: the conflict is resolved.
+	// Since server2 itself has no address assigned yet (simulated), it should show
+	// AssignmentPending or similar (not AddressInUse).
+	// This requires a RequeueAfter(15s) since server2 receives no watch event from
+	// server1's deletion — use 20s budget to be safe.
+	eventuallyWith(t, 20*time.Second, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server2"}, &gs); err != nil {
+			return false, "get server2: " + err.Error()
+		}
+		for _, cond := range gs.Status.Conditions {
+			if cond.Type == gameplanev1alpha1.GameServerConditionAddressAssignment {
+				// After server1 is deleted, server2 should no longer report AddressInUse.
+				if cond.Reason == "AddressInUse" {
+					return false, "AddressAssignment still reports AddressInUse after server1 deletion"
+				}
+				// It could be AssignmentPending, ServiceNotReady, etc., but not AddressInUse.
+				return true, ""
+			}
+		}
+		return false, "AddressAssignment condition not found"
+	})
 }

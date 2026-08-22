@@ -989,7 +989,7 @@ type RCONSpec struct {
 	// "none" means the game has no usable remote console (see consoleMode:
 	// pty for stdin-driven games instead).
 	// +kubebuilder:default=source
-	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;palworld;none
+	// +kubebuilder:validation:Enum=source;telnet;websocket;battleye;satisfactory;palworld;nuclearoption;none
 	// +optional
 	Protocol string `json:"protocol,omitempty"`
 

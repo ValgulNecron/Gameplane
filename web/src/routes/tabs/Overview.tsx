@@ -202,11 +202,17 @@ export function OverviewTab({
                   </div>
                 </>
               )}
-              {/* No tunnel: show cluster address normally */}
+              {/* No tunnel: a single address row, annotated with its pool when
+                  the operator bound one (there is only one host to show). */}
               {!primary?.tunnelProvider && (
                 <>
                   <InfoRow label="Host">
                     <span className="truncate font-mono">{primary?.host ?? "—"}</span>
+                    {primary?.pool ? (
+                      <span className="shrink-0 text-xs text-muted">
+                        from pool &apos;{primary.pool}&apos;
+                      </span>
+                    ) : null}
                     {primary?.host && (
                       <button
                         className="rounded p-1 text-muted hover:bg-border hover:text-fg"

@@ -25,7 +25,7 @@ func TestComputeConditions(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.phase), func(t *testing.T) {
 			gs := &gameplanev1alpha1.GameServer{}
-			conds := computeConditions(gs, tc.phase, nil, idleAwake)
+			conds := computeConditions(gs, tc.phase, nil, idleAwake, addressPlan{}, nil, addressFailureReason{}, "")
 			byType := map[string]metav1.Condition{}
 			for _, c := range conds {
 				byType[c.Type] = c
@@ -43,7 +43,7 @@ func TestComputeConditions(t *testing.T) {
 func TestComputeConditions_ProvisioningRefinement(t *testing.T) {
 	gs := &gameplanev1alpha1.GameServer{}
 	prov := &provisioningInfo{reason: "PullingImage", message: "pulling the game image"}
-	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseStarting, prov, idleAwake)
+	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseStarting, prov, idleAwake, addressPlan{}, nil, addressFailureReason{}, "")
 
 	var prog metav1.Condition
 	for _, c := range conds {
@@ -59,7 +59,7 @@ func TestComputeConditions_ProvisioningRefinement(t *testing.T) {
 	}
 
 	// nil prov leaves the generic Starting reason and no message.
-	conds = computeConditions(gs, gameplanev1alpha1.GameServerPhaseStarting, nil, idleAwake)
+	conds = computeConditions(gs, gameplanev1alpha1.GameServerPhaseStarting, nil, idleAwake, addressPlan{}, nil, addressFailureReason{}, "")
 	for _, c := range conds {
 		if c.Type == "Progressing" && (c.Reason != "Starting" || c.Message != "") {
 			t.Errorf("nil prov: Progressing = %+v, want generic Starting/no message", c)
@@ -218,7 +218,7 @@ func TestComputeConditions_FailedCarriesReason(t *testing.T) {
 		return m
 	}
 
-	m := byType(computeConditions(gs, gameplanev1alpha1.GameServerPhaseFailed, prov, idleAwake))
+	m := byType(computeConditions(gs, gameplanev1alpha1.GameServerPhaseFailed, prov, idleAwake, addressPlan{}, nil, addressFailureReason{}, ""))
 	if m["Ready"].Reason != "CrashLoopBackOff" || m["Ready"].Message != prov.message {
 		t.Errorf("Ready = %+v, want CrashLoopBackOff reason + the failure message", m["Ready"])
 	}
@@ -227,7 +227,7 @@ func TestComputeConditions_FailedCarriesReason(t *testing.T) {
 	}
 
 	// nil prov leaves the generic Failed reason and no message.
-	m = byType(computeConditions(gs, gameplanev1alpha1.GameServerPhaseFailed, nil, idleAwake))
+	m = byType(computeConditions(gs, gameplanev1alpha1.GameServerPhaseFailed, nil, idleAwake, addressPlan{}, nil, addressFailureReason{}, ""))
 	if m["Ready"].Reason != "Failed" || m["Ready"].Message != "" {
 		t.Errorf("nil prov: Ready = %+v, want generic Failed/no message", m["Ready"])
 	}
@@ -244,7 +244,7 @@ func TestEndpointsFromService_ClusterIP(t *testing.T) {
 			},
 		},
 	}
-	got := endpointsFromService(svc)
+	got := endpointsFromService(svc, addressPlan{})
 	if len(got) != 2 || got[0].Host != "10.0.0.5" || got[0].Port != 25565 {
 		t.Fatalf("got %+v", got)
 	}
@@ -259,7 +259,7 @@ func TestEndpointsFromService_NodePort(t *testing.T) {
 			},
 		},
 	}
-	got := endpointsFromService(svc)
+	got := endpointsFromService(svc, addressPlan{})
 	if got[0].Port != 30001 {
 		t.Fatalf("expected NodePort %d, got %d", 30001, got[0].Port)
 	}
@@ -281,7 +281,7 @@ func TestEndpointsFromService_LoadBalancer(t *testing.T) {
 			},
 		},
 	}
-	got := endpointsFromService(svc)
+	got := endpointsFromService(svc, addressPlan{})
 	if got[0].Host != "203.0.113.1" {
 		t.Fatalf("got host=%q", got[0].Host)
 	}
@@ -299,7 +299,7 @@ func TestEndpointsFromService_LoadBalancerHostname(t *testing.T) {
 			},
 		},
 	}
-	got := endpointsFromService(svc)
+	got := endpointsFromService(svc, addressPlan{})
 	if got[0].Host != "elb.example.com" {
 		t.Fatalf("got %q", got[0].Host)
 	}

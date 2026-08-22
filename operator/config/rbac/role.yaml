@@ -23,7 +23,10 @@ rules:
   - events
   verbs:
   - create
+  - get
+  - list
   - patch
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -119,6 +122,14 @@ rules:
   - gameplane.local
   resources:
   - modulesources
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - metallb.io
+  resources:
+  - ipaddresspools
   verbs:
   - get
   - list

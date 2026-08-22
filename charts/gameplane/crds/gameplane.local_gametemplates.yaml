@@ -1926,6 +1926,7 @@ spec:
                     - battleye
                     - satisfactory
                     - palworld
+                    - nuclearoption
                     - none
                     type: string
                 type: object

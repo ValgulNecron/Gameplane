@@ -56,6 +56,27 @@ operator:
     limits:   { cpu: 500m, memory: 256Mi }
   agentImage: ""   # defaults to {image.registry}/agent:{image.tag}
   sentinelImage: ""   # defaults to {image.registry}/sentinel:{image.tag}
+  # Which load-balancer address manager runs in this cluster, so the operator
+  # knows how to express a GameServer's spec.networking.addressPool/address
+  # preference. One of:
+  #   metallb — Service annotations metallb.io/address-pool and
+  #             metallb.io/loadBalancerIPs
+  #   cilium  — Service label gameplane.local/lb-pool (mirror it in your
+  #             CiliumLoadBalancerIPPool's spec.serviceSelector — Cilium does
+  #             not recognise the key on its own) plus annotation
+  #             lbipam.cilium.io/ips
+  #   none    — (default) no Service is mutated; a pool/address preference is
+  #             recorded on the GameServer's AddressAssignment condition as
+  #             unhonored rather than silently falling back to the default pool
+  # Any other value fails the operator at startup.
+  addressManager: none
+  # Namespace MetalLB's IPAddressPool custom resources (metallb.io/v1beta1,
+  # namespaced) live in. Only consulted when addressManager: metallb — the
+  # operator GETs a requested pool directly there to report PoolNotFound on
+  # the GameServer's AddressAssignment condition without waiting for a
+  # MetalLB event. "metallb-system" is MetalLB's own install convention, not
+  # a contract, hence configurable.
+  metalLBNamespace: metallb-system
   # Tunnel provider images: relay binaries wrapped in OCI images for reaching
   # players through relay services when the cluster has no public IP or port-
   # forwarding. Each wraps a third-party relay binary (frpc, tailscaled, playit)

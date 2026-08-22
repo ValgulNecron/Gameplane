@@ -91,6 +91,7 @@ func withGameServerReconciler(t *testing.T, ns string) setupReconciler {
 	return func(mgr manager.Manager) error {
 		return (&GameServerReconciler{
 			Client:                 mgr.GetClient(),
+			APIReader:              mgr.GetAPIReader(),
 			Scheme:                 mgr.GetScheme(),
 			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
 			AgentCASecretName:      "agent-ca",
@@ -110,11 +111,31 @@ func withGameServerReconcilerAgentPullPolicy(t *testing.T, ns, policy string) se
 	return func(mgr manager.Manager) error {
 		return (&GameServerReconciler{
 			Client:                 mgr.GetClient(),
+			APIReader:              mgr.GetAPIReader(),
 			Scheme:                 mgr.GetScheme(),
 			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
 			AgentImagePullPolicy:   policy,
 			AgentCASecretName:      "agent-ca",
 			AgentCASecretNamespace: ns,
+		}).SetupWithManager(mgr)
+	}
+}
+
+// withGameServerReconcilerAddressManager is withGameServerReconciler with
+// AddressManager also set, proving the address conflict detection logic
+// is reachable when an address manager is configured.
+func withGameServerReconcilerAddressManager(t *testing.T, ns, addressManager string) setupReconciler {
+	t.Helper()
+	seedAgentCA(t, ns, "agent-ca")
+	return func(mgr manager.Manager) error {
+		return (&GameServerReconciler{
+			Client:                 mgr.GetClient(),
+			APIReader:              mgr.GetAPIReader(),
+			Scheme:                 mgr.GetScheme(),
+			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
+			AgentCASecretName:      "agent-ca",
+			AgentCASecretNamespace: ns,
+			AddressManager:         addressManager,
 		}).SetupWithManager(mgr)
 	}
 }

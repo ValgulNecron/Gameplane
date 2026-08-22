@@ -181,7 +181,7 @@ Settings tab (`SettingsTab`) displays 10 sections in a left sidebar:
 1. **General** — Server name, description
 2. **Version** — Template version selector (triggers container restart)
 3. **Resources** — CPU request/limit, memory request/limit (Kubernetes resource specs)
-4. **Networking** — Service type (ClusterIP/NodePort/LoadBalancer), LoadBalancer hostname, port overrides
+4. **Networking** — Service type (ClusterIP/NodePort/LoadBalancer), LoadBalancer hostname, address pool / explicit address request, port overrides
 5. **Environment** — Custom env var key=value pairs
 6. **Lifecycle** — Pre/post-start/stop scripts, quiesce grace period
 7. **Scheduled backups** — Backup schedule CRUD (daily/weekly/cron), retention policy
@@ -214,7 +214,7 @@ api<T>(path: string, opts?: Options): Promise<T>
 
 Each namespace is an object of typed functions building and fetching URLs:
 
-- **Servers** — `list()`, `get(name, ns?)`, `create(body)`, `update(name, body, ns?)`, `remove(name, ns?)`, `lifecycle(name, verb, ns?)` (start/stop/restart), `clone(name, newName, ns?)`, `wipeData(name, confirm, ns?)`, `transfer(name, userId, ns?)`, `setCollaborators(name, ns, body)`, `getMyServers()`, `status(name, ns?)`, `events(name, ns?)`, `runAction(name, body, ns?)`, `mods(name, ns?)`, `installMod(name, body, ns?)`, `removeMod(name, mod, ns?)`, `modUpdates(name, ns?)`, `uploadMod(name, file, ns?)` (FormData), `registryProviders(name, ns?)`, `searchRegistry(name, opts?, ns?)`, `modVersions(name, project, provider?, ns?)`, `modpackDeps(name, project, provider?, ns?)`, `installModpack(name, body, provider?, ns?)`, `modIDs(name, ns?)`, `setModIDs(name, ids, ns?)`
+- **Servers** — `list()`, `get(name, ns?)`, `create(body)`, `update(name, body, ns?)`, `remove(name, ns?)`, `lifecycle(name, verb, ns?)` (start/stop/restart), `clone(name, newName, ns?)`, `wipeData(name, confirm, ns?)`, `transfer(name, userId, ns?)`, `setCollaborators(name, ns, body)`, `getMyServers()`, `status(name, ns?)`, `events(name, ns?)`, `runAction(name, body, ns?)`, `mods(name, ns?)`, `installMod(name, body, ns?)`, `removeMod(name, mod, ns?)`, `modUpdates(name, ns?)`, `uploadMod(name, file, ns?)` (FormData), `registryProviders(name, ns?)`, `searchRegistry(name, opts?, ns?)`, `modVersions(name, project, provider?, ns?)`, `modpackDeps(name, project, provider?, ns?)`, `installModpack(name, body, provider?, ns?)`, `modIDs(name, ns?)`, `setModIDs(name, ids, ns?)`. **ServerCreate request shape:** `create(body)` accepts a `ServerCreate` object with optional `networking` sub-field carrying `expose`, `hostname`, `sourceRanges`, `portOverrides`, `addressPool` (load-balancer pool name), and `address` (requested IP); these are threaded into the `spec.networking` of the created GameServer. **Server response / GameServerEndpoint shape:** Each server's `status.endpoints` is an array of `GameServerEndpoint` objects, carrying: `name` (endpoint identifier), `host`, `port`, `protocol`, `private` (true for tailnet-only addresses), `tunnelProvider` (non-empty for tunnel-routed endpoints like frp/tailscale/playit), and `pool` (the load-balancer address pool the address was allocated from; set by the reconciler when a pool request is honored, absent for other address sources).
 
 - **Templates** — `list()`, `get(name)`
 
@@ -320,6 +320,7 @@ openEventStream(opts: EventStreamOptions)
 5. **Pre-auth privacy** — login page and unauthenticated screens leak no internal state (rule 3, CLAUDE.md)
 6. **Fix, not silence** — ESLint / TypeScript flags are fixed at source, never suppressed inline (rule 4, CLAUDE.md)
 7. **Operator is authoritative** — business logic lives in the operator; the dashboard is a pure view layer
+8. **Generic, template-driven rendering** — Game configuration (Create Server steps, Settings tab) and status (Overview metrics) render via the template's declared schema (`spec.configSchema`, `spec.capabilities.status.metrics`, etc.), with no per-game branching; the surface works identically for every game type (FR-024)
 
 ## Dependencies
 

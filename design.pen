@@ -4,8 +4,8 @@
     {
       "type": "frame",
       "id": "N1GkB",
-      "x": -4625,
-      "y": -1169,
+      "x": 1640,
+      "y": 4500,
       "name": "Screen/Login",
       "theme": {
         "c:Mode": "Dark"
@@ -664,8 +664,8 @@
     {
       "type": "frame",
       "id": "jmoi3",
-      "x": -4625,
-      "y": -189,
+      "x": 3280,
+      "y": 4500,
       "name": "Screen/Login — Invalid credentials",
       "theme": {
         "c:Mode": "Dark"
@@ -1334,8 +1334,8 @@
     {
       "type": "frame",
       "id": "ljdA5",
-      "x": -4625,
-      "y": 791,
+      "x": 4920,
+      "y": 4500,
       "name": "Screen/Login — SSO only",
       "theme": {
         "c:Mode": "Dark"
@@ -2006,8 +2006,8 @@
     {
       "type": "frame",
       "id": "N13Xud",
-      "x": -3089,
-      "y": -1169,
+      "x": 0,
+      "y": 4500,
       "name": "Screen/App Loading",
       "theme": {
         "c:Mode": "Dark"
@@ -2851,8 +2851,8 @@
     {
       "type": "frame",
       "id": "j24cXg",
-      "x": -1539,
-      "y": -1169,
+      "x": 0,
+      "y": 5700,
       "name": "Screen/Dashboard Home",
       "theme": {
         "c:Mode": "Dark"
@@ -4199,8 +4199,8 @@
     {
       "type": "frame",
       "id": "iGBIs",
-      "x": 0,
-      "y": -1169,
+      "x": 1640,
+      "y": 5700,
       "name": "Screen/Servers",
       "theme": {
         "c:Mode": "Dark"
@@ -5835,8 +5835,8 @@
     {
       "type": "frame",
       "id": "EZFW0",
-      "x": 1600,
-      "y": -1169,
+      "x": 0,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview",
       "theme": {
         "c:Mode": "Dark"
@@ -6496,6 +6496,94 @@
                                       "icon": "copy",
                                       "library": "lucide",
                                       "fill": "$c:--muted-foreground"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "wvkNX",
+                                  "name": "External Address Label",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "EXTERNAL ADDRESS",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "600",
+                                  "letterSpacing": 1
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "LdhK0",
+                                  "name": "External Address Row",
+                                  "width": "fill_container",
+                                  "fill": "$c:--muted",
+                                  "cornerRadius": 8,
+                                  "stroke": "$c:--border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    10,
+                                    14
+                                  ],
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "WlCw7",
+                                      "name": "Label",
+                                      "fill": "$c:--muted-foreground",
+                                      "content": "Address",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "ACwDS",
+                                      "name": "stack",
+                                      "layout": "vertical",
+                                      "gap": 2,
+                                      "alignItems": "end",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "qT6hz",
+                                          "name": "line",
+                                          "gap": 8,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "P6IzS",
+                                              "name": "Address",
+                                              "fill": "$c:--foreground",
+                                              "content": "172.18.255.203",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "type": "icon",
+                                              "id": "rujgf",
+                                              "name": "copy",
+                                              "width": 14,
+                                              "height": 14,
+                                              "icon": "copy",
+                                              "library": "lucide",
+                                              "fill": "$c:--muted-foreground"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "vTgzg",
+                                          "name": "PoolNote",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "pool: pool-us-west",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
                                     }
                                   ]
                                 },
@@ -7381,8 +7469,8 @@
     {
       "type": "frame",
       "id": "P08Uw",
-      "x": 3155,
-      "y": -1169,
+      "x": 0,
+      "y": 9175,
       "name": "Screen/Server Detail — Events",
       "theme": {
         "c:Mode": "Dark"
@@ -8031,8 +8119,8 @@
     {
       "type": "frame",
       "id": "Xn5ns",
-      "x": 4695,
-      "y": -1169,
+      "x": 1640,
+      "y": 9175,
       "name": "Screen/Server Detail — Console",
       "theme": {
         "c:Mode": "Dark"
@@ -8319,8 +8407,8 @@
     {
       "type": "frame",
       "id": "kPmoo",
-      "x": 6252,
-      "y": -1169,
+      "x": 3280,
+      "y": 9175,
       "name": "Screen/Server Detail — Logs",
       "theme": {
         "c:Mode": "Dark"
@@ -8855,8 +8943,8 @@
     {
       "type": "frame",
       "id": "FtdkI",
-      "x": 6252,
-      "y": -182,
+      "x": 4920,
+      "y": 9175,
       "name": "Screen/Server Detail — Logs (Failed)",
       "theme": {
         "c:Mode": "Dark"
@@ -9268,8 +9356,8 @@
     {
       "type": "frame",
       "id": "Burtr",
-      "x": 7797,
-      "y": -1169,
+      "x": 6560,
+      "y": 9175,
       "name": "Screen/Server Detail — Files",
       "theme": {
         "c:Mode": "Dark"
@@ -10442,8 +10530,8 @@
     {
       "type": "frame",
       "id": "sZtDi",
-      "x": 9347,
-      "y": -1169,
+      "x": 8200,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods",
       "theme": {
         "c:Mode": "Dark"
@@ -10757,8 +10845,8 @@
     {
       "type": "frame",
       "id": "GayoL",
-      "x": 10874,
-      "y": -1169,
+      "x": 9840,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods — Browse (added)",
       "theme": {
         "c:Mode": "Dark"
@@ -12156,8 +12244,8 @@
     {
       "type": "frame",
       "id": "Ss0Yr",
-      "x": 12387,
-      "y": -1169,
+      "x": 11480,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods — Install mod (from URL)",
       "theme": {
         "c:Mode": "Dark"
@@ -12620,8 +12708,8 @@
     {
       "type": "frame",
       "id": "V1VhGE",
-      "x": 13907,
-      "y": -1169,
+      "x": 13120,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods — Install mod (upload)",
       "theme": {
         "c:Mode": "Dark"
@@ -13051,8 +13139,8 @@
     {
       "type": "frame",
       "id": "tY6RD",
-      "x": 15425,
-      "y": -1169,
+      "x": 16400,
+      "y": 9175,
       "name": "Screen/Server Detail — Modpacks",
       "theme": {
         "c:Mode": "Dark"
@@ -13965,8 +14053,8 @@
     {
       "type": "frame",
       "id": "dPP50",
-      "x": 16916,
-      "y": -1169,
+      "x": 18040,
+      "y": 9175,
       "name": "Screen/Server Detail — Players",
       "theme": {
         "c:Mode": "Dark"
@@ -14334,8 +14422,8 @@
     {
       "type": "frame",
       "id": "pssCT",
-      "x": 18401,
-      "y": -1169,
+      "x": 19680,
+      "y": 9175,
       "name": "Screen/Server Detail — Backups",
       "theme": {
         "c:Mode": "Dark"
@@ -14798,8 +14886,8 @@
     {
       "type": "frame",
       "id": "hLB9Z",
-      "x": 19887,
-      "y": -1169,
+      "x": 0,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings",
       "theme": {
         "c:Mode": "Dark"
@@ -15572,8 +15660,8 @@
     {
       "type": "frame",
       "id": "swxkJ",
-      "x": 19887,
-      "y": -189,
+      "x": 1640,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Version",
       "theme": {
         "c:Mode": "Dark"
@@ -16657,8 +16745,8 @@
     {
       "type": "frame",
       "id": "E0ypH",
-      "x": 19887,
-      "y": 791,
+      "x": 3280,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Resources",
       "theme": {
         "c:Mode": "Dark"
@@ -17651,15 +17739,15 @@
     {
       "type": "frame",
       "id": "J5pjJ3",
-      "x": 19887,
-      "y": 1771,
+      "x": 4920,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Networking",
       "theme": {
         "c:Mode": "Dark"
       },
       "clip": true,
       "width": 1440,
-      "height": 1300,
+      "height": 2070,
       "fill": "$c:--background",
       "children": [
         {
@@ -18252,7 +18340,7 @@
                                           "id": "XxAlW",
                                           "name": "t",
                                           "fill": "#F5F5F5",
-                                          "content": "NodePort",
+                                          "content": "LoadBalancer",
                                           "fontFamily": "$c:--font-secondary",
                                           "fontSize": 14,
                                           "fontWeight": "normal"
@@ -18917,6 +19005,506 @@
                                       ]
                                     }
                                   ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "bzpTN",
+                                  "name": "Field Current Address Assignment",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "X86bLC",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "Ts03W",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Current assignment",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "FPJn8",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Address and pool currently bound to this server by the operator.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "H91kxl",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "ctrl",
+                                      "width": "fill_container",
+                                      "stroke": "#00000000",
+                                      "fill": "$c:--muted",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "type": "frame",
+                                          "id": "DtjPg",
+                                          "name": "ValueRow",
+                                          "gap": 8,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "qcpTQ",
+                                              "name": "Address",
+                                              "fill": "#F5F5F5",
+                                              "content": "172.18.255.203",
+                                              "fontFamily": "$c:--font-primary",
+                                              "fontSize": 14,
+                                              "fontWeight": "normal"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "V5WeGA",
+                                              "name": "PoolNote",
+                                              "fill": "#949494",
+                                              "content": "from pool 'pool-us-west'",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 12,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "O1szjE",
+                                  "name": "Field Address Pool",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "LDsjk",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "qcFZr",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Address pool",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "jOxvY",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Name of a load-balancer address pool configured by your cluster admin. Leave blank to let the address manager choose.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "b94iq9",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "pool-us-west",
+                                          "fill": "#F5F5F5"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "ASfT2",
+                                  "name": "Field Requested Address",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "ezSr5",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ZlZVt",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Requested address",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "NFleg",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "A specific address to request from the pool. Must be free — the address manager rejects addresses already in use. Leave blank unless you need a specific address.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "id": "C015a8",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "e.g. 203.0.113.50",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "SdaUn",
+                                  "name": "Field Address Status",
+                                  "width": "fill_container",
+                                  "gap": 16,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "E2lud",
+                                      "name": "lbl",
+                                      "width": 200,
+                                      "layout": "vertical",
+                                      "gap": 4,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "K1CwQ",
+                                          "name": "t",
+                                          "fill": "#F5F5F5",
+                                          "content": "Address status",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "HtmEQ",
+                                          "name": "h",
+                                          "fill": "#949494",
+                                          "textGrowth": "fixed-width",
+                                          "width": 200,
+                                          "content": "Reflects the GameServer's AddressAssignment condition. See also the alerts below for IgnoredForExposureMode and NoAddressManagerConfigured.",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 12,
+                                          "fontWeight": "normal"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "XF5sT",
+                                      "name": "ctrl",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 8,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "t8ZK7d",
+                                          "name": "StatesCaption",
+                                          "fill": "$c:--muted-foreground",
+                                          "content": "Shows exactly one of the following, depending on the condition's reason:",
+                                          "fontFamily": "$c:--font-secondary",
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "SUG76",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "Edon4",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#21C45D33",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Assigned",
+                                                  "fill": "#21C45D",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "JohIc",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Address 172.18.255.203 assigned from pool 'pool-us-west'.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "p1xct",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "k7k1g",
+                                              "type": "ref",
+                                              "ref": "c:L8Rgv",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#FF84001A",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:glumS": {
+                                                  "content": "Pending",
+                                                  "fill": "#FF8400",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "aoI1T",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "LoadBalancer requested — waiting for the address manager to assign an address.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "z9lDl",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "xspe2",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#DC262633",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Pool exhausted",
+                                                  "fill": "#DC2828",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "fv8A9",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Pool 'pool-us-west' has no free addresses left. Choose a different pool or free one up.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "eNwtE",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "ni9a3",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#DC262633",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Pool not found",
+                                                  "fill": "#DC2828",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "GD0jS",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Pool 'pool-us-west' does not exist. Check the pool name with your cluster admin.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "qr3mo",
+                                          "name": "StatusRow",
+                                          "width": "fill_container",
+                                          "gap": 10,
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "id": "zpAiH",
+                                              "type": "ref",
+                                              "ref": "c:7KC5U",
+                                              "name": "Badge",
+                                              "cornerRadius": 4,
+                                              "fill": "#DC262633",
+                                              "padding": [
+                                                0,
+                                                8
+                                              ],
+                                              "height": 20,
+                                              "descendants": {
+                                                "c:AWwyf": {
+                                                  "content": "Address in use",
+                                                  "fill": "#DC2828",
+                                                  "fontSize": 12
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "cfjyu",
+                                              "name": "Msg",
+                                              "fill": "$c:--foreground",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Requested address 203.0.113.50 is already assigned to another service.",
+                                              "fontFamily": "$c:--font-secondary",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "NbcRI",
+                                  "name": "AlertStatesCaption",
+                                  "fill": "$c:--muted-foreground",
+                                  "content": "These conditions mean the preference is saved but never applied:",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "id": "YlEnp",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert Ignored For Exposure Mode",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "Address preference ignored"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "Expose is set to NodePort. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer."
+                                    }
+                                  }
+                                },
+                                {
+                                  "id": "F1JlIp",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert No Address Manager Configured",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "No address manager configured"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "This cluster has no MetalLB or Cilium address manager. Your pool and address preference will be saved but never applied."
+                                    }
+                                  }
                                 }
                               ]
                             },
@@ -18984,8 +19572,8 @@
     {
       "type": "frame",
       "id": "ugDSa",
-      "x": 19887,
-      "y": 2751,
+      "x": 6560,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Environment",
       "theme": {
         "c:Mode": "Dark"
@@ -19637,8 +20225,8 @@
     {
       "type": "frame",
       "id": "i1bLR",
-      "x": 19887,
-      "y": 3731,
+      "x": 8200,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Lifecycle",
       "theme": {
         "c:Mode": "Dark"
@@ -21480,8 +22068,8 @@
     {
       "type": "frame",
       "id": "KaRFX",
-      "x": 19887,
-      "y": 5431,
+      "x": 9840,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Scheduled backups",
       "theme": {
         "c:Mode": "Dark"
@@ -22189,8 +22777,8 @@
     {
       "type": "frame",
       "id": "Y5cmvI",
-      "x": 19887,
-      "y": 6411,
+      "x": 11480,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Placement",
       "theme": {
         "c:Mode": "Dark"
@@ -22935,8 +23523,8 @@
     {
       "type": "frame",
       "id": "VfB0Y",
-      "x": 19887,
-      "y": 7391,
+      "x": 13120,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · RBAC & access",
       "theme": {
         "c:Mode": "Dark"
@@ -23627,8 +24215,8 @@
     {
       "type": "frame",
       "id": "i8wib",
-      "x": 19887,
-      "y": 8371,
+      "x": 14760,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Danger zone",
       "theme": {
         "c:Mode": "Dark"
@@ -24362,8 +24950,8 @@
     {
       "type": "frame",
       "id": "W8idqY",
-      "x": 21413,
-      "y": -1169,
+      "x": 0,
+      "y": 12745,
       "name": "Screen/Create Server — Step 1 Template",
       "theme": {
         "c:Mode": "Dark"
@@ -26804,8 +27392,8 @@
     {
       "type": "frame",
       "id": "nNL3E",
-      "x": 22963,
-      "y": -1169,
+      "x": 1640,
+      "y": 12745,
       "name": "Screen/Create Server — Step 2 Version",
       "theme": {
         "c:Mode": "Dark"
@@ -28065,8 +28653,8 @@
     {
       "type": "frame",
       "id": "vUqMl",
-      "x": 24545,
-      "y": -1169,
+      "x": 3280,
+      "y": 12745,
       "name": "Screen/Create Server — Step 3 Configure",
       "theme": {
         "c:Mode": "Dark"
@@ -30369,15 +30957,15 @@
     {
       "type": "frame",
       "id": "f1Vga",
-      "x": 26143,
-      "y": -1169,
+      "x": 4920,
+      "y": 12745,
       "name": "Screen/Create Server — Step 4 Network",
       "theme": {
         "c:Mode": "Dark"
       },
       "clip": true,
       "width": 1440,
-      "height": 900,
+      "height": 1170,
       "fill": "$c:--background",
       "children": [
         {
@@ -30483,7 +31071,7 @@
                   "name": "Modal",
                   "clip": true,
                   "width": 960,
-                  "height": 760,
+                  "height": 1030,
                   "fill": "$c:--card",
                   "cornerRadius": 12,
                   "stroke": "$c:--border",
@@ -31344,6 +31932,139 @@
                                   ]
                                 }
                               ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yJCp2",
+                              "name": "LoadBalancerAddress",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 6,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "O9iyo",
+                                  "name": "Label",
+                                  "fill": "#949494",
+                                  "content": "Load balancer address (optional)",
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "W0zREs",
+                                  "name": "ColHeader",
+                                  "width": "fill_container",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "WVmjE",
+                                      "name": "Col",
+                                      "fill": "$c:--muted-foreground",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Address pool",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "CBeNk",
+                                      "name": "Col",
+                                      "fill": "$c:--muted-foreground",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Requested address",
+                                      "fontFamily": "$c:--font-secondary",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "hS7Ci",
+                                  "name": "Row",
+                                  "width": "fill_container",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "id": "hwB7N",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "PoolInput",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "pool-us-west",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": "tMjOP",
+                                      "type": "ref",
+                                      "ref": "D0cDM",
+                                      "name": "AddressInput",
+                                      "width": "fill_container",
+                                      "descendants": {
+                                        "PJERm": {
+                                          "content": "203.0.113.50",
+                                          "fill": "#5C5C5C"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "FRjYu",
+                                  "name": "Helper",
+                                  "fill": "$c:--muted-foreground",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Name of a load-balancer address pool configured by your cluster admin, plus an optional specific address to request. Applies only when Expose is set to LoadBalancer — ignored otherwise.",
+                                  "lineHeight": 1.4,
+                                  "fontFamily": "$c:--font-secondary",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                },
+                                {
+                                  "id": "ON5EU",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert Exposure Mode Ignored",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "Address preference ignored"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "Expose is set to NodePort. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer."
+                                    }
+                                  }
+                                },
+                                {
+                                  "id": "ynNKu",
+                                  "type": "ref",
+                                  "ref": "c:vbyqV",
+                                  "name": "Alert No Address Manager Configured",
+                                  "width": "fill_container",
+                                  "descendants": {
+                                    "c:TPf8O": {
+                                      "content": "No address manager configured"
+                                    },
+                                    "c:X4L5E": {
+                                      "content": "This cluster has no MetalLB or Cilium address manager. Your pool and address preference will be saved but never applied."
+                                    }
+                                  }
+                                }
+                              ]
                             }
                           ]
                         },
@@ -31779,8 +32500,8 @@
     {
       "type": "frame",
       "id": "UMJli",
-      "x": 27726,
-      "y": -1169,
+      "x": 6560,
+      "y": 12745,
       "name": "Screen/Create Server — Step 5 Review",
       "theme": {
         "c:Mode": "Dark"
@@ -33264,8 +33985,8 @@
     {
       "type": "frame",
       "id": "kK8Ji",
-      "x": 29281,
-      "y": -1169,
+      "x": 0,
+      "y": 14865,
       "name": "Screen/Modules Catalog",
       "theme": {
         "c:Mode": "Dark"
@@ -37304,8 +38025,8 @@
     {
       "type": "frame",
       "id": "DPrYX",
-      "x": 30819,
-      "y": -1169,
+      "x": 0,
+      "y": 16315,
       "name": "Screen/Backups — Index",
       "theme": {
         "c:Mode": "Dark"
@@ -37800,8 +38521,8 @@
     {
       "type": "frame",
       "id": "fK8Bi",
-      "x": 32332,
-      "y": -1169,
+      "x": 1640,
+      "y": 16315,
       "name": "Screen/Backups — Schedules",
       "theme": {
         "c:Mode": "Dark"
@@ -39273,8 +39994,8 @@
     {
       "type": "frame",
       "id": "tTSdi",
-      "x": 33856,
-      "y": -1169,
+      "x": 3280,
+      "y": 16315,
       "name": "Screen/Backups — Restores",
       "theme": {
         "c:Mode": "Dark"
@@ -40056,8 +40777,8 @@
     {
       "type": "frame",
       "id": "j9W8A",
-      "x": 35438,
-      "y": -1169,
+      "x": 0,
+      "y": 17765,
       "name": "Screen/Cluster Settings",
       "theme": {
         "c:Mode": "Dark"
@@ -41301,8 +42022,8 @@
     {
       "type": "frame",
       "id": "bYDHC",
-      "x": 36985,
-      "y": -1169,
+      "x": 0,
+      "y": 18965,
       "name": "Screen/Users & RBAC",
       "theme": {
         "c:Mode": "Dark"
@@ -42182,8 +42903,8 @@
     {
       "type": "frame",
       "id": "e9lV4",
-      "x": 38482,
-      "y": -1169,
+      "x": 1640,
+      "y": 18965,
       "name": "Screen/Users & RBAC — Roles",
       "theme": {
         "c:Mode": "Dark"
@@ -42928,8 +43649,8 @@
     {
       "type": "frame",
       "id": "TBvTC",
-      "x": 39971,
-      "y": -1169,
+      "x": 3280,
+      "y": 18965,
       "name": "Screen/Users & RBAC — Service accounts",
       "theme": {
         "c:Mode": "Dark"
@@ -43298,8 +44019,8 @@
     {
       "type": "frame",
       "id": "Dpb9f",
-      "x": 41524,
-      "y": -1169,
+      "x": 4920,
+      "y": 18965,
       "name": "Screen/Users & RBAC — Identity providers",
       "theme": {
         "c:Mode": "Dark"
@@ -43668,8 +44389,8 @@
     {
       "type": "frame",
       "id": "DxKOh",
-      "x": 43069,
-      "y": -1169,
+      "x": 0,
+      "y": 20165,
       "name": "Screen/Audit Log",
       "theme": {
         "c:Mode": "Dark"
@@ -45616,8 +46337,8 @@
     {
       "type": "frame",
       "id": "Bq2Yg",
-      "x": 44598,
-      "y": -1169,
+      "x": 0,
+      "y": 21365,
       "name": "Screen/Admin — System Logs",
       "theme": {
         "c:Mode": "Dark"
@@ -47122,8 +47843,8 @@
     {
       "type": "frame",
       "id": "WZdnw",
-      "x": 46218,
-      "y": -1169,
+      "x": 1640,
+      "y": 21365,
       "name": "Screen/Admin Settings",
       "theme": {
         "c:Mode": "Dark"
@@ -47811,8 +48532,8 @@
     {
       "type": "frame",
       "id": "uMiwd",
-      "x": 46218,
-      "y": -189,
+      "x": 3280,
+      "y": 21365,
       "name": "Screen/Admin Settings — Authentication",
       "theme": {
         "c:Mode": "Dark"
@@ -48511,8 +49232,8 @@
     {
       "type": "frame",
       "id": "RC3Kf",
-      "x": 46218,
-      "y": 842,
+      "x": 4920,
+      "y": 21365,
       "name": "Screen/Admin Settings — Backup destinations",
       "theme": {
         "c:Mode": "Dark"
@@ -49076,8 +49797,8 @@
     {
       "type": "frame",
       "id": "g5mEpx",
-      "x": 46218,
-      "y": 1825,
+      "x": 6560,
+      "y": 21365,
       "name": "Screen/Admin Settings — Module sources",
       "theme": {
         "c:Mode": "Dark"
@@ -50038,8 +50759,8 @@
     {
       "type": "frame",
       "id": "n6Xlo",
-      "x": 46218,
-      "y": 3915,
+      "x": 9840,
+      "y": 21365,
       "name": "Screen/Admin Settings — Notifications",
       "theme": {
         "c:Mode": "Dark"
@@ -50978,8 +51699,8 @@
     {
       "type": "frame",
       "id": "uoxQW",
-      "x": 46218,
-      "y": 4997,
+      "x": 11480,
+      "y": 21365,
       "name": "Screen/Admin Settings — Telemetry",
       "theme": {
         "c:Mode": "Dark"
@@ -51574,8 +52295,8 @@
     {
       "type": "frame",
       "id": "M2sA4u",
-      "x": 46218,
-      "y": 6151,
+      "x": 13120,
+      "y": 21365,
       "name": "Screen/Admin Settings — Updates",
       "theme": {
         "c:Mode": "Dark"
@@ -52194,8 +52915,8 @@
     {
       "type": "frame",
       "id": "zM0VF",
-      "x": 46218,
-      "y": 7151,
+      "x": 14760,
+      "y": 21365,
       "name": "Screen/Admin Settings — About",
       "theme": {
         "c:Mode": "Dark"
@@ -52837,8 +53558,8 @@
     {
       "type": "frame",
       "id": "tooKB",
-      "x": 47848,
-      "y": -1169,
+      "x": 0,
+      "y": 22565,
       "name": "Screen/Mobile — Servers",
       "theme": {
         "c:Mode": "Dark"
@@ -54054,8 +54775,8 @@
     {
       "type": "frame",
       "id": "SeizD",
-      "x": 48318,
-      "y": -1169,
+      "x": 590,
+      "y": 22565,
       "name": "Screen/Mobile — Nav Drawer",
       "theme": {
         "c:Mode": "Dark"
@@ -55544,8 +56265,8 @@
     {
       "type": "frame",
       "id": "aI9PL",
-      "x": 19329,
-      "y": -6723,
+      "x": 5962,
+      "y": 25209,
       "name": "Gameplane/Cluster Selector",
       "theme": {
         "c:Mode": "Dark"
@@ -55783,8 +56504,8 @@
     {
       "type": "frame",
       "id": "kIxaJ",
-      "x": 19700,
-      "y": -6723,
+      "x": 6362,
+      "y": 25209,
       "name": "Gameplane/Audit Integrity Banner",
       "theme": {
         "c:Mode": "Dark"
@@ -55842,8 +56563,8 @@
     {
       "type": "note",
       "id": "ZThbo",
-      "x": 20457,
-      "y": -6868,
+      "x": 0,
+      "y": 25209,
       "name": "Shared Components Band",
       "width": 0,
       "height": 0,
@@ -55852,8 +56573,8 @@
     {
       "type": "frame",
       "id": "kKFX9",
-      "x": 20447,
-      "y": -6723,
+      "x": 450,
+      "y": 25209,
       "name": "Gameplane/App Sidebar",
       "theme": {
         "c:Mode": "Dark"
@@ -56357,8 +57078,8 @@
     {
       "type": "frame",
       "id": "gu5WY",
-      "x": 20756,
-      "y": -6700,
+      "x": 910,
+      "y": 25209,
       "name": "Gameplane/Top Bar",
       "theme": {
         "c:Mode": "Dark"
@@ -56562,8 +57283,8 @@
     {
       "type": "frame",
       "id": "ZWcwn",
-      "x": 19317,
-      "y": -6491,
+      "x": 600,
+      "y": 27518,
       "name": "Gameplane/Stat Card",
       "theme": {
         "c:Mode": "Dark"
@@ -56636,8 +57357,8 @@
     {
       "type": "frame",
       "id": "xCDF7",
-      "x": 20756,
-      "y": -6334,
+      "x": 2270,
+      "y": 25209,
       "name": "Gameplane/Page Header",
       "theme": {
         "c:Mode": "Dark"
@@ -56692,8 +57413,8 @@
     {
       "type": "frame",
       "id": "I9kvlZ",
-      "x": 20756,
-      "y": -6513,
+      "x": 3370,
+      "y": 25209,
       "name": "Gameplane/Server Detail Tabs",
       "theme": {
         "c:Mode": "Dark"
@@ -56993,8 +57714,8 @@
     {
       "type": "frame",
       "id": "S4k0x",
-      "x": 20756,
-      "y": -6197,
+      "x": 4666,
+      "y": 25209,
       "name": "Gameplane/Server Detail Header",
       "theme": {
         "c:Mode": "Dark"
@@ -57226,8 +57947,8 @@
     {
       "type": "frame",
       "id": "BPEpm",
-      "x": 22200,
-      "y": -6723,
+      "x": 0,
+      "y": 26409,
       "name": "Gameplane/Dropdown Menu",
       "theme": {
         "c:Mode": "Dark"
@@ -57409,8 +58130,8 @@
     {
       "type": "frame",
       "id": "WwNlX",
-      "x": 22560,
-      "y": -6723,
+      "x": 0,
+      "y": 28161,
       "name": "Gameplane/Confirm Dialog",
       "theme": {
         "c:Mode": "Dark"
@@ -57625,8 +58346,8 @@
     {
       "type": "frame",
       "id": "x3beP",
-      "x": 23090,
-      "y": -6723,
+      "x": 640,
+      "y": 28161,
       "name": "Gameplane/Modal",
       "theme": {
         "c:Mode": "Dark"
@@ -57833,8 +58554,8 @@
     {
       "type": "frame",
       "id": "FyV6E",
-      "x": 23650,
-      "y": -6723,
+      "x": 2872,
+      "y": 27518,
       "name": "Gameplane/Filter Popover",
       "theme": {
         "c:Mode": "Dark"
@@ -58021,8 +58742,8 @@
     {
       "type": "frame",
       "id": "tpKRk",
-      "x": 24200,
-      "y": -6723,
+      "x": 0,
+      "y": 26846,
       "name": "Gameplane/Button/Default",
       "theme": {
         "c:Mode": "Dark"
@@ -58064,8 +58785,8 @@
     {
       "type": "frame",
       "id": "rNhll",
-      "x": 24340,
-      "y": -6723,
+      "x": 300,
+      "y": 26846,
       "name": "Gameplane/Button/Outline",
       "theme": {
         "c:Mode": "Dark"
@@ -58109,8 +58830,8 @@
     {
       "type": "frame",
       "id": "LMIom",
-      "x": 24490,
-      "y": -6723,
+      "x": 600,
+      "y": 26846,
       "name": "Gameplane/Button/Ghost",
       "theme": {
         "c:Mode": "Dark"
@@ -58151,8 +58872,8 @@
     {
       "type": "frame",
       "id": "XoX7L",
-      "x": 24640,
-      "y": -6723,
+      "x": 900,
+      "y": 26846,
       "name": "Gameplane/Button/Danger",
       "theme": {
         "c:Mode": "Dark"
@@ -58194,8 +58915,8 @@
     {
       "type": "frame",
       "id": "z9ShNE",
-      "x": 24790,
-      "y": -6723,
+      "x": 1200,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Default",
       "theme": {
         "c:Mode": "Dark"
@@ -58237,8 +58958,8 @@
     {
       "type": "frame",
       "id": "d5N3W3",
-      "x": 24920,
-      "y": -6723,
+      "x": 1484,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Outline",
       "theme": {
         "c:Mode": "Dark"
@@ -58282,8 +59003,8 @@
     {
       "type": "frame",
       "id": "J09iP",
-      "x": 25050,
-      "y": -6723,
+      "x": 1768,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Ghost",
       "theme": {
         "c:Mode": "Dark"
@@ -58324,8 +59045,8 @@
     {
       "type": "frame",
       "id": "D0cDM",
-      "x": 25180,
-      "y": -6723,
+      "x": 0,
+      "y": 27182,
       "name": "Gameplane/Input",
       "theme": {
         "c:Mode": "Dark"
@@ -58359,8 +59080,8 @@
     {
       "type": "frame",
       "id": "Lmaf1",
-      "x": 25490,
-      "y": -6723,
+      "x": 480,
+      "y": 27182,
       "name": "Gameplane/Search Input",
       "theme": {
         "c:Mode": "Dark"
@@ -58405,8 +59126,8 @@
     {
       "type": "frame",
       "id": "AT7ya",
-      "x": 25800,
-      "y": -6723,
+      "x": 960,
+      "y": 27182,
       "name": "Gameplane/Select",
       "theme": {
         "c:Mode": "Dark"
@@ -58451,8 +59172,8 @@
     {
       "type": "frame",
       "id": "hl7R3",
-      "x": 26110,
-      "y": -6723,
+      "x": 1440,
+      "y": 27182,
       "name": "Gameplane/Switch/On",
       "theme": {
         "c:Mode": "Dark"
@@ -58479,8 +59200,8 @@
     {
       "type": "frame",
       "id": "rh2QH",
-      "x": 26170,
-      "y": -6723,
+      "x": 1676,
+      "y": 27182,
       "name": "Gameplane/Switch/Off",
       "theme": {
         "c:Mode": "Dark"
@@ -58507,8 +59228,8 @@
     {
       "type": "frame",
       "id": "k38Uta",
-      "x": 26240,
-      "y": -6723,
+      "x": 0,
+      "y": 27518,
       "name": "Gameplane/Card",
       "theme": {
         "c:Mode": "Dark"
@@ -58552,8 +59273,8 @@
     {
       "type": "frame",
       "id": "IU7OG",
-      "x": 25180,
-      "y": -6650,
+      "x": 2052,
+      "y": 26846,
       "name": "Gameplane/Button/Small/Danger",
       "theme": {
         "c:Mode": "Dark"
@@ -58595,8 +59316,8 @@
     {
       "type": "frame",
       "id": "hboVw",
-      "x": 26700,
-      "y": -6723,
+      "x": 420,
+      "y": 26409,
       "name": "Gameplane/Notifications Panel",
       "theme": {
         "c:Mode": "Dark"
@@ -58753,8 +59474,8 @@
     {
       "type": "frame",
       "id": "IdaU7",
-      "x": 27030,
-      "y": -6723,
+      "x": 3312,
+      "y": 27518,
       "name": "Gameplane/Search Results",
       "theme": {
         "c:Mode": "Dark"
@@ -58856,8 +59577,8 @@
     {
       "type": "frame",
       "id": "zhLZN",
-      "x": 27360,
-      "y": -6723,
+      "x": 2000,
+      "y": 28161,
       "name": "Gameplane/Backup Detail Drawer",
       "theme": {
         "c:Mode": "Dark"
@@ -59223,8 +59944,8 @@
     {
       "type": "frame",
       "id": "CqaSq",
-      "x": 27860,
-      "y": -6723,
+      "x": 1320,
+      "y": 28161,
       "name": "Gameplane/Role Editor Modal",
       "theme": {
         "c:Mode": "Dark"
@@ -59995,8 +60716,8 @@
     {
       "type": "frame",
       "id": "igj2U",
-      "x": 28380,
-      "y": -6723,
+      "x": 1072,
+      "y": 27518,
       "name": "Gameplane/Error Banner",
       "theme": {
         "c:Mode": "Dark"
@@ -60028,8 +60749,8 @@
     {
       "type": "frame",
       "id": "w4ntSc",
-      "x": 28810,
-      "y": -6723,
+      "x": 2272,
+      "y": 27518,
       "name": "Gameplane/Loading Card",
       "theme": {
         "c:Mode": "Dark"
@@ -60058,8 +60779,8 @@
     {
       "type": "frame",
       "id": "zzx8f",
-      "x": 29240,
-      "y": -6723,
+      "x": 1672,
+      "y": 27518,
       "name": "Gameplane/Error Card",
       "theme": {
         "c:Mode": "Dark"
@@ -60090,8 +60811,8 @@
     {
       "type": "frame",
       "id": "Wj0V4",
-      "x": 46218,
-      "y": 2863,
+      "x": 8200,
+      "y": 21365,
       "name": "Screen/Admin Settings — Mod registries",
       "theme": {
         "c:Mode": "Dark"
@@ -61072,8 +61793,8 @@
     {
       "type": "frame",
       "id": "KhYNc",
-      "x": 9347,
-      "y": -165,
+      "x": 14760,
+      "y": 9175,
       "name": "Screen/Server Detail — Mods (by ID)",
       "theme": {
         "c:Mode": "Dark"
@@ -61908,8 +62629,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Clone Server",
       "width": 440,
-      "x": 23880,
-      "y": -6020,
+      "x": 0,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Clone server"
@@ -61964,8 +62685,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Transfer Ownership",
       "width": 440,
-      "x": 24500,
-      "y": -6020,
+      "x": 640,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Transfer mc-survival"
@@ -62009,8 +62730,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Install Module",
-      "x": 25120,
-      "y": -6020,
+      "x": 1280,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Install Minecraft (Java Edition)"
@@ -62133,8 +62854,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Upload Module",
-      "x": 25740,
-      "y": -6020,
+      "x": 1960,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Upload module"
@@ -62230,8 +62951,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Add Module Source",
-      "x": 23880,
-      "y": -5320,
+      "x": 2640,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Add module source"
@@ -62364,8 +63085,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Restore Backup",
-      "x": 24500,
-      "y": -5320,
+      "x": 3320,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Restore backup"
@@ -62459,8 +63180,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Invite User",
-      "x": 25120,
-      "y": -5320,
+      "x": 4000,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Invite user"
@@ -62616,8 +63337,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Edit User",
-      "x": 25740,
-      "y": -5320,
+      "x": 4680,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Edit user"
@@ -62741,8 +63462,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Reset Password",
-      "x": 23880,
-      "y": -4620,
+      "x": 5360,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "Reset password for smoke-collab"
@@ -62806,8 +63527,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/New Folder",
       "width": 440,
-      "x": 24500,
-      "y": -4620,
+      "x": 6040,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "New folder"
@@ -62862,8 +63583,8 @@
       "ref": "x3beP",
       "name": "Gameplane/Dialog/New File",
       "width": 440,
-      "x": 25120,
-      "y": -4620,
+      "x": 6680,
+      "y": 29221,
       "descendants": {
         "E7Whx": {
           "content": "New file"
@@ -62917,8 +63638,8 @@
       "reusable": true,
       "ref": "WwNlX",
       "name": "Gameplane/Dialog/Wipe World",
-      "x": 25740,
-      "y": -4620,
+      "x": 0,
+      "y": 29918,
       "descendants": {
         "w08wp": {
           "content": "Wipe mc-survival's world data?"
@@ -62937,8 +63658,8 @@
     {
       "type": "frame",
       "id": "mQ1zB",
-      "x": 1600,
-      "y": 231,
+      "x": 1640,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview (Idle armed)",
       "theme": {
         "c:Mode": "Dark"
@@ -64673,8 +65394,8 @@
     {
       "type": "frame",
       "id": "IzuY2",
-      "x": 1600,
-      "y": 1953,
+      "x": 3280,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview (Never sleeps)",
       "theme": {
         "c:Mode": "Dark"
@@ -66367,8 +67088,8 @@
     {
       "type": "frame",
       "id": "TE2jI",
-      "x": 1600,
-      "y": 3778,
+      "x": 4920,
+      "y": 7150,
       "name": "Screen/Server Detail — Overview (Asleep)",
       "theme": {
         "c:Mode": "Dark"
@@ -68245,8 +68966,8 @@
     {
       "type": "frame",
       "id": "x7MJI",
-      "x": 1600,
-      "y": 4960,
+      "x": 3800,
+      "y": 27518,
       "name": "Gameplane/Connection Card — Tunnel States (reference)",
       "theme": {
         "c:Mode": "Dark"
@@ -68765,8 +69486,8 @@
     {
       "type": "frame",
       "id": "xCJlu",
-      "x": 19887,
-      "y": 9351,
+      "x": 16400,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Share links",
       "theme": {
         "c:Mode": "Dark"
@@ -69759,8 +70480,8 @@
     {
       "type": "frame",
       "id": "dQV9N",
-      "x": 19887,
-      "y": 10331,
+      "x": 18040,
+      "y": 10375,
       "name": "Screen/Server Detail — Settings · Share links (Empty)",
       "theme": {
         "c:Mode": "Dark"
@@ -70831,8 +71552,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Create Share Link",
-      "x": 25740,
-      "y": -4304,
+      "x": 640,
+      "y": 29918,
       "descendants": {
         "E7Whx": {
           "content": "Create share link for mc-survival"
@@ -71028,8 +71749,8 @@
       "reusable": true,
       "ref": "x3beP",
       "name": "Gameplane/Dialog/Share Link Created",
-      "x": 25740,
-      "y": -3924,
+      "x": 1320,
+      "y": 29918,
       "descendants": {
         "E7Whx": {
           "content": "Share link created"
@@ -71194,8 +71915,8 @@
       "reusable": true,
       "ref": "WwNlX",
       "name": "Gameplane/Dialog/Revoke Share Link",
-      "x": 25740,
-      "y": -3512,
+      "x": 2000,
+      "y": 29918,
       "descendants": {
         "w08wp": {
           "content": "Revoke this share link?"
@@ -71214,8 +71935,8 @@
     {
       "type": "frame",
       "id": "C2LQE4",
-      "x": 25740,
-      "y": -3228,
+      "x": 0,
+      "y": 23709,
       "name": "Screen/Share Link — Up",
       "theme": {
         "c:Mode": "Dark"
@@ -71444,8 +72165,8 @@
     {
       "type": "frame",
       "id": "q31B6w",
-      "x": 25740,
-      "y": -2248,
+      "x": 1640,
+      "y": 23709,
       "name": "Screen/Share Link — Asleep (can start)",
       "theme": {
         "c:Mode": "Dark"
@@ -71675,8 +72396,8 @@
     {
       "type": "frame",
       "id": "qFLfB",
-      "x": 25740,
-      "y": 731,
+      "x": 3280,
+      "y": 23709,
       "name": "Screen/Share Link — Asleep (view only)",
       "theme": {
         "c:Mode": "Dark"
@@ -71874,8 +72595,8 @@
     {
       "type": "frame",
       "id": "EcoGD",
-      "x": 25740,
-      "y": 1711,
+      "x": 4920,
+      "y": 23709,
       "name": "Screen/Share Link — Starting",
       "theme": {
         "c:Mode": "Dark"
@@ -72075,8 +72796,8 @@
     {
       "type": "frame",
       "id": "epZO2",
-      "x": 25740,
-      "y": 2691,
+      "x": 6560,
+      "y": 23709,
       "name": "Screen/Share Link — Invalid or expired",
       "theme": {
         "c:Mode": "Dark"

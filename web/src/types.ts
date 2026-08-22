@@ -397,6 +397,13 @@ export interface GameServerNetworking {
   serviceAnnotations?: Record<string, string>;
   portOverrides?: PortOverride[];
   sourceRanges?: string[];
+  // Load-balancer address pool to allocate from; honored only for
+  // expose: LoadBalancer, and only when the cluster runs a supported
+  // address manager (MetalLB or Cilium LB-IPAM).
+  addressPool?: string;
+  // Specific IP to request from that pool. Format is validated
+  // operator-side, not by the CRD.
+  address?: string;
   tunnel?: GameServerTunnel;
 }
 
@@ -442,6 +449,9 @@ export interface GameServerEndpoint {
   // Tailscale endpoints are tailnet-private only, not reachable from the internet.
   private?: boolean;
   tunnelProvider?: string;
+  // Address pool the load-balancer address was allocated from; set by the
+  // reconciler, never by the user.
+  pool?: string;
 }
 
 export interface GameServer {

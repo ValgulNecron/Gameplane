@@ -293,6 +293,22 @@ module-pin: ## Re-resolve every module image tag to its current digest (rewrites
 
 # -------- local dev cluster (kind) --------
 .PHONY: dev-up dev-down dev-load dev-push dev-install
+
+# Which address manager the operator translates spec.networking.addressPool
+# for. deploy/kind/up.sh installs MetalLB into the kind cluster, so the kind
+# path must say so or every pool request comes back NoAddressManagerConfigured
+# while MetalLB quietly hands out a default-pool address that looks like it
+# worked. It has to be passed on *this* install: dev-install runs after
+# up.sh and without --reuse-values, so a helm upgrade from the bootstrap
+# script would be discarded here. A remote cluster's address manager is the
+# admin's choice, so it defaults to none there and is overridden on the
+# command line (`make dev-install ADDRESS_MANAGER=cilium`).
+ifeq ($(CLUSTER),remote)
+ADDRESS_MANAGER ?= none
+else
+ADDRESS_MANAGER ?= metallb
+endif
+
 dev-up: ## Create/prepare cluster + install Gameplane (CLUSTER=kind|remote)
 ifeq ($(CLUSTER),remote)
 	$(MAKE) images TAG=$(TAG)
@@ -328,6 +344,7 @@ dev-install: ## Install Gameplane Helm chart into the selected cluster
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.tag=$(TAG) \
 		--set image.registry=$(REGISTRY) \
+		--set operator.addressManager=$(ADDRESS_MANAGER) \
 		--set defaultModuleSource.type=oci \
 		--set defaultModuleSource.oci.url=$(MODULE_SOURCE_URL) \
 		--set defaultModuleSource.oci.insecure=$(MODULE_SOURCE_INSECURE)
