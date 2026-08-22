@@ -2,6 +2,10 @@ name: build game images
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - images/**
+      - .github/workflows/images.yaml
   push:
     branches:
       - master
@@ -25,12 +29,17 @@ jobs:
           - base: steamcmd
     outputs:
       # Pass the steamcmd base digest to downstream game jobs via ${{ needs.common-base.outputs.steamcmd-digest }}
+      # On PRs, digest is empty and game job uses the local tag instead.
       steamcmd-digest: ${{ steps.build.outputs.digest }}
+      steamcmd-tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      # Login only when pushing to registry; skip on PRs to avoid unnecessary token operations.
+      # Fork PRs have read-only GITHUB_TOKEN anyway, so login would fail confusingly.
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -49,13 +58,17 @@ jobs:
           file: images/common/${{ matrix.base }}/Dockerfile
           # Common base images support both architectures (Ubuntu 26.04 LTS-based).
           platforms: linux/amd64,linux/arm64
-          push: true
+          # On PRs: validate multi-platform coverage without loading/pushing (buildx still fully builds).
+          # On master: push to registry.
+          push: ${{ github.event_name != 'pull_request' }}
+          load: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=dev
-      # Signing is mandatory: fail rather than publish unsigned images.
-      - name: require signing key
+      # Signing is mandatory when publishing to a registry. Skip on PRs where digest is empty.
+      - if: github.event_name != 'pull_request'
+        name: require signing key
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: |
@@ -63,13 +76,16 @@ jobs:
             echo "::error::COSIGN_PRIVATE_KEY is required for image publishing"
             exit 1
           fi
-      - name: install cosign
+      - if: github.event_name != 'pull_request'
+        name: install cosign
         uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: 'v3.1.2'
-      - name: refresh sigstore trust root
+      - if: github.event_name != 'pull_request'
+        name: refresh sigstore trust root
         run: cosign initialize
-      - name: sign image (keyed, logged)
+      - if: github.event_name != 'pull_request'
+        name: sign image (keyed, logged)
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -87,7 +103,8 @@ jobs:
           done
           echo "::error::cosign sign failed after 3 attempts (Rekor unavailable?)"
           exit 1
-      - name: verify signature & check published key
+      - if: github.event_name != 'pull_request'
+        name: verify signature & check published key
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -101,7 +118,8 @@ jobs:
             echo "::error::committed cosign.pub does not match COSIGN_PRIVATE_KEY — update the published key"
             exit 1
           fi
-      - name: record base digest
+      - if: github.event_name != 'pull_request'
+        name: record base digest
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           echo "**Common Base Images**" >> $GITHUB_STEP_SUMMARY
@@ -112,7 +130,9 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   # Stage 2: Build game-specific images that depend on the common base.
-  # Each game image is a separate matrix entry and receives the base digest via build args.
+  # Each game image is a separate matrix entry and receives the base digest or tag via build args.
+  # On PRs, the base must be built in this job to ensure it exists in the local daemon.
+  # On master, it's already pushed to the registry and referenced via its immutable digest.
   game-images:
     name: build & push game images
     runs-on: ubuntu-latest
@@ -126,7 +146,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      # Login only when pushing to registry; skip on PRs to avoid unnecessary token operations.
+      # Fork PRs have read-only GITHUB_TOKEN anyway, so login would fail confusingly.
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -135,6 +158,35 @@ jobs:
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           echo "name=${owner_lc}" >> $GITHUB_OUTPUT
+      # On PRs, build the base image locally to ensure it exists in this runner's daemon.
+      # The base job runs on a separate runner and its local image doesn't transfer.
+      # On master, the base is already pushed and we reference it via digest instead.
+      # Build amd64 only (game binary is x86_64-only; loading multi-platform is not supported).
+      - if: github.event_name == 'pull_request'
+        id: build-base-pr
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: images/common/steamcmd/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: gameplane-steamcmd-base:pr
+          build-args: |
+            VERSION=dev
+      - id: base-tag
+        # On PR: use the fixed local tag built above. On master: use the pushed digest.
+        env:
+          OWNER: ${{ steps.owner-lowercase.outputs.name }}
+          DIGEST: ${{ needs.common-base.outputs.steamcmd-digest }}
+        run: |
+          if [ -z "$DIGEST" ]; then
+            # PR: use the local tag built in this job (guaranteed to exist in this runner's daemon).
+            base_image="gameplane-steamcmd-base:pr"
+          else
+            # Master: digest is available from the pushed base image (immutable pinning).
+            base_image="ghcr.io/${OWNER}/gameplane/common-steamcmd@${DIGEST}"
+          fi
+          echo "image=${base_image}" >> $GITHUB_OUTPUT
       - id: meta
         uses: docker/metadata-action@v6
         with:
@@ -150,14 +202,16 @@ jobs:
           # Game server binaries are x86_64 only (e.g., Unity runtime for Nuclear Option).
           # ARM64 support would require game-specific work (native builds or compatibility layers).
           platforms: linux/amd64
-          push: true
+          # On PRs: just validate the build (no load, no push). On master: push to registry.
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=dev
-            STEAMCMD_BASE_IMAGE=ghcr.io/${{ steps.owner-lowercase.outputs.name }}/gameplane/common-steamcmd@${{ needs.common-base.outputs.steamcmd-digest }}
-      # Signing is mandatory.
-      - name: require signing key
+            STEAMCMD_BASE_IMAGE=${{ steps.base-tag.outputs.image }}
+      # Signing is mandatory when publishing to a registry. Skip on PRs where digest is empty.
+      - if: github.event_name != 'pull_request'
+        name: require signing key
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         run: |
@@ -165,13 +219,16 @@ jobs:
             echo "::error::COSIGN_PRIVATE_KEY is required for image publishing"
             exit 1
           fi
-      - name: install cosign
+      - if: github.event_name != 'pull_request'
+        name: install cosign
         uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: 'v3.1.2'
-      - name: refresh sigstore trust root
+      - if: github.event_name != 'pull_request'
+        name: refresh sigstore trust root
         run: cosign initialize
-      - name: sign image (keyed, logged)
+      - if: github.event_name != 'pull_request'
+        name: sign image (keyed, logged)
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -189,7 +246,8 @@ jobs:
           done
           echo "::error::cosign sign failed after 3 attempts (Rekor unavailable?)"
           exit 1
-      - name: verify signature & check published key
+      - if: github.event_name != 'pull_request'
+        name: verify signature & check published key
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -203,7 +261,8 @@ jobs:
             echo "::error::committed cosign.pub does not match COSIGN_PRIVATE_KEY — update the published key"
             exit 1
           fi
-      - name: record game image digest
+      - if: github.event_name != 'pull_request'
+        name: record game image digest
         run: |
           owner_lc="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           echo "**Game Images**" >> $GITHUB_STEP_SUMMARY
