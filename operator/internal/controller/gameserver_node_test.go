@@ -25,7 +25,7 @@ func TestReconcileNodePlacement_SetsAndClears(t *testing.T) {
 	pod.Spec.NodeName = "node-7"
 
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs, pod).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	ctx := context.Background()
 	key := types.NamespacedName{Name: "alpha", Namespace: "ns"}
 

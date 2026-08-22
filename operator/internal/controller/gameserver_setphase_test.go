@@ -27,7 +27,7 @@ func TestSetPhase_ReadyConditionCarriesObservedGeneration(t *testing.T) {
 		WithObjects(gs).
 		WithStatusSubresource(&gameplanev1alpha1.GameServer{}).
 		Build()
-	r := &GameServerReconciler{Client: cl}
+	r := &GameServerReconciler{Client: cl, APIReader: cl}
 
 	if err := r.setPhase(context.Background(), gs, "boom"); err != nil {
 		t.Fatalf("setPhase: %v", err)

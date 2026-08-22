@@ -58,7 +58,7 @@ func TestRestartPhase_NoneWhenNoToken(t *testing.T) {
 	s := restartScheme(t)
 	gs := restartGameServer("", "")
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	got, err := r.restartPhase(context.Background(), gs)
 	if err != nil {
 		t.Fatalf("restartPhase: %v", err)
@@ -74,7 +74,7 @@ func TestRestartPhase_NoneWhenAcked(t *testing.T) {
 	// A StatefulSet with a live pod must not matter once the token is acked.
 	cl := fake.NewClientBuilder().WithScheme(s).
 		WithObjects(gs, restartStatefulSet(1)).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	got, err := r.restartPhase(context.Background(), gs)
 	if err != nil {
 		t.Fatalf("restartPhase: %v", err)
@@ -89,7 +89,7 @@ func TestRestartPhase_DrainingWhilePodPresent(t *testing.T) {
 	gs := restartGameServer("tok1", "")
 	cl := fake.NewClientBuilder().WithScheme(s).
 		WithObjects(gs, restartStatefulSet(1)).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	got, err := r.restartPhase(context.Background(), gs)
 	if err != nil {
 		t.Fatalf("restartPhase: %v", err)
@@ -104,7 +104,7 @@ func TestRestartPhase_CompleteWhenStatefulSetDrained(t *testing.T) {
 	gs := restartGameServer("tok1", "")
 	cl := fake.NewClientBuilder().WithScheme(s).
 		WithObjects(gs, restartStatefulSet(0)).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	got, err := r.restartPhase(context.Background(), gs)
 	if err != nil {
 		t.Fatalf("restartPhase: %v", err)
@@ -119,7 +119,7 @@ func TestRestartPhase_CompleteWhenStatefulSetMissing(t *testing.T) {
 	gs := restartGameServer("tok1", "")
 	// No StatefulSet object at all — a server that was never started.
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 	got, err := r.restartPhase(context.Background(), gs)
 	if err != nil {
 		t.Fatalf("restartPhase: %v", err)
@@ -134,7 +134,7 @@ func TestAckRestart_EchoesTokenAndClearsGraceClock(t *testing.T) {
 	gs := restartGameServer("tok1", "")
 	gs.Annotations[stopRequestedAtAnnotation] = "2026-01-01T00:00:00Z"
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(gs).Build()
-	r := &GameServerReconciler{Client: cl, Scheme: s}
+	r := &GameServerReconciler{Client: cl, APIReader: cl, Scheme: s}
 
 	if err := r.ackRestart(context.Background(), gs); err != nil {
 		t.Fatalf("ackRestart: %v", err)

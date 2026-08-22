@@ -76,7 +76,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		if err := r.reconcileSentinel(ctx, gs, tmpl, true); err != nil {
 			t.Fatalf("reconcileSentinel: %v", err)
 		}
@@ -116,7 +116,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		// Create it first so there is something to delete.
 		if err := r.reconcileSentinel(ctx, gs, tmpl, true); err != nil {
 			t.Fatalf("reconcileSentinel create: %v", err)
@@ -155,7 +155,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		if err := r.reconcileSentinel(ctx, gs, tmpl, true); err != nil {
 			t.Fatalf("reconcileSentinel: %v", err)
 		}
@@ -193,7 +193,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		if err := r.reconcileSentinel(ctx, gs, tmpl, true); err != nil {
 			t.Fatalf("reconcileSentinel: %v", err)
 		}
@@ -237,7 +237,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		if err := r.reconcileGameDirectServiceFromTemplate(ctx, gs, tmpl); err != nil {
 			t.Fatalf("reconcileGameDirectServiceFromTemplate: %v", err)
 		}
@@ -292,7 +292,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		if err := r.reconcileGameDirectServiceFromTemplate(ctx, gs, tmpl); err != nil {
 			t.Fatalf("reconcileGameDirectServiceFromTemplate: %v", err)
 		}
@@ -340,7 +340,7 @@ func TestSentinelReconciliation(t *testing.T) {
 			t.Fatalf("create gameserver: %v", err)
 		}
 
-		r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
+		r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
 		if err := r.reconcileGameDirectServiceFromTemplate(ctx, gs, tmpl); err != nil {
 			t.Fatalf("reconcileGameDirectServiceFromTemplate: %v", err)
 		}
