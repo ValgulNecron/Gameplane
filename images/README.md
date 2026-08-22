@@ -43,6 +43,7 @@ Each game has one directory under `images/games/<name>/` with a **Dockerfile** (
    ```yaml
    - game: <name>
      dockerfile: images/games/<name>/Dockerfile
+     context: images/games/<name>
    ```
 5. Push to a feature branch; the workflow builds, signs, and surfaces the digest in the job summary.
 6. Once merged, pin the digest in the module's `template.yaml` (see **Reading published digests** below).
@@ -186,11 +187,11 @@ The published images are built via CI/CD (GitHub Actions) and pushed to a regist
 For manual testing:
 
 ```bash
-# Build the base image locally
-docker build -t gameplane-steamcmd-base:latest images/common/steamcmd
+# Build the base image locally (context is the image's directory)
+docker build -t gameplane-steamcmd-base:latest -f Dockerfile images/common/steamcmd
 
-# Build a game image
-docker build -t my-game:latest images/games/my-game
+# Build a game image (context is the image's directory)
+docker build -t my-game:latest -f Dockerfile images/games/my-game
 
 # Run locally (requires a mounted volume for persistence)
 docker run -it \

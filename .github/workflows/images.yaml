@@ -54,8 +54,8 @@ jobs:
       - id: build
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: images/common/${{ matrix.base }}/Dockerfile
+          context: images/common/${{ matrix.base }}
+          file: Dockerfile
           # Common base images support both architectures (Ubuntu 26.04 LTS-based).
           platforms: linux/amd64,linux/arm64
           # On PRs: validate multi-platform coverage without loading/pushing (buildx still fully builds).
@@ -142,6 +142,7 @@ jobs:
         include:
           - game: nuclear-option
             dockerfile: images/games/nuclear-option/Dockerfile
+            context: images/games/nuclear-option
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
@@ -166,8 +167,8 @@ jobs:
         id: build-base-pr
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: images/common/steamcmd/Dockerfile
+          context: images/common/steamcmd
+          file: Dockerfile
           platforms: linux/amd64
           load: true
           tags: gameplane-steamcmd-base:pr
@@ -197,8 +198,8 @@ jobs:
       - id: build
         uses: docker/build-push-action@v7
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
+          context: ${{ matrix.context }}
+          file: Dockerfile
           # Game server binaries are x86_64 only (e.g., Unity runtime for Nuclear Option).
           # ARM64 support would require game-specific work (native builds or compatibility layers).
           platforms: linux/amd64
