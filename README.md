@@ -178,7 +178,8 @@ The chart pins matching `ghcr.io/valgulnecron/gameplane/{operator,api,agent}`
 images by `appVersion`. To track the rolling beta instead of a tagged release,
 add `--set image.tag=edge`. Then seed an admin user and log in — see
 [`docs/install.md`](docs/install.md) for the full flow, OIDC, Postgres, and
-values reference.
+values reference. For address pool configuration (pinning servers to specific
+public IP addresses), see [`docs/networking.md`](docs/networking.md).
 
 All published images, the Helm chart, and official module bundles are signed
 with the project's cosign key ([`cosign.pub`](cosign.pub), also baked into
