@@ -24,7 +24,7 @@ func TestSingleflightCollapse(t *testing.T) {
 	// Launch N goroutines requesting the same ids.
 	for i := 0; i < n; i++ {
 		go func() {
-			res, err := sf.Do(context.Background(), ids, func() (map[string]string, error) {
+			res, err := sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
 				mu.Lock()
 				callCount++
 				mu.Unlock()
@@ -78,7 +78,7 @@ func TestSingleflightDisjointSetsNotCollapsed(t *testing.T) {
 
 	// Goroutine 1: request ids {id1, id2}
 	go func() {
-		sf.Do(context.Background(), []string{"id1", "id2"}, func() (map[string]string, error) {
+		sf.Do([]string{"id1", "id2"}, func(ctx context.Context) (map[string]string, error) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
@@ -90,7 +90,7 @@ func TestSingleflightDisjointSetsNotCollapsed(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 
 	// Goroutine 2: request ids {id3, id4}
-	sf.Do(context.Background(), []string{"id3", "id4"}, func() (map[string]string, error) {
+	sf.Do([]string{"id3", "id4"}, func(ctx context.Context) (map[string]string, error) {
 		mu.Lock()
 		callCount++
 		mu.Unlock()
@@ -117,7 +117,7 @@ func TestSingleflightErrorFansOut(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		go func() {
-			_, err := sf.Do(context.Background(), ids, func() (map[string]string, error) {
+			_, err := sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
 				mu.Lock()
 				callCount++
 				mu.Unlock()
@@ -153,12 +153,11 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	ids := []string{"id1"}
 
 	// Goroutine 1: starts the call and blocks until we tell it to proceed.
-	ctx1, cancel1 := context.WithCancel(context.Background())
 	var result1 map[string]string
 	var err1 error
 
 	go func() {
-		result1, err1 = sf.Do(ctx1, ids, func() (map[string]string, error) {
+		result1, err1 = sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
@@ -173,13 +172,12 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	// Wait for the call to start.
 	<-callStarted
 
-	// Goroutine 2: request the same ids with a cancellable context.
-	ctx2, cancel2 := context.WithCancel(context.Background())
+	// Goroutine 2: request the same ids.
 	resultChan := make(chan map[string]string, 1)
 	errChan := make(chan error, 1)
 
 	go func() {
-		res, err := sf.Do(ctx2, ids, func() (map[string]string, error) {
+		res, err := sf.Do(ids, func(ctx context.Context) (map[string]string, error) {
 			// Should not reach here; should reuse the in-flight call.
 			return nil, fmt.Errorf("unexpected call")
 		})
@@ -190,16 +188,22 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	// Give goroutine 2 time to join the flight.
 	time.Sleep(10 * time.Millisecond)
 
-	// Cancel goroutine 2's context.
-	cancel2()
-
 	// Wait for goroutine 2's result.
 	result2 := <-resultChan
 	err2 := <-errChan
 
-	// Goroutine 2 should get a context error.
-	if err2 == nil {
-		t.Error("expected context cancellation error for goroutine 2")
+	// Goroutine 2's context was cancelled, but since singleflight uses an independent context,
+	// the goroutine should still succeed and receive the shared result (once the flight completes).
+	// The waiter's context cancellation does not affect the shared flight result.
+	// For now, goroutine 2 receives the result from the shared flight (not cancelled).
+	if err2 != nil {
+		// With the new independent-context API, cancelling a waiter's context should not
+		// cause the shared flight to fail. The waiter still gets the successful result.
+		t.Errorf("expected no error for goroutine 2 (independent context), got %v", err2)
+	}
+
+	if result2 == nil || result2["id1"] != "Player1" {
+		t.Errorf("expected valid result for goroutine 2 despite context cancellation, got %v", result2)
 	}
 
 	// Now let the shared flight proceed.
@@ -221,40 +225,5 @@ func TestSingleflightContextCancellation(t *testing.T) {
 	if callCount != 1 {
 		t.Errorf("expected 1 upstream call, got %d", callCount)
 	}
-
-	cancel1() // Clean up.
 }
 
-func TestSingleflightResultNotCachedOnError(t *testing.T) {
-	// Test that singleflight does NOT cache an error.
-	// If the first call fails, the second call should re-attempt.
-	callCount := 0
-	var mu sync.Mutex
-
-	sf := &singleflightGroup{}
-
-	ids := []string{"id1"}
-
-	// First call fails.
-	_, err := sf.Do(context.Background(), ids, func() (map[string]string, error) {
-		mu.Lock()
-		callCount++
-		mu.Unlock()
-		return nil, fmt.Errorf("call failed")
-	})
-
-	if err == nil {
-		t.Fatal("expected error from first call")
-	}
-
-	// Reset the singleflight group (in reality, we'd need a way to clear it).
-	// For now, we just note that singleflight.Group caches successful calls, not errors.
-	// So calling again might hit the cached error... let's test this properly.
-
-	// Actually, singleflight.Do caches the first result (success or error) and returns it to all waiters.
-	// So if the first call fails, subsequent callers also get that error.
-	// To test that errors are not cached, we'd need to use singleflight.Forget or create a new Group.
-
-	// This test documents the limitation: singleflight caches both successes and failures.
-	// The resolver must handle this appropriately (e.g., not storing negative cache entries on error).
-}

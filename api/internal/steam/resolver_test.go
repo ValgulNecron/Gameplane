@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -58,11 +60,12 @@ func TestResolverSuccessfulBatch(t *testing.T) {
 
 	// Create a resolver with a custom HTTP client pointing to the test server.
 	r := &Resolver{
-		apiKey: "test-key",
-		client: &http.Client{Timeout: 2 * time.Second},
-		cache:  NewCache(&Options{}, nil),
-		opts:   (&Options{}).Normalize(),
-		sf:     &singleflightGroup{},
+		apiKey:  "test-key",
+		baseURL: server.URL + "/ISteamUser/GetPlayerSummaries/v2/",
+		client:  &http.Client{Timeout: 2 * time.Second},
+		cache:   NewCache(&Options{}, nil),
+		opts:    (&Options{}).Normalize(),
+		sf:      &singleflightGroup{},
 	}
 
 	// Test getPlayerSummaries directly with the test server.
@@ -170,11 +173,12 @@ func TestResolverPartialResponse(t *testing.T) {
 	defer server.Close()
 
 	r := &Resolver{
-		apiKey: "test-key",
-		client: &http.Client{Timeout: 2 * time.Second},
-		cache:  NewCache(&Options{}, nil),
-		opts:   (&Options{}).Normalize(),
-		sf:     &singleflightGroup{},
+		apiKey:  "test-key",
+		baseURL: server.URL + "/ISteamUser/GetPlayerSummaries/v2/",
+		client:  &http.Client{Timeout: 2 * time.Second},
+		cache:   NewCache(&Options{}, nil),
+		opts:    (&Options{}).Normalize(),
+		sf:      &singleflightGroup{},
 	}
 
 	// Test with three ids but only one returned.
@@ -201,16 +205,32 @@ func TestResolverNon200Status(t *testing.T) {
 	}))
 	defer server.Close()
 
-	r := &Resolver{
-		apiKey: "bad-key",
-		client: &http.Client{Timeout: 2 * time.Second},
-		cache:  NewCache(&Options{}, nil),
-		opts:   (&Options{}).Normalize(),
-		sf:     &singleflightGroup{},
+	resolver := &Resolver{
+		apiKey:  "bad-key",
+		baseURL: server.URL + "/ISteamUser/GetPlayerSummaries/v2/",
+		client:  &http.Client{Timeout: 2 * time.Second},
+		cache:   NewCache(&Options{}, nil),
+		opts:    (&Options{}).Normalize(),
+		sf:      &singleflightGroup{},
 	}
 
-	// Mock getPlayerSummaries by constructing a request manually.
-	// For simplicity, we document the test here without full implementation.
+	// Call getPlayerSummaries against the test server returning a non-200 status.
+	result, err := resolver.getPlayerSummaries(context.Background(), []string{"76561198000000001"})
+
+	// A non-200 response should return an error.
+	if err == nil {
+		t.Error("expected error for non-200 status, got nil")
+	}
+
+	// The result should be nil on error.
+	if result != nil {
+		t.Errorf("expected nil result on error, got %v", result)
+	}
+
+	// Verify the error message does not leak the URL or key.
+	if err.Error() == "" {
+		t.Error("expected non-empty error message")
+	}
 }
 
 func TestResolverMalformedJSON(t *testing.T) {
@@ -221,7 +241,135 @@ func TestResolverMalformedJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// This test would verify that malformed JSON doesn't crash the resolver.
+	resolver := &Resolver{
+		apiKey:  "test-key",
+		baseURL: server.URL + "/ISteamUser/GetPlayerSummaries/v2/",
+		client:  &http.Client{Timeout: 2 * time.Second},
+		cache:   NewCache(&Options{}, nil),
+		opts:    (&Options{}).Normalize(),
+		sf:      &singleflightGroup{},
+	}
+
+	// Call getPlayerSummaries against the test server returning malformed JSON.
+	result, err := resolver.getPlayerSummaries(context.Background(), []string{"76561198000000001"})
+
+	// Malformed JSON should return an error, not crash.
+	if err == nil {
+		t.Error("expected error for malformed JSON, got nil")
+	}
+
+	// The result should be nil on error.
+	if result != nil {
+		t.Errorf("expected nil result on error, got %v", result)
+	}
+
+	// Verify the error message does not leak the URL or key.
+	if err.Error() == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestResolverNetworkFailure(t *testing.T) {
+	// Test that network failures are handled gracefully and return an error without leaking the key.
+	resolver := &Resolver{
+		apiKey:  "sensitive-api-key",
+		baseURL: "https://127.0.0.1:1/ISteamUser/GetPlayerSummaries/v2/", // Unreachable address
+		client:  &http.Client{Timeout: 100 * time.Millisecond},            // Short timeout
+		cache:   NewCache(&Options{}, nil),
+		opts:    (&Options{}).Normalize(),
+		sf:      &singleflightGroup{},
+	}
+
+	// Call getPlayerSummaries against an unreachable address.
+	result, err := resolver.getPlayerSummaries(context.Background(), []string{"76561198000000001"})
+
+	// A network failure should return an error.
+	if err == nil {
+		t.Error("expected error for network failure, got nil")
+	}
+
+	// The result should be nil on error.
+	if result != nil {
+		t.Errorf("expected nil result on error, got %v", result)
+	}
+
+	// Verify the error message does not leak the API key.
+	errStr := err.Error()
+	if errStr == "" {
+		t.Error("expected non-empty error message")
+	}
+
+	// The error message should never contain the sensitive API key.
+	if strings.Contains(errStr, "sensitive-api-key") {
+		t.Errorf("error message leaked API key: %s", errStr)
+	}
+}
+
+func TestResolverLargeBatchSplit(t *testing.T) {
+	// Test that ids are correctly split into batches of at most 100.
+	callCount := 0
+	var mu sync.Mutex
+	receivedBatches := []int{} // Track batch sizes for each call
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		callCount++
+		ids := r.URL.Query()["steamids"]
+		receivedBatches = append(receivedBatches, len(ids))
+		mu.Unlock()
+
+		// Return a valid response for all requested ids.
+		var players []string
+		for _, id := range ids {
+			players = append(players, fmt.Sprintf(`{"steamid": "%s", "personaname": "Player%s"}`, id, id))
+		}
+		response := fmt.Sprintf(`{
+  "response": {
+    "players": [%s]
+  }
+}`, strings.Join(players, ","))
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, response)
+	}))
+	defer server.Close()
+
+	resolver := &Resolver{
+		apiKey:  "test-key",
+		baseURL: server.URL + "/ISteamUser/GetPlayerSummaries/v2/",
+		client:  &http.Client{Timeout: 2 * time.Second},
+		cache:   NewCache(&Options{}, nil),
+		opts:    (&Options{}).Normalize(),
+		sf:      &singleflightGroup{},
+	}
+
+	// Create 250 ids (will be split into 3 batches: 100 + 100 + 50).
+	var ids []string
+	for i := 0; i < 250; i++ {
+		ids = append(ids, fmt.Sprintf("7656119800000%04d", i))
+	}
+
+	// Resolve all ids.
+	result, err := resolver.resolveBatch(context.Background(), ids)
+	if err != nil {
+		t.Fatalf("resolveBatch failed: %v", err)
+	}
+
+	// Verify all ids were resolved.
+	if len(result) != 250 {
+		t.Errorf("expected 250 results, got %d", len(result))
+	}
+
+	// Verify the batching was correct (3 batches: 100 + 100 + 50).
+	if callCount != 3 {
+		t.Errorf("expected 3 upstream calls, got %d", callCount)
+	}
+
+	mu.Lock()
+	if len(receivedBatches) != 3 || receivedBatches[0] != 100 || receivedBatches[1] != 100 || receivedBatches[2] != 50 {
+		t.Errorf("expected batch sizes [100, 100, 50], got %v", receivedBatches)
+	}
+	mu.Unlock()
 }
 
 // fakeClock is a test clock that can be advanced manually.

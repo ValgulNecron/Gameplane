@@ -38,8 +38,9 @@ const DefaultNegativeTTL = 15 * time.Minute
 // DefaultTimeout is the default per-call HTTP timeout, well inside the SC-004 five-second budget.
 const DefaultTimeout = 2 * time.Second
 
-// Normalize returns a copy of o with all zero or negative fields replaced by their defaults.
+// Normalize normalizes o in place, replacing all zero or negative fields with their defaults.
 // This ensures misconfiguration can never produce an unbounded cache or call.
+// If o is nil, Normalize allocates a new Options, normalizes it, and returns the pointer.
 func (o *Options) Normalize() *Options {
 	if o == nil {
 		o = &Options{}

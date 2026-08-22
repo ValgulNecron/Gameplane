@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"time"
 
 	"github.com/ValgulNecron/gameplane/netguard"
 )
@@ -19,11 +18,12 @@ import (
 // and gracefully degrades to returning nothing when the key is missing or the API is unavailable.
 // The resolver is safe for concurrent use.
 type Resolver struct {
-	apiKey string
-	client *http.Client
-	cache  *Cache
-	opts   *Options
-	sf     *singleflightGroup
+	apiKey  string
+	baseURL string
+	client  *http.Client
+	cache   *Cache
+	opts    *Options
+	sf      *singleflightGroup
 }
 
 // NewResolver returns a Resolver, or nil if apiKey is empty.
@@ -45,11 +45,12 @@ func NewResolver(apiKey string, opts *Options, clock Clock) *Resolver {
 	client := netguard.HTTPClient(opts.Timeout, netguard.IsPublic)
 
 	return &Resolver{
-		apiKey: apiKey,
-		client: client,
-		cache:  NewCache(opts, clock),
-		opts:   opts,
-		sf:     &singleflightGroup{},
+		apiKey:  apiKey,
+		baseURL: "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/",
+		client:  client,
+		cache:   NewCache(opts, clock),
+		opts:    opts,
+		sf:      &singleflightGroup{},
 	}
 }
 
@@ -94,8 +95,8 @@ func (r *Resolver) Resolve(ctx context.Context, steamIDs []string) map[string]st
 	}
 
 	// Collapse concurrent identical requests via singleflight.
-	batchRes, err := r.sf.Do(ctx, uncached, func() (map[string]string, error) {
-		return r.resolveBatch(ctx, uncached)
+	batchRes, err := r.sf.Do(uncached, func(sfCtx context.Context) (map[string]string, error) {
+		return r.resolveBatch(sfCtx, uncached)
 	})
 
 	if err != nil {
@@ -131,14 +132,14 @@ func (r *Resolver) resolveBatch(ctx context.Context, ids []string) (map[string]s
 		}
 		batch := ids[i:end]
 
-		batch_result, err := r.getPlayerSummaries(ctx, batch)
+		batchResult, err := r.getPlayerSummaries(ctx, batch)
 		if err != nil {
 			// On any batch failure, return the error and leave all ids uncached.
 			// The caller will decide whether to cache a negative entry or retry.
 			return nil, fmt.Errorf("get player summaries: %w", err)
 		}
 
-		for id, val := range batch_result {
+		for id, val := range batchResult {
 			result[id] = val
 		}
 	}
@@ -169,17 +170,14 @@ func (r *Resolver) getPlayerSummaries(ctx context.Context, ids []string) (map[st
 		return map[string]string{}, nil
 	}
 
-	// Build the request URL without including the key in the URL string,
-	// to avoid logging it if an error occurs. The key is passed as a query parameter
-	// but is not part of any error message.
-	baseURL := "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
+	// Build the request URL. The key is passed as a query parameter.
 	params := url.Values{}
 	params.Set("key", r.apiKey)
 	for _, id := range ids {
 		params.Add("steamids", id)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", baseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", r.baseURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -192,6 +190,14 @@ func (r *Resolver) getPlayerSummaries(ctx context.Context, ids []string) (map[st
 			// netguard rejected the address; treat as degradation.
 			return map[string]string{}, nil
 		}
+		// http.Client.Do may return a *url.Error whose Error() method renders the full request URL,
+		// which contains the API key as a query parameter. To avoid leaking the key while preserving
+		// the error cause for errors.Is/errors.As, wrap the inner Err instead of the full *url.Error.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) && urlErr.Err != nil {
+			return nil, fmt.Errorf("http request: %w", urlErr.Err)
+		}
+		// For non-URL errors, wrap directly; they don't contain the URL.
 		return nil, fmt.Errorf("http request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -204,9 +210,9 @@ func (r *Resolver) getPlayerSummaries(ctx context.Context, ids []string) (map[st
 	var steamResp struct {
 		Response struct {
 			Players []struct {
-				Steamid      string `json:"steamid"`
-				PersonaName  string `json:"personaname"`
-				CommunityVisibilityState int `json:"communityvisibilitystate"`
+				Steamid                  string `json:"steamid"`
+				PersonaName              string `json:"personaname"`
+				CommunityVisibilityState int    `json:"communityvisibilitystate"`
 			} `json:"players"`
 		} `json:"response"`
 	}

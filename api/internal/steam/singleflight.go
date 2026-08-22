@@ -2,7 +2,6 @@ package steam
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -25,14 +24,20 @@ type result struct {
 // Do executes the function f once for the sorted set of ids, even if multiple callers invoke Do
 // concurrently with the same set of ids. All callers receive the same result.
 //
-// If the context of any caller is cancelled, only that caller's wait is abandoned; the shared
-// flight continues for the others, and all receive the same result once it completes.
-func (g *singleflightGroup) Do(ctx context.Context, ids []string, f func() (map[string]string, error)) (map[string]string, error) {
+// The function f is invoked with an internally-owned context independent of any caller.
+// No caller's deadline or cancellation affects the shared flight; every caller waits
+// unconditionally for the upstream call to complete. The upstream call is bounded only by
+// the HTTP client's own timeout. All waiting callers receive the same result.
+func (g *singleflightGroup) Do(ids []string, f func(context.Context) (map[string]string, error)) (map[string]string, error) {
 	// Create a deterministic key from the sorted ids.
 	sorted := make([]string, len(ids))
 	copy(sorted, ids)
 	sort.Strings(sorted)
 	key := strings.Join(sorted, ",")
+
+	// Create a context independent of any caller's context for the shared upstream work.
+	// This ensures that if one caller's context is cancelled, others are not affected.
+	sfCtx := context.Background()
 
 	// Start the singleflight call in a goroutine so we can handle context cancellation.
 	// The singleflight call itself doesn't understand context, so we wrap it.
@@ -40,21 +45,16 @@ func (g *singleflightGroup) Do(ctx context.Context, ids []string, f func() (map[
 	var res result
 	go func() {
 		v, err, _ := g.g.Do(key, func() (interface{}, error) {
-			resolutions, err := f()
+			resolutions, err := f(sfCtx)
 			return result{resolutions, err}, nil
 		})
 		res = v.(result)
 		close(done)
 	}()
 
-	// Wait for either the result or context cancellation.
-	select {
-	case <-done:
-		return res.resolutions, res.err
-	case <-ctx.Done():
-		// Caller's context was cancelled, but the shared flight continues.
-		// Return the context error; the shared flight's result, once ready, is available
-		// only to other waiters, not to this one.
-		return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
-	}
+	// Wait for either the result or no event (blocking until done).
+	// We don't handle context cancellation here; callers that want timeout behavior
+	// should use a separate context.WithCancel mechanism.
+	<-done
+	return res.resolutions, res.err
 }
