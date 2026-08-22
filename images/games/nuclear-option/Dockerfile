@@ -21,8 +21,10 @@ ARG STEAMCMD_BASE_IMAGE=gameplane-steamcmd-base:latest
 FROM ${STEAMCMD_BASE_IMAGE}
 
 # Copy the game-specific entrypoint.
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Use --chmod to set execute permission at COPY time (BuildKit feature).
+# This avoids an explicit RUN chmod, which would fail under the non-root USER
+# inherited from the base image. The mode is set atomically and cannot drift.
+COPY --chmod=0755 entrypoint.sh /entrypoint.sh
 
 # Game images must define their own ENTRYPOINT (the base does not).
 ENTRYPOINT ["/entrypoint.sh"]
