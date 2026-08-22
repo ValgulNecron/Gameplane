@@ -258,6 +258,42 @@ Design, as decided:
 
 Rationale: it keeps the promised UX (FR-007 / US3-AC1) intact, confines a third-party dependency and a credential to a single control-plane component that already has an egress path, and reuses the repo's existing SSRF dial-guard instead of inventing a second outbound-HTTP policy.
 
+**Decision 10: Players Capability Parsing Strategy for JSON Response — PENDING MAINTAINER CONFIRMATION**
+
+*Status: **RECOMMENDATION pending maintainer confirmation.** Protocol's per-command response shapes are marked UNVERIFIED (13 of 19 commands in contracts/nuclear-option-remote-command.md); exact behavior contingent on live-server testing. Implementation choice deferred until protocol is verified.*
+
+The agent's player-list capability (agent/internal/caps/caps.go, type `PlayerList`, lines 115–123) is currently structured around text-based RCON output: it declares a `Command` (the RCON command to run) and an optional `EntryRegex` (regex applied over the console text output to extract player names). The `Snapshot` struct returned by the `/players` endpoint (agent/internal/players/players.go, lines 57–64) carries a `Players []string` field populated by this regex-parsing flow.
+
+Nuclear Option's remote-command protocol returns structured JSON instead: `{"Players": [{"steamId": "...", "faction": "..."}]}` per the official docs (contracts/nuclear-option-remote-command.md). A regex over rendered JSON is semantically wrong and fragile. Three options exist:
+
+1. **Regex over rendered JSON (least preferred)**: Convert the JSON response to a string, apply the regex to extract player names, populate `Snapshot.Players` with the result. Consequence: defeats the purpose of having structured data, makes the parsing path unmaintainable (regex on stringified JSON changes on every protocol version), and does not capture the additional data (faction, Steam ID) the JSON already carries. Unblocks US3-AC1 (player list visible), idle auto-sleep, and the Players tab, but at high technical debt.
+
+2. **Protocol-aware parser (recommended)**: Teach the agent to understand that `nuclearoption` returns JSON, decode it into a structured format, populate not just player names but also Steam IDs and faction fields. Requires extending the `Snapshot` struct or introducing a protocol-specific response type. Consequence: agent code gains protocol-specific branching (similar to how different RCON protocols are already handled in agent/internal/rcon/), but the result is maintainable, reuses the structured data the protocol provides, and unblocks US3-AC1, idle auto-sleep, and the Players tab with richer information. Aligns with the design principle that agent protocols are allowed to be game-specific.
+
+3. **No players capability for v1 (fallback)**: Nuclear Option template does not declare a `PlayerActions` capability in its spec.capabilities. Consequence: the agent returns `online: -1` (unknown) from the `/players` endpoint per the code path at player/players.go lines 118–127, the Players tab in the dashboard shows "Unavailable for this game", idle auto-sleep cannot use players-based triggers, and remote moderation (kick, ban) continues to work via the Remote Console with raw Steam IDs (the operator must know the ID without the dashboard helping). This unblocks the module from shipping but defers the full player-list UX to a future v1.x release.
+
+**Recommendation**: Option 2 (protocol-aware parser). Rationale: it preserves the feature value promised in US3-AC1 and spec FR-007 (operator can see player list), enables richer player information (faction, Steam ID), aligns with the design pattern already established for game-specific protocols (agent code is allowed to know about protocol details), and is implementable without breaking the existing capability contract. The agent's console package already routes different protocols to different handlers (nuclearoption, satisfactory, palworld, etc. in agent/internal/console/); a protocol-specific JSON decoder for Nuclear Option is consistent with that pattern.
+
+**Alternative (if Option 2 proves too complex during implementation)**: Fall back to Option 3 (no players capability v1). This is safe for the module's core gameplay (the operator can still run remote commands by Steam ID), but leaves the dashboard's Players tab and idle auto-sleep at reduced capability for this game until the protocol-aware parser is implemented in a follow-up release.
+
+**Decision 11: RCON Password Secret Minting for Unauthenticated Protocols — PENDING MAINTAINER CONFIRMATION**
+
+*Status: **RECOMMENDATION pending maintainer confirmation.***
+
+The operator's `reconcileRCONSecret` function (operator/internal/controller/gameserver_rcon.go, lines 66–100) ensures that whenever a template declares an RCON interface, a per-GameServer Secret is minted (unless the template references an external PasswordSecretRef or uses a game-managed password file). The Secret holds a randomly-generated password, mounted into the agent sidecar at `/etc/gameplane/rcon` for use over the RCON protocol.
+
+Nuclear Option's remote-command protocol has **no authentication of any kind** (spec Decision 6, confirmed in contracts/nuclear-option-remote-command.md, Enablement section: "The remote-command protocol defines **NO authentication mechanism, NO password validation, and NO handshake**"). The protocol runs on TCP 7779 as a pod-local loopback-only port (never advertised to external clients).
+
+Two strategies exist:
+
+1. **Exempt `nuclearoption` from Secret minting**: Modify `resolveRCON` to check the template's protocol type (e.g., a new `RCON.Type` field or a convention based on the port number) and skip Secret generation for unauthenticated protocols. Consequence: `reconcileRCONSecret` returns early for Nuclear Option templates, no Secret is created, the agent is mounted with no password file, and any downstream code that tries to read `--rcon-password-file` must handle the absence gracefully. Requires auditing: (a) agent code — agent/internal/rcon/ — to confirm it never assumes the password file exists (it should handle the absent case via a `--rcon-password-file` flag default or explicit nil check); (b) API code — api/internal/handlers/ — to confirm it never tries to read a Secret for unauthenticated-protocol GameServers; (c) dashboard — web/src/ — to confirm it never tries to mount or display a password field when the protocol is unauthenticated. If all three handle absence correctly, this is a clean solution with no dead weight.
+
+2. **Accept dead Secret per server (lower friction)**: `reconcileRCONSecret` continues to mint a Secret for all RCON templates, even Nuclear Option. The Secret is created and mounted but never read (since the protocol has no password). Consequence: every Nuclear Option GameServer gets a `<name>-rcon` Secret with an unused random password; it takes up etcd space, complicates backup/restore (the Secret must be backed up even though it serves no function for this game), and violates the principle of creating only necessary artifacts. The upside: no code changes required, and if the upstream protocol is ever updated to require authentication, the Secret is already in place.
+
+**Recommendation**: Option 1 (exempt `nuclearoption` from Secret minting). Rationale: the dead Secret serves no function and consumes resources unnecessarily; the cleanup is straightforward (a one-line check in `resolveRCON`), and the agent code already handles the absent-password case gracefully (the agent does not require a password to run an unauthenticated protocol). This aligns with the design principle that only necessary components are created. If the future v1.x update to Nuclear Option requires authentication, the Secret-minting logic is re-enabled for that protocol in the same change that adds the password.
+
+**Verification steps**: (1) Confirm agent/internal/rcon/ handles the absent password file (grep for `--rcon-password-file`, verify the flag default is safe or that the code checks for nil); (2) Grep api/internal/handlers/ for references to RCON Secrets or password fields to confirm no downstream code breaks; (3) Grep web/src/ for RCON password display/input logic to confirm it does not assume all RCON-capable games have a password field to show.
+
 ## Residual Unknowns
 
 **Unverified 1: On-Disk Log Path**
