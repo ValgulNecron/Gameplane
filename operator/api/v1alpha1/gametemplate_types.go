@@ -1099,6 +1099,26 @@ type ConfigField struct {
 	// without a memory limit leaves the field unset.
 	// +optional
 	AutoFromMemoryLimit *AutoFromMemoryLimit `json:"autoFromMemoryLimit,omitempty"`
+
+	// Min is the minimum numeric value for int-typed fields. Bounds are
+	// inclusive. Ignored for non-int field types.
+	// +optional
+	Min *int64 `json:"min,omitempty"`
+
+	// Max is the maximum numeric value for int-typed fields. Bounds are
+	// inclusive. Ignored for non-int field types.
+	// +optional
+	Max *int64 `json:"max,omitempty"`
+
+	// MinLength is the minimum string length for string and password-typed
+	// fields. Bounds are inclusive. Ignored for non-string field types.
+	// +optional
+	MinLength *int32 `json:"minLength,omitempty"`
+
+	// MaxLength is the maximum string length for string and password-typed
+	// fields. Bounds are inclusive. Ignored for non-string field types.
+	// +optional
+	MaxLength *int32 `json:"maxLength,omitempty"`
 }
 
 // AutoFromMemoryLimit derives a ConfigField value from the game

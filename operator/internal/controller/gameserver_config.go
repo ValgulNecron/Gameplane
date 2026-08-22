@@ -133,8 +133,16 @@ func materializeConfig(
 		// only the API server applies, so treat "" as the default here.
 		switch f.Type {
 		case "int":
-			if _, err := strconv.ParseInt(val, 10, 64); err != nil {
+			intVal, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
 				return nil, fmt.Errorf("config field %q: %q is not an integer", f.Name, val)
+			}
+			// Check numeric bounds on int fields.
+			if f.Min != nil && intVal < *f.Min {
+				return nil, fmt.Errorf("config field %q must be at least %d", f.Name, *f.Min)
+			}
+			if f.Max != nil && intVal > *f.Max {
+				return nil, fmt.Errorf("config field %q must be at most %d", f.Name, *f.Max)
 			}
 		case "bool":
 			if _, err := strconv.ParseBool(val); err != nil {
@@ -144,6 +152,19 @@ func materializeConfig(
 			if !slices.Contains(f.Enum, val) {
 				return nil, fmt.Errorf("config field %q: %q is not one of [%s]",
 					f.Name, val, strings.Join(f.Enum, ", "))
+			}
+		}
+		// Check string length bounds on string and password fields.
+		if (f.Type == "string" || f.Type == "password") && val != "" {
+			strlen := int32(len(val))
+			if f.MinLength != nil && strlen < *f.MinLength {
+				if *f.MinLength == 1 {
+					return nil, fmt.Errorf("config field %q must not be empty", f.Name)
+				}
+				return nil, fmt.Errorf("config field %q must be at least %d characters", f.Name, *f.MinLength)
+			}
+			if f.MaxLength != nil && strlen > *f.MaxLength {
+				return nil, fmt.Errorf("config field %q must be at most %d characters", f.Name, *f.MaxLength)
 			}
 		}
 		values[f.Name] = val
