@@ -628,7 +628,7 @@ func TestAddressAssignmentCondition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			conds := addressAssignmentCondition(nil, tc.gs, tc.plan, tc.svc)
+			conds := addressAssignmentCondition(nil, tc.gs, tc.plan, tc.svc, addressFailureReason{}, "")
 			got, ok := condByType(conds, gameplanev1alpha1.GameServerConditionAddressAssignment)
 			if !ok {
 				t.Fatalf("no %s condition", gameplanev1alpha1.GameServerConditionAddressAssignment)
@@ -654,7 +654,7 @@ func TestAddressAssignmentConditionAbsentWhenNotRequested(t *testing.T) {
 	gs := &gameplanev1alpha1.GameServer{}
 	plan := planAddressPreference(gs, addressManagerMetalLB)
 
-	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseRunning, nil, idleAwake, plan, lbService("203.0.113.7"))
+	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseRunning, nil, idleAwake, plan, lbService("203.0.113.7"), addressFailureReason{}, "")
 	if _, ok := condByType(conds, gameplanev1alpha1.GameServerConditionAddressAssignment); ok {
 		t.Error("a server that requested no pool or address must carry no AddressAssignment condition")
 	}
@@ -681,7 +681,7 @@ func TestAddressAssignmentConditionClearedOnRequestRemoval(t *testing.T) {
 	}
 	plan := planAddressPreference(gs, addressManagerMetalLB)
 
-	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseRunning, nil, idleAwake, plan, lbService("203.0.113.7"))
+	conds := computeConditions(gs, gameplanev1alpha1.GameServerPhaseRunning, nil, idleAwake, plan, lbService("203.0.113.7"), addressFailureReason{}, "")
 	if _, ok := condByType(conds, gameplanev1alpha1.GameServerConditionAddressAssignment); ok {
 		t.Error("clearing the request must remove the stale AddressAssignment condition")
 	}
@@ -737,5 +737,270 @@ func TestLoadBalancerAddressPrefersHostname(t *testing.T) {
 	svc.Status.LoadBalancer.Ingress[0].Hostname = "lb.example.com"
 	if got := loadBalancerAddress(svc); got != "lb.example.com" {
 		t.Errorf("loadBalancerAddress() = %q, want the hostname", got)
+	}
+}
+
+func TestAddressAssignmentCondition_PoolNotFound(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: "nonexistent",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: "metallb",
+		Pool:    "nonexistent",
+		Outcome: addressPlanTranslated,
+	}
+	eventFailure := addressFailureReason{
+		reason:  "PoolNotFound",
+		message: "Pool not found: nonexistent pool",
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, eventFailure, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "PoolNotFound" {
+		t.Errorf("expected reason PoolNotFound, got %q", conds[0].Reason)
+	}
+	if conds[0].Status != metav1.ConditionFalse {
+		t.Errorf("expected status False, got %q", conds[0].Status)
+	}
+}
+
+func TestAddressAssignmentCondition_PoolExhausted(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: "public",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: "metallb",
+		Pool:    "public",
+		Outcome: addressPlanTranslated,
+	}
+	eventFailure := addressFailureReason{
+		reason:  "PoolExhausted",
+		message: "Pool exhausted: public pool has no addresses available",
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, eventFailure, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "PoolExhausted" {
+		t.Errorf("expected reason PoolExhausted, got %q", conds[0].Reason)
+	}
+}
+
+func TestAddressAssignmentCondition_AddressInUse(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:  "LoadBalancer",
+				Address: "203.0.113.1",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "server-a", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: "metallb",
+		Address: "203.0.113.1",
+		Outcome: addressPlanTranslated,
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, addressFailureReason{}, "server-b")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "AddressInUse" {
+		t.Errorf("expected reason AddressInUse, got %q", conds[0].Reason)
+	}
+	if !strings.Contains(conds[0].Message, "server-b") {
+		t.Errorf("expected message to mention conflicting server, got %q", conds[0].Message)
+	}
+}
+
+func TestAddressAssignmentCondition_IgnoredForExposureMode(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "ClusterIP",
+				AddressPool: "public",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: "metallb",
+		Pool:    "public",
+		Outcome: addressPlanIgnoredForExposureMode,
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, addressFailureReason{}, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "IgnoredForExposureMode" {
+		t.Errorf("expected reason IgnoredForExposureMode, got %q", conds[0].Reason)
+	}
+}
+
+func TestAddressAssignmentCondition_NoAddressManagerConfigured(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: "public",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: "none",
+		Pool:    "public",
+		Outcome: addressPlanNoAddressManagerConfigured,
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, addressFailureReason{}, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "NoAddressManagerConfigured" {
+		t.Errorf("expected reason NoAddressManagerConfigured, got %q", conds[0].Reason)
+	}
+}
+
+func TestAddressAssignmentCondition_Assigned(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: "public",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: "metallb",
+		Pool:    "public",
+		Outcome: addressPlanTranslated,
+	}
+	svc := lbService("203.0.113.5")
+	conds := addressAssignmentCondition(nil, gs, plan, svc, addressFailureReason{}, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "Assigned" {
+		t.Errorf("expected reason Assigned, got %q", conds[0].Reason)
+	}
+	if conds[0].Status != metav1.ConditionTrue {
+		t.Errorf("expected status True, got %q", conds[0].Status)
+	}
+}
+
+// warnEvent builds a Warning Service event attributed to the given reporting
+// component, mirroring the shape MetalLB-style managers emit.
+func warnEvent(component, reason, message string) corev1.Event {
+	return corev1.Event{
+		Type:    corev1.EventTypeWarning,
+		Reason:  reason,
+		Message: message,
+		Source:  corev1.EventSource{Component: component},
+	}
+}
+
+// TestExtractAddressFailureFromEvents pins the two properties the matcher must
+// hold: it never panics or invents a reason for events it does not understand,
+// and it recognises each of the three failure shapes when they come from
+// something that looks like an address manager.
+func TestExtractAddressFailureFromEvents(t *testing.T) {
+	cases := []struct {
+		name       string
+		events     []corev1.Event
+		wantReason string
+		wantInMsg  string
+	}{
+		{name: "nil events"},
+		{name: "empty slice", events: []corev1.Event{}},
+		{
+			name: "normal event from the address manager is ignored",
+			events: []corev1.Event{{
+				Type:    corev1.EventTypeNormal,
+				Reason:  "PoolNotFound",
+				Message: "pool not found",
+				Source:  corev1.EventSource{Component: "metallb-controller"},
+			}},
+		},
+		{
+			name:   "unrecognised warning from another component",
+			events: []corev1.Event{warnEvent("kubelet", "FailedMount", "volume is already in use by another pod")},
+		},
+		{
+			name:   "warning from an unrelated controller must not report a pool failure",
+			events: []corev1.Event{warnEvent("ingress-controller", "PoolExhausted", "backend pool exhausted")},
+		},
+		{
+			name:   "warning with no source at all",
+			events: []corev1.Event{warnEvent("", "PoolNotFound", "pool not found: games")},
+		},
+		{
+			name:   "address-manager warning with no recognised text",
+			events: []corev1.Event{warnEvent("metallb-speaker", "SomethingElse", "unrelated speaker problem")},
+		},
+		{
+			name:       "pool not found by reason",
+			events:     []corev1.Event{warnEvent("metallb-controller", "PoolNotFound", "no pool named games")},
+			wantReason: "PoolNotFound",
+			wantInMsg:  "no pool named games",
+		},
+		{
+			name:       "pool not found by message",
+			events:     []corev1.Event{warnEvent("metallb-controller", "AllocationFailed", "pool not found: games")},
+			wantReason: "PoolNotFound",
+			wantInMsg:  "pool not found: games",
+		},
+		{
+			name:       "pool exhausted by message",
+			events:     []corev1.Event{warnEvent("metallb-controller", "AllocationFailed", "pool games is exhausted")},
+			wantReason: "PoolExhausted",
+			wantInMsg:  "pool games is exhausted",
+		},
+		{
+			name:       "address in use by reason",
+			events:     []corev1.Event{warnEvent("cilium-operator", "AddressInUse", "203.0.113.7 taken")},
+			wantReason: "AddressInUse",
+			wantInMsg:  "203.0.113.7 taken",
+		},
+		{
+			name: "unrecognised warning ahead of a real one does not mask it",
+			events: []corev1.Event{
+				warnEvent("kubelet", "BackOff", "restarting failed container"),
+				warnEvent("metallb-controller", "AllocationFailed", "address already in use"),
+			},
+			wantReason: "AddressInUse",
+			wantInMsg:  "address already in use",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractAddressFailureFromEvents(tc.events)
+			if got.reason != tc.wantReason {
+				t.Fatalf("reason = %q, want %q", got.reason, tc.wantReason)
+			}
+			if tc.wantReason == "" {
+				if got.message != "" {
+					t.Errorf("zero value expected, got message %q", got.message)
+				}
+				return
+			}
+			if !strings.Contains(got.message, tc.wantInMsg) {
+				t.Errorf("message %q does not contain %q", got.message, tc.wantInMsg)
+			}
+		})
 	}
 }

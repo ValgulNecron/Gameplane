@@ -241,6 +241,7 @@ func main() {
 
 	if err := (&controller.GameServerReconciler{
 		Client:                 mgr.GetClient(),
+		APIReader:              mgr.GetAPIReader(),
 		Scheme:                 mgr.GetScheme(),
 		AgentImage:             agentImage,
 		AgentImagePullPolicy:   agentImagePullPolicy,

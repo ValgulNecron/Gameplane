@@ -380,8 +380,8 @@ func TestGameServer_StatusPatchPreservesAgentHeartbeat(t *testing.T) {
 	// only writer and the test is deterministic.
 	stale := seeded.DeepCopy()
 	stale.Status.Agent = nil
-	r := &GameServerReconciler{Client: k8sClient, Scheme: scheme}
-	if _, err := r.reconcileStatus(ctx, stale, idleAwake, nil, tunnelPlan{}, tmpl); err != nil {
+	r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme}
+	if _, err := r.reconcileStatus(ctx, stale, idleAwake, nil, tunnelPlan{}, tmpl, nil, ""); err != nil {
 		t.Fatalf("reconcileStatus: %v", err)
 	}
 
@@ -2359,6 +2359,7 @@ func TestGameServer_NetworkPolicyAdvertisedPortsOnly(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"10.0.0.0/8", "192.168.1.0/24"},
@@ -2444,6 +2445,7 @@ func TestGameServer_NetworkPolicyPortProtocolDefaultsToTCP(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2494,6 +2496,7 @@ func TestGameServer_NetworkPolicyZeroAdvertisedPortsNoPolicy(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2535,6 +2538,7 @@ func TestGameServer_NetworkPolicyDisabledRemovesExisting(t *testing.T) {
 
 	enabled := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2549,6 +2553,7 @@ func TestGameServer_NetworkPolicyDisabledRemovesExisting(t *testing.T) {
 
 	disabled := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: false,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2625,6 +2630,7 @@ func TestGameServer_TemplateAdvertiseFalseSurvivesTypedRoundTrip(t *testing.T) {
 
 	r := &GameServerReconciler{
 		Client:                   k8sClient,
+		APIReader:                k8sClient,
 		Scheme:                   scheme,
 		GameIngressPolicyEnabled: true,
 		GameIngressFromCIDRs:     []string{"0.0.0.0/0"},
@@ -2840,7 +2846,7 @@ func newAddressPoolServer(
 		types.NamespacedName{Namespace: ns, Name: gs.Name}, &cur); err != nil {
 		t.Fatalf("get gameserver: %v", err)
 	}
-	r := &GameServerReconciler{Client: k8sClient, Scheme: scheme, AddressManager: manager}
+	r := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme, AddressManager: manager}
 	return r, &cur, tmpl
 }
 
@@ -3240,7 +3246,7 @@ func TestGameServer_AddressPoolFlavorChangePrunesStaleKeys(t *testing.T) {
 	}
 	assertAddressAnnotations(t, svc, map[string]string{ciliumAddressAnnotation: "203.0.113.10"})
 
-	metallb := &GameServerReconciler{Client: k8sClient, Scheme: scheme, AddressManager: "metallb"}
+	metallb := &GameServerReconciler{Client: k8sClient, APIReader: k8sClient, Scheme: scheme, AddressManager: "metallb"}
 	if err := metallb.reconcileService(ctx, gs, tmpl, false); err != nil {
 		t.Fatalf("reconcileService (metallb): %v", err)
 	}
@@ -3311,4 +3317,241 @@ func TestGameServer_NoAddressPreferenceLeavesServiceMetadataUntouched(t *testing
 			}
 		})
 	}
+}
+
+// TestGameServer_AddressConflictDetection — when two GameServers request the
+// same explicit address, the second one detects the conflict and reports
+// AddressInUse on its AddressAssignment condition.
+func TestGameServer_AddressConflictDetection(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerAddressManager(t, ns, "metallb"))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	// Create the first server with an explicit address.
+	gs1 := buildGameServer(ns, "server1", tmpl.Name)
+	gs1.Spec.Networking.Expose = "LoadBalancer"
+	gs1.Spec.Networking.Address = "203.0.113.10"
+	if err := k8sClient.Create(context.Background(), gs1); err != nil {
+		t.Fatalf("create server1: %v", err)
+	}
+
+	// Wait for server1's Service to be created.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return false, "service: " + err.Error()
+		}
+		return true, ""
+	})
+
+	// envtest runs apiserver+etcd only — there is no cloud-provider or MetalLB
+	// controller to populate a LoadBalancer Service's status. Seeding the
+	// GameServer's status.endpoints directly doesn't work either: SetupWithManager
+	// uses a bare For(&GameServer{}) with no predicate, so the seeded status is
+	// immediately overwritten by the next reconcile's reconcileStatus, which
+	// derives Endpoints from the Service (falling back to ClusterIP whenever the
+	// Service has no LoadBalancer ingress). So instead we write the Service's
+	// status subresource ourselves, exactly as a real address manager would —
+	// this persists across reconciles because it is now real cluster state, not
+	// something the controller reconciles away.
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return err
+		}
+		svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "203.0.113.10"}}
+		return k8sClient.Status().Update(context.Background(), &svc)
+	}); err != nil {
+		t.Fatalf("update server1 service status: %v", err)
+	}
+
+	// Wait for the controller to pick up the LB ingress and reflect it in
+	// server1's status.endpoints before introducing the conflicting server.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &gs); err != nil {
+			return false, "get server1: " + err.Error()
+		}
+		for _, ep := range gs.Status.Endpoints {
+			if ep.Host == "203.0.113.10" {
+				return true, ""
+			}
+		}
+		return false, "server1 endpoints do not yet reflect 203.0.113.10"
+	})
+
+	// Create the second server requesting the same address.
+	gs2 := buildGameServer(ns, "server2", tmpl.Name)
+	gs2.Spec.Networking.Expose = "LoadBalancer"
+	gs2.Spec.Networking.Address = "203.0.113.10"
+	if err := k8sClient.Create(context.Background(), gs2); err != nil {
+		t.Fatalf("create server2: %v", err)
+	}
+
+	// server2's AddressAssignment condition should report AddressInUse.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server2"}, &gs); err != nil {
+			return false, "get server2: " + err.Error()
+		}
+		for _, cond := range gs.Status.Conditions {
+			if cond.Type == gameplanev1alpha1.GameServerConditionAddressAssignment {
+				if cond.Reason != "AddressInUse" {
+					return false, "AddressAssignment reason = " + cond.Reason + ", want AddressInUse"
+				}
+				if !strings.Contains(cond.Message, "server1") {
+					return false, "AddressAssignment message should mention server1, got: " + cond.Message
+				}
+				return true, ""
+			}
+		}
+		return false, "AddressAssignment condition not found"
+	})
+}
+
+// TestGameServer_ReleasedAddressBecomesAvailable — when a GameServer with
+// an assigned explicit address is deleted, the address is released and becomes
+// available for another GameServer to use (no orphaning).
+func TestGameServer_ReleasedAddressBecomesAvailable(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerAddressManager(t, ns, "metallb"))
+
+	tmpl := buildGameTemplate(uniqueName("minecraft"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	// Create server1 with an explicit address.
+	gs1 := buildGameServer(ns, "server1", tmpl.Name)
+	gs1.Spec.Networking.Expose = "LoadBalancer"
+	gs1.Spec.Networking.Address = "203.0.113.20"
+	if err := k8sClient.Create(context.Background(), gs1); err != nil {
+		t.Fatalf("create server1: %v", err)
+	}
+
+	// Wait for server1's Service to be created.
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return false, "service: " + err.Error()
+		}
+		return true, ""
+	})
+
+	// envtest runs apiserver+etcd only — there is no cloud-provider or MetalLB
+	// controller to populate a LoadBalancer Service's status. Seeding the
+	// GameServer's status.endpoints directly doesn't work either: SetupWithManager
+	// uses a bare For(&GameServer{}) with no predicate, so the seeded status is
+	// immediately overwritten by the next reconcile's reconcileStatus, which
+	// derives Endpoints from the Service (falling back to ClusterIP whenever the
+	// Service has no LoadBalancer ingress). So instead we write the Service's
+	// status subresource ourselves, exactly as a real address manager would —
+	// this persists across reconciles because it is now real cluster state, not
+	// something the controller reconciles away.
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &svc); err != nil {
+			return err
+		}
+		svc.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{IP: "203.0.113.20"}}
+		return k8sClient.Status().Update(context.Background(), &svc)
+	}); err != nil {
+		t.Fatalf("update server1 service status: %v", err)
+	}
+
+	// Wait for the controller to pick up the LB ingress and reflect it in
+	// server1's status.endpoints before introducing the conflicting server.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &gs); err != nil {
+			return false, "get server1: " + err.Error()
+		}
+		for _, ep := range gs.Status.Endpoints {
+			if ep.Host == "203.0.113.20" {
+				return true, ""
+			}
+		}
+		return false, "server1 endpoints do not yet reflect 203.0.113.20"
+	})
+
+	// Create server2 requesting the same address; it should report conflict.
+	gs2 := buildGameServer(ns, "server2", tmpl.Name)
+	gs2.Spec.Networking.Expose = "LoadBalancer"
+	gs2.Spec.Networking.Address = "203.0.113.20"
+	if err := k8sClient.Create(context.Background(), gs2); err != nil {
+		t.Fatalf("create server2: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server2"}, &gs); err != nil {
+			return false, "get server2: " + err.Error()
+		}
+		for _, cond := range gs.Status.Conditions {
+			if cond.Type == gameplanev1alpha1.GameServerConditionAddressAssignment {
+				if cond.Reason != "AddressInUse" {
+					return false, "initial reason = " + cond.Reason + ", want AddressInUse"
+				}
+				return true, ""
+			}
+		}
+		return false, "AddressAssignment condition not found"
+	})
+
+	// Now delete server1 to release the address.
+	if err := k8sClient.Delete(context.Background(), gs1); err != nil {
+		t.Fatalf("delete server1: %v", err)
+	}
+
+	// Wait for server1 to be actually deleted.
+	eventually(t, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server1"}, &gs)
+		if apierrors.IsNotFound(err) {
+			return true, ""
+		}
+		if err != nil {
+			return false, err.Error()
+		}
+		return false, "server1 still exists"
+	})
+
+	// server2's AddressAssignment condition should change: the conflict is resolved.
+	// Since server2 itself has no address assigned yet (simulated), it should show
+	// AssignmentPending or similar (not AddressInUse).
+	// This requires a RequeueAfter(15s) since server2 receives no watch event from
+	// server1's deletion — use 20s budget to be safe.
+	eventuallyWith(t, 20*time.Second, func() (bool, string) {
+		var gs gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "server2"}, &gs); err != nil {
+			return false, "get server2: " + err.Error()
+		}
+		for _, cond := range gs.Status.Conditions {
+			if cond.Type == gameplanev1alpha1.GameServerConditionAddressAssignment {
+				// After server1 is deleted, server2 should no longer report AddressInUse.
+				if cond.Reason == "AddressInUse" {
+					return false, "AddressAssignment still reports AddressInUse after server1 deletion"
+				}
+				// It could be AssignmentPending, ServiceNotReady, etc., but not AddressInUse.
+				return true, ""
+			}
+		}
+		return false, "AddressAssignment condition not found"
+	})
 }

@@ -16,6 +16,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +35,8 @@ import (
 // Service, and PVC. The agent sidecar is injected at pod-spec build time.
 type GameServerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 
 	// AgentImage is the container image used for the sidecar agent
 	// injected into every game pod. Set from an operator flag so the
@@ -179,6 +181,7 @@ const (
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
 
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -343,7 +346,27 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan, &tmpl)
+	// Fetch Service events for address-manager failure reason derivation.
+	// Errors are logged but not fatal — missing events should not stall reconciliation.
+	var svcEvents []corev1.Event
+	if gs.Spec.Networking.AddressPool != "" || gs.Spec.Networking.Address != "" {
+		if err := r.listServiceEvents(ctx, &gs, &svcEvents); err != nil {
+			logger.Error(err, "list service events")
+		}
+	}
+
+	// Detect address conflicts: if an explicit address was requested,
+	// check if another GameServer in the cluster already holds it.
+	conflictingServer := ""
+	if gs.Spec.Networking.Address != "" {
+		if conflict, err := r.findAddressConflict(ctx, &gs); err != nil {
+			logger.Error(err, "check address conflicts")
+		} else if conflict != "" {
+			conflictingServer = conflict
+		}
+	}
+
+	requeue, err := r.reconcileStatus(ctx, &gs, idle, idleStatus, tunnelPlan, &tmpl, svcEvents, conflictingServer)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -1646,4 +1669,175 @@ func (r *GameServerReconciler) setPhase(
 		ObservedGeneration: gs.Generation,
 	})
 	return r.Status().Patch(ctx, gs, client.MergeFrom(base))
+}
+
+// listServiceEvents fetches the recent events on the game Service into the
+// provided slice. Errors are logged but not fatal — if event fetching fails,
+// the reconciliation continues without event-derived failure reasons.
+//
+// The namespace is the only server-side filter: controller-runtime's cached
+// client can only serve client.MatchingFields for keys registered with
+// mgr.GetFieldIndexer().IndexField, and this operator registers no index on
+// involvedObject. Filtering on involvedObject there would make every List
+// fail, silently disabling the whole feature, so the involvedObject match is
+// done in Go over the returned items instead. Per-namespace event volume is
+// small enough for that to be cheap.
+// listServiceEvents fetches the recent events on the game Service into the
+// provided events slice. To reduce apiserver load (namespace Event LIST is
+// O(Events)), this skips the read when the AddressAssignment condition is
+// already in a terminal state that won't be affected by events:
+//   - Condition True (Assigned): address was successfully assigned
+//   - Condition False with terminal reason: IgnoredForExposureMode,
+//     NoAddressManagerConfigured, AddressInUse, or an event-derived failure
+//     (PoolNotFound, InvalidPool, PoolExhausted)
+//
+// Special case: if the condition was True but the address has since
+// disappeared (regression), the read resumes to detect a new failure reason.
+// This is checked by verifying the address still exists in status.endpoints.
+func (r *GameServerReconciler) listServiceEvents(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer, events *[]corev1.Event,
+) error {
+	// Check if the AddressAssignment condition already signals a stable state.
+	addrCond := meta.FindStatusCondition(gs.Status.Conditions, gameplanev1alpha1.GameServerConditionAddressAssignment)
+	if addrCond != nil {
+		if addrCond.Status == metav1.ConditionTrue {
+			// Condition is True (Assigned). Check if the address is still present
+			// in status to detect regression.
+			if len(gs.Status.Endpoints) > 0 {
+				// Address still assigned; no need to read events.
+				*events = nil
+				return nil
+			}
+			// Address is gone (regression); fall through to read events.
+		} else {
+			// Condition is False. Check if the reason is terminal.
+			// Terminal reasons: those derived from spec (IgnoredForExposureMode,
+			// NoAddressManagerConfigured, AddressInUse) or from events
+			// (PoolNotFound, InvalidPool, PoolExhausted).
+			// Non-terminal reasons: ServiceNotReady, AssignmentPending.
+			switch addrCond.Reason {
+			case "IgnoredForExposureMode", "NoAddressManagerConfigured", "AddressInUse",
+				"PoolNotFound", "InvalidPool", "PoolExhausted":
+				// Terminal failure; no need to read events.
+				*events = nil
+				return nil
+			case "ServiceNotReady", "AssignmentPending":
+				// Non-terminal; fall through to read events.
+			default:
+				// Unknown reason; assume it came from events and fall through.
+			}
+		}
+	}
+
+	var svc corev1.Service
+	svcKnown := r.Get(ctx, types.NamespacedName{Name: gs.Name, Namespace: gs.Namespace}, &svc) == nil
+
+	var eventList corev1.EventList
+	reader := r.APIReader
+	if reader == nil {
+		reader = r.Client
+	}
+	if err := reader.List(ctx, &eventList, client.InNamespace(gs.Namespace)); err != nil {
+		return fmt.Errorf("list events in namespace %s: %w", gs.Namespace, err)
+	}
+
+	matched := make([]corev1.Event, 0, len(eventList.Items))
+	for i := range eventList.Items {
+		ev := eventList.Items[i]
+		if ev.InvolvedObject.Kind != "Service" || ev.InvolvedObject.Name != gs.Name {
+			continue
+		}
+		// When the live Service is readable, pin the match to its UID so
+		// events left over from a previous Service of the same name are not
+		// attributed to the current one. If it is not readable, fall back to
+		// the name match rather than dropping every event.
+		if svcKnown && ev.InvolvedObject.UID != "" && ev.InvolvedObject.UID != svc.UID {
+			continue
+		}
+		matched = append(matched, ev)
+	}
+	*events = matched
+	return nil
+}
+
+// findAddressConflict checks whether another GameServer in the cluster
+// already has the same explicit address assigned (in status.endpoints) or
+// requested (in spec.networking.address).
+//
+// Returns the conflicting GameServer's name, or empty string if none found.
+// Errors are logged but not fatal.
+//
+// To avoid deadlock when two servers request the same address concurrently
+// (before either is assigned), a deterministic tiebreak is applied:
+// the server that requested first wins. Tiebreak ordering is:
+// 1. Earlier metadata.creationTimestamp
+// 2. Namespace string ordering (lexicographic)
+// 3. Name string ordering (lexicographic)
+//
+// A server conflicts if another server already HOLDS the address in status,
+// OR it merely requests the same address AND that other server sorts earlier
+// in the tiebreak ordering.
+func (r *GameServerReconciler) findAddressConflict(
+	ctx context.Context, gs *gameplanev1alpha1.GameServer,
+) (string, error) {
+	if gs.Spec.Networking.Address == "" {
+		return "", nil
+	}
+
+	// Listed cluster-wide, not namespace-scoped: load-balancer addresses are a
+	// cluster-wide resource, so a conflicting holder can live in any namespace.
+	// The operator's ClusterRole already grants cluster-wide list on gameservers.
+	var gsList gameplanev1alpha1.GameServerList
+	if err := r.List(ctx, &gsList); err != nil {
+		return "", fmt.Errorf("list gameservers: %w", err)
+	}
+
+	requestedAddr := gs.Spec.Networking.Address
+	for i := range gsList.Items {
+		other := &gsList.Items[i]
+		// Skip self — matched on namespace *and* name, so a same-named server
+		// in another namespace is still considered a genuine conflict.
+		if other.Namespace == gs.Namespace && other.Name == gs.Name {
+			continue
+		}
+
+		// Check if the other server's status shows this address is assigned
+		for _, endpoint := range other.Status.Endpoints {
+			if endpoint.Host == requestedAddr {
+				// Namespace-qualify a cross-namespace holder so the reported
+				// name is unambiguous; a same-namespace one stays bare.
+				if other.Namespace != gs.Namespace {
+					return other.Namespace + "/" + other.Name, nil
+				}
+				return other.Name, nil
+			}
+		}
+
+		// Check if the other server merely requests the same address.
+		// Apply tiebreak: if both request it, the one that was created first wins.
+		if other.Spec.Networking.Address == requestedAddr {
+			// Tiebreak: compare creation timestamps first.
+			otherCreated := other.GetCreationTimestamp()
+			gsCreated := gs.GetCreationTimestamp()
+			if otherCreated.Time.Before(gsCreated.Time) {
+				// Other was created first, so other wins the tiebreak.
+				if other.Namespace != gs.Namespace {
+					return other.Namespace + "/" + other.Name, nil
+				}
+				return other.Name, nil
+			} else if otherCreated.Time.Equal(gsCreated.Time) {
+				// Exact same creation time (rare); use namespace then name ordering.
+				if other.Namespace < gs.Namespace {
+					if other.Namespace != gs.Namespace {
+						return other.Namespace + "/" + other.Name, nil
+					}
+					return other.Name, nil
+				} else if other.Namespace == gs.Namespace && other.Name < gs.Name {
+					return other.Name, nil
+				}
+			}
+			// else: gs was created first or sorts earlier, so gs wins; no conflict.
+		}
+	}
+	return "", nil
 }

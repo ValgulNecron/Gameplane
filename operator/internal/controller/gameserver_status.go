@@ -28,12 +28,16 @@ const heartbeatFreshness = 60 * time.Second
 // from observed StatefulSet, Service, and the agent heartbeat. It's a
 // pure computation — no child objects are mutated here.
 //
+// svcEvents are the recent events on the game Service (used to derive
+// address-manager failure reasons). conflictingServer names another GameServer
+// holding the requested explicit address, or is empty if none was found.
+//
 // tunnelEndpoints are prepended to the Service endpoints so the dashboard's
 // Connection card reads the tunnel address when present.
 func (r *GameServerReconciler) reconcileStatus(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 	idle idleState, idleStatus *gameplanev1alpha1.IdleStatus, tunnelPlan tunnelPlan,
-	tmpl *gameplanev1alpha1.GameTemplate,
+	tmpl *gameplanev1alpha1.GameTemplate, svcEvents []corev1.Event, conflictingServer string,
 ) (time.Duration, error) {
 	// base captures the object as fetched so we can issue a JSON merge
 	// patch of only the fields this reconciler owns. The agent sidecar
@@ -102,7 +106,8 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
-	gs.Status.Conditions = computeConditions(gs, phase, prov, idle, addrPlan, svcPtr)
+	eventFailure := extractAddressFailureFromEvents(svcEvents)
+	gs.Status.Conditions = computeConditions(gs, phase, prov, idle, addrPlan, svcPtr, eventFailure, conflictingServer)
 
 	// Fetch tunnel Deployment to compute TunnelReady condition.
 	var tunnelDep *appsv1.Deployment
@@ -221,6 +226,8 @@ func heartbeatFresh(gs *gameplanev1alpha1.GameServer) bool {
 // AddressAssignment for the servers that requested a load-balancer pool or
 // address. addrPlan is the reconciler's decision about that request and svc is
 // the game Service as observed this pass (nil when it does not exist yet).
+// eventFailure supplies failure reasons from Service events (e.g., MetalLB warnings).
+// conflictingServer names another GameServer holding the requested explicit address.
 func computeConditions(
 	gs *gameplanev1alpha1.GameServer,
 	phase gameplanev1alpha1.GameServerPhase,
@@ -228,6 +235,8 @@ func computeConditions(
 	idle idleState,
 	addrPlan addressPlan,
 	svc *corev1.Service,
+	eventFailure addressFailureReason,
+	conflictingServer string,
 ) []metav1.Condition {
 	conds := gs.Status.Conditions
 
@@ -311,7 +320,99 @@ func computeConditions(
 	conds = upsertCondition(conds, ready)
 	conds = upsertCondition(conds, progressing)
 	conds = upsertCondition(conds, healthy)
-	return addressAssignmentCondition(conds, gs, addrPlan, svc)
+	return addressAssignmentCondition(conds, gs, addrPlan, svc, eventFailure, conflictingServer)
+}
+
+// addressFailureReason describes a failure derived from Service events or
+// direct conflict detection. The zero value means no failure was detected.
+type addressFailureReason struct {
+	reason  string // e.g. "PoolNotFound", "PoolExhausted", "AddressInUse"
+	message string // human-readable detail from the event or conflict check
+}
+
+// addressManagerEventSources lists the reporting components whose Warning
+// events on a game Service are treated as address-manager failures. Anything
+// else on the Service (kubelet, unrelated controllers) is ignored so an
+// unrelated warning is never misreported as a pool failure.
+//
+// Matched case-insensitively as a substring, because deployments vary the exact
+// component string (e.g. "metallb-controller", "metallb-speaker").
+var addressManagerEventSources = []string{
+	"metallb",
+	"cilium",
+	"kube-vip",
+	"purelb",
+	"openelb",
+}
+
+// fromAddressManager reports whether the event was emitted by something that
+// plausibly manages load-balancer addresses, based on the legacy
+// Source.Component or the events.k8s.io ReportingController.
+func fromAddressManager(ev *corev1.Event) bool {
+	for _, field := range []string{ev.Source.Component, ev.ReportingController} {
+		if field == "" {
+			continue
+		}
+		lower := strings.ToLower(field)
+		for _, want := range addressManagerEventSources {
+			if strings.Contains(lower, want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// extractAddressFailureFromEvents inspects Service events for address-manager
+// warnings and returns the first failure reason found, or zero if none exist.
+//
+// HONESTY NOTE — this matcher is best-effort and UNVERIFIED. The exact Reason
+// and Message strings emitted by MetalLB (or any other address manager) have
+// NOT been checked against upstream source; they are plausible guesses, and no
+// citation is claimed for them. Two consequences follow, and both are
+// deliberate:
+//
+//   - Only Warning events whose reporting component looks like an address
+//     manager (see fromAddressManager) are considered at all, so an unrelated
+//     kubelet or controller warning on the same Service can never be
+//     misreported as a pool failure.
+//   - When nothing matches, the zero value is returned and the
+//     AddressAssignment condition degrades to the generic AssignmentPending
+//     rather than inventing a reason.
+//
+// Treat extracted text as informational — never crash or blank the condition if
+// events are missing or unparseable.
+func extractAddressFailureFromEvents(events []corev1.Event) addressFailureReason {
+	for i := range events {
+		ev := &events[i]
+		if ev.Type != corev1.EventTypeWarning {
+			continue
+		}
+		if !fromAddressManager(ev) {
+			continue
+		}
+		msg := ev.Message
+		reason := ev.Reason
+		lowerMsg := strings.ToLower(msg)
+		switch {
+		case strings.Contains(reason, "PoolNotFound") || strings.Contains(lowerMsg, "pool not found"):
+			return addressFailureReason{
+				reason:  "PoolNotFound",
+				message: fmt.Sprintf("Pool not found: %s", msg),
+			}
+		case strings.Contains(reason, "PoolExhausted") || strings.Contains(lowerMsg, "exhausted"):
+			return addressFailureReason{
+				reason:  "PoolExhausted",
+				message: fmt.Sprintf("Pool exhausted: %s", msg),
+			}
+		case strings.Contains(reason, "AddressInUse") || strings.Contains(lowerMsg, "already in use"):
+			return addressFailureReason{
+				reason:  "AddressInUse",
+				message: fmt.Sprintf("Address already in use: %s", msg),
+			}
+		}
+	}
+	return addressFailureReason{}
 }
 
 // addressAssignmentCondition reports what became of a
@@ -324,20 +425,17 @@ func computeConditions(
 // cluster for a feature they do not use. Removing it also means clearing the
 // spec fields clears the report on the next reconcile.
 //
-// Known gap: PoolNotFound, PoolExhausted and AddressInUse are not derivable
-// from the Service object alone, and the two address managers do not even
-// report them the same way — MetalLB emits Warning *events* against the
-// Service, while Cilium writes *conditions* onto the Service's own status.
-// Neither source is watched here yet (the event watch and its RBAC are a
-// later task), so a request the address manager rejected is currently
-// indistinguishable from one it has not answered yet and reports as
-// AssignmentPending. That is honest about what is known; guessing a cause
-// would not be.
+// eventFailure supplies failure reasons derived from Service events (MetalLB
+// warnings). conflictingServer, when non-empty, names another GameServer that
+// already holds the requested explicit address. Both are treated as informational
+// — never crash or blank the condition if they're unavailable.
 func addressAssignmentCondition(
 	conds []metav1.Condition,
 	gs *gameplanev1alpha1.GameServer,
 	plan addressPlan,
 	svc *corev1.Service,
+	eventFailure addressFailureReason,
+	conflictingServer string,
 ) []metav1.Condition {
 	if !plan.requested() {
 		return removeCondition(conds, gameplanev1alpha1.GameServerConditionAddressAssignment)
@@ -369,6 +467,16 @@ func addressAssignmentCondition(
 			"Requested %s cannot be honored: this cluster has no load-balancer address manager configured, "+
 				"so any address the server receives comes from the default assignment policy.",
 			addressRequestSummary(plan))
+	case conflictingServer != "":
+		// Explicit address requested, but another GameServer already holds it.
+		cond.Reason = "AddressInUse"
+		cond.Message = fmt.Sprintf(
+			"Requested address %q is already in use by GameServer %q.",
+			gs.Spec.Networking.Address, conflictingServer)
+	case eventFailure.reason != "":
+		// Address manager rejected the request; derive reason from events.
+		cond.Reason = eventFailure.reason
+		cond.Message = eventFailure.message
 	case svc == nil || svc.Spec.Type != corev1.ServiceTypeLoadBalancer:
 		cond.Reason = "ServiceNotReady"
 		cond.Message = fmt.Sprintf(

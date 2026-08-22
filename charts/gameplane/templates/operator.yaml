@@ -63,7 +63,7 @@ rules:
     verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [events]
-    verbs: [create, patch]
+    verbs: [create, get, list, patch, watch]
   # CSI VolumeSnapshots back the volume-snapshot backup strategy: the
   # backup controller watches them cluster-wide for readyToUse and reads
   # the (cluster-scoped) content objects they bind to. Creation/deletion is
