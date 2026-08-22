@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameIcon } from "@/components/ui/game-icon";
@@ -66,6 +66,8 @@ interface WizardState {
   tailscaleHostname: string;
   tailscaleTags: string;
   playitTunnelName: string;
+  addressPool: string;
+  requestedAddress: string;
 }
 
 const initial: WizardState = {
@@ -84,6 +86,8 @@ const initial: WizardState = {
   tailscaleHostname: "",
   tailscaleTags: "",
   playitTunnelName: "",
+  addressPool: "",
+  requestedAddress: "",
 };
 
 // Largest single-node capacity from the cluster view — the ceiling a pod
@@ -188,6 +192,11 @@ function buildCreateBody(state: WizardState): ServerCreate {
       ...(state.expose === "LoadBalancer" && parseSourceRanges(state.sourceRanges).length > 0
         ? { sourceRanges: parseSourceRanges(state.sourceRanges) }
         : {}),
+      // Load-balancer address pool preference; omit when empty so we don't store
+      // a preference the operator would ignore (absent = no pool selection).
+      ...(state.addressPool.trim() ? { addressPool: state.addressPool.trim() } : {}),
+      // Specific IP to request from the pool; omit when empty.
+      ...(state.requestedAddress.trim() ? { address: state.requestedAddress.trim() } : {}),
       ...(tunnel ? { tunnel } : {}),
     },
     resources: {
@@ -1011,6 +1020,45 @@ function Network({ state, setState }: { state: WizardState; setState: (s: Wizard
           </span>
         </label>
       )}
+
+      <div className="space-y-1.5 border-t border-border pt-4">
+        <span className="text-xs text-muted">Load balancer address (optional)</span>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-xs text-muted font-medium">Address pool</span>
+            <Input
+              value={state.addressPool}
+              onChange={(e) => setState({ ...state, addressPool: e.target.value })}
+              placeholder="pool-us-west"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs text-muted font-medium">Requested address</span>
+            <Input
+              value={state.requestedAddress}
+              onChange={(e) => setState({ ...state, requestedAddress: e.target.value })}
+              placeholder="203.0.113.50"
+            />
+          </label>
+        </div>
+        <span className="text-[11px] text-muted">
+          Name of a load-balancer address pool configured by your cluster admin, plus an optional specific address to request. Applies only when Expose is set to LoadBalancer — ignored otherwise.
+        </span>
+
+        {(state.addressPool.trim() || state.requestedAddress.trim()) && state.expose !== "LoadBalancer" && (
+          <div className="rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 flex gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <AlertCircle className="w-4 h-4 text-warning" />
+            </div>
+            <div className="flex-1 text-[13px]">
+              <div className="font-medium text-warning mb-0.5">Address preference ignored</div>
+              <div className="text-warning/80">
+                Expose is set to {state.expose}. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer.
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

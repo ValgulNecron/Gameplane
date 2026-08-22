@@ -540,4 +540,86 @@ describe("CreateServerWizard review", () => {
     fireEvent.click(cancel);
     expect(navigate).toHaveBeenCalledWith({ to: "/" });
   });
+
+  it("sends addressPool and address when LoadBalancer + pool/address are set", async () => {
+    routeFetch();
+    renderWithQuery(<CreateServerWizard />);
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /LoadBalancer/i }));
+    fireEvent.change(screen.getByPlaceholderText("pool-us-west"), {
+      target: { value: "us-west-pool" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("203.0.113.50"), {
+      target: { value: "203.0.113.42" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.addressPool).toBe("us-west-pool");
+    expect(body.spec.networking.address).toBe("203.0.113.42");
+  });
+
+  it("omits addressPool and address when left empty", async () => {
+    routeFetch();
+    renderWithQuery(<CreateServerWizard />);
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /LoadBalancer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.addressPool).toBeUndefined();
+    expect(body.spec.networking.address).toBeUndefined();
+  });
+
+  it("shows address preference ignored alert when pool is set with non-LoadBalancer expose", async () => {
+    routeFetch();
+    renderWithQuery(<CreateServerWizard />);
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    // NodePort is the default, so don't click LoadBalancer
+    fireEvent.change(screen.getByPlaceholderText("pool-us-west"), {
+      target: { value: "us-west-pool" },
+    });
+
+    expect(screen.getByText(/Address preference ignored/i)).toBeInTheDocument();
+    expect(screen.getByText(/Address pool and requested address only take effect when Expose/i)).toBeInTheDocument();
+  });
+
+  it("omits addressPool and address from payload when only whitespace is entered", async () => {
+    routeFetch();
+    renderWithQuery(<CreateServerWizard />);
+    await pickTemplate(template());
+    fireEvent.change(screen.getByPlaceholderText("mc-hardcore"), { target: { value: "mc-test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Network/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /LoadBalancer/i }));
+    fireEvent.change(screen.getByPlaceholderText("pool-us-west"), {
+      target: { value: "   " },
+    });
+    fireEvent.change(screen.getByPlaceholderText("203.0.113.50"), {
+      target: { value: "  \t  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue to Review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Create server/i }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    const postCall = fetchMock.mock.calls.find((c) => (c[1] as FetchInit).method === "POST")!;
+    const body = JSON.parse((postCall[1] as FetchInit).body as string);
+    expect(body.spec.networking.addressPool).toBeUndefined();
+    expect(body.spec.networking.address).toBeUndefined();
+  });
 });

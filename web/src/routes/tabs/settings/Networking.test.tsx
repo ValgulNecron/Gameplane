@@ -104,4 +104,358 @@ describe("NetworkingSection", () => {
     const lastCall = onChange.mock.calls.at(-1)![0];
     expect(lastCall.spec.networking.sourceRanges).toEqual(["203.0.113.0/24"]);
   });
+
+  describe("AddressAssignment (T044, T047, T109)", () => {
+    it("displays and edits address pool and address fields", () => {
+      const onChange = vi.fn();
+      renderWithQuery(
+        <NetworkingSection draft={baseDraft} onChange={onChange} />,
+      );
+
+      // Address pool field should exist
+      const poolInput = screen.getByPlaceholderText("pool-name") as HTMLInputElement;
+      expect(poolInput).toBeInTheDocument();
+      expect(poolInput.value).toBe("");
+
+      // Requested address field should exist
+      const addressInput = screen.getByPlaceholderText(
+        "e.g. 203.0.113.50",
+      ) as HTMLInputElement;
+      expect(addressInput).toBeInTheDocument();
+      expect(addressInput.value).toBe("");
+
+      // Edit address pool
+      fireEvent.change(poolInput, { target: { value: "pool-us-west" } });
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spec: expect.objectContaining({
+            networking: expect.objectContaining({
+              addressPool: "pool-us-west",
+            }),
+          }),
+        }),
+      );
+
+      // Edit address
+      fireEvent.change(addressInput, {
+        target: { value: "203.0.113.50" },
+      });
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spec: expect.objectContaining({
+            networking: expect.objectContaining({
+              address: "203.0.113.50",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("preserves addressPool and address fields when editing unrelated settings (T047)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            addressPool: "pool-us-west",
+            address: "203.0.113.50",
+          },
+        },
+      };
+      const onChange = vi.fn();
+      renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+      // Edit hostname (unrelated field)
+      fireEvent.change(screen.getByPlaceholderText("mc.example.com"), {
+        target: { value: "mc.example.com" },
+      });
+
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      expect(lastCall.spec.networking.addressPool).toEqual("pool-us-west");
+      expect(lastCall.spec.networking.address).toEqual("203.0.113.50");
+    });
+
+    it("clears address pool when set to empty string", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            addressPool: "pool-us-west",
+          },
+        },
+      };
+      const onChange = vi.fn();
+      renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+      const poolInput = screen.getByPlaceholderText("pool-name") as HTMLInputElement;
+      fireEvent.change(poolInput, { target: { value: "" } });
+
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      // Empty value should not be sent; addressPool should be undefined
+      expect(lastCall.spec.networking.addressPool).toBeUndefined();
+    });
+
+    it("renders Assigned condition with green badge (T109)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { addressPool: "pool-us-west" },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "True",
+              reason: "Assigned",
+              message: "Address 172.18.255.203 assigned from pool 'pool-us-west'.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Assigned")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Address 172.18.255.203 assigned from pool 'pool-us-west'.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("renders AssignmentPending condition with orange Pending badge (T109)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { addressPool: "pool-us-west" },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "AssignmentPending",
+              message:
+                "Requested address pool 'pool-us-west': the address manager has not assigned an address yet.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Pending")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Requested address pool 'pool-us-west': the address manager has not assigned an address yet.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("renders ServiceNotReady condition with orange Pending badge (T109)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { addressPool: "pool-us-west" },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "ServiceNotReady",
+              message:
+                "Requested address pool 'pool-us-west': waiting for the LoadBalancer Service carrying the request to exist.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Pending")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Requested address pool 'pool-us-west': waiting for the LoadBalancer Service carrying the request to exist.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("renders IgnoredForExposureMode alert when condition reason is IgnoredForExposureMode (T047)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            expose: "NodePort" as const,
+            addressPool: "pool-us-west",
+          },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "IgnoredForExposureMode",
+              message:
+                "Requested address pool 'pool-us-west' is ignored: it applies only to expose mode 'LoadBalancer', and this server is exposed as 'NodePort'.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("Address preference ignored")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Address pool and requested address only take effect/),
+      ).toBeInTheDocument();
+    });
+
+    it("renders NoAddressManagerConfigured alert when condition reason is NoAddressManagerConfigured (T047)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            expose: "LoadBalancer" as const,
+            addressPool: "pool-us-west",
+          },
+        },
+        status: {
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "False",
+              reason: "NoAddressManagerConfigured",
+              message:
+                "Requested address pool 'pool-us-west' cannot be honored: this cluster has no load-balancer address manager configured, so any address the server receives comes from the default assignment policy.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("No address manager configured")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Your pool and address preference will be saved but never applied/,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("displays current assignment when endpoint is available (T044)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: { addressPool: "pool-us-west" },
+        },
+        status: {
+          endpoints: [
+            {
+              name: "game",
+              host: "172.18.255.203",
+              port: 25565,
+              pool: "pool-us-west",
+            },
+          ],
+          conditions: [
+            {
+              type: "AddressAssignment",
+              status: "True",
+              reason: "Assigned",
+              message:
+                "Address 172.18.255.203 assigned from pool 'pool-us-west'.",
+            },
+          ],
+        },
+      };
+      renderWithQuery(<NetworkingSection draft={draft} onChange={() => {}} />);
+
+      expect(screen.getByText("172.18.255.203")).toBeInTheDocument();
+      expect(screen.getByText("from pool 'pool-us-west'")).toBeInTheDocument();
+    });
+
+    it("preserves addressPool when editing hostname (round-trip test T047)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            addressPool: "pool-us-west",
+            address: "203.0.113.50",
+            hostname: "old-host.example.com",
+          },
+        },
+      };
+      const onChange = vi.fn();
+      renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+      // Change hostname
+      fireEvent.change(screen.getByPlaceholderText("mc.example.com"), {
+        target: { value: "new-host.example.com" },
+      });
+
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      expect(lastCall.spec.networking).toEqual({
+        addressPool: "pool-us-west",
+        address: "203.0.113.50",
+        hostname: "new-host.example.com",
+      });
+    });
+
+    it("does not drop addressPool and address when exposing to LoadBalancer (T047)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            expose: "NodePort" as const,
+            addressPool: "pool-us-west",
+            address: "203.0.113.50",
+          },
+        },
+      };
+      const onChange = vi.fn();
+      renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+      // Change expose to LoadBalancer
+      fireEvent.change(screen.getAllByRole("combobox")[0], {
+        target: { value: "LoadBalancer" },
+      });
+
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      expect(lastCall.spec.networking.addressPool).toEqual("pool-us-west");
+      expect(lastCall.spec.networking.address).toEqual("203.0.113.50");
+    });
+
+    it("clears networking when both addressPool and address are empty and no other fields (T047)", () => {
+      const draft = {
+        ...baseDraft,
+        spec: {
+          ...baseDraft.spec,
+          networking: {
+            addressPool: "pool-us-west",
+            address: "203.0.113.50",
+          },
+        },
+      };
+      const onChange = vi.fn();
+      renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
+
+      // Clear address pool
+      const poolInput = screen.getByPlaceholderText("pool-name") as HTMLInputElement;
+      fireEvent.change(poolInput, { target: { value: "" } });
+
+      // Clear address
+      const addressInput = screen.getByPlaceholderText(
+        "e.g. 203.0.113.50",
+      ) as HTMLInputElement;
+      fireEvent.change(addressInput, { target: { value: "" } });
+
+      const lastCall = onChange.mock.calls.at(-1)![0];
+      expect(lastCall.spec.networking).toBeUndefined();
+    });
+  });
 });

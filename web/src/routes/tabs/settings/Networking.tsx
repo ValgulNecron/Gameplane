@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { X, AlertCircle, Check, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Expose, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
+import type { Expose, GameServer, GameServerNetworking, GameServerTunnel, RemotePortMapping } from "@/types";
 import { PortOverridesEditor } from "@/components/server/PortOverridesEditor";
 import { Servers } from "@/lib/endpoints";
 import { errorText } from "@/lib/errors";
@@ -55,6 +55,8 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
     if (next.sourceRanges && next.sourceRanges.length) {
       cleaned.sourceRanges = next.sourceRanges;
     }
+    if (next.addressPool) cleaned.addressPool = next.addressPool;
+    if (next.address) cleaned.address = next.address;
     if (next.tunnel) cleaned.tunnel = next.tunnel;
     onChange({
       ...draft,
@@ -448,7 +450,164 @@ export function NetworkingSection({ draft, onChange, onValidityChange }: Section
           />
         </Field>
       )}
+
+      <AddressAssignmentSection
+        draft={draft}
+        net={net}
+        setNet={setNet}
+      />
     </div>
+  );
+}
+
+interface AddressAssignmentSectionProps {
+  draft: GameServer;
+  net: GameServerNetworking;
+  setNet: (next: GameServerNetworking) => void;
+}
+
+function AddressAssignmentSection({
+  draft,
+  net,
+  setNet,
+}: AddressAssignmentSectionProps) {
+  const status = draft.status;
+  const condition = status?.conditions?.find(
+    (c) => c.type === "AddressAssignment",
+  );
+
+  const currentAddress = draft.status?.endpoints?.[0];
+
+  return (
+    <div className="space-y-4 border-t border-border pt-6">
+      {currentAddress && (
+        <Field
+          label="Current assignment"
+          hint="Address and pool currently bound to this server by the operator."
+        >
+          <div className="rounded-md border border-border bg-surface px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-fg">{currentAddress.host}</span>
+              {currentAddress.pool && (
+                <span className="text-xs text-muted">from pool '{currentAddress.pool}'</span>
+              )}
+            </div>
+          </div>
+        </Field>
+      )}
+
+      <Field
+        label="Address pool"
+        hint="Name of a load-balancer address pool configured by your cluster admin. Leave blank to let the address manager choose."
+      >
+        <Input
+          value={net.addressPool ?? ""}
+          onChange={(e) => setNet({ ...net, addressPool: e.target.value || undefined })}
+          placeholder="pool-name"
+          spellCheck={false}
+        />
+      </Field>
+
+      <Field
+        label="Requested address"
+        hint="A specific address to request from the pool. Must be free — the address manager rejects addresses already in use. Leave blank unless you need a specific address."
+      >
+        <Input
+          value={net.address ?? ""}
+          onChange={(e) => setNet({ ...net, address: e.target.value || undefined })}
+          placeholder="e.g. 203.0.113.50"
+          spellCheck={false}
+        />
+      </Field>
+
+      <AddressStatusField condition={condition} />
+
+      {condition?.reason === "IgnoredForExposureMode" && (
+        <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
+          <div className="flex gap-2">
+            <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+            <div>
+              <div className="font-medium text-warning">Address preference ignored</div>
+              <div className="pt-0.5 text-xs text-warning/80">
+                Expose is set to {net.expose || "ClusterIP"}. Address pool and requested address only take effect when Expose (above) is set to LoadBalancer.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {condition?.reason === "NoAddressManagerConfigured" && (
+        <div className="rounded-md border-l-4 border-warning bg-warning/10 p-3 text-sm">
+          <div className="flex gap-2">
+            <AlertCircle className="h-5 w-5 shrink-0 text-warning" />
+            <div>
+              <div className="font-medium text-warning">No address manager configured</div>
+              <div className="pt-0.5 text-xs text-warning/80">
+                This cluster has no MetalLB or Cilium address manager. Your pool and address preference will be saved but never applied.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddressStatusField({
+  condition,
+}: {
+  condition?: { reason?: string; message?: string; status?: string };
+}) {
+  if (!condition) {
+    return null;
+  }
+
+  const getBadgeColor = (
+    reason?: string,
+    status?: string,
+  ): { bgColor: string; textColor: string; label: string } => {
+    if (status === "True") {
+      return {
+        bgColor: "bg-success/20",
+        textColor: "text-success",
+        label: "Assigned",
+      };
+    }
+
+    // For False status, determine label from reason or message
+    if (reason === "AssignmentPending" || reason === "ServiceNotReady") {
+      return {
+        bgColor: "bg-warning/20",
+        textColor: "text-warning",
+        label: "Pending",
+      };
+    }
+
+    return {
+      bgColor: "bg-danger/20",
+      textColor: "text-danger",
+      label: reason === "IgnoredForExposureMode" ? "Ignored" : "Error",
+    };
+  };
+
+  const badge = getBadgeColor(condition.reason, condition.status);
+
+  return (
+    <Field
+      label="Address status"
+      hint="Reflects the GameServer's AddressAssignment condition."
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={`${badge.bgColor} rounded px-2 py-1 text-xs font-medium ${badge.textColor} shrink-0`}
+          >
+            {badge.label}
+          </div>
+          <div className="flex-1 pt-1 text-sm text-fg">{condition.message}</div>
+        </div>
+      </div>
+    </Field>
   );
 }
 
