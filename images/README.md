@@ -42,7 +42,6 @@ Each game has one directory under `images/games/<name>/` with a **Dockerfile** (
 4. Add the game to `.github/workflows/images.yaml` in the `game-images` job matrix:
    ```yaml
    - game: <name>
-     dockerfile: images/games/<name>/Dockerfile
      context: images/games/<name>
    ```
 5. Push to a feature branch; the workflow builds, signs, and surfaces the digest in the job summary.
