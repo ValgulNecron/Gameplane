@@ -7,6 +7,11 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0-beta.8] — 2026-08-22
+
+A dependency sweep: all Go modules bumped to latest available versions,
+web dependencies updated, and CI image pins aligned to current stable releases.
+
 ### Added
 
 - **Wake-on-connect for idle auto-sleep:** a sentinel component (distroless Docker
@@ -19,6 +24,20 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   games use a generic packets-in-window heuristic. Works across all four expose
   modes; Hostport has asymmetric limitations documented in `docs/roadmap.md`.
   Costs one small pod per sleeping server.
+- **Load-balancer address pools:** GameServers can now request a specific address
+  pool or explicit public IP when exposed as LoadBalancer services, via optional
+  `spec.networking.addressPool` and `spec.networking.address` CRD fields. The
+  operator translates these to the cluster's load-balancer flavor (configured
+  via `operator.addressManager` Helm value: `metallb` | `cilium` | `none`,
+  default `none`): MetalLB gets pool → `metallb.io/address-pool` annotation and
+  address → `metallb.io/loadBalancerIPs`; Cilium gets pool →
+  `gameplane.local/lb-pool` label (admin mirrors it in
+  `CiliumLoadBalancerIPPool.spec.serviceSelector`) and address →
+  `lbipam.cilium.io/ips`. A new `AddressAssignment` status condition tracks the
+  assignment outcome with eight reason codes (Assigned, AssignmentPending,
+  PoolNotFound, AllocationFailed, AddressInUse, ServiceNotReady,
+  IgnoredForExposureMode, NoAddressManagerConfigured). Dashboard support added
+  for setting and viewing pool/address. See [`docs/networking.md`](docs/networking.md).
 
 ### Security
 
@@ -28,20 +47,6 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   signed for the first time), and official module bundles are signed and
   recorded in the public Sigstore Rekor transparency log. Signing is now
   fail-closed in CI (missing `COSIGN_PRIVATE_KEY` fails the release).
-
-### Changed
-
-- **`modules/build.sh`** gained `--tlog-upload` flag (passed by the release
-  pipeline for official bundles); default stays offline for air-gapped authoring.
-- **Module bundles** are now signed by the pushed manifest digest. `build.sh`
-  previously took the first `sha256:` token in `oras push` output, which is not
-  necessarily the manifest — a layer digest printed in full would have been
-  signed instead (operator verification unchanged).
-
-## [0.2.0-beta.8] — 2026-07-29
-
-A dependency sweep: all Go modules bumped to latest available versions,
-web dependencies updated, and CI image pins aligned to current stable releases.
 
 ### Changed
 
@@ -59,6 +64,12 @@ web dependencies updated, and CI image pins aligned to current stable releases.
   (envtest) 1.31.0 → 1.36.2 (now in sync with the Makefile), and `kind` v0.24.0 →
   v0.32.0.
 - **Container image defaults:** restic/restic 0.18.1 → 0.19.1 (charts/gameplane/values.yaml operator.resticImage default) and nginxinc/nginx-unprivileged 1.30-alpine → 1.31-alpine (web/Dockerfile base image).
+- **`modules/build.sh`** gained `--tlog-upload` flag (passed by the release
+  pipeline for official bundles); default stays offline for air-gapped authoring.
+- **Module bundles** are now signed by the pushed manifest digest. `build.sh`
+  previously took the first `sha256:` token in `oras push` output, which is not
+  necessarily the manifest — a layer digest printed in full would have been
+  signed instead (operator verification unchanged).
 
 ### Notes
 
