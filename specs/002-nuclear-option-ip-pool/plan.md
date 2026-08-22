@@ -191,7 +191,7 @@ Add two typed fields to `GameServerNetworking`:
 
 The operator's reconcileService() translates these into cluster-vendor-specific Service mutations:
 - **MetalLB**: sets `metallb.io/address-pool` annotation
-- **Cilium**: sets label `pool=<value>` matched by CiliumLoadBalancerIPPool selector
+- **Cilium**: sets label `gameplane.local/lb-pool=<value>` (a Gameplane convention; cluster admin must mirror this key in CiliumLoadBalancerIPPool's `spec.serviceSelector` for pool selection to bind) and annotation `lbipam.cilium.io/ips` for explicit addresses
 - **Fallback**: uses `serviceAnnotations` map as escape hatch for vendor-specific pool hints
 
 Rationale: maintains backward compatibility (both fields optional), supports portability across vendors (single typed input, vendor-specific output), allows error reporting on invalid pool names (FR-020).
@@ -206,7 +206,7 @@ Do NOT hard-code MetalLB-specific logic into the controller. Instead:
 Rationale: satisfies FR-022 (CNCF-standard compatibility). If the cluster has no load-balancer support, pool preference is silently ignored (Service stays ClusterIP, operator reports no address assigned).
 
 **Decision 4: Address Assignment Crux Risk**
-MetalLB selects pool via Service **annotation** (`metallb.io/address-pool: pool-name`), but Cilium selects via Service **label** matched by CiliumLoadBalancerIPPool selector. One operator field must produce two different Service mutations. Solution:
+MetalLB selects pool via Service **annotation** (`metallb.io/address-pool: pool-name`), but Cilium selects via Service **label** (`gameplane.local/lb-pool: pool-name`) matched by CiliumLoadBalancerIPPool selector. One operator field must produce two different Service mutations. Solution:
 - Operator reads cluster flavor from Helm values or auto-detects via API server resourceVersion on LB controller
 - reconcileService() applies the correct annotation OR label per flavor
 - Status always reads back from `Service.status.loadBalancer.ingress[0].ip`

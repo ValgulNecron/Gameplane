@@ -90,10 +90,10 @@ An operator wants to change the server's name, password, or mission rotation wit
 
 **Acceptance Scenarios**:
 
-1. **Given** a running Nuclear Option server, **When** an operator edits the server name to a valid value (e.g., "My Awesome Server"), **Then** the dashboard accepts the change and marks the server as "Configuration Changed — Restart Required" or similar.
-2. **Given** an operator editing the server name to an invalid value (e.g., a string 256+ characters), **When** they try to save, **Then** the dashboard rejects the change with a message like "Server name must be 1–64 characters" and does not apply the change.
+1. **Given** a running Nuclear Option server, **When** an operator edits the server name to a valid value (e.g., "My Awesome Server") and attempts to save, **Then** the dashboard validates the change, accepts it, and marks the server as "Configuration Changed — Restart Required" or similar.
+2. **Given** an operator editing the server name to an invalid value (e.g., a string 256+ characters), **When** they try to save, **Then** the dashboard validates the change, rejects it with a message like "Server name must be 1–64 characters", and does not apply the change.
 3. **Given** the server is restarted with the new valid name, **When** the server boots, **Then** the new name is reflected in the config file and in the in-game server browser.
-4. **Given** an operator editing the mission rotation or other game settings via a JSON text field, **When** the JSON is malformed, **Then** the dashboard rejects it with "Invalid JSON in [field]: [specific error]" rather than allowing the server to enter a crash loop.
+4. **Given** an operator editing the mission rotation or other game settings via a JSON text field, **When** the JSON is malformed and they attempt to save, **Then** the dashboard validates the JSON format, rejects it with "Invalid JSON in [field]: [specific error]", and does not apply the change (preventing the server from entering a crash loop on the next restart).
 
 ---
 
@@ -157,7 +157,7 @@ An operator creates a server with a pool preference but nothing happens — no a
 - **FR-019**: The operator MUST be able to view the server's assigned public address and, if applicable, the address pool it came from, displayed prominently in the server's networking details in the dashboard.
 - **FR-020**: When a pool assignment cannot be fulfilled (pool does not exist, pool is exhausted, requested address is in use, or exposure mode is incompatible), the GameServer status MUST display a distinct, readable error message naming the specific reason and the corrective action available, rather than remaining in an indefinite "Pending" state.
 - **FR-021**: A GameServer whose pool preference is set via the REST API, or applied directly to the cluster without going through the dashboard, MUST be assigned an address using the same pool-assignment logic as one created through the dashboard — since reconciliation is driven by the GameServer record itself, not by which path created it.
-- **FR-022**: The pool-override feature MUST be compatible with any CNCF-standard load-balancer address manager that the Kubernetes cluster is using (e.g., MetalLB, Cilium), without requiring a bespoke integration to be written for each address manager.
+- **FR-022**: The pool-override feature MUST support MetalLB and Cilium load-balancer address managers, with explicit per-vendor translation logic (MetalLB via annotation, Cilium via label). Supporting an additional address manager requires adding a new translation branch in the operator; no generic mechanism exists for third-party or CNCF-standard managers without this code change.
 
 **Cross-Cutting & Validation:**
 
