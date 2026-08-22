@@ -5,11 +5,30 @@ import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, ...rest }: { children: ReactNode; to: string } & Record<string, unknown>) => (
-    <a href={to} {...rest}>
-      {children}
-    </a>
-  ),
+  Link: ({ children, to, params, search, ...rest }: { children: ReactNode; to: string; params?: Record<string, string>; search?: Record<string, unknown> } & Record<string, unknown>) => {
+    let href = to;
+    // Replace $key placeholders with values from params
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        href = href.replace(`$${key}`, value);
+      });
+    }
+    // Append search query string
+    if (search && Object.keys(search).length > 0) {
+      const queryParams = new URLSearchParams();
+      Object.entries(search).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.set(key, String(value));
+        }
+      });
+      href = `${href}?${queryParams.toString()}`;
+    }
+    return (
+      <a href={href} {...rest}>
+        {children}
+      </a>
+    );
+  },
 }));
 
 import { NetworkingSection } from "./Networking";
@@ -167,7 +186,7 @@ describe("NetworkingSection AddressInUse rendering (T065)", () => {
     renderWithQuery(<NetworkingSection draft={draft} onChange={onChange} />);
 
     // Verify the link is rendered to the conflicting server in the other namespace
-    const link = screen.getByRole("link", { name: 'GameServer "other-ns/other-server"' });
+    const link = screen.getByRole("link", { name: 'GameServer "other-server"' });
     expect(link).toBeInTheDocument();
     // The href should contain the server name, and the search params should include the correct namespace
     expect(link).toHaveAttribute("href", expect.stringContaining("/servers/other-server"));
