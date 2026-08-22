@@ -140,7 +140,16 @@ func (r *GameServerReconciler) reconcileStatus(
 				Message:            errMsg,
 			}
 			gs.Status.Conditions = upsertCondition(gs.Status.Conditions, invalidCond)
-			// Use only the valid endpoints
+			// Use only the valid endpoints. These are still genuine
+			// playit-sourced endpoints (only some of the batch failed
+			// validation), so TunnelProvider must be stamped here too —
+			// otherwise a partially-invalid playit endpoint set would leave
+			// TunnelProvider=="" entries that findAddressConflict's holds
+			// discriminator would wrongly treat as a real LoadBalancer
+			// address holder.
+			for i := range validEndpoints {
+				validEndpoints[i].TunnelProvider = "playit"
+			}
 			tunnelPlan.endpoints = validEndpoints
 		} else {
 			// All valid: remove the invalid condition and merge into tunnel plan

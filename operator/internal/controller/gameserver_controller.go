@@ -1767,16 +1767,81 @@ func (r *GameServerReconciler) listServiceEvents(
 // Returns the conflicting GameServer's name, or empty string if none found.
 // Errors are logged but not fatal.
 //
-// To avoid deadlock when two servers request the same address concurrently
-// (before either is assigned), a deterministic tiebreak is applied:
-// the server that requested first wins. Tiebreak ordering is:
-// 1. Earlier metadata.creationTimestamp
-// 2. Namespace string ordering (lexicographic)
-// 3. Name string ordering (lexicographic)
+// The whole candidate set — every other server that either holds the
+// address or requests it — is resolved as ONE ordered comparison rather
+// than two independent branches. Splitting "holds" and "requests" into
+// separate branches (one of them unconditional) used to make the ordering
+// non-total: a server B that merely requested an address, created before a
+// server A that already held it, could report A as a conflict while A
+// simultaneously reported B as a conflict back — a permanent livelock, and
+// with 3+ contenders the *reported name* also flapped because it was
+// whichever candidate the cached List happened to yield first (List order
+// from controller-runtime is not stable).
 //
-// A server conflicts if another server already HOLDS the address in status,
-// OR it merely requests the same address AND that other server sorts earlier
-// in the tiebreak ordering.
+// The fix: gather every holder/requester of the address into one slice,
+// sort it by a strict total order — holds ranks before merely requests,
+// then creationTimestamp, namespace, name — and report a conflict iff the
+// minimum of that sorted set sorts strictly before gs itself. At least one
+// server in any contending set is told "no conflict" (see addressConflictLess
+// below for why it is "at least one" and not "exactly one"), and the
+// reported name is deterministic regardless of List's return order.
+//
+// A candidate can join the set two independent ways: it "requests" the
+// address (spec.networking.address matches) or it "holds" the address
+// (status.endpoints carries it). "Holds" is judged independently of
+// "requests" — a pool-assigned server with no explicit spec address must
+// still be caught when another server explicitly requests the address it
+// was assigned. An actual holder must outrank a mere requester regardless
+// of creation order — the address was already handed to the holder by the
+// address manager, so a requester created earlier has no real claim over
+// it — which is why "holds" is a leading key in the total order, not a
+// second-order tiebreak. See addressConflictLess for the precedence rule
+// and why it cannot produce a mutual pair between the two.
+//
+// Two discriminators keep "holds" from false-positiving on endpoints that
+// were never a real LoadBalancer address assignment:
+//   - GameServerEndpoint.TunnelProvider is set for every tunnel-sourced
+//     endpoint that reaches status.endpoints through a code path that
+//     stamps it (frp, tailscale, and both branches — success and
+//     validation-failure — of playit); only a TunnelProvider == "" endpoint
+//     is eligible.
+//   - endpointsFromService falls back to svc.Spec.ClusterIP as Host when the
+//     Service has no LoadBalancer ingress yet, so a Host match only counts
+//     as holding when the candidate's own expose mode is LoadBalancer.
+//     This narrows, but does not close, the false-positive: an
+//     LB-exposed candidate awaiting ingress assignment still carries its
+//     ClusterIP as Host, so if a requested address happens to fall inside
+//     the Service CIDR (not the LB pool's range — an unlikely but not
+//     impossible operator misconfiguration) that candidate would still
+//     read as "holding" it. GameServerEndpoint.Pool cannot be used to
+//     close this: it is stamped only for a translated pool request
+//     (addressPlanTranslated), never for an explicit spec.networking.address
+//     request served directly off the Service's real LB ingress, so an
+//     empty Pool does not distinguish a genuine explicit-address holder
+//     from a pending ClusterIP fallback. Closing it fully would need a
+//     new discriminator field on GameServerEndpoint (a CRD type change),
+//     which is out of scope here.
+//
+// Candidates being deleted (a non-nil metadata.deletionTimestamp) are
+// skipped entirely: a terminating server cannot legitimately hold or claim
+// an address going forward, and letting it win the tiebreak would
+// permanently block a live server behind a server that is already on its
+// way out.
+//
+// Caveats: the no-mutual-pair property holds only under the following conditions:
+//   (a) CROSS-ADDRESS PAIR: this assumes every contender's spec.networking.address
+//     is either empty or the contended address. Two servers with swapped explicit
+//     addresses while their status shows the old ones can name each other
+//     permanently. Impact is bounded to the status condition; it does not block
+//     reconciliation.
+//   (b) UNREPORTED DUPLICATE HOLD: an older server both holding and requesting,
+//     plus a younger pure holder of the same address, is reported by neither.
+//     The older server is the minimum and returns "no conflict"; the pure holder
+//     hits the early return. This is a known gap.
+//   (c) CACHE STALENESS: the invariant assumes every contender observes the same
+//     holds flags. Reconciles read through informer caches, so a transient mutual
+//     pair is possible while caches disagree. It self-heals on the next status
+//     transition, unlike a permanent livelock.
 func (r *GameServerReconciler) findAddressConflict(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer,
 ) (string, error) {
@@ -1793,51 +1858,132 @@ func (r *GameServerReconciler) findAddressConflict(
 	}
 
 	requestedAddr := gs.Spec.Networking.Address
+
+	var candidates []addressCandidate
 	for i := range gsList.Items {
 		other := &gsList.Items[i]
 		// Skip self — matched on namespace *and* name, so a same-named server
-		// in another namespace is still considered a genuine conflict.
+		// in another namespace is still considered a genuine candidate.
 		if other.Namespace == gs.Namespace && other.Name == gs.Name {
 			continue
 		}
-
-		// Check if the other server's status shows this address is assigned
-		for _, endpoint := range other.Status.Endpoints {
-			if endpoint.Host == requestedAddr {
-				// Namespace-qualify a cross-namespace holder so the reported
-				// name is unambiguous; a same-namespace one stays bare.
-				if other.Namespace != gs.Namespace {
-					return other.Namespace + "/" + other.Name, nil
-				}
-				return other.Name, nil
-			}
+		// A terminating server cannot legitimately hold or claim an address
+		// going forward.
+		if other.GetDeletionTimestamp() != nil {
+			continue
 		}
 
-		// Check if the other server merely requests the same address.
-		// Apply tiebreak: if both request it, the one that was created first wins.
-		if other.Spec.Networking.Address == requestedAddr {
-			// Tiebreak: compare creation timestamps first.
-			otherCreated := other.GetCreationTimestamp()
-			gsCreated := gs.GetCreationTimestamp()
-			if otherCreated.Time.Before(gsCreated.Time) {
-				// Other was created first, so other wins the tiebreak.
-				if other.Namespace != gs.Namespace {
-					return other.Namespace + "/" + other.Name, nil
-				}
-				return other.Name, nil
-			} else if otherCreated.Time.Equal(gsCreated.Time) {
-				// Exact same creation time (rare); use namespace then name ordering.
-				if other.Namespace < gs.Namespace {
-					if other.Namespace != gs.Namespace {
-						return other.Namespace + "/" + other.Name, nil
-					}
-					return other.Name, nil
-				} else if other.Namespace == gs.Namespace && other.Name < gs.Name {
-					return other.Name, nil
-				}
-			}
-			// else: gs was created first or sorts earlier, so gs wins; no conflict.
+		requests := other.Spec.Networking.Address == requestedAddr
+		holds := candidateHoldsAddress(other, requestedAddr)
+
+		if holds || requests {
+			candidates = append(candidates, addressCandidate{gs: other, holds: holds})
 		}
 	}
-	return "", nil
+	if len(candidates) == 0 {
+		return "", nil
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return addressConflictLess(candidates[i], candidates[j])
+	})
+
+	winner := candidates[0]
+	// gs's own hold status matters too: a requester (gs) that has not yet
+	// been granted the address it asked for must not outrank an actual
+	// holder just because gs asked first — see the precedence-order note
+	// on addressConflictLess.
+	self := addressCandidate{gs: gs, holds: candidateHoldsAddress(gs, requestedAddr)}
+	if !addressConflictLess(winner, self) {
+		// gs itself is the minimum of the full contending set: no conflict.
+		return "", nil
+	}
+
+	// Namespace-qualify a cross-namespace holder so the reported name is
+	// unambiguous; a same-namespace one stays bare.
+	if winner.gs.Namespace != gs.Namespace {
+		return winner.gs.Namespace + "/" + winner.gs.Name, nil
+	}
+	return winner.gs.Name, nil
+}
+
+// candidateHoldsAddress reports whether gs is a genuine LoadBalancer holder
+// of addr — its expose mode is LoadBalancer and one of its status.endpoints
+// carries addr as Host with no TunnelProvider. See the discriminator notes
+// on findAddressConflict for what this deliberately excludes (tunnel-sourced
+// endpoints, and the residual ClusterIP-fallback edge case).
+func candidateHoldsAddress(gs *gameplanev1alpha1.GameServer, addr string) bool {
+	if gs.Spec.Networking.Expose != "LoadBalancer" {
+		return false
+	}
+	for _, endpoint := range gs.Status.Endpoints {
+		if endpoint.TunnelProvider == "" && endpoint.Host == addr {
+			return true
+		}
+	}
+	return false
+}
+
+// addressCandidate pairs a contending GameServer with its precomputed hold
+// status against the address in question, so the total order below can rank
+// "holds" without recomputing it (recomputing it against the wrong address
+// would be an easy bug once gs's own status is folded into the same
+// comparison as the listed candidates').
+type addressCandidate struct {
+	gs    *gameplanev1alpha1.GameServer
+	holds bool
+}
+
+// addressConflictLess reports whether a sorts strictly before b under the
+// address-conflict precedence order: a genuine holder always sorts before a
+// mere requester, regardless of creation order; among two candidates with
+// the same hold status, the tiebreak is earlier metadata.creationTimestamp,
+// then namespace (lexicographic), then name (lexicographic). This is a
+// strict total order over (GameServer, holds) pairs.
+//
+// It is NOT true that exactly one server in a contending set is ever told
+// "no conflict" — a pure holder (spec.networking.address == "") never
+// reaches this comparison at all, because findAddressConflict's own
+// early-return sends it home with "no conflict" before it lists anyone.
+// So a set with both a pure holder and a requester can produce two "no
+// conflict" outcomes: the pure holder's from the early return, and the
+// requester's if it happens to be the set's minimum too. At least one
+// server is always told "no conflict" (the set is never left with every
+// member reporting), which is the livelock-breaking property that matters.
+//
+// Folding "holds" in as the leading key — rather than leaving the order as
+// pure (creationTimestamp, namespace, name) and special-casing holders
+// separately — is also what keeps this precedence rule from reintroducing
+// the mutual-pair livelock it replaces. Case walk, for a holder-vs-requester
+// pair (H holds+requests addr, R only requests addr, R older than H):
+//   - From R's reconcile: R's own hold status is computed fresh against
+//     addr (false, since R never got it) and compared against H (holds).
+//     H sorts first regardless of R being older, so R reports H as the
+//     conflict.
+//   - From H's reconcile: H's own hold status is computed fresh (true) and
+//     compared against R (requests only, no hold). H sorts first, so H
+//     reports "no conflict" — it never names R.
+//     Exactly one direction fires; never both. The reason this differs from
+//     naively saying "if any candidate holds, always report it" (which WOULD
+//     produce a mutual pair here, since that naive rule ignores gs's own hold
+//     status) is that gs's own holds flag is folded into the same comparison
+//     as every candidate's, making the order symmetric no matter which of the
+//     pair is doing the asking.
+//   - A pure holder (spec address == "") never runs this comparison at all
+//     (early return), so it can never be the R or H side of a mutual pair
+//     either — it can only ever be a silent winner named by someone else's
+//     reconcile.
+func addressConflictLess(a, b addressCandidate) bool {
+	if a.holds != b.holds {
+		return a.holds
+	}
+	at := a.gs.GetCreationTimestamp()
+	bt := b.gs.GetCreationTimestamp()
+	if !at.Time.Equal(bt.Time) {
+		return at.Time.Before(bt.Time)
+	}
+	if a.gs.Namespace != b.gs.Namespace {
+		return a.gs.Namespace < b.gs.Namespace
+	}
+	return a.gs.Name < b.gs.Name
 }

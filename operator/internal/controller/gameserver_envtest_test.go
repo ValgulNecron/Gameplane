@@ -2829,10 +2829,9 @@ var addressManagerAnnotationKeys = []string{
 // for its UID, which SetControllerReference reads), and an in-memory
 // GameTemplate.
 func newAddressPoolServer(
-	t *testing.T, ns, manager string, net gameplanev1alpha1.GameServerNetworking,
+	ctx context.Context, t *testing.T, ns, manager string, net gameplanev1alpha1.GameServerNetworking,
 ) (*GameServerReconciler, *gameplanev1alpha1.GameServer, *gameplanev1alpha1.GameTemplate) {
 	t.Helper()
-	ctx := context.Background()
 
 	tmpl := buildGameTemplate(uniqueName("pooltmpl"))
 	gs := buildGameServer(ns, uniqueName("pool"), tmpl.Name)
@@ -2855,10 +2854,10 @@ func newAddressPoolServer(
 // svc.Spec.LoadBalancerIP is never written. Kubernetes deprecated the field
 // in 1.24 and both address managers take the request through metadata, so a
 // value appearing there is a bug no matter which flavor produced it.
-func addressPoolService(t *testing.T, ns, name string) *corev1.Service {
+func addressPoolService(ctx context.Context, t *testing.T, ns, name string) *corev1.Service {
 	t.Helper()
 	var svc corev1.Service
-	if err := k8sClient.Get(context.Background(),
+	if err := k8sClient.Get(ctx,
 		types.NamespacedName{Namespace: ns, Name: name}, &svc); err != nil {
 		t.Fatalf("get service %s/%s: %v", ns, name, err)
 	}
@@ -3016,7 +3015,7 @@ func TestGameServer_AddressPoolTranslationPerFlavor(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r, gs, tmpl := newAddressPoolServer(t, ns, tc.manager, gameplanev1alpha1.GameServerNetworking{
+			r, gs, tmpl := newAddressPoolServer(ctx, t, ns, tc.manager, gameplanev1alpha1.GameServerNetworking{
 				Expose:      "LoadBalancer",
 				AddressPool: tc.pool,
 				Address:     tc.address,
@@ -3025,7 +3024,7 @@ func TestGameServer_AddressPoolTranslationPerFlavor(t *testing.T) {
 				t.Fatalf("reconcileService: %v", err)
 			}
 
-			svc := addressPoolService(t, gs.Namespace, gs.Name)
+			svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
 			assertAddressAnnotations(t, svc, tc.wantAnns)
 
 			if got, present := svc.Annotations[ciliumPoolLabel]; present {
@@ -3059,7 +3058,7 @@ func TestGameServer_AddressPoolIgnoredForNonLoadBalancerExpose(t *testing.T) {
 
 	for _, expose := range []string{"", "ClusterIP", "NodePort", "Hostport"} {
 		t.Run("expose-"+expose, func(t *testing.T) {
-			r, gs, tmpl := newAddressPoolServer(t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+			r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
 				Expose:      expose,
 				AddressPool: "prod-pool",
 				Address:     "203.0.113.10",
@@ -3067,7 +3066,7 @@ func TestGameServer_AddressPoolIgnoredForNonLoadBalancerExpose(t *testing.T) {
 			if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 				t.Fatalf("reconcileService: %v", err)
 			}
-			svc := addressPoolService(t, gs.Namespace, gs.Name)
+			svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
 			assertAddressAnnotations(t, svc, nil)
 			if got, present := svc.Labels[ciliumPoolLabel]; present {
 				t.Fatalf("label %s = %q, want absent", ciliumPoolLabel, got)
@@ -3091,7 +3090,7 @@ func TestGameServer_AddressPoolUnsetPrunesManagedKeys(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("metallb-annotations", func(t *testing.T) {
-		r, gs, tmpl := newAddressPoolServer(t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
 			Expose:      "LoadBalancer",
 			AddressPool: "prod-pool",
 			Address:     "203.0.113.10",
@@ -3099,7 +3098,7 @@ func TestGameServer_AddressPoolUnsetPrunesManagedKeys(t *testing.T) {
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (set): %v", err)
 		}
-		assertAddressAnnotations(t, addressPoolService(t, gs.Namespace, gs.Name), map[string]string{
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
 			metalLBAddressPoolAnnotation:     "prod-pool",
 			metalLBLoadBalancerIPsAnnotation: "203.0.113.10",
 		})
@@ -3109,18 +3108,18 @@ func TestGameServer_AddressPoolUnsetPrunesManagedKeys(t *testing.T) {
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (unset): %v", err)
 		}
-		assertAddressAnnotations(t, addressPoolService(t, gs.Namespace, gs.Name), nil)
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), nil)
 	})
 
 	t.Run("cilium-label", func(t *testing.T) {
-		r, gs, tmpl := newAddressPoolServer(t, ns, "cilium", gameplanev1alpha1.GameServerNetworking{
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "cilium", gameplanev1alpha1.GameServerNetworking{
 			Expose:      "LoadBalancer",
 			AddressPool: "prod-pool",
 		})
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (set): %v", err)
 		}
-		if got := addressPoolService(t, gs.Namespace, gs.Name).Labels[ciliumPoolLabel]; got != "prod-pool" {
+		if got := addressPoolService(ctx, t, gs.Namespace, gs.Name).Labels[ciliumPoolLabel]; got != "prod-pool" {
 			t.Fatalf("label %s = %q, want prod-pool", ciliumPoolLabel, got)
 		}
 
@@ -3128,7 +3127,7 @@ func TestGameServer_AddressPoolUnsetPrunesManagedKeys(t *testing.T) {
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (unset): %v", err)
 		}
-		svc := addressPoolService(t, gs.Namespace, gs.Name)
+		svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
 		if got, present := svc.Labels[ciliumPoolLabel]; present {
 			t.Fatalf("label %s = %q, want pruned once the pool was cleared", ciliumPoolLabel, got)
 		}
@@ -3149,14 +3148,14 @@ func TestGameServer_AddressPoolChangeMutatesServiceInPlace(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("metallb-annotation", func(t *testing.T) {
-		r, gs, tmpl := newAddressPoolServer(t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
 			Expose:      "LoadBalancer",
 			AddressPool: "pool-us-east",
 		})
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (pool-us-east): %v", err)
 		}
-		assertAddressAnnotations(t, addressPoolService(t, gs.Namespace, gs.Name), map[string]string{
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
 			metalLBAddressPoolAnnotation: "pool-us-east",
 		})
 
@@ -3164,20 +3163,20 @@ func TestGameServer_AddressPoolChangeMutatesServiceInPlace(t *testing.T) {
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (pool-us-west): %v", err)
 		}
-		assertAddressAnnotations(t, addressPoolService(t, gs.Namespace, gs.Name), map[string]string{
+		assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
 			metalLBAddressPoolAnnotation: "pool-us-west",
 		})
 	})
 
 	t.Run("cilium-label", func(t *testing.T) {
-		r, gs, tmpl := newAddressPoolServer(t, ns, "cilium", gameplanev1alpha1.GameServerNetworking{
+		r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "cilium", gameplanev1alpha1.GameServerNetworking{
 			Expose:      "LoadBalancer",
 			AddressPool: "pool-us-east",
 		})
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (pool-us-east): %v", err)
 		}
-		if got := addressPoolService(t, gs.Namespace, gs.Name).Labels[ciliumPoolLabel]; got != "pool-us-east" {
+		if got := addressPoolService(ctx, t, gs.Namespace, gs.Name).Labels[ciliumPoolLabel]; got != "pool-us-east" {
 			t.Fatalf("label %s = %q, want pool-us-east", ciliumPoolLabel, got)
 		}
 
@@ -3185,7 +3184,7 @@ func TestGameServer_AddressPoolChangeMutatesServiceInPlace(t *testing.T) {
 		if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 			t.Fatalf("reconcileService (pool-us-west): %v", err)
 		}
-		svc := addressPoolService(t, gs.Namespace, gs.Name)
+		svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
 		if got := svc.Labels[ciliumPoolLabel]; got != "pool-us-west" {
 			t.Fatalf("label %s = %q, want pool-us-west", ciliumPoolLabel, got)
 		}
@@ -3209,7 +3208,7 @@ func TestGameServer_AddressPoolBeatsServiceAnnotations(t *testing.T) {
 	ns := newNamespace(t)
 	ctx := context.Background()
 
-	r, gs, tmpl := newAddressPoolServer(t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
+	r, gs, tmpl := newAddressPoolServer(ctx, t, ns, "metallb", gameplanev1alpha1.GameServerNetworking{
 		Expose:             "LoadBalancer",
 		AddressPool:        "typed-pool",
 		ServiceAnnotations: map[string]string{metalLBAddressPoolAnnotation: "hand-written-pool"},
@@ -3217,7 +3216,7 @@ func TestGameServer_AddressPoolBeatsServiceAnnotations(t *testing.T) {
 	if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 		t.Fatalf("reconcileService: %v", err)
 	}
-	assertAddressAnnotations(t, addressPoolService(t, gs.Namespace, gs.Name), map[string]string{
+	assertAddressAnnotations(t, addressPoolService(ctx, t, gs.Namespace, gs.Name), map[string]string{
 		metalLBAddressPoolAnnotation: "typed-pool",
 	})
 }
@@ -3236,11 +3235,11 @@ func TestGameServer_AddressPoolFlavorChangePrunesStaleKeys(t *testing.T) {
 		AddressPool: "prod-pool",
 		Address:     "203.0.113.10",
 	}
-	cilium, gs, tmpl := newAddressPoolServer(t, ns, "cilium", net)
+	cilium, gs, tmpl := newAddressPoolServer(ctx, t, ns, "cilium", net)
 	if err := cilium.reconcileService(ctx, gs, tmpl, false); err != nil {
 		t.Fatalf("reconcileService (cilium): %v", err)
 	}
-	svc := addressPoolService(t, gs.Namespace, gs.Name)
+	svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
 	if got := svc.Labels[ciliumPoolLabel]; got != "prod-pool" {
 		t.Fatalf("label %s = %q, want prod-pool", ciliumPoolLabel, got)
 	}
@@ -3250,7 +3249,7 @@ func TestGameServer_AddressPoolFlavorChangePrunesStaleKeys(t *testing.T) {
 	if err := metallb.reconcileService(ctx, gs, tmpl, false); err != nil {
 		t.Fatalf("reconcileService (metallb): %v", err)
 	}
-	svc = addressPoolService(t, gs.Namespace, gs.Name)
+	svc = addressPoolService(ctx, t, gs.Namespace, gs.Name)
 	if got, present := svc.Labels[ciliumPoolLabel]; present {
 		t.Fatalf("label %s = %q, want pruned after the flavor changed", ciliumPoolLabel, got)
 	}
@@ -3284,13 +3283,13 @@ func TestGameServer_NoAddressPreferenceLeavesServiceMetadataUntouched(t *testing
 	var reference map[string]bool
 	for _, manager := range []string{"none", "metallb", "cilium"} {
 		t.Run("manager-"+manager, func(t *testing.T) {
-			r, gs, tmpl := newAddressPoolServer(t, ns, manager, gameplanev1alpha1.GameServerNetworking{
+			r, gs, tmpl := newAddressPoolServer(ctx, t, ns, manager, gameplanev1alpha1.GameServerNetworking{
 				Expose: "LoadBalancer",
 			})
 			if err := r.reconcileService(ctx, gs, tmpl, false); err != nil {
 				t.Fatalf("reconcileService: %v", err)
 			}
-			svc := addressPoolService(t, gs.Namespace, gs.Name)
+			svc := addressPoolService(ctx, t, gs.Namespace, gs.Name)
 
 			assertAddressAnnotations(t, svc, nil)
 			if got, present := svc.Labels[ciliumPoolLabel]; present {
