@@ -44,7 +44,7 @@ func (g *singleflightGroup) Do(ids []string, f func(context.Context) (map[string
 	done := make(chan struct{})
 	var res result
 	go func() {
-		v, err, _ := g.g.Do(key, func() (interface{}, error) {
+		v, _, _ := g.g.Do(key, func() (interface{}, error) {
 			resolutions, err := f(sfCtx)
 			return result{resolutions, err}, nil
 		})
