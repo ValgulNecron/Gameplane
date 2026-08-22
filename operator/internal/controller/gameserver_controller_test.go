@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,6 +21,9 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	s := runtime.NewScheme()
 	if err := gameplanev1alpha1.AddToScheme(s); err != nil {
 		t.Fatalf("gameplane scheme: %v", err)
+	}
+	if err := appsv1.AddToScheme(s); err != nil {
+		t.Fatalf("apps scheme: %v", err)
 	}
 	if err := corev1.AddToScheme(s); err != nil {
 		t.Fatalf("core scheme: %v", err)

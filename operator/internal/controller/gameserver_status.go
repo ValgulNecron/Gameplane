@@ -621,7 +621,7 @@ func addressAssignmentCondition(
 		cond.Message = failure.message
 	case assigned == "" && existing != nil && existing.ObservedGeneration == gs.Generation &&
 		(existing.Reason == "PoolNotFound" || existing.Reason == "AllocationFailed") &&
-		!(failure.confirmedClear && existing.Reason == "PoolNotFound"):
+		(!failure.confirmedClear || existing.Reason != "PoolNotFound"):
 		// Latch: no fresh failure this pass, but a previously derived terminal
 		// reason is still on record for this exact request (see the doc
 		// comment above) and no address has appeared. Preserve it rather than
