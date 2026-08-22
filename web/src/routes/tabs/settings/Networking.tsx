@@ -550,7 +550,6 @@ function AddressAssignmentSection({
 
       <AddressStatusField
         condition={condition}
-        serverName={draft.metadata.name}
         serverNamespace={draft.metadata.namespace}
       />
 
@@ -587,11 +586,9 @@ function AddressAssignmentSection({
 
 function AddressStatusField({
   condition,
-  serverName,
   serverNamespace,
 }: {
   condition?: { reason?: string; message?: string; status?: string };
-  serverName?: string;
   serverNamespace?: string;
 }) {
   if (!condition) {

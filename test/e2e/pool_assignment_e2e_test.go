@@ -682,9 +682,9 @@ func TestAddressPool_ExplicitAddressRequest(t *testing.T) {
 		"spec": map[string]any{
 			"templateRef": map[string]any{"name": tmplName},
 			"networking": map[string]any{
-				"expose":          "LoadBalancer",
-				"addressPool":     "pool-us-west",
-				"address":         requestedAddr,
+				"expose":      "LoadBalancer",
+				"addressPool": "pool-us-west",
+				"address":     requestedAddr,
 			},
 		},
 	}}
