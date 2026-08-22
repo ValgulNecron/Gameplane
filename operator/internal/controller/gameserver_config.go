@@ -155,12 +155,9 @@ func materializeConfig(
 			}
 		}
 		// Check string length bounds on string and password fields.
-		if (f.Type == "string" || f.Type == "password") && val != "" {
+		if f.Type == "string" || f.Type == "password" {
 			strlen := int32(len(val))
 			if f.MinLength != nil && strlen < *f.MinLength {
-				if *f.MinLength == 1 {
-					return nil, fmt.Errorf("config field %q must not be empty", f.Name)
-				}
 				return nil, fmt.Errorf("config field %q must be at least %d characters", f.Name, *f.MinLength)
 			}
 			if f.MaxLength != nil && strlen > *f.MaxLength {
