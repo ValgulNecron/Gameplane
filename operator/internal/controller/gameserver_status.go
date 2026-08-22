@@ -108,16 +108,22 @@ func (r *GameServerReconciler) reconcileStatus(
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
 
-	// failure starts as whatever the Service's events say (a MetalLB
-	// AllocationFailed warning, passed through verbatim — see
-	// extractAddressFailureFromEvents). When the flavor is metallb and a
-	// pool was requested, a direct GET of the IPAddressPool CR can answer
-	// "does this pool exist at all" without waiting for — or outliving —
-	// an event (Events have a ~1h TTL and MetalLB does not re-emit while a
-	// failure persists). That direct signal is strictly more authoritative
-	// than an event, so it overrides rather than merely supplementing.
+	// failure starts as:
+	// - MetalLB: Service events (a MetalLB AllocationFailed warning, passed
+	//   through verbatim — see extractAddressFailureFromEvents). When a pool
+	//   was requested, a direct GET of the IPAddressPool CR can answer "does
+	//   this pool exist at all" without waiting for — or outliving — an event
+	//   (Events have a ~1h TTL and MetalLB does not re-emit while a failure
+	//   persists). That direct signal overrides rather than supplements.
+	// - Cilium: Service status conditions (cilium.io/IPAMRequestSatisfied —
+	//   see extractAddressFailureFromCiliumCondition). Cilium emits no Events
+	//   at all for allocation failures.
 	failure := extractAddressFailureFromEvents(svcEvents)
-	if addrPlan.Outcome == addressPlanTranslated && addrPlan.Manager == addressManagerMetalLB && addrPlan.Pool != "" {
+	if addrPlan.Outcome == addressPlanTranslated && addrPlan.Manager == addressManagerCilium {
+		// Check Cilium's condition path.
+		failure = extractAddressFailureFromCiliumCondition(svcPtr)
+	} else if addrPlan.Outcome == addressPlanTranslated && addrPlan.Manager == addressManagerMetalLB && addrPlan.Pool != "" {
+		// Check MetalLB's direct pool-existence signal.
 		switch r.checkMetalLBPoolExists(ctx, addrPlan.Pool) {
 		case poolExistenceMissing:
 			failure = addressFailureReason{
@@ -517,6 +523,61 @@ func stripAllocationFailedPrefix(msg string) string {
 	return msg
 }
 
+// extractAddressFailureFromCiliumCondition inspects a Service's status
+// conditions for a Cilium LB-IPAM allocation failure and derives an
+// addressFailureReason from it.
+//
+// This mapping is derived from Cilium's documented LB-IPAM behavior
+// (lines 419-425 record a genuine verification against a live cluster):
+// Cilium sets a Service status condition of type cilium.io/IPAMRequestSatisfied
+// with status False and a Reason field that is one of:
+//   - "no_pool": the requested pool does not exist
+//   - "out_of_ips": the pool is exhausted
+//
+// Cilium does NOT emit Events for allocation failures (unlike MetalLB) — the
+// condition is the sole signal. This function maps the Cilium reasons onto
+// the same reason names as the MetalLB path so both address managers integrate
+// cleanly: "no_pool" → "PoolNotFound", "out_of_ips" → "AllocationFailed".
+// Cilium's own condition Message is carried verbatim into the
+// addressFailureReason, matching the philosophy of the MetalLB path — report,
+// never re-classify. Unknown reason values fall through to the zero value,
+// so if Cilium's reason strings ever differ from the contract, failures would
+// go silently unreported until someone runs this function against a live cluster.
+//
+// The zero value is returned when the condition is absent, satisfied, or
+// the Service pointer is nil.
+func extractAddressFailureFromCiliumCondition(svc *corev1.Service) addressFailureReason {
+	if svc == nil {
+		return addressFailureReason{}
+	}
+	const ciliumConditionType = "cilium.io/IPAMRequestSatisfied"
+	cond := meta.FindStatusCondition(svc.Status.Conditions, ciliumConditionType)
+	if cond == nil {
+		return addressFailureReason{}
+	}
+	if cond.Status == metav1.ConditionTrue {
+		// Satisfied: no failure.
+		return addressFailureReason{}
+	}
+	// Condition is False; map the Reason onto our reason enum.
+	switch cond.Reason {
+	case "no_pool":
+		return addressFailureReason{
+			reason:  "PoolNotFound",
+			message: cond.Message,
+		}
+	case "out_of_ips":
+		return addressFailureReason{
+			reason:  "AllocationFailed",
+			message: cond.Message,
+		}
+	default:
+		// Unknown reason; treat as "no failure derived" rather than inventing
+		// a reason we haven't verified against a real cluster.
+		return addressFailureReason{}
+	}
+}
+
 // addressAssignmentCondition reports what became of a
 // spec.networking.addressPool / .address request on the AddressAssignment
 // condition, or removes the condition when nothing was requested.
@@ -527,12 +588,13 @@ func stripAllocationFailedPrefix(msg string) string {
 // cluster for a feature they do not use. Removing it also means clearing the
 // spec fields clears the report on the next reconcile.
 //
-// failure supplies a derived address-manager failure — a direct
-// IPAddressPool-not-found check or, failing that, a MetalLB Service event —
-// see reconcileStatus and extractAddressFailureFromEvents. conflictingServer,
-// when non-empty, names another GameServer that already holds the requested
-// explicit address. Both are treated as informational — never crash or blank
-// the condition if they're unavailable.
+// failure supplies a derived address-manager failure — a Cilium Service
+// condition, a direct MetalLB IPAddressPool-not-found check, or a MetalLB
+// Service event — see reconcileStatus, extractAddressFailureFromCiliumCondition,
+// and extractAddressFailureFromEvents. conflictingServer, when non-empty, names
+// another GameServer that already holds the requested explicit address. Both are
+// treated as informational — never crash or blank the condition if they're
+// unavailable.
 //
 // LATCHING: a Kubernetes Event has a ~1h TTL and MetalLB does not re-emit
 // AllocationFailed while the failure persists, so a reconcile pass that finds

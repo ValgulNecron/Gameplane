@@ -1040,6 +1040,198 @@ func TestExtractAddressFailureFromEvents(t *testing.T) {
 	}
 }
 
+// TestExtractAddressFailureFromCiliumCondition tests the mapping of Cilium
+// LB-IPAM condition shapes to our reason codes. Cilium's condition reasons are:
+// - no_pool: the requested pool does not exist (maps to PoolNotFound)
+// - out_of_ips: the pool is exhausted (maps to AllocationFailed)
+//
+// (The condition shape was observed against a live cluster in gameserver_status.go
+// lines 419-425, but this test exercises the mapping logic, not a live cluster.)
+// Unlike MetalLB (which uses Events), Cilium's failure signal is a Service
+// status condition (cilium.io/IPAMRequestSatisfied=False). This test pins that
+// the operator reads this condition, derives the right reason, and carries
+// Cilium's own message verbatim (same philosophy as the MetalLB event path).
+func TestExtractAddressFailureFromCiliumCondition(t *testing.T) {
+	cases := []struct {
+		name        string
+		svc         *corev1.Service
+		wantReason  string
+		wantMessage string
+	}{
+		{name: "nil Service", svc: nil},
+		{
+			name: "no conditions at all",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "games"},
+				Status:     corev1.ServiceStatus{},
+			},
+		},
+		{
+			name: "condition absent",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "games"},
+				Status: corev1.ServiceStatus{
+					Conditions: []metav1.Condition{{
+						Type:   "SomeOtherCondition",
+						Status: metav1.ConditionFalse,
+					}},
+				},
+			},
+		},
+		{
+			name: "condition satisfied (True)",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "games"},
+				Status: corev1.ServiceStatus{
+					Conditions: []metav1.Condition{{
+						Type:    "cilium.io/IPAMRequestSatisfied",
+						Status:  metav1.ConditionTrue,
+						Message: "Address allocated",
+					}},
+				},
+			},
+		},
+		{
+			name: "no_pool reason — pool does not exist",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "games"},
+				Status: corev1.ServiceStatus{
+					Conditions: []metav1.Condition{{
+						Type:    "cilium.io/IPAMRequestSatisfied",
+						Status:  metav1.ConditionFalse,
+						Reason:  "no_pool",
+						Message: "load-balancer pool unknown-pool not found",
+					}},
+				},
+			},
+			wantReason:  "PoolNotFound",
+			wantMessage: "load-balancer pool unknown-pool not found",
+		},
+		{
+			name: "out_of_ips reason — pool is exhausted",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "games"},
+				Status: corev1.ServiceStatus{
+					Conditions: []metav1.Condition{{
+						Type:    "cilium.io/IPAMRequestSatisfied",
+						Status:  metav1.ConditionFalse,
+						Reason:  "out_of_ips",
+						Message: "no available IPs in pool public",
+					}},
+				},
+			},
+			wantReason:  "AllocationFailed",
+			wantMessage: "no available IPs in pool public",
+		},
+		{
+			name: "unknown reason — not a recognized Cilium reason",
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "games"},
+				Status: corev1.ServiceStatus{
+					Conditions: []metav1.Condition{{
+						Type:    "cilium.io/IPAMRequestSatisfied",
+						Status:  metav1.ConditionFalse,
+						Reason:  "unknown_reason",
+						Message: "some other failure",
+					}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractAddressFailureFromCiliumCondition(tc.svc)
+			if got.reason != tc.wantReason {
+				t.Fatalf("reason = %q, want %q", got.reason, tc.wantReason)
+			}
+			if tc.wantReason == "" {
+				if got.message != "" {
+					t.Errorf("zero value expected, got message %q", got.message)
+				}
+				return
+			}
+			if got.message != tc.wantMessage {
+				t.Errorf("message = %q, want %q (Cilium's condition message verbatim)", got.message, tc.wantMessage)
+			}
+		})
+	}
+}
+
+// TestAddressAssignmentCondition_CiliumPoolNotFound covers mapping a Cilium
+// no_pool condition reason to the PoolNotFound condition reason, carrying
+// Cilium's message verbatim.
+func TestAddressAssignmentCondition_CiliumPoolNotFound(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: "nonexistent",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: addressManagerCilium,
+		Pool:    "nonexistent",
+		Outcome: addressPlanTranslated,
+	}
+	ciliumFailure := addressFailureReason{
+		reason:  "PoolNotFound",
+		message: "load-balancer pool nonexistent not found",
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, ciliumFailure, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "PoolNotFound" {
+		t.Errorf("expected reason PoolNotFound, got %q", conds[0].Reason)
+	}
+	if conds[0].Status != metav1.ConditionFalse {
+		t.Errorf("expected status False, got %q", conds[0].Status)
+	}
+	if conds[0].Message != "load-balancer pool nonexistent not found" {
+		t.Errorf("expected Cilium's message verbatim, got %q", conds[0].Message)
+	}
+}
+
+// TestAddressAssignmentCondition_CiliumAllocationFailed covers mapping a
+// Cilium out_of_ips condition reason to the AllocationFailed condition
+// reason, carrying Cilium's message verbatim.
+func TestAddressAssignmentCondition_CiliumAllocationFailed(t *testing.T) {
+	gs := &gameplanev1alpha1.GameServer{
+		Spec: gameplanev1alpha1.GameServerSpec{
+			Networking: gameplanev1alpha1.GameServerNetworking{
+				Expose:      "LoadBalancer",
+				AddressPool: "public",
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	plan := addressPlan{
+		Manager: addressManagerCilium,
+		Pool:    "public",
+		Outcome: addressPlanTranslated,
+	}
+	ciliumFailure := addressFailureReason{
+		reason:  "AllocationFailed",
+		message: "no available IPs in pool public",
+	}
+	conds := addressAssignmentCondition(nil, gs, plan, nil, ciliumFailure, "")
+	if len(conds) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(conds))
+	}
+	if conds[0].Reason != "AllocationFailed" {
+		t.Errorf("expected reason AllocationFailed, got %q", conds[0].Reason)
+	}
+	if conds[0].Status != metav1.ConditionFalse {
+		t.Errorf("expected status False, got %q", conds[0].Status)
+	}
+	if conds[0].Message != "no available IPs in pool public" {
+		t.Errorf("expected Cilium's message verbatim, got %q", conds[0].Message)
+	}
+}
+
 // TestAddressAssignmentConditionLatch pins the fix for the oscillation bug
 // this feature had during development: a previously-derived terminal
 // AllocationFailed reason must survive a reconcile pass that finds no fresh
