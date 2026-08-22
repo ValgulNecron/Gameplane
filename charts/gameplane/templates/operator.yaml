@@ -83,6 +83,15 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: [networkpolicies]
     verbs: [get, list, watch]
+  # checkMetalLBPoolExists GETs MetalLB's namespaced IPAddressPool CR by name
+  # so a missing pool can be reported (PoolNotFound) without waiting for a
+  # MetalLB event. Read-only and deliberately narrow — the operator never
+  # creates, updates, or deletes MetalLB's own CRs. A cluster running the
+  # metallb flavor without MetalLB's CRDs installed still starts fine: the
+  # GET fails soft (see poolExistence in gameserver_controller.go).
+  - apiGroups: ["metallb.io"]
+    resources: [ipaddresspools]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -263,6 +272,7 @@ spec:
             {{- fail (printf "operator.addressManager must be one of metallb, cilium or none (got %q). The operator refuses to start on an unknown flavor rather than silently leaving every addressPool preference untranslated." (.Values.operator.addressManager | toString)) }}
             {{- end }}
             - --address-manager={{ .Values.operator.addressManager }}
+            - --metallb-namespace={{ .Values.operator.metalLBNamespace | default "metallb-system" }}
             - --zap-log-level={{ .Values.operator.logLevel }}
             {{- if .Values.operator.localModules.enabled }}
             - --module-local-root={{ .Values.operator.localModules.mountPath }}

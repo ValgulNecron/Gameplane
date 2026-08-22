@@ -11,6 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -106,8 +107,44 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	gs.Status.Phase = phase
 	gs.Status.ObservedGeneration = gs.Generation
-	eventFailure := extractAddressFailureFromEvents(svcEvents)
-	gs.Status.Conditions = computeConditions(gs, phase, prov, idle, addrPlan, svcPtr, eventFailure, conflictingServer)
+
+	// failure starts as whatever the Service's events say (a MetalLB
+	// AllocationFailed warning, passed through verbatim — see
+	// extractAddressFailureFromEvents). When the flavor is metallb and a
+	// pool was requested, a direct GET of the IPAddressPool CR can answer
+	// "does this pool exist at all" without waiting for — or outliving —
+	// an event (Events have a ~1h TTL and MetalLB does not re-emit while a
+	// failure persists). That direct signal is strictly more authoritative
+	// than an event, so it overrides rather than merely supplementing.
+	failure := extractAddressFailureFromEvents(svcEvents)
+	if addrPlan.Outcome == addressPlanTranslated && addrPlan.Manager == addressManagerMetalLB && addrPlan.Pool != "" {
+		switch r.checkMetalLBPoolExists(ctx, addrPlan.Pool) {
+		case poolExistenceMissing:
+			failure = addressFailureReason{
+				reason: "PoolNotFound",
+				message: fmt.Sprintf(
+					"IPAddressPool %q not found in namespace %q.", addrPlan.Pool, r.metalLBNamespace()),
+			}
+		case poolExistenceFound:
+			// Definitive, live evidence the pool exists. Unlike an event,
+			// this check never expires, so it can safely release a
+			// previously-latched PoolNotFound outright rather than waiting
+			// for the address to actually get assigned — see
+			// addressFailureReason.confirmedClear. Only set when nothing
+			// fresher (an actual event failure) already claimed this pass.
+			if failure.reason == "" {
+				failure.confirmedClear = true
+			}
+		case poolExistenceUnknown:
+			// MetalLB CRDs not installed, or the GET forbidden by RBAC:
+			// existence is genuinely unknown this pass. Fail soft — leave
+			// failure exactly as the event path found it, and do NOT set
+			// confirmedClear, so a PoolNotFound latched on an earlier pass
+			// survives a transient "can't check" pass instead of being
+			// wrongly released.
+		}
+	}
+	gs.Status.Conditions = computeConditions(gs, phase, prov, idle, addrPlan, svcPtr, failure, conflictingServer)
 
 	// Fetch tunnel Deployment to compute TunnelReady condition.
 	var tunnelDep *appsv1.Deployment
@@ -235,7 +272,10 @@ func heartbeatFresh(gs *gameplanev1alpha1.GameServer) bool {
 // AddressAssignment for the servers that requested a load-balancer pool or
 // address. addrPlan is the reconciler's decision about that request and svc is
 // the game Service as observed this pass (nil when it does not exist yet).
-// eventFailure supplies failure reasons from Service events (e.g., MetalLB warnings).
+// failure supplies a derived address-manager failure — from a direct
+// IPAddressPool existence check (PoolNotFound) or, failing that, from a
+// MetalLB Service event (AllocationFailed) — see reconcileStatus. The zero
+// value means neither found anything this pass.
 // conflictingServer names another GameServer holding the requested explicit address.
 func computeConditions(
 	gs *gameplanev1alpha1.GameServer,
@@ -244,7 +284,7 @@ func computeConditions(
 	idle idleState,
 	addrPlan addressPlan,
 	svc *corev1.Service,
-	eventFailure addressFailureReason,
+	failure addressFailureReason,
 	conflictingServer string,
 ) []metav1.Condition {
 	conds := gs.Status.Conditions
@@ -329,26 +369,60 @@ func computeConditions(
 	conds = upsertCondition(conds, ready)
 	conds = upsertCondition(conds, progressing)
 	conds = upsertCondition(conds, healthy)
-	return addressAssignmentCondition(conds, gs, addrPlan, svc, eventFailure, conflictingServer)
+	return addressAssignmentCondition(conds, gs, addrPlan, svc, failure, conflictingServer)
 }
 
-// addressFailureReason describes a failure derived from Service events or
-// direct conflict detection. The zero value means no failure was detected.
+// addressFailureReason describes a failure derived from Service events, a
+// direct IPAddressPool existence check, or conflict detection. The zero
+// value means nothing was determined this pass — which is NOT the same as
+// "confirmed fine": see confirmedClear.
 type addressFailureReason struct {
-	reason  string // e.g. "PoolNotFound", "PoolExhausted", "AddressInUse"
-	message string // human-readable detail from the event or conflict check
+	reason  string // e.g. "PoolNotFound", "AllocationFailed", "AddressInUse"
+	message string // human-readable detail from the event or check
+
+	// confirmedClear is set whenever this pass has direct, live evidence
+	// that the requested IPAddressPool exists (see reconcileStatus) and no
+	// fresher failure was found. It is meaningless whenever reason != ""
+	// (a fresh failure always wins outright over any latch).
+	//
+	// Despite the name, this signal only DEFINITIVELY disproves one latched
+	// reason: PoolNotFound. It says nothing about whether an
+	// AllocationFailed condition (e.g. an exhausted pool) has cleared — a
+	// pool that exists can still be fully allocated, so "the pool exists"
+	// is not evidence an allocation failure resolved. addressAssignmentCondition
+	// therefore only lets confirmedClear release the latch when the
+	// previously-latched reason was PoolNotFound; an AllocationFailed latch
+	// ignores confirmedClear entirely and can only be released by a fresh
+	// failure, a new address, or a changed request (see the LATCHING doc
+	// comment on addressAssignmentCondition). Reconstructing that
+	// distinction here would require reconcileStatus to know the previously
+	// latched reason before it's computed, so the field itself stays a
+	// simple "pool exists" signal and the reason-scoping lives at the one
+	// call site that already has `existing` in scope.
+	confirmedClear bool
 }
 
 // addressManagerEventSources lists the reporting components whose Warning
 // events on a game Service are treated as address-manager failures. Anything
 // else on the Service (kubelet, unrelated controllers) is ignored so an
-// unrelated warning is never misreported as a pool failure.
+// unrelated warning is never misreported as an allocation failure.
 //
 // Matched case-insensitively as a substring, because deployments vary the exact
 // component string (e.g. "metallb-controller", "metallb-speaker").
+//
+// "cilium" is deliberately absent: verified directly against a live cluster,
+// Cilium's LB-IPAM emits NO Events at all for an allocation failure — it only
+// sets a Service condition (cilium.io/IPAMRequestSatisfied=False, reasons
+// no_pool / out_of_ips). Matching a Cilium component here was therefore dead
+// code that could never fire; a future Cilium AddressAssignment story needs a
+// Service-condition reader, not this event path.
+//
+// kube-vip / purelb / openelb remain unverified (no observed fixture for any
+// of them) but are kept because they're free: extractAddressFailureFromEvents
+// only acts on Reason=="AllocationFailed" (MetalLB's verified reason), so an
+// unrelated event from any of these components is ignored regardless.
 var addressManagerEventSources = []string{
 	"metallb",
-	"cilium",
 	"kube-vip",
 	"purelb",
 	"openelb",
@@ -372,56 +446,75 @@ func fromAddressManager(ev *corev1.Event) bool {
 	return false
 }
 
-// extractAddressFailureFromEvents inspects Service events for address-manager
-// warnings and returns the first failure reason found, or zero if none exist.
+// extractAddressFailureFromEvents inspects Service events for a MetalLB
+// allocation failure and passes its message straight through, rather than
+// trying to classify it.
 //
-// HONESTY NOTE — this matcher is best-effort and UNVERIFIED. The exact Reason
-// and Message strings emitted by MetalLB (or any other address manager) have
-// NOT been checked against upstream source; they are plausible guesses, and no
-// citation is claimed for them. Two consequences follow, and both are
-// deliberate:
+// VERIFIED against a live cluster (MetalLB v0.14.9): every allocation
+// failure — missing pool, an address outside the pool's configured range, an
+// exhausted pool — emits the exact same Warning event shape:
 //
-//   - Only Warning events whose reporting component looks like an address
-//     manager (see fromAddressManager) are considered at all, so an unrelated
-//     kubelet or controller warning on the same Service can never be
-//     misreported as a pool failure.
-//   - When nothing matches, the zero value is returned and the
-//     AddressAssignment condition degrades to the generic AssignmentPending
-//     rather than inventing a reason.
+//	Reason="AllocationFailed"  Source.Component="metallb-controller"
+//	Message: `Failed to allocate IP for "<ns>/<name>": <allocator error>`
+//
+// MetalLB does not hand out a distinct Reason per failure kind, so this does
+// NOT attempt to invent PoolNotFound/PoolExhausted/etc. enums from the
+// Message text the way an earlier version of this function did — that
+// matched substrings ("pool not found", "exhausted") MetalLB never actually
+// emits, so it never fired. Instead the single AllocationFailed reason is
+// surfaced and MetalLB's own allocator-error text (redundant
+// `Failed to allocate IP for "ns/name": ` prefix stripped) becomes the
+// condition message: it is more specific than any enum this code could
+// invent, and it can't go stale relative to a future MetalLB release.
+//
+// Only Warning events whose reporting component looks like an address
+// manager (see fromAddressManager) are considered at all, so an unrelated
+// kubelet or controller warning on the same Service can never be misreported
+// as an allocation failure. When nothing matches, the zero value is returned
+// and the AddressAssignment condition degrades to the generic
+// AssignmentPending rather than inventing a reason.
 //
 // Treat extracted text as informational — never crash or blank the condition if
 // events are missing or unparseable.
 func extractAddressFailureFromEvents(events []corev1.Event) addressFailureReason {
 	for i := range events {
 		ev := &events[i]
-		if ev.Type != corev1.EventTypeWarning {
+		if ev.Type != corev1.EventTypeWarning || ev.Reason != "AllocationFailed" {
 			continue
 		}
 		if !fromAddressManager(ev) {
 			continue
 		}
-		msg := ev.Message
-		reason := ev.Reason
-		lowerMsg := strings.ToLower(msg)
-		switch {
-		case strings.Contains(reason, "PoolNotFound") || strings.Contains(lowerMsg, "pool not found"):
-			return addressFailureReason{
-				reason:  "PoolNotFound",
-				message: fmt.Sprintf("Pool not found: %s", msg),
-			}
-		case strings.Contains(reason, "PoolExhausted") || strings.Contains(lowerMsg, "exhausted"):
-			return addressFailureReason{
-				reason:  "PoolExhausted",
-				message: fmt.Sprintf("Pool exhausted: %s", msg),
-			}
-		case strings.Contains(reason, "AddressInUse") || strings.Contains(lowerMsg, "already in use"):
-			return addressFailureReason{
-				reason:  "AddressInUse",
-				message: fmt.Sprintf("Address already in use: %s", msg),
-			}
+		return addressFailureReason{
+			reason:  "AllocationFailed",
+			message: stripAllocationFailedPrefix(ev.Message),
 		}
 	}
 	return addressFailureReason{}
+}
+
+// allocationFailedPrefix is the boilerplate MetalLB prepends to every
+// AllocationFailed event's Message, ahead of the allocator's own error text.
+// See extractAddressFailureFromEvents for the verified fixture this is
+// stripping.
+const allocationFailedPrefix = `Failed to allocate IP for "`
+
+// stripAllocationFailedPrefix removes MetalLB's `Failed to allocate IP for
+// "ns/name": ` boilerplate from an AllocationFailed event's Message, keeping
+// only the allocator's own error text (e.g. `unknown pool "x"`). The
+// GameServer this belongs to is already obvious from context (it's on that
+// server's own condition), so the boilerplate adds nothing. If the message
+// doesn't match the expected shape it is returned unchanged — this is a
+// cosmetic trim, not a parser the condition's correctness depends on.
+func stripAllocationFailedPrefix(msg string) string {
+	if !strings.HasPrefix(msg, allocationFailedPrefix) {
+		return msg
+	}
+	rest := msg[len(allocationFailedPrefix):]
+	if idx := strings.Index(rest, `": `); idx != -1 {
+		return rest[idx+3:]
+	}
+	return msg
 }
 
 // addressAssignmentCondition reports what became of a
@@ -434,22 +527,61 @@ func extractAddressFailureFromEvents(events []corev1.Event) addressFailureReason
 // cluster for a feature they do not use. Removing it also means clearing the
 // spec fields clears the report on the next reconcile.
 //
-// eventFailure supplies failure reasons derived from Service events (MetalLB
-// warnings). conflictingServer, when non-empty, names another GameServer that
-// already holds the requested explicit address. Both are treated as informational
-// — never crash or blank the condition if they're unavailable.
+// failure supplies a derived address-manager failure — a direct
+// IPAddressPool-not-found check or, failing that, a MetalLB Service event —
+// see reconcileStatus and extractAddressFailureFromEvents. conflictingServer,
+// when non-empty, names another GameServer that already holds the requested
+// explicit address. Both are treated as informational — never crash or blank
+// the condition if they're unavailable.
+//
+// LATCHING: a Kubernetes Event has a ~1h TTL and MetalLB does not re-emit
+// AllocationFailed while the failure persists, so a reconcile pass that finds
+// no fresh failure is NOT evidence the problem cleared — it's equally
+// consistent with the event having simply expired. To avoid the condition
+// oscillating between the terminal reason and the generic AssignmentPending
+// on every reconcile (this happened during development of this feature: a
+// too-eager "skip the event read once terminal" optimization let the
+// condition get recomputed from a now-empty failure and fall through to
+// AssignmentPending, overwriting the real diagnosis within roughly an hour),
+// a previously-derived PoolNotFound/AllocationFailed reason already recorded
+// on conds is preserved rather than recomputed to empty. It is released only
+// when one of three things happens:
+//   - This pass has its own fresh failure signal (failure.reason != "",
+//     checked first — above the latch in switch order — so it always wins).
+//   - This pass has DEFINITIVE evidence the failure cleared:
+//     failure.confirmedClear, AND the latched reason on record is
+//     specifically PoolNotFound. Unlike AllocationFailed, PoolNotFound has a
+//     live, non-expiring recheck available every single pass (a direct
+//     IPAddressPool GET — see reconcileStatus), so it does not actually need
+//     latching against a TTL; confirmedClear is how that live "no, it
+//     definitely exists now" answer overrides a stale PoolNotFound latch
+//     without waiting for the address to actually get assigned. The plain
+//     zero value of failure (nothing observed this pass) does NOT set this —
+//     that's the ordinary "the event expired" case the latch must survive.
+//     confirmedClear is scoped to PoolNotFound specifically because "the
+//     pool exists" is not evidence an AllocationFailed (e.g. exhausted pool)
+//     has cleared — that latch is released only by the other two bullets.
+//   - The address actually gets assigned (assigned != "", which routes past
+//     the latch's assigned=="" guard into the Assigned case below), or the
+//     request itself changed. "Changed" is detected via ObservedGeneration:
+//     it was stamped with gs.Generation at the moment the failure was
+//     written, and any spec edit (including changing
+//     spec.networking.addressPool/address) bumps Generation, so a mismatch
+//     means the latched reason no longer describes what's currently
+//     requested and must not be trusted.
 func addressAssignmentCondition(
 	conds []metav1.Condition,
 	gs *gameplanev1alpha1.GameServer,
 	plan addressPlan,
 	svc *corev1.Service,
-	eventFailure addressFailureReason,
+	failure addressFailureReason,
 	conflictingServer string,
 ) []metav1.Condition {
 	if !plan.requested() {
 		return removeCondition(conds, gameplanev1alpha1.GameServerConditionAddressAssignment)
 	}
 
+	existing := meta.FindStatusCondition(conds, gameplanev1alpha1.GameServerConditionAddressAssignment)
 	cond := metav1.Condition{
 		Type:               gameplanev1alpha1.GameServerConditionAddressAssignment,
 		Status:             metav1.ConditionFalse,
@@ -482,10 +614,29 @@ func addressAssignmentCondition(
 		cond.Message = fmt.Sprintf(
 			"Requested address %q is already in use by GameServer %q.",
 			gs.Spec.Networking.Address, conflictingServer)
-	case eventFailure.reason != "":
-		// Address manager rejected the request; derive reason from events.
-		cond.Reason = eventFailure.reason
-		cond.Message = eventFailure.message
+	case failure.reason != "":
+		// Fresh signal this pass — a direct PoolNotFound check or a MetalLB
+		// AllocationFailed event. Always wins over a stale latch (below).
+		cond.Reason = failure.reason
+		cond.Message = failure.message
+	case assigned == "" && existing != nil && existing.ObservedGeneration == gs.Generation &&
+		(existing.Reason == "PoolNotFound" || existing.Reason == "AllocationFailed") &&
+		!(failure.confirmedClear && existing.Reason == "PoolNotFound"):
+		// Latch: no fresh failure this pass, but a previously derived terminal
+		// reason is still on record for this exact request (see the doc
+		// comment above) and no address has appeared. Preserve it rather than
+		// falling through to the generic AssignmentPending below.
+		//
+		// confirmedClear only releases the latch when the latched reason is
+		// PoolNotFound (a live IPAddressPool GET is definitive evidence
+		// against that specific reason — see addressFailureReason.confirmedClear).
+		// It must NOT release a latched AllocationFailed: "the pool exists"
+		// says nothing about whether the pool is still exhausted, so without
+		// this scoping an exhausted-pool diagnosis would flip to
+		// AssignmentPending and back to AllocationFailed every reconcile once
+		// the originating event's ~1h TTL expired.
+		cond.Reason = existing.Reason
+		cond.Message = existing.Message
 	case svc == nil || svc.Spec.Type != corev1.ServiceTypeLoadBalancer:
 		cond.Reason = "ServiceNotReady"
 		cond.Message = fmt.Sprintf(

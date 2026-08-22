@@ -308,9 +308,16 @@ func TestAddressPool_NonexistentPoolError(t *testing.T) {
 			Delete(context.Background(), gsName, metav1.DeleteOptions{})
 	})
 
-	// Within 30 seconds, the operator should see a clear error message
-	// indicating the pool does not exist. The reason should be something
-	// other than AssignmentPending or ServiceNotReady.
+	// Within 30 seconds, the operator must report the specific PoolNotFound
+	// reason (a direct IPAddressPool GET — see checkMetalLBPoolExists in
+	// gameserver_controller.go — not merely "some non-transient reason").
+	// Asserting the exact reason is what makes this test able to fail: it
+	// pins the pool-existence check actually running (deleting that check
+	// would leave the request stuck on AssignmentPending, and this test
+	// would time out — see SC-003) and distinguishes PoolNotFound from any
+	// other terminal reason (e.g. NoAddressManagerConfigured), which a
+	// looser "status False and reason != known-transient-values" assertion
+	// cannot tell apart.
 	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
 		got, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
 			Get(ctx, gsName, metav1.GetOptions{})
@@ -323,27 +330,20 @@ func TestAddressPool_NonexistentPoolError(t *testing.T) {
 			return false, "AddressAssignment condition not found"
 		}
 
-		// We expect a failure reason that is NOT one of the transient ones.
-		// The exact reason is implementation-dependent, but it should NOT be:
-		// - "AssignmentPending" (transient, waiting)
-		// - "ServiceNotReady" (transient, waiting)
-		// - "Assigned" (success, contradicts the test's intent)
 		reason, _ := cond["reason"].(string)
 		status, _ := cond["status"].(string)
+		message, _ := cond["message"].(string)
 
-		// If status is False and reason is not Assigned/Pending/ServiceNotReady,
-		// we have a failure. Acceptable reasons include any controller-set reason
-		// that indicates why the pool cannot be used.
-		if status == "False" && reason != "" && reason != "Assigned" &&
-			reason != "AssignmentPending" && reason != "ServiceNotReady" {
-			return true, ""
+		if status != "False" {
+			return false, fmt.Sprintf("status=%q, reason=%q (want False/PoolNotFound)", status, reason)
 		}
-
-		if status == "False" {
-			return false, fmt.Sprintf("condition status=False but reason=%q (still investigating)", reason)
+		if reason != "PoolNotFound" {
+			return false, fmt.Sprintf("reason=%q, want exactly PoolNotFound", reason)
 		}
-
-		return false, fmt.Sprintf("status=%q, reason=%q", status, reason)
+		if !strings.Contains(message, nonexistentPool) {
+			return false, fmt.Sprintf("message=%q does not name the missing pool %q", message, nonexistentPool)
+		}
+		return true, ""
 	})
 }
 

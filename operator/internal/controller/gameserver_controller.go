@@ -19,7 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -110,6 +112,18 @@ type GameServerReconciler struct {
 	// unhonored request, never silently fall back to the default pool.
 	AddressManager string
 
+	// MetalLBNamespace is the namespace MetalLB's IPAddressPool custom
+	// resources (metallb.io/v1beta1, namespaced) live in. Used only when
+	// AddressManager == "metallb" and a pool was requested: reconcileStatus
+	// GETs the requested pool directly here so a missing pool can be
+	// reported as PoolNotFound without waiting for a MetalLB event. Set
+	// from the operator's --metallb-namespace flag. "metallb-system" is
+	// MetalLB's own install convention, not a contract, hence configurable.
+	// Empty is treated as "metallb-system" (see metalLBNamespace()) — this
+	// keeps envtest/unit-test reconcilers that construct the struct
+	// directly, without setting every field, working unchanged.
+	MetalLBNamespace string
+
 	// GameIngressPolicyEnabled controls whether the operator reconciles a
 	// per-GameServer ingress NetworkPolicy admitting player traffic to the
 	// template's advertised ports (see reconcileNetworkPolicy). Set from
@@ -182,6 +196,11 @@ const (
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch
+//
+// checkMetalLBPoolExists GETs MetalLB's namespaced IPAddressPool CR by name
+// (see poolExistence) — read-only, and deliberately narrow (no list/delete)
+// since the operator only ever needs to know whether one named pool exists.
+// +kubebuilder:rbac:groups=metallb.io,resources=ipaddresspools,verbs=get;list;watch
 
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -658,6 +677,68 @@ const (
 	ciliumAddressAnnotation          = "lbipam.cilium.io/ips"
 	ciliumPoolLabel                  = "gameplane.local/lb-pool"
 )
+
+// metalLBIPAddressPoolGVK identifies MetalLB's namespaced IPAddressPool
+// custom resource (metallb.io/v1beta1). Read via an unstructured GET
+// (checkMetalLBPoolExists) rather than a vendored MetalLB Go type — the
+// operator needs to know only whether a named pool exists, not to decode its
+// spec.
+var metalLBIPAddressPoolGVK = schema.GroupVersionKind{
+	Group:   "metallb.io",
+	Version: "v1beta1",
+	Kind:    "IPAddressPool",
+}
+
+// poolExistence is the tri-state result of checkMetalLBPoolExists.
+type poolExistence int
+
+const (
+	// poolExistenceUnknown means the check could not determine an answer:
+	// the IPAddressPool kind isn't registered with the API server (MetalLB
+	// not installed) or the GET was forbidden by RBAC. Both are legitimate
+	// cluster states — a cluster admin can select the metallb flavor before
+	// MetalLB itself is installed — so callers MUST fail soft on this value:
+	// fall through to the event-derived path rather than report
+	// PoolNotFound, which would be a false positive.
+	poolExistenceUnknown poolExistence = iota
+	// poolExistenceFound means the GET succeeded: the pool exists.
+	poolExistenceFound
+	// poolExistenceMissing means the GET returned NotFound: the pool does
+	// not exist in the configured namespace, so PoolNotFound can be reported
+	// directly without waiting for a MetalLB event.
+	poolExistenceMissing
+)
+
+// checkMetalLBPoolExists GETs the named IPAddressPool in the configured
+// MetalLB namespace (r.metalLBNamespace()). It fails SOFT: any error other
+// than a clean NotFound — the CRD not being registered, an RBAC Forbidden, a
+// transient apiserver error — is reported as poolExistenceUnknown rather than
+// treated as evidence the pool is missing. See poolExistence's doc comment
+// for why that distinction matters to callers.
+func (r *GameServerReconciler) checkMetalLBPoolExists(ctx context.Context, name string) poolExistence {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(metalLBIPAddressPoolGVK)
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: r.metalLBNamespace()}, u)
+	switch {
+	case err == nil:
+		return poolExistenceFound
+	case apierrors.IsNotFound(err):
+		return poolExistenceMissing
+	default:
+		return poolExistenceUnknown
+	}
+}
+
+// metalLBNamespace returns r.MetalLBNamespace, defaulting to MetalLB's own
+// "metallb-system" install convention when the field was left unset — e.g.
+// by tests that construct a GameServerReconciler directly without going
+// through main.go's flag wiring.
+func (r *GameServerReconciler) metalLBNamespace() string {
+	if r.MetalLBNamespace == "" {
+		return "metallb-system"
+	}
+	return r.MetalLBNamespace
+}
 
 // addressPlanOutcome is what the operator did with a pool/address preference
 // on this pass. gameserver_status.go maps it onto the AddressAssignment
@@ -1688,8 +1769,13 @@ func (r *GameServerReconciler) setPhase(
 // already in a terminal state that won't be affected by events:
 //   - Condition True (Assigned): address was successfully assigned
 //   - Condition False with terminal reason: IgnoredForExposureMode,
-//     NoAddressManagerConfigured, AddressInUse, or an event-derived failure
-//     (PoolNotFound, InvalidPool, PoolExhausted)
+//     NoAddressManagerConfigured, AddressInUse, PoolNotFound (re-derived
+//     live from a direct IPAddressPool GET every pass regardless of this
+//     skip — see reconcileStatus — so skipping the event LIST here never
+//     staleness-locks it), or AllocationFailed (an event-derived failure,
+//     latched by addressAssignmentCondition once observed — see its doc
+//     comment — so skipping the re-LIST here is exactly what the latch is
+//     for: it need not survive on a fresh event every pass)
 //
 // Special case: if the condition was True but the address has since
 // disappeared (regression), the read resumes to detect a new failure reason.
@@ -1712,12 +1798,12 @@ func (r *GameServerReconciler) listServiceEvents(
 		} else {
 			// Condition is False. Check if the reason is terminal.
 			// Terminal reasons: those derived from spec (IgnoredForExposureMode,
-			// NoAddressManagerConfigured, AddressInUse) or from events
-			// (PoolNotFound, InvalidPool, PoolExhausted).
+			// NoAddressManagerConfigured, AddressInUse), from a direct pool
+			// check (PoolNotFound), or from an event (AllocationFailed).
 			// Non-terminal reasons: ServiceNotReady, AssignmentPending.
 			switch addrCond.Reason {
 			case "IgnoredForExposureMode", "NoAddressManagerConfigured", "AddressInUse",
-				"PoolNotFound", "InvalidPool", "PoolExhausted":
+				"PoolNotFound", "AllocationFailed":
 				// Terminal failure; no need to read events.
 				*events = nil
 				return nil

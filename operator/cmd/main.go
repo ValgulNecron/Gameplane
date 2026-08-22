@@ -102,6 +102,7 @@ func main() {
 		moduleLocalRoot        string
 		controlPlaneNamespace  string
 		addressManager         string
+		metalLBNamespace       string
 		gameIngressPolicy      bool
 		gameIngressFromCIDR    cidrListFlag
 	)
@@ -169,6 +170,11 @@ func main() {
 			"lbipam.cilium.io/ips annotation. none (the default) mutates no Service and instead reports "+
 			"the unhonored request on the GameServer's AddressAssignment condition, so a pool preference "+
 			"never silently falls back to the default pool. Also settable as GAMEPLANE_ADDRESS_MANAGER.")
+	flag.StringVar(&metalLBNamespace, "metallb-namespace", "metallb-system",
+		"Namespace MetalLB's IPAddressPool custom resources (metallb.io/v1beta1, namespaced) live in. "+
+			"Only used when --address-manager=metallb: the operator GETs a requested pool directly there "+
+			"to report PoolNotFound without waiting for a MetalLB event. \"metallb-system\" is MetalLB's "+
+			"own install convention, not a contract, hence configurable.")
 	flag.BoolVar(&gameIngressPolicy, "game-ingress-policy", true,
 		"Reconcile a per-GameServer ingress NetworkPolicy admitting player traffic to the template's "+
 			"advertised ports. When false, the operator ensures the policy is absent instead of merely "+
@@ -259,6 +265,7 @@ func main() {
 			Clientset: kubernetes.NewForConfigOrDie(mgr.GetConfig()),
 		},
 		AddressManager:           addressManager,
+		MetalLBNamespace:         metalLBNamespace,
 		GameIngressPolicyEnabled: gameIngressPolicy,
 		GameIngressFromCIDRs:     gameIngressFromCIDR,
 	}).SetupWithManager(mgr); err != nil {
