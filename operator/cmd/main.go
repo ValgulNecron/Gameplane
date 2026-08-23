@@ -373,8 +373,8 @@ func main() {
 		CaptureSidecarImage:               captureSidecarImage,
 		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
 		CaptureDefaultMaxSizeBytes:        captureDefaultMaxSizeBytes,
-		CaptureDefaultRetentionSeconds:   captureDefaultRetention32,
-		CaptureMaxRetentionSeconds:       captureMaxRetention32,
+		CaptureDefaultRetentionSeconds:    captureDefaultRetention32,
+		CaptureMaxRetentionSeconds:        captureMaxRetention32,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "NetworkCapture")
 		os.Exit(1)

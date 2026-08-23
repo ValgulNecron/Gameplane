@@ -354,10 +354,8 @@ export function CaptureWidget({ name, ns, gs }: Props) {
                               variant="ghost"
                               size="icon"
                               aria-label={`Download capture ${c.captureId}`}
-                              disabled={!downloadable}
-                              onClick={() => {
-                                window.location.href = downloadURL(c.captureId);
-                              }}
+                              disabled={!downloadable || fileMut.isPending}
+                              onClick={() => fileMut.mutate(c.captureId)}
                             >
                               <Download className="h-4 w-4" />
                             </Button>
