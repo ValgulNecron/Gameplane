@@ -348,8 +348,13 @@ func TestRoutes_PatternsAreValid(t *testing.T) {
 		rr := httptest.NewRecorder()
 		body := strings.NewReader(startBody("tcp port 8080", 300, 1000000))
 		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/cap-x:start", body))
-		if rr.Code != http.StatusNotFound {
-			t.Fatalf("colon-suffix start = %d, want 404", rr.Code)
+		// The colon path /captures/cap-x:start is a two-segment path that matches the
+		// DELETE /captures/{id} pattern (with id="cap-x:start"), but is rejected on method.
+		// This produces 405 Method Not Allowed, proving the colon path is not a start route.
+		// We accept either 404 (not found) or 405 (method not allowed) as evidence the
+		// colon path did not reach HandleStart.
+		if rr.Code != http.StatusNotFound && rr.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("colon-suffix start = %d, want 404 or 405", rr.Code)
 		}
 	})
 }
@@ -1185,12 +1190,13 @@ func TestCaptureENOSPCDuringWritePacketReportsDiskFull(t *testing.T) {
 	// Replace the writer with a failing one that returns ENOSPC on WritePacket.
 	srv.mu.Lock()
 	state := srv.currentCapture
-	oldWriter := state.writer
 	srv.mu.Unlock()
 
 	if state == nil {
 		t.Fatal("no capture is running")
 	}
+
+	oldWriter := state.writer
 
 	// Inject a writer that fails on the next WritePacket call.
 	// We'll do this by swapping the writer with one that wraps the original
@@ -1219,10 +1225,10 @@ func TestCaptureENOSPCDuringWritePacketReportsDiskFull(t *testing.T) {
 
 // failingWriter wraps a capture.PacketWriter and fails on the next WritePacket call.
 type failingWriter struct {
-	inner      capture.PacketWriter
-	failWith   error
-	failCount  int
-	failAfter  int
+	inner     capture.PacketWriter
+	failWith  error
+	failCount int
+	failAfter int
 }
 
 func (fw *failingWriter) WritePacket(pkt *capture.RawPacket) error {
