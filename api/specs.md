@@ -53,7 +53,7 @@ api/
 
 **Key packages and responsibilities:**
 
-- **handlers:** 22+ route groups (Audit, AuthProviderSecrets, Cluster, ClusterActions, Clusters, Config, Destinations, Events, Lifecycle, ModIDs, ModSources, Modules, ModUpdates, Notifications, Ownership, PodEvents, Registry, RegistrySecrets, Resources, Roles, SystemLogs, Users, WebSocket Mount)
+- **handlers:** 23+ route groups (Audit, AuthProviderSecrets, Capture, Cluster, ClusterActions, Clusters, Config, Destinations, Events, Lifecycle, ModIDs, ModSources, Modules, ModUpdates, Notifications, Ownership, PodEvents, Registry, RegistrySecrets, Resources, Roles, SystemLogs, Users, WebSocket Mount)
 - **auth:** SessionStore (CSRF + expiry), Local (argon2id password check), OIDC (provider registry + claim mapping), Registry (auth provider discovery per request)
 - **rbac:** Middleware (namespace/cluster-scoped permission check + owner/collaborator fallback), rule table (method/path -> permission), catalog (permission definitions)
 - **db:** driver-selectable (modernc.org/sqlite or pgx/v5 via postgres build tag), migrations (001-005), Store (query interface)
@@ -73,10 +73,10 @@ api/
 Two subcommands:
 
 1. **`serve` (default)** — starts the HTTP server
-   - Flags: `--addr`, `--db-driver`, `--db-dsn`, `--log-level`, `--oidc-*`, `--audit-*`, `--agent-*`, `--namespace`, `--cluster-ops`, `--update-channel`, `--curseforge-api-key`, `--telemetry-*`
+   - Flags: `--addr`, `--db-driver`, `--db-dsn`, `--log-level`, `--oidc-*`, `--audit-*`, `--agent-*`, `--namespace`, `--cluster-ops`, `--update-channel`, `--curseforge-api-key`, `--telemetry-*`, `--capture-*` (default retention, max retention, max duration, max size)
    - Env overrides via GAMEPLANE_* vars (credentials come from env only, never flags)
-   - Initialize: database + migrations, K8s client, auth (local + OIDC), audit (sinks), notifier, cluster watch, telemetry, session GC
-   - Routes all mounted at startup; chi router with security middleware (secure headers, body limit, audit, session auth, RBAC, rate limiting)
+   - Initialize: database + migrations, K8s client, auth (local + OIDC), audit (sinks), notifier, cluster watch, telemetry, session GC, capture config
+   - Routes all mounted at startup; chi router with security middleware (secure headers, body limit, audit, session auth, RBAC, rate limiting); MountCapture wires capture endpoints
 
 2. **`bootstrap-admin`** — seed or reset the initial admin user
    - Flags: `--db-driver`, `--db-dsn`, `--username`, `--password`, `--password-stdin`, `--email`, `--display-name`, `--force`, `--enable-local-login`
@@ -105,10 +105,11 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/servers/{name}:collaborators`, `:transfer` — GameServer owner/collaborator management
 - `/servers/{name}/files/*` — file browser, upload, download (proxied to agent); cluster-dispatch
 - **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-enable`, `:capture-disable` — sidecar lifecycle actions
-- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-start`, `:capture-stop` — capture session control
-- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:captures` — list active and historical captures
-- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture` — fetch, delete capture metadata
-- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-file` — download capture PCAP data from ephemeral sidecar
+- `/servers/{name}:capture-start` — POST: start a network packet capture (creates NetworkCapture CR); phase 2 foundational, HTTP tier
+- `/servers/{name}:capture-stop` — POST: stop an active capture (updates NetworkCapture status)
+- `/servers/{name}:captures` — GET: list all NetworkCaptures (active and historical) for a server
+- `/servers/{name}:capture` — GET: fetch a single capture's metadata and status; query param `id={captureId}`
+- `/servers/{name}:capture-file` — GET: download completed PCAPNG file from the capture sidecar; query param `id={captureId}`
 - `/templates/{name}` — CRUD for GameTemplate (cluster-scoped)
 - `/backups/{name}` — CRUD for Backup (namespaced, cluster-dispatch)
 - `/schedules/{name}` — CRUD for BackupSchedule (namespaced, cluster-dispatch)
@@ -153,6 +154,34 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
 - **`/ws/servers/{name}/logs/pod` (GET upgrade)** — pod stdout stream via Kubernetes watch; read-only
 - All authenticate via session + mTLS to agent (for console routes)
 - Multiplexed per `?cluster=` + namespace
+
+### Network capture endpoints (Phase 2 Foundational)
+
+**Mounting & configuration:**
+- `MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string)` — mounts all 5 capture endpoints on a chi.Router with cluster-dispatch and mTLS client pool for sidecar communication
+- `type CaptureConfig struct { DefaultRetentionSeconds, MaxRetentionSeconds int64; DefaultMaxDurationSecs int; DefaultMaxSizeBytes int64 }` — cluster-wide capture defaults and size/duration limits
+
+**Endpoints (5 routes, all cluster-dispatch via `?cluster=`, all gated by `captures:manage` RBAC permission):**
+- **POST `/servers/{name}:capture-start`** — Create a NetworkCapture CR; request body: `{filter?: string, maxDurationSeconds: int, maxSizeBytes: int64, ttlSecondsAfterFinished?: int64}`; response: NetworkCapture metadata + phase (Pending)
+  - Validates BPF filter syntax before CRD creation (FR-003); returns 400 on invalid filter
+  - Enforces one-Running-per-server (rejects with 409 Conflict if another is Running); returns 202 Accepted on success (Pending phase, operator reconciles to Running)
+  - TTL clamped to cluster maximum at request time (returns 400 if exceeds max)
+  - Audit: synchronous write before response (T010 rule); reason field records "invalid_filter", "capture_in_progress", "ttl_exceeded", "create_failed", or "" on success
+- **POST `/servers/{name}:capture-stop`** — Transition a NetworkCapture from Running to Completed; request body: `{captureId: string}`; response: updated NetworkCapture metadata
+  - Returns 400 if `captureId` is missing from request body
+  - Returns 404 if capture not found or already completed
+  - Audit: synchronous write before response with status code; reason field records "not_found", "not_running", "stop_failed", or "" on success
+- **GET `/servers/{name}:captures`** — List all NetworkCaptures for a server; response: array of capture metadata and phase
+  - Excludes expired captures (phase == Expired)
+- **GET `/servers/{name}:capture`** — Fetch single capture metadata + status; query param `id={captureId}`; response: NetworkCapture with current phase, byte/packet counts
+  - Returns 404 if capture not found
+- **GET `/servers/{name}:capture-file`** — Download completed PCAPNG file from sidecar; query param `id={captureId}`
+  - Returns 409 Conflict if capture still Running
+  - Returns 404 if capture not found or has expired
+  - Proxies file download from sidecar's `:9091/captures/{id}/file` endpoint via mTLS; Content-Type: `application/vnd.tcpdump.pcap`; Content-Disposition: `attachment; filename="capture.pcapng"`
+  - Streams file without buffering (io.Copy)
+  - Audit: synchronous write before response (on both success and error); reason field records "not_found", "not_running", or "" on success; a failed audit write before streaming returns error and stops the download (T010 rule: audit failure fails the operation)
+- **Error responses:** All errors are plain text via `http.Error()`, no JSON envelope (per contract T047/FR-007)
 
 ### RBAC roles (three built-in + custom)
 

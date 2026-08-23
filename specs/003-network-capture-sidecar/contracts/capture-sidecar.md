@@ -197,6 +197,11 @@ that package's wire shape rather than inventing a second one; it is not exempt.
 
 **TLS**: Required. All communication is over HTTPS with mTLS (client cert + server cert). The API server connects with its own client certificate, and the sidecar validates it against the cluster CA.
 
+**Routing note**: the sidecar routes with the standard library's `net/http.ServeMux`, whose
+wildcard segments must be exactly `{name}`. The chi-style `:verb` suffix used by the REST API tier
+(`/servers/{name}:capture-start`) is an **invalid** ServeMux pattern and makes `mux.Handle` panic at
+startup, so every sidecar control path uses a whole `/start` / `/stop` segment instead.
+
 **Certificates**:
 - Server cert: `/etc/tls/tls.crt`
 - Server key: `/etc/tls/tls.key`
@@ -213,7 +218,7 @@ or `tls-cert` volume.
 #### Request
 
 ```
-POST /captures/{id}:start
+POST /captures/{id}/start
 Host: <gs>-agent.<namespace>.svc.cluster.local:9091   # existing agent Service, numeric port
 Content-Type: application/json
 Authorization: Bearer <not used; mTLS is auth mechanism>
@@ -229,14 +234,16 @@ Authorization: Bearer <not used; mTLS is auth mechanism>
 - `{id}` (string): Capture ID (e.g., `cap-8f7d3c1a`). Must match the NetworkCapture CRD ID.
 
 **Request Body Fields**:
-- `filter` (string): Validated BPF filter expression. Guaranteed to be valid (validated by API tier). The sidecar may perform secondary validation (defense-in-depth) but should assume the filter is valid.
-- `maxDurationSeconds` (integer): Max runtime. Capture stops when this duration elapses.
+- `filter` (string): Validated BPF filter expression. **Required on this hop, and non-empty.** FR-003 makes the filter optional at the *API* boundary, where an omitted filter means "restrict the capture to the game server's own advertised ports" — but only the control plane knows those ports, so it must materialise that default before calling the sidecar. The sidecar cannot reconstruct it and never treats "no filter" as "capture everything", which would record the agent's and API's mTLS traffic, RCON, and every plaintext protocol on the pod into a downloadable file, voiding Guarantee 1. An empty or absent `filter` is rejected with 400. The sidecar also re-compiles the expression (defense-in-depth) and rejects a malformed one with 400.
+- `maxDurationSeconds` (integer): Max runtime. Capture stops when this duration elapses. Must be in `1..604800`; the sidecar rejects anything outside that range with 400, independently of the API tier's tighter cap, so an oversized value can never overflow into a negative timer that fires immediately.
 - `maxSizeBytes` (integer): Max file size. Capture stops when file reaches this size.
 
 **Preconditions**:
 - Sidecar must be running and listening on port 9091.
 - No other capture with the same ID may be active (sidecar rejects duplicate IDs with HTTP 409).
 - Pod's emptyDir must have available space (check during capture; stop if disk fills).
+
+**Socket opening is synchronous**: the sidecar opens the AF_PACKET socket *before* it creates the capture file and *before* it answers. A socket that cannot be opened (no `CAP_NET_RAW`, missing interface) is reported as a 500 with the underlying error, per Guarantee 6 — it never yields a 200 followed by a valid-but-empty PCAPNG, which a user cannot tell apart from "the filter matched nothing". A failed start leaves no capture registered and no orphan file on the volume.
 
 **Sidecar Availability**: Because ephemeral containers have no probes (livenessProbe/readinessProbe are not supported), the control plane cannot directly poll sidecar health. The API learns the sidecar is alive by receiving a 200 response to the start request; if the sidecar does not respond (crash, hang, not injected), the API marks the capture as Failed and reports the error to the user.
 
@@ -266,7 +273,10 @@ Authorization: Bearer <not used; mTLS is auth mechanism>
 |--------|-----------|---|
 | **400** | Filter is invalid (defense-in-depth) | `invalid filter: <syntax error>` |
 | **400** | maxDurationSeconds or maxSizeBytes out of range | `maxDurationSeconds out of range` / `maxSizeBytes out of range` |
+| **400** | Filter is absent or empty | `filter is required: the control plane must supply the default port filter` |
+| **400** | Capture id is empty or not `[A-Za-z0-9_-]{1,64}` | `capture id required` |
 | **409** | Capture with same ID already running | `capture 'cap-...' already in progress` |
+| **500** | Packet source could not be opened (e.g. no `CAP_NET_RAW`) | `failed to start capture: <error>` |
 | **500** | Disk is full or other write error | `failed to open capture file: <error>` |
 
 ---
@@ -278,7 +288,7 @@ Authorization: Bearer <not used; mTLS is auth mechanism>
 #### Request
 
 ```
-POST /captures/{id}:stop
+POST /captures/{id}/stop
 Host: <gs>-agent.<namespace>.svc.cluster.local:9091   # existing agent Service, numeric port
 Content-Type: application/json
 
@@ -294,7 +304,10 @@ Content-Type: application/json
 - `reason` (string, optional): Human-readable reason for stopping. Values: `user_requested`, `max_duration_reached`, `max_size_reached`, `pod_restarting`, `error`. Used for logging and status reporting.
 
 **Preconditions**:
-- Capture must be running (ID must match an active capture).
+- The capture must be known to this sidecar. A capture that has *already* finished — stopped by the
+  duration timer, by the size limit, or by an earlier stop — is not an error: the sidecar replays its
+  stored terminal result with 200, so the final counters and `stoppingReason` are never lost to a
+  client that raced the timer.
 
 #### Response
 
@@ -313,7 +326,8 @@ Content-Type: application/json
 ```
 
 **Response Fields**:
-- `status` (string): `completed`.
+- `status` (string): `completed`, or `failed` when the capture ended on an error (see *Status*).
+- `message` (string, omitted when empty): the underlying cause when `status` is `failed`.
 - `completedAt` (RFC3339 timestamp): When the capture finished.
 - `stoppingReason` (string): Reason captured (echoed from request).
 - `bytesWritten` (integer): Final byte count.
@@ -324,7 +338,8 @@ Content-Type: application/json
 
 | Status | Condition | Response Body (plain text) |
 |--------|-----------|---|
-| **404** | Capture ID not found or not running | `capture 'cap-...' not found` |
+| **400** | Capture id is malformed | `capture id required` |
+| **404** | Capture ID unknown to this sidecar | `capture 'cap-...' not found` |
 
 ---
 
@@ -373,8 +388,19 @@ Host: <gs>-agent.<namespace>.svc.cluster.local:9091   # existing agent Service, 
 }
 ```
 
+**Retention of finished captures**: a capture's terminal state stays queryable after it finishes —
+the sidecar keeps the last 16 completed captures in memory. This is what makes the "Capture
+Completed" response above reachable at all: the operator only *starts* a duration-bounded capture and
+then polls, so if a finished capture were discarded, every normal completion would surface to the
+user as `Failed` with "sidecar unreachable: status 404".
+
 **Response Fields**:
-- `status` (string): `running` or `completed`.
+- `status` (string): `running`, `completed`, or `failed`. `failed` means the capture ended on an
+  error — the packet source died mid-run, or the file could not be finalized (a full disk usually
+  surfaces at the final flush, not at packet-write time). The file is still finalized and
+  downloadable, but it is truncated, and the operator's reconciler maps `failed` to
+  `CapturePhaseFailed` rather than reporting a clean completion.
+- `message` (string, omitted when empty): the underlying cause when `status` is `failed`.
 - `bytesWritten` (integer): Bytes written so far.
 - `packetsWritten` (integer): Packets written so far.
 - `estimatedTimeRemainingSeconds` (integer, running only): Estimated seconds until max duration. Calculated as `maxDurationSeconds - (now - startedAt)`. Does not account for max-size limit.
@@ -384,6 +410,7 @@ Host: <gs>-agent.<namespace>.svc.cluster.local:9091   # existing agent Service, 
 
 | Status | Condition | Response Body (plain text) |
 |--------|-----------|---|
+| **400** | Capture id is malformed | `capture id required` |
 | **404** | Capture ID not found | `capture 'cap-...' not found` |
 
 ---
@@ -426,7 +453,9 @@ Content-Length: 524288
 - `Content-Type`: `application/vnd.tcpdump.pcap` (standard MIME type for pcap/pcapng).
 - `Content-Disposition`: `attachment; filename="capture-<captureId>.pcapng"` (forces download with suggested filename).
 - `Content-Length`: Exact file size in bytes.
-- `Accept-Ranges`: `bytes` (if range requests are supported).
+- `Accept-Ranges`: `bytes`. Range requests **are** honoured: the sidecar serves the file through
+  `http.ServeContent`, which streams without buffering and returns `206 Partial Content` with a
+  `Content-Range` header, or `416` for an unsatisfiable range.
 
 **Response Body**: Raw binary PCAPNG file (produced by `github.com/google/gopacket/pcapgo.NgWriter`).
 
@@ -434,9 +463,16 @@ Content-Length: 524288
 
 | Status | Condition | Response Body (plain text) |
 |--------|-----------|---|
-| **404** | Capture ID not found | `capture 'cap-...' not found` |
+| **400** | Capture id is malformed | `capture id required` |
+| **404** | No such capture, and no file for it | `capture 'cap-...' not found` |
 | **409** | Capture is still running | `capture is still running` |
-| **410** | Capture file has been deleted (expired) | `capture file has been deleted` |
+| **410** | Capture is known to this sidecar but its file is gone (expired/deleted) | `capture file has been deleted` |
+| **416** | `Range` header cannot be satisfied | (from `http.ServeContent`) |
+| **500** | The file exists but could not be opened or stat'd (EACCES, EIO, …) | `failed to open capture file: <error>` |
+
+410 is deliberately narrow: it means "this sidecar ran this capture and the file is no longer there".
+Any other open failure is a real server-side fault and is reported as 500 with the underlying error,
+rather than being dressed up as a deletion that sends an operator down the wrong diagnostic path.
 
 ---
 
@@ -481,7 +517,7 @@ read these files at all. Captures leave the pod only over the sidecar's own mTLS
 
 **Enforcement**: Hard limit. The capture stops immediately, even if a packet is mid-arrival.
 
-**Signaling**: The operator can also send a `POST /captures/{id}:stop` request to stop early; duration limit enforcement is independent.
+**Signaling**: The operator can also send a `POST /captures/{id}/stop` request to stop early; duration limit enforcement is independent.
 
 ### Size Limit
 

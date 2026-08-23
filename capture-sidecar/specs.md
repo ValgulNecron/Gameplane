@@ -1,14 +1,14 @@
 # capture-sidecar — Specification
 
-**Status:** beta (v0.2.0-beta.8), Phase 1 (stub packages)  
+**Status:** beta (v0.2.0-beta.8), Phase 2 Foundational (implementation complete)  
 **Module / command:** `github.com/ValgulNecron/gameplane/capture-sidecar`  
-**Dependencies (current):** stdlib only (crypto/tls, encoding/binary, fmt, io, log, net, os, os/signal, sync, syscall, time)
+**Dependencies (current):** stdlib + external libraries for packet capture and filtering (github.com/google/gopacket v1.1.19, github.com/packetcap/go-pcap, golang.org/x/net)
 
 ## Purpose
 
 Optional packet capture sidecar injected into game pods to record network traffic for protocol reverse-engineering. The sidecar will use AF_PACKET live capture to collect packets matching a BPF filter expression, write them to a PCAPNG file on a pre-provisioned emptyDir volume, and expose a mTLS-authenticated HTTP control endpoint (`:9091`) for the operator and API to start/stop/monitor captures and download the resulting files.
 
-> **Current state (Phase 1):** Stub package layout with skeleton implementations in `internal/capture/afpacket.go`, `internal/capture/writer.go`, `internal/httpserver/handlers.go`, and `internal/auth/tls.go`. Packet capture, filter compilation, and testing are planned for Phase 2.
+> **Current state (Phase 2 Foundational):** Full implementation with AF_PACKET socket handling, PCAPNG writing, BPF filter compilation, mTLS authentication, and HTTP control endpoint. Real dependencies (gopacket, go-pcap) are pinned in go.mod. Unit tests for capture, filter, writer, and handlers are co-located with their implementations. Phase 2 Implementation (T067+) will add TTL-based expiry reconciliation and dashboard UI.
 
 ## Responsibilities (Design)
 
@@ -34,44 +34,58 @@ These are the design responsibilities for the completed sidecar (Phase 2+):
 - Does **not** implement protocol parsing or protocol-specific logic — it is protocol-agnostic; filtering is done via generic BPF expressions.
 - Does **not** serve captures through an HTTP proxy or gateway — the sidecar serves its own files directly over the mTLS endpoint.
 
-## Current Implementation (Phase 1)
+## Current Implementation (Phase 2 Foundational)
 
 ### Directory & package layout
 
 ```
 capture-sidecar/
-├── cmd/main.go                    # Entry point stub (not yet implemented)
+├── cmd/main.go                    # Entry point; mTLS server setup on :9091; HTTP handler dispatch
 ├── internal/
 │   ├── capture/
-│   │   ├── afpacket.go            # AF_PACKET socket stubs (Phase 2)
-│   │   └── writer.go              # PCAPNG file writer stubs (Phase 2)
+│   │   ├── afpacket.go            # AF_PACKET socket setup; live packet capture loop; MMap'd TPacket buffers
+│   │   ├── afpacket_test.go       # Unit tests for AF_PACKET socket behavior
+│   │   ├── filter.go              # BPF filter compilation and validation via go-pcap
+│   │   ├── filter_test.go         # Unit tests for filter compilation and validation
+│   │   ├── writer.go              # PCAPNG file writing via pcapgo.NgWriter; size/duration limit enforcement
+│   │   └── writer_test.go         # Unit tests for PCAPNG writing and limit enforcement
 │   ├── httpserver/
-│   │   └── handlers.go            # HTTP handler stubs (Phase 2)
+│   │   ├── handlers.go            # HTTP handlers for POST :start, POST :stop, GET /status, GET /file
+│   │   └── handlers_test.go       # Unit tests for HTTP handlers and response shapes
 │   └── auth/
-│       └── tls.go                 # mTLS certificate validation stubs (Phase 2)
-├── go.mod                         # Stdlib only (no external dependencies yet)
-├── Dockerfile                     # distroless/static:nonroot base (setcap prepared but not implemented)
-├── .testcoverage.yml              # 70% coverage gate (placeholder)
+│       ├── tls.go                 # mTLS certificate validation; TLS listener setup
+│       └── tls_test.go            # Unit tests for mTLS validation
+├── go.mod                         # Dependencies: gopacket/afpacket, gopacket/pcapgo, packetcap/go-pcap, svcutil
+├── go.sum
+├── Dockerfile                     # distroless/static:nonroot base; setcap cap_net_raw+ep on the built binary
+├── .testcoverage.yml              # 70% coverage gate
 └── specs.md                       # This file
 ```
 
-Single Go module; packages organized by responsibility (capture, httpserver, auth) for Phase 2 organization.
+Single Go module; packages organized by responsibility (capture, httpserver, auth). All packages have co-located test files exercising their behavior without root/CAP_NET_RAW/NIC dependencies.
 
-### Phase 1 Package Stubs
+### Phase 2 Foundational Packages
 
-**`internal/capture/afpacket.go`**: Empty struct and function stubs. Will eventually set up AF_PACKET sockets with MMap'd TPacket buffers and apply BPF filters.
+**`internal/capture/afpacket.go`**: Establishes AF_PACKET socket via gopacket/afpacket.TPacket with MMap'd kernel buffers. Compiles and applies BPF filters for kernel-side packet filtering. Reads packets via blocking poll (respecting context cancellation) and writes to PCAPNG writer. Manages socket lifecycle (Create, Start, Stop, Close) and enforces hard size/duration limits.
 
-**`internal/capture/writer.go`**: Empty struct and function stubs. Will eventually write PCAPNG files and enforce size/duration limits.
+**`internal/capture/filter.go`**: Compiles BPF filter expressions via github.com/packetcap/go-pcap/filter into bytecode instructions. Validates filter syntax before capture starts (defense-in-depth, complementing API-tier validation).
 
-**`internal/httpserver/handlers.go`**: Empty HTTP handler stubs. Will eventually implement POST `:start`, POST `:stop`, GET `/status`, GET `/file`.
+**`internal/capture/writer.go`**: Writes captured packets to PCAPNG files via gopacket/pcapgo.NgWriter. Enforces hard size and duration limits (stops immediately when either is reached). Detects disk-full conditions (`ENOSPC`) and stops gracefully, deleting partial files. Produces valid PCAPNG files readable by `tcpdump`, Wireshark, and other third-party tools.
 
-**`internal/auth/tls.go`**: Empty TLS validation stubs. Will eventually validate mTLS certificates against the cluster CA.
+**`internal/httpserver/handlers.go`**: Implements four HTTP endpoints (POST `:start`, POST `:stop`, GET `/status`, GET `/file`) exposed on `:9091`. Validates requests, marshals capture state, and streams completed files to authenticated clients.
 
-**`cmd/main.go`**: Placeholder entry point. Phase 2 will wire up the packages, parse environment variables, and run the mTLS server on `:9091`.
+**`internal/auth/tls.go`**: Validates mTLS certificates against the cluster CA certificate. Sets up TLS listener with enforced client certificate authentication.
 
-### No External Dependencies (Phase 1)
+**`cmd/main.go`**: Entry point; parses environment variables for certificate paths (TLS_CERT_FILE, TLS_KEY_FILE, TLS_CA_FILE); constructs mTLS server; wires HTTP handlers and starts listening on `0.0.0.0:9091`.
 
-The module declares no external dependencies in `go.mod`. All stubs use only stdlib. Packet capture libraries (`gopacket`, `go-pcap`) will be added in Phase 2.
+### External Dependencies (Phase 2 Foundational)
+
+The module declares the following external dependencies in `go.mod`:
+
+- `github.com/google/gopacket v1.1.19` — AF_PACKET socket setup (afpacket package) and PCAPNG file writing (pcapgo package)
+- `github.com/packetcap/go-pcap v0.0.0-20260731105150-c86974bbfbcd` — BPF filter compilation and validation
+- `golang.org/x/net` — Networking utilities (bundled by gopacket)
+- `github.com/ValgulNecron/gameplane/svcutil v0.0.0` — Shared utility helpers (graceful shutdown, env parsing) via local replace directive
 
 ## External Interface / Configuration (Phase 2 Design)
 
@@ -196,51 +210,19 @@ Per `contracts/capture-sidecar.md`:
 
 7. **Sensitive data in captures**: Captured packets may contain player IP addresses, network timing, game commands, and in-band credentials (session tokens, server passwords). Access control (mTLS + RBAC at the API tier) and time-limited retention (the operator's TTL reconciliation) are the primary mitigations, not redaction or sanitization.
 
-## Planned (Phase 2)
+## Planned (Phase 2 Implementation and beyond)
 
-Phase 2 will complete the implementation with the following:
+Phase 2 Implementation and future phases will add the following:
 
-### Dependencies (Phase 2)
+### TTL-based Expiry (Phase 2 Implementation, T067+)
 
-**Stdlib** (current):
-- `crypto/tls` — mTLS certificate validation and listener setup.
-- `encoding/binary` — PCAPNG binary format handling.
-- `fmt`, `io`, `log`, `net`, `os`, `os/signal`, `sync`, `syscall`, `time` — standard utility.
+The NetworkCaptureReconciler will implement automatic deletion of completed captures after `spec.ttlSecondsAfterFinished` seconds have elapsed. For Phase 2 Foundational, the API tier validates and clamps TTL at CRD creation time, but no auto-deletion reconciliation runs yet.
 
-**Packet Capture & Encoding** (Phase 2):
-- `github.com/google/gopacket/afpacket` — AF_PACKET live capture with MMap'd TPacket buffers.
-- `github.com/google/gopacket/pcapgo` — PCAPNG file writer (`NgWriter`).
+### Dashboard UI (Phase 2 Implementation, T067+)
 
-**Filter Compilation** (Phase 2):
-- `github.com/packetcap/go-pcap/filter` — BPF filter compilation and validation. **NOTE**: This module has no tagged release (pseudo-version only). The pin must be deliberate and documented in `go.mod`.
+Web dashboard support for starting, stopping, browsing, and downloading network captures. Planned for Phase 2 Implementation after the sidecar and operator reconciliation are fully wired.
 
-### Directory & Package Layout (Phase 2)
-
-```
-capture-sidecar/
-├── cmd/main.go                    # Entry point; mTLS server setup on :9091; HTTP handler dispatch
-├── internal/
-│   ├── capture/
-│   │   ├── afpacket.go            # AF_PACKET socket setup; live packet capture loop; MMap'd TPacket buffers
-│   │   ├── filter.go              # BPF filter compilation and validation via go-pcap
-│   │   ├── writer.go              # PCAPNG file writing via pcapgo.NgWriter; size/duration limit enforcement
-│   │   ├── afpacket_test.go       # Unit tests for AF_PACKET socket behavior
-│   │   ├── filter_test.go         # Unit tests for filter compilation and validation
-│   │   └── writer_test.go         # Unit tests for PCAPNG writing and limit enforcement
-│   ├── httpserver/
-│   │   ├── handlers.go            # HTTP handlers for POST :start, POST :stop, GET /status, GET /file
-│   │   └── handlers_test.go       # Unit tests for HTTP handlers and response shapes
-│   └── auth/
-│       ├── tls.go                 # mTLS certificate validation; TLS listener setup
-│       └── tls_test.go            # Unit tests for mTLS validation
-├── go.mod                         # Dependencies: gopacket/afpacket, gopacket/pcapgo, packetcap/go-pcap
-├── go.sum
-├── Dockerfile                     # distroless/static:nonroot base; setcap cap_net_raw+ep on the built binary
-├── .testcoverage.yml              # 70% coverage gate
-└── specs.md                       # This file
-```
-
-### Testing & Coverage (Phase 2)
+### Testing & Coverage (Phase 2 Foundational, COMPLETE)
 
 ### Coverage Gate
 

@@ -72,14 +72,34 @@ func applyBusyboxTemplate(t *testing.T, tmplName string) {
 // about (PVC, StatefulSet, status). Cleanup is registered on t.
 func applyBusyboxGameServer(t *testing.T, ns, gsName, tmplName string) {
 	t.Helper()
+	applyBusyboxGameServerSpec(t, ns, gsName, tmplName, false)
+}
+
+// applyBusyboxGameServerWithCapture is applyBusyboxGameServer but with
+// spec.capture.enabled=true set at creation time. US2 (the
+// :capture-enable/:capture-disable HTTP routes that would flip this
+// flag post-creation) is not yet built, so tests exercising capture
+// opt in via the spec directly rather than through the API — see
+// TestGameServer_NetworkCaptureStartStopDownload.
+func applyBusyboxGameServerWithCapture(t *testing.T, ns, gsName, tmplName string) {
+	t.Helper()
+	applyBusyboxGameServerSpec(t, ns, gsName, tmplName, true)
+}
+
+func applyBusyboxGameServerSpec(t *testing.T, ns, gsName, tmplName string, captureEnabled bool) {
+	t.Helper()
 	ctx := context.Background()
+	spec := map[string]any{
+		"templateRef": map[string]any{"name": tmplName},
+	}
+	if captureEnabled {
+		spec["capture"] = map[string]any{"enabled": true}
+	}
 	gs := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "gameplane.local/v1alpha1",
 		"kind":       "GameServer",
 		"metadata":   map[string]any{"name": gsName, "namespace": ns},
-		"spec": map[string]any{
-			"templateRef": map[string]any{"name": tmplName},
-		},
+		"spec":       spec,
 	}}
 	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
 		Create(ctx, gs, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {

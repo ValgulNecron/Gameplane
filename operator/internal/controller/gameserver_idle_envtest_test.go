@@ -225,5 +225,3 @@ func TestGameServer_IdleNeverSleepsWithoutAPlayerCount(t *testing.T) {
 		t.Errorf("replicas = %d, want 1", r)
 	}
 }
-
-func ptrTo[T any](v T) *T { return &v }

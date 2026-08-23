@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
@@ -898,12 +899,29 @@ func TestGameServer_ExtraVolumesProvisionedAndMounted(t *testing.T) {
 	})
 }
 
-// TestGameServer_NoExtraVolumesByteIdentical is the regression guard: a
-// template declaring no spec.storage.extra must render a pod spec
-// byte-identical to today's — exactly 2 pod volumes (data, agent-tls) and
-// exactly 1 game-container VolumeMount (data) for a template with no RCON,
-// no per-loader mods, and no configFiles.
-func TestGameServer_NoExtraVolumesByteIdentical(t *testing.T) {
+// TestGameServer_NoExtraVolumesNoCaptureComponent is the regression guard
+// for the amended FR-001/SC-007 (specs/003-network-capture-sidecar/spec.md,
+// specs/003-network-capture-sidecar/plan.md human Decision 2): a template
+// declaring no spec.storage.extra can no longer render a pod spec
+// byte-identical to before the capture feature, because the capture
+// "captures" emptyDir volume is now pre-provisioned UNCONDITIONALLY on
+// every game pod's StatefulSet template — opted into capture or not. This
+// is a platform constraint, not a design regression: the
+// pods/ephemeralcontainers subresource cannot add a volume, and
+// pod.spec.volumes is immutable on a running pod, so the volume must
+// already exist before the capture sidecar can be injected restart-free.
+//
+// What the amended FR-001 actually still guarantees — and what this test
+// now asserts precisely — is the weaker, true claim: "no capture
+// *component* attached". That means: the captures volume is present but is
+// an empty, size-limited emptyDir; it is not mounted on ANY container
+// (neither the game container nor the agent — see agentVolumeMounts' doc
+// comment for why the agent cannot gain a second root); and no ephemeral
+// container (the capture sidecar) exists on the pod. Asserting the mount
+// absence on every container is what actually enforces "no component
+// attached" and is what makes the volume-count loosening above safe rather
+// than a silently weakened guarantee.
+func TestGameServer_NoExtraVolumesNoCaptureComponent(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withGameServerReconciler(t, ns))
 
@@ -923,8 +941,28 @@ func TestGameServer_NoExtraVolumesByteIdentical(t *testing.T) {
 			types.NamespacedName{Namespace: ns, Name: "smp"}, &ss); err != nil {
 			return false, "statefulset: " + err.Error()
 		}
-		if len(ss.Spec.Template.Spec.Volumes) != 2 {
-			return false, fmt.Sprintf("pod volumes = %v, want exactly [data agent-tls]", sprintArgs(volumeNames(ss.Spec.Template.Spec.Volumes)))
+		if len(ss.Spec.Template.Spec.Volumes) != 3 {
+			return false, fmt.Sprintf("pod volumes = %v, want exactly [data agent-tls captures]", sprintArgs(volumeNames(ss.Spec.Template.Spec.Volumes)))
+		}
+		captures := volumeByName(ss.Spec.Template.Spec.Volumes, "captures")
+		if captures == nil {
+			return false, "no captures volume"
+		}
+		if captures.EmptyDir == nil {
+			return false, "captures volume is not an emptyDir"
+		}
+		if captures.EmptyDir.SizeLimit == nil || captures.EmptyDir.SizeLimit.IsZero() {
+			return false, "captures emptyDir must carry a nonzero sizeLimit"
+		}
+		for _, c := range ss.Spec.Template.Spec.Containers {
+			for _, vm := range c.VolumeMounts {
+				if vm.Name == "captures" {
+					return false, "captures volume must not be mounted on container " + c.Name
+				}
+			}
+		}
+		if len(ss.Spec.Template.Spec.EphemeralContainers) != 0 {
+			return false, fmt.Sprintf("pod has %d ephemeral containers, want none (no capture component attached)", len(ss.Spec.Template.Spec.EphemeralContainers))
 		}
 		game := containerByName(ss.Spec.Template.Spec.Containers, gameContainerName)
 		if game == nil {
@@ -935,6 +973,16 @@ func TestGameServer_NoExtraVolumesByteIdentical(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// volumeByName finds a pod Volume by name, or nil if absent.
+func volumeByName(vols []corev1.Volume, name string) *corev1.Volume {
+	for i := range vols {
+		if vols[i].Name == name {
+			return &vols[i]
+		}
+	}
+	return nil
 }
 
 // volumeNames extracts pod Volume names for assertion messages.
@@ -1380,6 +1428,15 @@ func intToStr(n int32) string {
 // TestGameServer_AgentServiceAlwaysClusterIP — the dedicated `<gs>-agent`
 // Service exists with port 8090 and stays ClusterIP even when the game's
 // own Service is externally exposed via spec.networking.expose.
+//
+// reconcileAgentService now also adds a second port, "capture" (9091,
+// numeric targetPort — ephemeral containers cannot declare a named
+// containerPort), so the API can reach the network-capture sidecar's
+// control endpoint through the same Service DNS name and mTLS cert SANs
+// used for the agent (specs/003-network-capture-sidecar/plan.md). This
+// test now asserts the full 2-port set precisely, rather than a single
+// port, and — since CreateOrUpdate rebuilds Spec.Ports on every
+// reconcile — that repeated reconciles don't accumulate duplicate ports.
 func TestGameServer_AgentServiceAlwaysClusterIP(t *testing.T) {
 	ns := newNamespace(t)
 	startMgr(t, ns, withGameServerReconciler(t, ns))
@@ -1405,8 +1462,8 @@ func TestGameServer_AgentServiceAlwaysClusterIP(t *testing.T) {
 		if svc.Spec.Type != corev1.ServiceTypeClusterIP {
 			return false, "agent service type = " + string(svc.Spec.Type)
 		}
-		if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 8090 {
-			return false, "agent service ports unexpected"
+		if msg, ok := wantAgentServicePorts(svc.Spec.Ports); !ok {
+			return false, msg
 		}
 		if !svc.Spec.PublishNotReadyAddresses {
 			return false, "agent service must publish not-ready addresses"
@@ -1424,6 +1481,59 @@ func TestGameServer_AgentServiceAlwaysClusterIP(t *testing.T) {
 		}
 		return true, ""
 	})
+
+	// Force a second reconcile (reconcileAgentService rebuilds Spec.Ports
+	// from scratch on every CreateOrUpdate call) and confirm the port list
+	// still holds exactly the same two ports rather than accumulating
+	// duplicates.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gs = getGameServer(t, ns, "smp")
+		if gs.Labels == nil {
+			gs.Labels = map[string]string{}
+		}
+		gs.Labels["capture-retest-trigger"] = "1"
+		return k8sClient.Update(context.Background(), gs)
+	}); err != nil {
+		t.Fatalf("update gameserver to trigger second reconcile: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var svc corev1.Service
+		if err := k8sClient.Get(context.Background(),
+			types.NamespacedName{Namespace: ns, Name: "smp-agent"}, &svc); err != nil {
+			return false, "agent service: " + err.Error()
+		}
+		if msg, ok := wantAgentServicePorts(svc.Spec.Ports); !ok {
+			return false, "after second reconcile: " + msg
+		}
+		return true, ""
+	})
+}
+
+// wantAgentServicePorts asserts the `<gs>-agent` Service carries exactly
+// the agent port (8090) and the network-capture sidecar control port
+// (9091, name "capture", numeric targetPort) — no fewer, no more, and no
+// duplicates, however many times reconcileAgentService has run.
+func wantAgentServicePorts(ports []corev1.ServicePort) (string, bool) {
+	if len(ports) != 2 {
+		return fmt.Sprintf("agent service ports = %v, want exactly [agent:8090 capture:9091]", ports), false
+	}
+	byName := map[string]corev1.ServicePort{}
+	for _, p := range ports {
+		if _, dup := byName[p.Name]; dup {
+			return fmt.Sprintf("agent service ports has duplicate name %q: %v", p.Name, ports), false
+		}
+		byName[p.Name] = p
+	}
+	agent, ok := byName["agent"]
+	if !ok || agent.Port != 8090 || agent.TargetPort.IntValue() != 8090 {
+		return fmt.Sprintf("agent service missing/wrong \"agent\" port: %v", ports), false
+	}
+	capture, ok := byName["capture"]
+	if !ok || capture.Port != 9091 || capture.TargetPort.IntValue() != 9091 || capture.TargetPort.Type != intstr.Int {
+		return fmt.Sprintf("agent service missing/wrong \"capture\" port: %v", ports), false
+	}
+	return "", true
 }
 
 // TestGameServer_AgentHeartbeatRBAC — the per-GameServer SA, Role, and

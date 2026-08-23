@@ -337,6 +337,22 @@ func main() {
 		setupLog.Error(err, "unable to set up controller", "controller", "Restore")
 		os.Exit(1)
 	}
+
+	// Network capture reconciler (manages NetworkCapture CRD lifecycle and sidecar interaction).
+	captureClient := agent.NewCaptureClient(agentClient)
+	if err := (&controller.NetworkCaptureReconciler{
+		Client:                           mgr.GetClient(),
+		Scheme:                           mgr.GetScheme(),
+		SidecarClient:                    captureClient,
+		CaptureEnabled:                   captureEnabled,
+		CaptureSidecarImage:              captureSidecarImage,
+		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
+		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to set up controller", "controller", "NetworkCapture")
+		os.Exit(1)
+	}
+
 	fetchOptions := modsrc.Options{LocalRoot: moduleLocalRoot}
 	if err := (&controller.ModuleSourceReconciler{
 		Client:       mgr.GetClient(),

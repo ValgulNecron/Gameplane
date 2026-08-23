@@ -3,15 +3,15 @@
 #
 # The capture-sidecar is an optional ephemeral container that captures and
 # records network traffic from game pods via AF_PACKET sockets and PCAPNG
-# writing. Phase 2 will add tests covering AF_PACKET socket setup, PCAPNG file
-# writing, BPF filter compilation and validation, mTLS certificate handling,
-# HTTP server lifecycle, error handling for size/duration limits, and edge cases
-# (pod restart, disk-full). Currently, the module has no tests; the gate is 0.
-# Ratchet this to 70 (matching sentinel and mcp-server) once Phase 2 tests land.
+# writing. Its tests cover BPF filter compilation and validation, PCAPNG file
+# writing, the packet path through an injected synthetic PacketSource, the HTTP
+# control plane (routing, start/stop/status/download, size and duration limits,
+# path safety) and mTLS certificate handling. The gate is 70, matching sentinel
+# and mcp-server; ratchet it up as coverage grows.
 profile: coverage/unit.out
 github-action-output: false
 
 threshold:
   file: 0
   package: 0
-  total: 0
+  total: 70

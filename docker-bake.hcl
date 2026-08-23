@@ -1,10 +1,10 @@
 # Bake definition for the e2e images (used by .github/actions/e2e-images).
-# `docker buildx bake --load e2e` builds all three concurrently — the
-# compile steps are independent, so this roughly halves image-build wall
-# time versus three sequential `docker build`s. Tags match what
-# `make e2e-images` produces and what deploy/kind/e2e.sh loads.
+# `docker buildx bake --load e2e` builds all five concurrently — the
+# compile steps are independent, so this cuts image-build wall time versus
+# sequential `docker build`s. Tags match what `make e2e-images` produces
+# and what deploy/kind/e2e.sh loads.
 group "e2e" {
-  targets = ["e2e-operator", "e2e-api", "e2e-agent", "e2e-sentinel"]
+  targets = ["e2e-operator", "e2e-api", "e2e-agent", "e2e-sentinel", "e2e-capture-sidecar"]
 }
 
 target "e2e-operator" {
@@ -29,6 +29,12 @@ target "e2e-sentinel" {
   context    = "."
   dockerfile = "sentinel/Dockerfile"
   tags       = ["gameplane-test/sentinel:e2e"]
+}
+
+target "e2e-capture-sidecar" {
+  context    = "."
+  dockerfile = "capture-sidecar/Dockerfile"
+  tags       = ["gameplane-test/capture-sidecar:e2e"]
 }
 
 # The headless protocol bot the game-bot job runs inside the cluster. It is

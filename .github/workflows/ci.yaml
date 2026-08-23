@@ -165,6 +165,136 @@ jobs:
         with:
           arch: arm64
 
+  # Proof that CAP_NET_RAW file capabilities survive the multi-stage Dockerfile
+  # COPY into distroless/static:nonroot. File capabilities are stored as xattrs
+  # and may be dropped by some builders/COPY implementations; this gate ensures
+  # they survived so the sidecar can open AF_PACKET sockets at runtime.
+  #
+  # IMPORTANT: this deliberately does NOT extract the binary with `docker cp`.
+  # `docker cp` (copy out of a container) unpacks the tar stream client-side,
+  # as the invoking non-root runner user, outside any container/namespace —
+  # and writing the security.capability xattr onto a real file requires the
+  # CAP_SETFCAP privilege that process does not have, so the xattr silently
+  # fails to apply. That makes `docker cp` + getcap report the capability
+  # missing unconditionally, regardless of whether the image is actually
+  # correct, which would fail this gate every run and permanently redden the
+  # branch — the worst possible outcome for a job whose only purpose is to
+  # prove this property. Instead we `docker save` the image (the capability
+  # xattr is preserved as a PAX/SCHILY.xattr record inside the layer
+  # tarball itself) and extract that tarball ourselves with
+  # `tar --xattrs --xattrs-include='security.capability'`, GNU tar's
+  # documented way to round-trip file capabilities through an archive.
+  #
+  # That layer-tarball extraction is *itself* CAP_SETFCAP-restricted for the
+  # exact same reason `docker cp` is: restoring the security.capability xattr
+  # to a real file requires privilege the plain `runner` user does not have,
+  # regardless of whether the archive is well-formed. So the extraction (and
+  # the getcap read of the result) run under `sudo` — GitHub-hosted runners
+  # grant the runner user passwordless sudo — which is the only way this job
+  # can actually distinguish "capability present" from "capability absent"
+  # instead of failing unconditionally either way.
+  capture-sidecar-setcap-proof:
+    name: capture-sidecar CAP_NET_RAW survival
+    needs: [changes]
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: install libcap2-bin (getcap)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libcap2-bin
+      # Same Dockerfile, same repo-root context, same buildx-backed action as
+      # publish-edge.yaml/release.yaml use for the real capture-sidecar image
+      # — single-platform (amd64, matching this runner) and loaded locally
+      # instead of pushed.
+      - name: build capture-sidecar image (matches publish workflows)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: capture-sidecar/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: capture-sidecar:test
+      - name: verify CAP_NET_RAW survived the image build
+        run: |
+          set -euo pipefail
+
+          WORKDIR="$(mktemp -d)"
+          # Extraction below writes root-owned files under $WORKDIR (see
+          # comment above the job for why sudo is required), so cleanup
+          # needs the same privilege or it silently leaves them behind.
+          trap 'sudo rm -rf "$WORKDIR"' EXIT
+
+          echo "Saving image to a tarball (docker save preserves layer xattrs; docker cp does not)..."
+          docker save capture-sidecar:test -o "$WORKDIR/image.tar"
+
+          mkdir -p "$WORKDIR/image"
+          tar -xf "$WORKDIR/image.tar" -C "$WORKDIR/image"
+
+          # docker save's output layout varies by storage driver (classic
+          # docker archive: per-layer directories with layer.tar; containerd
+          # image store: OCI blobs/sha256/<digest>) so scan every extracted
+          # regular file that tar can list as a candidate layer tarball
+          # instead of hardcoding a path.
+          FOUND_BINARY=0
+          LAST_GETCAP_OUTPUT=""
+
+          while IFS= read -r -d '' candidate; do
+            if ! tar -tf "$candidate" >/dev/null 2>&1; then
+              continue
+            fi
+            # Materialize the listing before grepping it: `tar -tf | grep -q`
+            # lets grep exit on its first match and SIGPIPE the still-writing
+            # tar process, which under `set -o pipefail` turns into a
+            # nonzero pipeline status indistinguishable from "no match" —
+            # silently skipping the layer that actually holds the binary.
+            listing="$(tar -tf "$candidate" 2>/dev/null || true)"
+            if ! printf '%s\n' "$listing" | grep -Eq '(^|/)capture-sidecar$'; then
+              continue
+            fi
+
+            EXTRACT_DIR="$WORKDIR/extract-$(basename "$candidate" | tr -c 'a-zA-Z0-9' '_')"
+            mkdir -p "$EXTRACT_DIR"
+            # sudo: restoring the security.capability xattr to a real file
+            # requires CAP_SETFCAP, which the unprivileged runner user does
+            # not have — see the job-level comment for why this can't run
+            # as plain `tar`.
+            sudo tar --xattrs --xattrs-include='security.capability' -xf "$candidate" -C "$EXTRACT_DIR"
+
+            BIN_PATH="$(sudo find "$EXTRACT_DIR" -type f -name 'capture-sidecar' -print -quit)"
+            if [ -z "$BIN_PATH" ]; then
+              continue
+            fi
+
+            FOUND_BINARY=1
+            echo "Inspecting $candidate -> $BIN_PATH"
+            LAST_GETCAP_OUTPUT="$(sudo getcap "$BIN_PATH" 2>&1 || true)"
+            echo "getcap output: $LAST_GETCAP_OUTPUT"
+
+            if printf '%s' "$LAST_GETCAP_OUTPUT" | grep -q 'cap_net_raw'; then
+              echo "CAP_NET_RAW present in final image"
+              exit 0
+            fi
+          done < <(find "$WORKDIR/image" -type f -print0)
+
+          if [ "$FOUND_BINARY" -eq 0 ]; then
+            echo "ERROR: could not find any layer tarball containing /capture-sidecar in the saved image." >&2
+            echo "Saved image contents:" >&2
+            find "$WORKDIR/image" -maxdepth 3 >&2
+            exit 1
+          fi
+
+          echo "ERROR: CAP_NET_RAW missing from the capture-sidecar binary in the built image." >&2
+          echo "Last getcap output observed: '$LAST_GETCAP_OUTPUT'" >&2
+          echo "This means file capabilities did not survive the multi-stage Dockerfile COPY." >&2
+          echo "The sidecar will fail at runtime when it tries to open AF_PACKET sockets." >&2
+          exit 1
+
   # Unit tests, envtest integration (operator/api), and the coverage
   # gate run in ONE job per module: the gate reads the profiles it just
   # produced, with no cross-job artifact hand-off.
@@ -802,6 +932,7 @@ jobs:
         changes,
         build-images,
         build-images-arm64,
+        capture-sidecar-setcap-proof,
         lint,
         go,
         web,
