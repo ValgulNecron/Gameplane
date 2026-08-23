@@ -20,7 +20,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -301,7 +300,7 @@ func (h *captureHandler) captureStop(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if nc.Status.Phase != gameplanev1alpha1.CapturePhasePending && nc.Status.Phase != gameplanev1alpha1.CapturePhaseRunning {
+	if nc.Status.Phase != kube.CapturePhasePending && nc.Status.Phase != kube.CapturePhaseRunning {
 		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, target, "not_running", http.StatusConflict) {
 			return
 		}
@@ -405,7 +404,7 @@ func (h *captureHandler) captureList(w http.ResponseWriter, req *http.Request) {
 
 	items := make([]captureItem, 0, len(captures))
 	for _, c := range captures {
-		if c.Status.Phase == gameplanev1alpha1.CapturePhaseExpired {
+		if c.Status.Phase == kube.CapturePhaseExpired {
 			continue
 		}
 		items = append(items, captureItem{
@@ -501,7 +500,7 @@ func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if nc.Status.Phase == gameplanev1alpha1.CapturePhaseExpired {
+	if nc.Status.Phase == kube.CapturePhaseExpired {
 		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "expired", http.StatusNotFound) {
 			return
 		}
@@ -600,8 +599,8 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if nc.Status.Phase != gameplanev1alpha1.CapturePhaseCompleted {
-		if nc.Status.Phase == gameplanev1alpha1.CapturePhaseExpired {
+	if nc.Status.Phase != kube.CapturePhaseCompleted {
+		if nc.Status.Phase == kube.CapturePhaseExpired {
 			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "expired", http.StatusNotFound) {
 				return
 			}
@@ -784,7 +783,7 @@ func buildAgentHTTPClient(caBundle, clientCert, clientKey string) *http.Client {
 // ---------- kube-layer wiring ----------
 
 // isCaptureEnabled reports whether spec.capture.enabled is set on the GameServer.
-func isCaptureEnabled(gs *gameplanev1alpha1.GameServer) bool {
+func isCaptureEnabled(gs *kube.GameServer) bool {
 	return gs.Spec.Capture != nil && gs.Spec.Capture.Enabled
 }
 
@@ -794,7 +793,7 @@ func isCaptureEnabled(gs *gameplanev1alpha1.GameServer) bool {
 // server's own NetworkCaptures — the status field is eventually consistent
 // (populated by the operator's reconciler), so relying on it alone would
 // let a second capture-start race in before that field catches up.
-func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, gs *gameplanev1alpha1.GameServer, ns, name string) (bool, error) {
+func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, gs *kube.GameServer, ns, name string) (bool, error) {
 	if gs.Status.Capture != nil && gs.Status.Capture.ActiveCapture != nil && *gs.Status.Capture.ActiveCapture != "" {
 		return true, nil
 	}
@@ -803,7 +802,7 @@ func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, g
 		return false, err
 	}
 	for _, c := range captures {
-		if c.Status.Phase == gameplanev1alpha1.CapturePhasePending || c.Status.Phase == gameplanev1alpha1.CapturePhaseRunning {
+		if c.Status.Phase == kube.CapturePhasePending || c.Status.Phase == kube.CapturePhaseRunning {
 			return true, nil
 		}
 	}
@@ -814,7 +813,7 @@ func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, g
 // the named server, returning errCaptureNotFound (wrapped, via errors.Is)
 // for either "no such capture" or "belongs to a different server" — the
 // contract requires both to 404 identically.
-func (h *captureHandler) resolveCapture(ctx context.Context, k *kube.Client, ns, name, captureID string) (*gameplanev1alpha1.NetworkCapture, error) {
+func (h *captureHandler) resolveCapture(ctx context.Context, k *kube.Client, ns, name, captureID string) (*kube.NetworkCapture, error) {
 	nc, err := k.GetNetworkCapture(ctx, ns, captureID)
 	if err != nil {
 		return nil, err
@@ -829,7 +828,7 @@ func (h *captureHandler) resolveCapture(ctx context.Context, k *kube.Client, ns,
 // the capture's own TTL (falling back to the cluster default retention
 // when the capture didn't specify one). Empty until the capture has a
 // completion time.
-func (h *captureHandler) expiresAt(nc gameplanev1alpha1.NetworkCapture) string {
+func (h *captureHandler) expiresAt(nc kube.NetworkCapture) string {
 	if nc.Status.CompletionTime == nil {
 		return ""
 	}

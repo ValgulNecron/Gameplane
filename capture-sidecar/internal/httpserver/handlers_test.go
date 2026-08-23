@@ -748,8 +748,20 @@ func TestHandleStatus_Running(t *testing.T) {
 	if resp.EstimatedTimeRemainingSeconds <= 0 || resp.EstimatedTimeRemainingSeconds > 300 {
 		t.Fatalf("estimatedTimeRemainingSeconds = %d", resp.EstimatedTimeRemainingSeconds)
 	}
-	if resp.EstimatedBytesRemaining != 1000000 {
-		t.Fatalf("estimatedBytesRemaining = %d", resp.EstimatedBytesRemaining)
+	// estimatedBytesRemaining must be maxSizeBytes minus the writer's real
+	// on-disk bytesWritten (which, even before any packet is written, already
+	// includes the PCAPNG section-header and interface-description blocks —
+	// see capture.Writer.BytesWritten). Assert that relationship via the
+	// response's own bytesWritten rather than a byte count copied from a test
+	// run, which breaks every time block/header overhead changes.
+	if resp.BytesWritten <= 0 {
+		t.Fatalf("bytesWritten = %d, want > 0 (PCAPNG header blocks are written up front)", resp.BytesWritten)
+	}
+	if want := int64(1000000) - resp.BytesWritten; resp.EstimatedBytesRemaining != want {
+		t.Fatalf("estimatedBytesRemaining = %d, want %d (maxSizeBytes - bytesWritten=%d)", resp.EstimatedBytesRemaining, want, resp.BytesWritten)
+	}
+	if resp.EstimatedBytesRemaining <= 0 || resp.EstimatedBytesRemaining >= 1000000 {
+		t.Fatalf("estimatedBytesRemaining = %d, want in (0, 1000000)", resp.EstimatedBytesRemaining)
 	}
 }
 

@@ -37,9 +37,9 @@ func sidecarURL(namespace, server, path string) string {
 
 // startCaptureRequest is the body sent to POST /captures/{id}/start.
 type startCaptureRequest struct {
-	Filter              *string `json:"filter,omitempty"`
-	MaxDurationSeconds  int64   `json:"maxDurationSeconds"`
-	MaxSizeBytes        int64   `json:"maxSizeBytes"`
+	Filter             *string `json:"filter,omitempty"`
+	MaxDurationSeconds int64   `json:"maxDurationSeconds"`
+	MaxSizeBytes       int64   `json:"maxSizeBytes"`
 }
 
 // startCaptureResponse is returned by POST /captures/{id}/start.

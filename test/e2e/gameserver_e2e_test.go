@@ -415,6 +415,7 @@ func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start capture: %v", err)
 	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
 	if startHTTPResp.StatusCode != http.StatusAccepted {
 		t.Fatalf("start capture: status=%s body=%s", startHTTPResp.Status, startBody)
 	}
@@ -593,6 +594,7 @@ func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stop capture: %v", err)
 	}
+	defer func() { _ = stopHTTPResp.Body.Close() }()
 	if stopHTTPResp.StatusCode != http.StatusOK {
 		t.Fatalf("stop capture: status=%s body=%s", stopHTTPResp.Status, stopBody)
 	}
@@ -617,6 +619,7 @@ func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("download capture file: %v", err)
 	}
+	defer func() { _ = fileHTTPResp.Body.Close() }()
 	if fileHTTPResp.StatusCode != http.StatusOK {
 		t.Fatalf("download capture file: status=%s", fileHTTPResp.Status)
 	}
