@@ -41,6 +41,9 @@ const builtinPerms: Record<string, string[]> = {
   ],
 };
 
+// Built-in roles that explicitly do NOT get captures:manage (admin gets it via
+// the wildcard "*"; operator/viewer are denied it per FR-005/SC-005).
+
 export function makeUser(over: Partial<User> = {}): User {
   const role = over.role ?? "admin";
   return {

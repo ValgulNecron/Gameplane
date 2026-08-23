@@ -115,6 +115,14 @@ type NetworkCaptureReconciler struct {
 	// values). Zero (unconfigured) falls back to this file's
 	// defaultCaptureRetentionSeconds/maxCaptureRetentionSeconds constants —
 	// see effectiveRetentionSeconds.
+	//
+	// int32, matching NetworkCaptureSpec.TTLSecondsAfterFinished (*int32):
+	// the CRD field is the only place this value is genuinely bounded by an
+	// external schema, so it is int32 end-to-end from here on. The single
+	// int64→int32 narrowing this repo needs (flags are int64 via
+	// flag.Int64Var) happens exactly once, in cmd/main.go's boundedInt32,
+	// with the literal-math.MaxInt32 guard gosec's G115 SSA range analysis
+	// recognizes — see that function's doc comment for why the shape matters.
 	CaptureDefaultRetentionSeconds int32
 	CaptureMaxRetentionSeconds     int32
 }
@@ -518,8 +526,17 @@ func (r *NetworkCaptureReconciler) ensureOwnerReference(
 // clusterMax is clamped down to it. Never returns a value the caller
 // couldn't use — the retention pass must always have *some* TTL to work
 // with, even for a legacy/hand-applied object whose spec value bypassed
-// admission validation.
+// admission validation. All three values are int32, matching the CRD's
+// *int32 TTL field and the reconciler's CaptureDefaultRetentionSeconds/
+// CaptureMaxRetentionSeconds — no conversion happens in this function.
 func clampRetention(requested, clusterMax, clusterDefault int32) int32 {
+	if clusterMax <= 0 {
+		clusterMax = maxCaptureRetentionSeconds
+	}
+	if clusterDefault <= 0 {
+		clusterDefault = defaultCaptureRetentionSeconds
+	}
+
 	if requested <= 0 {
 		requested = clusterDefault
 	}
@@ -535,14 +552,11 @@ func clampRetention(requested, clusterMax, clusterDefault int32) int32 {
 // the reconciler) fall back to this file's
 // defaultCaptureRetentionSeconds/maxCaptureRetentionSeconds constants.
 func effectiveRetentionSeconds(specTTL *int32, clusterDefault, clusterMax int32) int32 {
-	if clusterDefault <= 0 {
-		clusterDefault = defaultCaptureRetentionSeconds
-	}
-	if clusterMax <= 0 {
-		clusterMax = maxCaptureRetentionSeconds
-	}
 	requested := clusterDefault
-	if specTTL != nil {
+	if clusterDefault <= 0 {
+		requested = defaultCaptureRetentionSeconds
+	}
+	if specTTL != nil && *specTTL > 0 {
 		requested = *specTTL
 	}
 	return clampRetention(requested, clusterMax, clusterDefault)

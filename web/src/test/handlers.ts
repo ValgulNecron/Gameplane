@@ -470,6 +470,13 @@ export const handlers = [
           ],
         },
         {
+          resource: "captures",
+          label: "Network captures",
+          permissions: [
+            { key: "captures:manage", label: "Enable, start, stop, download, and delete packet captures", namespaced: true },
+          ],
+        },
+        {
           resource: "users",
           label: "Users",
           permissions: [{ key: "users:manage", label: "Manage users", namespaced: false }],

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strings"
@@ -63,6 +64,40 @@ func validateAddressManager(flavor string) error {
 	default:
 		return fmt.Errorf("%w %q: want metallb, cilium or none", errUnknownAddressManager, flavor)
 	}
+}
+
+// errInt32Range is returned by boundedInt32 when v falls outside int32's
+// representable range.
+var errInt32Range = errors.New("value out of int32 range")
+
+// boundedInt32 narrows v (an int64, the type flag.Int64Var naturally
+// produces) to int32, the type NetworkCaptureSpec.TTLSecondsAfterFinished
+// and NetworkCaptureReconciler's retention fields use. This is the single
+// int64→int32 conversion in the capture retention path — every caller of
+// NetworkCaptureReconciler downstream is int32 end to end, and every other
+// int64 flag stays int64 with no cast (GameServerReconciler.CaptureDefault/
+// MaxRetention, unused elsewhere, are unaffected).
+//
+// The literal `v > math.MaxInt32` comparison immediately guarding the
+// `int32(v)` conversion below, in the same function body and straight-line
+// control flow (an ordinary `return`, not a closure boundary or os.Exit),
+// is the exact shape gosec's G115 SSA range analysis
+// (github.com/securego/gosec/v2/analyzers/conversion_overflow.go,
+// isSafeConversion → hasRangeCheck → validateRangeLimits) resolves as safe:
+// it walks the dominating `if`'s branch structure and, for the
+// out-of-range branch a plain `if v < 0 || v > math.MaxInt32 { return ... }`
+// compiles to (two chained blocks from the `||`), confirms the narrowed
+// value on the fallthrough edge satisfies dstInt.Min/dstInt.Max before
+// accepting the conversion as guarded. A prior attempt guarded the same
+// cast inside a closure over a captured variable; the closure's FreeVar
+// indirection breaks the analyzer's SSA value identity tracking between the
+// checked value and the converted one, which a real function parameter (as
+// here) does not.
+func boundedInt32(v int64) (int32, error) {
+	if v < 0 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("%w: %d", errInt32Range, v)
+	}
+	return int32(v), nil
 }
 
 // Version is the operator build version, overridden at build time via
@@ -216,24 +251,46 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog := ctrl.Log.WithName("setup")
 
-	// Validate and convert capture retention flags (int64 → int32).
-	// The minimum of 60 seconds aligns with the CRD's own validation.
-	// The maximum of 604800 (7 days) is the ratified ceiling.
+	// Validate capture retention flags while they are still the int64 type
+	// flag.Int64Var naturally produces. The minimum of 60 seconds aligns with
+	// the CRD's own validation. The maximum of 604800 (7 days) is the
+	// ratified ceiling — comfortably inside int32, so the boundedInt32 calls
+	// just below (which narrow to the type NetworkCaptureReconciler actually
+	// uses) cannot fail in practice, but check the error anyway.
 	const captureRetentionMin int64 = 60
 	const captureRetentionMax int64 = 604800
 
-	// Helper to validate and convert a retention value; bounds are visible to gosec.
-	validateCaptureRetention := func(name string, value int64) int32 {
-		if value < captureRetentionMin || value > captureRetentionMax {
-			setupLog.Error(nil, "invalid "+name+" value",
-				"value", value, "min", captureRetentionMin, "max", captureRetentionMax)
-			os.Exit(1)
-		}
-		return int32(value) // safe: bounds are 60..604800
+	if captureDefaultRetention < captureRetentionMin || captureDefaultRetention > captureRetentionMax {
+		setupLog.Error(nil, "invalid --capture-default-retention-seconds value",
+			"value", captureDefaultRetention, "min", captureRetentionMin, "max", captureRetentionMax)
+		os.Exit(1)
 	}
 
-	captureDefaultRetention32 := validateCaptureRetention("--capture-default-retention-seconds", captureDefaultRetention)
-	captureMaxRetention32 := validateCaptureRetention("--capture-max-retention-seconds", captureMaxRetention)
+	if captureMaxRetention < captureRetentionMin || captureMaxRetention > captureRetentionMax {
+		setupLog.Error(nil, "invalid --capture-max-retention-seconds value",
+			"value", captureMaxRetention, "min", captureRetentionMin, "max", captureRetentionMax)
+		os.Exit(1)
+	}
+
+	// Narrow to int32 once here, for NetworkCaptureReconciler's int32 fields
+	// (see boundedInt32's doc comment for why this exact shape satisfies
+	// gosec G115). captureRetentionMax above (604800) is already well
+	// within int32 range, so these calls cannot fail given the bounds
+	// checks just above — but boundedInt32 reports the error rather than
+	// silently wrapping, on the off chance the bounds check above is ever
+	// relaxed without updating this cast.
+	captureDefaultRetention32, err := boundedInt32(captureDefaultRetention)
+	if err != nil {
+		setupLog.Error(err, "--capture-default-retention-seconds does not fit in int32",
+			"value", captureDefaultRetention)
+		os.Exit(1)
+	}
+	captureMaxRetention32, err := boundedInt32(captureMaxRetention)
+	if err != nil {
+		setupLog.Error(err, "--capture-max-retention-seconds does not fit in int32",
+			"value", captureMaxRetention)
+		os.Exit(1)
+	}
 
 	if captureDefaultRetention > captureMaxRetention {
 		setupLog.Error(nil, "--capture-default-retention-seconds cannot exceed --capture-max-retention-seconds",
