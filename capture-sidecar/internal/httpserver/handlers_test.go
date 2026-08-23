@@ -1217,9 +1217,9 @@ func TestCaptureENOSPCDuringWritePacketReportsDiskFull(t *testing.T) {
 	}
 }
 
-// failingWriter wraps a capture.Writer and fails on the next WritePacket call.
+// failingWriter wraps a capture.PacketWriter and fails on the next WritePacket call.
 type failingWriter struct {
-	inner      *capture.Writer
+	inner      capture.PacketWriter
 	failWith   error
 	failCount  int
 	failAfter  int

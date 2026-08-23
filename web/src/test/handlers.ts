@@ -154,6 +154,76 @@ export const handlers = [
   http.put(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
   http.delete(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
 
+  // Capture: enable/disable, start/stop, list, get, delete, and file download
+  http.post(/\/servers\/[^/]+:capture-enable$/, () =>
+    HttpResponse.json({
+      name: "server-name",
+      status: { capture: { enabled: true } },
+    }),
+  ),
+  http.post(/\/servers\/[^/]+:capture-disable$/, () =>
+    HttpResponse.json({
+      name: "server-name",
+      status: { capture: { enabled: false } },
+    }),
+  ),
+  http.get(/\/servers\/[^/]+:captures$/, () =>
+    HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
+  ),
+  http.get(/\/servers\/[^/]+:capture\?/, () =>
+    HttpResponse.json({
+      captureId: "cap-12345",
+      serverName: "server-name",
+      phase: "Completed",
+      startedAt: "2026-08-23T00:00:00Z",
+      completedAt: "2026-08-23T01:00:00Z",
+      createdAt: "2026-08-23T00:00:00Z",
+      expiresAt: "2026-08-30T00:00:00Z",
+      bytesWritten: 1024,
+      packetsWritten: 100,
+      filter: "tcp port 25565",
+    }),
+  ),
+  http.post(/\/servers\/[^/]+:capture-start$/, () =>
+    HttpResponse.json(
+      {
+        captureId: "cap-12345",
+        serverName: "server-name",
+        phase: "Pending",
+        startedAt: null,
+        completedAt: null,
+        createdAt: "2026-08-23T00:00:00Z",
+        expiresAt: "2026-08-30T00:00:00Z",
+        bytesWritten: 0,
+        packetsWritten: 0,
+        filter: "tcp port 25565",
+      },
+      { status: 202 },
+    ),
+  ),
+  http.post(/\/servers\/[^/]+:capture-stop$/, () =>
+    HttpResponse.json({
+      captureId: "cap-12345",
+      serverName: "server-name",
+      phase: "Completed",
+      startedAt: "2026-08-23T00:00:00Z",
+      completedAt: "2026-08-23T01:00:00Z",
+      createdAt: "2026-08-23T00:00:00Z",
+      expiresAt: "2026-08-30T00:00:00Z",
+      bytesWritten: 1024,
+      packetsWritten: 100,
+      filter: "tcp port 25565",
+    }),
+  ),
+  http.delete(/\/servers\/[^/]+:capture\?/, () =>
+    HttpResponse.json({ deleted: true, captureId: "cap-12345" }),
+  ),
+  http.get(/\/servers\/[^/]+:capture-file\?/, () =>
+    new HttpResponse(new Blob(["mock pcapng data"]), {
+      headers: { "Content-Type": "application/octet-stream" },
+    }),
+  ),
+
   // Templates
   http.get("/templates", () =>
     HttpResponse.json({

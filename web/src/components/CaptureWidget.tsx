@@ -507,6 +507,7 @@ function StartCaptureModal({
             <FieldLabel label="Packet Filter">
               <div className="flex items-center gap-2">
                 <Input
+                  aria-label="Packet Filter"
                   value={filter}
                   onChange={(e) => handleFilterChange(e.target.value)}
                   placeholder="tcp port 25565"
@@ -537,6 +538,7 @@ function StartCaptureModal({
                   value={durationValue}
                   onChange={(e) => setDurationValue(Number(e.target.value))}
                   className="w-[140px]"
+                  aria-label="Max duration value"
                   required
                 />
                 <Select
@@ -563,6 +565,7 @@ function StartCaptureModal({
                   value={sizeValue}
                   onChange={(e) => setSizeValue(Number(e.target.value))}
                   className="w-[140px]"
+                  aria-label="Max size value"
                   required
                 />
                 <Select
@@ -589,6 +592,7 @@ function StartCaptureModal({
                   value={retentionValue}
                   onChange={(e) => setRetentionValue(Number(e.target.value))}
                   className="w-[140px]"
+                  aria-label="Retention value"
                 />
                 <Select
                   className="w-[140px]"
