@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-17
 
-**Status**: Draft
+**Status**: Draft (amended 2026-08-23 during /speckit-plan — ephemeral-container mechanism adopted; see research.md) (amended again 2026-08-23 — capture emptyDir is pre-provisioned unconditionally on every game pod, since ephemeral containers cannot add a volume and pod volumes are immutable on a running pod; FR-001/SC-007 narrowed accordingly, a one-time rolling-restart-on-upgrade note added, and the "sidecar is restarted" edge case corrected to reflect that ephemeral containers cannot be restarted)
 
 **Input**: User description: "server side network capture with opt in side car for specific game server"
 
@@ -44,9 +44,9 @@ An operator should be able to opt a specific GameServer into packet-capture capa
 **Acceptance Scenarios**:
 
 1. **Given** a freshly created GameServer, **When** the server is inspected, **Then** capture is not present or is disabled.
-2. **Given** a GameServer with capture disabled, **When** an admin enables capture, **Then** the capture sidecar is added to the pod without restarting the game container.
-3. **Given** a GameServer with capture enabled, **When** the sidecar is restarted or the pod is rebuilt, **Then** the capture setting persists across the update.
-4. **Given** a GameServer with capture enabled, **When** an admin disables capture, **Then** the sidecar is removed without affecting the running game container.
+2. **Given** a GameServer with capture disabled, **When** an admin enables capture, **Then** the capture sidecar is injected as an ephemeral container into the running pod without restarting the game container.
+3. **Given** a GameServer with capture enabled, **When** the pod is rebuilt (recreated), **Then** the capture setting persists across the update and the sidecar is re-injected into the new pod.
+4. **Given** a GameServer with capture enabled, **When** an admin disables capture, **Then** any active capture is stopped immediately, the capture capability is marked off, and the ephemeral container is removed on the next pod recreation—with the game container unaffected in the meantime.
 
 ---
 
@@ -110,7 +110,7 @@ The system must handle scenarios where the capture process is interrupted or con
 - What happens when a capture filter expression is malformed or invalid? The capture request is rejected before starting, with a clear error message describing the syntax error.
 - How does the capture behave on a heavily loaded server with high packet volume? The capture filter is the primary mechanism for keeping the volume manageable. Unfiltered captures on busy servers will hit size limits quickly, which is expected behavior (the operator must refine their filter). The sidecar must not cause the game server to lag or degrade even under high capture load.
 - What happens to audit events if the audit system is temporarily unavailable? Capture operations should not fail if audit logging is down, but a warning or notification should be raised so the operator knows that the audit trail is incomplete.
-- What happens if the capture sidecar crashes while a capture is running? The sidecar is restarted by Kubernetes (like any pod restart). The partial capture file is cleaned up. The operator is notified (via status or a failed audit event). The game server is unaffected.
+- What happens if the capture sidecar crashes while a capture is running? Ephemeral containers cannot be restarted by Kubernetes, so the crash is terminal for that capture: it is marked failed, the partial capture file is cleaned up, and re-capturing requires re-injecting the sidecar (or waiting for the next pod recreation). The operator is notified (via status or a failed audit event). The game server is unaffected throughout.
 
 ---
 
@@ -118,7 +118,8 @@ The system must handle scenarios where the capture process is interrupted or con
 
 ### Functional Requirements
 
-- **FR-001**: The capture system MUST be opt-in per GameServer. A GameServer that has not opted in MUST NOT have any capture component attached and MUST be byte-identical to servers as they exist today. Enabling or disabling capture for a GameServer MUST cause the capture sidecar to be added or removed from the pod without modifying the game container itself.
+- **FR-001**: The capture system MUST be opt-in per GameServer. A GameServer that has not opted in MUST NOT have any capture container attached and MUST be otherwise unchanged from servers as they exist today; it MAY carry an empty, unused capture-storage volume (pre-provisioned so that the volume already exists before an ephemeral container can be injected, since Kubernetes cannot add a volume via the ephemeral-containers subresource and `pod.spec.volumes` is immutable on a running pod). Enabling capture for a GameServer MUST inject the capture sidecar into the running pod without modifying the game container itself. Disabling capture MUST stop any active capture and mark the capability off immediately; the ephemeral container is removed on the next pod recreation without affecting the running game container in the meantime.
+  - **Upgrade note**: Because the capture-storage volume must be present in the pod template for every game pod, upgrading to the release that introduces this feature adds that volume to the StatefulSet pod template and therefore causes a one-time rolling restart of every existing game server, whether or not it opts into capture. Operators MUST be informed of this before upgrading.
 - **FR-002**: An admin user initiating a capture MUST provide a maximum duration (in seconds or minutes) and a maximum size (in MB or GB). Both limits are hard: the capture stops when either limit is reached, whichever comes first.
 - **FR-003**: Capture filter expressions MUST be a first-class input to the capture start request. The filter is OPTIONAL; when omitted, a default filter is applied that restricts the capture to the game server's own advertised ports. Custom filters MUST restrict captured traffic by at least packet criteria (source/destination IP, source/destination port, protocol). Invalid filter expressions MUST be rejected before the capture starts.
 - **FR-004**: A completed capture MUST be downloadable as a file in a standard packet format (pcap or pcapng) readable by standard third-party packet-analysis tooling. The file MUST contain only the packets matching the filter expression provided at capture start.
@@ -151,7 +152,7 @@ The system must handle scenarios where the capture process is interrupted or con
 - **SC-004**: Captures automatically expire and become inaccessible after the configured retention window; download attempts after expiration return a 404 or "expired" response.
 - **SC-005**: A non-admin user attempting any capture operation receives a 403 Forbidden response; an admin performing the same operation succeeds.
 - **SC-006**: Concurrent capture requests on the same server are serialized or rejected; the second request receives a clear error instead of an undefined result.
-- **SC-007**: A GameServer with capture disabled or not opted in does not have a capture sidecar and is byte-identical to a server today; a `kubectl diff` between a non-capturing and capturing server shows only the sidecar addition.
+- **SC-007**: A GameServer with capture disabled or not opted in does not have a capture container (it may carry an empty, unused capture-storage volume — see FR-001); a `kubectl diff` between a non-capturing and capturing server shows only the sidecar addition, not any change to the game container.
 - **SC-008**: Packet capture files match the filter expression: 100% of packets in the output file satisfy the filter criteria; 0% of packets that do not match the filter are included.
 
 ---
@@ -164,6 +165,7 @@ The system must handle scenarios where the capture process is interrupted or con
 - **Assumption 4**: The maximum duration and maximum size limits are hard limits. A capture always stops when either limit is reached, even if a player is mid-join. This is necessary to prevent captures from consuming unbounded disk/memory or running forever.
 - **Assumption 5**: Capture configuration is stored in the GameServer spec as an opt-in boolean (`spec.capture.enabled`) and cluster-wide defaults (retention window, size limits, duration limits) are configurable via the Helm chart or admin settings.
 - **Assumption 6**: The capture mechanism operates at the network layer and does not require privilege escalation within the game container. The sidecar's capabilities are its own.
+- **Assumption 7**: The capture sidecar is injected via the Kubernetes ephemeral containers API, which enables live injection into running pods without pod recreation. Kubernetes provides no API to remove an ephemeral container from a running pod; therefore, when capture is disabled, the container persists until the next pod recreation (e.g. via a new deployment rolling update or explicit pod deletion). Ephemeral containers cannot be restarted, do not support probes or resource requests/limits, and always share the pod's network namespace.
 
 ---
 
