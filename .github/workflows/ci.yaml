@@ -78,6 +78,7 @@ jobs:
               - 'telemetry-receiver/**'
               - 'sentinel/**'
               - 'mcp-server/**'
+              - 'capture-sidecar/**'
               - 'svcutil/**'
               - 'tunnel/**'
               - 'test/e2e/**'
@@ -176,7 +177,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [netguard, gameaction, gameproto, operator, agent, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, svcutil, tunnel, test/e2e]
+        module: [netguard, gameaction, gameproto, operator, agent, api, sentinel, audit-syslog-bridge, telemetry-receiver, mcp-server, capture-sidecar, svcutil, tunnel, test/e2e]
     steps:
       - uses: actions/checkout@v7
       - name: verify lint gate configuration
@@ -221,7 +222,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, svcutil, tunnel]
+        module: [netguard, gameaction, gameproto, operator, api, agent, audit-syslog-bridge, telemetry-receiver, sentinel, mcp-server, capture-sidecar, svcutil, tunnel]
         arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v7

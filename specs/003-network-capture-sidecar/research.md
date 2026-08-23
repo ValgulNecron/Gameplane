@@ -436,6 +436,105 @@ func TestGameServer_NetworkCaptureEphemeralContainer(t *testing.T) {
 
 ---
 
+## OPEN DECISIONS
+
+### Decision 1: Download Path — Direct Sidecar Stream vs. Agent Proxy (T007)
+
+**RULING**: The `GET /servers/{name}:capture-file` download handler dials the capture sidecar's `:9091 GET /captures/{id}/file` endpoint directly through the existing `<gs>-agent` ClusterIP Service (with a second, numerically-targeted port added by T018), using the service's existing DNS name and the agent cert's already-present SANs. No new Service, no new certificate, no proxy layer through the agent's file browser. This avoids the agent-file-browser path-isolation constraint (agentVolumeMounts's single-root model, documented in gameserver_rcon.go:105-136) entirely.
+
+**EVIDENCE**: research.md lines 385-406 ("Sidecar Addressing" decision, resolved 2026-08-23); gameserver_rcon.go:105-136 (file-browser single-root constraint); agent_certs.go:201-223 (SANs already cover `<gs>-agent` across namespace/pod/service); contracts/capture-sidecar.md (sidecar's `:9091 GET /captures/{id}/file` endpoint).
+
+**CONSEQUENCES**: T044 (download handler) streams from the sidecar via the `<gs>-agent` Service's second port, unmodified; no second proxy route needed under `ws.Mount`; RBAC rules (T023) cover only one `:capture-file` route, not a ws-routed variant; T086 (dashboard API client) calls through a single indirection point matching this path. Prerequisite: T018 (add the second port to the `<gs>-agent` Service) must land first.
+
+**UNRESOLVED**: false
+
+**MAINTAINER QUESTION**: (none)
+
+### Decision 2: Ownership and Location of PodSecurity Exception Documentation for Network Capture Sidecar (T008)
+
+**RULING**: This is a docs-only task inside feature 003, not a maintainer-level decision. The note belongs in the existing Pod security section of docs/security.md, immediately after the paragraph about podSecurity.enforceRestricted=true.
+
+**EVIDENCE**: plan.md lines 62-63 specify games namespace needs docs/security.md documentation for capture exception. research.md Open Risk 9 (481-484) and Capability Mechanism decision (244-256) mandate documenting this tradeoff. D-SETCAP is RESOLVED (Decision 4), so only documentation remains. docs/security.md lines 203-216 already discuss games namespace and PodSecurity admission, making it the natural location.
+
+**CONSEQUENCES**: T097 (Phase 2 task) must add to docs/security.md Pod security section: capture sidecar requires allowPrivilegeEscalation: true for file capabilities (setcap), which violates restricted admission. Operator must choose: disable capture, exempt games namespace, or set enforceRestricted: false. Document this as stated tradeoff, not flaw.
+
+**UNRESOLVED**: false
+
+**MAINTAINER QUESTION**: (none)
+
+### Decision 3: setcap-survives-distroless-COPY CI Proof: Prerequisite or Parallel (T009)
+
+**RULING**: The setcap survival proof is NOT a blocking prerequisite investigation phase, but IS a mandatory CI gate. The capture-sidecar Dockerfile (with setcap in the builder stage) and the CI proof job land together in Phase 2 implementation. The job must pass before the PR merges; failure blocks the PR and requires redesign.
+
+**EVIDENCE**: research.md:248-262 (D-SETCAP, "MUST be proven empirically in CI before this approach is trusted"); plan.md:344 (Complexity Tracking, "UNVERIFIED BUILD RISK"); ci.yaml:143-151 (build-images job pattern); publish-edge.yaml:138-177 (post-build verification pattern with cosign); agent/Dockerfile + sentinel/Dockerfile (no existing setcap usage, pure-Go build pattern). The repo has already encountered COPY-time file-mode loss (referenced in research.md:257 as "fix(images): set entrypoint mode at COPY time instead of chmod").
+
+**CONSEQUENCES**: The implementing team writes both the capture-sidecar Dockerfile with setcap and the CI proof job in the same PR. CI gates the merge on proof passing. If xattrs are lost during COPY, the job fails and implementation must redesign (e.g., apply setcap after COPY in the final stage, or use a non-distroless base). The proof job uses docker build + extract binary + getcap check (amd64 smoke test in ci.yaml; optional functional test in publish-edge.yaml for edge channel).
+
+**UNRESOLVED**: false
+
+**MAINTAINER QUESTION**: (none)
+
+### Decision 4: Audit Scope for Capture Read-Only (GET) Endpoints (T010)
+
+**RULING**: Handler-side audit writes are REQUIRED for the download endpoint (GET :capture-file) and RECOMMENDED for the list endpoint (GET :captures), but NOT required for the get-status endpoint (GET :capture). The three endpoints must be ruled on separately:
+
+1. **GET :capture-file (download)**: MANDATORY handler-side audit write. FR-006 explicitly names "download" among the four operations that must produce audit events. Since `shouldLog` unconditionally excludes all GET routes from the generic middleware, a synchronous handler-side write is the only way to satisfy the "written before response is returned" ordering requirement.
+
+2. **GET :captures (list)**: RECOMMENDED handler-side audit write, though audit-events.md §3.1 explicitly flags this as "a product decision outside this file's scope." The route requires `captures:manage` permission (not read-only), and rest-api.md's own Audit Event line includes it. However, FR-006's six named operations (enable, disable, start, stop, download, delete) do not include list.
+
+3. **GET :capture (get status)**: NOT REQUIRED. This endpoint is not named in FR-006's six mandatory operations and audit-events.md §3.2 explicitly states "FR-006 does not name 'get status' as a required audit event, so this contract does **not** require an explicit handler-side write for it."
+
+**EVIDENCE**: api/internal/audit/audit.go:659-663 (shouldLog unconditionally returns false for GET/HEAD/OPTIONS); audit-events.md §3.1-3.2 (list deferred as product decision, download mandated); contracts/rest-api.md "Download auditing and the GET gap" (explicit handler-side write required); handlers/ grep (zero insertChained calls found outside audit.go Middleware)
+
+**CONSEQUENCES**: Implement a new exported Auditor method (e.g. RecordExplicit) that wraps insertChained with a Reason parameter. Download handler MUST call it before WriteHeader. List handler SHOULD call it per product decision, but this does not block implementation. Get-status handler does NOT call it. Mutation routes continue to rely on generic middleware.
+
+**UNRESOLVED**: false
+
+**MAINTAINER QUESTION**: (none)
+
+### Decision 5: Cluster-Max Retention Value Ratification (T011)
+
+**RULING**: The default cluster retention is SETTLED at 86400 seconds (24 hours), consistent across all spec documents. The cluster-wide MAXIMUM retention value of 90 days (7776000 seconds) proposed in data-model.md is UNRATIFIED and must not be implemented as settled. Decision spike T011 explicitly flags this as "an assistant-derived, unratified proposal, not a maintainer decision" (tasks.md:49). Per plan.md:22,339, no human has approved the 90-day maximum, the mechanism (Helm value name), or whether a maximum is needed at all. Plan.md explicitly states it "MUST NOT be implemented, cited, or built upon as settled until it is" (plan.md:22). Task T011 was created specifically to resolve this before phase 2 implementation proceeds.
+
+**EVIDENCE**: 
+- plan.md:22 — "A cluster maximum of 90 days per Helm values is an **UNRATIFIED research.md proposal** — no human has approved it, and it MUST NOT be implemented, cited, or built upon as settled until it is"
+- plan.md:59 — "a cluster maximum of 90 days is an **UNRATIFIED research.md proposal**, not yet approved by a human"
+- plan.md:339 — "No human has approved this specific number, or the mechanism (Helm value vs. a cluster-scoped CRD field), or whether a maximum is needed at all — it is a Phase 0 proposal only. It MUST be raised as an explicit open question before Phase 2 implements any enforcement of a cluster maximum"
+- tasks.md:49 — T011 DECISION SPIKE: "confirm the exact cluster-max-retention value/Helm-key name (research.md proposes 90 days/7776000s — this is an **assistant-derived, unratified proposal, not a maintainer decision**)"
+- data-model.md:77-87, 308, 902 — Lists proposed unratified values: `capture.maxRetentionSeconds: 7776000`, validation `Maximum=7776000`
+- rest-api.md:393 example text references "cluster maximum 86400s" but this appears to be a placeholder example, not the actual max
+
+**CONSEQUENCES**: 
+1. **Default retention implementation can proceed**: Use 86400 seconds (24 hours) as the default, with Helm value `capture.defaultRetentionSeconds`, operator flag `--capture-default-retention-seconds`. This is settled and consistent across all documents.
+
+2. **Cluster-max implementation must be blocked until T011 resolves**: Do not write code that hardcodes or assumes a 7776000-second (90-day) maximum. Tasks T013 (kubebuilder validation ceiling), T020 (Helm value), T065 (TTL ceiling validation), and T069 (API clamping) all reference the cluster-max value and must wait for T011 to specify:
+   - The exact maximum retention value (90 days is unratified)
+   - The Helm value name (proposed `capture.maxRetentionSeconds` but not approved)
+   - The operator CLI flag name (inferred as `--capture-max-retention-seconds` but not approved)
+   - Whether a maximum is needed at all (spec.md FR-007 requires one to cap per-server settings, but the specific value/mechanism is open)
+
+3. **data-model.md must be updated when T011 decides**: The planned Helm values listed at data-model.md:901-902 currently show the unratified 90-day maximum. Once T011 ratifies a value, update that section to reflect the maintainer's decision.
+
+4. **Spec and plan documents are now aligned**: plan.md correctly flags the gap and marks it as a blocker; no changes to plan.md, research.md, or spec.md needed at this stage.
+
+**UNRESOLVED**: true
+
+**MAINTAINER QUESTION**: What is the approved cluster-wide maximum retention window for network captures: the proposed 90 days (7776000 seconds), a different value, or no hard maximum (only a per-server configurable override of the 24-hour default)?
+
+### Decision 6: captures:manage Grantability — Structural or Seeded-Only (T012)
+
+**RULING**: Currently, the RBAC system has NO structural mechanism to mark captures:manage as non-grantable. Only the "*" wildcard is structurally reserved and unexportable; all other catalog permissions are grantable to custom roles. Therefore, captures:manage must be implemented as option (ii): a normal catalog permission that is seeded only to the admin role in migrations but could technically be granted to custom roles by any user with roles:manage permission. If the intent is option (i) — strict non-grantability — a new restriction mechanism must be built (e.g., an AdminOnly boolean field in the Permission struct).
+
+**EVIDENCE**: api/internal/rbac/catalog.go:85-89 (ValidPermission rejects "*" only), api/internal/rbac/catalog.go:3-5 ("* is never grantable through the API" comment), api/internal/rbac/rbac_test.go:68-82 (test explicitly states "*" is "the sole intentional exception"), api/internal/rbac/rbac.go:179 (admin catch-all uses perm:"*", not a special marker), api/internal/db/migrations/003_roles.sql:43-70 (permissions seeded to roles without structural restrictions beyond wildcard), specs/003-network-capture-sidecar/tasks.md:T012 (Decision 6 explicitly flagged as unresolved with two options)
+
+**CONSEQUENCES**: 1. T022 and T025 must wait for decision: either amend FR-005 to accept custom-role grantability, or add a Permission.AdminOnly field (or similar mechanism) to the Permission struct in catalog.go to make it structurally non-grantable. 2. If option (ii) is chosen (normal grantable permission): T022 adds captures:manage to Catalog with Namespaced:true; T023 adds rule entries with perm:"captures:manage"; T025 migration seeds only to admin role; no additional validation code is needed. 3. If option (i) is chosen (structurally non-grantable): T022 must define the restriction mechanism; ValidPermission() must reject it (like "*"); catalog_test.go must mirror the "*" test pattern; T023 rule table can still use captures:manage as permission name.
+
+**UNRESOLVED**: true
+
+**MAINTAINER QUESTION**: Should captures:manage be structurally non-grantable (option i, requiring a new mechanism like Permission.AdminOnly), or a normal catalog permission seeded only to admin but grantable to custom roles (option ii, following the pattern of config:manage, users:manage, roles:manage)?
+
+---
+
 ## Open Risks
 
 ### 1. go-pcap/filter Library Maturity, Missing Tagged Release, and Edge Cases

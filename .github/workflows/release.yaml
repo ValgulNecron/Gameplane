@@ -23,6 +23,7 @@ jobs:
           - component: audit-syslog-bridge
           - component: telemetry-receiver
           - component: sentinel
+          - component: capture-sidecar
           - component: mcp-server
           - component: tunnel-frp
             dockerfile: tunnel/Dockerfile.frp

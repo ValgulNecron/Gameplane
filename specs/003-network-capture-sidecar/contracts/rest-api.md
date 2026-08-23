@@ -606,34 +606,18 @@ Accept: application/octet-stream
 - Capture must exist, belong to this server, be `Completed`, and not have
   expired.
 
-**UNVERIFIED — internal proxy path**: the prior draft split this into a
-small-file path proxied through the agent and a large-file path (`>64
-MiB`) proxied via a second route under `ws.Mount`
-(`api/cmd/main.go:281`). That split was not re-verified against the real
-`ws` package during this revision — `ws.Mount`'s registered routes were
-not read, so whether it supports a plain (non-websocket-upgrade) binary
-stream is unconfirmed. This contract therefore specifies **one** route for
-all capture sizes; whether the handler internally proxies through the
-agent or streams from the sidecar is an implementation choice, not a
-second RBAC-relevant route.
-
-One half of that choice is, however, already closed by evidence. If
-proxying through the agent is chosen, it CANNOT reuse the agent's file
-browser: that browser is rooted at exactly one path (`--data-root`) and
-rejects any resolved path outside it, so a capture volume mounted as a
-second root would be unreachable to it — see the doc comment at
-`operator/internal/controller/gameserver_rcon.go:111-119`, which states
-that serving a second location "requires teaching the agent to serve
-multiple roots, not just adding a VolumeMount here". Proxying therefore
-means a dedicated agent endpoint, not the existing files surface. See
-`capture-sidecar.md` ("Addressing"), which specifies the path: the
-existing `<gs>-agent` ClusterIP Service, given a second, numerically
-targeted port 9091, dialed by its DNS name over mTLS — a name the
-agent cert's SANs already cover. Before implementation, verify against
-`api/internal/ws/` whether a second route is actually needed, and if so
-add a corresponding `{method: "GET", segment: "ws", suffix:
-":capture-file", perm: "captures:manage"}` rule ahead of the existing `ws`
-catch-all at `rbac.go:219`.
+**Implementation path** (RESOLVED 2026-08-23): The handler streams the PCAPNG
+file directly from the capture sidecar's `:9091 GET /captures/{id}/file`
+endpoint, reached through the existing `<gs>-agent` ClusterIP Service. This
+service already has `<gs>-agent` DNS names in the agent cert's SANs (per
+`operator/internal/controller/agent_certs.go:207-223`); the handler dials
+it by the existing name over mTLS. No new Service, no new certificate, no
+proxy layer. Prerequisite: task T018 adds a second, numerically-targeted
+port (9091) to the `<gs>-agent` Service; the handler then targets it. This
+avoids proxying through the agent's file browser entirely, sidestepping the
+single-root constraint documented in `operator/internal/controller/gameserver_rcon.go:105-136`
+("the agent has no notion of a second root"). The download path is a single
+REST endpoint; no second `ws`-routed variant is needed.
 
 ### Response (Success)
 

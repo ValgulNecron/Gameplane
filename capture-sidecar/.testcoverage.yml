@@ -1,0 +1,17 @@
+# Coverage threshold gate for the capture-sidecar module.
+# Enforced by `make cover-go-check` via go-test-coverage/v2.
+#
+# The capture-sidecar is an optional ephemeral container that captures and
+# records network traffic from game pods via AF_PACKET sockets and PCAPNG
+# writing. Phase 2 will add tests covering AF_PACKET socket setup, PCAPNG file
+# writing, BPF filter compilation and validation, mTLS certificate handling,
+# HTTP server lifecycle, error handling for size/duration limits, and edge cases
+# (pod restart, disk-full). Currently, the module has no tests; the gate is 0.
+# Ratchet this to 70 (matching sentinel and mcp-server) once Phase 2 tests land.
+profile: coverage/unit.out
+github-action-output: false
+
+threshold:
+  file: 0
+  package: 0
+  total: 0

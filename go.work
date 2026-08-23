@@ -4,6 +4,7 @@ use (
 	./agent
 	./api
 	./audit-syslog-bridge
+	./capture-sidecar
 	./gameaction
 	./gameproto
 	./mcp-server
