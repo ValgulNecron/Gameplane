@@ -1083,6 +1083,30 @@ spec:
                       items:
                         type: string
                       type: array
+                    max:
+                      description: |-
+                        Max is the maximum numeric value for int-typed fields. Bounds are
+                        inclusive. Ignored for non-int field types.
+                      format: int64
+                      type: integer
+                    maxLength:
+                      description: |-
+                        MaxLength is the maximum string length for string and password-typed
+                        fields. Bounds are inclusive. Ignored for non-string field types.
+                      format: int32
+                      type: integer
+                    min:
+                      description: |-
+                        Min is the minimum numeric value for int-typed fields. Bounds are
+                        inclusive. Ignored for non-int field types.
+                      format: int64
+                      type: integer
+                    minLength:
+                      description: |-
+                        MinLength is the minimum string length for string and password-typed
+                        fields. Bounds are inclusive. Ignored for non-string field types.
+                      format: int32
+                      type: integer
                     name:
                       description: |-
                         Name is the field identifier (also used as an env var when

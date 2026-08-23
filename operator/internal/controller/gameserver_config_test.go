@@ -33,6 +33,14 @@ func envMap(env []corev1.EnvVar) map[string]string {
 	return out
 }
 
+func intPtr(v int64) *int64 {
+	return &v
+}
+
+func int32Ptr(v int32) *int32 {
+	return &v
+}
+
 func TestMaterializeConfig_ResolvesValuesAndDefaults(t *testing.T) {
 	gs, tmpl := configFixtures([]gameplanev1alpha1.ConfigField{
 		{Name: "TYPE", Type: "enum", Enum: []string{"VANILLA", "PAPER"}, Default: "VANILLA", Required: true},
@@ -208,6 +216,70 @@ func TestMaterializeConfig_Errors(t *testing.T) {
 			},
 			wantErr: "duplicate path",
 		},
+		{
+			name: "int field below Min",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int", Min: intPtr(4)},
+			},
+			config:  map[string]string{"MAX_PLAYERS": "2"},
+			wantErr: `config field "MAX_PLAYERS" must be at least 4`,
+		},
+		{
+			name: "int field above Max",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int", Max: intPtr(64)},
+			},
+			config:  map[string]string{"MAX_PLAYERS": "100"},
+			wantErr: `config field "MAX_PLAYERS" must be at most 64`,
+		},
+		{
+			name: "int field with both Min and Max bounds",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int", Min: intPtr(4), Max: intPtr(64)},
+			},
+			config:  map[string]string{"MAX_PLAYERS": "100"},
+			wantErr: `config field "MAX_PLAYERS" must be at most 64`,
+		},
+		{
+			name: "required string field empty despite MinLength",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", Required: true, MinLength: int32Ptr(1)},
+			},
+			config:  map[string]string{"SERVER_NAME": ""},
+			wantErr: `required config field "SERVER_NAME"`,
+		},
+		{
+			name: "string field below MinLength",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", MinLength: int32Ptr(3)},
+			},
+			config:  map[string]string{"SERVER_NAME": "ab"},
+			wantErr: `config field "SERVER_NAME" must be at least 3 characters`,
+		},
+		{
+			name: "string field above MaxLength",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", MaxLength: int32Ptr(64)},
+			},
+			config:  map[string]string{"SERVER_NAME": "a very long server name that exceeds the maximum allowed length of 64 characters total"},
+			wantErr: `config field "SERVER_NAME" must be at most 64 characters`,
+		},
+		{
+			name: "password field respects MinLength",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "ADMIN_PASSWORD", Type: "password", MinLength: int32Ptr(8)},
+			},
+			config:  map[string]string{"ADMIN_PASSWORD": "short"},
+			wantErr: `config field "ADMIN_PASSWORD" must be at least 8 characters`,
+		},
+		{
+			name: "password field respects MaxLength",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "ADMIN_PASSWORD", Type: "password", MaxLength: int32Ptr(32)},
+			},
+			config:  map[string]string{"ADMIN_PASSWORD": "this is a very long password that exceeds the limit"},
+			wantErr: `config field "ADMIN_PASSWORD" must be at most 32 characters`,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -219,6 +291,119 @@ func TestMaterializeConfig_Errors(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error %q does not contain %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestMaterializeConfig_Constraints(t *testing.T) {
+	cases := []struct {
+		name   string
+		schema []gameplanev1alpha1.ConfigField
+		config map[string]string
+	}{
+		{
+			name: "int field at Min boundary is inclusive",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int", Min: intPtr(4)},
+			},
+			config: map[string]string{"MAX_PLAYERS": "4"},
+		},
+		{
+			name: "int field at Max boundary is inclusive",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int", Max: intPtr(64)},
+			},
+			config: map[string]string{"MAX_PLAYERS": "64"},
+		},
+		{
+			name: "string field at MinLength boundary is inclusive",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", MinLength: int32Ptr(5)},
+			},
+			config: map[string]string{"SERVER_NAME": "hello"},
+		},
+		{
+			name: "string field at MaxLength boundary is inclusive",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", MaxLength: int32Ptr(5)},
+			},
+			config: map[string]string{"SERVER_NAME": "hello"},
+		},
+		{
+			name: "Min and Max constraints on int field both satisfied",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int", Min: intPtr(4), Max: intPtr(64)},
+			},
+			config: map[string]string{"MAX_PLAYERS": "32"},
+		},
+		{
+			name: "MinLength and MaxLength constraints on string field both satisfied",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", MinLength: int32Ptr(3), MaxLength: int32Ptr(10)},
+			},
+			config: map[string]string{"SERVER_NAME": "myserver"},
+		},
+		{
+			name: "constraint on wrong type is ignored",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MODE", Type: "enum", Enum: []string{"survival"}, Min: intPtr(4)},
+			},
+			config: map[string]string{"MODE": "survival"},
+		},
+		{
+			name: "Min constraint on string field is ignored",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", Min: intPtr(100)},
+			},
+			config: map[string]string{"SERVER_NAME": "x"},
+		},
+		{
+			name: "Max constraint on string field is ignored",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", Max: intPtr(5)},
+			},
+			config: map[string]string{"SERVER_NAME": "very long string"},
+		},
+		{
+			name: "no constraints specified behaves as before",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "MAX_PLAYERS", Type: "int"},
+				{Name: "SERVER_NAME", Type: "string"},
+			},
+			config: map[string]string{"MAX_PLAYERS": "999999", "SERVER_NAME": "x"},
+		},
+		{
+			name: "password field respects MinLength constraint",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "ADMIN_PASSWORD", Type: "password", MinLength: int32Ptr(8)},
+			},
+			config: map[string]string{"ADMIN_PASSWORD": "abcd1234"},
+		},
+		{
+			name: "password field respects MaxLength constraint",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "ADMIN_PASSWORD", Type: "password", MaxLength: int32Ptr(32)},
+			},
+			config: map[string]string{"ADMIN_PASSWORD": "password123"},
+		},
+		{
+			name: "optional string field with MinLength but empty value is allowed",
+			schema: []gameplanev1alpha1.ConfigField{
+				{Name: "SERVER_NAME", Type: "string", MinLength: int32Ptr(1)},
+			},
+			config: map[string]string{"SERVER_NAME": ""},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs, tmpl := configFixtures(tc.schema, tc.config)
+			mc, err := materializeConfig(gs, tmpl)
+			if err != nil {
+				t.Fatalf("materializeConfig: %v", err)
+			}
+			if mc == nil {
+				t.Errorf("expected materialized config, got nil")
 			}
 		})
 	}

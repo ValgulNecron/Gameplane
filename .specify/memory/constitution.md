@@ -1,20 +1,28 @@
 <!--
 Sync Impact Report
-- Version change: 1.5.0 → 1.6.0
-- Modified principles: III. Language & Ecosystem Best Practice — clarified that while
-  in-source suppressions (//nolint, // eslint-disable-next-line, etc.) remain absolutely
-  forbidden, narrowly-scoped, maintainer-authorized config-level exclusions in
-  `.golangci.yml` are permitted in two categories: (1) path-scoped false-positive
-  exclusions targeting a single path pattern and single linter/rule, or (2) global
-  redundant-rule disabling where a linter rule is wholly subsumed by a stricter enabled
-  rule. All exclusions carry inline justification and are inventoried in an exclusion
-  policy document. Explicitly preserved the ban on broad/global rule-weakening that
-  hides actual defect classes (disabling linters, repo-wide exclusions).
+- Version change: 1.6.0 → 2.0.0
+- Bump rationale: MAJOR. Principle V's permitted exception is REMOVED, which is a
+  backward-incompatible governance redefinition: delegation patterns that were
+  explicitly compliant under 1.6.0 (a single blocking `Agent` call for a narrow,
+  already-scoped lookup) are prohibited under 2.0.0. No principle was added or
+  renamed.
+- Modified principles: V. Delegate to Workflows & Subagents — the carve-out
+  permitting "a single blocking call to one subagent for a narrow, already-scoped
+  lookup" is struck. The `Agent` tool is now banned outright, for any task at any
+  size, with no small/narrow/urgent exemption; fix waves after a tier-up review are
+  named explicitly as workflow work. Added a new MUST: every `agent()` call in a
+  workflow script sets `model` explicitly, because omitting it silently inherits the
+  session model and defeats the start-at-the-smallest-tier rule, with `effort`
+  called out as not a substitute for tier.
 - Version history: 1.3.1 → 1.4.0 (VI exception) → 1.4.1 (II encryption fix) → 1.5.0
-  (II re-export requirement) → 1.6.0 (III config-level exclusion carve-out)
+  (II re-export requirement) → 1.6.0 (III config-level exclusion carve-out) → 2.0.0
+  (V Agent-tool ban, narrow-lookup exception removed, explicit-model requirement)
 - Added sections: none
-- Removed sections: none
+- Removed sections: none (one sentence struck within Principle V)
 - Deferred / TODO placeholders: none — all template tokens resolved
+- Downstream consistency: CLAUDE.md rule 13 and the repo's UserPromptSubmit hook were
+  already updated to match ahead of this amendment; both previously pointed at the
+  `Agent` tool and contradicted this principle.
 -->
 
 # Gameplane Constitution
@@ -150,22 +158,30 @@ at before being accepted; fixes from that review are applied by relaunching smal
 agents, not by fixing in the main loop. Using the highest-capability model tier for
 review or execution requires explicit human authorization first.
 
-Delegation MUST prefer non-blocking orchestration over blocking calls. In Claude Code,
-a single ad hoc subagent call (e.g. the `Agent` tool) blocks the calling turn until
-that subagent finishes, which serializes the session behind the slowest task. The
-`Workflow` tool runs in the background and returns immediately, notifying on
-completion, and is what actually enforces this principle's own fan-out, tiered
+ALL delegation MUST go through the `Workflow` tool. In Claude Code, the ad hoc `Agent`
+tool blocks the calling turn until that subagent finishes, which serializes the session
+behind the slowest task; the `Workflow` tool runs in the background, returns
+immediately, notifies on completion, and enforces this principle's own fan-out, tiered
 escalation, and tier-up review requirements as deterministic script logic rather than
-ad hoc prompting. A single blocking call to one subagent for a narrow, already-scoped
-lookup is acceptable; any task that decomposes into multiple independent units, or
-that needs the review-then-fix cycle, MUST run through a workflow rather than a chain
-of blocking subagent calls.
+ad hoc prompting. **The `Agent` tool MUST NOT be used in this project — for any task,
+at any size.** There is no exception for a narrow, already-scoped, small, or urgent
+lookup. Fix waves following a tier-up review are themselves delegated work and MUST
+run as a workflow, never as a chain of blocking subagent calls.
+
+Every `agent()` call in a workflow script MUST set `model` explicitly. Omitting it
+silently inherits the session's own model — the highest tier in ordinary use — which
+defeats the start-at-the-smallest-tier rule above without any warning at author time
+or run time. `effort` is not a tier and MUST NOT be treated as a substitute.
 Rationale: single-threaded, single-model execution is slower and costlier than
 parallel cheap agents for well-scoped work, and a subagent's own "done" report is a
 claim, not evidence — the tier-up review step is what catches the gap between the two.
 A blocking subagent call still ties up the session for its full duration even when run
 concurrently with others in one turn; non-blocking workflow orchestration is what lets
-the main loop keep making progress instead of idling on the slowest branch.
+the main loop keep making progress instead of idling on the slowest branch. The
+previously-permitted "narrow lookup" exception is removed because it proved
+unbounded in practice: it was the stated justification for more than fifteen blocking
+`Agent` calls in a single session, each individually defensible as narrow. A rule with
+a judgement-call exemption is not enforceable by the agent applying it to itself.
 
 ### VI. CI Bears the Heavy Lifting
 Builds, tests, lint, coverage, envtest, and E2E suites run on GitHub Actions CI, not on
@@ -233,4 +249,4 @@ explicitly in the plan's Complexity Tracking section or the change MUST be redes
 to comply. Use `CLAUDE.md` for the day-to-day runtime guidance this constitution
 intentionally leaves at a higher level of abstraction.
 
-**Version**: 1.6.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-19
+**Version**: 2.0.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-22
