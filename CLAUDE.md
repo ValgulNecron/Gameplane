@@ -280,7 +280,16 @@ Every piece of work goes on its own branch (rule 8). The moment that branch is m
 
 ### 13. Delegate through Workflows — always, in bulk, smallest model first
 
-> **The `Agent` tool is BANNED in this repo. Never call it, for any task, at any size.** All delegation goes through the **`Workflow`** tool. This is constitution Principle V, and it is not negotiable. An earlier version of this rule told agents to fire "multiple `Agent` tool calls in one block", which directly contradicted the constitution and caused 15+ violations in a single session (2026-08-22) — that wording is gone.
+> **This rule is about the main loop.** Scope it precisely — it is not a restriction on subagents:
+>
+> | Who | Delegates via |
+> |---|---|
+> | **the main agent loop** | the `Workflow` tool — write a workflow rather than reaching for `Agent` |
+> | **subagents and workflows** | whatever they need, `Agent` tool included |
+>
+> A workflow spawns its subagents by calling `agent()` inside `parallel()` / `pipeline()`. That is simply how workflows are written, and it is what this rule asks for.
+>
+> Keep this stated once and plainly. A previous revision escalated it to "the `Agent` tool MUST NOT be used, for any task, at any size" across four reinforcing places; the absolutism was then read as prohibiting subagents in general, and every workflow-spawned subagent in a session was refused, stalling all delegated work (2026-08-23). Precision about scope makes a rule usable; emphasis does not. See constitution Principle V.
 
 Delegation is the default execution path, not an optimization. **Every user request gets delegated**, and it gets split across as many concurrent subagents as the work supports. The main loop's job is decomposition, orchestration, judgment, and verification — never the legwork.
 

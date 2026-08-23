@@ -1,25 +1,34 @@
 <!--
 Sync Impact Report
-- Version change: 1.6.0 → 2.0.0
-- Bump rationale: MAJOR. Principle V's permitted exception is REMOVED, which is a
-  backward-incompatible governance redefinition: delegation patterns that were
-  explicitly compliant under 1.6.0 (a single blocking `Agent` call for a narrow,
-  already-scoped lookup) are prohibited under 2.0.0. No principle was added or
-  renamed.
-- Modified principles: V. Delegate to Workflows & Subagents — the carve-out
-  permitting "a single blocking call to one subagent for a narrow, already-scoped
-  lookup" is struck. The `Agent` tool is now banned outright, for any task at any
-  size, with no small/narrow/urgent exemption; fix waves after a tier-up review are
-  named explicitly as workflow work. Added a new MUST: every `agent()` call in a
-  workflow script sets `model` explicitly, because omitting it silently inherits the
-  session model and defeats the start-at-the-smallest-tier rule, with `effort`
-  called out as not a substitute for tier.
+- Version change: 2.0.1 → 2.1.0
+- Bump rationale: MINOR. Principle V's scope is narrowed to the MAIN LOOP and the
+  blanket prohibition is lifted: subagents and workflows may now use the `Agent` tool.
+  Nothing previously compliant becomes non-compliant; a restriction is relaxed. (The preceding 2.0.0 bump was MAJOR: it removed Principle V's permitted
+  exception, prohibiting delegation patterns that were explicitly compliant under
+  1.6.0 — a single blocking `Agent` call for a narrow, already-scoped lookup.)
+- Modified principles: V. Delegate to Workflows & Subagents — the delegation rule is
+  now scoped to the MAIN LOOP, which hands work off via `Workflow` rather than the
+  `Agent` tool; subagents and workflows may use the `Agent` tool freely. Fix waves
+  after a tier-up review remain workflow work. Retained from 2.0.0: every `agent()`
+  call in a workflow script sets `model` explicitly, because omitting it silently
+  inherits the session model and defeats the start-at-the-smallest-tier rule, with
+  `effort` called out as not a substitute for tier. Added: a caution against restating
+  this rule in progressively more absolute terms across multiple documents.
 - Version history: 1.3.1 → 1.4.0 (VI exception) → 1.4.1 (II encryption fix) → 1.5.0
   (II re-export requirement) → 1.6.0 (III config-level exclusion carve-out) → 2.0.0
   (V Agent-tool ban, narrow-lookup exception removed, explicit-model requirement)
+  → 2.0.1 (V scope clarified: workflow-internal `agent()` is compliant)
+  → 2.1.0 (V scoped to the main loop; subagents/workflows may use the Agent tool)
 - Added sections: none
 - Removed sections: none (one sentence struck within Principle V)
 - Deferred / TODO placeholders: none — all template tokens resolved
+- 2.1.0: Principle V is now scoped to the MAIN LOOP — it delegates via `Workflow`
+  rather than the `Agent` tool. Subagents and workflows may use the `Agent` tool
+  freely. The 2.0.0/2.0.1 absolutist phrasing ("MUST NOT be used, for any task, at any
+  size", restated across CLAUDE.md, a memory file, the constitution and the prompt
+  hook) was read as prohibiting subagents in general and caused every workflow-spawned
+  subagent in a session to be refused, stalling all delegated work. The principle now
+  also warns against restating the rule in progressively more absolute terms.
 - Downstream consistency: CLAUDE.md rule 13 and the repo's UserPromptSubmit hook were
   already updated to match ahead of this amendment; both previously pointed at the
   `Agent` tool and contradicted this principle.
@@ -158,15 +167,27 @@ at before being accepted; fixes from that review are applied by relaunching smal
 agents, not by fixing in the main loop. Using the highest-capability model tier for
 review or execution requires explicit human authorization first.
 
-ALL delegation MUST go through the `Workflow` tool. In Claude Code, the ad hoc `Agent`
-tool blocks the calling turn until that subagent finishes, which serializes the session
-behind the slowest task; the `Workflow` tool runs in the background, returns
-immediately, notifies on completion, and enforces this principle's own fan-out, tiered
-escalation, and tier-up review requirements as deterministic script logic rather than
-ad hoc prompting. **The `Agent` tool MUST NOT be used in this project — for any task,
-at any size.** There is no exception for a narrow, already-scoped, small, or urgent
-lookup. Fix waves following a tier-up review are themselves delegated work and MUST
-run as a workflow, never as a chain of blocking subagent calls.
+**This is a rule about the MAIN LOOP, not about subagents.** Scope it precisely:
+
+- **The main agent loop** delegates through the `Workflow` tool. When the main loop has
+  work to hand off, it writes a workflow rather than reaching for the `Agent` tool.
+- **Subagents and workflows** may use the `Agent` tool freely. Nothing in this principle
+  restricts what a subagent does, and a workflow spawning its subagents via `agent()`
+  inside `parallel()` / `pipeline()` is the ordinary, expected way workflows are written.
+
+The reason the main loop prefers `Workflow`: in Claude Code an ad hoc `Agent` call blocks
+the calling turn until that subagent finishes, serializing the session behind the slowest
+task, while `Workflow` runs in the background, returns immediately, notifies on
+completion, and expresses this principle's fan-out, tiered escalation and tier-up review
+as deterministic script logic rather than ad hoc prompting. Fix waves following a tier-up
+review are delegated work like any other and belong in a workflow.
+
+Keep this rule stated once and stated plainly. Do not restate it in progressively more
+absolute terms across multiple documents: an earlier revision escalated it to "the Agent
+tool MUST NOT be used, for any task, at any size" in four reinforcing places, and the
+resulting absolutism caused every workflow-spawned subagent in a session to be refused as
+if it were the prohibited call — stalling all delegated work. Precision about scope is
+what makes a rule enforceable; emphasis is not.
 
 Every `agent()` call in a workflow script MUST set `model` explicitly. Omitting it
 silently inherits the session's own model — the highest tier in ordinary use — which
@@ -249,4 +270,4 @@ explicitly in the plan's Complexity Tracking section or the change MUST be redes
 to comply. Use `CLAUDE.md` for the day-to-day runtime guidance this constitution
 intentionally leaves at a higher level of abstraction.
 
-**Version**: 2.0.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-22
+**Version**: 2.1.0 | **Ratified**: 2026-08-11 | **Last Amended**: 2026-08-23
