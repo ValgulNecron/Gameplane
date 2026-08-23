@@ -2069,8 +2069,7 @@ func (in *NetworkCaptureSpec) DeepCopyInto(out *NetworkCaptureSpec) {
 	}
 	if in.MaxDuration != nil {
 		in, out := &in.MaxDuration, &out.MaxDuration
-		x := (*in).DeepCopy()
-		*out = &x
+		*out = (*in).DeepCopy()
 	}
 	if in.MaxSize != nil {
 		in, out := &in.MaxSize, &out.MaxSize
