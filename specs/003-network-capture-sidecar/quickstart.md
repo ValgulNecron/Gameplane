@@ -300,6 +300,10 @@ echo "Total packets: $TOTAL, Matching filter: $MATCHING"
 
 **Objective**: Measure that capture introduces no measurable packet loss or latency degradation to game traffic.
 
+**⚠️ DETAILED PROCEDURE**: The complete SC-002 benchmark procedure — including exact setup, measurement tools, pass/fail criteria, confounder controls, and troubleshooting — is documented in `sc-002-benchmark.md`. This scenario provides a high-level overview; refer to that document for the full, executable procedure.
+
+**Status**: **NOT YET MEASURED** — This benchmark has not been executed on a live cluster. The detailed procedure in `sc-002-benchmark.md` is ready for execution.
+
 **Context**: This scenario validates SC-002 ("zero perceptible player-experience impact") by comparing network metrics with capture enabled vs. disabled. Real game clients (Minecraft join bot, Terraria client, etc.) are used to establish baseline and test performance.
 
 ### Setup: Two Baseline GameServers (Capture ON/OFF)
@@ -445,9 +449,9 @@ curl -X POST http://localhost:8000/servers/perf-test-capture-on:capture-stop \
 
 ### Notes on CI vs. Live Cluster Validation
 
-- **CI**: Run this scenario in an e2e job with shortened timeouts (e.g., 20-second traffic runs instead of 60s). The kind cluster's network is deterministic, so 5% RTT variance is realistic. Packet loss should be exactly 0 for both servers.
-- **Live Cluster**: Run manually against the kubelab cluster. Network jitter will be higher (10–15% RTT variance expected); accept the baseline run's jitter and check that capture does not exceed it.
-- **If unreliable in CI**: Mark as manual-only (live-cluster-only) and document the rationale in this scenario. Nothing has been built, run, or measured yet — this scenario has not been executed anywhere, and no claim of pass/fail can be made until it is actually run.
+- **CI**: This scenario does not run in CI. The kind cluster's synthetic network is too tightly controlled for meaningful performance assertions; a CI version would only verify that no crashes occur (a structural test, not a performance test).
+- **Live Cluster Only**: The SC-002 benchmark is **manual and live-cluster-only** — run against the kubelab cluster or equivalent with real network conditions. The detailed procedure in `sc-002-benchmark.md` provides exact steps, tools, confounder controls, and pass/fail thresholds for a maintainer to execute.
+- **Current Status**: As of this document's creation, this benchmark has **NOT been executed**. No measurement has been taken, and no pass/fail result has been recorded. See `sc-002-benchmark.md` for the ready-to-execute procedure.
 
 **PASS Criteria (SC-002)**:
 - Packet loss: capture ≤ baseline + 1 packet
