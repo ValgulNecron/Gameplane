@@ -572,3 +572,77 @@ func TestCaptureDownload_ReachableBeforeExpiryReachesProxy(t *testing.T) {
 		t.Fatalf("download status = %d, want 503 (no mTLS client configured in this unit test); body=%s", rr.Code, rr.Body)
 	}
 }
+
+// TestCaptureStart_InvalidBPFFilterRejected (T075) verifies a start request
+// with a syntactically invalid BPF filter is rejected 400 before any
+// NetworkCapture CR is created. The validateFilter function rejects filters
+// containing characters outside the allowed set (alphanumerics, spaces, and
+// a small punctuation set), so we test with a disallowed character like @.
+func TestCaptureStart_InvalidBPFFilterRejected(t *testing.T) {
+	k := fakeCaptureClient(newCaptureServerObj("invalid-filter", true))
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{
+		Filter:             "tcp port 80 @invalid",
+		MaxDurationSeconds: 60,
+		MaxSizeBytes:       1024,
+	}
+	rr := do(t, r, http.MethodPost, "/servers/invalid-filter:capture-start", body)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("start with invalid filter status = %d, want 400; body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "invalid filter") {
+		t.Errorf("body = %q, want it to mention invalid filter", rr.Body.String())
+	}
+
+	// Verify no NetworkCapture CR was created
+	captures, err := k.ListNetworkCaptures(t.Context(), scope.DefaultNamespace, "invalid-filter")
+	if err != nil {
+		t.Fatalf("list network captures: %v", err)
+	}
+	if len(captures) != 0 {
+		t.Errorf("got %d NetworkCaptures created, want 0 (rejected before creation)", len(captures))
+	}
+}
+
+// TestCaptureStart_ConcurrentCaptureRejected (T075) verifies a start request
+// against a GameServer whose status.capture.activeCapture is already set is
+// rejected 409 immediately without a Kubernetes create call. This tests the
+// API-tier fast-path concurrency check; the authoritative lock lives in the
+// operator's NetworkCaptureReconciler.
+func TestCaptureStart_ConcurrentCaptureRejected(t *testing.T) {
+	srv := newCaptureServerObj("concurrent-test", true)
+	// Seed the server with an active capture in status
+	if err := unstructured.SetNestedField(srv.Object, "cap-existing", "status", "capture", "activeCapture"); err != nil {
+		t.Fatalf("seed status.capture.activeCapture: %v", err)
+	}
+	// Also create the actual NetworkCapture CR that the status refers to
+	nc := newCaptureNetworkCapture("cap-existing", "concurrent-test", "Running")
+
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{
+		MaxDurationSeconds: 60,
+		MaxSizeBytes:       1024,
+	}
+	rr := do(t, r, http.MethodPost, "/servers/concurrent-test:capture-start", body)
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("start with active capture status = %d, want 409; body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "already in progress") {
+		t.Errorf("body = %q, want it to mention capture already in progress", rr.Body.String())
+	}
+
+	// Verify no new NetworkCapture CR was created (only the pre-existing one)
+	captures, err := k.ListNetworkCaptures(t.Context(), scope.DefaultNamespace, "concurrent-test")
+	if err != nil {
+		t.Fatalf("list network captures: %v", err)
+	}
+	if len(captures) != 1 {
+		t.Errorf("got %d NetworkCaptures, want 1 (the pre-existing one only)", len(captures))
+	}
+	if captures[0].Name != "cap-existing" {
+		t.Errorf("capture name = %q, want cap-existing", captures[0].Name)
+	}
+}

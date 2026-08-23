@@ -936,3 +936,327 @@ func TestGameServer_NetworkCaptureEphemeralContainer(t *testing.T) {
 			"is recreated (see FR-001's disable amendment)")
 	}
 }
+
+
+// TestGameServer_NetworkCaptureRestartCleanup — a pod deletion mid-capture
+// must not leave the NetworkCapture in Running forever. The reconciler must
+// detect the pod restart (UID mismatch) and transition to Failed with a
+// reason. Furthermore, status.capture.activeCapture must be cleared so the
+// server is not left in a permanently locked state — we verify this by
+// starting a new capture after the pod returns and asserting it succeeds.
+func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-restart-tmpl"
+	gsName := "e2e-cap-restart-gs"
+
+	const matchPort = 12345
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServerWithCapture(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// Wait for the ephemeral capture container to be ready.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		return ready, ""
+	})
+
+	// Start a capture.
+	startReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      300,
+		"maxSizeBytes":            5368709120,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("start capture: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start capture: status=%s body=%s", startHTTPResp.Status, startBody)
+	}
+	var startedCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(startBody, &startedCapture); err != nil {
+		t.Fatalf("parse capture-start response: %v", err)
+	}
+	captureID := startedCapture.CaptureID
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Delete(context.Background(), captureID, metav1.DeleteOptions{})
+	})
+
+	// Wait for the NetworkCapture to reach Running.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		return phase == "Running", ""
+	})
+
+	// Capture the pod UID before deletion so we can detect the restart.
+	podPre, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod pre-delete: %v", err)
+	}
+	oldPodUID := podPre.UID
+
+	// Delete the pod.
+	if err := envInstance.K8s.CoreV1().Pods(ns).Delete(ctx, gsName+"-0", metav1.DeleteOptions{}); err != nil {
+		t.Fatalf("delete pod: %v", err)
+	}
+
+	// Wait for the pod to be recreated with a new UID.
+	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
+		pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		if pod.UID == oldPodUID {
+			return false, "pod still has old UID"
+		}
+		return true, ""
+	})
+
+	// Wait for the NetworkCapture to transition to Failed. The reconciler
+	// detects the pod UID mismatch and marks the capture as Failed.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Failed" {
+			return false, "phase=" + phase
+		}
+		// Verify there is a reason recorded.
+		errMsg, _, _ := unstructured.NestedString(obj.Object, "status", "error")
+		if errMsg == "" {
+			return false, "no error reason recorded"
+		}
+		return true, ""
+	})
+
+	// Verify status.capture.activeCapture is cleared on the GameServer.
+	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		activeCapture, found, _ := unstructured.NestedString(obj.Object, "status", "capture", "activeCapture")
+		if found && activeCapture != "" {
+			return false, "status.capture.activeCapture still set to " + activeCapture
+		}
+		return true, ""
+	})
+
+	// Verify that a new capture can be started, proving no state is leaked
+	// and the server is playable again.
+	waitPVCBound(t, ns, gsName+"-data", 30*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// Wait for the sidecar to be ready on the new pod.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		return ready, ""
+	})
+
+	// Start a new capture to prove the lock is released.
+	newStartReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      60,
+		"maxSizeBytes":            1048576,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	newStartHTTPResp, newStartBody, err := cli.Post("/servers/"+gsName+":capture-start", newStartReq)
+	if err != nil {
+		t.Fatalf("start second capture: %v", err)
+	}
+	defer func() { _ = newStartHTTPResp.Body.Close() }()
+	if newStartHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start second capture: status=%s body=%s", newStartHTTPResp.Status, newStartBody)
+	}
+
+	var newCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(newStartBody, &newCapture); err != nil {
+		t.Fatalf("parse second capture-start response: %v", err)
+	}
+	if newCapture.CaptureID == "" {
+		t.Fatalf("second capture-start had no captureId")
+	}
+
+	t.Logf("pod restart handled correctly: first capture Failed after restart, second capture started successfully (captureId=%s)", newCapture.CaptureID)
+}
+
+// TestGameServer_NetworkCaptureConcurrencyRejected — attempting a second
+// capture while one is already Running must be rejected with 409, and the
+// first capture must proceed unaffected. After the first capture completes,
+// a third capture must be allowed to start, verifying that the lock
+// properly releases.
+func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-conc-tmpl"
+	gsName := "e2e-cap-conc-gs"
+
+	const matchPort = 12345
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServerWithCapture(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// Wait for the sidecar to be ready.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		return ready, ""
+	})
+
+	// Start the first capture.
+	startReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      60,
+		"maxSizeBytes":            1048576,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("start first capture: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start first capture: status=%s body=%s", startHTTPResp.Status, startBody)
+	}
+
+	var firstCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(startBody, &firstCapture); err != nil {
+		t.Fatalf("parse first capture-start response: %v", err)
+	}
+	captureID := firstCapture.CaptureID
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Delete(context.Background(), captureID, metav1.DeleteOptions{})
+	})
+
+	// Immediately attempt a second capture on the same server.
+	// The API handler's fast-path concurrency check should reject this with 409.
+	secondStartResp, secondStartBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("issue second capture-start: %v", err)
+	}
+	defer func() { _ = secondStartResp.Body.Close() }()
+
+	// The second capture must be rejected with 409 and the exact message.
+	if secondStartResp.StatusCode != http.StatusConflict {
+		t.Errorf("second capture-start: status=%s (want %s) body=%s",
+			secondStartResp.Status, http.StatusText(http.StatusConflict), secondStartBody)
+	} else {
+		// Verify the message matches the contract.
+		if !bytes.Contains(secondStartBody, []byte("capture already in progress")) {
+			t.Errorf("second capture-start: body=%s, want message containing 'capture already in progress'", secondStartBody)
+		}
+	}
+
+	// Wait for the first capture to reach Running to ensure it continues normally.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		return phase == "Running", ""
+	})
+
+	// Stop the first capture.
+	stopHTTPResp, stopBody, err := cli.Post("/servers/"+gsName+":capture-stop", map[string]any{
+		"captureId": captureID,
+	})
+	if err != nil {
+		t.Fatalf("stop first capture: %v", err)
+	}
+	defer func() { _ = stopHTTPResp.Body.Close() }()
+	if stopHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("stop first capture: status=%s body=%s", stopHTTPResp.Status, stopBody)
+	}
+
+	// Wait for the first capture to complete.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		return phase == "Completed", ""
+	})
+
+	// Now that the first capture has completed, starting a new capture must succeed.
+	thirdStartReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      60,
+		"maxSizeBytes":            1048576,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	thirdStartResp, thirdStartBody, err := cli.Post("/servers/"+gsName+":capture-start", thirdStartReq)
+	if err != nil {
+		t.Fatalf("start third capture: %v", err)
+	}
+	defer func() { _ = thirdStartResp.Body.Close() }()
+	if thirdStartResp.StatusCode != http.StatusAccepted {
+		t.Errorf("start third capture: status=%s (want %s) body=%s",
+			thirdStartResp.Status, http.StatusText(http.StatusAccepted), thirdStartBody)
+	}
+
+	var thirdCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(thirdStartBody, &thirdCapture); err != nil {
+		t.Logf("parse third capture-start response: %v (body=%s)", err, thirdStartBody)
+	} else if thirdCapture.CaptureID == "" {
+		t.Errorf("third capture-start had no captureId")
+	}
+
+	t.Logf("concurrency correctly enforced: second concurrent start rejected 409, first capture completed normally, third capture allowed (captureId=%s)",
+		thirdCapture.CaptureID)
+}
