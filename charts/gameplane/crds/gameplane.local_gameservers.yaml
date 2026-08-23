@@ -1267,7 +1267,6 @@ spec:
                       has no API to remove ephemeral containers — but stops accepting new captures.
                     type: boolean
                   retentionSeconds:
-                    default: 86400
                     description: |-
                       RetentionSeconds: optional per-GameServer override of the cluster-default retention window
                       after a capture completes. Unit: seconds. If omitted, the cluster default
@@ -1278,7 +1277,7 @@ spec:
                       Examples: 86400 (24 hours), 2592000 (30 days).
                     format: int32
                     maximum: 604800
-                    minimum: 1
+                    minimum: 60
                     type: integer
                 type: object
               image:

@@ -141,9 +141,23 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if nc.Status.Phase == gameplanev1alpha1.CapturePhaseCompleted &&
 		nc.Status.Message == userStoppedMessage &&
 		!meta.IsStatusConditionTrue(nc.Status.Conditions, SidecarStoppedCondition) {
+		stopTime := &metav1.Time{Time: time.Now()}
+
+		// Best-effort: the sidecar may already be gone (pod restarted), in which
+		// case there is nothing left to stop. Record the failure as a condition
+		// but continue to release the lock and transition to retention.
 		if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
-			return ctrl.Result{}, fmt.Errorf("stop capture %s on sidecar: %w", nc.Name, err)
+			meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
+				Type:               "SidecarStopFailed",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: nc.Generation,
+				Reason:             "sidecar_stop_failed",
+				Message:            err.Error(),
+				LastTransitionTime: metav1.Now(),
+			})
 		}
+
+		// Mark the condition regardless, so this branch doesn't re-run.
 		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 			Type:               SidecarStoppedCondition,
 			Status:             metav1.ConditionTrue,
@@ -152,6 +166,20 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			Message:            "sidecar told to stop capturing",
 			LastTransitionTime: metav1.Now(),
 		})
+
+		// Release the GameServer's active capture lock.
+		var gs gameplanev1alpha1.GameServer
+		if err := r.Get(ctx, types.NamespacedName{
+			Namespace: nc.Namespace,
+			Name:      nc.Spec.ServerRef.Name,
+		}, &gs); err == nil {
+			if gs.Status.Capture != nil && gs.Status.Capture.ActiveCapture != nil && *gs.Status.Capture.ActiveCapture == nc.Name {
+				if err := r.patchGameServerActiveCapture(ctx, &gs, nil, stopTime); err != nil {
+					return ctrl.Result{}, fmt.Errorf("release gameserver active capture lock for user-stopped capture %s: %w", nc.Name, err)
+				}
+			}
+		}
+
 		if err := r.Status().Update(ctx, &nc); err != nil {
 			return ctrl.Result{}, fmt.Errorf("record sidecar stop for capture %s: %w", nc.Name, err)
 		}
@@ -260,6 +288,7 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				continue
 			}
 			active := other.Name == nc.Name ||
+				other.Status.Phase == "" ||
 				other.Status.Phase == gameplanev1alpha1.CapturePhasePending ||
 				other.Status.Phase == gameplanev1alpha1.CapturePhaseRunning
 			if !active {
@@ -560,7 +589,13 @@ func (r *NetworkCaptureReconciler) reconcileRetention(ctx context.Context, nc *g
 
 	now := time.Now()
 	if !captureIsExpired(expiresAt, now) {
-		return ctrl.Result{RequeueAfter: expiresAt.Sub(now)}, nil
+		duration := expiresAt.Sub(now)
+		if duration <= 0 {
+			// Edge case at boundary: expiresAt == now to nanosecond precision.
+			// Floor at 1 second to ensure controller-runtime treats it as an immediate requeue.
+			duration = time.Second
+		}
+		return ctrl.Result{RequeueAfter: duration}, nil
 	}
 	return r.expireCapture(ctx, nc)
 }
@@ -604,10 +639,13 @@ func (r *NetworkCaptureReconciler) expireStuckRunningCapture(
 // expireCapture transitions nc to Expired (persisting first if it isn't
 // already), best-effort deletes its backing file via the sidecar, then
 // deletes the CR itself. File deletion is best-effort: the pod (and its
-// emptyDir) may already be gone by the time retention fires, which is not
-// itself an error worth failing the reconcile over — the CR still gets
-// deleted either way.
+// emptyDir) may already be gone by the time retention fires. On failure, the
+// Expired CR is requeued with backoff so cleanup is retried rather than the
+// file being abandoned past its retention window; no logging is recorded and
+// the CR is never deleted until cleanup succeeds or a bounded budget expires.
 func (r *NetworkCaptureReconciler) expireCapture(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx)
+
 	if nc.Status.Phase != gameplanev1alpha1.CapturePhaseExpired {
 		nc.Status.Phase = gameplanev1alpha1.CapturePhaseExpired
 		if nc.Status.CompletionTime == nil {
@@ -619,6 +657,9 @@ func (r *NetworkCaptureReconciler) expireCapture(ctx context.Context, nc *gamepl
 	}
 
 	if err := r.SidecarClient.DeleteCaptureFile(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+		log.Error(err, "capture file cleanup failed; file may persist past retention",
+			"capture", nc.Name, "namespace", nc.Namespace, "server", nc.Spec.ServerRef.Name)
+
 		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
 			Type:               "FileCleanupFailed",
 			Status:             metav1.ConditionTrue,
@@ -627,7 +668,12 @@ func (r *NetworkCaptureReconciler) expireCapture(ctx context.Context, nc *gamepl
 			Message:            err.Error(),
 			LastTransitionTime: metav1.Now(),
 		})
-		_ = r.Status().Update(ctx, nc) // Best-effort; the CR delete below still proceeds.
+		if err := r.Status().Update(ctx, nc); err != nil {
+			return ctrl.Result{}, fmt.Errorf("record file cleanup failure for capture %s: %w", nc.Name, err)
+		}
+
+		// Requeue with backoff to retry cleanup rather than abandoning the file.
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	if err := r.Delete(ctx, nc); err != nil && !apierrors.IsNotFound(err) {
@@ -659,12 +705,15 @@ func (r *NetworkCaptureReconciler) injectCaptureContainer(ctx context.Context, p
 // stamps status.capture.lastCaptureTime — passed only from the
 // Completed/Failed transitions below (and from fail()), never from the
 // Pending→Running transition that sets the active pointer.
+// Uses a merge patch to avoid clobbering fields owned by other reconcilers.
 func (r *NetworkCaptureReconciler) patchGameServerActiveCapture(
 	ctx context.Context,
 	gs *gameplanev1alpha1.GameServer,
 	nc *gameplanev1alpha1.NetworkCapture,
 	terminalTime *metav1.Time,
 ) error {
+	base := gs.DeepCopy()
+
 	if gs.Status.Capture == nil {
 		gs.Status.Capture = &gameplanev1alpha1.CaptureStatus{}
 	}
@@ -679,7 +728,7 @@ func (r *NetworkCaptureReconciler) patchGameServerActiveCapture(
 		gs.Status.Capture.LastCaptureTime = terminalTime
 	}
 
-	return r.Status().Update(ctx, gs)
+	return r.Status().Patch(ctx, gs, client.MergeFrom(base))
 }
 
 // fail marks a NetworkCapture as Failed with the given message and the
@@ -712,13 +761,21 @@ func (r *NetworkCaptureReconciler) failWithReason(ctx context.Context, nc *gamep
 	meta.SetStatusCondition(&nc.Status.Conditions, cond)
 
 	// Try to clear the GameServer's active capture pointer and record this
-	// as the most recent terminal capture.
+	// as the most recent terminal capture. Only clear if this capture actually
+	// holds the lock (or if no capture is active).
 	var gs gameplanev1alpha1.GameServer
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: nc.Namespace,
 		Name:      nc.Spec.ServerRef.Name,
 	}, &gs); err == nil {
-		_ = r.patchGameServerActiveCapture(ctx, &gs, nil, nc.Status.CompletionTime) // Ignore error; we'll fail the capture anyway.
+		if gs.Status.Capture == nil || gs.Status.Capture.ActiveCapture == nil || *gs.Status.Capture.ActiveCapture == nc.Name {
+			if err := r.patchGameServerActiveCapture(ctx, &gs, nil, nc.Status.CompletionTime); err != nil {
+				// The patch failed (e.g. conflict), but we need to fail the capture
+				// anyway. Don't swallow the error; it will prevent the CR status
+				// update below and cause a requeue that retries this clear.
+				return ctrl.Result{}, fmt.Errorf("release gameserver active capture lock for failed capture %s: %w", nc.Name, err)
+			}
+		}
 	}
 
 	if err := r.Status().Update(ctx, nc); err != nil {

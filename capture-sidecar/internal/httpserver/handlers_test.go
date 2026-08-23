@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1164,4 +1165,92 @@ func TestStaleDurationTimerCannotKillASuccessor(t *testing.T) {
 	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"status":"running"`) {
 		t.Fatalf("successor status = %d %q", rr.Code, rr.Body.String())
 	}
+}
+
+// TestCaptureENOSPCDuringWritePacketReportsDiskFull pins the fix for
+// ENOSPC from WritePacket being reported as a generic "error" instead of
+// "disk_full". This happens when bufio flush inside WritePacket fails,
+// and is distinguished from other write errors by checking both the
+// error chain and the writer's LimitReason.
+func TestCaptureENOSPCDuringWritePacketReportsDiskFull(t *testing.T) {
+	srv, factory := newTestServer(t)
+	if rr := doStart(t, srv, "cap-enospc", startBody("tcp port 8080", 300, 1000000)); rr.Code != http.StatusOK {
+		t.Fatalf("start = %d", rr.Code)
+	}
+
+	// Feed one packet to establish the capture is running.
+	factory.last(t).feed(frame(0x11))
+	waitForPackets(t, srv, "cap-enospc", 1)
+
+	// Replace the writer with a failing one that returns ENOSPC on WritePacket.
+	srv.mu.Lock()
+	state := srv.currentCapture
+	oldWriter := state.writer
+	srv.mu.Unlock()
+
+	if state == nil {
+		t.Fatal("no capture is running")
+	}
+
+	// Inject a writer that fails on the next WritePacket call.
+	// We'll do this by swapping the writer with one that wraps the original
+	// but fails on the next call.
+	state.mu.Lock()
+	state.writer = &failingWriter{inner: oldWriter, failWith: syscall.ENOSPC}
+	state.mu.Unlock()
+
+	// Feed another packet that will trigger the ENOSPC error.
+	factory.last(t).feed(frame(0x22))
+
+	// Wait for the capture to reach a terminal state.
+	resp := waitForTerminal(t, srv, "cap-enospc")
+
+	// Verify the failure was reported as disk_full, not error.
+	if resp.Status != statusFailed {
+		t.Fatalf("status = %q, want failed", resp.Status)
+	}
+	if resp.StoppingReason != reasonDiskFull {
+		t.Fatalf("stoppingReason = %q, want %q", resp.StoppingReason, reasonDiskFull)
+	}
+	if resp.PacketsWritten < 1 {
+		t.Fatalf("packetsWritten = %d, want >= 1 (the error occurred during write)", resp.PacketsWritten)
+	}
+}
+
+// failingWriter wraps a capture.Writer and fails on the next WritePacket call.
+type failingWriter struct {
+	inner      *capture.Writer
+	failWith   error
+	failCount  int
+	failAfter  int
+}
+
+func (fw *failingWriter) WritePacket(pkt *capture.RawPacket) error {
+	fw.failCount++
+	if fw.failAfter == 0 || fw.failCount > fw.failAfter {
+		if fw.failWith != nil {
+			return fmt.Errorf("disk full during capture: %w", fw.failWith)
+		}
+	}
+	return fw.inner.WritePacket(pkt)
+}
+
+func (fw *failingWriter) Close() error {
+	return fw.inner.Close()
+}
+
+func (fw *failingWriter) BytesWritten() int64 {
+	return fw.inner.BytesWritten()
+}
+
+func (fw *failingWriter) PacketsWritten() int64 {
+	return fw.inner.PacketsWritten()
+}
+
+func (fw *failingWriter) IsLimitReached() bool {
+	return fw.inner.IsLimitReached()
+}
+
+func (fw *failingWriter) LimitReason() string {
+	return fw.inner.LimitReason()
 }

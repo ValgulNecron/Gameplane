@@ -6,13 +6,6 @@
 // rule 2). Endpoints and error-body shape follow
 // specs/003-network-capture-sidecar/contracts/rest-api.md (plain-text
 // httperr bodies, `:verb` route suffixes, capture id as a query param).
-//
-// api/internal/lib/endpoints.ts does not yet export capture-specific
-// wrappers as of this write (a concurrent task adds server-side capture
-// support this same wave) — this file calls the generic `api()` fetcher
-// directly with the contract's exact paths, and only imports `withNS`
-// (already stable/exported) for namespace threading, to avoid depending on
-// wrapper names that might not exist yet.
 import { Fragment, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,8 +23,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { api, APIError } from "@/lib/api";
-import { withNS } from "@/lib/endpoints";
+import { APIError, Captures, CaptureStartBody } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -123,45 +115,55 @@ export function CaptureWidget({ name, ns, gs }: Props) {
 
   const { data: captures } = useQuery({
     queryKey: ["captures", name, ns],
-    queryFn: () => api<NetworkCaptureList>(withNS(`/servers/${name}:captures`, ns)),
+    queryFn: () => Captures.list(name, ns),
     enabled,
     refetchInterval: 5000,
   });
 
+  const activeCapture = (captures?.captures ?? []).find(
+    (c) => c.phase === "Running" || c.phase === "Pending",
+  );
+  const { data: activeCaptureDetails } = useQuery({
+    queryKey: ["capture", name, activeCapture?.captureId, ns],
+    queryFn: () => Captures.get(name, activeCapture!.captureId, ns),
+    enabled: !!activeCapture,
+  });
+
   const enableMut = useMutation({
-    mutationFn: () => api<GameServer>(withNS(`/servers/${name}:capture-enable`, ns), { method: "POST" }),
+    mutationFn: () => Captures.enable(name, ns),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["server", name, ns] }),
   });
   const disableMut = useMutation({
-    mutationFn: () => api<GameServer>(withNS(`/servers/${name}:capture-disable`, ns), { method: "POST" }),
+    mutationFn: () => Captures.disable(name, ns),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["server", name, ns] });
       void qc.invalidateQueries({ queryKey: ["captures", name, ns] });
     },
   });
   const stopMut = useMutation({
-    mutationFn: (captureId: string) =>
-      api<NetworkCapture>(withNS(`/servers/${name}:capture-stop`, ns), {
-        method: "POST",
-        body: { captureId },
-      }),
+    mutationFn: (captureId: string) => Captures.stop(name, captureId, ns),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["captures", name, ns] }),
   });
   const deleteMut = useMutation({
-    mutationFn: (captureId: string) =>
-      api<{ deleted: boolean; captureId: string }>(
-        withNS(`/servers/${name}:capture?id=${encodeURIComponent(captureId)}`, ns),
-        { method: "DELETE" },
-      ),
+    mutationFn: (captureId: string) => Captures.remove(name, captureId, ns),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["captures", name, ns] });
       setDeleteTarget(null);
     },
   });
-
-  function downloadURL(captureId: string): string {
-    return withNS(`/servers/${name}:capture-file?id=${encodeURIComponent(captureId)}`, ns);
-  }
+  const fileMut = useMutation({
+    mutationFn: (captureId: string) => Captures.download(name, captureId, ns),
+    onSuccess: (blob, captureId) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `capture-${captureId}.pcapng`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+  });
 
   if (!enabled) {
     return (
@@ -186,8 +188,7 @@ export function CaptureWidget({ name, ns, gs }: Props) {
   }
 
   const items = captures?.captures ?? [];
-  const active = items.find((c) => c.phase === "Running" || c.phase === "Pending");
-  const completed = items.filter((c) => c !== active);
+  const completed = items.filter((c) => c !== activeCapture);
 
   return (
     <div className="space-y-4 p-6">
@@ -195,18 +196,18 @@ export function CaptureWidget({ name, ns, gs }: Props) {
         <div className="flex items-center gap-3">
           <span
             className={`inline-flex h-5 items-center rounded px-2 text-xs font-mono ${
-              active ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
+              activeCapture ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
             }`}
           >
-            {active ? "Capturing…" : "Ready"}
+            {activeCapture ? "Capturing…" : "Ready"}
           </span>
           <span className="text-xs text-muted">
-            {active
-              ? `Capture started ${formatDuration(elapsedSeconds(active.startedAt || active.createdAt))} ago`
+            {activeCapture
+              ? `Capture started ${formatDuration(elapsedSeconds(activeCapture.startedAt || activeCapture.createdAt))} ago`
               : `Captures will auto-delete after ${retentionHours} hour${retentionHours === 1 ? "" : "s"}`}
           </span>
         </div>
-        {!active && (
+        {!activeCapture && (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => disableMut.mutate()} disabled={disableMut.isPending}>
               <PowerOff className="h-4 w-4" />
@@ -252,17 +253,17 @@ export function CaptureWidget({ name, ns, gs }: Props) {
         </div>
       )}
 
-      {active ? (
+      {activeCapture ? (
         <Card className="space-y-4 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <div className="font-mono text-sm">{active.captureId}</div>
-              <div className="text-xs text-muted">Filter: {active.filter || "default"}</div>
+              <div className="font-mono text-sm">{activeCapture.captureId}</div>
+              <div className="text-xs text-muted">Filter: {activeCapture.filter || "default"}</div>
             </div>
             <Button
               size="sm"
               variant="outline"
-              onClick={() => stopMut.mutate(active.captureId)}
+              onClick={() => stopMut.mutate(activeCapture.captureId)}
               disabled={stopMut.isPending}
             >
               <Square className="h-4 w-4" />
@@ -274,32 +275,32 @@ export function CaptureWidget({ name, ns, gs }: Props) {
             <Meter
               label="Max duration"
               pct={
-                active.maxDurationSeconds
-                  ? (elapsedSeconds(active.startedAt || active.createdAt) / active.maxDurationSeconds) * 100
+                activeCaptureDetails?.maxDurationSeconds
+                  ? (elapsedSeconds(activeCaptureDetails.startedAt || activeCaptureDetails.createdAt) / activeCaptureDetails.maxDurationSeconds) * 100
                   : 0
               }
               accent="warning"
               sub={
-                active.maxDurationSeconds
+                activeCaptureDetails?.maxDurationSeconds
                   ? `Time remaining: ~${formatDuration(
-                      Math.max(0, active.maxDurationSeconds - elapsedSeconds(active.startedAt || active.createdAt)),
+                      Math.max(0, activeCaptureDetails.maxDurationSeconds - elapsedSeconds(activeCaptureDetails.startedAt || activeCaptureDetails.createdAt)),
                     )}`
                   : undefined
               }
             />
             <Meter
               label="Max size"
-              pct={active.maxSizeBytes ? (active.bytesWritten / active.maxSizeBytes) * 100 : 0}
+              pct={activeCaptureDetails?.maxSizeBytes ? (activeCaptureDetails.bytesWritten / activeCaptureDetails.maxSizeBytes) * 100 : 0}
               accent="violet"
               sub={
-                active.maxSizeBytes
-                  ? `Space remaining: ~${formatBytes(Math.max(0, active.maxSizeBytes - active.bytesWritten))}`
+                activeCaptureDetails?.maxSizeBytes
+                  ? `Space remaining: ~${formatBytes(Math.max(0, activeCaptureDetails.maxSizeBytes - activeCaptureDetails.bytesWritten))}`
                   : undefined
               }
             />
           </div>
           <div className="text-xs text-muted">
-            {active.packetsWritten.toLocaleString()} packets captured
+            {(activeCaptureDetails?.packetsWritten ?? activeCapture.packetsWritten).toLocaleString()} packets captured
           </div>
         </Card>
       ) : items.length === 0 ? (

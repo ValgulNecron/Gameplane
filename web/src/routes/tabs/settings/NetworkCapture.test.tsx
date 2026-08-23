@@ -85,16 +85,16 @@ describe("NetworkCaptureSection", () => {
     expect(screen.getByText(/are not redacted/i)).toBeInTheDocument();
   });
 
-  it("defaults the retention unit to hours for the 86400s cluster default", async () => {
+  it("defaults the retention unit to days for the 86400s cluster default", async () => {
     const draft = {
       ...baseDraft,
       spec: { ...baseDraft.spec, capture: { enabled: true, retentionSeconds: 86400 } },
     };
     renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
     const value = await screen.findByLabelText("Retention window value");
-    expect(value).toHaveValue("24");
+    expect(value).toHaveValue("1");
     const unit = screen.getByLabelText("Retention window unit") as HTMLSelectElement;
-    expect(unit.value).toBe("hours");
+    expect(unit.value).toBe("days");
   });
 
   it("converts a value entered in days to seconds on spec.capture.retentionSeconds", async () => {

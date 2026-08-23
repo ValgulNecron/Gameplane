@@ -228,9 +228,8 @@ type CaptureConfiguration struct {
 	// per GDPR Art. 5(1)(e), not a legal mandate — implementations may enforce different policies.
 	// Examples: 86400 (24 hours), 2592000 (30 days).
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=60
 	// +kubebuilder:validation:Maximum=604800
-	// +kubebuilder:default=86400
 	// +optional
 	RetentionSeconds *int32 `json:"retentionSeconds,omitempty"`
 }

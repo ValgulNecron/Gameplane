@@ -489,7 +489,14 @@ func (s *Server) runCapture(ctx context.Context, state *captureState, source cap
 		// A genuine mid-capture failure: link down, socket closed, write
 		// error. The file already holds real packets and stays downloadable,
 		// but the capture must not be reported as a clean completion.
-		s.finish("", state, reasonError, readErr)
+		// When ENOSPC surfaces from WritePacket (rare, since Close normally
+		// catches it during flush), check both the error and the writer's
+		// LimitReason to distinguish disk-full from other errors.
+		reason := reasonError
+		if errors.Is(readErr, syscall.ENOSPC) || state.writer.LimitReason() == capture.LimitReasonDiskFull {
+			reason = reasonDiskFull
+		}
+		s.finish("", state, reason, readErr)
 	}
 }
 
@@ -743,6 +750,30 @@ func (s *Server) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	// io.Copy - actually honours a Range header with 206/416 instead of
 	// silently resending from byte 0 and corrupting a resumed download.
 	http.ServeContent(w, r, name, stat.ModTime(), file)
+}
+
+// FinalizeCurrentCapture finalizes an in-flight capture on server shutdown.
+// If there is a currently-running capture, it stops the capture, closes the
+// writer to finalize the PCAPNG file, and moves it into the completed set.
+// Called after server.Shutdown to ensure the capture is properly finalized
+// instead of leaving the PCAPNG file truncated and unreadable.
+func (s *Server) FinalizeCurrentCapture() {
+	s.mu.Lock()
+	state := s.currentCapture
+	s.mu.Unlock()
+
+	if state != nil {
+		s.finish("", state, reasonUserRequested, nil)
+		// Wait for the capture goroutine to fully exit, honoring the stop drain
+		// timeout to avoid hanging if the goroutine is stuck. Log if it times out
+		// so the operator knows the capture may be truncated.
+		select {
+		case <-state.done:
+		case <-time.After(stopDrainTimeout):
+			slog.Warn("capture goroutine did not exit before finalization deadline",
+				"id", state.id, "timeout", stopDrainTimeout)
+		}
+	}
 }
 
 // HandleDelete handles DELETE /captures/{id} requests to delete a capture file.

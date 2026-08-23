@@ -434,7 +434,7 @@ export interface IdleSpec {
 // -injected ephemeral capture container — see CaptureStatus.ready below.
 export interface CaptureConfiguration {
   enabled?: boolean;
-  // Seconds; 60..7776000. Omit to use the cluster default.
+  // Seconds; 1..604800 (cluster max). Omit to use the cluster default (86400).
   retentionSeconds?: number;
 }
 
@@ -602,6 +602,8 @@ export interface GameServer {
       lastTransitionTime?: string;
     }>;
     startedAt?: string;
+    // Observed state of the capture sidecar for this server.
+    capture?: CaptureStatus;
   };
 }
 

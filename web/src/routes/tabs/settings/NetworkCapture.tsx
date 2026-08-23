@@ -32,7 +32,7 @@ const UNIT_OPTIONS: SelectOption[] = [
 ];
 
 // Picks the coarsest unit that displays the given second count as a whole
-// number, so "86400" reads back as "24 hours" instead of "86400 seconds".
+// number, so "86400" reads back as "1 day" instead of "86400 seconds".
 function bestUnit(seconds: number): RetentionUnit {
   if (seconds > 0 && seconds % 86400 === 0) return "days";
   if (seconds > 0 && seconds % 3600 === 0) return "hours";

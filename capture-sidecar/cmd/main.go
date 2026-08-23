@@ -108,5 +108,10 @@ func main() {
 		slog.Error("graceful shutdown failed", "err", err)
 	}
 
+	// Finalize any in-flight capture so its PCAPNG file is closed and valid
+	// rather than truncated and unreadable. This is called after HTTP shutdown,
+	// so no new requests will start new captures or stop the one we're finalizing.
+	captureServer.FinalizeCurrentCapture()
+
 	slog.Info("capture-sidecar stopped")
 }

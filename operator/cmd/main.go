@@ -237,6 +237,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Convert validated retention bounds to int32 (safe: bounds are 60..604800).
+	captureDefaultRetention32 := int32(captureDefaultRetention)
+	captureMaxRetention32 := int32(captureMaxRetention)
+
 	if err := validateAddressManager(addressManager); err != nil {
 		setupLog.Error(err, "invalid --address-manager value")
 		os.Exit(1)
@@ -368,9 +372,9 @@ func main() {
 		CaptureEnabled:                    captureEnabled,
 		CaptureSidecarImage:               captureSidecarImage,
 		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
-		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
-		CaptureDefaultRetentionSeconds:  int32(captureDefaultRetention),
-		CaptureMaxRetentionSeconds:        int32(captureMaxRetention),
+		CaptureDefaultMaxSizeBytes:        captureDefaultMaxSizeBytes,
+		CaptureDefaultRetentionSeconds:   captureDefaultRetention32,
+		CaptureMaxRetentionSeconds:       captureMaxRetention32,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "NetworkCapture")
 		os.Exit(1)
