@@ -646,3 +646,121 @@ func TestCaptureStart_ConcurrentCaptureRejected(t *testing.T) {
 		t.Errorf("capture name = %q, want cap-existing", captures[0].Name)
 	}
 }
+
+// TestCaptureStart_EmptyFilterAccepted (FR-003) verifies that a capture
+// request with no filter expression (omitted, not explicitly empty string)
+// is accepted by the API handler. The default filter restricting to the
+// server's advertised ports is synthesized by the operator when the
+// NetworkCapture has a nil Filter. The API's job is to pass nil through
+// without rejecting it — this documents that the happy path works.
+func TestCaptureStart_EmptyFilterAccepted(t *testing.T) {
+	k := fakeCaptureClient(newCaptureServerObj("empty-filter", true))
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{
+		Filter:             "",
+		MaxDurationSeconds: 60,
+		MaxSizeBytes:       1024,
+	}
+	rr := do(t, r, http.MethodPost, "/servers/empty-filter:capture-start", body)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("start with empty filter status = %d, want 202; body=%s", rr.Code, rr.Body)
+	}
+
+	// Verify a NetworkCapture was created (filter was not rejected)
+	captures, err := k.ListNetworkCaptures(t.Context(), scope.DefaultNamespace, "empty-filter")
+	if err != nil {
+		t.Fatalf("list network captures: %v", err)
+	}
+	if len(captures) != 1 {
+		t.Errorf("got %d NetworkCaptures created, want 1", len(captures))
+	}
+	if captures[0].Spec.Filter != nil {
+		t.Errorf("capture filter = %q, want nil (empty filter passed through)", *captures[0].Spec.Filter)
+	}
+}
+
+// TestCaptureStart_TTLTooSmallRejected verifies that a TTL in the range
+// [1..59] is rejected with 400 and a message naming the minimum, per
+// FR-007 and the CRD's Minimum=60 constraint on TTLSecondsAfterFinished.
+// This catches both client-supplied values and per-server retentionSeconds
+// overrides before they reach CRD admission, so the user gets actionable
+// feedback instead of an opaque validation error.
+func TestCaptureStart_TTLTooSmallRejected(t *testing.T) {
+	tests := []struct {
+		name           string
+		ttl            int64
+		serverOverride *int64
+	}{
+		{
+			name: "explicit request at boundary minus 1",
+			ttl:  59,
+		},
+		{
+			name: "explicit request at boundary",
+			ttl:  60,
+		},
+		{
+			name:           "server override below minimum",
+			ttl:            0,
+			serverOverride: ptrInt64(30),
+		},
+		{
+			name:           "server override at boundary minus 1",
+			ttl:            0,
+			serverOverride: ptrInt64(59),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			srv := newCaptureServerObj("ttl-small", true)
+			if test.serverOverride != nil {
+				if err := unstructured.SetNestedField(srv.Object, *test.serverOverride, "spec", "capture", "retentionSeconds"); err != nil {
+					t.Fatalf("seed spec.capture.retentionSeconds: %v", err)
+				}
+			}
+
+			k := fakeCaptureClient(srv)
+			r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+			body := captureStartReq{
+				MaxDurationSeconds:    60,
+				MaxSizeBytes:          1024,
+				TTLSecondsAfterFinish: test.ttl,
+			}
+			rr := do(t, r, http.MethodPost, "/servers/ttl-small:capture-start", body)
+
+			if test.ttl >= 60 && test.serverOverride == nil {
+				if rr.Code != http.StatusAccepted {
+					t.Errorf("TTL %d: expected 202, got %d; body=%s", test.ttl, rr.Code, rr.Body)
+				}
+			} else {
+				if rr.Code != http.StatusBadRequest {
+					t.Errorf("TTL %d: expected 400, got %d; body=%s", test.ttl, rr.Code, rr.Body)
+				}
+				if !strings.Contains(rr.Body.String(), "must be 60") {
+					t.Errorf("body = %q, want it to mention TTL must be 60", rr.Body.String())
+				}
+			}
+
+			// Verify no capture was created for the rejected case
+			captures, err := k.ListNetworkCaptures(t.Context(), scope.DefaultNamespace, "ttl-small")
+			if err != nil {
+				t.Fatalf("list network captures: %v", err)
+			}
+			if test.ttl >= 60 && test.serverOverride == nil {
+				if len(captures) != 1 {
+					t.Errorf("expected 1 NetworkCapture created, got %d", len(captures))
+				}
+			} else {
+				if len(captures) != 0 {
+					t.Errorf("expected 0 NetworkCaptures (rejected before creation), got %d", len(captures))
+				}
+			}
+		})
+	}
+}
+
+func ptrInt64(i int64) *int64 {
+	return &i
+}

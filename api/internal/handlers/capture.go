@@ -213,6 +213,20 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 			ttl = int64(*gs.Spec.Capture.RetentionSeconds)
 		}
 	}
+
+	// Validate the lower bound (FR-007 / CRD minimum: 60 seconds).
+	// This catches both client-supplied and per-server-override values
+	// before they reach the operator, so the error is a 400 with actionable
+	// feedback rather than a generic CRD admission failure.
+	if ttl < 60 {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "ttl_too_small", http.StatusBadRequest) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusBadRequest,
+			fmt.Errorf("ttlSecondsAfterFinished must be 60..%d", h.cfg.MaxRetentionSeconds))
+		return
+	}
+
 	if ttl > h.cfg.MaxRetentionSeconds {
 		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "ttl_exceeded", http.StatusBadRequest) {
 			return
@@ -1244,14 +1258,23 @@ func (h *captureHandler) resolveCapture(ctx context.Context, k *kube.Client, ns,
 }
 
 // effectiveTTL resolves the retention window that applies to nc: its own
-// TTLSecondsAfterFinished if set (captureStart always sets this — see the
-// per-server-override resolution there — but the field is optional on the
-// wire type), falling back to the cluster-wide default otherwise.
+// TTLSecondsAfterFinished if set and > 0 (captureStart always sets this —
+// see the per-server-override resolution there — but the field is optional
+// on the wire type and may be zero/nil for legacy captures), falling back
+// to the cluster-wide default otherwise. The result is clamped to the
+// cluster-configured maximum (per FR-007), mirroring the operator's
+// effectiveRetentionSeconds logic. This ensures the API's expiresAt
+// timestamp never diverges from when the operator actually expires the
+// capture.
 func (h *captureHandler) effectiveTTL(nc kube.NetworkCapture) int64 {
-	if nc.Spec.TTLSecondsAfterFinished != nil {
-		return int64(*nc.Spec.TTLSecondsAfterFinished)
+	ttl := h.cfg.DefaultRetentionSeconds
+	if nc.Spec.TTLSecondsAfterFinished != nil && *nc.Spec.TTLSecondsAfterFinished > 0 {
+		ttl = int64(*nc.Spec.TTLSecondsAfterFinished)
 	}
-	return h.cfg.DefaultRetentionSeconds
+	if h.cfg.MaxRetentionSeconds > 0 && ttl > h.cfg.MaxRetentionSeconds {
+		ttl = h.cfg.MaxRetentionSeconds
+	}
+	return ttl
 }
 
 // expiryDeadline returns when nc's retention window closes, or the zero

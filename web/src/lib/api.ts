@@ -26,8 +26,8 @@ function withNS(path: string, ns?: string): string {
 }
 
 // withClusterParam appends the ?cluster= query param for multi-cluster
-// support, the same rule api<T>() applies internally below. Needed here
-// only for the raw-fetch download call, which bypasses api<T>().
+// support, the same rule api<T>() applies internally below. Used only
+// internally by Captures.download().
 function withClusterParam(path: string): string {
   const clusterId = getCurrentCluster();
   if (clusterId === "local") return path;

@@ -311,6 +311,7 @@ export function CaptureWidget({ name, ns, gs }: Props) {
       ) : (
         <section>
           <h2 className="pb-3 text-sm text-muted">Captures</h2>
+          {fileMut.error && <ErrorBanner err={fileMut.error} />}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Completed and failed packet captures for this server</caption>
@@ -390,12 +391,6 @@ export function CaptureWidget({ name, ns, gs }: Props) {
                               <dd>{c.startedAt ? formatRelative(c.startedAt) : "—"}</dd>
                               <dt className="font-medium text-fg">Server</dt>
                               <dd className="font-mono">{c.serverName}</dd>
-                              {c.stoppingReason && (
-                                <>
-                                  <dt className="font-medium text-fg">Stop reason</dt>
-                                  <dd>{c.stoppingReason.replace(/_/g, " ")}</dd>
-                                </>
-                              )}
                             </dl>
                           </td>
                         </tr>
@@ -407,7 +402,7 @@ export function CaptureWidget({ name, ns, gs }: Props) {
             </table>
           </div>
           <p className="pt-2 text-xs text-muted">
-            Showing {completed.length} of {items.length} capture{items.length === 1 ? "" : "s"}
+            Showing {completed.length} of {captures?.total ?? items.length} capture{(captures?.total ?? items.length) === 1 ? "" : "s"}
           </p>
         </section>
       )}
@@ -415,12 +410,7 @@ export function CaptureWidget({ name, ns, gs }: Props) {
       <StartCaptureModal
         open={showStartModal}
         onClose={() => setShowStartModal(false)}
-        onStart={(body) =>
-          api<NetworkCapture>(withNS(`/servers/${name}:capture-start`, ns), {
-            method: "POST",
-            body,
-          })
-        }
+        onStart={(body) => Captures.start(name, body, ns)}
         onStarted={() => {
           setShowStartModal(false);
           void qc.invalidateQueries({ queryKey: ["captures", name, ns] });
@@ -447,13 +437,6 @@ export function CaptureWidget({ name, ns, gs }: Props) {
       />
     </div>
   );
-}
-
-interface StartCaptureBody {
-  filter?: string;
-  maxDurationSeconds: number;
-  maxSizeBytes: number;
-  ttlSecondsAfterFinished?: number;
 }
 
 // Isolated so the (frequent, per-keystroke) form state doesn't re-render

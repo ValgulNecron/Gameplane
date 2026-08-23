@@ -947,6 +947,8 @@ func TestNetworkCapture_RetentionExpiresCompletedCapture(t *testing.T) {
 		t.Fatalf("create network capture: %v", err)
 	}
 
+	// Re-Get the capture to ensure we have the latest resourceVersion before updating status.
+	nc = getNetworkCapture(t, ns, "cap-retention-001")
 	past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
 	nc.Status.Phase = gameplanev1alpha1.CapturePhaseCompleted
 	nc.Status.CompletionTime = &past
@@ -981,7 +983,7 @@ func TestNetworkCapture_RetentionTerminatesStuckRunningCapture(t *testing.T) {
 	ns := newNamespace(t)
 
 	var mu sync.Mutex
-	stopCalls, deleteCalls := 0, 0
+	stopCalls, deleteCalls, getCaptureStatusCalls := 0, 0, 0
 	stub := &StubSidecarClient{
 		stopCaptureFn: func(_ context.Context, _, _, _ string) error {
 			mu.Lock()
@@ -995,10 +997,11 @@ func TestNetworkCapture_RetentionTerminatesStuckRunningCapture(t *testing.T) {
 			mu.Unlock()
 			return nil
 		},
-		// Any GetCaptureStatus call here would mean the retention safety net
-		// didn't short-circuit before the normal polling path — fail loudly.
+		// Count GetCaptureStatus calls to verify the retention safety net short-circuits.
 		getCaptureStatusFn: func(_ context.Context, _, _, _ string) (string, int64, int64, string, error) {
-			t.Error("GetCaptureStatus called on a capture that should have been retention-expired first")
+			mu.Lock()
+			getCaptureStatusCalls++
+			mu.Unlock()
 			return "running", 0, 0, "", nil
 		},
 	}
@@ -1018,6 +1021,8 @@ func TestNetworkCapture_RetentionTerminatesStuckRunningCapture(t *testing.T) {
 		t.Fatalf("create network capture: %v", err)
 	}
 
+	// Re-Get the capture to ensure we have the latest resourceVersion before updating status.
+	nc = getNetworkCapture(t, ns, "cap-stuck-001")
 	past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
 	nc.Status.Phase = gameplanev1alpha1.CapturePhaseRunning
 	nc.Status.StartTime = &past
@@ -1035,13 +1040,16 @@ func TestNetworkCapture_RetentionTerminatesStuckRunningCapture(t *testing.T) {
 	})
 
 	mu.Lock()
-	sCalls, dCalls := stopCalls, deleteCalls
+	sCalls, dCalls, gCalls := stopCalls, deleteCalls, getCaptureStatusCalls
 	mu.Unlock()
 	if sCalls < 1 {
 		t.Error("sidecar StopCapture was never called for the retention-expired running capture")
 	}
 	if dCalls < 1 {
 		t.Error("sidecar DeleteCaptureFile was never called for the retention-expired running capture")
+	}
+	if gCalls > 0 {
+		t.Errorf("sidecar GetCaptureStatus was called %d times; retention safety net should have short-circuited", gCalls)
 	}
 }
 
