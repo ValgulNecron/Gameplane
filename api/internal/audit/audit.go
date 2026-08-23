@@ -305,6 +305,14 @@ func writeConfigTx(ctx context.Context, tx *sql.Tx, key, value string) error {
 // unambiguous byte string. Each field is prefixed with its own length so
 // that no delimiter embedded in attacker-influenced content (path, actor,
 // ip, ...) can make two different rows canonicalize to the same bytes.
+//
+// The Reason field is included in the hash only when non-empty. This maintains
+// backward compatibility with pre-migration rows (which have NULL/empty Reason):
+// their hash was computed without Reason, and Verify must reproduce that
+// bit-for-bit. A non-empty Reason changes the hash, so two rows differing
+// only in Reason will hash differently (after the migration 007_audit_reason.sql
+// lands). This preserves both the integrity of pre-migration rows and the
+// security of post-migration ones.
 func canonicalize(e Event) []byte {
 	var buf bytes.Buffer
 	field := func(s string) {
@@ -318,6 +326,11 @@ func canonicalize(e Event) []byte {
 	field(e.Target)
 	field(strconv.Itoa(e.Status))
 	field(e.IP)
+	// Only include Reason in the canonical form if it is non-empty.
+	// Empty Reason must serialize identically to pre-migration rows (no Reason field at all).
+	if e.Reason != "" {
+		field(e.Reason)
+	}
 	return buf.Bytes()
 }
 
@@ -345,7 +358,7 @@ func computeHash(prevHash string, e Event) string {
 // chained to the same prev_hash, silently forking the chain; making that
 // safe needs a DB-level serialization point (e.g. a Postgres advisory lock
 // keyed on the audit_events table) in addition to this in-process mutex.
-func (a *Auditor) insertChained(ctx context.Context, ts, actor, method, path, target string, status int, ip string) error {
+func (a *Auditor) insertChained(ctx context.Context, ts, actor, method, path, target, reason string, status int, ip string) error {
 	a.chainMu.Lock()
 	defer a.chainMu.Unlock()
 
@@ -360,13 +373,13 @@ func (a *Auditor) insertChained(ctx context.Context, ts, actor, method, path, ta
 		return fmt.Errorf("read previous audit hash: %w", err)
 	}
 
-	e := Event{TS: ts, Actor: actor, Method: method, Path: path, Target: target, Status: status, IP: ip}
+	e := Event{TS: ts, Actor: actor, Method: method, Path: path, Target: target, Status: status, IP: ip, Reason: reason}
 	hash := computeHash(prevHash, e)
 
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO audit_events(ts, actor, method, path, target, status, ip, prev_hash, hash)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		ts, actor, method, path, target, status, ip, prevHash, hash,
+		`INSERT INTO audit_events(ts, actor, method, path, target, status, ip, reason, prev_hash, hash)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		ts, actor, method, path, target, status, ip, reason, prevHash, hash,
 	); err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
 	}
@@ -467,7 +480,7 @@ func (a *Auditor) Verify(ctx context.Context) (VerifyResult, error) {
 	}
 
 	rows, err := a.db.DB.QueryContext(ctx,
-		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''), COALESCE(prev_hash,''), COALESCE(hash,'')
+		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''), COALESCE(reason,''), COALESCE(prev_hash,''), COALESCE(hash,'')
 		 FROM audit_events
 		 WHERE id > ? AND hash IS NOT NULL AND hash <> ''
 		 ORDER BY id ASC`, afterID,
@@ -481,7 +494,7 @@ func (a *Auditor) Verify(ctx context.Context) (VerifyResult, error) {
 	for rows.Next() {
 		var e Event
 		var prevHash, hash string
-		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &prevHash, &hash); err != nil {
+		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &e.Reason, &prevHash, &hash); err != nil {
 			return VerifyResult{}, fmt.Errorf("scan audit row: %w", err)
 		}
 		checked++
@@ -629,7 +642,7 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 
 			// WithoutCancel: the audit write must survive the request context being
 			// cancelled, or a client disconnect would silently punch a hole in the trail.
-			if err := a.insertChained(context.WithoutCancel(ctx), ts, actor, req.Method, path, target, rw.status, clientIP); err != nil {
+			if err := a.insertChained(context.WithoutCancel(ctx), ts, actor, req.Method, path, target, "", rw.status, clientIP); err != nil {
 				// A dropped security-audit write must not be silent — surface it
 				// so an operator notices the trail has a hole.
 				slog.Warn("audit insert failed",
@@ -654,6 +667,71 @@ func Middleware(a *Auditor) func(http.Handler) http.Handler {
 			}
 		})
 	}
+}
+
+// WriteSync performs a synchronous audit write directly from handler code,
+// before the HTTP response is returned to the client. It is used by routes
+// that cannot rely on the generic Middleware (e.g., routes with path
+// parameters instead of query strings, or routes that need the audit event
+// written before the response is sent per FR-006).
+//
+// WriteSync accepts the audit parameters: HTTP method, request path,
+// composite target (server name or "server:captureId" for capture operations),
+// a machine-readable reason for failures (empty on success), and the HTTP
+// status code. Actor and client IP are extracted from the request context
+// (set by Authenticate and ClientIPFromXFF middleware, respectively).
+//
+// On database write failure, WriteSync logs a warning with slog.Warn and
+// returns the error. Handlers must treat audit-write failures as non-fatal:
+// log the error (or rely on WriteSync's internal warning), but do not fail
+// the capture operation itself. The operation's actual HTTP response (status,
+// body) is returned to the client regardless of audit-write success.
+func (a *Auditor) WriteSync(ctx context.Context, method, path, target, reason string, status int) error {
+	// Extract actor from context (set by auth.WithActorHolder).
+	actor := "anonymous"
+	if u := auth.UserFromContext(ctx); u != nil && u.Username != "" {
+		actor = u.Username
+	}
+
+	// Extract client IP from context (set by ClientIPFromXFF middleware).
+	// WriteSync relies on the client IP already being in the context; records
+	// an empty IP if it is not.
+	clientIP := middleware.GetClientIP(ctx)
+
+	// Generate timestamp once so the audit row has a consistent time.
+	ts := time.Now().UTC().Format(time.RFC3339)
+
+	// WithoutCancel: the audit write must survive the request context being
+	// cancelled, or a client disconnect would silently punch a hole in the trail.
+	if err := a.insertChained(context.WithoutCancel(ctx), ts, actor, method, path, target, reason, status, clientIP); err != nil {
+		// A dropped security-audit write must not be silent — surface it
+		// so an operator notices the trail has a hole. The caller does not
+		// fail the operation; this log line is the only signal.
+		slog.Warn("audit write failed",
+			"err", err, "actor", actor, "method", method, "path", path)
+		return fmt.Errorf("audit write: %w", err)
+	}
+
+	// Best-effort fan-out to external sinks (same as Middleware).
+	if a.sink != nil {
+		a.sink.Info("audit",
+			"actor", actor, "method", method, "path", path,
+			"target", target, "status", status, "ip", clientIP, "reason", reason)
+	}
+	if a.webhook != nil {
+		a.webhook.Enqueue(Event{
+			TS: ts, Actor: actor, Method: method, Path: path,
+			Target: target, Status: status, IP: clientIP, Reason: reason,
+		})
+	}
+	if a.s3 != nil {
+		a.s3.Enqueue(Event{
+			TS: ts, Actor: actor, Method: method, Path: path,
+			Target: target, Status: status, IP: clientIP, Reason: reason,
+		})
+	}
+
+	return nil
 }
 
 func shouldLog(req *http.Request) bool {
@@ -733,6 +811,7 @@ type Event struct {
 	Target string `json:"target,omitempty"`
 	Status int    `json:"status"`
 	IP     string `json:"ip,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // Page returns the most recent events, oldest-first within the page.
@@ -742,7 +821,7 @@ func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, err
 		limit = 100
 	}
 	rows, err := a.db.DB.QueryContext(req.Context(),
-		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,'')
+		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''), COALESCE(reason,'')
 		 FROM audit_events
 		 WHERE (? = 0 OR id < ?)
 		 ORDER BY id DESC
@@ -755,7 +834,7 @@ func (a *Auditor) Page(req *http.Request, limit int, before int64) ([]Event, err
 	out := make([]Event, 0, limit)
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP); err != nil {
+		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &e.Reason); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -794,7 +873,7 @@ func likeEscape(s string) string {
 func (a *Auditor) Stream(ctx context.Context, f StreamFilter, fn func(Event) error) error {
 	actorPattern := "%" + likeEscape(strings.ToLower(f.Actor)) + "%"
 	rows, err := a.db.DB.QueryContext(ctx,
-		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,'')
+		`SELECT id, ts, actor, method, path, COALESCE(target,''), status, COALESCE(ip,''), COALESCE(reason,'')
 		 FROM audit_events
 		 WHERE (? = '' OR ts >= ?) AND (? = '' OR ts <= ?)
 		   AND (? = '' OR LOWER(actor) LIKE ? ESCAPE '\')
@@ -812,7 +891,7 @@ func (a *Auditor) Stream(ctx context.Context, f StreamFilter, fn func(Event) err
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP); err != nil {
+		if err := rows.Scan(&e.ID, &e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &e.Reason); err != nil {
 			return err
 		}
 		if err := fn(e); err != nil {

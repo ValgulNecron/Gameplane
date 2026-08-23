@@ -103,16 +103,17 @@ Eight CRD kinds under `gameplane.local/v1alpha1`:
 | **ModuleSource** | `modulesource_types.go` | Registry of module bundles (OCI, git, HTTP, or local). Declares source location, refresh interval, optional credentials Secret, and optional cosign verification policy. Status lists available modules. |
 | **Cluster** | `cluster_types.go` | Metadata for a remote Kubernetes cluster (displayName, kubeconfig Secret ref). Cluster-scoped so multiple control planes can discover each other. Status tracks health (Unknown/Healthy/Unhealthy), lastCheckTime, conditions. |
 
-### Namespaced (4)
+### Namespaced (5)
 
 | Kind | File | Purpose |
 |------|------|---------|
-| **GameServer** | `gameserver_types.go` | Instance of a game server. References a GameTemplate for defaults; Spec declares desired replica count, suspend flag, stop grace period, module customizations, backup trigger. Status tracks phase (Pending/Starting/Running/Stopping/Stopped/Suspended/Failed), pod readiness, agent heartbeat. |
+| **GameServer** | `gameserver_types.go` | Instance of a game server. References a GameTemplate for defaults; Spec declares desired replica count, suspend flag, stop grace period, module customizations, backup trigger, **optional capture configuration**. Status tracks phase (Pending/Starting/Running/Stopping/Stopped/Suspended/Failed), pod readiness, agent heartbeat, **capture sidecar readiness and active capture**. |
 | **Backup** | `backup_types.go` | One-shot backup of a GameServer's data. Spec declares gameServer ref, optional quiesce preferences, strategy (restic or volume snapshot). Status tracks phase (Pending/Running/Succeeded/Failed), snapshot ID, restic output summary. |
 | **BackupSchedule** | `backupschedule_types.go` | Recurring backup schedule for a GameServer. Spec declares cron expression, retention rules (keep-daily, keep-weekly, keep-monthly, keep-yearly), optional suspend. Status reports next firing time, last fire time, retention condition. |
 | **Restore** | `restore_types.go` | One-shot restore of a Backup into a GameServer (typically a fresh copy). Spec refs the source Backup and target GameServer. Status tracks phase (Pending/Suspending/Running/Resuming/Succeeded/Failed), snapshot ID. Coordinates suspend → restic restore Job → resume. |
+| **NetworkCapture** | `networkcapture_types.go` | Opt-in packet-capture session for a GameServer. Spec declares gameServer ref, optional pcap filter, max duration, max file size, and optional TTL. Status tracks phase (Pending/Running/Completed/Failed/Expired), start/completion times, packet/byte counts, and error messages. Owned by its parent GameServer via ownerReferences. |
 
-**Verification:** CRD YAML in `config/crd/` generated from types via `make manifests`. All 8 kinds present and scopes correct (verified against `gameplane.local_*.yaml` files).
+**Verification:** CRD YAML in `config/crd/` generated from types via `make manifests`. All 9 kinds present and scopes correct (verified against `gameplane.local_*.yaml` files): 4 cluster-scoped (GameTemplate, Module, ModuleSource, Cluster) + 5 namespaced (GameServer, Backup, BackupSchedule, Restore, NetworkCapture).
 
 ## Reconcilers
 
@@ -128,6 +129,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Node affinity: honor spec.nodeSelector and spec.affinity preferences.
   - Ingress NetworkPolicy: enforce per-template advertised ports, admit CIDRs from `--game-ingress-from-cidr`.
   - Load-balancer address management: translate spec.networking.addressPool / .address preferences onto the Service based on the cluster's address-manager flavor (MetalLB, Cilium, or none), report assignment status via the AddressAssignment condition.
+  - **Network capture foundation** (**Phase 2 Foundational**): Pre-provision a `captures` emptyDir (1 GiB) unconditionally on every game pod's StatefulSet template (required because pod.spec.volumes is immutable on running pods; a rolling restart of all existing game pods is incurred once on upgrade). Extend the `<gs>-agent` Service with a second numeric ServicePort 9091 for the capture sidecar's control endpoint. RBAC markers grant `pods/ephemeralcontainers` access (get, list, watch, patch, update) and full CRUD on `networkcaptures` resources. The actual capture sidecar injection as an ephemeral container is **planned for Phase 2 Implementation** (T030+).
 - **Split concerns:**
   - `gameserver_config.go`: render config files, template variable substitution.
   - `gameserver_modcreds.go`: mount mod credentials Secrets.
@@ -139,6 +141,16 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - `gameserver_status.go`: phase computation from StatefulSet/Pod state + agent heartbeat, AddressAssignment condition.
   - `gameserver_stop_attach.go`: pod exec attachment for graceful stop commands.
   - `gameserver_extravolumes.go`: user-supplied additional volume mounts.
+- **Capture configuration** (**Phase 2 Foundational**):
+  - **Spec fields (spec.capture):**
+    - `Enabled bool`: Optional flag to enable/disable the capture sidecar injection. When false or omitted, no sidecar is injected. When true, the operator plans to inject the capture sidecar as an ephemeral container (Phase 2 Implementation, T030+).
+    - `RetentionSeconds *int32`: Optional per-GameServer retention override. Clamped to the cluster maximum; defaults to the cluster default when omitted.
+  - **Status fields (status.capture):**
+    - `Ready bool`: Whether the capture sidecar is currently running and able to accept captures. True only while the ephemeral container is Running and listening.
+    - `ActiveCapture *string`: Name of the currently active (Pending or Running) NetworkCapture, if any.
+    - `LastCaptureTime *metav1.Time`: Timestamp of the most recent capture reaching a terminal phase.
+    - `SidecarRestarts int32`: Container restart count for the capture ephemeral container.
+  - **Implementation status:** Foundation (volume, port, RBAC) is in place; sidecar injection and lifecycle reconciliation planned for Phase 2 Implementation.
 - **Status phases:** Pending, Starting, Running, Suspended, Stopping, Stopped, Failed.
 - **Address pool & assignment:**
   - **Inputs:** spec.networking.addressPool (pool name) and spec.networking.address (explicit IP).
@@ -221,6 +233,16 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Report Healthy condition.
   - Requeue on interval (2 minutes).
 
+### NetworkCaptureReconciler
+- **Status:** **Planned for Phase 2 Implementation** (T030+).
+- **Responsibility:** Manage NetworkCapture lifecycle and sidecar injection.
+- **Planned key functions:**
+  - Validate capture requests against cluster-wide retention and size limits.
+  - Inject capture sidecar as ephemeral container when spec.serverRef GameServer is Running.
+  - Monitor capture progress (packets written, file size, duration).
+  - Enforce TTL-based expiration: delete NetworkCapture when status.completionTime + ttlSecondsAfterFinished elapses.
+  - Report capture phase transitions (Pending → Running → Completed/Failed → Expired).
+
 ### Helper Reconcilers & Utilities
 
 - **agent_certs.go:** Generate per-GameServer CA-signed mTLS server cert for agent sidecar (operator CA cert/key injected via flags).
@@ -258,6 +280,10 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 | `--game-ingress-policy` | bool | `true` | Reconcile per-GameServer ingress NetworkPolicy. |
 | `--game-ingress-from-cidr` | strings | `0.0.0.0/0` | Source CIDR(s) admitted to game ports; repeatable; canonical form enforced. |
 | `--address-manager` | string | `none` | Load-balancer address-manager flavor (metallb, cilium, or none). Validated at startup; controls how spec.networking.addressPool / .address preferences are translated onto the Service. |
+| `--capture-enabled` | bool | `false` | Enable the network capture feature cluster-wide. When false, capture capability is disabled and cannot be enabled per-GameServer. |
+| `--capture-default-retention-seconds` | int64 | `86400` | Default retention period (seconds) for completed captures; applied when spec.capture.retentionSeconds is not set. 24-hour default. |
+| `--capture-max-retention-seconds` | int64 | `604800` | Maximum retention period (seconds) for captures; clamps any higher retention request. 7-day default, a storage-limitation-informed constraint. |
+| `--capture-sidecar-image` | string | `ghcr.io/valgulnecron/gameplane/capture-sidecar:dev` | Container image for the network capture sidecar injected when capture is enabled. |
 
 **Manager configuration:**
 - CacheSyncTimeout: 5 minutes (extended from default 2m to tolerate slow apiservers on resource-constrained nodes).
@@ -272,9 +298,9 @@ make generate && make manifests
 ```
 
 Regenerates and commits atomically:
-- `operator/api/v1alpha1/zz_generated.deepcopy.go` — struct deepcopy methods.
-- `operator/config/crd/gameplane.local_*.yaml` — 8 CRD manifests.
-- `operator/config/rbac/*.yaml` — ServiceAccount, Roles, RoleBindings, ClusterRoles, ClusterRoleBindings.
+- `operator/api/v1alpha1/zz_generated.deepcopy.go` — struct deepcopy methods (includes CaptureConfiguration, CaptureStatus, NetworkCapture, NetworkCaptureList, NetworkCaptureSpec, NetworkCaptureStatus deepcopy functions).
+- `operator/config/crd/gameplane.local_*.yaml` — 9 CRD manifests (includes gameplane.local_networkcaptures.yaml; gameplane.local_gameservers.yaml extended with capture spec/status schemas).
+- `operator/config/rbac/*.yaml` — ServiceAccount, Roles, RoleBindings, ClusterRoles, ClusterRoleBindings (includes pods/ephemeralcontainers and networkcaptures CRUD permissions).
 - `charts/gameplane/crds/*.yaml` — copy of CRDs for Helm integration (Helm `crds/` directory + pre-upgrade hook for `kubectl apply --server-side`).
 
 Forgetting codegen leaves the YAML out of sync with types — CI's `make manifests` verify gate will catch it, but envtest runs will fail mysteriously first.
@@ -296,6 +322,10 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 7. **Backup quiesce is best-effort.** If agent unavailable, backup proceeds raw (no pause). If quiesce unsupported (agent returns ErrUnsupported), backup continues degraded (success-with-note).
 
 8. **Remote cluster health checks are non-blocking.** A Cluster with health Unhealthy does not prevent GameServer creation on the local cluster; it surfaces the issue so operators can intervene.
+
+9. **Capture volume is immutable and pre-provisioned.** Every game pod carries a `captures` emptyDir (1 GiB) unconditionally, because Kubernetes pod.spec.volumes is immutable on running pods. This incurs a rolling restart of all existing game pods once on upgrade, regardless of whether capture is ever used. The volume is mounted only on the capture sidecar ephemeral container (injected conditionally based on spec.capture.enabled and cluster-wide `--capture-enabled`), never on the agent or game container.
+
+10. **Capture sidecar uses ephemeral containers, not init/sidecar containers.** Ephemeral containers are added live without restarting the game pod or agent. They have no imagePullPolicy, volumeMounts, or named containerPorts; the capture sidecar's port (9091) is exposed via the numeric TargetPort on the <gs>-agent Service. Disabling capture (spec.capture.enabled: false) does not remove the ephemeral container from running pods (Kubernetes API does not support removal); it stops accepting new captures.
 
 ## Dependencies
 

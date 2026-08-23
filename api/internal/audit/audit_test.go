@@ -542,13 +542,13 @@ func TestVerify_ChecksOutAfterPruneCheckpoint(t *testing.T) {
 	old := now.Add(-48 * time.Hour)
 	for i := 0; i < 3; i++ {
 		if err := a.insertChained(ctx, old.Add(time.Duration(i)*time.Minute).Format(time.RFC3339),
-			"tester", "POST", "/x", "", 200, ""); err != nil {
+			"tester", "POST", "/x", "", "", 200, ""); err != nil {
 			t.Fatalf("insertChained old: %v", err)
 		}
 	}
 	for i := 0; i < 2; i++ {
 		if err := a.insertChained(ctx, now.Add(time.Duration(i)*time.Minute).Format(time.RFC3339),
-			"tester", "POST", "/y", "", 200, ""); err != nil {
+			"tester", "POST", "/y", "", "", 200, ""); err != nil {
 			t.Fatalf("insertChained recent: %v", err)
 		}
 	}
@@ -582,7 +582,7 @@ func TestVerify_ChecksOutAfterPruneCheckpoint(t *testing.T) {
 
 	// A further insert must chain off the checkpoint, not restart at genesis.
 	if err := a.insertChained(ctx, now.Add(10*time.Minute).Format(time.RFC3339),
-		"tester", "POST", "/z", "", 200, ""); err != nil {
+		"tester", "POST", "/z", "", "", 200, ""); err != nil {
 		t.Fatalf("insertChained after prune: %v", err)
 	}
 	result, err = a.Verify(ctx)
@@ -697,7 +697,7 @@ func TestVerify_FullTablePruneDoesNotFalsePositiveOnHead(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		if err := a.insertChained(ctx, now.Add(-48*time.Hour).Add(time.Duration(i)*time.Minute).Format(time.RFC3339),
-			"tester", "POST", "/x", "", 200, ""); err != nil {
+			"tester", "POST", "/x", "", "", 200, ""); err != nil {
 			t.Fatalf("insertChained: %v", err)
 		}
 	}
@@ -737,4 +737,199 @@ func itoa(i int) string {
 		i /= 10
 	}
 	return string(buf[pos:])
+}
+
+// ---- Reason field (migration 007) ----
+
+// TestComputeHash_PreMigrationCompatibility verifies that empty Reason (the
+// zero-value for pre-migration rows) produces the same hash as the field not
+// existing at all. This ensures Verify continues to pass for rows written
+// before migration 007_audit_reason.sql.
+func TestComputeHash_PreMigrationCompatibility(t *testing.T) {
+	// A row with empty Reason (post-migration, but Reason not set)
+	eWithEmptyReason := Event{
+		TS: "2026-01-01T00:00:00Z", Actor: "admin", Method: "POST",
+		Path: "/api/v1/servers", Target: "server1", Status: 200, IP: "127.0.0.1",
+		Reason: "", // empty, should not affect hash
+	}
+
+	// Same row with Reason field omitted (simulate pre-migration)
+	eWithoutReason := Event{
+		TS: "2026-01-01T00:00:00Z", Actor: "admin", Method: "POST",
+		Path: "/api/v1/servers", Target: "server1", Status: 200, IP: "127.0.0.1",
+		// Reason field not even set (zero-value)
+	}
+
+	prevHash := ""
+	hash1 := computeHash(prevHash, eWithEmptyReason)
+	hash2 := computeHash(prevHash, eWithoutReason)
+
+	if hash1 != hash2 {
+		t.Errorf("empty Reason hash = %q, non-Reason hash = %q: hashes must be identical for pre-migration compatibility", hash1, hash2)
+	}
+}
+
+// TestComputeHash_DifferentReasonsDifferentHashes verifies that two rows
+// differing only in a non-empty Reason produce different hashes, so the
+// Reason field is actually part of the integrity check.
+func TestComputeHash_DifferentReasonsDifferentHashes(t *testing.T) {
+	e1 := Event{
+		TS: "2026-01-01T00:00:00Z", Actor: "admin", Method: "POST",
+		Path: "/api/v1/servers", Target: "server1:cap-123", Status: 409, IP: "127.0.0.1",
+		Reason: "capture_already_in_progress",
+	}
+
+	e2 := Event{
+		TS: "2026-01-01T00:00:00Z", Actor: "admin", Method: "POST",
+		Path: "/api/v1/servers", Target: "server1:cap-123", Status: 409, IP: "127.0.0.1",
+		Reason: "server_not_found",
+	}
+
+	prevHash := ""
+	hash1 := computeHash(prevHash, e1)
+	hash2 := computeHash(prevHash, e2)
+
+	if hash1 == hash2 {
+		t.Errorf("different Reason values produced the same hash %q: Reason must participate in the hash", hash1)
+	}
+}
+
+// TestVerify_MixedPreAndPostMigrationRows verifies that the chain-walking
+// Verify function correctly handles a table with both pre-migration rows
+// (no Reason, no hash) and post-migration rows (with Reason, with hash).
+func TestVerify_MixedPreAndPostMigrationRows(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// Insert a pre-migration row (no reason, no hash/prev_hash).
+	// This simulates a row written before migration 007 shipped.
+	if _, err := s.DB.ExecContext(ctx,
+		`INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
+		 VALUES (?, 'legacy', 'POST', '/x', '', 200, '')`,
+		now.Add(-1*time.Hour).Format(time.RFC3339),
+	); err != nil {
+		t.Fatalf("insert legacy row: %v", err)
+	}
+
+	// Insert post-migration rows via insertChained (which sets hash/prev_hash).
+	for i := 0; i < 2; i++ {
+		if err := a.insertChained(ctx,
+			now.Add(time.Duration(i)*time.Minute).Format(time.RFC3339),
+			"admin", "POST", "/y", "", "", 200, ""); err != nil {
+			t.Fatalf("insertChained row %d: %v", i, err)
+		}
+	}
+
+	// Verify must skip the legacy row and check only the chained rows.
+	result, err := a.Verify(ctx)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("result = %+v, want OK (legacy row should be skipped, post-migration rows should verify)", result)
+	}
+	if result.Checked != 2 {
+		t.Fatalf("Checked = %d, want 2 (only the post-migration rows)", result.Checked)
+	}
+}
+
+// TestVerify_WithNonEmptyReason verifies that rows with non-empty Reason fields
+// are correctly verified. This is a regression test for a bug where Verify omitted
+// the Reason column from its SELECT and never scanned it into e.Reason, causing
+// it to recompute a different hash when the row had a non-empty Reason, and
+// falsely report "the row was modified". Both empty and non-empty Reason cases
+// must pass so both branches of canonicalize are tested.
+func TestVerify_WithNonEmptyReason(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// Insert a row with a non-empty Reason.
+	if err := a.insertChained(ctx,
+		now.Add(-1*time.Minute).Format(time.RFC3339),
+		"admin", "POST", "/servers/test:capture-start", "test:cap-123", "capture_in_progress", 409, "127.0.0.1"); err != nil {
+		t.Fatalf("insertChained with reason: %v", err)
+	}
+
+	// Insert a row with an empty Reason (to cover the empty branch).
+	if err := a.insertChained(ctx,
+		now.Format(time.RFC3339),
+		"admin", "POST", "/servers/test", "", "", 200, "127.0.0.1"); err != nil {
+		t.Fatalf("insertChained without reason: %v", err)
+	}
+
+	// Both rows should verify without detecting any tampering.
+	result, err := a.Verify(ctx)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("result = %+v, want OK (rows with non-empty and empty Reason must both verify correctly)", result)
+	}
+	if result.Checked != 2 {
+		t.Fatalf("Checked = %d, want 2", result.Checked)
+	}
+}
+
+// TestWriteSync_HappyPath verifies that WriteSync writes an audit event with
+// the Reason field populated and returns no error.
+func TestWriteSync_HappyPath(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+	ctx := context.Background()
+	ctx = auth.WithUser(ctx, &auth.User{Username: "testuser"})
+
+	err := a.WriteSync(ctx, "GET", "/servers/test:capture-file?id=cap-123", "test:cap-123", "capture_expired", 404)
+	if err != nil {
+		t.Fatalf("WriteSync: %v", err)
+	}
+
+	var reason string
+	if err := s.DB.QueryRowContext(ctx, `SELECT reason FROM audit_events`).Scan(&reason); err != nil {
+		t.Fatalf("query reason: %v", err)
+	}
+	if reason != "capture_expired" {
+		t.Errorf("reason = %q, want 'capture_expired'", reason)
+	}
+
+	// Verify the row's hash is computed with Reason included.
+	var storedHash string
+	var e Event
+	if err := s.DB.QueryRowContext(ctx, `SELECT ts, actor, method, path, target, status, ip, hash FROM audit_events`).Scan(
+		&e.TS, &e.Actor, &e.Method, &e.Path, &e.Target, &e.Status, &e.IP, &storedHash); err != nil {
+		t.Fatalf("query hash: %v", err)
+	}
+	e.Reason = "capture_expired"
+	wantHash := computeHash("", e)
+	if storedHash != wantHash {
+		t.Errorf("stored hash = %q, want %q (computed with Reason)", storedHash, wantHash)
+	}
+}
+
+// TestWriteSync_BrokenDBReturnsErrorButDoesNotCrash verifies that when the
+// database is unavailable, WriteSync logs a warning and returns an error,
+// but does not panic or crash the caller.
+func TestWriteSync_BrokenDBReturnsErrorButDoesNotCrash(t *testing.T) {
+	s := newStore(t)
+	a := New(s)
+
+	// Close the database to simulate a broken connection.
+	s.Close()
+
+	ctx := context.Background()
+	ctx = auth.WithUser(ctx, &auth.User{Username: "testuser"})
+
+	// WriteSync should return an error, but not panic.
+	err := a.WriteSync(ctx, "POST", "/servers/test:capture-start", "test", "invalid_filter", 400)
+	if err == nil {
+		t.Fatal("WriteSync returned no error on a broken DB, want an error")
+	}
+
+	// The error should be wrapped with %w format.
+	if !strings.Contains(err.Error(), "audit write") {
+		t.Errorf("error message = %q, want it to be wrapped with context", err.Error())
+	}
 }

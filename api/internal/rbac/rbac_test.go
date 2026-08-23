@@ -183,6 +183,33 @@ func TestAllow(t *testing.T) {
 		{RoleOperator, "GET", "/roles/permissions", scope.DefaultCluster, true},
 		{RoleOperator, "POST", "/roles", scope.DefaultCluster, false},
 		{RoleAdmin, "POST", "/roles", scope.DefaultCluster, true},
+		// Network captures: admin-only via captures:manage. Operator must be
+		// denied on all 8 routes to prevent silent privilege escalation via the
+		// servers:write catch-all if these rules are reordered.
+		{RoleViewer, "POST", "/servers/foo:capture-enable", scope.DefaultCluster, false},
+		{RoleOperator, "POST", "/servers/foo:capture-enable", scope.DefaultCluster, false},
+		{RoleAdmin, "POST", "/servers/foo:capture-enable", scope.DefaultCluster, true},
+		{RoleViewer, "POST", "/servers/foo:capture-disable", scope.DefaultCluster, false},
+		{RoleOperator, "POST", "/servers/foo:capture-disable", scope.DefaultCluster, false},
+		{RoleAdmin, "POST", "/servers/foo:capture-disable", scope.DefaultCluster, true},
+		{RoleViewer, "POST", "/servers/foo:capture-start", scope.DefaultCluster, false},
+		{RoleOperator, "POST", "/servers/foo:capture-start", scope.DefaultCluster, false},
+		{RoleAdmin, "POST", "/servers/foo:capture-start", scope.DefaultCluster, true},
+		{RoleViewer, "POST", "/servers/foo:capture-stop", scope.DefaultCluster, false},
+		{RoleOperator, "POST", "/servers/foo:capture-stop", scope.DefaultCluster, false},
+		{RoleAdmin, "POST", "/servers/foo:capture-stop", scope.DefaultCluster, true},
+		{RoleViewer, "GET", "/servers/foo:captures", scope.DefaultCluster, false},
+		{RoleOperator, "GET", "/servers/foo:captures", scope.DefaultCluster, false},
+		{RoleAdmin, "GET", "/servers/foo:captures", scope.DefaultCluster, true},
+		{RoleViewer, "GET", "/servers/foo:capture-file", scope.DefaultCluster, false},
+		{RoleOperator, "GET", "/servers/foo:capture-file", scope.DefaultCluster, false},
+		{RoleAdmin, "GET", "/servers/foo:capture-file", scope.DefaultCluster, true},
+		{RoleViewer, "GET", "/servers/foo:capture", scope.DefaultCluster, false},
+		{RoleOperator, "GET", "/servers/foo:capture", scope.DefaultCluster, false},
+		{RoleAdmin, "GET", "/servers/foo:capture", scope.DefaultCluster, true},
+		{RoleViewer, "DELETE", "/servers/foo:capture", scope.DefaultCluster, false},
+		{RoleOperator, "DELETE", "/servers/foo:capture", scope.DefaultCluster, false},
+		{RoleAdmin, "DELETE", "/servers/foo:capture", scope.DefaultCluster, true},
 	}
 	for _, tc := range cases {
 		got := allow(users[tc.role], tc.method, tc.path, tc.cluster, ns)
@@ -241,5 +268,66 @@ func TestAllow_PerNamespace(t *testing.T) {
 func TestAllow_NilUserDenied(t *testing.T) {
 	if allow(nil, "GET", "/servers", scope.DefaultCluster, scope.DefaultNamespace) {
 		t.Error("nil user allowed")
+	}
+}
+
+// TestCaptures_RuleOrdering verifies that capture routes resolve to
+// captures:manage, not servers:write/servers:read, and that the capture
+// rules' slice index is structurally less than the servers:write catch-all.
+// This is a regression guard for the ordering requirement: if capture rules
+// are moved after servers:write, they fall through to that catch-all, which
+// the operator role holds, silently granting capture access to operators and
+// defeating FR-005/SC-005. This test fails immediately on any reordering,
+// without waiting for production traffic or runtime test failures.
+func TestCaptures_RuleOrdering(t *testing.T) {
+	testCases := []struct {
+		method, path string
+	}{
+		{"POST", "/servers/foo:capture-enable"},
+		{"POST", "/servers/foo:capture-disable"},
+		{"POST", "/servers/foo:capture-start"},
+		{"POST", "/servers/foo:capture-stop"},
+		{"GET", "/servers/foo:captures"},
+		{"GET", "/servers/foo:capture-file"},
+		{"GET", "/servers/foo:capture"},
+		{"DELETE", "/servers/foo:capture"},
+	}
+
+	for _, tc := range testCases {
+		r, ok := match(tc.method, tc.path)
+		if !ok {
+			t.Errorf("match(%s, %s) = not matched, want captures:manage", tc.method, tc.path)
+			continue
+		}
+		if r.perm != "captures:manage" {
+			t.Errorf("match(%s, %s) = %q, want captures:manage (actual: %+v)", tc.method, tc.path, r.perm, r)
+		}
+	}
+
+	// Verify capture rules come before servers:write catch-all by checking
+	// their indices in the rules slice. This is a structural assertion that
+	// a future edit moving the capture block fails immediately.
+	captureRuleIndex := -1
+	serversWriteIndex := -1
+	for i, r := range rules {
+		if r.segment == "servers" && r.suffix == ":capture-enable" && r.perm == "captures:manage" {
+			if captureRuleIndex < 0 {
+				captureRuleIndex = i
+			}
+		}
+		if r.segment == "servers" && r.suffix == "" && r.method == "" && r.perm == "servers:write" {
+			serversWriteIndex = i
+		}
+	}
+	if captureRuleIndex < 0 {
+		t.Error("capture :capture-enable rule not found in rules slice")
+	}
+	if serversWriteIndex < 0 {
+		t.Error("servers:write catch-all rule not found in rules slice")
+	}
+	if captureRuleIndex >= 0 && serversWriteIndex >= 0 && captureRuleIndex >= serversWriteIndex {
+		t.Errorf("capture rules (index %d) must precede servers:write catch-all (index %d); "+
+			"a reordering grants capture access to operator role via servers:write fallthrough",
+			captureRuleIndex, serversWriteIndex)
 	}
 }

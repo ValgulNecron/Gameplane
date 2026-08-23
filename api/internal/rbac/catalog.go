@@ -67,6 +67,9 @@ var Catalog = []PermGroup{
 		{Key: "config:read", Label: "View global settings", Namespaced: false},
 		{Key: "config:manage", Label: "Change global settings", Namespaced: false},
 	}},
+	{Resource: "captures", Label: "Network captures", Permissions: []Permission{
+		{Key: "captures:manage", Label: "Enable, start, stop, download, and delete packet captures", Namespaced: true},
+	}},
 }
 
 // permIndex maps every catalog permission key to its definition.

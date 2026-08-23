@@ -104,6 +104,11 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/servers/{name}:start`, `:stop`, `:restart` — actions (operator-handled)
 - `/servers/{name}:collaborators`, `:transfer` — GameServer owner/collaborator management
 - `/servers/{name}/files/*` — file browser, upload, download (proxied to agent); cluster-dispatch
+- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-enable`, `:capture-disable` — sidecar lifecycle actions
+- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-start`, `:capture-stop` — capture session control
+- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:captures` — list active and historical captures
+- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture` — fetch, delete capture metadata
+- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-file` — download capture PCAP data from ephemeral sidecar
 - `/templates/{name}` — CRUD for GameTemplate (cluster-scoped)
 - `/backups/{name}` — CRUD for Backup (namespaced, cluster-dispatch)
 - `/schedules/{name}` — CRUD for BackupSchedule (namespaced, cluster-dispatch)
@@ -164,11 +169,17 @@ schedules:read, schedules:write (namespaced)
 templates:read, templates:write (cluster-scoped)
 modules:read, modules:manage (cluster-scoped)
 destinations:read, destinations:manage (namespaced)
+captures:manage (namespaced)
 cluster:read, cluster:manage (cluster-scoped)
 users:read, users:manage (cluster-scoped)
 roles:read, roles:manage (cluster-scoped)
 audit:read, config:read, config:manage (cluster-scoped)
 ```
+
+**Network capture permissions (Phase 2 Foundational):**
+- `captures:manage` — enables, starts, stops, downloads, and deletes packet captures (namespaced, scoped to GameServer within namespace)
+  - Seeded to **admin role only** via migration `008_captures_rbac.sql`
+  - Future phases will determine grantability to custom roles and operator role
 
 **Binding dimensions:**
 - Per-user + per-role (many-to-many)
@@ -186,13 +197,14 @@ audit:read, config:read, config:manage (cluster-scoped)
 2. **Every mutating request audited:** audit middleware logs actor, method, path, target, status, IP to database + external sinks
 3. **Three-role baseline RBAC:** admin/operator/viewer roles reproduce historical permission matrix exactly
 4. **Multi-dimensional RBAC:** namespace + cluster + owner/collaborator dimensions; cluster gating prevents cross-cluster privilege escalation
-5. **Append-only migrations:** database schema mutations are irreversible (migrations 001-005); no down-migrations
+5. **Append-only migrations:** database schema mutations are irreversible (migrations 001-008); no down-migrations
 6. **Login rate limiting:** per-IP (burst 10, 5/min) + per-user (burst 6, 3/min) on `/auth/login` + OIDC callback
 7. **Audit hash-chain:** each audit_events row includes hash of previous row (prev_hash) + its own content hash (hash); detects DB-level UPDATE/DELETE tampering
 8. **Session CSRF protection:** CSRF token paired with session token; validated on state-changing requests. The CSRF cookie is deliberately **not** `HttpOnly` — the SPA reads it via JS and echoes it back as the `X-Gameplane-CSRF` header (double-submit pattern); making it `HttpOnly` would break the protection it's providing. The session cookie itself stays `HttpOnly`. Cookie *clearing* (logout) always sends `HttpOnly` regardless of the original cookie, since a delete carries no value for a script to read and the browser matches the clear on Name/Domain/Path alone. This is why the `.golangci.yml` gosec G124 exclusion is scoped narrowly to `api/internal/auth/sessions.go`.
 9. **Secure error handling:** internal errors (DB failures, K8s API errors) logged in full; safe generic messages sent to clients
 10. **Cluster dispatch validation:** `?cluster=` matched against registered Cluster CRDs via registry; unknown cluster is a 400
 11. **WebSocket/HTTP proxy path validation:** `api/internal/ws/dialer.go` takes the namespace and pod name from the request path before building the agent's upstream URL. Both are validated as DNS-1123 labels (`isDNS1123Label`) and rejected with a 400 before any URL is constructed — gosec's taint analysis doesn't model a custom validator as a sanitizer, hence the scoped G704 exclusion on that file.
+12. **Capture rule-table ordering (Phase 2 Foundational):** All capture permission checks (8 rules for `:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`, `:captures`, `:capture-file`, `:capture`, and `DELETE :capture`) **MUST precede** the `servers:write` catch-all rule in `api/internal/rbac/rbac.go`. Because all `/servers/{name}:verb` paths match the segment "servers" (via `firstSegment` stripping the verb), an unordered insertion places them after `servers:write`, which the operator role already holds. This would **silently grant capture access to the operator role**, defeating the security requirement that only admin has capture permissions (FR-005/SC-005). Reordering the capture rules after servers:write is a security regression that CI does not currently detect — any future edit must preserve the current order and consider adding a structural test to prevent silent reordering.
 
 ## Dependencies
 
@@ -225,7 +237,7 @@ Verify from `/api/go.mod`.
 - Driver selected at startup via `--db-driver` (sqlite|postgres) + `--db-dsn`
 - Migrations run automatically on startup (`store.Migrate(ctx)`)
 
-### Schema (migrations 001-005)
+### Schema (migrations 001-008)
 
 **001_init.sql:**
 - `users` — username (unique), email, display_name, pw_hash (argon2id), role (legacy, now via role_bindings), created_at, updated_at
@@ -247,6 +259,20 @@ Verify from `/api/go.mod`.
 
 **005_audit_chain.sql:** (hash-chain integrity)
 - Adds `prev_hash` and `hash` columns to `audit_events` for tamper detection
+
+**006_share_links.sql:** (unauthenticated server access tokens)
+- Creates `share_links` table: signed, expiring, revocable tokens for unauthenticated access to a single GameServer's status and connection address, optionally with start capability
+- Token never stored; only SHA-256 hash persisted and indexed for O(1) lookup
+- Pre-existing; not part of the Phase 2 Foundational feature scope
+
+**007_audit_reason.sql:** (Phase 2 Foundational: capture operation auditing)
+- Adds nullable `reason TEXT` column to `audit_events`
+- Used by synchronous audit writes (`Auditor.WriteSync`) to record machine-readable failure reasons for operations like network captures
+- Existing rows retain NULL `reason`; the audit hash-chain boundary preserves backward compatibility (see below)
+
+**008_captures_rbac.sql:** (Phase 2 Foundational: capture permissions)
+- Seeds `captures:manage` permission to admin role via `INSERT INTO role_permissions(role_name, permission) VALUES ('admin', 'captures:manage')`
+- Only admin role grants capture access in Phase 2 Foundational; future phases determine operator role grantability
 
 All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF); API layer is authoritative.
 
@@ -270,6 +296,20 @@ All foreign keys are enforced only on Postgres (modernc-sqlite runs with FK OFF)
 - **Hash-chain:** prev_hash + hash computed at insert time; Verify tool detects tampering
 - **Retention:** optional daily prune (--audit-retention-days)
 - **Webhook sink context threading:** `WebhookSink.Start` runs the delivery worker until its context is cancelled; on cancellation it calls `drain`, which best-effort-ships whatever's still buffered within a short (2s) deadline so a wedged endpoint can't stall process exit. Both `drain` and the normal per-event `post` path detach from the worker's context via `context.WithoutCancel` before making the HTTP call — the `Start` select loop can still pick a buffered event right after cancellation, and a cancelled context would fail that delivery even though the event could still be shipped. Because `WithoutCancel` strips the deadline along with the cancellation, `post` re-applies the caller's own deadline (if any) onto the detached context, so `drain`'s 2s budget survives the trip through `post` instead of being silently discarded.
+
+### Audit Reason field (Phase 2 Foundational)
+
+- **Column:** `audit_events.reason` (nullable TEXT, added by migration `007_audit_reason.sql`)
+- **Purpose:** Machine-readable failure reason for operations that need structured fault reporting beyond HTTP status codes (e.g., network capture start/stop operations)
+- **Middleware (generic requests):** Always passes empty string `""` as reason, so pre-migration rows have NULL reason
+- **Synchronous writes (handler-direct):** Routes that need immediate audit writes before sending the response call `Auditor.WriteSync(ctx, method, path, target, reason, status)` directly, providing the reason
+  - Method signature: `WriteSync(ctx context.Context, method, path, target, reason string, status int) error`
+  - Extracts actor from context (set by auth middleware)
+  - Extracts client IP from context (set by ClientIPFromXFF middleware)
+  - Generates RFC3339 timestamp
+  - Returns error if DB write fails; error is **non-fatal** to the operation (log it, but don't fail the capture operation)
+  - Fan-outs to external sinks (webhook, S3, stdout) with reason included
+- **Hash-chain boundary (backward compatibility):** The `reason` field is included in the canonical hash **only when non-empty**. This preserves the hash computation of pre-migration rows (which have NULL/empty reason) bit-for-bit identical. A post-migration row with a non-empty reason hashes differently, providing integrity protection. Rows differing only in reason will hash differently; Verify still walks the chain correctly across both pre- and post-migration rows.
 
 ### Outbound safety
 - **netguard SSRF guard:** on module registry fetches (HTTP/HTTPS); permissive allowlist (modular, self-hosted registries on loopback OK)

@@ -139,6 +139,42 @@ type GameServerReconciler struct {
 	// ["0.0.0.0/0"] (games are meant to be publicly reachable) when not
 	// supplied. Each entry is validated as a CIDR at operator startup.
 	GameIngressFromCIDRs []string
+
+	// CaptureEnabled is the cluster-wide on/off switch for the network
+	// capture feature. Set from the operator's --capture-enabled flag,
+	// default false. When false, the capture capability cannot be enabled
+	// per-GameServer; when true, it can be toggled on/off per server.
+	CaptureEnabled bool
+
+	// CaptureDefaultRetention is the default retention period for completed
+	// network captures, in seconds. Set from the --capture-default-retention-seconds
+	// operator flag, default 86400 (24 hours). Used when a GameServer's
+	// spec.capture.retentionSeconds is not set.
+	CaptureDefaultRetention int64
+
+	// CaptureMaxRetention is the maximum retention period for network captures,
+	// in seconds. Set from the --capture-max-retention-seconds operator flag,
+	// default 604800 (7 days). Any requested retention higher than this is
+	// clamped to this value.
+	CaptureMaxRetention int64
+
+	// CaptureDefaultMaxDurationSeconds is the default maximum duration for a single
+	// network capture, in seconds. Set from the --capture-default-max-duration-seconds
+	// operator flag, default 300 (5 minutes). Used when a capture request does not
+	// provide an explicit maxDuration.
+	CaptureDefaultMaxDurationSeconds int64
+
+	// CaptureDefaultMaxSizeBytes is the default maximum file size for a single
+	// network capture, in bytes. Set from the --capture-default-max-size-bytes
+	// operator flag, default 5368709120 (5 GiB). Used when a capture request does not
+	// provide an explicit maxSize.
+	CaptureDefaultMaxSizeBytes int64
+
+	// CaptureSidecarImage is the container image for the network capture sidecar
+	// injected when capture is enabled on a GameServer. Set from the
+	// --capture-sidecar-image operator flag so air-gapped installs can point it
+	// at a private registry mirror. Empty falls back to DefaultCaptureSidecarImage.
+	CaptureSidecarImage string
 }
 
 // AgentStopper issues the module-declared graceful stop sequence to a game's
@@ -191,6 +227,9 @@ const (
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;configmaps;secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods;pods/log,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods/ephemeralcontainers,verbs=get;list;watch;patch;update
+// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -883,12 +922,26 @@ func (r *GameServerReconciler) reconcileAgentService(
 			"app.kubernetes.io/name":     "gameplane-game",
 			"app.kubernetes.io/instance": gs.Name,
 		}
-		svc.Spec.Ports = []corev1.ServicePort{{
-			Name:       "agent",
-			Port:       8090,
-			TargetPort: intstr.FromInt32(8090),
-			Protocol:   corev1.ProtocolTCP,
-		}}
+		svc.Spec.Ports = []corev1.ServicePort{
+			{
+				Name:       "agent",
+				Port:       8090,
+				TargetPort: intstr.FromInt32(8090),
+				Protocol:   corev1.ProtocolTCP,
+			},
+			{
+				// Capture sidecar control endpoint (:9091), reachable via the
+				// existing <gs>-agent Service DNS name and mTLS cert SANs.
+				// Ephemeral containers cannot declare a named containerPort,
+				// so the target must be numeric. A Service selects pods, not
+				// containers, so the ephemeral container's port is correctly
+				// fronted once the container exists.
+				Name:       "capture",
+				Port:       9091,
+				TargetPort: intstr.FromInt32(9091),
+				Protocol:   corev1.ProtocolTCP,
+			},
+		}
 		return controllerutil.SetControllerReference(gs, svc, r.Scheme)
 	})
 	return err
@@ -1306,6 +1359,28 @@ func (r *GameServerReconciler) reconcileStatefulSet(
 					},
 				},
 			},
+			{
+				// Pre-provisioned capture emptyDir volume, added UNCONDITIONALLY
+				// to every game pod regardless of spec.capture.enabled. This is
+				// required because ephemeral containers cannot add a volume via
+				// pods/ephemeralcontainers, and pod.spec.volumes is immutable on
+				// a running pod — the volume must already exist in the StatefulSet
+				// pod template before the capture sidecar can be injected
+				// restart-free. This volume is mounted ONLY on the capture
+				// sidecar ephemeral container when capture is enabled; it is
+				// never mounted on the agent or game container (see
+				// agentVolumeMounts' doc comment for why agents cannot have
+				// multiple roots). As a consequence, every existing game pod will
+				// roll once on the release that ships this feature, regardless
+				// of whether capture is ever used — this is documented in the
+				// release upgrade notes.
+				Name: "captures",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{
+						SizeLimit: resource.NewQuantity(1*1024*1024*1024, resource.BinarySI), // 1Gi
+					},
+				},
+			},
 		}
 		// Extra volumes (spec.storage.extra / template's), one PVC each,
 		// mounted only on the game container (see buildGameContainer) — not
@@ -1416,6 +1491,11 @@ const DefaultConfigInitImage = "busybox:1.37.0"
 // advertised ports while a server is asleep, waking it when a player connects.
 // Overridable via the operator's --sentinel-image flag for air-gapped installs.
 const DefaultSentinelImage = "ghcr.io/valgulnecron/gameplane/sentinel:dev"
+
+// DefaultCaptureSidecarImage is the image for the network capture sidecar
+// ephemeral container injected when capture is enabled on a GameServer.
+// Overridable via the operator's --capture-sidecar-image flag for air-gapped installs.
+const DefaultCaptureSidecarImage = "ghcr.io/valgulnecron/gameplane/capture-sidecar:dev"
 
 // configInitImageOrDefault resolves the configured shell image, falling back to
 // the pin when the operator wasn't given a --config-init-image.

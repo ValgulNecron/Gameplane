@@ -268,6 +268,16 @@ spec:
             - --agent-ca-secret-name={{ .Values.api.agentMTLS.caSecretRef.name }}
             - --agent-ca-secret-namespace={{ .Release.Namespace }}
             - --module-namespace={{ .Release.Namespace }}
+            {{- if .Values.capture.enabled }}
+            - --capture-enabled=true
+            - --capture-sidecar-image={{ include "gameplane.captureImage" . }}
+            - --capture-default-retention-seconds={{ .Values.capture.defaultRetentionSeconds }}
+            - --capture-max-retention-seconds={{ .Values.capture.maxRetentionSeconds }}
+            - --capture-default-max-duration-seconds={{ .Values.capture.defaultMaxDurationSeconds }}
+            - --capture-default-max-size-bytes={{ .Values.capture.defaultMaxSizeBytes }}
+            {{- else }}
+            - --capture-enabled=false
+            {{- end }}
             {{- if not (has .Values.operator.addressManager (list "metallb" "cilium" "none")) }}
             {{- fail (printf "operator.addressManager must be one of metallb, cilium or none (got %q). The operator refuses to start on an unknown flavor rather than silently leaving every addressPool preference untranslated." (.Values.operator.addressManager | toString)) }}
             {{- end }}
