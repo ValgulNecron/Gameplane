@@ -89,7 +89,7 @@ type captureState struct {
 	maxSizeBytes    int64
 	filePath        string
 
-	writer *capture.Writer
+	writer capture.PacketWriter
 	cancel context.CancelFunc
 	done   chan struct{}
 	timer  *time.Timer

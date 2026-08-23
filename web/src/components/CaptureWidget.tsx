@@ -33,7 +33,7 @@ import { FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorBanner } from "@/components/backups/ErrorBanner";
 import { formatBytes, formatRelative } from "@/lib/utils";
-import type { GameServer, NetworkCapture, NetworkCaptureList } from "@/types";
+import type { GameServer, NetworkCapture } from "@/types";
 
 const DEFAULT_RETENTION_SECONDS = 86400; // 24h — FR-007's engineering default, not a legal mandate.
 
@@ -451,7 +451,7 @@ function StartCaptureModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onStart: (body: StartCaptureBody) => Promise<NetworkCapture>;
+  onStart: (body: CaptureStartBody) => Promise<NetworkCapture>;
   onStarted: () => void;
 }) {
   const [filter, setFilter] = useState("");

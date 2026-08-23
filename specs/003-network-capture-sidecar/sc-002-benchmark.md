@@ -157,46 +157,22 @@ Run the game-client join bot against the **baseline** server (capture disabled) 
   ```
   Extract min/avg/max RTT from the summary line.
 
-#### Option C: Game-specific join probe
-The test/e2e suite has game-probe helpers (e.g., `test/e2e/gameprobe/minecraft_join_bot`) that:
-- Perform a real join handshake
-- Send gameplay packets (chat, movement)
-- Measure round-trip time for each packet
-- Report packet loss
+#### Option C: In-cluster game-probe via Kubernetes Job
+The test/e2e suite includes hand-rolled protocol probes (`test/e2e/internal/<game>/app.go`) compiled into a `gameplane-test/gameprobe:<tag>` container image and run as in-cluster Kubernetes Jobs. **Important**: these probes are built as single-connection join probes only — they connect, perform a join handshake, and disconnect. They do **NOT** generate sustained traffic, do **NOT** hold connections open, and do **NOT** emit RTT metrics or sustained-load packet-loss measurement. They are useful for verifying the server reaches a playable state, but they cannot serve as a load generator for this benchmark.
 
-**Example invocation** (pseudocode, adapt to actual tool):
+If using in-cluster probes as a starting point, understand their limitations: they prove the server is playable but do not establish the sustained-traffic baseline required for SC-002's latency and packet-loss measurement.
 
-```bash
-# Run baseline traffic for 60 seconds
-test/e2e/gameprobe/minecraft_join_bot \
-  --server "$BASELINE_ADDR:25565" \
-  --timeout 60 \
-  --output /tmp/baseline-metrics.json
+**For real sustained-traffic measurement**, use Option A (real game client) or Option B (iperf3) instead.
 
-# Expected output format:
-# {
-#   "server": "...",
-#   "packets_sent": 1024,
-#   "packets_received": 1020,
-#   "packet_loss_pct": 0.39,
-#   "rtt_min_ms": 2.1,
-#   "rtt_max_ms": 18.5,
-#   "rtt_mean_ms": 5.3,
-#   "rtt_stddev_ms": 2.1,
-#   "throughput_kbps": 512,
-#   "join_latency_ms": 145
-# }
-```
-
-**Record baseline metrics**:
+**Record baseline metrics** (structure depends on your chosen tool):
 - **Packet loss**: packets_sent − packets_received (absolute count)
 - **Packet loss %**: (packets_sent − packets_received) / packets_sent × 100
-- **RTT min/avg/max/stddev**: in milliseconds
-- **Throughput**: in Kbps or Mbps
+- **RTT min/avg/max/stddev**: in milliseconds (if your tool measures it)
+- **Throughput**: in Kbps or Mbps (if your tool measures it)
 
-**Example baseline run**:
+**Example baseline run** (from iperf3):
 ```
-Baseline (Capture OFF):
+Baseline (Capture OFF) via iperf3:
   packets_sent: 2048
   packets_received: 2048
   packet_loss: 0 packets (0.0%)
@@ -209,14 +185,14 @@ Baseline (Capture OFF):
 
 ### Step 2: Capture-Enabled Run
 
-Run the **identical** game-client join bot against the **capture-enabled** server for 60 seconds, **while the active capture is running**, using the same command/parameters as Step 1.
+Run the **identical** traffic generator against the **capture-enabled** server for 60 seconds, **while the active capture is running**, using the same command/parameters as Step 1.
 
 ```bash
 # Start traffic against capture-enabled server (capture already running from Setup step 2)
-test/e2e/gameprobe/minecraft_join_bot \
-  --server "$CAPTURE_ADDR:25565" \
-  --timeout 60 \
-  --output /tmp/capture-metrics.json
+# Use the SAME tool and parameters as Step 1 (iperf3, real game client, or your chosen method)
+
+# Example (iperf3):
+iperf3 -c $CAPTURE_ADDR -p 25565 -u -b 1M -t 60 -R > /tmp/capture-iperf.json
 ```
 
 **Record capture-enabled metrics** in the same format as the baseline.
@@ -316,6 +292,16 @@ capinfos /tmp/benchmark-capture.pcapng
 4. **Capture File Invalid**: File is empty, corrupted, or unreadable by tshark
 
 5. **Resource Exhaustion**: Capture container CPU/memory usage spikes abnormally, or the game server becomes unresponsive during the test
+
+---
+
+## Automated Regression Guard (CI-Side)
+
+**Note on CI-side overhead measurement**: A concurrent specification in `specs/007-capture-overhead-guard/spec.md` defines a **regression guard** for the CI pipeline — an automated check that catches gross regressions in capture overhead without requiring manual benchmark execution. That automated guard is **not a substitute for this live-cluster benchmark**. The automated check validates that overhead remains below a coarse threshold (e.g., no more than 10% CPU increase, no more than 20% packet drops). This live-cluster SC-002 benchmark is more precise: it requires **under 5% latency increase and under 1 additional packet of loss**, thresholds too strict for an automated CI assertion on a kind cluster's synthetic network.
+
+The two are complementary:
+- **Automated regression guard** (CI): Catches accidental regressions early; runs on every commit
+- **SC-002 live-cluster benchmark** (manual): Validates zero perceptible impact against real network conditions; runs before release
 
 ---
 

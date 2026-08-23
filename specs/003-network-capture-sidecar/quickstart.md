@@ -346,7 +346,12 @@ kubectl get pod -l app.kubernetes.io/instance=perf-test-capture-off -w
 
 ### Run Game Traffic and Measure Latency/Loss
 
-This step uses existing e2e game-bot traffic generators (test/e2e/gameprobe or similar) to join both servers and measure network performance.
+For detailed SC-002 benchmark procedure, see `sc-002-benchmark.md`. Below is a summary of the measurement approach.
+
+**Important**: The test/e2e suite includes in-cluster game-probes (`test/e2e/internal/<game>/app.go`), but these are single-connection join probes only — they do NOT generate sustained traffic or emit latency metrics. For this benchmark, use:
+- **Real game client** (recommended for this feature) — e.g., a Minecraft join bot, Terraria client
+- **iperf3** or **ping** — standard tools for network measurement
+- See `sc-002-benchmark.md` "Tools Available" section for full details and tradeoffs
 
 ```bash
 # Start an active capture on server A (to ensure the sidecar is exercising packet I/O)
@@ -361,15 +366,8 @@ CAPTURE_ID=$(curl -s -X POST http://localhost:8000/servers/perf-test-capture-on:
 
 echo "Capture ID on Server A: $CAPTURE_ID"
 
-# Run the game-bot traffic generator (provided by test/e2e/gameprobe or similar)
-# This bot connects to both servers and measures RTT, packet loss, and throughput.
-# Example (pseudocode; actual invocation depends on test harness):
-
-# For CI: invoke the test harness directly
-# For live cluster: manually run bots or a synthetic load tester
-
-# Baseline run: connect bot to perf-test-capture-off, measure for 60 seconds
-# Capture run: connect bot to perf-test-capture-on (with active capture), measure for 60 seconds
+# Run your chosen traffic generator (real client, iperf3, or similar)
+# This measures RTT, packet loss, and throughput for comparison.
 
 # Expected metrics to capture:
 # - Packets sent from client
@@ -379,17 +377,11 @@ echo "Capture ID on Server A: $CAPTURE_ID"
 
 TIMEOUT=60
 echo "Connecting to perf-test-capture-off (no capture)..."
-# (pseudocode; actual tool name and invocation TBD per test harness)
-test/e2e/gameprobe/minecraft_join_bot \
-  --server perf-test-capture-off:25565 \
-  --timeout "$TIMEOUT" \
-  --output /tmp/perf-baseline.json
+# Example: use iperf3 (replace with your tool of choice)
+iperf3 -c perf-test-capture-off -p 25565 -u -b 1M -t "$TIMEOUT" -J > /tmp/perf-baseline.json
 
 echo "Connecting to perf-test-capture-on (with capture)..."
-test/e2e/gameprobe/minecraft_join_bot \
-  --server perf-test-capture-on:25565 \
-  --timeout "$TIMEOUT" \
-  --output /tmp/perf-capture.json
+iperf3 -c perf-test-capture-on -p 25565 -u -b 1M -t "$TIMEOUT" -J > /tmp/perf-capture.json
 ```
 
 ### Analyze Results and Verify Pass Condition

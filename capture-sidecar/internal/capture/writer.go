@@ -15,6 +15,26 @@ import (
 	"github.com/gopacket/gopacket/pcapgo"
 )
 
+// PacketWriter is an interface for writing captured packets to a file.
+// This allows tests to inject mock writers without requiring disk I/O.
+// Real captures use the Writer implementation; tests can provide synthetic
+// failures to exercise error handling paths.
+type PacketWriter interface {
+	// WritePacket writes a single packet to the capture file.
+	// It returns an error wrapping ErrLimitReached once a hard limit is reached.
+	WritePacket(pkt *RawPacket) error
+	// Close finalizes the capture file and closes the underlying file handle.
+	Close() error
+	// BytesWritten returns the size of the capture file on disk.
+	BytesWritten() int64
+	// PacketsWritten returns the cumulative number of packets written.
+	PacketsWritten() int64
+	// IsLimitReached returns true if a hard limit has been reached.
+	IsLimitReached() bool
+	// LimitReason returns the reason why capture stopped (if a limit was reached).
+	LimitReason() string
+}
+
 // DefaultSnaplen is the snaplen used when the caller passes 0: a full
 // Ethernet frame including jumbo frames, i.e. no truncation in practice.
 const DefaultSnaplen uint32 = 65535

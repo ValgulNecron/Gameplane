@@ -1284,7 +1284,7 @@ func (h *captureHandler) expiryDeadline(nc kube.NetworkCapture) time.Time {
 	if nc.Status.CompletionTime == nil {
 		return time.Time{}
 	}
-	return nc.Status.CompletionTime.Time.Add(time.Duration(h.effectiveTTL(nc)) * time.Second)
+	return nc.Status.CompletionTime.Add(time.Duration(h.effectiveTTL(nc)) * time.Second)
 }
 
 // expiresAt computes the display-only expiresAt field: completedAt plus

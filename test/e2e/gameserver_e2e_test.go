@@ -937,7 +937,6 @@ func TestGameServer_NetworkCaptureEphemeralContainer(t *testing.T) {
 	}
 }
 
-
 // TestGameServer_NetworkCaptureRestartCleanup — a pod deletion mid-capture
 // must not leave the NetworkCapture in Running forever. The reconciler must
 // detect the pod restart (UID mismatch) and transition to Failed with a

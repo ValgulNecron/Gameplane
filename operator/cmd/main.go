@@ -221,25 +221,25 @@ func main() {
 	// The maximum of 604800 (7 days) is the ratified ceiling.
 	const captureRetentionMin int64 = 60
 	const captureRetentionMax int64 = 604800
-	if captureDefaultRetention < captureRetentionMin || captureDefaultRetention > captureRetentionMax {
-		setupLog.Error(nil, "invalid --capture-default-retention-seconds value",
-			"value", captureDefaultRetention, "min", captureRetentionMin, "max", captureRetentionMax)
-		os.Exit(1)
+
+	// Helper to validate and convert a retention value; bounds are visible to gosec.
+	validateCaptureRetention := func(name string, value int64) int32 {
+		if value < captureRetentionMin || value > captureRetentionMax {
+			setupLog.Error(nil, "invalid "+name+" value",
+				"value", value, "min", captureRetentionMin, "max", captureRetentionMax)
+			os.Exit(1)
+		}
+		return int32(value) // safe: bounds are 60..604800
 	}
-	if captureMaxRetention < captureRetentionMin || captureMaxRetention > captureRetentionMax {
-		setupLog.Error(nil, "invalid --capture-max-retention-seconds value",
-			"value", captureMaxRetention, "min", captureRetentionMin, "max", captureRetentionMax)
-		os.Exit(1)
-	}
+
+	captureDefaultRetention32 := validateCaptureRetention("--capture-default-retention-seconds", captureDefaultRetention)
+	captureMaxRetention32 := validateCaptureRetention("--capture-max-retention-seconds", captureMaxRetention)
+
 	if captureDefaultRetention > captureMaxRetention {
 		setupLog.Error(nil, "--capture-default-retention-seconds cannot exceed --capture-max-retention-seconds",
 			"default", captureDefaultRetention, "max", captureMaxRetention)
 		os.Exit(1)
 	}
-
-	// Convert validated retention bounds to int32 (safe: bounds are 60..604800).
-	captureDefaultRetention32 := int32(captureDefaultRetention)
-	captureMaxRetention32 := int32(captureMaxRetention)
 
 	if err := validateAddressManager(addressManager); err != nil {
 		setupLog.Error(err, "invalid --address-manager value")
@@ -366,15 +366,15 @@ func main() {
 	// Network capture reconciler (manages NetworkCapture CRD lifecycle and sidecar interaction).
 	captureClient := agent.NewCaptureClient(agentClient)
 	if err := (&controller.NetworkCaptureReconciler{
-		Client:                            mgr.GetClient(),
-		Scheme:                            mgr.GetScheme(),
-		SidecarClient:                     captureClient,
-		CaptureEnabled:                    captureEnabled,
-		CaptureSidecarImage:               captureSidecarImage,
+		Client:                           mgr.GetClient(),
+		Scheme:                           mgr.GetScheme(),
+		SidecarClient:                    captureClient,
+		CaptureEnabled:                   captureEnabled,
+		CaptureSidecarImage:              captureSidecarImage,
 		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
-		CaptureDefaultMaxSizeBytes:        captureDefaultMaxSizeBytes,
-		CaptureDefaultRetentionSeconds:    captureDefaultRetention32,
-		CaptureMaxRetentionSeconds:        captureMaxRetention32,
+		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
+		CaptureDefaultRetentionSeconds:   captureDefaultRetention32,
+		CaptureMaxRetentionSeconds:       captureMaxRetention32,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "NetworkCapture")
 		os.Exit(1)
