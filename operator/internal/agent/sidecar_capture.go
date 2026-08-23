@@ -192,3 +192,46 @@ func (c *CaptureClient) GetCaptureStatus(
 
 	return respParsed.Status, respParsed.PacketsWritten, respParsed.BytesWritten, message, nil
 }
+
+// DeleteCaptureFile calls DELETE /captures/{id} on the sidecar to delete a capture file.
+// Returns nil on success (204) or if the file is already absent (404, idempotent).
+// Returns a distinguishable error if the capture is still running (409).
+// Other status codes return a wrapped error with the status code and response body.
+func (c *CaptureClient) DeleteCaptureFile(
+	ctx context.Context,
+	namespace, server, captureID string,
+) error {
+	if c.Disabled {
+		return nil
+	}
+
+	url := sidecarURL(namespace, server, fmt.Sprintf("/captures/%s", captureID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("capture sidecar: create request: %w", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("capture sidecar: delete capture %s: %w", captureID, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
+
+	switch resp.StatusCode {
+	case http.StatusNoContent:
+		// 204: successfully deleted
+		return nil
+	case http.StatusNotFound:
+		// 404: already absent (idempotent), treat as success
+		// This prevents permanent retry loops during retention cleanup when a file was already deleted
+		return nil
+	case http.StatusConflict:
+		// 409: capture is still running, return a distinguishable error
+		return fmt.Errorf("capture sidecar: delete capture %s: capture still running", captureID)
+	default:
+		// Other errors: wrap with status code and body
+		return fmt.Errorf("capture sidecar: delete capture %s: status %d: %s", captureID, resp.StatusCode, string(respBody))
+	}
+}

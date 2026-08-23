@@ -194,6 +194,40 @@ Per `contracts/capture-sidecar.md`:
 
 8. **Stateless and ephemeral**. The sidecar holds no persistent state. Each sidecar instance is independent; captures are not replicated or synchronized across multiple instances. Partial files left by a crashed sidecar are cleaned up by the pod's deletion or an explicit operator action.
 
+## Edge Cases (US5 — implemented, verified against source)
+
+The "Phase 2 Design" language above (in "Packet Processing", "Shutdown", and "Security Considerations" #5) predates the actual implementation and is stale on a few points, called out below. This section describes verified behavior in `internal/capture/writer.go` and `internal/httpserver/handlers.go`.
+
+### Max-size auto-stop and on-disk accounting
+
+`Writer.WritePacket` tracks `bytesWritten` against real on-disk cost, not payload size: each packet's fixed Enhanced Packet Block overhead (28-byte header + 4-byte trailer = `epbFixedOverheadBytes`, 32 bytes) plus its snaplen-truncated payload plus 4-byte alignment padding. The check runs *after* the packet is written, so the packet that crosses `maxSizeBytes` **is** written to the file — the limit means "stop now that we've reached it", not "reject the packet that would exceed it". Every `WritePacket` call after the limit is reached returns an error wrapping `ErrLimitReached` without writing anything further. `LimitReason()` reports `max_size_reached`.
+
+### ENOSPC / disk-full handling
+
+`pcapgo.NgWriter` buffers writes through an internal 4096-byte `bufio.Writer` (verified against `github.com/gopacket/gopacket@v1.6.1` `pcapgo/ngwrite.go`: `NewNgWriterInterface` calls `bufio.NewWriter(w)`). This means a full disk usually does **not** surface from `WritePacket` — small packets accumulate in that buffer, and a write to the real underlying file only happens once the buffer fills or `Flush`/`Close` runs. `Writer.Close` calls the PCAPNG writer's `Flush()`; if that fails with an error wrapping `syscall.ENOSPC` (checked with `errors.Is`, so it matches whether the error arrives bare or wrapped the way real file-write errors are, e.g. inside `*fs.PathError`), `Close` sets `limitReached = true` and `limitReason = LimitReasonDiskFull` (`"disk_full"`) before returning the error. `WritePacket`'s own write path performs the identical ENOSPC check, covering the case where a packet's write happens to trigger the bufio buffer's internal flush.
+
+**A disk-full capture is never reported as a clean "completed".** In `httpserver.Server.finish`, a non-nil error from `state.writer.Close()` always sets `status = statusFailed`, and if `errors.Is(err, syscall.ENOSPC)` it also sets `reason = reasonDiskFull` — regardless of what reason originally triggered the stop. So a duration- or size-triggered stop that *also* hits ENOSPC during its finalizing flush is still reported `failed` / `disk_full`, overriding the triggering reason.
+
+**The partial file is kept, not deleted.** This corrects the "will... delete the partial file" language elsewhere in this document (see "Shutdown" and "Security Considerations" #5 above): the implemented behavior deliberately retains the file. `finish`'s doc comment in handlers.go states the file "already holds real packets and stays downloadable" after any failure, disk-full included, because a partial capture is still useful for the protocol-reverse-engineering use case this feature exists for. `HandleDownload` continues to serve the file once the capture reaches a terminal state. This is an intentional design decision, not an unimplemented gap — do not add file deletion on ENOSPC to "match" the older language.
+
+### Max-duration auto-stop lifecycle
+
+`HandleStart` arms `time.AfterFunc(time.Duration(maxDurationSeconds)*time.Second, ...)` immediately after publishing the capture as `s.currentCapture`, closing over that specific `*captureState` by pointer identity. On expiry it calls `s.finish("", state, reasonMaxDuration, nil)` — the same finalization path an explicit `POST /captures/{id}/stop` uses: cancel the capture's context (stopping the AF_PACKET read loop), close the writer (flushing and finalizing the PCAPNG file), and publish the terminal status under the capture's mutex. No caller-issued `:stop` is required; `GET /captures/{id}/status` reflects the stopped state and final counters as soon as the timer's `finish` call completes. Because the match is by pointer rather than by id, a stale timer belonging to an earlier capture can never terminate a later capture that happens to reuse the same id (see `TestStaleDurationTimerCannotKillASuccessor`). `Writer.WritePacket` also independently checks `elapsed >= maxDurationSeconds` on every packet it's asked to write (`LimitReasonDurationReached`), so an actively-receiving capture stops just as promptly on the packet path without waiting for the timer.
+
+### Terminal states and stopping reasons
+
+Every capture that reaches a terminal state reports `status` (`completed` or `failed`) and `stoppingReason` via `GET /captures/{id}/status` and the `:stop` response:
+
+| `stoppingReason` | Meaning | `status` |
+|---|---|---|
+| `user_requested` | An explicit `POST /captures/{id}/stop` (or one with an empty/omitted `reason`) ended the capture. | `completed` |
+| `max_duration_reached` | The `maxDurationSeconds` timer, or the writer's own per-packet duration check, fired. | `completed` |
+| `max_size_reached` | `bytesWritten >= maxSizeBytes` was reached; the packet that crossed the limit is included in the file. | `completed` |
+| `disk_full` | The PCAPNG writer's flush hit `syscall.ENOSPC`, discovered at `Close` (the common case) or occasionally at `WritePacket`. | `failed` |
+| `error` | A non-ENOSPC I/O failure mid-capture (kernel-side read error, socket closed, etc.). | `failed` |
+
+`completed` vs. `failed` is decided solely by whether `Writer.Close()` (or the packet-read loop) returned a non-nil error — not by which condition triggered the stop — so a duration- or size-triggered stop that also hits a disk-full flush at `Close` is still reported `failed` / `disk_full`, overriding the reason that started the stop. In every case `Close` runs, and its result is folded into `status`/`stoppingReason`, before the terminal state is published — so any observer that sees a non-`running` status is guaranteed a fully flushed, closed file: `completed` means the file is complete and valid up to the interrupted limit; `failed` / `disk_full` means the file is valid up to whatever was durably flushed before the disk filled, which is not necessarily every packet the capture logically accepted.
+
 ## Security Considerations (Phase 2 Design)
 
 1. **mTLS-only communication**: All endpoints require mTLS. The sidecar validates the client certificate against the cluster CA. No bearer tokens or API keys are used. Only authenticated clients (the API server, the operator) can reach the sidecar's control endpoints.
@@ -204,7 +238,7 @@ Per `contracts/capture-sidecar.md`:
 
 4. **Minimal file access**: The sidecar writes only to `/tmp/captures` and reads only `/etc/tls` for certificates. No other container mounts the capture volume; the captured files are inaccessible within the pod except via the sidecar's own HTTP endpoint.
 
-5. **Disk full handling**: The sidecar will detect `ENOSPC` during file write and stop gracefully, deleting the partial file. The emptyDir's `sizeLimit` enforces a hard disk bound; the sidecar respects it.
+5. **Disk full handling**: The sidecar detects `ENOSPC` during a PCAPNG flush and stops gracefully, marking the capture `failed` with reason `disk_full` and keeping the partial file downloadable (see "Edge Cases" above). The emptyDir's `sizeLimit` enforces a hard disk bound; the sidecar respects it.
 
 6. **No unbounded resource consumption**: Duration and size limits prevent captures from running forever or consuming unlimited disk. The sidecar's own implementation must use bounded buffers (the AF_PACKET MMap'd buffer is sized by the kernel and the configuration, not unlimited).
 
@@ -247,7 +281,7 @@ cd capture-sidecar && go test ./...    # Isolated run
 - **PCAPNG Writer**: valid file creation and closure, size-limit auto-stop with clean finalization, duration-limit auto-stop, max-size enforcement (final file <= limit + one packet).
 - **mTLS**: valid certificate acceptance, invalid/expired certificate rejection, CA validation.
 - **HTTP Handlers**: start/stop/status/file happy paths, 400 on invalid filter, 409 on concurrent capture with same ID, 404 on nonexistent capture, file download with correct headers.
-- **Disk Full**: `ENOSPC` detection, partial file deletion, capture marked failed.
+- **Disk Full**: `ENOSPC` detection on the PCAPNG flush, capture marked `failed` with reason `disk_full`, partial file kept downloadable (see "Edge Cases").
 - **Concurrent Captures**: second start request on a running capture is rejected 409; only one running capture per sidecar at a time.
 
 ## References

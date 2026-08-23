@@ -49,7 +49,7 @@ type CaptureConfig struct {
 }
 
 // MountCapture wires capture endpoints: enable, disable, start, stop,
-// list, get, and download.
+// list, get, download, and delete.
 // cfg contains cluster-wide capture defaults and limits.
 // The mTLS cert paths are used to authenticate to the capture sidecar's :9091 endpoint.
 func MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string) {
@@ -71,6 +71,7 @@ func MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg 
 	r.Get("/servers/{name}:captures", h.captureList)
 	r.Get("/servers/{name}:capture", h.captureGet)
 	r.Get("/servers/{name}:capture-file", h.captureDownload)
+	r.Delete("/servers/{name}:capture", h.captureDelete)
 }
 
 type captureHandler struct {
@@ -198,11 +199,19 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	// Validate and clamp TTL to the cluster max — never trust the client's
-	// requested value directly.
+	// Validate the TTL against the cluster max — never trust the client's
+	// requested value directly. When the client omits ttlSecondsAfterFinished,
+	// fall back to the GameServer's own RetentionSeconds override
+	// (spec.capture.retentionSeconds) if one is set, otherwise the
+	// cluster-wide default. Either way the result is still bounded by the
+	// cluster maximum below: the per-server field is a per-server *default*,
+	// not a per-server cap.
 	ttl := body.TTLSecondsAfterFinish
 	if ttl <= 0 {
 		ttl = h.cfg.DefaultRetentionSeconds
+		if gs.Spec.Capture != nil && gs.Spec.Capture.RetentionSeconds != nil {
+			ttl = int64(*gs.Spec.Capture.RetentionSeconds)
+		}
 	}
 	if ttl > h.cfg.MaxRetentionSeconds {
 		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "ttl_exceeded", http.StatusBadRequest) {
@@ -511,7 +520,21 @@ func captureToggleResponse(name string, u *unstructured.Unstructured) captureTog
 		resp.Status.Capture.LastCaptureTime = &v
 	}
 	if v, found, _ := unstructured.NestedInt64(u.Object, "status", "capture", "sidecarRestarts"); found {
-		resp.Status.Capture.SidecarRestarts = int32(v)
+		// status.capture.sidecarRestarts is int32 on the GameServer CRD type
+		// (operator-authored, not client input), but NestedInt64 always widens
+		// JSON numbers to int64. Clamp defensively rather than narrowing
+		// blindly: this is a response builder with no request/writer to
+		// return a 400 through, so an out-of-range value (a future operator
+		// bug, an apiserver quirk) saturates instead of silently wrapping
+		// into a negative restart count.
+		switch {
+		case v > math.MaxInt32:
+			resp.Status.Capture.SidecarRestarts = math.MaxInt32
+		case v < 0:
+			resp.Status.Capture.SidecarRestarts = 0
+		default:
+			resp.Status.Capture.SidecarRestarts = int32(v)
+		}
 	}
 	return resp
 }
@@ -674,15 +697,20 @@ func (h *captureHandler) captureList(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Audit the list before writing the response (FR-006 / the GET-audit
-	// gap: shouldLog skips GET, so this call site must exist).
+	// Audit the list before writing the response. research.md's Decision 4
+	// (T010) rules list-auditing "RECOMMENDED" (audit-events.md §3.1 flags
+	// it as a product decision outside that contract's scope, not a hard
+	// FR-006 requirement) but implements it here per that recommendation.
+	// shouldLog skips GET unconditionally, so this explicit call site is the
+	// only way the row gets written at all — see auditWriteOrFail's doc
+	// comment and the sibling GET routes in this file for the same pattern.
 	if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, name, "", http.StatusOK) {
 		return
 	}
 
 	items := make([]captureItem, 0, len(captures))
 	for _, c := range captures {
-		if c.Status.Phase == kube.CapturePhaseExpired {
+		if h.isExpired(c) {
 			continue
 		}
 		items = append(items, captureItem{
@@ -724,6 +752,13 @@ type captureGetResp struct {
 }
 
 // captureGet gets a single capture by ID.
+//
+// Deliberately NOT audited. research.md's Decision 4 (T010) rules get-status
+// out of FR-006's mandatory set — unlike list and download, which are
+// audited explicitly elsewhere in this file — and this handler was reviewed
+// to confirm it does not call the generic middleware's write path either
+// (shouldLog excludes GET, so nothing would fire even if it tried). Do not
+// add an explicit audit write here without re-litigating that ruling first.
 // GET /servers/{name}:capture?id={id}
 func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 	k, ok := resolveCluster(w, req, h.reg)
@@ -736,27 +771,16 @@ func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	captureID := req.URL.Query().Get("id")
-	auditPath := fmt.Sprintf("/servers/%s:capture", name)
-	target := fmt.Sprintf("%s:%s", name, captureID)
 
 	if captureID == "" {
-		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "missing_id", http.StatusBadRequest) {
-			return
-		}
 		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("id is required"))
 		return
 	}
 
 	if _, err := k.GetGameServer(req.Context(), ns, name); err != nil {
 		if apierrors.IsNotFound(err) {
-			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "server_not_found", http.StatusNotFound) {
-				return
-			}
 			httperr.WriteCode(w, req, http.StatusNotFound, errors.New("not found"))
 		} else {
-			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "error", http.StatusInternalServerError) {
-				return
-			}
 			httperr.Write(w, req, err)
 		}
 		return
@@ -765,28 +789,15 @@ func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 	nc, err := h.resolveCapture(req.Context(), k, ns, name, captureID)
 	if err != nil {
 		if errors.Is(err, errCaptureNotFound) {
-			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "not_found", http.StatusNotFound) {
-				return
-			}
 			httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found or has expired", captureID))
 		} else {
-			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "error", http.StatusInternalServerError) {
-				return
-			}
 			httperr.Write(w, req, err)
 		}
 		return
 	}
 
-	if nc.Status.Phase == kube.CapturePhaseExpired {
-		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "expired", http.StatusNotFound) {
-			return
-		}
+	if h.isExpired(*nc) {
 		httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found or has expired", captureID))
-		return
-	}
-
-	if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "", http.StatusOK) {
 		return
 	}
 
@@ -804,6 +815,111 @@ func (h *captureHandler) captureGet(w http.ResponseWriter, req *http.Request) {
 		BytesWritten:       quantityValue(nc.Status.BytesWritten),
 		PacketsWritten:     nc.Status.PacketsWritten,
 		ExpiresAt:          h.expiresAt(*nc),
+	})
+}
+
+type captureDeleteResp struct {
+	Deleted   bool   `json:"deleted"`
+	CaptureID string `json:"captureId"`
+}
+
+// captureDelete deletes a NetworkCapture CR. It only ever removes the CR
+// itself (rule 10 — the operator is authoritative): there is no sidecar
+// endpoint to delete an individual capture file (capture-sidecar/specs.md's
+// endpoint table lists only :start/:stop/status/file) and no operator-side
+// finalizer or reconciler that removes /tmp/captures/<id>.pcapng from the
+// ephemeral container's emptyDir on CR deletion today. Capture file
+// lifecycle beyond the CR is therefore unmanaged by this handler; it is
+// left for the retention/TTL mechanism referenced in research.md
+// (Decision 5, T011) rather than invented here.
+// DELETE /servers/{name}:capture?id={id}
+func (h *captureHandler) captureDelete(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(req, "name")
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	captureID := req.URL.Query().Get("id")
+	auditPath := fmt.Sprintf("/servers/%s:capture", name)
+	target := fmt.Sprintf("%s:%s", name, captureID)
+
+	if captureID == "" {
+		if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "missing_id", http.StatusBadRequest) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusBadRequest, errors.New("id is required"))
+		return
+	}
+
+	if _, err := k.GetGameServer(req.Context(), ns, name); err != nil {
+		if apierrors.IsNotFound(err) {
+			if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "server_not_found", http.StatusNotFound) {
+				return
+			}
+			httperr.WriteCode(w, req, http.StatusNotFound, errors.New("not found"))
+		} else {
+			if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "error", http.StatusInternalServerError) {
+				return
+			}
+			httperr.Write(w, req, err)
+		}
+		return
+	}
+
+	nc, err := h.resolveCapture(req.Context(), k, ns, name, captureID)
+	if err != nil {
+		if errors.Is(err, errCaptureNotFound) {
+			if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "not_found", http.StatusNotFound) {
+				return
+			}
+			httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found", captureID))
+		} else {
+			if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "error", http.StatusInternalServerError) {
+				return
+			}
+			httperr.Write(w, req, err)
+		}
+		return
+	}
+
+	// A running capture must be stopped first (rest-api.md's Delete a
+	// Capture preconditions) — deleting the CR out from under a Running
+	// sidecar would orphan the sidecar's in-progress write with no CR left
+	// to record what it was doing.
+	if nc.Status.Phase == kube.CapturePhasePending || nc.Status.Phase == kube.CapturePhaseRunning {
+		if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "capture_running", http.StatusConflict) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusConflict, errors.New("cannot delete a running capture; stop it first"))
+		return
+	}
+
+	if err := k.DeleteNetworkCapture(req.Context(), ns, captureID); err != nil {
+		if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "delete_failed", http.StatusInternalServerError) {
+			return
+		}
+		httperr.Write(w, req, err)
+		return
+	}
+
+	// FR-006 names delete among the mandatory audited operations. DELETE is
+	// a mutating method, so the generic Middleware's shouldLog also covers
+	// this route — but every capture route in this file audits explicitly
+	// via auditWriteOrFail regardless, both for consistency and because
+	// only the handler knows the capture-scoped Target ("name:id") the
+	// generic middleware cannot construct from the URL alone.
+	if !h.auditWriteOrFail(w, req, http.MethodDelete, auditPath, target, "", http.StatusOK) {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(captureDeleteResp{
+		Deleted:   true,
+		CaptureID: captureID,
 	})
 }
 
@@ -877,18 +993,25 @@ func (h *captureHandler) captureDownload(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if nc.Status.Phase != kube.CapturePhaseCompleted {
-		if nc.Status.Phase == kube.CapturePhaseExpired {
-			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "expired", http.StatusNotFound) {
-				return
-			}
-			httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found or has expired", captureID))
-		} else {
-			if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "not_completed", http.StatusConflict) {
-				return
-			}
-			httperr.WriteCode(w, req, http.StatusConflict, errors.New("capture is still running or has failed"))
+	// Checked before the phase branch below: a Completed capture past its own
+	// TTL is logically expired even while the operator's GC reconciler (which
+	// runs on an interval, not instantaneously) hasn't yet flipped its phase
+	// to Expired. Gating on wall-clock time here, not just phase, closes that
+	// window — the capture is inaccessible the moment it crosses its
+	// retention deadline, not merely after GC catches up.
+	if h.isExpired(*nc) {
+		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "expired", http.StatusNotFound) {
+			return
 		}
+		httperr.WriteCode(w, req, http.StatusNotFound, fmt.Errorf("capture '%s' not found or has expired", captureID))
+		return
+	}
+
+	if nc.Status.Phase != kube.CapturePhaseCompleted {
+		if !h.auditWriteOrFail(w, req, http.MethodGet, auditPath, target, "not_completed", http.StatusConflict) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusConflict, errors.New("capture is still running or has failed"))
 		return
 	}
 
@@ -1075,6 +1198,20 @@ func isCaptureEnabled(gs *kube.GameServer) bool {
 // server's own NetworkCaptures — the status field is eventually consistent
 // (populated by the operator's reconciler), so relying on it alone would
 // let a second capture-start race in before that field catches up.
+//
+// This is a best-effort convenience check only, not the authoritative
+// concurrency lock: two concurrent POSTs can both observe hasActiveCapture
+// == false and both pass this gate before either has created its
+// NetworkCapture CR, since there is no compare-and-swap between this read
+// and CreateNetworkCapture below. The real lock — the one that guarantees
+// exactly one Running capture per GameServer — lives in
+// NetworkCaptureReconciler's Pending→Running transition
+// (operator/internal/controller/networkcapture_controller.go), which lists
+// every Pending/Running NetworkCapture for the server and keeps only the
+// earliest-created one, failing the rest with reason
+// "capture_already_in_progress". This check exists purely so the common
+// case (no race) gets a fast, CR-free 409 instead of a create-then-fail
+// round trip.
 func (h *captureHandler) hasActiveCapture(ctx context.Context, k *kube.Client, gs *kube.GameServer, ns, name string) (bool, error) {
 	if gs.Status.Capture != nil && gs.Status.Capture.ActiveCapture != nil && *gs.Status.Capture.ActiveCapture != "" {
 		return true, nil
@@ -1106,19 +1243,52 @@ func (h *captureHandler) resolveCapture(ctx context.Context, k *kube.Client, ns,
 	return nc, nil
 }
 
+// effectiveTTL resolves the retention window that applies to nc: its own
+// TTLSecondsAfterFinished if set (captureStart always sets this — see the
+// per-server-override resolution there — but the field is optional on the
+// wire type), falling back to the cluster-wide default otherwise.
+func (h *captureHandler) effectiveTTL(nc kube.NetworkCapture) int64 {
+	if nc.Spec.TTLSecondsAfterFinished != nil {
+		return int64(*nc.Spec.TTLSecondsAfterFinished)
+	}
+	return h.cfg.DefaultRetentionSeconds
+}
+
+// expiryDeadline returns when nc's retention window closes, or the zero
+// Time if the capture has not completed yet (a Pending/Running capture has
+// no expiry).
+func (h *captureHandler) expiryDeadline(nc kube.NetworkCapture) time.Time {
+	if nc.Status.CompletionTime == nil {
+		return time.Time{}
+	}
+	return nc.Status.CompletionTime.Time.Add(time.Duration(h.effectiveTTL(nc)) * time.Second)
+}
+
 // expiresAt computes the display-only expiresAt field: completedAt plus
 // the capture's own TTL (falling back to the cluster default retention
 // when the capture didn't specify one). Empty until the capture has a
 // completion time.
 func (h *captureHandler) expiresAt(nc kube.NetworkCapture) string {
-	if nc.Status.CompletionTime == nil {
+	deadline := h.expiryDeadline(nc)
+	if deadline.IsZero() {
 		return ""
 	}
-	ttl := h.cfg.DefaultRetentionSeconds
-	if nc.Spec.TTLSecondsAfterFinished != nil {
-		ttl = int64(*nc.Spec.TTLSecondsAfterFinished)
+	return deadline.UTC().Format(time.RFC3339)
+}
+
+// isExpired reports whether nc is unreachable on expiry grounds — either
+// because the operator's retention reconciler has already transitioned it
+// to phase Expired, or because it is logically past its own retention
+// deadline but that reconciler (which runs on an interval, not
+// instantaneously) hasn't caught up yet. Checking wall-clock time directly
+// here, rather than trusting phase alone, is what makes an expired capture
+// inaccessible immediately instead of only after the next GC pass.
+func (h *captureHandler) isExpired(nc kube.NetworkCapture) bool {
+	if nc.Status.Phase == kube.CapturePhaseExpired {
+		return true
 	}
-	return nc.Status.CompletionTime.Time.Add(time.Duration(ttl) * time.Second).UTC().Format(time.RFC3339)
+	deadline := h.expiryDeadline(nc)
+	return !deadline.IsZero() && time.Now().UTC().After(deadline)
 }
 
 // generateCaptureID mints a "cap-<8 hex chars>" identifier, matching the

@@ -178,6 +178,21 @@ Top-level knobs (see `values.yaml` for the full list):
 
   Any other value fails the operator at startup. The operator never writes the
   deprecated `service.spec.loadBalancerIP`.
+- `capture.enabled` — the optional network packet capture sidecar for GameServers
+  (default `false`). When enabled cluster-wide, admins can opt individual GameServers
+  into live AF_PACKET capture with BPF filtering and download PCAPNG files. Captures
+  are always opt-in per server via `spec.capture.enabled` and admin-only (`captures:manage`
+  permission). Key sub-values:
+  - `capture.defaultRetentionSeconds` — how long a completed capture is kept before
+    automatic deletion (default `86400` = 24 hours).
+  - `capture.maxRetentionSeconds` — cluster-wide maximum retention, clamping per-server
+    overrides (default `604800` = 7 days). Reflects a GDPR Art. 5(1)(e) storage-limitation
+    engineering default, not a legal requirement.
+  - `capture.defaultMaxDurationSeconds` — default maximum runtime per capture in seconds
+    (default `300` = 5 minutes); captures stop automatically when the duration is reached.
+  - `capture.defaultMaxSizeBytes` — default maximum file size per capture in bytes
+    (default `5368709120` = 5 GiB); captures stop automatically when the size limit is reached.
+  - `capture.image` — sidecar container image (defaults to `{image.registry}/capture-sidecar:{image.tag}`).
 
 ## Observability
 

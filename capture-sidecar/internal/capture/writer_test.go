@@ -3,7 +3,9 @@ package capture
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -594,5 +596,80 @@ func TestWriter_WriteAfterClose(t *testing.T) {
 	err = w.WritePacket(pkt)
 	if err == nil {
 		t.Fatal("WritePacket after Close should return an error")
+	}
+}
+
+// enospcWriter simulates a filesystem that has run out of space: every Write
+// call fails with syscall.ENOSPC, wrapped the way a real *os.File's write
+// error is (via *fs.PathError), so isENOSPC's errors.Is walk is exercised the
+// same way it would be against a genuine full disk.
+type enospcWriter struct{}
+
+func (enospcWriter) Write(_ []byte) (int, error) {
+	return 0, &fs.PathError{Op: "write", Path: "capture.pcapng", Err: syscall.ENOSPC}
+}
+
+// TestWriter_ENOSPCDuringFlushReportsDiskFull simulates a disk that fills up
+// mid-capture. pcapgo.NgWriter buffers through a 4096-byte bufio.Writer (see
+// github.com/gopacket/gopacket@v1.6.1/pcapgo/ngwrite.go, NewNgWriterInterface
+// -> bufio.NewWriter), so a handful of small packets sit in that buffer
+// without ever reaching the underlying writer: WritePacket must keep
+// succeeding right up until a flush actually hits the full disk, which here
+// is forced by Close. That flush failure must be reported as disk_full, not
+// as a clean completion, and reading back the file - which on a real full
+// disk still holds whatever was durably flushed before the failure, in this
+// case just the header the constructor already flushed - must not panic.
+func TestWriter_ENOSPCDuringFlushReportsDiskFull(t *testing.T) {
+	tmpFile := t.TempDir() + "/test_enospc.pcapng"
+
+	w, err := NewWriter(tmpFile, 300, 1_000_000, 65535, testFilter)
+	if err != nil {
+		t.Fatalf("NewWriter failed: %v", err)
+	}
+
+	// Swap the destination the PCAPNG writer's internal bufio.Writer flushes
+	// to. The real file handle (used by Close's os.File.Close and by the
+	// read-back below) is untouched, so this only affects where buffered
+	// bytes go from here on - exactly what happens when a disk fills up
+	// partway through a capture.
+	w.counter.w = enospcWriter{}
+
+	testPacket := &RawPacket{
+		Data:      []byte{0x01, 0x02, 0x03, 0x04},
+		Timestamp: time.Now(),
+	}
+	for i := 0; i < 3; i++ {
+		if err := w.WritePacket(testPacket); err != nil {
+			t.Fatalf("WritePacket %d before any flush reached the full disk: %v", i, err)
+		}
+	}
+	if w.IsLimitReached() {
+		t.Fatal("limit reached before any flush reached the simulated full disk")
+	}
+
+	err = w.Close()
+	if err == nil {
+		t.Fatal("Close() = nil; want an error from the simulated full disk")
+	}
+	if !errors.Is(err, syscall.ENOSPC) {
+		t.Fatalf("Close() error = %v; want it to wrap syscall.ENOSPC", err)
+	}
+	if !w.IsLimitReached() {
+		t.Fatal("a disk-full flush failure must mark the limit reached")
+	}
+	if w.LimitReason() != LimitReasonDiskFull {
+		t.Errorf("LimitReason() = %q; want %q", w.LimitReason(), LimitReasonDiskFull)
+	}
+
+	// The on-disk file must still be a valid, readable PCAPNG up to whatever
+	// was durably flushed - no panic, no corruption of the bytes that did
+	// make it out.
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		t.Fatalf("open capture file: %v", err)
+	}
+	defer f.Close()
+	if _, err := pcapgo.NewNgReader(f, pcapgo.DefaultNgReaderOptions); err != nil {
+		t.Fatalf("NewNgReader on the durably-flushed prefix failed: %v", err)
 	}
 }

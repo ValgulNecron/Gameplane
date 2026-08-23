@@ -216,6 +216,27 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog := ctrl.Log.WithName("setup")
 
+	// Validate and convert capture retention flags (int64 → int32).
+	// The minimum of 60 seconds aligns with the CRD's own validation.
+	// The maximum of 604800 (7 days) is the ratified ceiling.
+	const captureRetentionMin int64 = 60
+	const captureRetentionMax int64 = 604800
+	if captureDefaultRetention < captureRetentionMin || captureDefaultRetention > captureRetentionMax {
+		setupLog.Error(nil, "invalid --capture-default-retention-seconds value",
+			"value", captureDefaultRetention, "min", captureRetentionMin, "max", captureRetentionMax)
+		os.Exit(1)
+	}
+	if captureMaxRetention < captureRetentionMin || captureMaxRetention > captureRetentionMax {
+		setupLog.Error(nil, "invalid --capture-max-retention-seconds value",
+			"value", captureMaxRetention, "min", captureRetentionMin, "max", captureRetentionMax)
+		os.Exit(1)
+	}
+	if captureDefaultRetention > captureMaxRetention {
+		setupLog.Error(nil, "--capture-default-retention-seconds cannot exceed --capture-max-retention-seconds",
+			"default", captureDefaultRetention, "max", captureMaxRetention)
+		os.Exit(1)
+	}
+
 	if err := validateAddressManager(addressManager); err != nil {
 		setupLog.Error(err, "invalid --address-manager value")
 		os.Exit(1)
@@ -341,13 +362,15 @@ func main() {
 	// Network capture reconciler (manages NetworkCapture CRD lifecycle and sidecar interaction).
 	captureClient := agent.NewCaptureClient(agentClient)
 	if err := (&controller.NetworkCaptureReconciler{
-		Client:                           mgr.GetClient(),
-		Scheme:                           mgr.GetScheme(),
-		SidecarClient:                    captureClient,
-		CaptureEnabled:                   captureEnabled,
-		CaptureSidecarImage:              captureSidecarImage,
+		Client:                            mgr.GetClient(),
+		Scheme:                            mgr.GetScheme(),
+		SidecarClient:                     captureClient,
+		CaptureEnabled:                    captureEnabled,
+		CaptureSidecarImage:               captureSidecarImage,
 		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
 		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
+		CaptureDefaultRetentionSeconds:  int32(captureDefaultRetention),
+		CaptureMaxRetentionSeconds:        int32(captureMaxRetention),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "NetworkCapture")
 		os.Exit(1)

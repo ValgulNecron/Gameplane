@@ -7,6 +7,7 @@ import {
   Layers,
   MapPin,
   Network,
+  RadioTower,
   Settings as SettingsIcon,
   ShieldCheck,
   Sliders,
@@ -27,6 +28,7 @@ import { NetworkingSection } from "./settings/Networking";
 import { EnvVarsSection } from "./settings/EnvVars";
 import { LifecycleSection } from "./settings/Lifecycle";
 import { BackupsSection } from "./settings/Backups";
+import { NetworkCaptureSection } from "./settings/NetworkCapture";
 import { AccessSection } from "./settings/Access";
 import { DangerSection } from "./settings/Danger";
 const PlacementSection = lazy(() =>
@@ -41,6 +43,7 @@ type SectionKey =
   | "env"
   | "lifecycle"
   | "backups"
+  | "capture"
   | "placement"
   | "access"
   | "danger";
@@ -53,6 +56,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof SettingsIcon }[] 
   { key: "env",        label: "Environment",   icon: Variable },
   { key: "lifecycle",  label: "Lifecycle",     icon: Sliders },
   { key: "backups",    label: "Scheduled backups", icon: CalendarClock },
+  { key: "capture",    label: "Network capture", icon: RadioTower },
   { key: "placement",  label: "Placement",     icon: MapPin },
   { key: "access",     label: "RBAC & access", icon: ShieldCheck },
   { key: "danger",     label: "Danger zone",   icon: AlertTriangle },
@@ -210,6 +214,7 @@ export function SettingsTab({ gs, name, ns, onDirtyChange }: SettingsTabProps) {
           {section === "env"        && <EnvVarsSection    draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "lifecycle"  && <LifecycleSection  draft={draft} onChange={onChangeDraft} template={template} />}
           {section === "backups"    && <BackupsSection    draft={draft} onChange={onChangeDraft} template={template} />}
+          {section === "capture"    && <NetworkCaptureSection draft={draft} onChange={onChangeDraft} template={template} onValidityChange={setSectionValid} />}
           {section === "placement"  && (
             <Suspense fallback={<div className="text-sm text-muted">Loading…</div>}>
               <PlacementSection

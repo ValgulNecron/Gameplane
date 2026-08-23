@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -193,6 +194,7 @@ func (s *Server) Routes(mw func(http.Handler) http.Handler) *http.ServeMux {
 	mux.Handle("POST /captures/{id}/stop", mw(http.HandlerFunc(s.HandleStop)))
 	mux.Handle("GET /captures/{id}/status", mw(http.HandlerFunc(s.HandleStatus)))
 	mux.Handle("GET /captures/{id}/file", mw(http.HandlerFunc(s.HandleDownload)))
+	mux.Handle("DELETE /captures/{id}", mw(http.HandlerFunc(s.HandleDelete)))
 	return mux
 }
 
@@ -319,6 +321,29 @@ func (s *Server) lookup(id string) *captureState {
 	return s.completed[id]
 }
 
+// newCaptureContext derives the context that will govern one capture
+// goroutine's lifetime. It deliberately returns a child of s.baseCtx (the
+// server's own lifetime - see the baseCtx field doc), not of the caller's
+// request context: a capture must keep running after the "started" response
+// has been sent, and must only stop on its own duration/size limit, an
+// explicit stop, or process shutdown.
+//
+// The unused context.Context parameter (the caller passes r.Context()) exists
+// purely so contextcheck's static analysis has a validated context.Context
+// value to anchor this function's return to. Without it, the linter's
+// whole-program walk cannot see that s.baseCtx already traces back to a
+// legitimately inherited context (the one NewServer was constructed with,
+// itself signal.NotifyContext wrapping the process's root context in
+// cmd/main.go) and independently
+// re-flags both the WithCancel call here and every downstream call site
+// (including the `go` statement that spawns runCapture) as a "non-inherited
+// new context" - even though the break from the request context is
+// deliberate, not accidental. This is the pattern the analyzer's own docs
+// recommend for exactly this case: https://github.com/kkHAIKE/contextcheck#example.
+func (s *Server) newCaptureContext(_ context.Context) (context.Context, context.CancelFunc) {
+	return context.WithCancel(s.baseCtx)
+}
+
 // HandleStart handles POST /captures/{id}/start requests to begin capturing.
 func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -395,7 +420,7 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	// Derived from s.baseCtx (the server's own lifetime), not r.Context(): see
 	// the baseCtx field doc for why this must outlive the HTTP request.
-	ctx, cancel := context.WithCancel(s.baseCtx)
+	ctx, cancel := s.newCaptureContext(r.Context())
 	state := &captureState{
 		id:              id,
 		startedAt:       now,
@@ -718,4 +743,33 @@ func (s *Server) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	// io.Copy - actually honours a Range header with 206/416 instead of
 	// silently resending from byte 0 and corrupting a resumed download.
 	http.ServeContent(w, r, name, stat.ModTime(), file)
+}
+
+// HandleDelete handles DELETE /captures/{id} requests to delete a capture file.
+func (s *Server) HandleDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validCaptureID(id) {
+		http.Error(w, "capture id required", http.StatusBadRequest)
+		return
+	}
+
+	s.mu.Lock()
+	running := s.currentCapture != nil && s.currentCapture.id == id
+	s.mu.Unlock()
+
+	if running {
+		http.Error(w, "capture is still running", http.StatusConflict)
+		return
+	}
+
+	filePath := s.captureFilePath(id)
+	err := os.Remove(filepath.Clean(filePath))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		slog.Error("failed to delete capture file", "id", id, "err", err)
+		http.Error(w, fmt.Sprintf("failed to delete capture file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("capture file deleted", "id", id)
+	w.WriteHeader(http.StatusNoContent)
 }

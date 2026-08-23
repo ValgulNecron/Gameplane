@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -66,6 +68,27 @@ func newCaptureNetworkCapture(name, serverName, phase string) *unstructured.Unst
 		"spec":       map[string]any{"serverRef": map[string]any{"name": serverName}},
 		"status":     map[string]any{"phase": phase},
 	}}
+}
+
+// newCompletedNetworkCapture builds a Completed NetworkCapture fixture whose
+// status.completionTime is completedAgo in the past and whose
+// spec.ttlSecondsAfterFinished is ttlSeconds, so callers can position it on
+// either side of its retention deadline. This exercises the wall-clock
+// expiry check (captureHandler.isExpired/expiryDeadline) independently of
+// the operator's own phase transition to Expired — the whole point of T070
+// is that a capture past its deadline is refused even while its phase is
+// still Completed, ahead of the GC reconciler catching up.
+func newCompletedNetworkCapture(t *testing.T, name, serverName string, completedAgo time.Duration, ttlSeconds int64) *unstructured.Unstructured {
+	t.Helper()
+	nc := newCaptureNetworkCapture(name, serverName, "Completed")
+	completionTime := time.Now().UTC().Add(-completedAgo).Format(time.RFC3339)
+	if err := unstructured.SetNestedField(nc.Object, completionTime, "status", "completionTime"); err != nil {
+		t.Fatalf("seed status.completionTime: %v", err)
+	}
+	if err := unstructured.SetNestedField(nc.Object, ttlSeconds, "spec", "ttlSecondsAfterFinished"); err != nil {
+		t.Fatalf("seed spec.ttlSecondsAfterFinished: %v", err)
+	}
+	return nc
 }
 
 func newCaptureAuditor(t *testing.T) *audit.Auditor {
@@ -294,5 +317,258 @@ func TestCaptureEnableDisable_RBAC_OperatorForbidden(t *testing.T) {
 		if rr.Code != http.StatusForbidden {
 			t.Errorf("operator %s status = %d, want 403 (servers:write must not substitute for captures:manage); body=%s", path, rr.Code, rr.Body)
 		}
+	}
+}
+
+// captureTestCfg is the cluster-wide capture config shared by the T069/T070
+// tests below: default retention 24h, cluster max 7 days.
+var captureTestCfg = CaptureConfig{
+	FeatureEnabled:          true,
+	DefaultRetentionSeconds: 86400,
+	MaxRetentionSeconds:     604800,
+}
+
+func decodeCaptureStart(t *testing.T, rr *httptest.ResponseRecorder) captureStartResp {
+	t.Helper()
+	var resp captureStartResp
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v; body=%s", err, rr.Body)
+	}
+	return resp
+}
+
+// TestCaptureStart_TTLOmittedDefaultsTo24h (T069) verifies an omitted
+// ttlSecondsAfterFinished defaults to the cluster's DefaultRetentionSeconds
+// (86400s / 24h, FR-007) when the GameServer carries no retentionSeconds
+// override.
+func TestCaptureStart_TTLOmittedDefaultsTo24h(t *testing.T) {
+	k := fakeCaptureClient(newCaptureServerObj("ttl-default", true))
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{MaxDurationSeconds: 60, MaxSizeBytes: 1024}
+	rr := do(t, r, http.MethodPost, "/servers/ttl-default:capture-start", body)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d, want 202; body=%s", rr.Code, rr.Body)
+	}
+
+	resp := decodeCaptureStart(t, rr)
+	if resp.TTLSecondsAfterFinish != 86400 {
+		t.Errorf("ttlSecondsAfterFinished = %d, want 86400 (cluster default)", resp.TTLSecondsAfterFinish)
+	}
+}
+
+// TestCaptureStart_TTLUnderMaxPasses (T069) verifies a client-supplied TTL
+// under the cluster maximum is accepted and echoed back unchanged.
+func TestCaptureStart_TTLUnderMaxPasses(t *testing.T) {
+	k := fakeCaptureClient(newCaptureServerObj("ttl-under", true))
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{MaxDurationSeconds: 60, MaxSizeBytes: 1024, TTLSecondsAfterFinish: 3600}
+	rr := do(t, r, http.MethodPost, "/servers/ttl-under:capture-start", body)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d, want 202; body=%s", rr.Code, rr.Body)
+	}
+
+	resp := decodeCaptureStart(t, rr)
+	if resp.TTLSecondsAfterFinish != 3600 {
+		t.Errorf("ttlSecondsAfterFinished = %d, want 3600 (requested value, under cluster max)", resp.TTLSecondsAfterFinish)
+	}
+}
+
+// TestCaptureStart_TTLOverMaxRejected (T069) verifies a client-supplied TTL
+// exceeding the cluster maximum is rejected with 400 and the contract's
+// documented message shape, per rest-api.md's "requested retention Xs
+// exceeds cluster maximum Ys" — a hard rejection, not a silent clamp.
+func TestCaptureStart_TTLOverMaxRejected(t *testing.T) {
+	k := fakeCaptureClient(newCaptureServerObj("ttl-over", true))
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{MaxDurationSeconds: 60, MaxSizeBytes: 1024, TTLSecondsAfterFinish: 700000}
+	rr := do(t, r, http.MethodPost, "/servers/ttl-over:capture-start", body)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("start status = %d, want 400; body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "exceeds cluster maximum") {
+		t.Errorf("body = %q, want it to mention exceeding the cluster maximum", rr.Body.String())
+	}
+
+	captures, err := k.ListNetworkCaptures(t.Context(), scope.DefaultNamespace, "ttl-over")
+	if err != nil {
+		t.Fatalf("list network captures: %v", err)
+	}
+	if len(captures) != 0 {
+		t.Errorf("got %d NetworkCaptures created, want 0 (rejected before creation)", len(captures))
+	}
+}
+
+// TestCaptureStart_TTLOmittedHonorsPerServerOverride (T069) verifies that
+// when the request omits ttlSecondsAfterFinished, a GameServer with
+// spec.capture.retentionSeconds set uses that value as the default instead
+// of the cluster-wide DefaultRetentionSeconds — the override is still
+// bounded by the cluster maximum but replaces the fallback, not the ceiling.
+func TestCaptureStart_TTLOmittedHonorsPerServerOverride(t *testing.T) {
+	srv := newCaptureServerObj("ttl-override", true)
+	if err := unstructured.SetNestedField(srv.Object, int64(7200), "spec", "capture", "retentionSeconds"); err != nil {
+		t.Fatalf("seed spec.capture.retentionSeconds: %v", err)
+	}
+	k := fakeCaptureClient(srv)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	body := captureStartReq{MaxDurationSeconds: 60, MaxSizeBytes: 1024}
+	rr := do(t, r, http.MethodPost, "/servers/ttl-override:capture-start", body)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d, want 202; body=%s", rr.Code, rr.Body)
+	}
+
+	resp := decodeCaptureStart(t, rr)
+	if resp.TTLSecondsAfterFinish != 7200 {
+		t.Errorf("ttlSecondsAfterFinished = %d, want 7200 (GameServer's retentionSeconds override, not the 86400 cluster default)", resp.TTLSecondsAfterFinish)
+	}
+}
+
+// TestCaptureList_OmitsExpiredAndPastTTL (T070) verifies List omits both an
+// Expired-phase capture and a Completed capture that is already past its
+// own retention deadline but hasn't been reconciled to Expired yet — the
+// wall-clock check, not phase alone, is what makes the second one disappear
+// immediately instead of only after the operator's GC pass.
+func TestCaptureList_OmitsExpiredAndPastTTL(t *testing.T) {
+	srv := newCaptureServerObj("list-expiry", true)
+	expiredPhase := newCaptureNetworkCapture("cap-expired-phase", "list-expiry", "Expired")
+	pastTTL := newCompletedNetworkCapture(t, "cap-past-ttl", "list-expiry", 2*time.Hour, 3600)
+	reachable := newCompletedNetworkCapture(t, "cap-reachable", "list-expiry", time.Minute, 86400)
+
+	k := fakeCaptureClient(srv, expiredPhase, pastTTL, reachable)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/list-expiry:captures", nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200; body=%s", rr.Code, rr.Body)
+	}
+
+	var resp captureListResp
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v; body=%s", err, rr.Body)
+	}
+	if len(resp.Captures) != 1 || resp.Captures[0].CaptureID != "cap-reachable" {
+		ids := make([]string, len(resp.Captures))
+		for i, c := range resp.Captures {
+			ids[i] = c.CaptureID
+		}
+		t.Errorf("captures = %v, want exactly [cap-reachable]", ids)
+	}
+}
+
+// TestCaptureGet_ExpiredPhaseRefused (T070) verifies Get 404s a capture the
+// operator has already transitioned to phase Expired.
+func TestCaptureGet_ExpiredPhaseRefused(t *testing.T) {
+	srv := newCaptureServerObj("get-expired-phase", true)
+	nc := newCaptureNetworkCapture("cap-x", "get-expired-phase", "Expired")
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/get-expired-phase:capture?id=cap-x", nil)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("get status = %d, want 404; body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "not found or has expired") {
+		t.Errorf("body = %q, want the contract's not-found-or-expired message", rr.Body.String())
+	}
+}
+
+// TestCaptureGet_PastTTLRefused (T070) verifies Get 404s a Completed
+// capture whose retention deadline has already passed even though its
+// phase has not yet been reconciled to Expired — the gap T070 exists to
+// close: inaccessible immediately, not merely after the GC pass.
+func TestCaptureGet_PastTTLRefused(t *testing.T) {
+	srv := newCaptureServerObj("get-past-ttl", true)
+	nc := newCompletedNetworkCapture(t, "cap-x", "get-past-ttl", 2*time.Hour, 3600)
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/get-past-ttl:capture?id=cap-x", nil)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("get status = %d, want 404 (past retention deadline, still phase Completed); body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "not found or has expired") {
+		t.Errorf("body = %q, want the contract's not-found-or-expired message", rr.Body.String())
+	}
+}
+
+// TestCaptureGet_ReachableBeforeExpiry (T070) verifies a Completed capture
+// still inside its retention window is returned normally.
+func TestCaptureGet_ReachableBeforeExpiry(t *testing.T) {
+	srv := newCaptureServerObj("get-reachable", true)
+	nc := newCompletedNetworkCapture(t, "cap-x", "get-reachable", time.Minute, 86400)
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/get-reachable:capture?id=cap-x", nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("get status = %d, want 200; body=%s", rr.Code, rr.Body)
+	}
+
+	var resp captureGetResp
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v; body=%s", err, rr.Body)
+	}
+	if resp.CaptureID != "cap-x" {
+		t.Errorf("captureId = %q, want cap-x", resp.CaptureID)
+	}
+}
+
+// TestCaptureDownload_ExpiredPhaseRefused (T070) verifies Download 404s a
+// capture the operator has already transitioned to phase Expired.
+func TestCaptureDownload_ExpiredPhaseRefused(t *testing.T) {
+	srv := newCaptureServerObj("dl-expired-phase", true)
+	nc := newCaptureNetworkCapture("cap-x", "dl-expired-phase", "Expired")
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/dl-expired-phase:capture-file?id=cap-x", nil)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("download status = %d, want 404; body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "not found or has expired") {
+		t.Errorf("body = %q, want the contract's not-found-or-expired message", rr.Body.String())
+	}
+}
+
+// TestCaptureDownload_PastTTLRefused (T070) verifies Download 404s a
+// Completed capture past its own retention deadline even before the
+// operator's GC pass has reconciled it to phase Expired.
+func TestCaptureDownload_PastTTLRefused(t *testing.T) {
+	srv := newCaptureServerObj("dl-past-ttl", true)
+	nc := newCompletedNetworkCapture(t, "cap-x", "dl-past-ttl", 2*time.Hour, 3600)
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/dl-past-ttl:capture-file?id=cap-x", nil)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("download status = %d, want 404 (past retention deadline, still phase Completed); body=%s", rr.Code, rr.Body)
+	}
+	if !strings.Contains(rr.Body.String(), "not found or has expired") {
+		t.Errorf("body = %q, want the contract's not-found-or-expired message", rr.Body.String())
+	}
+}
+
+// TestCaptureDownload_ReachableBeforeExpiryReachesProxy (T070) verifies a
+// still-Completed, not-yet-expired capture clears the expiry gate: with no
+// mTLS client configured in this fake-client unit test, the handler reaches
+// its proxy step and reports 503 ("agent mTLS not configured") rather than
+// 404 — proving the expiry/phase checks did not block it. The full
+// sidecar-proxied download success path is covered by capture_envtest_test.go
+// against a real sidecar.
+func TestCaptureDownload_ReachableBeforeExpiryReachesProxy(t *testing.T) {
+	srv := newCaptureServerObj("dl-reachable", true)
+	nc := newCompletedNetworkCapture(t, "cap-x", "dl-reachable", time.Minute, 86400)
+	k := fakeCaptureClient(srv, nc)
+	r := mountCaptureTestRouter(k, captureTestCfg, newCaptureAuditor(t))
+
+	rr := do(t, r, http.MethodGet, "/servers/dl-reachable:capture-file?id=cap-x", nil)
+	if rr.Code == http.StatusNotFound {
+		t.Fatalf("download status = %d, want != 404 (capture is not expired); body=%s", rr.Code, rr.Body)
+	}
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("download status = %d, want 503 (no mTLS client configured in this unit test); body=%s", rr.Code, rr.Body)
 	}
 }

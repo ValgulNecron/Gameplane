@@ -39,6 +39,14 @@ type SidecarCaptureClient interface {
 	// (e.g. it was never started, or the sidecar restarted) — the reconciler
 	// relies on this to decide whether StartCapture still needs to be called.
 	GetCaptureStatus(ctx context.Context, namespace, serverName, captureID string) (phase string, packetsWritten int64, bytesWritten int64, message string, err error)
+
+	// DeleteCaptureFile instructs the sidecar to remove a capture's backing
+	// PCAPNG file from its emptyDir, without altering the NetworkCapture CRD
+	// (the retention pass deletes the CR itself once this returns). Called
+	// once a capture's TTL has elapsed (FR-007). Treated as best-effort by
+	// callers: an error here (e.g. the sidecar/pod is already gone, so there
+	// is no file left to remove) does not block the CR from being deleted.
+	DeleteCaptureFile(ctx context.Context, namespace, serverName, captureID string) error
 }
 
 // SidecarStoppedCondition marks that the reconciler has already told the
@@ -56,6 +64,39 @@ const SidecarStoppedCondition = "SidecarStopped"
 // accepted design in research.md, "Capture lifecycle".
 const userStoppedMessage = "stopped by user request"
 
+// capturePodUIDAnnotation records, on the NetworkCapture object itself, the
+// UID of the game Pod observed at the moment the capture transitioned to
+// Running — so a later Running-phase reconcile can tell a genuine pod
+// recreation (evicted/rescheduled; same name "<gs>-0", new UID) apart from
+// the pod merely being briefly unready. Stored as an annotation rather than
+// a new status field to avoid a CRD schema/codegen change for what is
+// purely internal reconciler bookkeeping, never read by any other client.
+const capturePodUIDAnnotation = "gameplane.local/capture-pod-uid"
+
+// defaultCaptureRetentionSeconds is the fallback TTL (seconds) applied to a
+// terminal capture whose spec.ttlSecondsAfterFinished is nil or
+// non-positive, and maxCaptureRetentionSeconds is the cluster-wide ceiling —
+// both match the ratified values in
+// specs/003-network-capture-sidecar/data-model.md (24-hour default, 7-day
+// max via capture.defaultRetentionSeconds/capture.maxRetentionSeconds Helm
+// values) and NetworkCaptureSpec.TTLSecondsAfterFinished's own
+// kubebuilder:validation:Minimum=60/Maximum=604800. Used only as a fallback
+// when the reconciler's CaptureDefaultRetentionSeconds/
+// CaptureMaxRetentionSeconds fields are left at their zero value (e.g. not
+// yet wired from a Helm-sourced flag in cmd/main.go, or in a test that
+// doesn't care about the exact bound).
+const (
+	defaultCaptureRetentionSeconds int32 = 86400
+	maxCaptureRetentionSeconds     int32 = 604800
+)
+
+// retentionPollInterval is the periodic backstop requeue for the retention
+// pass, used only when a terminal capture has no anchor timestamp to compute
+// an exact remaining-TTL requeue from — normal Completed/Failed transitions
+// always stamp CompletionTime, so this should not fire in practice. Matches
+// research.md's proposed interval, aligned with BackupSchedule's cadence.
+const retentionPollInterval = 60 * time.Second
+
 // NetworkCaptureReconciler drives a NetworkCapture's lifecycle: Pending → Running → Completed/Failed.
 // It injects the capture sidecar as an ephemeral container, calls the sidecar's control endpoint
 // over mTLS through the <gs>-agent Service, and monitors completion.
@@ -67,6 +108,15 @@ type NetworkCaptureReconciler struct {
 	CaptureSidecarImage              string
 	CaptureDefaultMaxDurationSeconds int64
 	CaptureDefaultMaxSizeBytes       int64
+
+	// CaptureDefaultRetentionSeconds and CaptureMaxRetentionSeconds configure
+	// the cluster-wide retention default/ceiling (data-model.md's
+	// capture.defaultRetentionSeconds / capture.maxRetentionSeconds Helm
+	// values). Zero (unconfigured) falls back to this file's
+	// defaultCaptureRetentionSeconds/maxCaptureRetentionSeconds constants —
+	// see effectiveRetentionSeconds.
+	CaptureDefaultRetentionSeconds int32
+	CaptureMaxRetentionSeconds     int32
 }
 
 // +kubebuilder:rbac:groups=gameplane.local,resources=networkcaptures,verbs=get;list;watch;update;patch
@@ -108,11 +158,18 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	// Terminal phases need no further reconciliation.
+	// Terminal phases need no further lifecycle reconciliation, but Completed/
+	// Failed captures still carry a retention window (FR-007): Kubernetes has
+	// no built-in TTL GC for custom CRDs, so this reconciler is the only thing
+	// that expires and cleans them up. An object that is already Expired here
+	// means a previous expiry attempt's CR deletion didn't land (e.g. an
+	// apiserver hiccup) — retry it directly.
 	if nc.Status.Phase == gameplanev1alpha1.CapturePhaseCompleted ||
-		nc.Status.Phase == gameplanev1alpha1.CapturePhaseFailed ||
-		nc.Status.Phase == gameplanev1alpha1.CapturePhaseExpired {
-		return ctrl.Result{}, nil
+		nc.Status.Phase == gameplanev1alpha1.CapturePhaseFailed {
+		return r.reconcileRetention(ctx, &nc)
+	}
+	if nc.Status.Phase == gameplanev1alpha1.CapturePhaseExpired {
+		return r.expireCapture(ctx, &nc)
 	}
 
 	// Verify the target GameServer exists.
@@ -178,18 +235,48 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return r.fail(ctx, &nc, "capture has no maxDuration/maxSize and the operator has no configured default")
 		}
 
-		// Check for concurrent Running captures.
+		// Concurrency lock: exactly one Pending/Running capture may exist per
+		// GameServer at a time, and this reconciler is the sole authority for
+		// that invariant — api/internal/handlers/capture.go's own check
+		// (hasActiveCapture) is a best-effort fast path only, since two
+		// concurrent create requests can both pass it before either CR
+		// exists. Enforce the lock by determining the earliest-created
+		// Pending/Running capture for this server (by CreationTimestamp,
+		// then Name to break an exact tie — two objects can land within the
+		// same timestamp resolution, especially under envtest) and failing
+		// every other one. nc's own entry in the list snapshot may still
+		// show an empty phase (its first-ever reconcile hasn't persisted
+		// Pending yet — see the status-subresource note above), so nc is
+		// always treated as active regardless of what List returned for it.
 		var captures gameplanev1alpha1.NetworkCaptureList
 		if err := r.List(ctx, &captures, client.InNamespace(nc.Namespace)); err != nil {
 			return ctrl.Result{}, fmt.Errorf("list captures for concurrency check: %w", err)
 		}
 
-		for _, other := range captures.Items {
-			if other.Spec.ServerRef.Name == nc.Spec.ServerRef.Name &&
-				other.Status.Phase == gameplanev1alpha1.CapturePhaseRunning &&
-				other.Name != nc.Name {
-				return r.fail(ctx, &nc, "another capture is already running on this gameserver")
+		var earliest *gameplanev1alpha1.NetworkCapture
+		for i := range captures.Items {
+			other := &captures.Items[i]
+			if other.Spec.ServerRef.Name != nc.Spec.ServerRef.Name {
+				continue
 			}
+			active := other.Name == nc.Name ||
+				other.Status.Phase == gameplanev1alpha1.CapturePhasePending ||
+				other.Status.Phase == gameplanev1alpha1.CapturePhaseRunning
+			if !active {
+				continue
+			}
+			switch {
+			case earliest == nil:
+				earliest = other
+			case other.CreationTimestamp.Before(&earliest.CreationTimestamp):
+				earliest = other
+			case other.CreationTimestamp.Equal(&earliest.CreationTimestamp) && other.Name < earliest.Name:
+				earliest = other
+			}
+		}
+		if earliest != nil && earliest.Name != nc.Name {
+			return r.failWithReason(ctx, &nc, "capture_already_in_progress",
+				fmt.Sprintf("another capture (%s) is already in progress on this gameserver", earliest.Name))
 		}
 
 		// Inject ephemeral container if not already present.
@@ -216,6 +303,21 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				if !apierrors.IsInvalid(err) && !apierrors.IsConflict(err) {
 					return ctrl.Result{}, fmt.Errorf("inject capture ephemeral container: %w", err)
 				}
+			}
+		}
+
+		// Record the pod UID observed right now, so the Running-phase health
+		// check below can later tell a genuine pod recreation (new UID,
+		// same name) apart from the pod simply being briefly unready.
+		// Annotations live on metadata, not the status subresource, so this
+		// needs its own Update call distinct from the Status().Update below.
+		if nc.Annotations == nil {
+			nc.Annotations = map[string]string{}
+		}
+		if nc.Annotations[capturePodUIDAnnotation] != string(pod.UID) {
+			nc.Annotations[capturePodUIDAnnotation] = string(pod.UID)
+			if err := r.Update(ctx, &nc); err != nil {
+				return ctrl.Result{}, fmt.Errorf("record pod UID for capture %s: %w", nc.Name, err)
 			}
 		}
 
@@ -267,6 +369,44 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Running: poll sidecar status and transition when complete/failed.
 	if nc.Status.Phase == gameplanev1alpha1.CapturePhaseRunning {
+		// Retention safety net: a capture that never reaches a terminal phase
+		// (e.g. the sidecar stops reporting without actually finishing) would
+		// otherwise poll forever and never expire, since TTL is normally
+		// anchored to completionTime. Anchor to startTime instead for a
+		// still-Running capture, and force it to a stop once that window
+		// elapses too, rather than skipping retention for it entirely.
+		if nc.Status.StartTime != nil {
+			ttl := effectiveRetentionSeconds(nc.Spec.TTLSecondsAfterFinished, r.CaptureDefaultRetentionSeconds, r.CaptureMaxRetentionSeconds)
+			if expiresAt := captureExpiresAt(nc.Status.StartTime, ttl); captureIsExpired(expiresAt, time.Now()) {
+				return r.expireStuckRunningCapture(ctx, &gs, &nc)
+			}
+		}
+
+		// Failure detection: a dead sidecar can't answer GetCaptureStatus at
+		// all, and a same-named replacement pod (StatefulSet pod restart
+		// keeps the name "<gs>-0") would make the sidecar client report a
+		// fresh, misleading "capture not found" rather than the real cause.
+		// Check pod health directly before trusting the sidecar's status.
+		var pod corev1.Pod
+		podErr := r.Get(ctx, types.NamespacedName{
+			Namespace: nc.Namespace,
+			Name:      fmt.Sprintf("%s-0", gs.Name),
+		}, &pod)
+		switch {
+		case apierrors.IsNotFound(podErr):
+			return r.failWithReason(ctx, &nc, "PodRestarted", "game pod was deleted while the capture was running")
+		case podErr != nil:
+			return ctrl.Result{}, fmt.Errorf("get game pod for capture health check: %w", podErr)
+		}
+		if observedUID := nc.Annotations[capturePodUIDAnnotation]; observedUID != "" && observedUID != string(pod.UID) {
+			return r.failWithReason(ctx, &nc, "PodRestarted", "game pod was deleted and recreated while the capture was running")
+		}
+		if cs := captureEphemeralContainerStatus(&pod); cs != nil && cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+			return r.failWithReason(ctx, &nc, "SidecarCrashed",
+				fmt.Sprintf("capture sidecar exited unexpectedly (exit code %d, reason %s)",
+					cs.State.Terminated.ExitCode, cs.State.Terminated.Reason))
+		}
+
 		phase, packets, bytesWritten, message, err := r.SidecarClient.GetCaptureStatus(
 			ctx,
 			nc.Namespace,
@@ -344,6 +484,158 @@ func (r *NetworkCaptureReconciler) ensureOwnerReference(
 	return r.Update(ctx, nc)
 }
 
+// clampRetention bounds requested to (0, clusterMax]: a non-positive
+// requested value falls back to clusterDefault, and a value above
+// clusterMax is clamped down to it. Never returns a value the caller
+// couldn't use — the retention pass must always have *some* TTL to work
+// with, even for a legacy/hand-applied object whose spec value bypassed
+// admission validation.
+func clampRetention(requested, clusterMax, clusterDefault int32) int32 {
+	if requested <= 0 {
+		requested = clusterDefault
+	}
+	if requested > clusterMax {
+		return clusterMax
+	}
+	return requested
+}
+
+// effectiveRetentionSeconds resolves the TTL to enforce for a capture: the
+// spec value when set and positive, else clusterDefault, clamped to
+// clusterMax either way. clusterDefault/clusterMax of zero (unconfigured on
+// the reconciler) fall back to this file's
+// defaultCaptureRetentionSeconds/maxCaptureRetentionSeconds constants.
+func effectiveRetentionSeconds(specTTL *int32, clusterDefault, clusterMax int32) int32 {
+	if clusterDefault <= 0 {
+		clusterDefault = defaultCaptureRetentionSeconds
+	}
+	if clusterMax <= 0 {
+		clusterMax = maxCaptureRetentionSeconds
+	}
+	requested := clusterDefault
+	if specTTL != nil {
+		requested = *specTTL
+	}
+	return clampRetention(requested, clusterMax, clusterDefault)
+}
+
+// captureExpiresAt returns the instant a capture's retention window elapses,
+// anchored to anchorTime (status.completionTime for a terminal capture, or
+// status.startTime as the Running-phase safety-net anchor — see the
+// retention safety net in the Running branch above). Returns the zero Time
+// when anchorTime is nil; callers must check IsZero() before treating the
+// result as meaningful, since a zero Time compares as "before" everything.
+func captureExpiresAt(anchorTime *metav1.Time, ttlSeconds int32) time.Time {
+	if anchorTime == nil {
+		return time.Time{}
+	}
+	return anchorTime.Add(time.Duration(ttlSeconds) * time.Second)
+}
+
+// captureIsExpired reports whether now has moved past expiresAt. The
+// boundary is exclusive: now == expiresAt is NOT yet expired, matching
+// data-model.md's documented transition condition "completionTime + ttl <
+// now()" (strict less-than). A zero expiresAt (no anchor) is never expired.
+func captureIsExpired(expiresAt, now time.Time) bool {
+	if expiresAt.IsZero() {
+		return false
+	}
+	return expiresAt.Before(now)
+}
+
+// reconcileRetention checks a Completed/Failed NetworkCapture's TTL and,
+// once elapsed, expires and deletes it (FR-007). Not yet expired: requeues
+// at the exact remaining TTL rather than a blind fixed poll, so expiry lands
+// close to on time without a hot requeue loop.
+func (r *NetworkCaptureReconciler) reconcileRetention(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture) (ctrl.Result, error) {
+	ttl := effectiveRetentionSeconds(nc.Spec.TTLSecondsAfterFinished, r.CaptureDefaultRetentionSeconds, r.CaptureMaxRetentionSeconds)
+	expiresAt := captureExpiresAt(nc.Status.CompletionTime, ttl)
+	if expiresAt.IsZero() {
+		// No completionTime recorded — shouldn't happen for a capture this
+		// reconciler itself transitioned to Completed/Failed, but defend
+		// against a hand-applied or legacy object rather than never expiring
+		// it: fall back to the periodic backstop poll.
+		return ctrl.Result{RequeueAfter: retentionPollInterval}, nil
+	}
+
+	now := time.Now()
+	if !captureIsExpired(expiresAt, now) {
+		return ctrl.Result{RequeueAfter: expiresAt.Sub(now)}, nil
+	}
+	return r.expireCapture(ctx, nc)
+}
+
+// expireStuckRunningCapture handles the Running-phase retention safety net:
+// a capture whose retention window elapses with no completionTime set,
+// because it never reached a terminal phase on its own (e.g. the sidecar
+// stopped reporting without actually finishing). Force-stops it on the
+// sidecar and clears the GameServer's active-capture pointer before falling
+// through the same expireCapture path (file cleanup + CR deletion) the
+// terminal-phase retention pass uses, rather than silently skipping it.
+func (r *NetworkCaptureReconciler) expireStuckRunningCapture(
+	ctx context.Context,
+	gs *gameplanev1alpha1.GameServer,
+	nc *gameplanev1alpha1.NetworkCapture,
+) (ctrl.Result, error) {
+	stopTime := &metav1.Time{Time: time.Now()}
+
+	// Best-effort: the sidecar may already be gone (pod restarted), in which
+	// case there is nothing left to stop.
+	if err := r.SidecarClient.StopCapture(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
+			Type:               "RetentionStopFailed",
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: nc.Generation,
+			Reason:             "sidecar_stop_failed",
+			Message:            err.Error(),
+			LastTransitionTime: metav1.Now(),
+		})
+	}
+
+	if err := r.patchGameServerActiveCapture(ctx, gs, nil, stopTime); err != nil {
+		return ctrl.Result{}, fmt.Errorf("clear gameserver active capture for retention-expired running capture %s: %w", nc.Name, err)
+	}
+
+	nc.Status.CompletionTime = stopTime
+	nc.Status.Message = "capture retention window elapsed while running; force-stopped"
+	return r.expireCapture(ctx, nc)
+}
+
+// expireCapture transitions nc to Expired (persisting first if it isn't
+// already), best-effort deletes its backing file via the sidecar, then
+// deletes the CR itself. File deletion is best-effort: the pod (and its
+// emptyDir) may already be gone by the time retention fires, which is not
+// itself an error worth failing the reconcile over — the CR still gets
+// deleted either way.
+func (r *NetworkCaptureReconciler) expireCapture(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture) (ctrl.Result, error) {
+	if nc.Status.Phase != gameplanev1alpha1.CapturePhaseExpired {
+		nc.Status.Phase = gameplanev1alpha1.CapturePhaseExpired
+		if nc.Status.CompletionTime == nil {
+			nc.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+		}
+		if err := r.Status().Update(ctx, nc); err != nil {
+			return ctrl.Result{}, fmt.Errorf("mark capture %s expired: %w", nc.Name, err)
+		}
+	}
+
+	if err := r.SidecarClient.DeleteCaptureFile(ctx, nc.Namespace, nc.Spec.ServerRef.Name, nc.Name); err != nil {
+		meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
+			Type:               "FileCleanupFailed",
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: nc.Generation,
+			Reason:             "delete_failed",
+			Message:            err.Error(),
+			LastTransitionTime: metav1.Now(),
+		})
+		_ = r.Status().Update(ctx, nc) // Best-effort; the CR delete below still proceeds.
+	}
+
+	if err := r.Delete(ctx, nc); err != nil && !apierrors.IsNotFound(err) {
+		return ctrl.Result{}, fmt.Errorf("delete expired capture %s: %w", nc.Name, err)
+	}
+	return ctrl.Result{}, nil
+}
+
 // injectCaptureContainer patches the pod's ephemeralContainers list to add
 // the capture container. This is the idempotent fallback path: the common
 // path is that GameServerReconciler's reconcileCapture (gameserver_controller.go)
@@ -390,8 +682,20 @@ func (r *NetworkCaptureReconciler) patchGameServerActiveCapture(
 	return r.Status().Update(ctx, gs)
 }
 
-// fail marks a NetworkCapture as Failed with the given message.
+// fail marks a NetworkCapture as Failed with the given message and the
+// generic "failed" condition reason. Most failure paths (gameserver not
+// found, capture disabled, sidecar start error, sidecar unreachable) don't
+// need a more specific reason a caller would act on differently — see
+// failWithReason for the ones that do (capture_already_in_progress,
+// PodRestarted, SidecarCrashed).
 func (r *NetworkCaptureReconciler) fail(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture, message string) (ctrl.Result, error) {
+	return r.failWithReason(ctx, nc, "failed", message)
+}
+
+// failWithReason marks a NetworkCapture as Failed with the given message,
+// recording reason on the "Failed" condition so callers (dashboard, e2e
+// assertions) can distinguish why without parsing the free-text message.
+func (r *NetworkCaptureReconciler) failWithReason(ctx context.Context, nc *gameplanev1alpha1.NetworkCapture, reason, message string) (ctrl.Result, error) {
 	nc.Status.Phase = gameplanev1alpha1.CapturePhaseFailed
 	nc.Status.CompletionTime = &metav1.Time{Time: time.Now()}
 	nc.Status.Message = message
@@ -401,7 +705,7 @@ func (r *NetworkCaptureReconciler) fail(ctx context.Context, nc *gameplanev1alph
 		Type:               "Failed",
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: nc.Generation,
-		Reason:             "failed",
+		Reason:             reason,
 		Message:            message,
 		LastTransitionTime: metav1.Now(),
 	}

@@ -28,7 +28,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gameplanev1alpha1 "github.com/ValgulNecron/gameplane/operator/api/v1alpha1"
 )
@@ -470,7 +472,32 @@ func (r *GameServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.mapPodToGameServer)).
 		Complete(r)
+}
+
+// mapPodToGameServer maps a game Pod event to its owning GameServer, so
+// reconcileCapture notices both a kubelet-reported ephemeral-container status
+// change (status.capture.ready needs to follow it) and a pod recreation
+// (spec.capture.enabled staying true needs the ephemeral container
+// re-injected into the new pod) without waiting for an unrelated event or the
+// next periodic resync. The game pod is owned by its StatefulSet, not by the
+// GameServer directly (Owns(&appsv1.StatefulSet{}) above only watches the
+// StatefulSet object itself), so Owns(&corev1.Pod{}) would never fire —
+// matching the same label-based lookup NetworkCaptureReconciler already uses
+// for the identical problem (mapPodToNetworkCaptures).
+func (r *GameServerReconciler) mapPodToGameServer(_ context.Context, obj client.Object) []reconcile.Request {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return nil
+	}
+	serverName := pod.Labels["app.kubernetes.io/instance"]
+	if serverName == "" {
+		return nil
+	}
+	return []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: serverName}},
+	}
 }
 
 // --- sub-reconcilers (skeletons) ---

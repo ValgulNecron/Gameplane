@@ -81,9 +81,14 @@ type NetworkCapture struct {
 }
 
 // CaptureConfiguration mirrors operator/api/v1alpha1.CaptureConfiguration
-// (only the field the API needs to read).
+// (only the fields the API needs to read).
 type CaptureConfiguration struct {
 	Enabled bool `json:"enabled,omitempty"`
+	// RetentionSeconds is the per-GameServer override of the cluster-default
+	// retention window applied when a capture-start request omits its own
+	// ttlSecondsAfterFinished. Still bounded by the cluster maximum, the same
+	// as any client-supplied value.
+	RetentionSeconds *int32 `json:"retentionSeconds,omitempty"`
 }
 
 // GameServerCaptureStatus mirrors the status.capture subset of

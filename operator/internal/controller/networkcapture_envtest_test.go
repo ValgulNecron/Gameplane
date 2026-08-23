@@ -11,6 +11,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -256,6 +257,10 @@ func TestNetworkCapture_ConcurrencyRejection(t *testing.T) {
 		if nc.Status.Message == "" {
 			return false, "no failure message recorded"
 		}
+		cond := meta.FindStatusCondition(nc.Status.Conditions, "Failed")
+		if cond == nil || cond.Reason != "capture_already_in_progress" {
+			return false, fmt.Sprintf("Failed condition reason = %+v, want \"capture_already_in_progress\"", cond)
+		}
 		return true, ""
 	})
 
@@ -264,6 +269,183 @@ func TestNetworkCapture_ConcurrencyRejection(t *testing.T) {
 	first := getNetworkCapture(t, ns, "cap-conc-001")
 	if first.Status.Phase != gameplanev1alpha1.CapturePhaseRunning {
 		t.Errorf("first capture phase = %s, want it to remain Running", first.Status.Phase)
+	}
+}
+
+// TestNetworkCapture_PodDeletedTransitionsToFailed covers T076(b): a Running
+// NetworkCapture whose Pod disappears (deleted, never recreated within this
+// test) transitions to Failed with a PodRestarted-style condition instead of
+// sitting in Running forever, and the parent GameServer's
+// status.capture.activeCapture is cleared.
+func TestNetworkCapture_PodDeletedTransitionsToFailed(t *testing.T) {
+	ns := newNamespace(t)
+
+	var mu sync.Mutex
+	started := false
+	stub := &StubSidecarClient{
+		startCaptureFn: func(_ context.Context, _, _, _ string, _ *string, _, _ int64) error {
+			mu.Lock()
+			started = true
+			mu.Unlock()
+			return nil
+		},
+		getCaptureStatusFn: func(_ context.Context, _, _, _ string) (string, int64, int64, string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if !started {
+				return "", 0, 0, "", fmt.Errorf("capture not found")
+			}
+			return "running", 10, 1024, "capture running", nil
+		},
+	}
+
+	startMgr(t, ns, withNetworkCaptureReconciler(stub))
+
+	gs := buildCaptureGameServer(ns, "test-server-poddel")
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, "test-server-poddel")); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildNetworkCapture(ns, "cap-poddel-001", "test-server-poddel", "tcp port 25565")); err != nil {
+		t.Fatalf("create network capture: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		nc := getNetworkCapture(t, ns, "cap-poddel-001")
+		if nc.Status.Phase != gameplanev1alpha1.CapturePhaseRunning {
+			return false, fmt.Sprintf("phase = %s, want Running", nc.Status.Phase)
+		}
+		return true, ""
+	})
+
+	if err := k8sClient.Delete(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "test-server-poddel-0"},
+	}); err != nil {
+		t.Fatalf("delete pod: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		nc := getNetworkCapture(t, ns, "cap-poddel-001")
+		if nc.Status.Phase != gameplanev1alpha1.CapturePhaseFailed {
+			return false, fmt.Sprintf("phase = %s, want Failed", nc.Status.Phase)
+		}
+		cond := meta.FindStatusCondition(nc.Status.Conditions, "Failed")
+		if cond == nil || cond.Reason != "PodRestarted" {
+			return false, fmt.Sprintf("Failed condition reason = %+v, want \"PodRestarted\"", cond)
+		}
+		return true, ""
+	})
+
+	eventually(t, func() (bool, string) {
+		var got gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "test-server-poddel"}, &got); err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		if got.Status.Capture != nil && got.Status.Capture.ActiveCapture != nil {
+			return false, fmt.Sprintf("status.capture.activeCapture = %q, want cleared", *got.Status.Capture.ActiveCapture)
+		}
+		return true, ""
+	})
+}
+
+// simulateCaptureEphemeralTerminated patches podName's status to report the
+// capture ephemeral container as Terminated with a non-zero exit code — the
+// kubelet's report of a sidecar process crash. Mirrors
+// simulateCaptureEphemeralRunning's rationale: envtest runs no kubelet, so
+// nothing else will populate pod.status.ephemeralContainerStatuses.
+func simulateCaptureEphemeralTerminated(t *testing.T, ns, podName string, exitCode int32) {
+	t.Helper()
+	var pod corev1.Pod
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: podName}, &pod); err != nil {
+		t.Fatalf("get pod %s: %v", podName, err)
+	}
+	pod.Status.EphemeralContainerStatuses = []corev1.ContainerStatus{
+		{
+			Name: captureContainerName,
+			State: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{
+					ExitCode:   exitCode,
+					Reason:     "Error",
+					FinishedAt: metav1.Now(),
+				},
+			},
+		},
+	}
+	if err := k8sClient.Status().Update(context.Background(), &pod); err != nil {
+		t.Fatalf("simulate capture ephemeral terminated status for pod %s: %v", podName, err)
+	}
+}
+
+// TestNetworkCapture_SidecarCrashTransitionsToFailed covers T076(c): a
+// Running NetworkCapture whose ephemeral capture container status shows
+// Terminated (non-zero exit) while the Pod itself is still Running
+// transitions to Failed with a SidecarCrashed condition and is never
+// retried (it stays Failed, not requeued back to Running).
+func TestNetworkCapture_SidecarCrashTransitionsToFailed(t *testing.T) {
+	ns := newNamespace(t)
+
+	var mu sync.Mutex
+	started := false
+	stub := &StubSidecarClient{
+		startCaptureFn: func(_ context.Context, _, _, _ string, _ *string, _, _ int64) error {
+			mu.Lock()
+			started = true
+			mu.Unlock()
+			return nil
+		},
+		getCaptureStatusFn: func(_ context.Context, _, _, _ string) (string, int64, int64, string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if !started {
+				return "", 0, 0, "", fmt.Errorf("capture not found")
+			}
+			return "running", 10, 1024, "capture running", nil
+		},
+	}
+
+	startMgr(t, ns, withNetworkCaptureReconciler(stub))
+
+	gs := buildCaptureGameServer(ns, "test-server-crash")
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, "test-server-crash")); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildNetworkCapture(ns, "cap-crash-001", "test-server-crash", "tcp port 25565")); err != nil {
+		t.Fatalf("create network capture: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		nc := getNetworkCapture(t, ns, "cap-crash-001")
+		if nc.Status.Phase != gameplanev1alpha1.CapturePhaseRunning {
+			return false, fmt.Sprintf("phase = %s, want Running", nc.Status.Phase)
+		}
+		return true, ""
+	})
+
+	simulateCaptureEphemeralTerminated(t, ns, "test-server-crash-0", 1)
+
+	eventually(t, func() (bool, string) {
+		nc := getNetworkCapture(t, ns, "cap-crash-001")
+		if nc.Status.Phase != gameplanev1alpha1.CapturePhaseFailed {
+			return false, fmt.Sprintf("phase = %s, want Failed", nc.Status.Phase)
+		}
+		cond := meta.FindStatusCondition(nc.Status.Conditions, "Failed")
+		if cond == nil || cond.Reason != "SidecarCrashed" {
+			return false, fmt.Sprintf("Failed condition reason = %+v, want \"SidecarCrashed\"", cond)
+		}
+		return true, ""
+	})
+
+	// Never retried: the failure must stick, not bounce back to Running on
+	// a later reconcile (e.g. via the Pod watch firing again).
+	time.Sleep(200 * time.Millisecond)
+	final := getNetworkCapture(t, ns, "cap-crash-001")
+	if final.Status.Phase != gameplanev1alpha1.CapturePhaseFailed {
+		t.Errorf("capture phase = %s after settling, want it to remain Failed", final.Status.Phase)
 	}
 }
 
@@ -721,11 +903,154 @@ func TestGameServerCapture_PodRecreationReinjectsEphemeralContainer(t *testing.T
 	})
 }
 
+// ---------------------------------------------------------------------
+// T068 — retention/expiry reconciliation (networkcapture_controller.go's
+// reconcileRetention/expireCapture/expireStuckRunningCapture).
+// ---------------------------------------------------------------------
+
+// TestNetworkCapture_RetentionExpiresCompletedCapture covers T068's first
+// case: a Completed capture whose TTL has already elapsed transitions to
+// Expired, has its backing file cleanup attempted via the sidecar, and is
+// deleted — without waiting out a live TTL. NetworkCaptureSpec's
+// kubebuilder:validation:Minimum=60 means TTL itself can't be shortened
+// below 60s, so this backdates status.completionTime well past that window
+// instead ("short-circuit the requeue constant" per the task, achieved here
+// by short-circuiting the anchor rather than the poll interval — the
+// reconciler's own requeue is already computed from the exact remaining TTL,
+// not a blind fixed poll, so there is no separate constant to shrink).
+func TestNetworkCapture_RetentionExpiresCompletedCapture(t *testing.T) {
+	ns := newNamespace(t)
+
+	var mu sync.Mutex
+	deleteCalls := 0
+	stub := &StubSidecarClient{
+		deleteCaptureFileFn: func(_ context.Context, _, _, _ string) error {
+			mu.Lock()
+			deleteCalls++
+			mu.Unlock()
+			return nil
+		},
+	}
+	startMgr(t, ns, withNetworkCaptureReconciler(stub))
+
+	gsName := "test-server-retention"
+	if err := k8sClient.Create(context.Background(), buildCaptureGameServer(ns, gsName)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, gsName)); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+
+	nc := buildNetworkCapture(ns, "cap-retention-001", gsName, "tcp port 25565")
+	nc.Spec.TTLSecondsAfterFinished = ptrTo(int32(60)) // CRD minimum; already-past completionTime does the rest.
+	if err := k8sClient.Create(context.Background(), nc); err != nil {
+		t.Fatalf("create network capture: %v", err)
+	}
+
+	past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
+	nc.Status.Phase = gameplanev1alpha1.CapturePhaseCompleted
+	nc.Status.CompletionTime = &past
+	nc.Status.Message = "capture finished"
+	if err := k8sClient.Status().Update(context.Background(), nc); err != nil {
+		t.Fatalf("patch capture to Completed with a past completionTime: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var got gameplanev1alpha1.NetworkCapture
+		err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "cap-retention-001"}, &got)
+		if !apierrors.IsNotFound(err) {
+			return false, fmt.Sprintf("capture still present (err=%v)", err)
+		}
+		return true, ""
+	})
+
+	mu.Lock()
+	calls := deleteCalls
+	mu.Unlock()
+	if calls < 1 {
+		t.Error("sidecar DeleteCaptureFile was never called for the expired capture")
+	}
+}
+
+// TestNetworkCapture_RetentionTerminatesStuckRunningCapture covers T068's
+// second case: a Running capture whose retention window elapses while it
+// still has no completionTime (the sidecar stopped reporting without
+// actually finishing) is force-stopped and cleaned up rather than polled
+// forever.
+func TestNetworkCapture_RetentionTerminatesStuckRunningCapture(t *testing.T) {
+	ns := newNamespace(t)
+
+	var mu sync.Mutex
+	stopCalls, deleteCalls := 0, 0
+	stub := &StubSidecarClient{
+		stopCaptureFn: func(_ context.Context, _, _, _ string) error {
+			mu.Lock()
+			stopCalls++
+			mu.Unlock()
+			return nil
+		},
+		deleteCaptureFileFn: func(_ context.Context, _, _, _ string) error {
+			mu.Lock()
+			deleteCalls++
+			mu.Unlock()
+			return nil
+		},
+		// Any GetCaptureStatus call here would mean the retention safety net
+		// didn't short-circuit before the normal polling path — fail loudly.
+		getCaptureStatusFn: func(_ context.Context, _, _, _ string) (string, int64, int64, string, error) {
+			t.Error("GetCaptureStatus called on a capture that should have been retention-expired first")
+			return "running", 0, 0, "", nil
+		},
+	}
+	startMgr(t, ns, withNetworkCaptureReconciler(stub))
+
+	gsName := "test-server-stuck"
+	if err := k8sClient.Create(context.Background(), buildCaptureGameServer(ns, gsName)); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, gsName)); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+
+	nc := buildNetworkCapture(ns, "cap-stuck-001", gsName, "tcp port 25565")
+	nc.Spec.TTLSecondsAfterFinished = ptrTo(int32(60))
+	if err := k8sClient.Create(context.Background(), nc); err != nil {
+		t.Fatalf("create network capture: %v", err)
+	}
+
+	past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
+	nc.Status.Phase = gameplanev1alpha1.CapturePhaseRunning
+	nc.Status.StartTime = &past
+	if err := k8sClient.Status().Update(context.Background(), nc); err != nil {
+		t.Fatalf("patch capture to Running with a past startTime: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var got gameplanev1alpha1.NetworkCapture
+		err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "cap-stuck-001"}, &got)
+		if !apierrors.IsNotFound(err) {
+			return false, fmt.Sprintf("capture still present (err=%v)", err)
+		}
+		return true, ""
+	})
+
+	mu.Lock()
+	sCalls, dCalls := stopCalls, deleteCalls
+	mu.Unlock()
+	if sCalls < 1 {
+		t.Error("sidecar StopCapture was never called for the retention-expired running capture")
+	}
+	if dCalls < 1 {
+		t.Error("sidecar DeleteCaptureFile was never called for the retention-expired running capture")
+	}
+}
+
 // StubSidecarClient implements SidecarCaptureClient for testing.
 type StubSidecarClient struct {
-	startCaptureFn     func(ctx context.Context, ns, server, id string, filter *string, dur, size int64) error
-	stopCaptureFn      func(ctx context.Context, ns, server, id string) error
-	getCaptureStatusFn func(ctx context.Context, ns, server, id string) (string, int64, int64, string, error)
+	startCaptureFn      func(ctx context.Context, ns, server, id string, filter *string, dur, size int64) error
+	stopCaptureFn       func(ctx context.Context, ns, server, id string) error
+	getCaptureStatusFn  func(ctx context.Context, ns, server, id string) (string, int64, int64, string, error)
+	deleteCaptureFileFn func(ctx context.Context, ns, server, id string) error
 }
 
 func (s *StubSidecarClient) StartCapture(ctx context.Context, namespace, serverName, captureID string, filter *string, maxDurationSeconds, maxSizeBytes int64) error {
@@ -747,4 +1072,11 @@ func (s *StubSidecarClient) GetCaptureStatus(ctx context.Context, namespace, ser
 		return s.getCaptureStatusFn(ctx, namespace, serverName, captureID)
 	}
 	return "running", 0, 0, "", nil
+}
+
+func (s *StubSidecarClient) DeleteCaptureFile(ctx context.Context, namespace, serverName, captureID string) error {
+	if s.deleteCaptureFileFn != nil {
+		return s.deleteCaptureFileFn(ctx, namespace, serverName, captureID)
+	}
+	return nil
 }

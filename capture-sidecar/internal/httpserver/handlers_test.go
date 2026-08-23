@@ -184,6 +184,15 @@ func doDownload(t *testing.T, s *Server, id string, rangeHeader string) *httptes
 	return rr
 }
 
+func doDelete(t *testing.T, s *Server, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/captures/"+id, nil)
+	req.SetPathValue("id", id)
+	rr := httptest.NewRecorder()
+	s.HandleDelete(rr, req)
+	return rr
+}
+
 func decodeStop(t *testing.T, rr *httptest.ResponseRecorder) stopResponse {
 	t.Helper()
 	var resp stopResponse
@@ -354,8 +363,8 @@ func TestRoutes_MiddlewareWrapsEveryCaptureEndpoint(t *testing.T) {
 			w.WriteHeader(http.StatusTeapot)
 		})
 	})
-	if wrapped != 4 {
-		t.Fatalf("middleware applied to %d handlers, want 4", wrapped)
+	if wrapped != 5 {
+		t.Fatalf("middleware applied to %d handlers, want 5", wrapped)
 	}
 
 	for _, path := range []string{
@@ -369,8 +378,14 @@ func TestRoutes_MiddlewareWrapsEveryCaptureEndpoint(t *testing.T) {
 		}
 	}
 
-	// /healthz must stay unauthenticated.
 	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/captures/cap-1", nil))
+	if rr.Code != http.StatusTeapot {
+		t.Fatalf("DELETE /captures/cap-1 bypassed the middleware: %d", rr.Code)
+	}
+
+	// /healthz must stay unauthenticated.
+	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("healthz = %d, want 200 (unauthenticated)", rr.Code)
@@ -980,6 +995,100 @@ func TestHandleDownload_StreamsLargeFile(t *testing.T) {
 	}
 	if rr.Body.Len() != len(payload) {
 		t.Fatalf("body = %d bytes, want %d", rr.Body.Len(), len(payload))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Delete
+// ---------------------------------------------------------------------------
+
+func TestHandleDelete_InvalidID(t *testing.T) {
+	srv, _ := newTestServer(t)
+	for _, id := range []string{"", ".", "..", "a/b", `a\b`, "cap test", strings.Repeat("a", 65)} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/captures/x", nil)
+		req.SetPathValue("id", id)
+		rr := httptest.NewRecorder()
+		srv.HandleDelete(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("id %q: status = %d, want 400", id, rr.Code)
+		}
+	}
+}
+
+func TestHandleDelete_Success(t *testing.T) {
+	srv, _ := newTestServer(t)
+	filePath := srv.captureFilePath("cap-test")
+	if err := os.WriteFile(filePath, []byte("test data"), 0o600); err != nil {
+		t.Fatalf("write capture file: %v", err)
+	}
+
+	if _, err := os.Stat(filePath); err != nil {
+		t.Fatalf("stat before delete: %v", err)
+	}
+
+	rr := doDelete(t, srv, "cap-test")
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rr.Code)
+	}
+
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Fatalf("stat after delete: %v; want ErrNotExist", err)
+	}
+}
+
+func TestHandleDelete_Idempotent(t *testing.T) {
+	srv, _ := newTestServer(t)
+	filePath := srv.captureFilePath("cap-test")
+	if err := os.WriteFile(filePath, []byte("test data"), 0o600); err != nil {
+		t.Fatalf("write capture file: %v", err)
+	}
+
+	// First delete should succeed.
+	rr := doDelete(t, srv, "cap-test")
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("first delete status = %d, want 204", rr.Code)
+	}
+
+	// Second delete (file already gone) should also succeed.
+	rr = doDelete(t, srv, "cap-test")
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("second delete status = %d, want 204", rr.Code)
+	}
+}
+
+func TestHandleDelete_RefusesRunningCapture(t *testing.T) {
+	srv, _ := newTestServer(t)
+	if rr := doStart(t, srv, "cap-test", startBody("tcp port 8080", 300, 1000000)); rr.Code != http.StatusOK {
+		t.Fatalf("start = %d", rr.Code)
+	}
+
+	rr := doDelete(t, srv, "cap-test")
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rr.Code)
+	}
+
+	// File should still exist.
+	if _, err := os.Stat(srv.captureFilePath("cap-test")); err != nil {
+		t.Fatalf("stat capture file: %v; the running capture should protect it", err)
+	}
+}
+
+func TestHandleDelete_ViaRouterMux(t *testing.T) {
+	srv, _ := newTestServer(t)
+	mux := srv.Routes(nil)
+	filePath := srv.captureFilePath("cap-route-delete")
+	if err := os.WriteFile(filePath, []byte("test data"), 0o600); err != nil {
+		t.Fatalf("write capture file: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/captures/cap-route-delete", nil))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("delete via mux = %d, want 204", rr.Code)
+	}
+
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Fatalf("file still exists after delete via mux")
 	}
 }
 

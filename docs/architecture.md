@@ -281,6 +281,12 @@ for the registration flow.
 - **API → telemetry-receiver (optional)**: the anonymous daily usage report
   (admin-toggle gated), auto-wired via `api.telemetry.receiver.enabled` or
   aimed at an external URL via `api.telemetry.endpoint`.
+- **Operator → capture-sidecar (optional)**: network packet capture sidecar
+  injected into game pods as an ephemeral container; captures AF_PACKET frames
+  matching a BPF filter to PCAPNG output, exposed via mTLS on port `:9091`.
+  Opt-in per GameServer via `spec.capture.enabled` and admin-only (`captures:manage`
+  permission). Disabled by default; enabled cluster-wide via `capture.enabled`
+  Helm value. See `capture-sidecar/`.
 - **mcp-server (optional)**: a standalone, strictly read-only MCP server —
   its tool handlers only ever hold a `*kube.Client` (`mcp-server/internal/kube`),
   whose sole exported methods are List/Get-shaped; the underlying typed/

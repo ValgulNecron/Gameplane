@@ -476,6 +476,43 @@ rather than being dressed up as a deletion that sends an operator down the wrong
 
 ---
 
+### Endpoint: Delete Capture File
+
+**Functional Requirement**: FR-007 (retention/cleanup).
+
+#### Request
+
+```
+DELETE /captures/{id}
+Host: <gs>-agent.<namespace>.svc.cluster.local:9091   # existing agent Service, numeric port
+```
+
+**Path Parameters**:
+- `{id}` (string): Capture ID.
+
+**Preconditions**:
+- Capture must not be running (sidecar rejects running captures with HTTP 409).
+- Capture may already be deleted (idempotent — returns 204 even if the file is already gone).
+
+#### Response
+
+**Success (204 No Content)**:
+```
+HTTP/1.1 204 No Content
+```
+
+The capture file has been deleted, or was already absent. The request succeeds in either case (idempotent). No response body. This allows the retention reconciler to safely retry deletion if a request times out or fails transiently.
+
+#### Error Responses
+
+| Status | Condition | Response Body (plain text) |
+|--------|-----------|---|
+| **400** | Capture id is malformed | `capture id required` |
+| **409** | Capture is still running | `capture is still running` |
+| **500** | Deletion failed for another reason (e.g., EACCES, EIO) | `failed to delete capture file: <error>` |
+
+---
+
 ## Capture File Format and Guarantees
 
 ### File Location

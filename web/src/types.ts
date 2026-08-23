@@ -427,6 +427,70 @@ export interface IdleSpec {
   wakeOnConnect?: boolean;
 }
 
+// GameServer.spec.capture — opt-in flag for the network-capture sidecar,
+// plus an optional per-server override of the cluster's default retention
+// window. Mirrors CaptureConfiguration (data-model.md; operator/api/
+// v1alpha1/gameserver_types.go). Disabling does NOT remove an already
+// -injected ephemeral capture container — see CaptureStatus.ready below.
+export interface CaptureConfiguration {
+  enabled?: boolean;
+  // Seconds; 60..7776000. Omit to use the cluster default.
+  retentionSeconds?: number;
+}
+
+// GameServer.status.capture — observed state of the capture sidecar for
+// this server. Mirrors the API's captureStatusResp (api/internal/handlers/
+// capture.go) and the CRD's status.capture.{...}; on the wire
+// activeCapture/lastCaptureTime are JSON `null` (not an omitted key) when
+// unset, so both are typed nullable rather than optional.
+export interface CaptureStatus {
+  ready: boolean;
+  activeCapture: string | null;
+  lastCaptureTime: string | null;
+  sidecarRestarts: number;
+}
+
+export type CapturePhase = "Pending" | "Running" | "Completed" | "Failed" | "Expired";
+
+// A single packet capture, as returned by the capture-start/-stop/list/get
+// endpoints (api/internal/handlers/capture.go's captureStartResp/
+// captureStopResp/captureItem/captureGetResp — merged into one shape here
+// since the same object is passed through the dashboard's capture widget
+// regardless of which endpoint produced it). Not every field is present on
+// every response: maxDurationSeconds/maxSizeBytes/ttlSecondsAfterFinished
+// are start-only, stoppingReason is stop-only, expiresAt appears once the
+// capture has completed. startedAt/completedAt are "" (not null) until set
+// — the API's formatOptionalTime never emits null.
+export interface NetworkCapture {
+  captureId: string;
+  phase: CapturePhase;
+  serverName: string;
+  filter: string;
+  maxDurationSeconds?: number;
+  maxSizeBytes?: number;
+  ttlSecondsAfterFinished?: number;
+  createdAt: string;
+  startedAt: string;
+  completedAt: string;
+  bytesWritten: number;
+  packetsWritten: number;
+  expiresAt?: string;
+  stoppingReason?:
+    | "user_requested"
+    | "max_duration_reached"
+    | "max_size_reached"
+    | "pod_restarted"
+    | "error";
+}
+
+// GET /servers/{name}:captures response envelope.
+export interface NetworkCaptureList {
+  captures: NetworkCapture[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface InlineBackupPolicy {
   schedule: string;
   repoRef: { name: string; key: string };
@@ -486,6 +550,10 @@ export interface GameServer {
     // to zero after afterMinutes of zero reported players, and brings it back
     // on a wakeWindows cron tick or an explicit :wake.
     idle?: IdleSpec;
+    // Opt-in packet-capture sidecar. See CaptureConfiguration's doc comment
+    // for the enable/disable asymmetry (disable does not remove a running
+    // ephemeral container).
+    capture?: CaptureConfiguration;
   };
   status?: {
     phase?: GameServerPhase;

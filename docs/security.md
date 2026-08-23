@@ -215,6 +215,59 @@ Game pods are shaped per-template. For a hostile game module, enable
 Pod Security Standards `restricted` on the games namespace via
 `podSecurity.enforceRestricted=true`.
 
+### Network Capture Security Exception
+
+The optional network capture feature (see
+[`docs/roadmap.md`](roadmap.md)) adds an ephemeral sidecar container to game pods when
+capture is enabled. This sidecar requires **`allowPrivilegeEscalation: true`** in
+its securityContext, which violates the Pod Security Standards `restricted`
+profile.
+
+**Why the exception is necessary**: The sidecar acquires `CAP_NET_RAW` capability
+via file capabilities (`setcap cap_net_raw+ep`), applied at container image build
+time. This mechanism is necessary because Kubernetes does not set ambient
+capabilities on a container's process by default. Without ambient capabilities,
+the alternative approach — declaring `securityContext.capabilities.add:
+["NET_RAW"]` on a non-root user — fails: the kernel clears the effective
+capability set when the entrypoint binary is executed (via `execve`), leaving the
+non-root process with no capabilities. File capabilities survive this exec because
+they are consulted independently by the kernel at exec time, independent of
+ambient state. However, file capabilities are ignored by the kernel when
+`no_new_privs` is set, and Kubernetes sets `no_new_privs` whenever
+`allowPrivilegeEscalation: false`. Therefore, the container must set
+`allowPrivilegeEscalation: true` for the file capability to function.
+
+The game container retains its unprivileged posture: `runAsNonRoot: true`,
+`allowPrivilegeEscalation: false`, and no elevated capabilities. Only the capture
+sidecar holds `CAP_NET_RAW`; exploit of game code cannot grant packet-capture
+ability.
+
+**Trade-off with PodSecurity `restricted`**: A cluster enforcing the `restricted`
+Pod Security Standards profile on the games namespace will reject any pod with
+`allowPrivilegeEscalation: true`. If you require `restricted` admission on your
+games namespace, you have three options:
+
+1. **Disable capture** — leave the cluster's capture feature disabled via Helm
+   value `capture.enabled: false` (default is true). Captures are not required
+   for normal operation; this is the safest option if you cannot or prefer not to
+   relax the `restricted` profile.
+2. **Exempt the games namespace** — remove or relax the Pod Security Standards
+   `restricted` enforcement for the games namespace, using `baseline` or
+   `privileged` instead. The games namespace remains an untrusted environment
+   (game code can run arbitrary containers), but the admission level permits the
+   capture sidecar to be injected when needed.
+3. **Disable `restricted` cluster-wide** — if the games namespace is managed by
+   your deployment and you accept the operational trade-off, set `podSecurity.enforceRestricted=false`
+   in the Helm values. Captures will work, and other pods are not forced into
+   `restricted` mode (they can still opt in per-pod via labels).
+
+**Data sensitivity**: Captures contain binary game protocols, player IP addresses,
+and may include sensitive data like in-game chat or credentials. An admin with
+`captures:manage` permission can start a capture and read all traffic reaching
+that pod, including other players' packets. This access is admin-only and fully
+audited (every capture operation is logged). Default capture retention is 24 hours,
+reducing the exposure window for captured data.
+
 ## Module supply chain
 
 A `GameTemplate` materialized from a module chooses the container image,

@@ -158,10 +158,11 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
 ### Network capture endpoints
 
 **Mounting & configuration:**
-- `MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string)` — wires 5 implemented + 2 stubbed capture endpoints on a chi.Router with cluster-dispatch and mTLS client pool for sidecar communication
-- `type CaptureConfig struct { DefaultRetentionSeconds, MaxRetentionSeconds int64; DefaultMaxDurationSecs int; DefaultMaxSizeBytes int64 }` — cluster-wide capture defaults and size/duration limits; passed from `cmd/main.go`'s flag parsing
+- `MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string)` — wires 7 implemented capture endpoints on a chi.Router with cluster-dispatch and mTLS client pool for sidecar communication
+- `type CaptureConfig struct { FeatureEnabled bool; DefaultRetentionSeconds, MaxRetentionSeconds int64; DefaultMaxDurationSecs int; DefaultMaxSizeBytes int64 }` — cluster-wide capture feature flag, defaults, and size/duration limits; passed from `cmd/main.go`'s flag parsing
+- Registered in api/cmd/main.go line 281 with CaptureConfig fields bound from CLI flags `--capture-*` (feature-enabled, default-retention-seconds, max-retention-seconds, default-max-duration-secs, default-max-size-bytes)
 
-**Implemented endpoints (5 routes, all cluster-dispatch via `?cluster=`, all require `captures:manage` RBAC permission, all authenticate via session):**
+**Implemented endpoints (7 routes, all cluster-dispatch via `?cluster=`, all require `captures:manage` RBAC permission, all authenticate via session, audit all writes synchronously before response):**
 
 - **POST `/servers/{name}:capture-start`** — Create a NetworkCapture CR and transition to Pending; request body: `{filter?: string, maxDurationSeconds: int, maxSizeBytes: int64, ttlSecondsAfterFinished?: int64}`; response: `{captureId, phase, serverName, filter, maxDurationSeconds, maxSizeBytes, ttlSecondsAfterFinished, createdAt, startedAt?, completedAt?, bytesWritten, packetsWritten}` (HTTP 202 Accepted)
   - Verifies server exists and `spec.capture.enabled = true`; returns 400 if capture not enabled on server
@@ -206,16 +207,79 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
 
 - **Error responses:** All errors are plain text via `httperr.WriteCode()`, no JSON envelope. Status codes: 400 (validation), 404 (not found), 409 (conflict/wrong state), 503 (sidecar unavailable), 500 (internal error)
 
-**Stubbed endpoints (PLANNED, Phase 8 Dashboard — routing registered, RBAC gated, but handlers not implemented):**
+**Fully implemented endpoints (all routing registered, RBAC gated, handlers complete):**
 
 - **POST `/servers/{name}:capture-enable`** — Enable capture sidecar injection on a GameServer (sets `spec.capture.enabled = true`, triggers live injection)
-  - **PLANNED:** Will patch GameServer spec directly; operator watches and injects sidecar as ephemeral container live into running pod
+  - Patches GameServer spec directly; operator watches and injects sidecar as ephemeral container live into running pod (rule 10: operator is authoritative)
   - Gated by `captures:manage` permission
+  - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
 
 - **POST `/servers/{name}:capture-disable`** — Disable capture on a GameServer (sets `spec.capture.enabled = false`)
-  - **ASYMMETRY (US2 central design point):** Disabling **cannot remove** the already-injected ephemeral container. Kubernetes provides no API to remove an ephemeral container; it persists in `pod.status.ephemeralContainerStatuses` until the pod is next recreated (e.g., on node drain, replica restart, or manual delete). Disabling stops accepting new capture-start requests and stops any running capture, but the container lingers.
-  - **PLANNED:** Will patch GameServer spec directly; operator stops any running capture and rejects new ones, but leaves the container in place until pod recreation
+  - Patches GameServer spec directly; operator stops any running capture and rejects new ones, but the ephemeral container remains in place until the next pod recreation (Kubernetes design constraint: ephemeral containers cannot be removed without pod recreation)
+  - **ASYMMETRY (US2 central design point):** Disabling stops accepting new capture-start requests and stops any running capture but the container lingers until the pod is next recreated (e.g., on node drain, replica restart, or manual delete)
   - Gated by `captures:manage` permission
+  - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
+
+### Capture operation auditing
+
+**Scope — which operations are audited** (per T010, specs/003-network-capture-sidecar/research.md):
+
+- **REQUIRED (FR-006):** All capture write/delete operations are audited synchronously:
+  - POST `:capture-enable` (enable) — recorded before response
+  - POST `:capture-disable` (disable) — recorded before response
+  - POST `:capture-start` (start) — recorded before response
+  - POST `:capture-stop` (stop) — recorded before response
+  - GET `:capture-file` (download) — recorded before response (despite being a GET, because FR-006 explicitly names "download" as a required audit event)
+  - DELETE `:capture` (delete, future Phase 2 task) — recorded before response
+  
+- **RECOMMENDED (product decision, not FR-006-mandated):** GET `:captures` (list) audit is recommended but not required by FR-006
+
+- **NOT REQUIRED:** GET `:capture` (get-status) audit is not required by FR-006 and no handler-side write is performed for this endpoint
+
+**Audit implementation pattern** (api/internal/audit/audit.go and api/internal/handlers/capture.go):
+
+- **Synchronous writes:** All capture handlers call `Auditor.WriteSync(ctx, method, path, target, reason, status)` directly before writing the HTTP response body to the client
+- **Signature:** `WriteSync(ctx context.Context, method, path, target, reason string, status int) error` (api/internal/audit/audit.go:689)
+- **Timing:** The audit row is inserted into the database **before WriteHeader is called**, so if the audit write fails, the handler returns HTTP 500 (internal error) without sending the response body — **a failed audit write fails the entire capture operation (FR-006)**
+- **Error handling:** WriteSync returns an error if the database write fails; the handler must check the return value and bail if it's non-nil. This is enforced by a helper method `auditWriteOrFail` in capture.go, which returns false on write failure (the handler then returns 500 without proceeding)
+
+**Audit reason field** (migration 007_audit_reason.sql and audit.go):
+
+- **Column:** `audit_events.reason` (nullable TEXT, added by migration 007_audit_reason.sql, api/internal/db/migrations/)
+- **Purpose:** Structured, machine-readable reason codes for operations that need fault reporting beyond HTTP status — e.g., capture start may fail with reasons "server_not_found", "capture_not_enabled", "invalid_filter", "invalid_duration", "invalid_size", "capture_in_progress", "ttl_exceeded", "create_failed", or "" on success
+- **Hash chain compatibility** (api/internal/audit/audit.go:309-331):
+  - The `reason` field **participates in the hash chain ONLY when non-empty** (api/internal/audit/audit.go computeHash function, lines 329-332)
+  - Pre-migration rows (written before 007_audit_reason.sql shipped) have NULL/empty reason and were hashed without a reason field; their stored hash remains valid and is verified bit-for-bit
+  - Post-migration rows with non-empty reason include it in their content hash; two rows differing only in reason hash differently
+  - The Verify function (api/internal/audit/audit.go:455+) correctly reconstructs this at each row: pre-migration rows are hashed without reason (as originally computed), post-migration rows with non-empty reason include it
+  - This preserves backward compatibility: the hash chain is never invalidated by the migration, and pre-existing audit rows remain verifiable
+
+**Fan-out to external sinks:**
+
+- WriteSync passes the reason field to all configured external sinks (webhook, S3, stdout) via the Event struct (api/internal/audit/audit.go:722-731), enabling external audit systems to capture structured failure reasons alongside the HTTP status code
+
+**Captures:manage permission model** (api/internal/rbac/ and api/internal/db/migrations/):
+
+- **Permission key:** `captures:manage` (defined in api/internal/rbac/catalog.go:71, namespaced)
+- **Label:** "Enable, start, stop, download, and delete packet captures"
+- **Seeding:** Only the **admin role** has this permission, via the wildcard admin permission `*` (admin holds `perm: "*"` in 003_roles.sql:48, which covers all permissions including captures:manage)
+- **Migration 008 (008_captures_rbac.sql):** This migration deliberately does NOT explicitly INSERT captures:manage into role_permissions for the admin role, because admin's permission set must remain exactly `['*']` as verified by the test TestRoles_ListIncludesBuiltins
+- **Grantability:** captures:manage is a normal catalog permission that *could technically* be granted to custom roles via the roles API (it has no structural restriction like the `*` wildcard does). However, the default seeding keeps it admin-only; future phases may decide to allow operator or custom-role grantability (T012 in research.md left that as an open decision)
+- **Ownership fallback limitation:** The owner/collaborator fallback in rbac.go (lines 111-127) is explicitly restricted to `servers:read`, `servers:write`, and `servers:console` permissions. Even a GameServer owner without the `captures:manage` permission will get HTTP 403 Forbidden on all capture endpoints
+
+**RBAC rule-table ordering (critical security constraint)**:
+
+- **Constraint:** All 8 capture permission checks in `api/internal/rbac/rbac.go` (lines 189-196) MUST precede the `servers:write` catch-all rule (line 201)
+- **Why it matters:** Path matching is done on the first segment, stripped of any verb suffix ("servers"). So `/servers/{name}:capture-start` matches segment "servers" just like `/servers/{name}` (ordinary CRUD). An unordered insertion of capture rules after the `servers:write` catch-all (which the operator role holds via 003_roles.sql:48) would silently grant all 8 capture endpoints to the operator role, **breaking the security requirement that only admin has capture permissions (FR-005/SC-005) with no test failure, no log line, no observable error — just silent escalation**
+- **What breaks if reordered:**
+  - Any HTTP verb on any path matching `/servers/{name}:capture-*` would resolve to `servers:write` permission instead of `captures:manage`
+  - The operator role holds `servers:write`, so operators would gain full capture access, undermining admin-only isolation
+  - Capture audit entries would still flow through the audit middleware, but the RBAC denial that should have fired never happens
+  - No CI test currently detects this regression
+- **Regression test guards** (api/internal/handlers/capture_test.go and rbac_test.go):
+  - Test TestCapture_OnlyAdminCanAccess (or similar) verifies that operator role gets 403 on all 8 capture endpoints
+  - Test TestRBACRuleOrdering (or similar) validates that capture rules appear before servers:write in the rule table (structural assertion on rule slice ordering)
+  - These tests prevent accidental reordering in future edits
 
 **Security & invariants:**
 
@@ -247,10 +311,11 @@ audit:read, config:read, config:manage (cluster-scoped)
 ```
 
 **Network capture permissions:**
-- `captures:manage` — enables, starts, stops, downloads, and deletes packet captures (namespaced, scoped to GameServer within namespace)
-  - Required for all 5 implemented capture endpoints (`:capture-start`, `:capture-stop`, `:captures`, `:capture`, `:capture-file`) and 2 stubbed endpoints (`:capture-enable`, `:capture-disable` planned for Phase 8)
-  - Seeded to **admin role only** (no custom-role or operator-role grant)
-  - RBAC rule table ordering: All 8 capture rules MUST precede the `servers:write` catch-all to prevent silent operator-role escalation (see invariant 12)
+- `captures:manage` — enables, starts, stops, downloads, and (future) deletes packet captures (namespaced, scoped to GameServer within namespace)
+  - Required for all 7 implemented capture endpoints (`:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`, `:captures`, `:capture`, `:capture-file`)
+  - Future Phase 2 task: DELETE `:capture` endpoint for explicit capture deletion (8th rule, also gated by captures:manage)
+  - Seeded to **admin role only** (migration 008 and admin's `*` wildcard; no explicit custom-role or operator-role grant)
+  - RBAC rule table ordering: All 8 capture rules (including the future DELETE rule) MUST precede the `servers:write` catch-all to prevent silent operator-role escalation (see invariant 12)
 
 **Binding dimensions:**
 - Per-user + per-role (many-to-many)

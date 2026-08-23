@@ -106,6 +106,7 @@ bucket_api_rbac() { cat <<'EOF'
 TestAPI_RBAC_ViewerCannotMutate
 TestAPI_RBAC_ViewerCannotMutate_Matrix
 TestAPI_RBAC_OperatorCanWriteServers_NotUsers
+TestAPI_RBAC_OperatorCannotReachCaptures
 TestAPI_RBAC_AdminCanReachAll
 TestAPI_OperatorCannotInviteUsers
 TestAPI_LifecycleClone
