@@ -104,12 +104,12 @@ The HTTP server listens on `:8000` (configurable) with these route groups:
 - `/servers/{name}:start`, `:stop`, `:restart` — actions (operator-handled)
 - `/servers/{name}:collaborators`, `:transfer` — GameServer owner/collaborator management
 - `/servers/{name}/files/*` — file browser, upload, download (proxied to agent); cluster-dispatch
-- **[PLANNED, Phase 2 HTTP]** `/servers/{name}:capture-enable`, `:capture-disable` — sidecar lifecycle actions
-- `/servers/{name}:capture-start` — POST: start a network packet capture (creates NetworkCapture CR); phase 2 foundational, HTTP tier
-- `/servers/{name}:capture-stop` — POST: stop an active capture (updates NetworkCapture status)
-- `/servers/{name}:captures` — GET: list all NetworkCaptures (active and historical) for a server
-- `/servers/{name}:capture` — GET: fetch a single capture's metadata and status; query param `id={captureId}`
-- `/servers/{name}:capture-file` — GET: download completed PCAPNG file from the capture sidecar; query param `id={captureId}`
+- **[PLANNED, Phase 8 Dashboard]** `/servers/{name}:capture-enable`, `:capture-disable` — sidecar lifecycle actions (endpoints stubbed; handlers not yet implemented; RBAC rules already in place for when implemented)
+- `/servers/{name}:capture-start` — POST: start a network packet capture (creates NetworkCapture CR, transitions to Pending)
+- `/servers/{name}:capture-stop` — POST: stop an active capture (updates NetworkCapture status to Completed)
+- `/servers/{name}:captures` — GET: list all NetworkCaptures (active and historical) for a server, excluding Expired captures
+- `/servers/{name}:capture` — GET: fetch a single capture's metadata and status; query param `id={captureId}`; 404 if not found or Expired
+- `/servers/{name}:capture-file` — GET: download completed PCAPNG file from the capture sidecar; query param `id={captureId}` (proxied to sidecar over mTLS; 409 if still running)
 - `/templates/{name}` — CRUD for GameTemplate (cluster-scoped)
 - `/backups/{name}` — CRUD for Backup (namespaced, cluster-dispatch)
 - `/schedules/{name}` — CRUD for BackupSchedule (namespaced, cluster-dispatch)
@@ -155,33 +155,74 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
 - All authenticate via session + mTLS to agent (for console routes)
 - Multiplexed per `?cluster=` + namespace
 
-### Network capture endpoints (Phase 2 Foundational)
+### Network capture endpoints
 
 **Mounting & configuration:**
-- `MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string)` — mounts all 5 capture endpoints on a chi.Router with cluster-dispatch and mTLS client pool for sidecar communication
-- `type CaptureConfig struct { DefaultRetentionSeconds, MaxRetentionSeconds int64; DefaultMaxDurationSecs int; DefaultMaxSizeBytes int64 }` — cluster-wide capture defaults and size/duration limits
+- `MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string)` — wires 5 implemented + 2 stubbed capture endpoints on a chi.Router with cluster-dispatch and mTLS client pool for sidecar communication
+- `type CaptureConfig struct { DefaultRetentionSeconds, MaxRetentionSeconds int64; DefaultMaxDurationSecs int; DefaultMaxSizeBytes int64 }` — cluster-wide capture defaults and size/duration limits; passed from `cmd/main.go`'s flag parsing
 
-**Endpoints (5 routes, all cluster-dispatch via `?cluster=`, all gated by `captures:manage` RBAC permission):**
-- **POST `/servers/{name}:capture-start`** — Create a NetworkCapture CR; request body: `{filter?: string, maxDurationSeconds: int, maxSizeBytes: int64, ttlSecondsAfterFinished?: int64}`; response: NetworkCapture metadata + phase (Pending)
-  - Validates BPF filter syntax before CRD creation (FR-003); returns 400 on invalid filter
-  - Enforces one-Running-per-server (rejects with 409 Conflict if another is Running); returns 202 Accepted on success (Pending phase, operator reconciles to Running)
-  - TTL clamped to cluster maximum at request time (returns 400 if exceeds max)
-  - Audit: synchronous write before response (T010 rule); reason field records "invalid_filter", "capture_in_progress", "ttl_exceeded", "create_failed", or "" on success
-- **POST `/servers/{name}:capture-stop`** — Transition a NetworkCapture from Running to Completed; request body: `{captureId: string}`; response: updated NetworkCapture metadata
-  - Returns 400 if `captureId` is missing from request body
-  - Returns 404 if capture not found or already completed
-  - Audit: synchronous write before response with status code; reason field records "not_found", "not_running", "stop_failed", or "" on success
-- **GET `/servers/{name}:captures`** — List all NetworkCaptures for a server; response: array of capture metadata and phase
-  - Excludes expired captures (phase == Expired)
-- **GET `/servers/{name}:capture`** — Fetch single capture metadata + status; query param `id={captureId}`; response: NetworkCapture with current phase, byte/packet counts
-  - Returns 404 if capture not found
-- **GET `/servers/{name}:capture-file`** — Download completed PCAPNG file from sidecar; query param `id={captureId}`
-  - Returns 409 Conflict if capture still Running
-  - Returns 404 if capture not found or has expired
-  - Proxies file download from sidecar's `:9091/captures/{id}/file` endpoint via mTLS; Content-Type: `application/vnd.tcpdump.pcap`; Content-Disposition: `attachment; filename="capture.pcapng"`
-  - Streams file without buffering (io.Copy)
-  - Audit: synchronous write before response (on both success and error); reason field records "not_found", "not_running", or "" on success; a failed audit write before streaming returns error and stops the download (T010 rule: audit failure fails the operation)
-- **Error responses:** All errors are plain text via `http.Error()`, no JSON envelope (per contract T047/FR-007)
+**Implemented endpoints (5 routes, all cluster-dispatch via `?cluster=`, all require `captures:manage` RBAC permission, all authenticate via session):**
+
+- **POST `/servers/{name}:capture-start`** — Create a NetworkCapture CR and transition to Pending; request body: `{filter?: string, maxDurationSeconds: int, maxSizeBytes: int64, ttlSecondsAfterFinished?: int64}`; response: `{captureId, phase, serverName, filter, maxDurationSeconds, maxSizeBytes, ttlSecondsAfterFinished, createdAt, startedAt?, completedAt?, bytesWritten, packetsWritten}` (HTTP 202 Accepted)
+  - Verifies server exists and `spec.capture.enabled = true`; returns 400 if capture not enabled on server
+  - Validates pcap-filter expression before CRD creation (FR-003; character whitelist + length check, no full BPF compile); returns 400 on invalid filter (e.g., control chars, >1024 chars)
+  - Enforces maximum one Pending/Running capture per server (rejects with 409 Conflict if one exists); checks both `status.capture.activeCapture` and scans all NetworkCaptures as a guard against eventual consistency lag
+  - Validates duration (1..3600s) and size (1..cluster-max bytes); returns 400 if out of range
+  - Clamps TTL to cluster maximum at request time; returns 400 if exceeds max (cluster maximum is 604800s / 7 days by default, storage-limitation-informed, not a legal requirement)
+  - Creates NetworkCapture CR with ownerReference to GameServer (cascade delete on server deletion)
+  - Audit: `WriteSync()` before response body is sent (FR-006); reason field records "server_not_found", "capture_not_enabled", "invalid_filter", "invalid_duration", "invalid_size", "capture_in_progress", "ttl_exceeded", "create_failed", or "" on success
+
+- **POST `/servers/{name}:capture-stop`** — Transition a NetworkCapture from Pending/Running to Completed; request body: `{captureId: string}`; response: `{captureId, phase, serverName, filter, createdAt, startedAt?, completedAt?, stoppingReason, bytesWritten, packetsWritten}` (HTTP 200 OK)
+  - Returns 400 if `captureId` is missing or empty in request body
+  - Returns 404 if capture not found or doesn't belong to this server
+  - Returns 409 if capture is not in Pending or Running phase (already Completed/Failed/Expired)
+  - Sets capture status to Completed, records `completionTime`, and sets `message="stopped by user request"` so operator's reconciler tells the sidecar to stop (once per request, guarded by reconciler-side condition)
+  - Audit: `WriteSync()` before response; reason field records "missing_id", "not_found", "not_running", "stop_failed", or "" on success
+
+- **GET `/servers/{name}:captures`** — List all NetworkCaptures for a server (active and historical); response: `{captures: [...], total: int, limit: 100, offset: 0}`
+  - Filters to captures whose `spec.serverRef.name` matches the server
+  - Excludes Expired captures (phase == Expired)
+  - Includes Pending/Running/Completed/Failed; client can filter by phase
+  - Each item includes metadata, phase, timestamps, packet/byte counts, and computed `expiresAt` field (when the capture will auto-delete if TTL is set)
+  - Audit: `WriteSync()` before response (non-GET auditing, rare but required for capture list due to FR-006 gap on GET operations)
+
+- **GET `/servers/{name}:capture`** — Fetch a single capture's metadata, status, and counts; query param `id={captureId}`; response: capture object with full details (HTTP 200)
+  - Returns 400 if `id` is missing or empty
+  - Returns 404 if capture not found, doesn't belong to this server, or phase == Expired
+  - Response includes phase, timestamps (createdAt/startedAt/completedAt), filter, limits, byte/packet counts, and computed `expiresAt`
+  - Audit: `WriteSync()` before response; reason "not_found", "expired", or ""
+
+- **GET `/servers/{name}:capture-file`** — Download completed PCAPNG file from sidecar; query param `id={captureId}` (HTTP 200 on success)
+  - Returns 400 if `id` is missing or empty
+  - Returns 404 if capture not found or doesn't belong to this server
+  - Returns 404 if capture phase == Expired (TTL window elapsed)
+  - Returns 409 if capture phase == Pending or Running (still recording)
+  - Proxies from sidecar's `https://<gs>-agent.<ns>.svc.cluster.local:9091/captures/{id}/file` over mTLS
+  - **CRITICAL (FR-006):** Audit `WriteSync()` with status code BEFORE streaming starts (on both success and error paths); if audit write fails, returns 500 and stops download entirely (audit failure fails the operation)
+  - Sets response headers: `Content-Type: application/vnd.tcpdump.pcap`, `Content-Disposition: attachment; filename="capture-{id}.pcapng"`
+  - Streams file without buffering via `io.Copy(responseWriter, sidecarResponse.Body)` so large captures don't accumulate in memory
+  - On sidecar error (non-2xx), classifies via `writeUpstreamError` (timeout→504, other transport error→502); error message is safe generic text to client, full error logged server-side
+  - Audit reason field: "not_found", "not_running", "expired", "invalid_host", "download_failed", or "" on success; a second audit row (with "download_failed") is written post-stream if sidecar returned non-2xx (to correct the initial optimistic row)
+
+- **Error responses:** All errors are plain text via `httperr.WriteCode()`, no JSON envelope. Status codes: 400 (validation), 404 (not found), 409 (conflict/wrong state), 503 (sidecar unavailable), 500 (internal error)
+
+**Stubbed endpoints (PLANNED, Phase 8 Dashboard — routing registered, RBAC gated, but handlers not implemented):**
+
+- **POST `/servers/{name}:capture-enable`** — Enable capture sidecar injection on a GameServer (sets `spec.capture.enabled = true`, triggers live injection)
+  - **PLANNED:** Will patch GameServer spec directly; operator watches and injects sidecar as ephemeral container live into running pod
+  - Gated by `captures:manage` permission
+
+- **POST `/servers/{name}:capture-disable`** — Disable capture on a GameServer (sets `spec.capture.enabled = false`)
+  - **ASYMMETRY (US2 central design point):** Disabling **cannot remove** the already-injected ephemeral container. Kubernetes provides no API to remove an ephemeral container; it persists in `pod.status.ephemeralContainerStatuses` until the pod is next recreated (e.g., on node drain, replica restart, or manual delete). Disabling stops accepting new capture-start requests and stops any running capture, but the container lingers.
+  - **PLANNED:** Will patch GameServer spec directly; operator stops any running capture and rejects new ones, but leaves the container in place until pod recreation
+  - Gated by `captures:manage` permission
+
+**Security & invariants:**
+
+- **Asymmetry clarity:** Enable is live and restart-free. Disable is similarly live but not truly "off"  — the container remains in the pod until recreation. Spec.md documents this precisely; dashboa will surface it to users (e.g., "Capture disabled but sidecar remains until pod restart").
+- **RBAC ordering (critical):** All 8 capture permission checks in `api/internal/rbac/rbac.go` (lines 189-196 in rbac.go) MUST precede the `servers:write` catch-all. Path matching is done on segment "servers" (via chi's `{name}` segment stripping), so a /servers/{name}:verb verb routes as "servers" segment. An unordered insertion after servers:write would silently grant capture access to the operator role (which holds servers:write), breaking the security requirement that only admin has capture permissions (FR-005/SC-005). CI does not currently detect this regression; future edits must preserve order or add a structural test.
+- **Concurrent capture limit (API + operator):** API enforces at creation time (rejects 409); operator enforces again at reconciliation time. Two independent gates prevent race conditions and eventual-consistency lag.
+- **Sidecar authentication:** mTLS only; both client cert+key and server CA are passed from cmd/main.go to MountCapture and built into an http.Client. No sidecar auth tokens in URLs (SSRF risk), no secrets echoed in logs.
 
 ### RBAC roles (three built-in + custom)
 
@@ -205,10 +246,11 @@ roles:read, roles:manage (cluster-scoped)
 audit:read, config:read, config:manage (cluster-scoped)
 ```
 
-**Network capture permissions (Phase 2 Foundational):**
+**Network capture permissions:**
 - `captures:manage` — enables, starts, stops, downloads, and deletes packet captures (namespaced, scoped to GameServer within namespace)
-  - Seeded to **admin role only** via migration `008_captures_rbac.sql`
-  - Future phases will determine grantability to custom roles and operator role
+  - Required for all 5 implemented capture endpoints (`:capture-start`, `:capture-stop`, `:captures`, `:capture`, `:capture-file`) and 2 stubbed endpoints (`:capture-enable`, `:capture-disable` planned for Phase 8)
+  - Seeded to **admin role only** (no custom-role or operator-role grant)
+  - RBAC rule table ordering: All 8 capture rules MUST precede the `servers:write` catch-all to prevent silent operator-role escalation (see invariant 12)
 
 **Binding dimensions:**
 - Per-user + per-role (many-to-many)
@@ -233,7 +275,7 @@ audit:read, config:read, config:manage (cluster-scoped)
 9. **Secure error handling:** internal errors (DB failures, K8s API errors) logged in full; safe generic messages sent to clients
 10. **Cluster dispatch validation:** `?cluster=` matched against registered Cluster CRDs via registry; unknown cluster is a 400
 11. **WebSocket/HTTP proxy path validation:** `api/internal/ws/dialer.go` takes the namespace and pod name from the request path before building the agent's upstream URL. Both are validated as DNS-1123 labels (`isDNS1123Label`) and rejected with a 400 before any URL is constructed — gosec's taint analysis doesn't model a custom validator as a sanitizer, hence the scoped G704 exclusion on that file.
-12. **Capture rule-table ordering (Phase 2 Foundational):** All capture permission checks (8 rules for `:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`, `:captures`, `:capture-file`, `:capture`, and `DELETE :capture`) **MUST precede** the `servers:write` catch-all rule in `api/internal/rbac/rbac.go`. Because all `/servers/{name}:verb` paths match the segment "servers" (via `firstSegment` stripping the verb), an unordered insertion places them after `servers:write`, which the operator role already holds. This would **silently grant capture access to the operator role**, defeating the security requirement that only admin has capture permissions (FR-005/SC-005). Reordering the capture rules after servers:write is a security regression that CI does not currently detect — any future edit must preserve the current order and consider adding a structural test to prevent silent reordering.
+12. **Capture rule-table ordering:** All 8 capture permission checks (POST `:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`; GET `:captures`, `:capture`, `:capture-file`; DELETE `:capture`) **MUST precede** the `servers:write` catch-all rule in `api/internal/rbac/rbac.go` lines 189-196 before line 211. Because all `/servers/{name}:verb` paths match the segment "servers" (chi's `{name}` segment strips the verb suffix), an unordered insertion after `servers:write` (which the operator role holds) would **silently grant all 8 capture endpoints to the operator role**, breaking the security requirement that only admin has capture permissions (FR-005/SC-005). This regression is a structural bug CI does not currently catch — moving the capture rules after servers:write is a one-line security break. Any future RBAC edits must preserve this order; consider a structural test to prevent silent reordering.
 
 ## Dependencies
 

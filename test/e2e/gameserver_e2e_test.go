@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -669,4 +670,269 @@ func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	}
 	t.Logf("capture file size=%d bytes, packets=%d, all matched filter %q (SC-001+SC-008 verified)",
 		len(fileBody), matchedPackets, startReq["filter"])
+}
+
+// findContainerByName returns the container named `name` from cs, or nil.
+func findContainerByName(cs []corev1.Container, name string) *corev1.Container {
+	for i := range cs {
+		if cs[i].Name == name {
+			return &cs[i]
+		}
+	}
+	return nil
+}
+
+// findContainerStatusByName returns the container status named `name`
+// from css, or nil.
+func findContainerStatusByName(css []corev1.ContainerStatus, name string) *corev1.ContainerStatus {
+	for i := range css {
+		if css[i].Name == name {
+			return &css[i]
+		}
+	}
+	return nil
+}
+
+// TestGameServer_NetworkCaptureEphemeralContainer — the structural
+// counterpart to TestGameServer_NetworkCaptureStartStopDownload: no real
+// packet traffic here, just the injection/removal-refusal contract for
+// the capture ephemeral container.
+//
+// FR-001 as amended: enabling capture must not perturb the running game
+// workload — no game-container restart, no image/securityContext/mount
+// change. We snapshot the game container before enabling and diff it
+// against the same fields after.
+//
+// The disable half asserts the documented asymmetry explicitly: disable
+// stops the capability (status.capture.ready flips false, new
+// :capture-start calls are refused) but Kubernetes provides no API to
+// remove an already-injected ephemeral container, so its entry in
+// pod.status.ephemeralContainerStatuses (and pod.spec.ephemeralContainers)
+// legitimately lingers. That lingering is the ratified platform
+// behavior — assert it stays present, don't "fix" the test if it does.
+func TestGameServer_NetworkCaptureEphemeralContainer(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-ec-tmpl"
+	gsName := "e2e-cap-ec-gs"
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	// Created WITHOUT capture enabled — this test drives enable/disable
+	// entirely through the :capture-enable/:capture-disable HTTP routes.
+	applyBusyboxGameServer(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	podPre, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod pre-enable: %v", err)
+	}
+	if len(podPre.Spec.EphemeralContainers) != 0 {
+		t.Fatalf("pod already has ephemeral containers before capture was ever enabled: %+v",
+			podPre.Spec.EphemeralContainers)
+	}
+	gameContainerPre := findContainerByName(podPre.Spec.Containers, "game")
+	if gameContainerPre == nil {
+		t.Fatalf("no game container in pre-enable pod spec")
+	}
+	gameStatusPre := findContainerStatusByName(podPre.Status.ContainerStatuses, "game")
+	if gameStatusPre == nil {
+		t.Fatalf("no game container status in pre-enable pod")
+	}
+	preImage := gameContainerPre.Image
+	preSecurityContext := gameContainerPre.SecurityContext
+	preVolumeMounts := gameContainerPre.VolumeMounts
+	preRestartCount := gameStatusPre.RestartCount
+
+	// Enable capture.
+	enableHTTPResp, enableBody, err := cli.Post("/servers/"+gsName+":capture-enable", nil)
+	if err != nil {
+		t.Fatalf("enable capture: %v", err)
+	}
+	defer func() { _ = enableHTTPResp.Body.Close() }()
+	if enableHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("enable capture: status=%s body=%s", enableHTTPResp.Status, enableBody)
+	}
+
+	// The ephemeral container appears on the pod spec as soon as the
+	// operator observes spec.capture.enabled=true — no pod recreation.
+	var capEC corev1.EphemeralContainer
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		for _, ec := range pod.Spec.EphemeralContainers {
+			if ec.Name == "capture" {
+				capEC = ec
+				return true, ""
+			}
+		}
+		return false, "no capture ephemeral container in pod spec yet"
+	})
+
+	if !strings.Contains(capEC.Image, "capture-sidecar") {
+		t.Errorf("capture ephemeral container image = %q, want it to contain capture-sidecar", capEC.Image)
+	}
+	mountsCaptures := false
+	for _, m := range capEC.VolumeMounts {
+		if m.Name == "captures" {
+			mountsCaptures = true
+			break
+		}
+	}
+	if !mountsCaptures {
+		t.Errorf("capture ephemeral container does not mount the captures volume: %+v", capEC.VolumeMounts)
+	}
+	sc := capEC.SecurityContext
+	if sc == nil {
+		t.Fatalf("capture ephemeral container has no securityContext")
+	}
+	if sc.AllowPrivilegeEscalation == nil || !*sc.AllowPrivilegeEscalation {
+		t.Errorf("capture ephemeral container allowPrivilegeEscalation = %v, want true", sc.AllowPrivilegeEscalation)
+	}
+	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+		t.Errorf("capture ephemeral container runAsNonRoot = %v, want true", sc.RunAsNonRoot)
+	}
+	if sc.Capabilities != nil && len(sc.Capabilities.Add) != 0 {
+		t.Errorf("capture ephemeral container securityContext.capabilities.add = %v, want none (file capabilities only)",
+			sc.Capabilities.Add)
+	}
+
+	// The game container itself must be untouched: same image, same
+	// securityContext, same mounts, no restart.
+	podPostEnable, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod post-enable: %v", err)
+	}
+	gameContainerPost := findContainerByName(podPostEnable.Spec.Containers, "game")
+	if gameContainerPost == nil {
+		t.Fatalf("no game container in post-enable pod spec")
+	}
+	if gameContainerPost.Image != preImage {
+		t.Errorf("game container image changed after enabling capture: pre=%q post=%q", preImage, gameContainerPost.Image)
+	}
+	if !reflect.DeepEqual(gameContainerPost.SecurityContext, preSecurityContext) {
+		t.Errorf("game container securityContext changed after enabling capture: pre=%+v post=%+v",
+			preSecurityContext, gameContainerPost.SecurityContext)
+	}
+	if !reflect.DeepEqual(gameContainerPost.VolumeMounts, preVolumeMounts) {
+		t.Errorf("game container volumeMounts changed after enabling capture: pre=%+v post=%+v",
+			preVolumeMounts, gameContainerPost.VolumeMounts)
+	}
+	gameStatusPost := findContainerStatusByName(podPostEnable.Status.ContainerStatuses, "game")
+	if gameStatusPost == nil {
+		t.Fatalf("no game container status in post-enable pod")
+	}
+	if gameStatusPost.RestartCount != preRestartCount {
+		t.Errorf("game container restart count changed after enabling capture: pre=%d post=%d",
+			preRestartCount, gameStatusPost.RestartCount)
+	}
+
+	// Wait for the sidecar to actually come up before disabling — this
+	// mirrors TestGameServer_NetworkCaptureStartStopDownload's rationale:
+	// disabling before the sidecar was ever observed ready would still
+	// exercise the asymmetry, but waiting first proves injection worked
+	// end to end, not just that the pod spec mutation landed.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		if !ready {
+			return false, "status.capture.ready still false"
+		}
+		return true, ""
+	})
+
+	// Disable capture.
+	disableHTTPResp, disableBody, err := cli.Post("/servers/"+gsName+":capture-disable", nil)
+	if err != nil {
+		t.Fatalf("disable capture: %v", err)
+	}
+	defer func() { _ = disableHTTPResp.Body.Close() }()
+	if disableHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("disable capture: status=%s body=%s", disableHTTPResp.Status, disableBody)
+	}
+
+	// Half one of the asymmetry: status.capture.ready flips false
+	// immediately (the operator does not wait for the ephemeral container
+	// to actually stop — it can't force that anyway).
+	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		if ready {
+			return false, "status.capture.ready still true"
+		}
+		active, found, _ := unstructured.NestedString(obj.Object, "status", "capture", "activeCapture")
+		if found && active != "" {
+			return false, "status.capture.activeCapture still set to " + active
+		}
+		return true, ""
+	})
+
+	// Half one, continued: a new capture is refused once disabled.
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", map[string]any{
+		"filter":             "tcp port 12345",
+		"maxDurationSeconds": 60,
+		"maxSizeBytes":       1048576,
+	})
+	if err != nil {
+		t.Fatalf("capture-start after disable: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusBadRequest {
+		t.Errorf("capture-start after disable: status=%s body=%s, want 400 (capture not enabled)",
+			startHTTPResp.Status, startBody)
+	}
+
+	// Half two of the asymmetry, the one nobody should ever "fix": the
+	// ephemeral container Kubernetes already injected cannot be removed
+	// through any Kubernetes API (there is no pods/ephemeralcontainers
+	// delete/remove operation), so both its spec entry and its
+	// status.ephemeralContainerStatuses entry legitimately remain on the
+	// pod after disable. This is documented, ratified platform behavior
+	// (see FR-001's amendment and US2 acceptance scenario 4 in spec.md) —
+	// asserting its absence here would be asserting a capability
+	// Kubernetes does not offer.
+	podPostDisable, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod post-disable: %v", err)
+	}
+	specStillPresent := false
+	for _, ec := range podPostDisable.Spec.EphemeralContainers {
+		if ec.Name == "capture" {
+			specStillPresent = true
+			break
+		}
+	}
+	if !specStillPresent {
+		t.Errorf("capture ephemeral container vanished from pod.spec.ephemeralContainers after disable — " +
+			"Kubernetes has no API to remove an ephemeral container; this entry should linger until the pod " +
+			"is recreated (see FR-001's disable amendment)")
+	}
+	statusStillPresent := false
+	for _, cs := range podPostDisable.Status.EphemeralContainerStatuses {
+		if cs.Name == "capture" {
+			statusStillPresent = true
+			break
+		}
+	}
+	if !statusStillPresent {
+		t.Errorf("capture entry vanished from pod.status.ephemeralContainerStatuses after disable — " +
+			"Kubernetes has no API to remove an ephemeral container; this entry should linger until the pod " +
+			"is recreated (see FR-001's disable amendment)")
+	}
 }

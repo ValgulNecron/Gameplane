@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +25,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/ValgulNecron/gameplane/api/internal/audit"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
@@ -31,13 +35,21 @@ import (
 
 // CaptureConfig holds cluster-wide capture defaults and limits.
 type CaptureConfig struct {
+	// FeatureEnabled gates whether the network capture feature is turned
+	// on cluster-wide (mirrors the operator's --capture-enabled flag,
+	// operator/cmd/main.go). When false, POST .../:capture-enable
+	// returns 501 rather than patching spec.capture.enabled — a
+	// deliberate operator configuration choice, not a server failure.
+	FeatureEnabled bool
+
 	DefaultRetentionSeconds int64
 	MaxRetentionSeconds     int64
 	DefaultMaxDurationSecs  int
 	DefaultMaxSizeBytes     int64
 }
 
-// MountCapture wires capture endpoints: start, stop, list, get, and download.
+// MountCapture wires capture endpoints: enable, disable, start, stop,
+// list, get, and download.
 // cfg contains cluster-wide capture defaults and limits.
 // The mTLS cert paths are used to authenticate to the capture sidecar's :9091 endpoint.
 func MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg CaptureConfig, agentCABundle, agentClientCert, agentClientKey string) {
@@ -52,6 +64,8 @@ func MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg 
 		cfg:       cfg,
 		tlsClient: tlsClient,
 	}
+	r.Post("/servers/{name}:capture-enable", h.captureEnable)
+	r.Post("/servers/{name}:capture-disable", h.captureDisable)
 	r.Post("/servers/{name}:capture-start", h.captureStart)
 	r.Post("/servers/{name}:capture-stop", h.captureStop)
 	r.Get("/servers/{name}:captures", h.captureList)
@@ -199,6 +213,21 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	// The NetworkCapture CRD stores this as int32 (kubebuilder
+	// Maximum=604800 on Spec.TTLSecondsAfterFinished). h.cfg.MaxRetentionSeconds
+	// is an operator-configurable int64 (GAMEPLANE_CAPTURE_MAX_RETENTION) that
+	// isn't statically bounded to int32 range, so guard the narrowing
+	// conversion below explicitly rather than relying on the comparison above
+	// to have done it.
+	if ttl < 0 || ttl > math.MaxInt32 {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "ttl_exceeded", http.StatusBadRequest) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusBadRequest,
+			fmt.Errorf("ttlSecondsAfterFinished %d is out of range [0, %d]", ttl, int64(math.MaxInt32)))
+		return
+	}
+
 	captureID := generateCaptureID()
 	var filterPtr *string
 	if body.Filter != "" {
@@ -236,6 +265,255 @@ func (h *captureHandler) captureStart(w http.ResponseWriter, req *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// captureStatusResp is the canonical status.capture nested shape shared
+// by the enable/disable responses (rest-api.md's "Enable Capture on
+// GameServer" / "Disable Capture on GameServer" sections) — there is no
+// flattened status.captureReady/status.captureMessage. ActiveCapture and
+// LastCaptureTime marshal to a JSON null (not an omitted key) when unset,
+// so they intentionally carry no `omitempty`.
+type captureStatusResp struct {
+	Ready           bool    `json:"ready"`
+	ActiveCapture   *string `json:"activeCapture"`
+	LastCaptureTime *string `json:"lastCaptureTime"`
+	SidecarRestarts int32   `json:"sidecarRestarts"`
+}
+
+type captureToggleResp struct {
+	Name   string `json:"name"`
+	Status struct {
+		Capture captureStatusResp `json:"capture"`
+	} `json:"status"`
+}
+
+// captureEnable enables packet capture on a GameServer by patching
+// spec.capture.enabled to true. The operator owns everything downstream
+// of that field (rule 10 — the API is a UX layer): it is the one that
+// injects the capture sidecar into the running pod via the
+// pods/ephemeralcontainers subresource. This handler never touches a pod
+// directly, and enabling an already-enabled server is a no-op success
+// (the contract's precondition list carries no "already enabled" error).
+// POST /servers/{name}:capture-enable
+func (h *captureHandler) captureEnable(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(req, "name")
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	auditPath := fmt.Sprintf("/servers/%s:capture-enable", name)
+
+	// A cluster operator who has not turned the capture feature on
+	// cluster-wide is a configuration state, not a server failure: 501,
+	// mirroring clusterOps.enabled's identical shape
+	// (cluster_actions.go's notEnabled).
+	if !h.cfg.FeatureEnabled {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "feature_disabled", http.StatusNotImplemented) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusNotImplemented, errors.New("capture feature is disabled on this cluster"))
+		return
+	}
+
+	u, err := k.GetServer(req.Context(), ns, name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "server_not_found", http.StatusNotFound) {
+				return
+			}
+			httperr.WriteCode(w, req, http.StatusNotFound, errors.New("not found"))
+		} else {
+			if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "error", http.StatusInternalServerError) {
+				return
+			}
+			httperr.Write(w, req, err)
+		}
+		return
+	}
+
+	if u.GetDeletionTimestamp() != nil {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "terminating", http.StatusConflict) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusConflict, errors.New("server is terminating; cannot enable capture"))
+		return
+	}
+
+	patched, err := h.patchCaptureEnabled(req.Context(), k, ns, name, true)
+	if err != nil {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "patch_failed", http.StatusInternalServerError) {
+			return
+		}
+		httperr.Write(w, req, err)
+		return
+	}
+
+	if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "", http.StatusOK) {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(captureToggleResponse(name, patched))
+}
+
+// captureDisable disables packet capture on a GameServer: it patches
+// spec.capture.enabled to false (blocking any new capture immediately)
+// and stops every capture still Pending/Running for the server. It does
+// NOT remove the already-injected ephemeral container — Kubernetes
+// provides no API to delete an ephemeral container once injected (see
+// rest-api.md's Disable response description, and this feature's
+// central asymmetry). The container lingers, idle, in
+// pod.status.ephemeralContainerStatuses until the pod is next recreated
+// (next scheduling, rollout, or manual delete); the pre-provisioned
+// capture emptyDir volume is never removed by disable either.
+// POST /servers/{name}:capture-disable
+func (h *captureHandler) captureDisable(w http.ResponseWriter, req *http.Request) {
+	k, ok := resolveCluster(w, req, h.reg)
+	if !ok {
+		return
+	}
+	name := chi.URLParam(req, "name")
+	ns, ok := resolveNS(w, req)
+	if !ok {
+		return
+	}
+	auditPath := fmt.Sprintf("/servers/%s:capture-disable", name)
+
+	u, err := k.GetServer(req.Context(), ns, name)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "server_not_found", http.StatusNotFound) {
+				return
+			}
+			httperr.WriteCode(w, req, http.StatusNotFound, errors.New("not found"))
+		} else {
+			if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "error", http.StatusInternalServerError) {
+				return
+			}
+			httperr.Write(w, req, err)
+		}
+		return
+	}
+
+	if enabled, _, _ := unstructured.NestedBool(u.Object, "spec", "capture", "enabled"); !enabled {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "already_disabled", http.StatusConflict) {
+			return
+		}
+		httperr.WriteCode(w, req, http.StatusConflict, errors.New("capture is not enabled on this server"))
+		return
+	}
+
+	// Stop every capture still Pending/Running before clearing the
+	// capability, reusing kube.StopNetworkCapture (kube/capture.go)
+	// rather than duplicating its status-patch logic.
+	if err := h.stopActiveCaptures(req.Context(), k, ns, name); err != nil {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "stop_failed", http.StatusInternalServerError) {
+			return
+		}
+		httperr.Write(w, req, err)
+		return
+	}
+
+	patched, err := h.patchCaptureEnabled(req.Context(), k, ns, name, false)
+	if err != nil {
+		if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "patch_failed", http.StatusInternalServerError) {
+			return
+		}
+		httperr.Write(w, req, err)
+		return
+	}
+
+	if !h.auditWriteOrFail(w, req, http.MethodPost, auditPath, name, "", http.StatusOK) {
+		return
+	}
+
+	resp := captureToggleResponse(name, patched)
+	// Disabling clears the capability immediately even though the
+	// already-injected ephemeral container physically lingers until the
+	// pod is recreated (see this handler's doc comment) — force
+	// ready/activeCapture here rather than trusting status.capture,
+	// which the operator has not necessarily reconciled to reflect that
+	// yet (US2 acceptance scenario 4, rest-api.md's amended Disable
+	// response description).
+	resp.Status.Capture.Ready = false
+	resp.Status.Capture.ActiveCapture = nil
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// stopActiveCaptures stops every Pending/Running NetworkCapture for the
+// named server. It scans live captures rather than trusting
+// status.capture.activeCapture alone, for the same eventual-consistency
+// reason hasActiveCapture does below: that status field is maintained by
+// the operator's reconciler and can lag behind the true CR state.
+func (h *captureHandler) stopActiveCaptures(ctx context.Context, k *kube.Client, ns, name string) error {
+	captures, err := k.ListNetworkCaptures(ctx, ns, name)
+	if err != nil {
+		return fmt.Errorf("list network captures for %s: %w", name, err)
+	}
+	for _, c := range captures {
+		if c.Status.Phase != kube.CapturePhasePending && c.Status.Phase != kube.CapturePhaseRunning {
+			continue
+		}
+		if _, err := k.StopNetworkCapture(ctx, ns, c.Name); err != nil {
+			return fmt.Errorf("stop network capture %s: %w", c.Name, err)
+		}
+	}
+	return nil
+}
+
+// patchCaptureEnabled merge-patches spec.capture.enabled and returns the
+// apiserver's resulting object. The operator reconciles everything
+// downstream of this field (rule 10) — this never touches a pod or the
+// ephemeralcontainers subresource directly. Patching only "spec" (never
+// submitting a "status" key) means the returned object's status is left
+// untouched by the apiserver, so callers can read status.capture straight
+// off the response.
+func (h *captureHandler) patchCaptureEnabled(ctx context.Context, k *kube.Client, ns, name string, enabled bool) (*unstructured.Unstructured, error) {
+	patch := map[string]any{
+		"spec": map[string]any{
+			"capture": map[string]any{
+				"enabled": enabled,
+			},
+		},
+	}
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return nil, fmt.Errorf("patch game server %s capture.enabled: marshal patch: %w", name, err)
+	}
+	u, err := k.Dynamic.Resource(kube.GVRs["servers"]).Namespace(ns).
+		Patch(ctx, name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("patch game server %s capture.enabled: %w", name, err)
+	}
+	return u, nil
+}
+
+// captureToggleResponse builds the enable/disable response body straight
+// off the patched GameServer's raw unstructured status.capture (rather
+// than through kube.GameServer's projection, which only carries the
+// activeCapture subset earlier capture handlers needed) since this
+// response's canonical shape needs the full
+// ready/activeCapture/lastCaptureTime/sidecarRestarts set.
+func captureToggleResponse(name string, u *unstructured.Unstructured) captureToggleResp {
+	resp := captureToggleResp{Name: name}
+	ready, _, _ := unstructured.NestedBool(u.Object, "status", "capture", "ready")
+	resp.Status.Capture.Ready = ready
+	if v, found, _ := unstructured.NestedString(u.Object, "status", "capture", "activeCapture"); found && v != "" {
+		resp.Status.Capture.ActiveCapture = &v
+	}
+	if v, found, _ := unstructured.NestedString(u.Object, "status", "capture", "lastCaptureTime"); found && v != "" {
+		resp.Status.Capture.LastCaptureTime = &v
+	}
+	if v, found, _ := unstructured.NestedInt64(u.Object, "status", "capture", "sidecarRestarts"); found {
+		resp.Status.Capture.SidecarRestarts = int32(v)
+	}
+	return resp
 }
 
 type captureStopReq struct {
@@ -749,7 +1027,11 @@ func buildAgentHTTPClient(caBundle, clientCert, clientKey string) *http.Client {
 
 	// Load and configure CA bundle for server verification
 	if caBundle != "" {
-		caCert, err := os.ReadFile(caBundle)
+		// caBundle is operator configuration (a CLI flag / mounted secret
+		// path from api/cmd/main.go's --agent-ca-bundle), not user input;
+		// filepath.Clean here mirrors ws/dialer.go's agentTLSConfig, which
+		// loads the identical CA bundle for the same mTLS purpose.
+		caCert, err := os.ReadFile(filepath.Clean(caBundle))
 		if err != nil {
 			slog.Error("failed to read CA bundle", "path", caBundle, "err", err)
 			return nil
@@ -925,7 +1207,7 @@ func maxDurationSecondsOf(d *metav1.Duration) int {
 	if d == nil {
 		return 0
 	}
-	return int(d.Duration.Seconds())
+	return int(d.Seconds())
 }
 
 // ---------- SSRF-safe agent proxy helpers (mirrors ws/dialer.go; kept

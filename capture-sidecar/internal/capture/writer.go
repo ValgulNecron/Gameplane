@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -112,8 +113,17 @@ func NewWriter(filePath string, maxDurationSeconds int64, maxSizeBytes int64, sn
 		snaplen = DefaultSnaplen
 	}
 
-	// Create or truncate the capture file.
-	file, err := os.Create(filePath)
+	// Create or truncate the capture file. filePath's only production caller
+	// (httpserver.Server.captureFilePath) already builds it from a
+	// regex-validated capture id and re-verifies containment under its
+	// capture directory before this is ever reached (see that method's doc
+	// comment) - so there is no untrusted input reaching this open. Clean it
+	// again here regardless: NewWriter is this package's exported entry
+	// point, so it must not assume every future caller repeats that
+	// containment check, and a cleaned path also can't carry a redundant
+	// ".." that would otherwise resolve outside whatever directory the
+	// caller intended.
+	file, err := os.Create(filepath.Clean(filePath))
 	if err != nil {
 		return nil, fmt.Errorf("create capture file %s: %w", filePath, err)
 	}

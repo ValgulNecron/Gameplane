@@ -1,3 +1,7 @@
+// Package capture implements live packet capture for the network capture
+// sidecar: reading frames off an AF_PACKET socket, compiling and applying a
+// BPF filter expression over them, and writing the matched packets out as a
+// PCAPNG file.
 package capture
 
 import (

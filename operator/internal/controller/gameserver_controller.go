@@ -395,6 +395,10 @@ func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err := r.reconcileNodePlacement(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile node placement")
 	}
+	if err := r.reconcileCapture(ctx, &gs); err != nil {
+		logger.Error(err, "reconcile capture")
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileBackupSchedule(ctx, &gs); err != nil {
 		logger.Error(err, "reconcile BackupSchedule")
 		return ctrl.Result{}, err
@@ -1496,6 +1500,269 @@ const DefaultSentinelImage = "ghcr.io/valgulnecron/gameplane/sentinel:dev"
 // ephemeral container injected when capture is enabled on a GameServer.
 // Overridable via the operator's --capture-sidecar-image flag for air-gapped installs.
 const DefaultCaptureSidecarImage = "ghcr.io/valgulnecron/gameplane/capture-sidecar:dev"
+
+// captureContainerName is the capture sidecar's fixed ephemeral-container
+// name on every game pod. Both GameServerReconciler's eager injection (on
+// spec.capture.enabled) and NetworkCaptureReconciler's idempotent fallback
+// injection (on first capture start) check/set this exact name, so neither
+// path ever double-injects or fights the other.
+const captureContainerName = "capture"
+
+// buildCaptureEphemeralContainer returns the capture sidecar's ephemeral
+// container spec. Single definition shared by GameServerReconciler (eager
+// injection when spec.capture.enabled transitions to true) and
+// NetworkCaptureReconciler (idempotent fallback injection at first capture
+// start) so the two paths can never drift apart. image falls back to
+// DefaultCaptureSidecarImage when empty.
+func buildCaptureEphemeralContainer(image string) corev1.EphemeralContainer {
+	if image == "" {
+		image = DefaultCaptureSidecarImage
+	}
+	return corev1.EphemeralContainer{
+		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+			Name:  captureContainerName,
+			Image: image,
+			SecurityContext: &corev1.SecurityContext{
+				// Matches the capture-sidecar Dockerfile's fixed `USER
+				// 65532:65532` on its distroless/static:nonroot final
+				// stage.
+				RunAsNonRoot: ptrTo(true),
+				RunAsUser:    ptrTo(int64(65532)),
+				// AllowPrivilegeEscalation must stay true: the capture
+				// binary relies on Linux file capabilities (CAP_NET_RAW,
+				// granted via `setcap` on the executable in the
+				// Dockerfile — never securityContext.capabilities.add) to
+				// open a raw socket, and the kernel only honors a file
+				// capability grant on exec when no_new_privs is off.
+				// capabilities.add is deliberately never used here:
+				// Kubernetes grants no ambient capabilities, so a
+				// non-root process's effective capability set is cleared
+				// on execve regardless of what capabilities.add lists —
+				// only the setcap'd binary's file-capability grant
+				// survives that exec. Combined with RunAsNonRoot and
+				// Capabilities.Drop: ["ALL"] below, the container process
+				// itself still starts with zero capabilities of its own.
+				AllowPrivilegeEscalation: ptrTo(true),
+				ReadOnlyRootFilesystem:   ptrTo(true),
+				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+				// Matches buildAgentContainer's fixed distroless
+				// SecurityContext — the same seccomp posture every other
+				// operator-injected sidecar in this repo runs under.
+				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					// Matches the "captures" emptyDir volume
+					// reconcileStatefulSet provisions unconditionally on
+					// every game pod template.
+					Name:      "captures",
+					MountPath: "/tmp/captures",
+				},
+				{
+					Name:      "agent-tls",
+					MountPath: "/etc/tls",
+					ReadOnly:  true,
+				},
+			},
+			Env: []corev1.EnvVar{
+				{Name: "TLS_CERT_FILE", Value: "/etc/tls/tls.crt"},
+				{Name: "TLS_KEY_FILE", Value: "/etc/tls/tls.key"},
+				{Name: "TLS_CA_FILE", Value: "/etc/tls/ca.crt"},
+			},
+		},
+		// Targets the game container for a shared pid/network/ipc namespace.
+		TargetContainerName: gameContainerName,
+	}
+}
+
+// hasCaptureEphemeralContainer reports whether the pod's spec already lists
+// the capture ephemeral container. Ephemeral containers are append-only —
+// this is the idempotency check both injection paths rely on before
+// patching pods/ephemeralcontainers.
+func hasCaptureEphemeralContainer(pod *corev1.Pod) bool {
+	for _, ec := range pod.Spec.EphemeralContainers {
+		if ec.Name == captureContainerName {
+			return true
+		}
+	}
+	return false
+}
+
+// captureEphemeralContainerStatus returns the pod's observed status entry
+// for the capture ephemeral container, or nil if the container has never
+// been injected or the kubelet hasn't reported a status yet.
+func captureEphemeralContainerStatus(pod *corev1.Pod) *corev1.ContainerStatus {
+	for i := range pod.Status.EphemeralContainerStatuses {
+		if pod.Status.EphemeralContainerStatuses[i].Name == captureContainerName {
+			return &pod.Status.EphemeralContainerStatuses[i]
+		}
+	}
+	return nil
+}
+
+// reconcileCapture reacts to spec.capture.enabled and keeps status.capture
+// converged with the pod's observed ephemeral-container state.
+//
+// Enabling injects the capture sidecar as an ephemeral container
+// immediately, live, without restarting the game container (spec.md's US2
+// acceptance scenario 2: "the capture sidecar is injected ... When an admin
+// enables capture" — the sidecar must appear at enable time, not only once
+// a capture is first requested). This is eager injection, not lazy:
+// NetworkCaptureReconciler's own idempotent injection at first-capture-start
+// stays in place as a fallback (e.g. a NetworkCapture created for a
+// GameServer whose ephemeral container injection from a prior enable hasn't
+// landed in this reconciler's cache yet), but the common path is that this
+// function has already added it well before any capture is requested.
+//
+// Disabling stops routing new captures and terminates anything already
+// running immediately (US2 acceptance scenario 4), and reports
+// status.capture.ready=false / activeCapture=nil right away — but, per
+// CaptureConfiguration.Enabled's doc comment, it can NEVER remove the
+// already-injected ephemeral container: Kubernetes exposes no API to remove
+// one. The container lingers in the pod's spec and
+// status.ephemeralContainerStatuses until the pod is next recreated (US2
+// acceptance scenario 4's "removed on the next pod recreation"). A reconcile
+// of a disabled GameServer with that lingering entry must never error or
+// loop — this function only ever reads it to report status, never tries to
+// strip it.
+func (r *GameServerReconciler) reconcileCapture(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
+	base := gs.DeepCopy()
+	if gs.Status.Capture == nil {
+		gs.Status.Capture = &gameplanev1alpha1.CaptureStatus{}
+	}
+
+	enabled := gs.Spec.Capture != nil && gs.Spec.Capture.Enabled
+
+	// Cluster-wide kill switch overrides any per-server request: never
+	// inject when the operator was started with --capture-enabled=false.
+	// Surfaced in status rather than silently doing nothing, so the
+	// dashboard/API can explain why a server stays not-ready even with
+	// spec.capture.enabled=true.
+	clusterAllows := r.CaptureEnabled
+
+	if !enabled {
+		// Stop routing new captures and terminate anything already running,
+		// before ever touching the (unremovable) ephemeral container.
+		if err := r.stopActiveCaptures(ctx, gs); err != nil {
+			return fmt.Errorf("stop active captures on disable: %w", err)
+		}
+		gs.Status.Capture.Ready = false
+		return r.patchCaptureStatus(ctx, gs, base)
+	}
+
+	if !clusterAllows {
+		gs.Status.Capture.Ready = false
+		return r.patchCaptureStatus(ctx, gs, base)
+	}
+
+	var pod corev1.Pod
+	podErr := r.Get(ctx, types.NamespacedName{Namespace: gs.Namespace, Name: gs.Name + "-0"}, &pod)
+	switch {
+	case apierrors.IsNotFound(podErr):
+		// No pod yet (still provisioning) — nothing to inject into and
+		// nothing running to report on.
+		gs.Status.Capture.Ready = false
+		return r.patchCaptureStatus(ctx, gs, base)
+	case podErr != nil:
+		return fmt.Errorf("get game pod for capture reconciliation: %w", podErr)
+	}
+
+	if !hasCaptureEphemeralContainer(&pod) {
+		image := r.CaptureSidecarImage
+		pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, buildCaptureEphemeralContainer(image))
+		if err := r.SubResource("ephemeralcontainers").Update(ctx, &pod); err != nil {
+			// A requeue racing ahead of the manager cache's propagation of
+			// the previous injection can see hasCaptureEphemeralContainer
+			// == false a second time and retry — the apiserver reports
+			// that as Invalid (duplicate ephemeral container name) or
+			// Conflict (stale resourceVersion), not a real failure. The
+			// injection has already happened (or is landing); don't error.
+			if !apierrors.IsInvalid(err) && !apierrors.IsConflict(err) {
+				return fmt.Errorf("inject capture ephemeral container: %w", err)
+			}
+		}
+	}
+
+	// Ready reflects the ephemeral container's own observed state, not
+	// merely whether injection was attempted: a crashed/terminated sidecar
+	// still has a spec entry and a status entry, but cannot accept capture
+	// requests.
+	ecStatus := captureEphemeralContainerStatus(&pod)
+	gs.Status.Capture.Ready = ecStatus != nil && ecStatus.State.Running != nil
+	if ecStatus != nil {
+		gs.Status.Capture.SidecarRestarts = ecStatus.RestartCount
+	}
+
+	return r.patchCaptureStatus(ctx, gs, base)
+}
+
+// stopActiveCaptures transitions every NetworkCapture owned by gs that is
+// still Pending or Running to a terminal phase, and clears
+// gs.Status.Capture.ActiveCapture in memory (folded into the caller's single
+// status patch) — used when spec.capture.enabled transitions to false, per
+// US2 acceptance scenario 4: "any active capture is stopped immediately."
+//
+// A Running capture is set to Completed with the exact userStoppedMessage
+// networkcapture_controller.go's Reconcile already watches for: that guard
+// then tells the sidecar to actually stop capturing over its :9091 control
+// endpoint, the same path a user-initiated POST :capture-stop takes. A
+// Pending capture (never reached the sidecar) is failed directly — there is
+// nothing running on the sidecar to stop.
+func (r *GameServerReconciler) stopActiveCaptures(ctx context.Context, gs *gameplanev1alpha1.GameServer) error {
+	var captures gameplanev1alpha1.NetworkCaptureList
+	if err := r.List(ctx, &captures, client.InNamespace(gs.Namespace)); err != nil {
+		return fmt.Errorf("list network captures for %s: %w", gs.Name, err)
+	}
+
+	now := metav1.Now()
+	for i := range captures.Items {
+		nc := &captures.Items[i]
+		if nc.Spec.ServerRef.Name != gs.Name {
+			continue
+		}
+
+		switch nc.Status.Phase {
+		case gameplanev1alpha1.CapturePhaseRunning:
+			nc.Status.Phase = gameplanev1alpha1.CapturePhaseCompleted
+			nc.Status.CompletionTime = &now
+			nc.Status.Message = userStoppedMessage
+		case gameplanev1alpha1.CapturePhasePending:
+			nc.Status.Phase = gameplanev1alpha1.CapturePhaseFailed
+			nc.Status.CompletionTime = &now
+			nc.Status.Message = "capture disabled on gameserver before it started"
+			meta.SetStatusCondition(&nc.Status.Conditions, metav1.Condition{
+				Type:               "Failed",
+				Status:             metav1.ConditionTrue,
+				ObservedGeneration: nc.Generation,
+				Reason:             "capture_disabled",
+				Message:            nc.Status.Message,
+				LastTransitionTime: now,
+			})
+		default:
+			// Already terminal (Completed/Failed/Expired); nothing to do.
+			continue
+		}
+
+		if err := r.Status().Update(ctx, nc); err != nil {
+			return fmt.Errorf("stop active capture %s: %w", nc.Name, err)
+		}
+		gs.Status.Capture.LastCaptureTime = &now
+	}
+
+	gs.Status.Capture.ActiveCapture = nil
+	return nil
+}
+
+// patchCaptureStatus issues a JSON merge patch of only status.capture,
+// matching reconcileStatus' MergeFrom pattern (gameserver_status.go) so this
+// function never clobbers fields other reconcile steps concurrently own
+// (e.g. the agent sidecar's status.agent heartbeat).
+func (r *GameServerReconciler) patchCaptureStatus(ctx context.Context, gs, base *gameplanev1alpha1.GameServer) error {
+	if err := r.Status().Patch(ctx, gs, client.MergeFrom(base)); err != nil {
+		return fmt.Errorf("patch capture status for %s: %w", gs.Name, err)
+	}
+	return nil
+}
 
 // configInitImageOrDefault resolves the configured shell image, falling back to
 // the pin when the operator wasn't given a --config-init-image.

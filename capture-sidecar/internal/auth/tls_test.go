@@ -109,7 +109,7 @@ func TestMiddleware(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			called = false
-			req := httptest.NewRequest(http.MethodGet, "/captures/cap-1/status", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/captures/cap-1/status", nil)
 			req.TLS = tc.state
 			rr := httptest.NewRecorder()
 

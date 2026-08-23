@@ -201,29 +201,18 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{}, fmt.Errorf("get game pod for ephemeral container injection: %w", err)
 		}
 
-		ephemeralExists := false
-		for _, ec := range pod.Spec.EphemeralContainers {
-			if ec.Name == "capture" {
-				ephemeralExists = true
-				break
-			}
-		}
-
-		if !ephemeralExists {
-			// Inject the capture ephemeral container.
-			// NOTE: This is simplified for T041; the actual injection logic
-			// is normally in gameserver_controller.go's ephemeral container injection,
-			// but for T041 we create it inline here. In a full implementation,
-			// this would be delegated to a shared helper.
+		if !hasCaptureEphemeralContainer(&pod) {
+			// Fallback injection — see injectCaptureContainer's doc comment
+			// for why this is normally already done by the time we get here.
 			if err := r.injectCaptureContainer(ctx, &pod); err != nil {
 				// The Pod read above comes from the manager's cache, which can
 				// lag a subresource write. A requeue that races ahead of cache
-				// propagation would see ephemeralExists == false a second time
-				// and try to inject again; the apiserver rejects that as
-				// invalid (duplicate ephemeral container name) or reports a
-				// conflict on the stale object. Either way, injection has
-				// already happened (or will land from the earlier write) —
-				// treat it as done rather than erroring out.
+				// propagation would see hasCaptureEphemeralContainer == false
+				// a second time and try to inject again; the apiserver
+				// rejects that as invalid (duplicate ephemeral container
+				// name) or reports a conflict on the stale object. Either
+				// way, injection has already happened (or will land from the
+				// earlier write) — treat it as done rather than erroring out.
 				if !apierrors.IsInvalid(err) && !apierrors.IsConflict(err) {
 					return ctrl.Result{}, fmt.Errorf("inject capture ephemeral container: %w", err)
 				}
@@ -264,7 +253,7 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		nc.Status.Message = "capture running"
 
 		// Update GameServer's active capture pointer.
-		if err := r.patchGameServerActiveCapture(ctx, &gs, &nc); err != nil {
+		if err := r.patchGameServerActiveCapture(ctx, &gs, &nc, nil); err != nil {
 			return ctrl.Result{}, fmt.Errorf("update gameserver active capture: %w", err)
 		}
 
@@ -298,8 +287,9 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			nc.Status.Phase = gameplanev1alpha1.CapturePhaseCompleted
 			nc.Status.CompletionTime = &metav1.Time{Time: time.Now()}
 
-			// Clear the GameServer's active capture pointer.
-			if err := r.patchGameServerActiveCapture(ctx, &gs, nil); err != nil {
+			// Clear the GameServer's active capture pointer and record this
+			// as the most recent terminal capture.
+			if err := r.patchGameServerActiveCapture(ctx, &gs, nil, nc.Status.CompletionTime); err != nil {
 				return ctrl.Result{}, fmt.Errorf("clear gameserver active capture: %w", err)
 			}
 
@@ -312,8 +302,9 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			nc.Status.Phase = gameplanev1alpha1.CapturePhaseFailed
 			nc.Status.CompletionTime = &metav1.Time{Time: time.Now()}
 
-			// Clear the GameServer's active capture pointer.
-			if err := r.patchGameServerActiveCapture(ctx, &gs, nil); err != nil {
+			// Clear the GameServer's active capture pointer and record this
+			// as the most recent terminal capture.
+			if err := r.patchGameServerActiveCapture(ctx, &gs, nil, nc.Status.CompletionTime); err != nil {
 				return ctrl.Result{}, fmt.Errorf("clear gameserver active capture: %w", err)
 			}
 
@@ -353,60 +344,16 @@ func (r *NetworkCaptureReconciler) ensureOwnerReference(
 	return r.Update(ctx, nc)
 }
 
-// injectCaptureContainer patches the pod's ephemeralContainers list to add the capture container.
-// This is a simplified version; full implementation would be in gameserver_controller.go.
+// injectCaptureContainer patches the pod's ephemeralContainers list to add
+// the capture container. This is the idempotent fallback path: the common
+// path is that GameServerReconciler's reconcileCapture (gameserver_controller.go)
+// already injected it eagerly when spec.capture.enabled was set — this only
+// fires when that hasn't landed yet (e.g. this reconciler's cache is ahead
+// of the GameServer reconciler's write). Uses the same
+// buildCaptureEphemeralContainer definition GameServerReconciler does, so
+// the two injection paths can never produce different container specs.
 func (r *NetworkCaptureReconciler) injectCaptureContainer(ctx context.Context, pod *corev1.Pod) error {
-	image := r.CaptureSidecarImage
-	if image == "" {
-		image = DefaultCaptureSidecarImage
-	}
-
-	// Append the capture ephemeral container to the pod spec.
-	captureContainer := corev1.EphemeralContainer{
-		EphemeralContainerCommon: corev1.EphemeralContainerCommon{
-			Name:  "capture",
-			Image: image,
-			SecurityContext: &corev1.SecurityContext{
-				RunAsNonRoot: ptrTo(true),
-				// AllowPrivilegeEscalation must stay true: the capture binary
-				// relies on Linux file capabilities (CAP_NET_RAW/CAP_NET_ADMIN
-				// via setcap on the executable, not a running-as-root process)
-				// to open a raw socket, and the kernel only honors those
-				// capabilities on exec when no_new_privs is off. Combined with
-				// RunAsNonRoot and Capabilities.Drop: ["ALL"] below, the
-				// container still starts as an unprivileged user with no
-				// capabilities of its own — only the setcap'd binary gains
-				// NET_RAW/NET_ADMIN at exec time. capabilities.add is
-				// deliberately never used here; see the ratified design.
-				AllowPrivilegeEscalation: ptrTo(true),
-				ReadOnlyRootFilesystem:   ptrTo(true),
-				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{"ALL"},
-				},
-			},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					// Matches the "captures" emptyDir volume gameserver_controller.go
-					// provisions unconditionally on every game pod template.
-					Name:      "captures",
-					MountPath: "/tmp/captures",
-				},
-				{
-					Name:      "agent-tls",
-					MountPath: "/etc/tls",
-					ReadOnly:  true,
-				},
-			},
-			Env: []corev1.EnvVar{
-				{Name: "TLS_CERT_FILE", Value: "/etc/tls/tls.crt"},
-				{Name: "TLS_KEY_FILE", Value: "/etc/tls/tls.key"},
-				{Name: "TLS_CA_FILE", Value: "/etc/tls/ca.crt"},
-			},
-		},
-		TargetContainerName: "game", // Target the game container for sharing pid/network/ipc.
-	}
-
-	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, captureContainer)
+	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, buildCaptureEphemeralContainer(r.CaptureSidecarImage))
 
 	// spec.ephemeralContainers is only mutable through the pods/ephemeralcontainers
 	// subresource — a plain Update on the main pod resource is rejected by the
@@ -414,12 +361,17 @@ func (r *NetworkCaptureReconciler) injectCaptureContainer(ctx context.Context, p
 	return r.SubResource("ephemeralcontainers").Update(ctx, pod)
 }
 
-// patchGameServerActiveCapture updates the GameServer's status.capture.activeCapture pointer.
-// If nc is nil, clears the pointer.
+// patchGameServerActiveCapture updates the GameServer's status.capture
+// pointer fields. If nc is nil, clears status.capture.activeCapture;
+// otherwise sets it to nc.Name. terminalTime, when non-nil, additionally
+// stamps status.capture.lastCaptureTime — passed only from the
+// Completed/Failed transitions below (and from fail()), never from the
+// Pending→Running transition that sets the active pointer.
 func (r *NetworkCaptureReconciler) patchGameServerActiveCapture(
 	ctx context.Context,
 	gs *gameplanev1alpha1.GameServer,
 	nc *gameplanev1alpha1.NetworkCapture,
+	terminalTime *metav1.Time,
 ) error {
 	if gs.Status.Capture == nil {
 		gs.Status.Capture = &gameplanev1alpha1.CaptureStatus{}
@@ -429,6 +381,10 @@ func (r *NetworkCaptureReconciler) patchGameServerActiveCapture(
 		gs.Status.Capture.ActiveCapture = nil
 	} else {
 		gs.Status.Capture.ActiveCapture = ptrTo(nc.Name)
+	}
+
+	if terminalTime != nil {
+		gs.Status.Capture.LastCaptureTime = terminalTime
 	}
 
 	return r.Status().Update(ctx, gs)
@@ -451,17 +407,14 @@ func (r *NetworkCaptureReconciler) fail(ctx context.Context, nc *gameplanev1alph
 	}
 	meta.SetStatusCondition(&nc.Status.Conditions, cond)
 
-	// Try to clear the GameServer's active capture pointer.
+	// Try to clear the GameServer's active capture pointer and record this
+	// as the most recent terminal capture.
 	var gs gameplanev1alpha1.GameServer
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: nc.Namespace,
 		Name:      nc.Spec.ServerRef.Name,
 	}, &gs); err == nil {
-		if gs.Status.Capture == nil {
-			gs.Status.Capture = &gameplanev1alpha1.CaptureStatus{}
-		}
-		gs.Status.Capture.ActiveCapture = nil
-		_ = r.Status().Update(ctx, &gs) // Ignore error; we'll fail the capture anyway.
+		_ = r.patchGameServerActiveCapture(ctx, &gs, nil, nc.Status.CompletionTime) // Ignore error; we'll fail the capture anyway.
 	}
 
 	if err := r.Status().Update(ctx, nc); err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -353,6 +354,371 @@ func TestNetworkCapture_UserStopCallsSidecar(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("sidecar StopCapture called %d times, want exactly 1", calls)
 	}
+}
+
+// ---------------------------------------------------------------------
+// T052 — GameServerReconciler's capture enable/disable path
+// (reconcileCapture, gameserver_controller.go). Unlike the tests above,
+// these wire GameServerReconciler itself rather than NetworkCaptureReconciler.
+// ---------------------------------------------------------------------
+
+// withGameServerReconcilerCaptureEnabled wires GameServerReconciler with the
+// cluster-wide capture kill switch on (CaptureEnabled: true), for T052's
+// enable/disable tests. helpers_envtest_test.go's withGameServerReconciler
+// leaves CaptureEnabled at its zero value (false), which would make every
+// case here a no-op (see reconcileCapture's clusterAllows check).
+func withGameServerReconcilerCaptureEnabled(t *testing.T, ns string) setupReconciler {
+	t.Helper()
+	seedAgentCA(t, ns, "agent-ca")
+	return func(mgr manager.Manager) error {
+		return (&GameServerReconciler{
+			Client:                 mgr.GetClient(),
+			APIReader:              mgr.GetAPIReader(),
+			Scheme:                 mgr.GetScheme(),
+			AgentImage:             "ghcr.io/valgulnecron/gameplane/agent:test",
+			AgentCASecretName:      "agent-ca",
+			AgentCASecretNamespace: ns,
+			CaptureEnabled:         true,
+			CaptureSidecarImage:    "ghcr.io/valgulnecron/gameplane/capture-sidecar:test",
+		}).SetupWithManager(mgr)
+	}
+}
+
+// simulateCaptureEphemeralRunning patches podName's status to report the
+// capture ephemeral container as Running. envtest runs no kubelet, so
+// nothing else will ever populate status.ephemeralContainerStatuses —
+// tests that need reconcileCapture's Ready/SidecarRestarts derivation to
+// observe something must seed it themselves, exactly as
+// helpers_envtest_test.go's patchJobStatus does for Jobs.
+func simulateCaptureEphemeralRunning(t *testing.T, ns, podName string, restarts int32) {
+	t.Helper()
+	var pod corev1.Pod
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: podName}, &pod); err != nil {
+		t.Fatalf("get pod %s: %v", podName, err)
+	}
+	pod.Status.EphemeralContainerStatuses = []corev1.ContainerStatus{
+		{
+			Name:         captureContainerName,
+			State:        corev1.ContainerState{Running: &corev1.ContainerStateRunning{StartedAt: metav1.Now()}},
+			RestartCount: restarts,
+		},
+	}
+	if err := k8sClient.Status().Update(context.Background(), &pod); err != nil {
+		t.Fatalf("simulate capture ephemeral container status for pod %s: %v", podName, err)
+	}
+}
+
+// TestGameServerCapture_EnableInjectsEphemeralContainer covers T052(a):
+// enabling spec.capture.enabled on a GameServer injects the capture
+// ephemeral container with the correct name, image, "captures" volume
+// mount, and securityContext — live, without disturbing the game
+// container — and status.capture.ready follows the sidecar's own observed
+// state, not merely whether injection was attempted.
+func TestGameServerCapture_EnableInjectsEphemeralContainer(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerCaptureEnabled(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("capenable"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gsName := "cap-enable"
+	gs := buildGameServer(ns, gsName, tmpl.Name)
+	gs.Spec.Capture = &gameplanev1alpha1.CaptureConfiguration{Enabled: true}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+
+	// envtest runs no StatefulSet controller, so the pod never appears on
+	// its own — seed the fixture reconcileCapture injects into, mirroring
+	// the pod the real StatefulSet would eventually create (same fixture
+	// shape buildCapturePod already establishes for NetworkCaptureReconciler
+	// above, including the pre-provisioned "captures" emptyDir volume).
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, gsName)); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var pod corev1.Pod
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod); err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		if len(pod.Spec.EphemeralContainers) != 1 {
+			return false, fmt.Sprintf("EphemeralContainers = %d, want 1", len(pod.Spec.EphemeralContainers))
+		}
+		ec := pod.Spec.EphemeralContainers[0]
+		if ec.Name != captureContainerName {
+			return false, fmt.Sprintf("ephemeral container name = %q, want %q", ec.Name, captureContainerName)
+		}
+		if ec.Image != "ghcr.io/valgulnecron/gameplane/capture-sidecar:test" {
+			return false, fmt.Sprintf("ephemeral container image = %q, want the configured CaptureSidecarImage", ec.Image)
+		}
+		foundVolume := false
+		for _, vm := range ec.VolumeMounts {
+			if vm.Name == "captures" {
+				foundVolume = true
+			}
+		}
+		if !foundVolume {
+			return false, "ephemeral container does not mount the \"captures\" volume"
+		}
+		sc := ec.SecurityContext
+		if sc == nil {
+			return false, "ephemeral container has no SecurityContext"
+		}
+		if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+			return false, "RunAsNonRoot not true"
+		}
+		if sc.AllowPrivilegeEscalation == nil || !*sc.AllowPrivilegeEscalation {
+			return false, "AllowPrivilegeEscalation not true (required: file capabilities are ignored under no_new_privs)"
+		}
+		if sc.Capabilities == nil || len(sc.Capabilities.Add) != 0 {
+			return false, "capabilities.add must never be set for the capture sidecar (file capabilities only)"
+		}
+		if len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
+			return false, fmt.Sprintf("capabilities.drop = %v, want [ALL]", sc.Capabilities.Drop)
+		}
+		return true, ""
+	})
+
+	// The game container itself is untouched by injection.
+	var pod corev1.Pod
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod); err != nil {
+		t.Fatalf("get pod: %v", err)
+	}
+	if len(pod.Spec.Containers) != 1 || pod.Spec.Containers[0].Name != gameContainerName {
+		t.Errorf("game container list changed by capture injection: %+v", pod.Spec.Containers)
+	}
+
+	// Ready must be false until the sidecar reports Running — injection
+	// alone does not imply readiness.
+	eventually(t, func() (bool, string) {
+		var got gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName}, &got); err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		if got.Status.Capture == nil {
+			return false, "status.capture is nil"
+		}
+		if got.Status.Capture.Ready {
+			return false, "status.capture.ready = true before the sidecar reported Running"
+		}
+		return true, ""
+	})
+
+	// Simulate the kubelet reporting the sidecar Running; ready must follow.
+	simulateCaptureEphemeralRunning(t, ns, gsName+"-0", 0)
+	eventually(t, func() (bool, string) {
+		var got gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName}, &got); err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		if got.Status.Capture == nil || !got.Status.Capture.Ready {
+			return false, fmt.Sprintf("status.capture.ready = %+v, want true", got.Status.Capture)
+		}
+		return true, ""
+	})
+}
+
+// TestGameServerCapture_DisableStopsActiveCaptureAndLeavesEphemeralContainer
+// covers T052(b): disabling spec.capture.enabled stops routing new captures
+// (status.capture.ready flips false, activeCapture clears) AND stops a
+// capture that is Running (transitioned to Completed with the exact message
+// networkcapture_controller.go's Reconcile watches for, to tell the sidecar
+// to actually stop) — while the ephemeral container REMAINS in both
+// pod.spec.ephemeralContainers and pod.status.ephemeralContainerStatuses.
+// That persistence is the documented platform limitation (Kubernetes has no
+// API to remove an ephemeral container), not a bug: this test asserts the
+// container stays, it does not try to make it go away.
+func TestGameServerCapture_DisableStopsActiveCaptureAndLeavesEphemeralContainer(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerCaptureEnabled(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("capdisable"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gsName := "cap-disable"
+	gs := buildGameServer(ns, gsName, tmpl.Name)
+	gs.Spec.Capture = &gameplanev1alpha1.CaptureConfiguration{Enabled: true}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, gsName)); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var pod corev1.Pod
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod); err != nil {
+			return false, err.Error()
+		}
+		if !hasCaptureEphemeralContainer(&pod) {
+			return false, "ephemeral container not yet injected"
+		}
+		return true, ""
+	})
+	simulateCaptureEphemeralRunning(t, ns, gsName+"-0", 0)
+
+	// Create a Running NetworkCapture owned by this GameServer directly —
+	// NetworkCaptureReconciler is not wired into this test's manager, so
+	// this stands in for what it would normally have driven to Running,
+	// exercising stopActiveCaptures' Running branch on its own.
+	nc := buildNetworkCapture(ns, "cap-running", gsName, "tcp port 25565")
+	if err := k8sClient.Create(context.Background(), nc); err != nil {
+		t.Fatalf("create network capture: %v", err)
+	}
+	nc.Status.Phase = gameplanev1alpha1.CapturePhaseRunning
+	nc.Status.StartTime = &metav1.Time{Time: time.Now()}
+	if err := k8sClient.Status().Update(context.Background(), nc); err != nil {
+		t.Fatalf("patch capture to Running: %v", err)
+	}
+
+	// Seed status.capture.activeCapture the way NetworkCaptureReconciler
+	// would have, so disabling has an active pointer to actually clear.
+	{
+		var current gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName}, &current); err != nil {
+			t.Fatalf("get gameserver: %v", err)
+		}
+		if current.Status.Capture == nil {
+			current.Status.Capture = &gameplanev1alpha1.CaptureStatus{}
+		}
+		current.Status.Capture.ActiveCapture = ptrTo(nc.Name)
+		if err := k8sClient.Status().Update(context.Background(), &current); err != nil {
+			t.Fatalf("seed active capture: %v", err)
+		}
+	}
+
+	// Disable capture.
+	var toDisable gameplanev1alpha1.GameServer
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName}, &toDisable); err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+	toDisable.Spec.Capture.Enabled = false
+	if err := k8sClient.Update(context.Background(), &toDisable); err != nil {
+		t.Fatalf("disable capture: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var got gameplanev1alpha1.GameServer
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName}, &got); err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		if got.Status.Capture == nil {
+			return false, "status.capture is nil"
+		}
+		if got.Status.Capture.Ready {
+			return false, "status.capture.ready = true, want false"
+		}
+		if got.Status.Capture.ActiveCapture != nil {
+			return false, fmt.Sprintf("status.capture.activeCapture = %q, want cleared", *got.Status.Capture.ActiveCapture)
+		}
+		return true, ""
+	})
+
+	eventually(t, func() (bool, string) {
+		got := getNetworkCapture(t, ns, "cap-running")
+		if got.Status.Phase != gameplanev1alpha1.CapturePhaseCompleted {
+			return false, fmt.Sprintf("phase = %s, want Completed", got.Status.Phase)
+		}
+		if got.Status.Message != userStoppedMessage {
+			return false, fmt.Sprintf("message = %q, want %q", got.Status.Message, userStoppedMessage)
+		}
+		return true, ""
+	})
+
+	// The ephemeral container REMAINS — Kubernetes offers no API to remove
+	// one, and disabling must never try.
+	var pod corev1.Pod
+	if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod); err != nil {
+		t.Fatalf("get pod: %v", err)
+	}
+	if !hasCaptureEphemeralContainer(&pod) {
+		t.Error("ephemeral container removed from pod.spec on disable — it must remain (no removal API exists)")
+	}
+	found := false
+	for _, cs := range pod.Status.EphemeralContainerStatuses {
+		if cs.Name == captureContainerName {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("ephemeral container status entry removed from pod.status.ephemeralContainerStatuses on disable — it must remain")
+	}
+}
+
+// TestGameServerCapture_PodRecreationReinjectsEphemeralContainer covers
+// T052(c): with spec.capture.enabled left true, deleting and recreating the
+// game pod (envtest has no StatefulSet controller to do this on its own, so
+// the test does it directly, standing in for a real pod rebuild) gets the
+// ephemeral container re-injected into the new pod — the capture setting
+// persists across the rebuild rather than requiring it to be re-enabled.
+func TestGameServerCapture_PodRecreationReinjectsEphemeralContainer(t *testing.T) {
+	ns := newNamespace(t)
+	startMgr(t, ns, withGameServerReconcilerCaptureEnabled(t, ns))
+
+	tmpl := buildGameTemplate(uniqueName("caprecreate"))
+	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
+		t.Fatalf("create template: %v", err)
+	}
+	deleteCleanup(t, tmpl)
+
+	gsName := "cap-recreate"
+	gs := buildGameServer(ns, gsName, tmpl.Name)
+	gs.Spec.Capture = &gameplanev1alpha1.CaptureConfiguration{Enabled: true}
+	if err := k8sClient.Create(context.Background(), gs); err != nil {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, gsName)); err != nil {
+		t.Fatalf("create pod: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var pod corev1.Pod
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod); err != nil {
+			return false, err.Error()
+		}
+		if !hasCaptureEphemeralContainer(&pod) {
+			return false, "ephemeral container not yet injected into the first pod"
+		}
+		return true, ""
+	})
+
+	// Delete and recreate the pod (fresh object, no ephemeral container —
+	// standing in for the StatefulSet's real rebuild), with
+	// spec.capture.enabled still true.
+	if err := k8sClient.Delete(context.Background(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: gsName + "-0"},
+	}); err != nil {
+		t.Fatalf("delete pod: %v", err)
+	}
+	eventually(t, func() (bool, string) {
+		var pod corev1.Pod
+		err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod)
+		if !apierrors.IsNotFound(err) {
+			return false, fmt.Sprintf("pod still present (err=%v)", err)
+		}
+		return true, ""
+	})
+	if err := k8sClient.Create(context.Background(), buildCapturePod(ns, gsName)); err != nil {
+		t.Fatalf("recreate pod: %v", err)
+	}
+
+	eventually(t, func() (bool, string) {
+		var pod corev1.Pod
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: gsName + "-0"}, &pod); err != nil {
+			return false, err.Error()
+		}
+		if !hasCaptureEphemeralContainer(&pod) {
+			return false, "ephemeral container not re-injected into the recreated pod"
+		}
+		return true, ""
+	})
 }
 
 // StubSidecarClient implements SidecarCaptureClient for testing.

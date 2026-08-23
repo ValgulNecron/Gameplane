@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -140,13 +141,29 @@ type Server struct {
 	// CAP_NET_RAW. Production always uses the AF_PACKET implementation wired
 	// up in NewServer.
 	newSource func(iface, filterExpr string) (capture.PacketSource, error)
+
+	// baseCtx is the parent for every capture goroutine's context. It is
+	// deliberately NOT derived from the HTTP request that starts a capture:
+	// a capture is meant to keep running, independent of that request, until
+	// it hits its own duration/size limit, is explicitly stopped, or the
+	// process itself is shutting down. Deriving from r.Context() instead
+	// would cancel the capture the instant the "started" response finished
+	// sending, which would silently truncate every capture to ~nothing. Tying
+	// it to baseCtx instead means process shutdown (see cmd/main.go, which
+	// passes its signal.NotifyContext here) cancels any still-running capture
+	// cleanly, rather than leaking its goroutine past server exit.
+	baseCtx context.Context
 }
 
-// NewServer creates a new capture server.
-func NewServer(captureDataDir string) *Server {
+// NewServer creates a new capture server. ctx is the parent context for every
+// capture goroutine the server starts; cancelling it (e.g. on process
+// shutdown) stops all in-flight captures. Pass a context that outlives the
+// server's HTTP handling, not a per-request one.
+func NewServer(ctx context.Context, captureDataDir string) *Server {
 	s := &Server{
-		captureDataDir: captureDataDir,
+		captureDataDir: filepath.Clean(captureDataDir),
 		completed:      make(map[string]*captureState),
+		baseCtx:        ctx,
 	}
 	s.newSource = func(iface, filterExpr string) (capture.PacketSource, error) {
 		src, err := capture.NewAFPacketSource(iface, 0, filterExpr)
@@ -257,8 +274,26 @@ func validCaptureID(id string) bool {
 }
 
 // captureFilePath returns the on-disk path for a capture's PCAPNG file.
+//
+// Every caller of this method has already rejected id with validCaptureID
+// (letters, digits, '_', '-' only - no '.', so no ".." segment is even
+// expressible), so the join below cannot escape captureDataDir today. It is
+// still defensively re-verified here, mirroring the containment check in
+// agent/internal/files: filepath.Join + Clean the candidate path, then
+// require it to fall strictly under captureDataDir (or equal it) by prefix
+// comparison on the *cleaned* forms, so that check can never be fooled by a
+// literal ".." that made it past validCaptureID some other way (e.g. a
+// future caller that forgets to validate). captureDataDir itself is cleaned
+// once in NewServer, so both sides of the comparison are in the same form.
 func (s *Server) captureFilePath(id string) string {
-	return filepath.Join(s.captureDataDir, fmt.Sprintf("capture-%s.pcapng", id))
+	candidate := filepath.Clean(filepath.Join(s.captureDataDir, fmt.Sprintf("capture-%s.pcapng", id)))
+	if candidate != s.captureDataDir && !strings.HasPrefix(candidate, s.captureDataDir+string(os.PathSeparator)) {
+		// Every id reaching here was already validated by validCaptureID, so
+		// this is unreachable in practice; treat it as a programmer error
+		// rather than silently falling back to some other path.
+		panic(fmt.Sprintf("capture id %q resolved outside capture directory", id))
+	}
+	return candidate
 }
 
 // rememberCompletedLocked records a finished capture so its terminal state can
@@ -358,7 +393,9 @@ func (s *Server) HandleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
+	// Derived from s.baseCtx (the server's own lifetime), not r.Context(): see
+	// the baseCtx field doc for why this must outlive the HTTP request.
+	ctx, cancel := context.WithCancel(s.baseCtx)
 	state := &captureState{
 		id:              id,
 		startedAt:       now,

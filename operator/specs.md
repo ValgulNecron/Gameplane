@@ -141,22 +141,25 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - `gameserver_status.go`: phase computation from StatefulSet/Pod state + agent heartbeat, AddressAssignment condition.
   - `gameserver_stop_attach.go`: pod exec attachment for graceful stop commands.
   - `gameserver_extravolumes.go`: user-supplied additional volume mounts.
-- **Capture configuration** (**Phase 2 Foundational** — foundation is built; sidecar injection lifecycle planned for Phase 2 Implementation):
+- **Capture configuration:**
   - **Spec fields (spec.capture):**
-    - `Enabled bool`: Optional flag to enable/disable the capture sidecar injection. When false or omitted, no sidecar is injected. When true, the operator will inject the capture sidecar as an ephemeral container (Phase 2 Implementation, T030+); during Phase 2 Foundational, this flag is validated by the API but does not trigger injection yet.
-    - `RetentionSeconds *int32`: Optional per-GameServer retention override. Clamped to the cluster maximum at API tier; defaults to cluster default when omitted.
+    - `Enabled bool`: Optional flag to enable/disable the capture sidecar injection on this GameServer. When false or omitted, no sidecar is injected and the server is unchanged. When true, the operator injects the capture sidecar as an ephemeral container into the running game pod, live and without restarting the game container.
+    - `RetentionSeconds *int32`: Optional per-GameServer retention override, in seconds. Clamped to the cluster maximum (via `--capture-max-retention-seconds` flag) at API tier; defaults to cluster default (via `--capture-default-retention-seconds` flag) when omitted. Applied to all captures on this server unless overridden at capture-creation time.
   - **Status fields (status.capture):**
-    - `Ready bool`: Whether the capture sidecar is currently running and able to accept captures. True only when the ephemeral container is Running and listening (populated by sidecar lifecycle reconciliation in Phase 2 Implementation).
-    - `ActiveCapture *string`: Name of the currently active (Pending or Running) NetworkCapture, if any. Populated by NetworkCaptureReconciler when transitioning to Running.
-    - `LastCaptureTime *metav1.Time`: Timestamp of the most recent capture reaching a terminal phase. Populated by NetworkCaptureReconciler on completion.
-    - `SidecarRestarts int32`: Container restart count for the capture ephemeral container. Tracked by sidecar lifecycle reconciliation (Phase 2 Implementation).
-  - **Implementation status — Phase 2 Foundational (built):**
-    - `captures` emptyDir (1 GiB) pre-provisioned unconditionally on every game pod's StatefulSet template (persistent across pod restarts, immutable per invariant 9).
+    - `Ready bool`: Whether the capture sidecar is currently running and listening on its :9091 port, able to accept new capture requests. True only when the ephemeral container has reached Running state and the sidecar has bound its listener; False before injection, during startup, if the container crashed, or if spec.capture.enabled is false.
+    - `ActiveCapture *string`: Name of the NetworkCapture currently in Pending or Running phase for this GameServer, if any. Set by NetworkCaptureReconciler when transitioning a capture to Running; cleared when that capture transitions to a terminal phase (Completed, Failed, or Expired). Allows finding the in-progress capture without listing all NetworkCaptures in the namespace.
+    - `LastCaptureTime *metav1.Time`: Timestamp of the most recent capture reaching a terminal phase (Completed or Failed) on this GameServer. Updated only on terminal transitions; not updated for Pending/Running/Expired transitions.
+    - `SidecarRestarts int32`: Count of restarts observed for the capture ephemeral container. NOTE: Kubernetes does not restart ephemeral containers (RestartPolicy does not apply to them). This field is retained as a stable hook for future implementations and to surface any unexpected restarts via node-level mechanisms; expected to stay 0 in practice.
+  - **Implementation status — Built:**
+    - `captures` emptyDir (1 GiB) pre-provisioned unconditionally on every game pod's StatefulSet template (persistent across pod restarts, immutable per house rule). Volume is mounted only on the capture ephemeral container when capture is enabled; never on the agent or game container.
     - `<gs>-agent` Service extended with second numeric port "capture" on 9091.
     - RBAC markers on GameServerReconciler grant `pods/ephemeralcontainers` (get, list, watch, patch, update) and `networkcaptures` (full CRUD).
-  - **Implementation status — Phase 2 Implementation (planned):**
-    - Sidecar injection as ephemeral container (conditional on spec.capture.enabled + cluster-wide `--capture-enabled`).
+    - Sidecar injection as ephemeral container (conditional on spec.capture.enabled + cluster-wide `--capture-enabled` flag). Injection is live and restart-free.
     - Sidecar lifecycle reconciliation (NetworkCaptureReconciler manages Pending → Running → Completed/Failed state machine).
+  - **Implementation status — Planned:**
+    - TTL-based auto-deletion (NetworkCapture deletion when `status.completionTime + spec.ttlSecondsAfterFinished` elapses; US4).
+    - Edge cases and advanced scenarios (US5).
+    - Dashboard UI for starting/stopping captures and browsing history (Phase 8).
 - **Status phases:** Pending, Starting, Running, Suspended, Stopping, Stopped, Failed.
 - **Address pool & assignment:**
   - **Inputs:** spec.networking.addressPool (pool name) and spec.networking.address (explicit IP).
@@ -239,27 +242,40 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Report Healthy condition.
   - Requeue on interval (2 minutes).
 
-### NetworkCaptureReconciler (Phase 2 Foundational)
-- **Status:** Implemented for Phase 2 Foundational; TTL expiry and dashboard UI planned for Phase 2 Implementation (T067+).
+### NetworkCaptureReconciler
+- **Status:** Implemented (Phase 2 Foundational + Phase 2 Implementation); TTL-based auto-deletion planned (US4), dashboard UI planned (Phase 8).
 - **Responsibility:** Manage NetworkCapture CRD lifecycle — transition Pending → Running → Completed/Failed, inject capture sidecar, call sidecar control endpoint, monitor progress.
 - **Key dependencies:**
   - `SidecarCaptureClient interface` — abstracted mTLS client to sidecar's `:9091` HTTP endpoints; injected for testability; production impl in `operator/internal/agent/sidecar_capture.go`
 - **Reconcile state machine:**
   - **Terminal phases** (Completed, Failed, Expired): no further reconciliation, immediate return
-  - **Pending → Running:** Verify target GameServer exists and has `spec.capture.enabled = true`; check for concurrent Running captures on same server (reject with phase=Failed, message="another capture is already running on this gameserver"); inject capture sidecar ephemeral container; call `SidecarClient.StartCapture()` with spec filter/maxDuration/maxSize; transition to Running; requeue every 5s to poll sidecar
-  - **Running:** Poll `SidecarClient.GetCaptureStatus()` every 5s; update `status.startTime`, `status.packets`, `status.bytes`; once sidecar reports phase=Completed or phase=Failed, transition NetworkCapture phase and record `status.completionTime`; record `status.message` from sidecar on failure
-  - **Failure detection:** If GetCaptureStatus returns error (sidecar unreachable, pod deleted), fail capture with message; if status.phase=Failed from sidecar, transition to Failed immediately
-- **Ephemeral container injection:** Inject into game pod's ephemeralContainers with:
-  - Image: operator CLI flag `--capture-sidecar-image` (default `ghcr.io/valgulnecron/gameplane/capture-sidecar:dev`)
-  - Environment: `GAMEPLANE_CAPTURE_ID`, `GAMEPLANE_GAMESERVER_NAME`, `GAMEPLANE_NAMESPACE` (derived from NetworkCapture metadata)
-  - No volumeMounts declared (captures emptyDir and certs are pre-provisioned, accessed via fixed paths on host)
-  - targetPort 9091 numeric (exposed on `<gs>-agent` Service port "capture")
-  - No imagePullPolicy set (ephemeral container inherits pod spec policy)
-- **Concurrency enforcement:** List all NetworkCaptures in same namespace; reject if any other NetworkCapture with same `spec.serverRef.name` and `status.phase=Running` exists; prevents multiple simultaneous captures per server
-- **mTLS client reuse:** `operator/internal/agent/sidecar_capture.go`'s `CaptureClient` reuses the agent's existing mTLS http.Client and Service DNS (`https://<gs>-agent.<ns>.svc.cluster.local:9091`)
+  - **Pending → Running:** Verify target GameServer exists and has `spec.capture.enabled = true`; check for concurrent Running captures on same server (reject with phase=Failed, message="another capture is already running on this gameserver"); inject capture sidecar ephemeral container if not already present; call `SidecarClient.StartCapture()` with spec filter/maxDuration/maxSize; transition to Running; requeue every 5s to poll sidecar
+  - **Running:** Poll `SidecarClient.GetCaptureStatus()` every 5s; update `status.packetsWritten`, `status.bytesWritten`, `status.message`; once sidecar reports phase=Completed or phase=Failed, transition NetworkCapture phase and record `status.completionTime`
+  - **Failure detection:** If GetCaptureStatus returns error (sidecar unreachable, pod deleted mid-capture), fail capture with descriptive message; if status.phase=Failed from sidecar, transition to Failed immediately
+  - **User-requested stop:** When API's StopNetworkCapture sets phase=Completed with message="stopped by user request", tell the sidecar to stop (once per user-stop request via `SidecarStoppedCondition` guard)
+- **Ephemeral container injection:** Inject into game pod's spec.ephemeralContainers subresource with:
+  - **Name:** "capture"
+  - **Image:** operator CLI flag `--capture-sidecar-image` (default `ghcr.io/valgulnecron/gameplane/capture-sidecar:dev`)
+  - **TargetContainerName:** "game" (shares pid/network/ipc namespaces with the game container for packet capture)
+  - **VolumeMounts:**
+    - `captures` (emptyDir pre-provisioned by gameserver_controller.go) mounted at `/tmp/captures` (read-write)
+    - `agent-tls` (Secret holding agent mTLS cert+key+CA) mounted at `/etc/tls` (read-only); certs passed via env vars below
+  - **Environment:**
+    - `TLS_CERT_FILE=/etc/tls/tls.crt` — client cert for mTLS to agent
+    - `TLS_KEY_FILE=/etc/tls/tls.key` — private key for mTLS  
+    - `TLS_CA_FILE=/etc/tls/ca.crt` — CA bundle for verifying agent server cert
+  - **SecurityContext:**
+    - `RunAsNonRoot: true` — container runs as unprivileged user (no root)
+    - `AllowPrivilegeEscalation: true` — **CRITICAL:** Must be true for file capabilities (CAP_NET_RAW/CAP_NET_ADMIN via setcap on the capture binary) to work. Kernel only honors setcap'd capabilities on exec when no_new_privs is off; combined with Capabilities.Drop: ["ALL"] below, the container starts with zero capabilities but the setcap'd binary gains them at exec time
+    - `ReadOnlyRootFilesystem: true` — mounts /tmp/captures and /etc/tls as the only writable paths
+    - `Capabilities: Drop: ["ALL"]` — no ambient capabilities; sidecar binary gains CAP_NET_RAW via file capabilities at exec, never through container capabilities
+  - **No imagePullPolicy set** — inherits from pod spec (usually IfNotPresent or Always per deployment)
+- **Concurrency enforcement:** List all NetworkCaptures in same namespace; reject Pending→Running transition if any other NetworkCapture with same `spec.serverRef.name` and `status.phase=Running` exists; prevents multiple simultaneous captures per server; API tier also enforces this before creating the NetworkCapture
+- **mTLS client reuse:** `operator/internal/agent/sidecar_capture.go`'s `CaptureClient` reuses the agent's existing mTLS http.Client (same CA cert/client cert/private key material) and addresses the sidecar via Service DNS: `https://<gs>-agent.<ns>.svc.cluster.local:9091`
 - **Not implemented (planned for later phases):**
-  - TTL-based auto-deletion (NetworkCapture deletion when `status.completionTime + spec.ttlSecondsAfterFinished` elapses) — see invariant 6 and Phase 2 Implementation plan
-  - Dashboard UI for starting/stopping captures and browsing history
+  - TTL-based auto-deletion (NetworkCapture deletion when `status.completionTime + spec.ttlSecondsAfterFinished` elapses) — US4
+  - Edge cases (pod restart during capture, network partition recovery) — US5
+  - Dashboard UI for starting/stopping captures and browsing history — Phase 8
 
 ### Sidecar client (operator/internal/agent/sidecar_capture.go)
 

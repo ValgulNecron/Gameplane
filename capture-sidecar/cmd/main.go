@@ -43,8 +43,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Create capture server
-	captureServer := httpserver.NewServer(*captureDataDir)
+	// Create capture server. ctx (cancelled on SIGTERM/SIGINT) is the parent
+	// for every capture goroutine, so shutdown cancels in-flight captures
+	// instead of leaking them past server exit.
+	captureServer := httpserver.NewServer(ctx, *captureDataDir)
 
 	// Set up mTLS. The certificates come from the same per-GameServer
 	// `agent-tls` Secret the agent uses, mounted at /etc/tls.

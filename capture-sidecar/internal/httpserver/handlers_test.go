@@ -124,7 +124,7 @@ func (sf *sourceFactory) count() int {
 
 func newTestServer(t *testing.T) (*Server, *sourceFactory) {
 	t.Helper()
-	srv := NewServer(t.TempDir())
+	srv := NewServer(context.Background(), t.TempDir())
 	factory := &sourceFactory{}
 	srv.newSource = factory.open
 	t.Cleanup(func() {
@@ -147,7 +147,7 @@ func startBody(filter string, durationSeconds, sizeBytes int64) string {
 
 func doStart(t *testing.T, s *Server, id, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/captures/"+id+"/start", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/"+id+"/start", strings.NewReader(body))
 	req.SetPathValue("id", id)
 	rr := httptest.NewRecorder()
 	s.HandleStart(rr, req)
@@ -156,7 +156,7 @@ func doStart(t *testing.T, s *Server, id, body string) *httptest.ResponseRecorde
 
 func doStop(t *testing.T, s *Server, id, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/captures/"+id+"/stop", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/"+id+"/stop", strings.NewReader(body))
 	req.SetPathValue("id", id)
 	rr := httptest.NewRecorder()
 	s.HandleStop(rr, req)
@@ -165,7 +165,7 @@ func doStop(t *testing.T, s *Server, id, body string) *httptest.ResponseRecorder
 
 func doStatus(t *testing.T, s *Server, id string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/captures/"+id+"/status", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/captures/"+id+"/status", nil)
 	req.SetPathValue("id", id)
 	rr := httptest.NewRecorder()
 	s.HandleStatus(rr, req)
@@ -174,7 +174,7 @@ func doStatus(t *testing.T, s *Server, id string) *httptest.ResponseRecorder {
 
 func doDownload(t *testing.T, s *Server, id string, rangeHeader string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/captures/"+id+"/file", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/captures/"+id+"/file", nil)
 	req.SetPathValue("id", id)
 	if rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
@@ -286,7 +286,7 @@ func TestRoutes_PatternsAreValid(t *testing.T) {
 
 	t.Run("healthz", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 		if rr.Code != http.StatusOK || rr.Body.String() != "ok" {
 			t.Fatalf("healthz = %d %q", rr.Code, rr.Body.String())
 		}
@@ -295,7 +295,7 @@ func TestRoutes_PatternsAreValid(t *testing.T) {
 	t.Run("start extracts the id wildcard", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		body := strings.NewReader(startBody("tcp port 8080", 300, 1000000))
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/captures/cap-route/start", body))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/cap-route/start", body))
 		if rr.Code != http.StatusOK {
 			t.Fatalf("start via mux = %d, body %q", rr.Code, rr.Body.String())
 		}
@@ -313,13 +313,13 @@ func TestRoutes_PatternsAreValid(t *testing.T) {
 
 	t.Run("status and file route to their handlers", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/captures/cap-route/status", nil))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/captures/cap-route/status", nil))
 		if rr.Code != http.StatusOK {
 			t.Fatalf("status via mux = %d", rr.Code)
 		}
 
 		rr = httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/captures/cap-route/file", nil))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/captures/cap-route/file", nil))
 		if rr.Code != http.StatusConflict {
 			t.Fatalf("file via mux = %d, want 409 while running", rr.Code)
 		}
@@ -328,7 +328,7 @@ func TestRoutes_PatternsAreValid(t *testing.T) {
 	t.Run("stop finishes the capture", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		body := strings.NewReader(`{"reason":"user_requested"}`)
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/captures/cap-route/stop", body))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/cap-route/stop", body))
 		if rr.Code != http.StatusOK {
 			t.Fatalf("stop via mux = %d, body %q", rr.Code, rr.Body.String())
 		}
@@ -337,7 +337,7 @@ func TestRoutes_PatternsAreValid(t *testing.T) {
 	t.Run("the old chi-style colon paths are not routes", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		body := strings.NewReader(startBody("tcp port 8080", 300, 1000000))
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/captures/cap-x:start", body))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/cap-x:start", body))
 		if rr.Code != http.StatusNotFound {
 			t.Fatalf("colon-suffix start = %d, want 404", rr.Code)
 		}
@@ -363,7 +363,7 @@ func TestRoutes_MiddlewareWrapsEveryCaptureEndpoint(t *testing.T) {
 		"/captures/cap-1/file",
 	} {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 		if rr.Code != http.StatusTeapot {
 			t.Fatalf("%s bypassed the middleware: %d", path, rr.Code)
 		}
@@ -371,7 +371,7 @@ func TestRoutes_MiddlewareWrapsEveryCaptureEndpoint(t *testing.T) {
 
 	// /healthz must stay unauthenticated.
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("healthz = %d, want 200 (unauthenticated)", rr.Code)
 	}
@@ -392,7 +392,7 @@ func TestHandleStart_InvalidBody(t *testing.T) {
 func TestHandleStart_InvalidID(t *testing.T) {
 	srv, _ := newTestServer(t)
 	for _, id := range []string{"", ".", "..", "a/b", `a\b`, "cap test", strings.Repeat("a", 65)} {
-		req := httptest.NewRequest(http.MethodPost, "/captures/x/start", strings.NewReader(startBody("tcp port 1", 5, 100)))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/x/start", strings.NewReader(startBody("tcp port 1", 5, 100)))
 		req.SetPathValue("id", id)
 		rr := httptest.NewRecorder()
 		srv.HandleStart(rr, req)
@@ -660,7 +660,7 @@ func TestHandleStop_ChunkedBodyIsDecoded(t *testing.T) {
 	// A client that assigns Body after building the request leaves
 	// ContentLength at 0, and net/http then sends the body chunked, which the
 	// server sees as ContentLength == -1. The reason must still be decoded.
-	req := httptest.NewRequest(http.MethodPost, "/captures/cap-chunk/stop", strings.NewReader(`{"reason":"pod_restarting"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/captures/cap-chunk/stop", strings.NewReader(`{"reason":"pod_restarting"}`))
 	req.SetPathValue("id", "cap-chunk")
 	req.ContentLength = -1
 	rr := httptest.NewRecorder()
@@ -854,7 +854,7 @@ func TestStatusPollsRaceWithFinish(t *testing.T) {
 					return
 				default:
 				}
-				req := httptest.NewRequest(http.MethodGet, "/captures/cap-race/status", nil)
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/captures/cap-race/status", nil)
 				req.SetPathValue("id", "cap-race")
 				srv.HandleStatus(httptest.NewRecorder(), req)
 			}
