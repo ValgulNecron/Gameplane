@@ -80,3 +80,99 @@ runs:
       run: |
         ctx="${{ inputs.context }}"
         kubectl --context "$ctx" get jobs -n gameplane-system || true
+
+    - name: dump game pod container logs and statuses
+      shell: bash
+      run: |
+        set +e
+        ctx="${{ inputs.context }}"
+
+        echo "=== Game pod container logs and statuses ==="
+
+        # Parse namespaces; fall back to gameplane-games if none specified.
+        namespaces="${{ inputs.namespaces }}"
+        if [ -z "$namespaces" ]; then
+          namespaces="gameplane-games"
+        fi
+
+        # Process each namespace. Deliberately skip gameplane-system here:
+        # its pods (operator, api) are already covered by the dedicated
+        # "dump operator logs" / "dump API logs" steps above, keyed off
+        # workload label selectors rather than every pod/container in the
+        # namespace — redumping them here would just bury the game-pod
+        # output this step exists for. Callers that pass only
+        # "gameplane-system" (the input's own default) intentionally get no
+        # output from this step; game pods live in gameplane-games.
+        printf '%s\n' "$namespaces" | tr ',' '\n' | while IFS= read -r ns; do
+          ns=$(printf '%s' "$ns" | xargs)
+          if [ -z "$ns" ] || [ "$ns" = "gameplane-system" ]; then
+            continue
+          fi
+
+          echo ""
+          echo "--- Namespace: $ns ---"
+
+          # List all pods in the namespace (guard against missing namespace)
+          pod_list=$(kubectl --context "$ctx" get pods -n "$ns" -o jsonpath='{.items[*].metadata.name}' 2>&1)
+          if [ -z "$pod_list" ]; then
+            continue
+          fi
+
+          printf '%s\n' "$pod_list" | tr ' ' '\n' | while IFS= read -r pod; do
+            if [ -z "$pod" ]; then
+              continue
+            fi
+
+            echo ""
+            echo "Pod: $pod"
+
+            # Dump regular container logs
+            container_list=$(kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath='{.spec.containers[*].name}' 2>&1)
+            if [ -n "$container_list" ]; then
+              printf '%s\n' "$container_list" | tr ' ' '\n' | while IFS= read -r container; do
+                if [ -z "$container" ]; then
+                  continue
+                fi
+
+                echo ""
+                echo "Container: $container"
+
+                echo "--- Current logs (last 100 lines) ---"
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --tail=100 2>&1
+
+                echo "--- Previous logs (if restarted, last 100 lines) ---"
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --previous --tail=100 2>&1
+
+                echo "--- Container status ---"
+                kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath="{range .status.containerStatuses[?(@.name==\"$container\")]}{.name}{'\t'}{.ready}{'\t'}{.restartCount}{'\t'}{.state}{'\t'}{.lastState}{'\n'}{end}" 2>&1
+              done
+            fi
+
+            # Dump ephemeral container logs (capture, agent)
+            ephemeral_list=$(kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath='{.spec.ephemeralContainers[*].name}' 2>&1)
+            if [ -n "$ephemeral_list" ]; then
+              printf '%s\n' "$ephemeral_list" | tr ' ' '\n' | while IFS= read -r container; do
+                if [ -z "$container" ]; then
+                  continue
+                fi
+
+                echo ""
+                echo "Ephemeral Container: $container"
+
+                echo "--- Current logs (last 100 lines) ---"
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --tail=100 2>&1
+
+                echo "--- Previous logs (if restarted, last 100 lines) ---"
+                kubectl --context "$ctx" logs -n "$ns" "$pod" -c "$container" --previous --tail=100 2>&1
+
+                echo "--- Ephemeral container status ---"
+                kubectl --context "$ctx" get pod "$pod" -n "$ns" -o jsonpath="{range .status.ephemeralContainerStatuses[?(@.name==\"$container\")]}{.name}{'\t'}{.ready}{'\t'}{.restartCount}{'\t'}{.state}{'\t'}{.lastState}{'\n'}{end}" 2>&1
+              done
+            fi
+          done
+        done
+
+        # This step is best-effort diagnostics only (runs under if: failure())
+        # and must never itself fail the job, regardless of how the nested
+        # loops/pipelines above resolved their exit status.
+        exit 0
