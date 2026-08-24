@@ -896,7 +896,7 @@ describe("CaptureWidget", () => {
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
         http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
-          captureStartBody = await request.json();
+          captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             {
               captureId: "cap-new",
@@ -952,7 +952,7 @@ describe("CaptureWidget", () => {
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
         http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
-          captureStartBody = await request.json();
+          captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
             { status: 202 },
@@ -990,7 +990,7 @@ describe("CaptureWidget", () => {
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
         http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
-          captureStartBody = await request.json();
+          captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
             { status: 202 },
@@ -1028,7 +1028,7 @@ describe("CaptureWidget", () => {
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
         http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
-          captureStartBody = await request.json();
+          captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
             { status: 202 },
@@ -1462,7 +1462,7 @@ describe("CaptureWidget", () => {
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
         http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
-          captureStartBody = await request.json();
+          captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
             { status: 202 },
@@ -1493,7 +1493,7 @@ describe("CaptureWidget", () => {
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
         http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
-          captureStartBody = await request.json();
+          captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
             { status: 202 },

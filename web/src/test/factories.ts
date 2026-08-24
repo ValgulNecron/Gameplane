@@ -60,7 +60,17 @@ export function makeUser(over: Partial<User> = {}): User {
   };
 }
 
-export function makeServer(over: Partial<GameServer> = {}): GameServer {
+// Override allows pinning only the nested fields a test cares about (a
+// partial metadata/spec/status), unlike a flat Partial<GameServer> which
+// would demand a complete spec. The nested objects are deep-merged over
+// the defaults below.
+type ServerOverride = {
+  metadata?: Partial<GameServer["metadata"]>;
+  spec?: Partial<GameServer["spec"]>;
+  status?: Partial<GameServer["status"]>;
+};
+
+export function makeServer(over: ServerOverride = {}): GameServer {
   return {
     metadata: {
       name: "alpha",
@@ -78,7 +88,6 @@ export function makeServer(over: Partial<GameServer> = {}): GameServer {
       startedAt: "2026-05-07T09:00:00Z",
       ...(over.status ?? {}),
     },
-    ...over,
   };
 }
 

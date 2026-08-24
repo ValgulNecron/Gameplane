@@ -7,8 +7,8 @@ describe("countByState", () => {
     const c = countByState([
       makeServer({ status: { phase: "Running", agent: { playersOnline: 3, playersMax: 20 } } }),
       makeServer({ status: { phase: "Suspended", agent: { playersOnline: 0, playersMax: 10 } } }),
-      makeServer({ status: { phase: "Failed" } }),
-      makeServer({ status: { phase: "Stopped" } }),
+      makeServer({ status: { phase: "Failed", agent: undefined } }),
+      makeServer({ status: { phase: "Stopped", agent: undefined } }),
     ]);
     expect(c.running).toBe(1);
     expect(c.stopped).toBe(3); // Suspended + Failed + Stopped
@@ -25,7 +25,7 @@ describe("countByState", () => {
   });
 
   it("treats a missing phase as Pending (neither running nor stopped)", () => {
-    const c = countByState([makeServer({ status: {} })]);
+    const c = countByState([makeServer({ status: { phase: undefined } })]);
     expect(c.running).toBe(0);
     expect(c.stopped).toBe(0);
   });
