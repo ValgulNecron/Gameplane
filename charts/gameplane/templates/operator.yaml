@@ -276,10 +276,10 @@ spec:
             {{- if .Values.capture.enabled }}
             - --capture-enabled=true
             - --capture-sidecar-image={{ include "gameplane.captureImage" . }}
-            - --capture-default-retention-seconds={{ .Values.capture.defaultRetentionSeconds }}
-            - --capture-max-retention-seconds={{ .Values.capture.maxRetentionSeconds }}
-            - --capture-default-max-duration-seconds={{ .Values.capture.defaultMaxDurationSeconds }}
-            - --capture-default-max-size-bytes={{ .Values.capture.defaultMaxSizeBytes }}
+            - --capture-default-retention-seconds={{ .Values.capture.defaultRetentionSeconds | int64 }}
+            - --capture-max-retention-seconds={{ .Values.capture.maxRetentionSeconds | int64 }}
+            - --capture-default-max-duration-seconds={{ .Values.capture.defaultMaxDurationSeconds | int64 }}
+            - --capture-default-max-size-bytes={{ .Values.capture.defaultMaxSizeBytes | int64 }}
             {{- else }}
             - --capture-enabled=false
             {{- end }}

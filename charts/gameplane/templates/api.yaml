@@ -335,13 +335,13 @@ spec:
             - name: GAMEPLANE_CAPTURE_ENABLED
               value: {{ .Values.capture.enabled | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_RETENTION
-              value: {{ .Values.capture.defaultRetentionSeconds | quote }}
+              value: {{ .Values.capture.defaultRetentionSeconds | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_MAX_RETENTION
-              value: {{ .Values.capture.maxRetentionSeconds | quote }}
+              value: {{ .Values.capture.maxRetentionSeconds | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_MAX_DURATION
-              value: {{ .Values.capture.defaultMaxDurationSeconds | quote }}
+              value: {{ .Values.capture.defaultMaxDurationSeconds | int64 | quote }}
             - name: GAMEPLANE_CAPTURE_DEFAULT_MAX_SIZE
-              value: {{ .Values.capture.defaultMaxSizeBytes | quote }}
+              value: {{ .Values.capture.defaultMaxSizeBytes | int64 | quote }}
             - name: GAMEPLANE_LOG_LEVEL
               value: {{ .Values.api.logLevel | quote }}
           ports:
