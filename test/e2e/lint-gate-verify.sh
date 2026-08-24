@@ -2,7 +2,7 @@
 # Verifier for the lint gate: validates consistency between go.work
 # and the lint job's matrix and conditional steps in .github/workflows/ci.yaml.
 #
-# Of the 10 rules in specs/004-lint-backlog-wave2/contracts/lint-gate.md,
+# Of the 10 rules in specs/done_004-lint-backlog-wave2/contracts/lint-gate.md,
 # this script enforces R-001, R-002, R-003, R-004, R-006, R-008, R-009, and
 # R-010 via line-oriented scans of ci.yaml (and go.work for R-001). R-005
 # (exact-string `if:` matching) and R-007 (a new go.work member must add a

@@ -2,7 +2,7 @@
 
 **Branch**: `004-lint-backlog-wave2` | **Date**: 2026-08-17 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/004-lint-backlog-wave2/spec.md`
+**Input**: Feature specification from `/specs/done_004-lint-backlog-wave2/spec.md`
 
 ## Summary
 
@@ -93,7 +93,7 @@ extra wall-clock).
 ### Documentation (this feature)
 
 ```text
-specs/004-lint-backlog-wave2/
+specs/done_004-lint-backlog-wave2/
 ├── plan.md              # This file
 ├── spec.md              # The feature specification
 └── checklists/
@@ -240,7 +240,7 @@ Sequenced so each step is independently reviewable and the branch goes red (duri
   `continue-on-error: true` in lint steps, no temporary/pending comments on the lint gate,
   build tags are correctly passed.
 - Wire the verifier into `.github/workflows/ci.yaml` so it runs before linting.
-- Document the lint-gate contract and verification rules in `specs/004-lint-backlog-wave2/specs.md`.
+- Document the lint-gate contract and verification rules in `specs/done_004-lint-backlog-wave2/specs.md`.
 - Checkpoint: Lint-gate contract rules are automated and documented. Regressions are
   detectable.
 

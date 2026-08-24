@@ -2,7 +2,7 @@
 
 **Branch**: `001-gameprotocol-e2e-coverage` | **Date**: 2026-08-16 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `/specs/001-gameprotocol-e2e-coverage/spec.md`
+**Input**: Feature specification from `/specs/done_001-gameprotocol-e2e-coverage/spec.md`
 
 ## Summary
 
@@ -126,7 +126,7 @@ FR-008 and Assumption 3, and it is the boundary reviewers should hold the implem
 ### Documentation (this feature)
 
 ```text
-specs/001-gameprotocol-e2e-coverage/
+specs/done_001-gameprotocol-e2e-coverage/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output — decisions + rejected alternatives
 ├── data-model.md        # Phase 1 output — status vocabulary + coverage record schema

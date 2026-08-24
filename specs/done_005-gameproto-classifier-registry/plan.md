@@ -2,7 +2,7 @@
 
 **Branch**: `005-gameproto-classifier-registry` | **Date**: 2026-08-20 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/005-gameproto-classifier-registry/spec.md`
+**Input**: Feature specification from `/specs/done_005-gameproto-classifier-registry/spec.md`
 
 ## Summary
 
@@ -56,7 +56,7 @@ Refactor the `gameproto/` Go module from per-protocol facade functions to a regi
 ### Documentation (this feature)
 
 ```text
-specs/005-gameproto-classifier-registry/
+specs/done_005-gameproto-classifier-registry/
 ├── spec.md                    # Feature specification (user stories, requirements, success criteria)
 ├── research.md                # Phase 0 research output (decisions 1–10, constraints, verification strategy)
 ├── plan.md                    # This file (Phase 0 summary → Phase 1 inputs)
@@ -125,7 +125,7 @@ test/e2e/
 └── buckets.sh                                # Frozen (FR-006): no changes to test names or bucket assignments. Three wake-on-connect tests remain in bot-fast bucket.
 ```
 
-**Structure Decision**: This refactor is confined to two Go modules (gameproto and sentinel) and the documentation tree (specs/005-gameproto-classifier-registry/). The change is localized: shared-code edits are consolidated into a single registry manifest (gameproto/registry.go) and a single startup validation (sentinel/main.go parsePortsConfig), eliminating the multi-file edit burden. The Classifier interface provides extensibility: future protocols implement one interface rather than editing shared code. Per Principle IV, both gameproto/specs.md and sentinel/specs.md must be added as behavior documentation, ensuring the abstraction and its contract are captured for future maintainers. No external components (operator, API, web, CRDs) are touched; this is a pure internal refactor with external verification through E2E tests.
+**Structure Decision**: This refactor is confined to two Go modules (gameproto and sentinel) and the documentation tree (specs/done_005-gameproto-classifier-registry/). The change is localized: shared-code edits are consolidated into a single registry manifest (gameproto/registry.go) and a single startup validation (sentinel/main.go parsePortsConfig), eliminating the multi-file edit burden. The Classifier interface provides extensibility: future protocols implement one interface rather than editing shared code. Per Principle IV, both gameproto/specs.md and sentinel/specs.md must be added as behavior documentation, ensuring the abstraction and its contract are captured for future maintainers. No external components (operator, API, web, CRDs) are touched; this is a pure internal refactor with external verification through E2E tests.
 
 ## Complexity Tracking
 

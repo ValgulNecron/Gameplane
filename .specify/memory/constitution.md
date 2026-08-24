@@ -118,7 +118,7 @@ categories:
     defect goes unchecked. The disabled rule must be wholly subsumed by a stricter, more
     configurable enabled linter such that the underlying requirement (e.g., error-checking)
     remains enforced. Exclusions of this type are rare and require maintainer sign-off;
-    specific instances are documented in `specs/004-lint-backlog-wave2/contracts/exclusion-policy.md`.
+    specific instances are documented in `specs/done_004-lint-backlog-wave2/contracts/exclusion-policy.md`.
 
 Global or broad rule-weakening — removing a linter from the enabled set, or repo-wide
 exclusions for findings that would otherwise go unchecked — remains forbidden.

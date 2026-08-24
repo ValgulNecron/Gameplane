@@ -10,7 +10,7 @@ This guide provides runnable validation scenarios that prove each success criter
 
 - **Success Criteria Summary**: See "What PASS Looks Like" checklist below; maps SC-001..SC-008 to observable proof.
 - **Implementation Detail**: Refer to `spec.md` (Functional Requirements, Key Entities, Assumptions); this guide focuses on *validation*, not implementation code.
-- **Data Model & Join Coverage**: Reference `specs/001-gameprotocol-e2e-coverage/data-model.md` for JoinDepth, CoverageRecord, and the vocabulary used in `docs/game-coverage.md`.
+- **Data Model & Join Coverage**: Reference `specs/done_001-gameprotocol-e2e-coverage/data-model.md` for JoinDepth, CoverageRecord, and the vocabulary used in `docs/game-coverage.md`.
 - **Test Buckets**: Reference `test/e2e/buckets.sh` for bucket names and e2e test organization.
 
 ---
@@ -1246,7 +1246,7 @@ make test-e2e-bucket BUCKET=bot-heavy
 ## References
 
 - **Spec**: `specs/002-nuclear-option-ip-pool/spec.md` (Success Criteria, User Stories, Requirements)
-- **Data Model**: `specs/001-gameprotocol-e2e-coverage/data-model.md` (JoinDepth, CoverageRecord, test vocabulary)
+- **Data Model**: `specs/done_001-gameprotocol-e2e-coverage/data-model.md` (JoinDepth, CoverageRecord, test vocabulary)
 - **Verifier**: `test/e2e/joincoverage.sh` (join-coverage gate)
 - **Buckets**: `test/e2e/buckets.sh` (e2e test organization)
 - **Coverage Table**: `docs/game-coverage.md` (module join-protocol status)
