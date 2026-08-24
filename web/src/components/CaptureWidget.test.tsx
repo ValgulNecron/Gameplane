@@ -439,9 +439,11 @@ describe("CaptureWidget", () => {
       await userEvent.click(eyeBtn);
 
       // Details row should appear
-      expect(await screen.findByText(/Created/i)).toBeInTheDocument();
+      const detailsRow = await screen.findByText(/Created/i);
+      expect(detailsRow).toBeInTheDocument();
       expect(screen.getByText(/Started/i)).toBeInTheDocument();
-      expect(screen.getByText(/Server/i)).toBeInTheDocument();
+      // "Server" appears in multiple places, so we check for the server name "alpha"
+      expect(screen.getByText("alpha")).toBeInTheDocument();
     });
 
     it("collapses row when eye button is clicked again", async () => {

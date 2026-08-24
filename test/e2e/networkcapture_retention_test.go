@@ -145,7 +145,11 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 		t.Fatalf("get networkcapture pre-backdate: %v", err)
 	}
 	past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
-	if err := unstructured.SetNestedField(nc.Object, past, "status", "completionTime"); err != nil {
+	// Convert metav1.Time to RFC3339 string for unstructured API compatibility.
+	// The unstructured API cannot deep copy metav1.Time objects. metav1.Time's
+	// MarshalJSON renders in UTC with a trailing Z, so use UTC() before Format
+	// to match the exact apiserver serialization.
+	if err := unstructured.SetNestedField(nc.Object, past.UTC().Format(time.RFC3339), "status", "completionTime"); err != nil {
 		t.Fatalf("set completionTime in object: %v", err)
 	}
 	if _, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).

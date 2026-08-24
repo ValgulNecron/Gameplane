@@ -17,9 +17,17 @@ beforeEach(() => {
   document.cookie = "";
 });
 
-afterEach(() => {
+afterEach(async () => {
   fetchMock.mockReset();
   vi.unstubAllGlobals();
+  // getCurrentCluster is mocked at module scope and several tests below
+  // override it with mockReturnValue (not mockReturnValueOnce), which
+  // persists across tests. Reset it here — globally, not just in the
+  // describe block that first needed it — so a later describe block
+  // (e.g. Captures.download()) that also overrides it can't leak its
+  // non-"local" value into tests that never touch the cluster mock.
+  const { getCurrentCluster } = await import("./cluster");
+  vi.mocked(getCurrentCluster).mockReturnValue("local");
 });
 
 function jsonRes(status: number, body: unknown): Response {
@@ -139,6 +147,9 @@ describe("withNS()", () => {
 });
 
 describe("withClusterParam()", () => {
+  // Cluster mock is reset in the top-level afterEach above — see its
+  // comment for why that must be global rather than scoped here.
+
   it("returns path unchanged when cluster is 'local'", async () => {
     const { getCurrentCluster } = await import("./cluster");
     vi.mocked(getCurrentCluster).mockReturnValue("local");
