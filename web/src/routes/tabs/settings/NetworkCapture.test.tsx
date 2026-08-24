@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
@@ -169,19 +169,18 @@ describe("NetworkCaptureSection", () => {
       http.get("/users/me", () => HttpResponse.json(makeUser({ role: "operator" }))),
     );
     renderWithQuery(<NetworkCaptureSection draft={baseDraft} onChange={() => {}} />);
-    const sw = await screen.findByRole("switch", { name: /Enable Capture/i });
+    // Ensure /users/me has resolved by waiting for the permission error text.
+    await screen.findByText(/don't have permission to change capture settings/i);
+    const sw = screen.getByRole("switch", { name: /Enable Capture/i });
     expect(sw).toBeDisabled();
     expect(screen.getByLabelText("Retention window value")).toBeDisabled();
     expect(screen.getByLabelText("Retention window unit")).toBeDisabled();
-    expect(
-      screen.getByText(/don't have permission to change capture settings/i),
-    ).toBeInTheDocument();
   });
 
   it("leaves the controls enabled for an admin session", async () => {
     renderWithQuery(<NetworkCaptureSection draft={baseDraft} onChange={() => {}} />);
     const sw = await screen.findByRole("switch", { name: /Enable Capture/i });
-    expect(sw).not.toBeDisabled();
+    await waitFor(() => expect(sw).not.toBeDisabled());
   });
 });
 

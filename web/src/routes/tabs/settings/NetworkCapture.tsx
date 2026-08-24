@@ -41,7 +41,7 @@ function bestUnit(seconds: number): RetentionUnit {
 }
 
 export function NetworkCaptureSection({ draft, onChange, onValidityChange }: SectionProps) {
-  const { data: me } = useMe();
+  const { data: me, isLoading: meLoading } = useMe();
   const namespace = draft.metadata.namespace ?? "gameplane-games";
   const canManage = can(me, "captures:manage", namespace);
 
@@ -91,7 +91,10 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
     setCaptureField("retentionSeconds", seconds);
   };
 
-  const disabled = !canManage;
+  // Fail-closed: keep the controls disabled until /users/me has resolved, and
+  // only show the permission warning once we actually know the answer — a
+  // loading flash must never read as "you're not allowed".
+  const disabled = meLoading || !canManage;
 
   return (
     <div className="space-y-6">
@@ -118,7 +121,7 @@ export function NetworkCaptureSection({ draft, onChange, onValidityChange }: Sec
             Network packet capture requires admin access. Captures contain real player data
             (IP addresses, chat, credentials) and are not redacted.
           </p>
-          {disabled && (
+          {!meLoading && !canManage && (
             <p className="text-xs leading-relaxed text-warning">
               You don&apos;t have permission to change capture settings for this server.
             </p>
