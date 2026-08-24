@@ -14,6 +14,18 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// captureListTestResp mirrors the envelope returned by GET
+// /servers/{name}:captures (see api/internal/handlers/capture.go's
+// captureListResp) — {"captures":[{"captureId":...}],"total","limit","offset"}.
+type captureListTestResp struct {
+	Captures []struct {
+		CaptureID string `json:"captureId"`
+	} `json:"captures"`
+	Total  int `json:"total"`
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+}
+
 // testRetentionCaptureMaxSize is the maximum size for retention testing.
 // Must stay at or below charts/gameplane/values.yaml's capture.defaultMaxSizeBytes (900 MiB).
 // For retention/TTL tests, the actual file size is immaterial; we use a minimal value.
@@ -137,6 +149,35 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 		return true, ""
 	})
 
+	// Sanity check the List envelope while the capture is still present:
+	// this proves the response actually decodes populated entries, so the
+	// later "capture is absent after expiry" assertion can't pass vacuously
+	// from a silently-empty parse (e.g. a mismatched field name yielding a
+	// zero-value slice either way).
+	preListHTTPResp, preListBody, err := cli.Get("/servers/" + gsName + ":captures")
+	if err != nil {
+		t.Fatalf("list captures before expiry: %v", err)
+	}
+	defer func() { _ = preListHTTPResp.Body.Close() }()
+	if preListHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("list captures before expiry: status=%s body=%s", preListHTTPResp.Status, preListBody)
+	}
+	var preResp captureListTestResp
+	if err := json.Unmarshal(preListBody, &preResp); err != nil {
+		t.Fatalf("parse pre-expiry capture list: %v", err)
+	}
+	preFound := false
+	for _, cap := range preResp.Captures {
+		if cap.CaptureID == captureID {
+			preFound = true
+			break
+		}
+	}
+	if !preFound {
+		t.Fatalf("capture %s not found in pre-expiry List response (total=%d, body=%s) — list parsing likely broken",
+			captureID, preResp.Total, preListBody)
+	}
+
 	// Backdate completionTime to 2 hours in the past so the TTL is already
 	// expired — matching the pattern in envtest (TestNetworkCapture_RetentionExpiresCompletedCapture).
 	nc, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
@@ -197,14 +238,12 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 	if listHTTPResp.StatusCode != http.StatusOK {
 		t.Fatalf("list captures: status=%s body=%s", listHTTPResp.Status, listBody)
 	}
-	var captures []struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(listBody, &captures); err != nil {
+	var resp captureListTestResp
+	if err := json.Unmarshal(listBody, &resp); err != nil {
 		t.Fatalf("parse capture list: %v", err)
 	}
-	for _, cap := range captures {
-		if cap.ID == captureID {
+	for _, cap := range resp.Captures {
+		if cap.CaptureID == captureID {
 			t.Errorf("expired capture %s still in List response", captureID)
 		}
 	}

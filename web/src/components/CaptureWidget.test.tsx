@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, onTestFinished, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
 import { screen, waitFor } from "@testing-library/react";
@@ -47,10 +47,22 @@ describe("CaptureWidget", () => {
       const gs = makeServer({
         spec: { capture: { enabled: false } },
       });
+      // The response is gated on the test, not on a timer. An
+      // instantly-resolving handler can settle inside the act() that
+      // userEvent.click awaits, so the pending render is already gone when
+      // the assertion runs; a fixed delay only narrows that window (a
+      // loaded CI worker can still overrun it). Holding the response until
+      // the test releases it makes the pending state deterministic, and
+      // releasing it afterwards still exercises the success path.
+      let releaseEnable!: () => void;
+      const enableGate = new Promise<void>((resolve) => {
+        releaseEnable = resolve;
+      });
       server.use(
-        http.post(/servers\/alpha:capture-enable(\?.*)?$/, () =>
-          HttpResponse.json({ name: "alpha", status: { capture: { enabled: true } } }),
-        ),
+        http.post(/servers\/alpha:capture-enable(\?.*)?$/, async () => {
+          await enableGate;
+          return HttpResponse.json({ name: "alpha", status: { capture: { enabled: true } } });
+        }),
       );
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
@@ -58,8 +70,16 @@ describe("CaptureWidget", () => {
       const button = screen.getByRole("button", { name: /Enable Capture/i });
       await userEvent.click(button);
 
-      // Button should show loading state
+      // Button shows the loading state while the gated request is in
+      // flight. Safe to assert synchronously: mutate() flips isPending
+      // inside the act() that userEvent.click awaits, and nothing can
+      // settle it back before the gate opens.
       expect(button).toHaveTextContent(/Enabling/i);
+
+      // Release, and confirm the mutation settles back out of its pending
+      // state — which also runs the mutation's onSuccess.
+      releaseEnable();
+      await waitFor(() => expect(button).toHaveTextContent(/Enable Capture/i));
     });
 
     it("displays error banner when enable mutation fails", async () => {
@@ -157,11 +177,18 @@ describe("CaptureWidget", () => {
       const gs = makeServer({
         spec: { capture: { enabled: true } },
       });
+      // Gated on the test rather than on a timer, for the same reason as
+      // the enable test above.
+      let releaseDisable!: () => void;
+      const disableGate = new Promise<void>((resolve) => {
+        releaseDisable = resolve;
+      });
       server.use(
         http.get(/servers\/alpha:captures(\?.*)?$/, () => new Promise(() => {})), // Never resolves
-        http.post(/servers\/alpha:capture-disable(\?.*)?$/, () =>
-          HttpResponse.json({ name: "alpha", status: { capture: { enabled: false } } }),
-        ),
+        http.post(/servers\/alpha:capture-disable(\?.*)?$/, async () => {
+          await disableGate;
+          return HttpResponse.json({ name: "alpha", status: { capture: { enabled: false } } });
+        }),
       );
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
@@ -170,6 +197,9 @@ describe("CaptureWidget", () => {
       await userEvent.click(disableBtn);
 
       expect(disableBtn).toBeDisabled();
+
+      releaseDisable();
+      await waitFor(() => expect(disableBtn).not.toBeDisabled());
     });
   });
 
@@ -252,6 +282,12 @@ describe("CaptureWidget", () => {
       const gs = makeServer({
         spec: { capture: { enabled: true } },
       });
+      // Gated on the test rather than on a timer, for the same reason as
+      // the enable/disable tests above.
+      let releaseStop!: () => void;
+      const stopGate = new Promise<void>((resolve) => {
+        releaseStop = resolve;
+      });
       server.use(
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
@@ -259,9 +295,10 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:capture\?/, () =>
           HttpResponse.json(activeCap),
         ),
-        http.post(/servers\/alpha:capture-stop(\?.*)?$/, () =>
-          HttpResponse.json({ ...activeCap, phase: "Completed", completedAt: new Date().toISOString() }),
-        ),
+        http.post(/servers\/alpha:capture-stop(\?.*)?$/, async () => {
+          await stopGate;
+          return HttpResponse.json({ ...activeCap, phase: "Completed", completedAt: new Date().toISOString() });
+        }),
       );
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
@@ -270,6 +307,9 @@ describe("CaptureWidget", () => {
       await userEvent.click(stopBtn);
 
       expect(stopBtn).toBeDisabled();
+
+      releaseStop();
+      await waitFor(() => expect(stopBtn).not.toBeDisabled());
     });
   });
 
@@ -380,15 +420,25 @@ describe("CaptureWidget", () => {
       const gs = makeServer({
         spec: { capture: { enabled: true } },
       });
+      // The response is gated on the test rather than on a timer: this test
+      // asserts the in-flight (disabled) state AND the completed download,
+      // so it needs the request to stay pending until the first assertion
+      // has run and then complete on demand. A fixed delay would only make
+      // the "still pending" window probable; the gate makes it certain.
+      let releaseFile!: () => void;
+      const fileGate = new Promise<void>((resolve) => {
+        releaseFile = resolve;
+      });
       server.use(
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture-file\?/, () =>
-          new HttpResponse(new Blob(["mock pcapng data"]), {
+        http.get(/servers\/alpha:capture-file\?/, async () => {
+          await fileGate;
+          return new HttpResponse(new Blob(["mock pcapng data"]), {
             headers: { "Content-Type": "application/octet-stream" },
-          }),
-        ),
+          });
+        }),
       );
 
       // jsdom doesn't implement URL.createObjectURL/revokeObjectURL, and
@@ -400,21 +450,38 @@ describe("CaptureWidget", () => {
       Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: createURL });
       Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: revokeURL });
       const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+      // Registered immediately, and via onTestFinished rather than at the end
+      // of the body, so the globals are restored even when an assertion below
+      // throws — a leaked anchor-click spy or URL stub would otherwise poison
+      // every later test in this file. Neither property exists on jsdom's URL
+      // before this test defines it, so remove them outright rather than
+      // restoring a prior descriptor.
+      onTestFinished(() => {
+        clickSpy.mockRestore();
+        delete (URL as { createObjectURL?: unknown }).createObjectURL;
+        delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
+      });
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
 
       const downloadBtn = await screen.findByLabelText(/Download capture cap-1/i);
       await userEvent.click(downloadBtn);
 
-      // Button should become disabled during download
-      await waitFor(() => expect(downloadBtn).toBeDisabled());
+      // Button is disabled while the (still-gated) download is in flight.
+      // Safe to assert synchronously: mutate() flips isPending inside the
+      // act() that userEvent.click awaits, and the gate guarantees nothing
+      // has settled it back.
+      expect(downloadBtn).toBeDisabled();
 
-      // Wait for the mutation's onSuccess to run the full download sequence,
-      // and let the button re-enable so this test doesn't leak a pending
-      // mutation (or a poisoned URL stub) into the next one.
+      // Let the response through, then wait for the mutation's onSuccess to
+      // run the full download sequence.
+      releaseFile();
       await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
       expect(createURL).toHaveBeenCalledOnce();
       expect(revokeURL).toHaveBeenCalledWith("blob:test");
+      // Button re-enables once the mutation settles, so the test doesn't
+      // leave a pending mutation behind.
+      await waitFor(() => expect(downloadBtn).not.toBeDisabled());
     });
 
     it("expands row to show details on eye button click", async () => {
@@ -510,7 +577,13 @@ describe("CaptureWidget", () => {
       const deleteBtn = await screen.findByLabelText(/Delete capture cap-1/i);
       await userEvent.click(deleteBtn);
 
-      expect(await screen.findByText(/Delete capture/i)).toBeInTheDocument();
+      // Exact match on the dialog title text ("Delete capture?"): a loose
+      // /Delete capture/i also matches the dialog's own confirm button
+      // ("Delete capture", no "?"), so findByText resolves two elements
+      // and never settles — the same ambiguous-regex class documented on
+      // "deletes capture when confirmed" below, just not yet called out
+      // here.
+      expect(await screen.findByText("Delete capture?")).toBeInTheDocument();
       expect(screen.getByText(/permanently deletes capture/i)).toBeInTheDocument();
     });
 
@@ -521,13 +594,23 @@ describe("CaptureWidget", () => {
       const gs = makeServer({
         spec: { capture: { enabled: true } },
       });
+      // Gated on the test rather than on a timer. Besides the usual
+      // pending-window race, an instant response here is actively
+      // misleading: deleteMut's onSuccess closes the dialog, so a
+      // too-fast response leaves `confirmBtn` a detached node whose stale
+      // `disabled` attribute the assertion could read either way.
+      let releaseDelete!: () => void;
+      const deleteGate = new Promise<void>((resolve) => {
+        releaseDelete = resolve;
+      });
       server.use(
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
-        http.delete(/servers\/alpha:capture\?/, () =>
-          HttpResponse.json({ deleted: true, captureId: "cap-1" }),
-        ),
+        http.delete(/servers\/alpha:capture\?/, async () => {
+          await deleteGate;
+          return HttpResponse.json({ deleted: true, captureId: "cap-1" });
+        }),
       );
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
@@ -542,12 +625,25 @@ describe("CaptureWidget", () => {
       await userEvent.click(confirmBtn);
 
       expect(confirmBtn).toBeDisabled();
+
+      // Release, and confirm the delete actually went through: onSuccess
+      // clears deleteTarget, which closes the dialog. That is the only
+      // observable proof the DELETE was issued and succeeded — the
+      // captures list is a fixed mock, so the row itself never disappears.
+      releaseDelete();
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
     it("shows expiry time with correct tone badge", async () => {
       const completed = makeCapture({
         captureId: "cap-1",
-        expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour
+        // +30s past the exact hour: expiryLabel's Date.now() call happens
+        // after an async render/fetch round trip, so an exact-multiple
+        // offset (3600000) has zero margin — any elapsed wall-clock time
+        // floors secondsLeft below the hour and flips the label to
+        // "59m", missing the "1h" query entirely. The 30s pad tolerates
+        // realistic CI overhead without changing the asserted "1h" text.
+        expiresAt: new Date(Date.now() + 3630000).toISOString(), // ~1 hour
       });
       const gs = makeServer({
         spec: { capture: { enabled: true } },
@@ -560,8 +656,14 @@ describe("CaptureWidget", () => {
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
 
-      const expiryCell = await screen.findByText(/1h/);
-      expect(expiryCell).toBeInTheDocument();
+      // Exact "1h", not /1h/: makeCapture's default startedAt→completedAt
+      // span is exactly one hour, so the row's Duration cell renders
+      // "1h 0m" and a loose /1h/ matches BOTH cells — findByText then
+      // rejects with "found multiple elements", surfacing as a bare 5s
+      // timeout (asyncUtilTimeout == testTimeout). Exact matching pins the
+      // query to the expiry badge, whose whole text is "1h".
+      const expiryCell = await screen.findByText("1h");
+      expect(expiryCell.className).toContain("text-warning");
     });
 
     it("displays capture count at the bottom", async () => {
@@ -1297,8 +1399,14 @@ describe("CaptureWidget", () => {
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
 
-      // Should show minutes and seconds
-      expect(await screen.findByText(/Capture started 2m 5s ago/i)).toBeInTheDocument();
+      // Should show minutes and seconds. The seconds component is left
+      // open (\d+) on purpose: elapsedSeconds() is recomputed at render
+      // time, so any wall-clock time between building startedAt above and
+      // the post-fetch render ticks "2m 5s" to "2m 6s" — a sub-second
+      // margin this file has already been bitten by four times over
+      // (see the padded expiry offsets below). The m/s shape is what this
+      // test is about, and the regex still pins that.
+      expect(await screen.findByText(/Capture started 2m \d+s ago/i)).toBeInTheDocument();
     });
 
     it("formats duration correctly with hours and minutes", async () => {
@@ -1374,7 +1482,13 @@ describe("CaptureWidget", () => {
     it("displays expiry badge with danger tone when less than 1 hour remaining", async () => {
       const completed = makeCapture({
         captureId: "cap-1",
-        expiresAt: new Date(Date.now() + 1800000).toISOString(), // 30 minutes
+        // +30s past the exact 30 minutes: expiryLabel's Date.now() call
+        // happens after an async render/fetch round trip, so an
+        // exact-minute offset has zero margin against CI-realistic delay —
+        // any elapsed time floors the minutes component down to 29m and
+        // the /30m/ query never finds it (masked as a 5s timeout, not a
+        // "not found" error, because asyncUtilTimeout == testTimeout).
+        expiresAt: new Date(Date.now() + 1830000).toISOString(), // ~30 minutes
       });
       const gs = makeServer({
         spec: { capture: { enabled: true } },
@@ -1387,15 +1501,22 @@ describe("CaptureWidget", () => {
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
 
-      // Should show 30m with danger tone
-      const expiryBadge = await screen.findByText(/30m/);
+      // Should show 30m with danger tone. Exact match (not /30m/) so the
+      // query can only hit the expiry badge — the same row also renders a
+      // Duration cell ("1h 0m" from makeCapture's defaults) and a relative
+      // "Completed at" cell, either of which a loose regex could grow into.
+      const expiryBadge = await screen.findByText("30m");
       expect(expiryBadge.className).toContain("text-danger");
     });
 
     it("displays expiry badge with warning tone when 1-6 hours remaining", async () => {
       const completed = makeCapture({
         captureId: "cap-1",
-        expiresAt: new Date(Date.now() + 7200000).toISOString(), // 2 hours
+        // +30s past the exact 2 hours, for the same reason as the 30m and
+        // 24h boundary tests in this file: 7200000 is an exact multiple of
+        // an hour, so it has zero margin and any elapsed render/fetch time
+        // flips the hour count down to "1h", missing /2h/.
+        expiresAt: new Date(Date.now() + 7230000).toISOString(), // ~2 hours
       });
       const gs = makeServer({
         spec: { capture: { enabled: true } },
@@ -1408,15 +1529,20 @@ describe("CaptureWidget", () => {
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
 
-      // Should show 2h with warning tone
-      const expiryBadge = await screen.findByText(/2h/);
+      // Should show 2h with warning tone; exact match for the same
+      // single-element reason as the 30m case above.
+      const expiryBadge = await screen.findByText("2h");
       expect(expiryBadge.className).toContain("text-warning");
     });
 
     it("displays expiry badge with muted tone when more than 6 hours remaining", async () => {
       const completed = makeCapture({
         captureId: "cap-1",
-        expiresAt: new Date(Date.now() + 86400000).toISOString(), // 24 hours
+        // +30s past the exact 24 hours, for the same reason as the 30m and
+        // 2h boundary tests above: 86400000 is an exact multiple of an
+        // hour, so it has zero margin against render/fetch delay before
+        // the hour count flips down to "23h", missing /24h/.
+        expiresAt: new Date(Date.now() + 86430000).toISOString(), // ~24 hours
       });
       const gs = makeServer({
         spec: { capture: { enabled: true } },
@@ -1429,8 +1555,9 @@ describe("CaptureWidget", () => {
 
       renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
 
-      // Should show 24h with muted tone
-      const expiryBadge = await screen.findByText(/24h/);
+      // Should show 24h with muted tone; exact match for the same
+      // single-element reason as the 30m case above.
+      const expiryBadge = await screen.findByText("24h");
       expect(expiryBadge.className).toContain("text-muted");
     });
 

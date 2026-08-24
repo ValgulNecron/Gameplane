@@ -1046,7 +1046,7 @@ func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
 	})
 
 	// Wait for the NetworkCapture to transition to Failed. The reconciler
-	// detects the pod UID mismatch and marks the capture as Failed.
+	// detects the pod UID mismatch and marks the capture as Failed with reason "PodRestarted".
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
 		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
 			Get(ctx, captureID, metav1.GetOptions{})
@@ -1055,14 +1055,23 @@ func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
 		}
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
 		if phase != "Failed" {
-			return false, "phase=" + phase
+			return false, fmt.Sprintf("phase=%s (want Failed)", phase)
 		}
-		// Verify there is a reason recorded.
-		errMsg, _, _ := unstructured.NestedString(obj.Object, "status", "error")
-		if errMsg == "" {
-			return false, "no error reason recorded"
+		// Verify there is a condition with reason "PodRestarted" recorded.
+		conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		for _, c := range conditions {
+			cond, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			if condType, ok := cond["type"].(string); ok && condType == "Failed" {
+				if reason, ok := cond["reason"].(string); ok && reason == "PodRestarted" {
+					return true, ""
+				}
+				return false, fmt.Sprintf("Failed condition has reason=%v (want PodRestarted)", cond["reason"])
+			}
 		}
-		return true, ""
+		return false, fmt.Sprintf("no Failed condition found in conditions=%v", conditions)
 	})
 
 	// Verify status.capture.activeCapture is cleared on the GameServer.
