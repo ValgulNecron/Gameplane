@@ -67,6 +67,16 @@ linters:
       - path: (^|/)internal/ws/dialer\.go$
         linters: [gosec]
         text: "G704"
+      # The capture download handler extracts namespace and pod name from the resolved
+      # GameServer object (not from request parameters), validates both as DNS-1123 labels
+      # before building the upstream agent URL, and constructs the URL with url.URL rather
+      # than string concatenation. Only safe headers (no Cookie/Authorization/CSRF) are
+      # forwarded upstream. gosec's taint analysis does not model a custom validator as a
+      # sanitiser, so it reports the request regardless. This mirrors the websocket dialer's
+      # identical guard pattern. G704 remains active everywhere else.
+      - path: (^|/)internal/handlers/capture\.go$
+        linters: [gosec]
+        text: "G704"
       # The CSRF cookie is deliberately not HttpOnly: the SPA must read it and echo it
       # back as the X-Gameplane-CSRF header, which is the double-submit pattern documented
       # in docs/security.md. Making it HttpOnly would hide the token from the browser and

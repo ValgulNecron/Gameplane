@@ -178,6 +178,23 @@ var rules = []rule{
 	{segment: "admin", prefix: "/admin/registries", perm: "config:manage"},
 	{segment: "admin", perm: "*"},
 
+	// Network capture (feature 003-network-capture-sidecar): admin-only via
+	// captures:manage. MUST precede the servers:read rule (below) and the
+	// servers:write catch-all (line 184) — firstSegment makes every
+	// /servers/{name}:verb path match segment "servers" same as ordinary
+	// server CRUD, so an unordered insertion here falls through to
+	// servers:write, which the operator role already holds. A reordering
+	// that moves these rules after the servers catch-all silently grants
+	// capture access to the operator role, defeating FR-005/SC-005.
+	{method: "POST", segment: "servers", suffix: ":capture-enable", perm: "captures:manage"},
+	{method: "POST", segment: "servers", suffix: ":capture-disable", perm: "captures:manage"},
+	{method: "POST", segment: "servers", suffix: ":capture-start", perm: "captures:manage"},
+	{method: "POST", segment: "servers", suffix: ":capture-stop", perm: "captures:manage"},
+	{method: "GET", segment: "servers", suffix: ":captures", perm: "captures:manage"},
+	{method: "GET", segment: "servers", suffix: ":capture-file", perm: "captures:manage"},
+	{method: "GET", segment: "servers", suffix: ":capture", perm: "captures:manage"},
+	{method: "DELETE", segment: "servers", suffix: ":capture", perm: "captures:manage"},
+
 	// Namespaced game resources. Reads vs writes; the catch-all GET below
 	// never fires for these because the explicit read rule matches first.
 	{method: "GET", segment: "servers", perm: "servers:read"},

@@ -88,3 +88,32 @@ func TestCatalog_CoversSeededPermissions(t *testing.T) {
 		t.Fatalf("iterate: %v", err)
 	}
 }
+
+// TestCatalog_CoversRuleTablePermissions is the third leg of the
+// catalog/rbac.go/migrations cross-check: every permission the route
+// table (rbac.go's `rules`) requires must be a real catalog key. This is
+// what would catch a permission like captures:manage being referenced by
+// route rules (e.g. the 8 network-capture routes) without a matching
+// catalog entry — the rule table would silently gate on an unknown
+// permission that no role could ever be granted.
+//
+// "*" (the admin wildcard, e.g. the /admin catch-all rule) and "" (any
+// authenticated user, e.g. GET /users/me) are the same two intentional
+// exceptions TestCatalog_CoversSeededPermissions carves out for the
+// migrations direction — neither is a catalog key.
+func TestCatalog_CoversRuleTablePermissions(t *testing.T) {
+	seen := map[string]bool{}
+	for _, r := range rules {
+		if r.perm == "" || r.perm == "*" || seen[r.perm] {
+			continue
+		}
+		seen[r.perm] = true
+		if !ValidPermission(r.perm) {
+			t.Errorf("rule table references permission %q, which is not present in the catalog", r.perm)
+		}
+	}
+	if !seen["captures:manage"] {
+		t.Error("expected the rule table to reference captures:manage (network capture routes); " +
+			"if this fails, the capture routes may have been removed or renamed without updating this test")
+	}
+}

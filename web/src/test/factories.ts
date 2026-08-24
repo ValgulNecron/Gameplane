@@ -19,6 +19,7 @@ import type {
   ModuleSource,
   PlayersResp,
   Restore,
+  NetworkCapture,
 } from "@/types";
 import type { AllConfig } from "@/lib/config";
 import type { FileEntry } from "@/lib/endpoints";
@@ -41,6 +42,9 @@ const builtinPerms: Record<string, string[]> = {
   ],
 };
 
+// Built-in roles that explicitly do NOT get captures:manage (admin gets it via
+// the wildcard "*"; operator/viewer are denied it per FR-005/SC-005).
+
 export function makeUser(over: Partial<User> = {}): User {
   const role = over.role ?? "admin";
   return {
@@ -56,7 +60,17 @@ export function makeUser(over: Partial<User> = {}): User {
   };
 }
 
-export function makeServer(over: Partial<GameServer> = {}): GameServer {
+// Override allows pinning only the nested fields a test cares about (a
+// partial metadata/spec/status), unlike a flat Partial<GameServer> which
+// would demand a complete spec. The nested objects are deep-merged over
+// the defaults below.
+type ServerOverride = {
+  metadata?: Partial<GameServer["metadata"]>;
+  spec?: Partial<GameServer["spec"]>;
+  status?: Partial<GameServer["status"]>;
+};
+
+export function makeServer(over: ServerOverride = {}): GameServer {
   return {
     metadata: {
       name: "alpha",
@@ -74,7 +88,6 @@ export function makeServer(over: Partial<GameServer> = {}): GameServer {
       startedAt: "2026-05-07T09:00:00Z",
       ...(over.status ?? {}),
     },
-    ...over,
   };
 }
 
@@ -290,6 +303,25 @@ export function makeConfig(over: Partial<AllConfig> = {}): AllConfig {
     auth: { providers: [{ name: "local", kind: "local", enabled: true }] },
     notifications: { sinks: [] },
     telemetry: { sendMetrics: false },
+    ...over,
+  };
+}
+
+export function makeCapture(over: Partial<NetworkCapture> = {}): NetworkCapture {
+  return {
+    captureId: "cap-12345",
+    phase: "Completed",
+    serverName: "alpha",
+    filter: "tcp port 25565",
+    maxDurationSeconds: 3600,
+    maxSizeBytes: 104857600, // 100 MB
+    ttlSecondsAfterFinished: 86400, // 24 hours
+    createdAt: "2026-08-23T00:00:00Z",
+    startedAt: "2026-08-23T00:00:00Z",
+    completedAt: "2026-08-23T01:00:00Z",
+    bytesWritten: 1024,
+    packetsWritten: 100,
+    expiresAt: "2026-08-30T00:00:00Z",
     ...over,
   };
 }

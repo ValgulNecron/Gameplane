@@ -162,8 +162,8 @@ EOF
     install_metallb
     apply_metallb_pools
 
-    echo "loading gameplane/{operator,api,agent,sentinel}:${TAG} images into kind"
-    for img in operator api agent sentinel; do
+    echo "loading gameplane/{operator,api,agent,sentinel,capture-sidecar}:${TAG} images into kind"
+    for img in operator api agent sentinel capture-sidecar; do
         if ! docker image inspect "gameplane-test/${img}:${TAG}" >/dev/null 2>&1; then
             echo "  missing local image gameplane-test/${img}:${TAG} — building"
             docker build -t "gameplane-test/${img}:${TAG}" -f "${REPO}/${img}/Dockerfile" "${REPO}"
@@ -202,6 +202,8 @@ EOF
         --set "web.enabled=false" \
         --set "operator.agentImage=gameplane-test/agent:${TAG}" \
         --set "operator.sentinelImage=gameplane-test/sentinel:${TAG}" \
+        --set "capture.enabled=true" \
+        --set "capture.image=gameplane-test/capture-sidecar:${TAG}" \
         --set "api.resources.limits.memory=1Gi" \
         --set "operator.leaderElect=false" \
         --set "operator.addressManager=metallb" \

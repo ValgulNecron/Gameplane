@@ -278,6 +278,13 @@ func main() {
 		// Steam Workshop lists): the API only writes GameServer.spec.mods.ids;
 		// the operator projects it into the game's env (rule 10).
 		handlers.MountModIDs(p, k8s)
+		handlers.MountCapture(p, reg, auditor, handlers.CaptureConfig{
+			FeatureEnabled:          cfg.captureFeatureEnabled,
+			DefaultRetentionSeconds: cfg.captureDefaultRetentionSecs,
+			MaxRetentionSeconds:     cfg.captureMaxRetentionSecs,
+			DefaultMaxDurationSecs:  cfg.captureDefaultMaxDurationS,
+			DefaultMaxSizeBytes:     cfg.captureDefaultMaxSizeBytes,
+		}, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 		ws.Mount(p, k8s, cfg.agentCABundle, cfg.agentClientCert, cfg.agentClientKey)
 	})
 
@@ -365,6 +372,12 @@ type config struct {
 	agentClientCert string
 	agentClientKey  string
 
+	captureFeatureEnabled       bool
+	captureDefaultRetentionSecs int64
+	captureMaxRetentionSecs     int64
+	captureDefaultMaxDurationS  int
+	captureDefaultMaxSizeBytes  int64
+
 	namespace      string
 	trustedProxies []string
 }
@@ -406,6 +419,13 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.agentCABundle, "agent-ca-bundle", envOr("GAMEPLANE_AGENT_CA", ""), "CA bundle validating agent server certs")
 	fs.StringVar(&c.agentClientCert, "agent-client-cert", envOr("GAMEPLANE_AGENT_CLIENT_CERT", ""), "client cert presented to agents")
 	fs.StringVar(&c.agentClientKey, "agent-client-key", envOr("GAMEPLANE_AGENT_CLIENT_KEY", ""), "client key presented to agents")
+	fs.BoolVar(&c.captureFeatureEnabled, "capture-enabled", envOr("GAMEPLANE_CAPTURE_ENABLED", "") == "true",
+		"enable the network capture feature cluster-wide (mirrors the operator's --capture-enabled flag); "+
+			"when false, POST /servers/{name}:capture-enable returns 501")
+	c.captureDefaultRetentionSecs = envOrInt64("GAMEPLANE_CAPTURE_DEFAULT_RETENTION", 86400)
+	c.captureMaxRetentionSecs = envOrInt64("GAMEPLANE_CAPTURE_MAX_RETENTION", 604800)
+	fs.IntVar(&c.captureDefaultMaxDurationS, "capture-default-max-duration", envOrInt("GAMEPLANE_CAPTURE_DEFAULT_MAX_DURATION", 300), "default max capture duration in seconds")
+	c.captureDefaultMaxSizeBytes = envOrInt64("GAMEPLANE_CAPTURE_DEFAULT_MAX_SIZE", 5368709120)
 	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "gameplane-system"),
 		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
 
@@ -459,6 +479,18 @@ func parseLogLevel(s string) slog.Level {
 func envOrInt(key string, def int) int {
 	if v, ok := os.LookupEnv(key); ok {
 		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
+}
+
+// envOrInt64 reads a 64-bit integer env var, falling back to def when unset or
+// unparseable (a malformed value shouldn't crash startup — it degrades to
+// the safe default).
+func envOrInt64(key string, def int64) int64 {
+	if v, ok := os.LookupEnv(key); ok {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
 		}
 	}

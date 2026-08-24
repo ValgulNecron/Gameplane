@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strings"
@@ -65,6 +66,40 @@ func validateAddressManager(flavor string) error {
 	}
 }
 
+// errInt32Range is returned by boundedInt32 when v falls outside int32's
+// representable range.
+var errInt32Range = errors.New("value out of int32 range")
+
+// boundedInt32 narrows v (an int64, the type flag.Int64Var naturally
+// produces) to int32, the type NetworkCaptureSpec.TTLSecondsAfterFinished
+// and NetworkCaptureReconciler's retention fields use. This is the single
+// int64→int32 conversion in the capture retention path — every caller of
+// NetworkCaptureReconciler downstream is int32 end to end, and every other
+// int64 flag stays int64 with no cast (GameServerReconciler.CaptureDefault/
+// MaxRetention, unused elsewhere, are unaffected).
+//
+// The literal `v > math.MaxInt32` comparison immediately guarding the
+// `int32(v)` conversion below, in the same function body and straight-line
+// control flow (an ordinary `return`, not a closure boundary or os.Exit),
+// is the exact shape gosec's G115 SSA range analysis
+// (github.com/securego/gosec/v2/analyzers/conversion_overflow.go,
+// isSafeConversion → hasRangeCheck → validateRangeLimits) resolves as safe:
+// it walks the dominating `if`'s branch structure and, for the
+// out-of-range branch a plain `if v < 0 || v > math.MaxInt32 { return ... }`
+// compiles to (two chained blocks from the `||`), confirms the narrowed
+// value on the fallthrough edge satisfies dstInt.Min/dstInt.Max before
+// accepting the conversion as guarded. A prior attempt guarded the same
+// cast inside a closure over a captured variable; the closure's FreeVar
+// indirection breaks the analyzer's SSA value identity tracking between the
+// checked value and the converted one, which a real function parameter (as
+// here) does not.
+func boundedInt32(v int64) (int32, error) {
+	if v < 0 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("%w: %d", errInt32Range, v)
+	}
+	return int32(v), nil
+}
+
 // Version is the operator build version, overridden at build time via
 // -ldflags. Compared against a module bundle's gameplaneMinVersion to refuse
 // modules that need a newer operator. Mirrors api/cmd and agent/cmd.
@@ -81,30 +116,36 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr            string
-		probeAddr              string
-		enableLeaderElection   bool
-		agentImage             string
-		agentImagePullPolicy   string
-		configInitImage        string
-		resticImage            string
-		sentinelImage          string
-		tunnelFrpImage         string
-		tunnelTailscaleImage   string
-		tunnelPlayitImage      string
-		agentLogLevel          string
-		agentCABundle          string
-		agentClientCert        string
-		agentClientKey         string
-		agentCASecretName      string
-		agentCASecretNamespace string
-		moduleNamespace        string
-		moduleLocalRoot        string
-		controlPlaneNamespace  string
-		addressManager         string
-		metalLBNamespace       string
-		gameIngressPolicy      bool
-		gameIngressFromCIDR    cidrListFlag
+		metricsAddr                      string
+		probeAddr                        string
+		enableLeaderElection             bool
+		agentImage                       string
+		agentImagePullPolicy             string
+		configInitImage                  string
+		resticImage                      string
+		sentinelImage                    string
+		tunnelFrpImage                   string
+		tunnelTailscaleImage             string
+		tunnelPlayitImage                string
+		agentLogLevel                    string
+		agentCABundle                    string
+		agentClientCert                  string
+		agentClientKey                   string
+		agentCASecretName                string
+		agentCASecretNamespace           string
+		moduleNamespace                  string
+		moduleLocalRoot                  string
+		controlPlaneNamespace            string
+		addressManager                   string
+		metalLBNamespace                 string
+		gameIngressPolicy                bool
+		gameIngressFromCIDR              cidrListFlag
+		captureEnabled                   bool
+		captureDefaultRetention          int64
+		captureMaxRetention              int64
+		captureSidecarImage              string
+		captureDefaultMaxDurationSeconds int64
+		captureDefaultMaxSizeBytes       int64
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Address the metrics endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Address the probe endpoint binds to.")
@@ -136,6 +177,26 @@ func main() {
 	flag.StringVar(&tunnelPlayitImage, "tunnel-playit-image", controller.DefaultTunnelPlayitImage,
 		"Image for the Playit tunnel relay pod that routes players through a Playit tunnel. "+
 			"Point at a private registry mirror for air-gapped installs.")
+	flag.BoolVar(&captureEnabled, "capture-enabled", false,
+		"Enable the network capture feature cluster-wide. When false (the default), "+
+			"the capture capability is disabled and cannot be enabled per-GameServer.")
+	flag.Int64Var(&captureDefaultRetention, "capture-default-retention-seconds", 86400,
+		"Default retention period for completed network captures, in seconds. "+
+			"Defaults to 86400 (24 hours). Applies when a GameServer's spec.capture.retentionSeconds is not set.")
+	flag.Int64Var(&captureMaxRetention, "capture-max-retention-seconds", 604800,
+		"Maximum retention period for network captures, in seconds. "+
+			"Defaults to 604800 (7 days). Clamps any higher retention request to this value.")
+	flag.StringVar(&captureSidecarImage, "capture-sidecar-image", controller.DefaultCaptureSidecarImage,
+		"Image for the network capture sidecar container injected when capture is enabled on a GameServer. "+
+			"Point at a private registry mirror for air-gapped installs.")
+	flag.Int64Var(&captureDefaultMaxDurationSeconds, "capture-default-max-duration-seconds", 300,
+		"Default maximum duration for a single network capture, in seconds. "+
+			"A capture requested without an explicit maxDuration uses this limit; the sidecar stops the capture "+
+			"automatically when the duration is reached. Defaults to 300 (5 minutes).")
+	flag.Int64Var(&captureDefaultMaxSizeBytes, "capture-default-max-size-bytes", 5368709120,
+		"Default maximum size for a single network capture file, in bytes. "+
+			"A capture requested without an explicit maxSize uses this limit; the sidecar stops the capture "+
+			"automatically when the file reaches this size. Defaults to 5368709120 (5 GiB).")
 	flag.StringVar(&agentLogLevel, "agent-log-level", "",
 		"Log level (debug, info, warn, or error) injected into agent sidecars as GAMEPLANE_LOG_LEVEL. "+
 			"Empty injects nothing (the agent defaults to info) and avoids rolling existing pods.")
@@ -189,6 +250,53 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog := ctrl.Log.WithName("setup")
+
+	// Validate capture retention flags while they are still the int64 type
+	// flag.Int64Var naturally produces. The minimum of 60 seconds aligns with
+	// the CRD's own validation. The maximum of 604800 (7 days) is the
+	// ratified ceiling — comfortably inside int32, so the boundedInt32 calls
+	// just below (which narrow to the type NetworkCaptureReconciler actually
+	// uses) cannot fail in practice, but check the error anyway.
+	const captureRetentionMin int64 = 60
+	const captureRetentionMax int64 = 604800
+
+	if captureDefaultRetention < captureRetentionMin || captureDefaultRetention > captureRetentionMax {
+		setupLog.Error(nil, "invalid --capture-default-retention-seconds value",
+			"value", captureDefaultRetention, "min", captureRetentionMin, "max", captureRetentionMax)
+		os.Exit(1)
+	}
+
+	if captureMaxRetention < captureRetentionMin || captureMaxRetention > captureRetentionMax {
+		setupLog.Error(nil, "invalid --capture-max-retention-seconds value",
+			"value", captureMaxRetention, "min", captureRetentionMin, "max", captureRetentionMax)
+		os.Exit(1)
+	}
+
+	// Narrow to int32 once here, for NetworkCaptureReconciler's int32 fields
+	// (see boundedInt32's doc comment for why this exact shape satisfies
+	// gosec G115). captureRetentionMax above (604800) is already well
+	// within int32 range, so these calls cannot fail given the bounds
+	// checks just above — but boundedInt32 reports the error rather than
+	// silently wrapping, on the off chance the bounds check above is ever
+	// relaxed without updating this cast.
+	captureDefaultRetention32, err := boundedInt32(captureDefaultRetention)
+	if err != nil {
+		setupLog.Error(err, "--capture-default-retention-seconds does not fit in int32",
+			"value", captureDefaultRetention)
+		os.Exit(1)
+	}
+	captureMaxRetention32, err := boundedInt32(captureMaxRetention)
+	if err != nil {
+		setupLog.Error(err, "--capture-max-retention-seconds does not fit in int32",
+			"value", captureMaxRetention)
+		os.Exit(1)
+	}
+
+	if captureDefaultRetention > captureMaxRetention {
+		setupLog.Error(nil, "--capture-default-retention-seconds cannot exceed --capture-max-retention-seconds",
+			"default", captureDefaultRetention, "max", captureMaxRetention)
+		os.Exit(1)
+	}
 
 	if err := validateAddressManager(addressManager); err != nil {
 		setupLog.Error(err, "invalid --address-manager value")
@@ -264,10 +372,16 @@ func main() {
 			Config:    mgr.GetConfig(),
 			Clientset: kubernetes.NewForConfigOrDie(mgr.GetConfig()),
 		},
-		AddressManager:           addressManager,
-		MetalLBNamespace:         metalLBNamespace,
-		GameIngressPolicyEnabled: gameIngressPolicy,
-		GameIngressFromCIDRs:     gameIngressFromCIDR,
+		AddressManager:                   addressManager,
+		MetalLBNamespace:                 metalLBNamespace,
+		GameIngressPolicyEnabled:         gameIngressPolicy,
+		GameIngressFromCIDRs:             gameIngressFromCIDR,
+		CaptureEnabled:                   captureEnabled,
+		CaptureDefaultRetention:          captureDefaultRetention,
+		CaptureMaxRetention:              captureMaxRetention,
+		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
+		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
+		CaptureSidecarImage:              captureSidecarImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameServer")
 		os.Exit(1)
@@ -305,6 +419,24 @@ func main() {
 		setupLog.Error(err, "unable to set up controller", "controller", "Restore")
 		os.Exit(1)
 	}
+
+	// Network capture reconciler (manages NetworkCapture CRD lifecycle and sidecar interaction).
+	captureClient := agent.NewCaptureClient(agentClient)
+	if err := (&controller.NetworkCaptureReconciler{
+		Client:                           mgr.GetClient(),
+		Scheme:                           mgr.GetScheme(),
+		SidecarClient:                    captureClient,
+		CaptureEnabled:                   captureEnabled,
+		CaptureSidecarImage:              captureSidecarImage,
+		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
+		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
+		CaptureDefaultRetentionSeconds:   captureDefaultRetention32,
+		CaptureMaxRetentionSeconds:       captureMaxRetention32,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to set up controller", "controller", "NetworkCapture")
+		os.Exit(1)
+	}
+
 	fetchOptions := modsrc.Options{LocalRoot: moduleLocalRoot}
 	if err := (&controller.ModuleSourceReconciler{
 		Client:       mgr.GetClient(),

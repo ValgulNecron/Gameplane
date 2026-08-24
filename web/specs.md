@@ -172,11 +172,12 @@ Visible tab set depends on server template + active version:
 7. **Modpacks** — Install modpacks (only if template + active version supports loader with modpack capability)
 8. **Players** — Online player snapshot, ban list, whitelist, kick/ban/unban actions
 9. **Backups** — Per-server backup list, schedule management, restore trigger
-10. **Settings** — Grouped form with sub-sections (below); changes are draft-until-save; conflict detection on reload
+10. **Capture** — a `CaptureWidget` component driving start/stop of packet captures and a table of past captures for this server, gated on the `captures:manage` permission. Sits between the Backups and Settings tabs per `design-export/json` node `O08uaD`/`b4eaUf` (start-capture modal) and `m5kOm4` (capture list). `CaptureWidget.tsx` with `Captures` client namespace (`web/src/lib/api.ts:127-175`) and router/tab wiring (`ServerDetail.tsx:278`) are implemented in `web/src`.
+11. **Settings** — Grouped form with sub-sections (below); changes are draft-until-save; conflict detection on reload
 
 ## ServerDetail Settings Sub-sections
 
-Settings tab (`SettingsTab`) displays 10 sections in a left sidebar:
+Settings tab (`SettingsTab`, `web/src/routes/tabs/Settings.tsx`) displays 11 sections in a left sidebar (`SECTIONS` array):
 
 1. **General** — Server name, description
 2. **Version** — Template version selector (triggers container restart)
@@ -185,9 +186,12 @@ Settings tab (`SettingsTab`) displays 10 sections in a left sidebar:
 5. **Environment** — Custom env var key=value pairs
 6. **Lifecycle** — Pre/post-start/stop scripts, quiesce grace period
 7. **Scheduled backups** — Backup schedule CRUD (daily/weekly/cron), retention policy
-8. **Placement** — Node selector labels, pod affinity/anti-affinity rules (lazy-loaded)
-9. **RBAC & access** — Server owner + collaborator list, permission inheritance
-10. **Danger zone** — Clone, transfer owner, wipe data (confirm-dialog), delete server
+8. **Network capture** — `NetworkCaptureSection` (`web/src/routes/tabs/settings/NetworkCapture.tsx`). Enable/disable switch for `spec.capture.enabled` (the opt-in ephemeral-container sidecar); states plainly that disabling stops new captures immediately but the already-injected sidecar container stays in the pod, idle, until the pod is next recreated (Kubernetes has no API to remove an ephemeral container); admin-access + unredacted-data warning; a Retention Window control (numeric value + seconds/minutes/hours/days unit select) writing `spec.capture.retentionSeconds`, validated client-side against the cluster ceiling of 604,800 seconds (7 days — a storage-limitation-informed engineering default, explicitly not a legal requirement) mirroring the CRD's `+kubebuilder:validation:Maximum=604800` on `CaptureConfiguration.RetentionSeconds` (`operator/api/v1alpha1/gameserver_types.go`). Controls are disabled, with an explanatory note, for a session lacking the `captures:manage` permission (`api/internal/rbac/catalog.go`) — the API is still the real enforcer (FR-005: non-admin capture operations get 403).
+9. **Placement** — Node selector labels, pod affinity/anti-affinity rules (lazy-loaded)
+10. **RBAC & access** — Server owner + collaborator list, permission inheritance
+11. **Danger zone** — Clone, transfer owner, wipe data (confirm-dialog), delete server
+
+**Capture types (`src/types.ts`, built):** `CaptureConfiguration` (`{ enabled?, retentionSeconds? }`, mirrors `spec.capture` — `retentionSeconds` is bounded by the CRD's authoritative `+kubebuilder:validation:Minimum=1 / Maximum=604800` on `operator/api/v1alpha1/gameserver_types.go`'s `CaptureConfiguration.RetentionSeconds`, omit to use cluster default (86400)), `CaptureStatus` (mirrors `status.capture`: `ready`, `activeCapture`/`lastCaptureTime` typed nullable since the API's `formatOptionalTime` never omits the key), `CapturePhase` (`"Pending" | "Running" | "Completed" | "Failed" | "Expired"`), `NetworkCapture` (one capture record — merges the API's start/stop/list/get response shapes) and `NetworkCaptureList` (the `:captures` list envelope). All are implemented in the tree; the `CaptureWidget` component and `Captures` endpoint namespace are live (see Tabs and API Client sections above).
 
 ## External Interface / API Client
 
@@ -253,6 +257,8 @@ Each namespace is an object of typed functions building and fetching URLs:
 - **Modules** — `catalog()`, `list()`, `get(name)`, `install(body)`, `upgrade(name, version)`, `uninstall(name)`
 
 - **ModuleSources** — `list()`, `create(name, spec)`, `update(name, spec)`, `remove(name)`, `upload(source, file, opts?)` (blob), `removeUpload(source, module)`
+
+- **Captures** (`web/src/lib/api.ts:127-175`) — wraps the 8 REST routes `api/internal/handlers/capture.go` mounts under `MountCapture` (all gated by the `captures:manage` permission, `api/internal/rbac/catalog.go`): `POST /servers/{name}:capture-enable`, `POST /servers/{name}:capture-disable`, `POST /servers/{name}:capture-start`, `POST /servers/{name}:capture-stop`, `GET /servers/{name}:captures` (list), `GET /servers/{name}:capture?id=` (status), `GET /servers/{name}:capture-file?id=` (download), `DELETE /servers/{name}:capture?id=`. Per `specs/003-network-capture-sidecar/research.md`'s "Decision 1: Download Path" (T007, resolved): the download handler streams directly from the capture sidecar's `:9091 GET /captures/{id}/file` through the existing `<gs>-agent` ClusterIP Service's second port — not proxied through the agent's general `/files/*` file-browser surface (which is single-rooted at `--data-root` and cannot serve the capture emptyDir). The dashboard API client is expected to call through that one `:capture-file` indirection point rather than reconstructing the sidecar path itself.
 
 **Helper:** `withNS(path, ns?)` appends `?namespace=<ns>` when provided; `withCluster(path)` appends `?cluster=<clusterId>` when non-local.
 

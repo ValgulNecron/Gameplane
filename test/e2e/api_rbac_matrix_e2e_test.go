@@ -227,6 +227,67 @@ func TestAPI_OperatorCannotInviteUsers(t *testing.T) {
 	}
 }
 
+// TestAPI_RBAC_OperatorCannotReachCaptures is the e2e counterpart of the
+// envtest rbac ordering guard (rbac.go's captures:manage rules MUST
+// precede the servers:write catch-all). It proves that constraint holds
+// through the real router and real middleware, not just a unit harness:
+// an operator-role token — which holds servers:write and would fall
+// through to it if the capture rules were ever reordered after the
+// servers catch-all — must still be 403 on every one of the 8 capture
+// routes. Login-budget note: only ONE operator token is minted; all 8
+// routes reuse it (this job's rate limiter is burst 6 / 3-per-min per
+// user, shared across the whole bucket's one client IP).
+func TestAPI_RBAC_OperatorCannotReachCaptures(t *testing.T) {
+	t.Parallel()
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+
+	admin := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer admin.Close()
+
+	opName, opPW, opID := envInstance.CreateUser(t, admin, "operator", "e2e-rbac-op-cap")
+	t.Cleanup(func() {
+		r, _, _ := admin.Delete("/users/" + opID)
+		if r != nil {
+			_ = r.Body.Close()
+		}
+	})
+
+	op := envInstance.APIClient(t, opName, opPW)
+	defer op.Close()
+
+	// No real GameServer is needed: captures:manage has no owner/collaborator
+	// fallback (rbac.go restricts that fallback to servers:read/write/console),
+	// so the permission check alone must deny every route below.
+	const name = "no-such-server-rbac-cap"
+
+	type call struct {
+		name, method, path string
+	}
+	cases := []call{
+		{"POST /servers/{name}:capture-enable", http.MethodPost, "/servers/" + name + ":capture-enable"},
+		{"POST /servers/{name}:capture-disable", http.MethodPost, "/servers/" + name + ":capture-disable"},
+		{"POST /servers/{name}:capture-start", http.MethodPost, "/servers/" + name + ":capture-start"},
+		{"POST /servers/{name}:capture-stop", http.MethodPost, "/servers/" + name + ":capture-stop"},
+		{"GET /servers/{name}:captures", http.MethodGet, "/servers/" + name + ":captures"},
+		{"GET /servers/{name}:capture-file", http.MethodGet, "/servers/" + name + ":capture-file?id=x"},
+		{"GET /servers/{name}:capture", http.MethodGet, "/servers/" + name + ":capture?id=x"},
+		{"DELETE /servers/{name}:capture", http.MethodDelete, "/servers/" + name + ":capture?id=x"},
+	}
+
+	for _, tc := range cases {
+		resp, body, err := op.Do(tc.method, tc.path, nil)
+		if err != nil {
+			t.Errorf("%s: do: %v", tc.name, err)
+			continue
+		}
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s: status=%d want=403 body=%s", tc.name, resp.StatusCode, string(body))
+		}
+		_ = resp.Body.Close()
+	}
+}
+
 // TestAPI_RBAC_AdminCanReachAll is a tiny safety-net asserting that
 // every admin-gated segment returns 200 when called as admin. Catches
 // regressions where a global middleware change accidentally bounces the

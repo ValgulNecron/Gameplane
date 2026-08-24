@@ -22,6 +22,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	"github.com/ValgulNecron/gameplane/api/internal/audit"
+	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/kube"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
@@ -39,12 +41,13 @@ import (
 // names per test (uniqueResourceName) to avoid collisions.
 
 var (
-	testEnv  *envtest.Environment
-	cfg      *rest.Config
-	kubeC    *kube.Client
-	apiSrv   *httptest.Server
-	apiBase  string
-	mountedR *chi.Mux
+	testEnv           *envtest.Environment
+	cfg               *rest.Config
+	kubeC             *kube.Client
+	apiSrv            *httptest.Server
+	apiBase           string
+	mountedR          *chi.Mux
+	captureAuditStore *db.Store
 )
 
 func TestMain(m *testing.M) {
@@ -92,12 +95,47 @@ func TestMain(m *testing.M) {
 	})
 	reg.Set("other", &kube.Client{Dynamic: fakeDyn, Typed: k8sfake.NewSimpleClientset()})
 
+	// Capture routes need a real Auditor (FR-006 writes are on the request
+	// path itself, not just the generic middleware), so this suite opens
+	// its own in-memory sqlite store for it. This DSN is deliberately NOT
+	// the unnamed "file::memory:" newTestStore uses for the package's
+	// non-envtest tests: SQLite's cache=shared attaches every unnamed
+	// ":memory:" handle in the process to the SAME database, and that
+	// database is kept alive by whichever connection closes last. Opened
+	// here in TestMain (before m.Run) and closed after it, an unnamed DSN
+	// would pin every other test's in-memory store alive and shared for
+	// the whole package run — audit_events/config/users rows leaking
+	// across every test in the package, plus lock contention from
+	// multiple *Store handles (each capped at 1 open conn) on one
+	// database. A distinct name gives this store its own database.
+	captureAuditStore, err = db.Open(context.Background(), "sqlite", "file:captureaudit?mode=memory&cache=shared&_pragma=journal_mode(WAL)")
+	if err != nil {
+		_ = testEnv.Stop()
+		panic("open capture audit store: " + err.Error())
+	}
+	if err := captureAuditStore.Migrate(context.Background()); err != nil {
+		_ = captureAuditStore.Close()
+		_ = testEnv.Stop()
+		panic("migrate capture audit store: " + err.Error())
+	}
+	captureAuditor := audit.New(captureAuditStore)
+
 	mountedR = chi.NewRouter()
 	MountResources(mountedR, reg)
 	MountLifecycle(mountedR, reg)
 	MountDestinations(mountedR, reg)
 	MountEvents(mountedR, reg)
 	MountModules(mountedR, kubeC, "default")
+	// mTLS material is intentionally empty: capture-file's download proxy
+	// degrades to 503 "agent mTLS not configured" rather than dialing a
+	// real sidecar, which envtest (apiserver+etcd only, no pods) can't
+	// provide anyway.
+	MountCapture(mountedR, reg, captureAuditor, CaptureConfig{
+		DefaultRetentionSeconds: 86400,
+		MaxRetentionSeconds:     604800,
+		DefaultMaxDurationSecs:  300,
+		DefaultMaxSizeBytes:     943718400, // 900 MiB, matching production (charts/gameplane/values.yaml)
+	}, "", "", "")
 
 	apiSrv = httptest.NewServer(mountedR)
 	apiBase = apiSrv.URL
@@ -105,6 +143,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	apiSrv.Close()
+	_ = captureAuditStore.Close()
 	_ = testEnv.Stop()
 	os.Exit(code)
 }

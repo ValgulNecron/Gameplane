@@ -108,6 +108,7 @@ Gameplane integrates with **10 mod registries**: Modrinth, CurseForge, Thunderst
 | `api/` | Go | Front-end API gateway handling REST endpoints, WebSocket streaming, auth, and RBAC. |
 | `operator/` | Go | Kubernetes controller reconciling Gameplane CRDs into K8s workloads and resources. |
 | `sentinel/` | Go | Waker daemon listening on game ports while a server is sleeping to trigger wake-on-connect. |
+| `capture-sidecar/` | Go | Optional network packet capture sidecar, opt-in per server, admin-only. |
 | `tunnel/` | Go | Relay supervisor pod managing third-party tunnels (`frp`, `Tailscale`, `playit`). |
 | `web/` | TS + React | Modern dashboard UI built with Vite, TanStack Query, xterm.js, and Monaco Editor. |
 | `modules/` | YAML | 16 pre-packaged game templates (Minecraft, Valheim, Terraria, Rust, etc.) as OCI bundles. |

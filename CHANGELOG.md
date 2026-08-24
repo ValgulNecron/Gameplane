@@ -7,6 +7,28 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
 
 ## [Unreleased]
 
+### Upgrade Notes
+
+- **Network capture feature adds an emptyDir volume to every game pod:** The
+  network capture feature (protocol reverse-engineering and admin-only traffic
+  diagnostics) requires a pre-provisioned volume on every game pod, whether or
+  not that server will ever opt into capture. This is a structural requirement:
+  Kubernetes ephemeral containers can add containers to a running pod without pod
+  recreation, but cannot add volumes. The capture `emptyDir` volume must exist in
+  the pod template before the ephemeral sidecar is injected, so it is provisioned
+  unconditionally at cluster install time.
+  **Consequence: every existing GameServer will roll once on upgrade to this
+  release.** Each pod will be recreated with the new template (containing the
+  empty capture volume), interrupting any active player sessions. This is a
+  one-time event at upgrade time and does not repeat on each server start. Plan
+  your upgrade window for a time when you can tolerate a rolling restart of all
+  game servers. The upgrade note for FR-001 and SC-007 (specification items
+  tracking pod immutability) is updated to reflect this: non-opted-in game servers
+  are no longer byte-identical between captures disabled and enabled; they carry
+  an empty, unused capture volume. What they do NOT carry is the capture sidecar
+  container itself (no ephemeral container, no `CAP_NET_RAW`, no network access
+  change).
+
 ## [0.2.0-beta.8] — 2026-08-22
 
 A dependency sweep: all Go modules bumped to latest available versions,

@@ -1254,6 +1254,32 @@ spec:
                     type: array
                     x-kubernetes-list-type: atomic
                 type: object
+              capture:
+                description: Capture configures optional packet-capture capability for this GameServer.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled: opt-in flag for packet-capture capability on this GameServer.
+                      If false or omitted, no capture sidecar is injected; the game container is unchanged.
+                      If true, the operator injects the capture sidecar as an ephemeral container via
+                      pods/ephemeralcontainers, live, without restarting the game container.
+                      Disabling (true→false) does not remove the sidecar from a running pod — Kubernetes
+                      has no API to remove ephemeral containers — but stops accepting new captures.
+                    type: boolean
+                  retentionSeconds:
+                    description: |-
+                      RetentionSeconds: optional per-GameServer override of the cluster-default retention window
+                      after a capture completes. Unit: seconds. If omitted, the cluster default
+                      (Helm value capture.defaultRetentionSeconds) is used. Must not exceed the cluster
+                      maximum (capture.maxRetentionSeconds); the API validates this at NetworkCapture creation.
+                      The maximum of 604800 seconds (7 days) is a storage-limitation-informed default,
+                      per GDPR Art. 5(1)(e), not a legal mandate — implementations may enforce different policies.
+                      Examples: 86400 (24 hours), 2592000 (30 days).
+                    format: int32
+                    maximum: 604800
+                    minimum: 60
+                    type: integer
+                type: object
               image:
                 description: |-
                   Image, when set, overrides GameTemplate.Spec.Image (and any image
@@ -2459,6 +2485,38 @@ spec:
                       server is not accumulating idle time, or what woke it.
                     maxLength: 256
                     type: string
+                type: object
+              capture:
+                description: Capture reports the observed state of the capture system for this GameServer.
+                properties:
+                  activeCapture:
+                    description: |-
+                      ActiveCapture: name of the NetworkCapture currently in Pending or Running phase for this GameServer, if any.
+                      Cleared (set to nil) when that capture transitions to Completed, Failed, or Expired.
+                      Allows finding the in-progress capture without listing all NetworkCaptures in the namespace.
+                    maxLength: 255
+                    type: string
+                  lastCaptureTime:
+                    description: |-
+                      LastCaptureTime: timestamp of the most recent capture reaching a terminal phase
+                      (Completed or Failed) on this GameServer. Not updated for Pending/Running/Expired transitions.
+                    format: date-time
+                    type: string
+                  ready:
+                    description: |-
+                      Ready: whether the capture sidecar is currently running and able to accept new capture requests.
+                      True only while the ephemeral container is Running and listening on its capture port.
+                      False if the sidecar has not been injected, has crashed, or spec.capture.enabled is false.
+                    type: boolean
+                  sidecarRestarts:
+                    description: |-
+                      SidecarRestarts: count of container restarts observed for the capture ephemeral container.
+                      NOTE: ephemeral containers cannot be restarted by Kubernetes (RestartPolicy does not apply).
+                      This field is expected to stay 0 in practice but is retained to surface any unexpected
+                      restarts (e.g. via node-level mechanisms) and as a stable field name if the implementation
+                      later adds a genuinely restartable variant.
+                    format: int32
+                    type: integer
                 type: object
               lastBackupTime:
                 description: |-

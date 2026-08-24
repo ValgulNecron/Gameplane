@@ -137,6 +137,10 @@ type GameServerSpec struct {
 	// Idle configures automatic sleep while nobody is playing. Opt-in.
 	// +optional
 	Idle *IdleSpec `json:"idle,omitempty"`
+
+	// Capture configures optional packet-capture capability for this GameServer.
+	// +optional
+	Capture *CaptureConfiguration `json:"capture,omitempty"`
 }
 
 // IdleSpec configures idle auto-sleep: the operator scales the server down
@@ -199,6 +203,35 @@ type IdleSpec struct {
 	// +kubebuilder:default=false
 	// +optional
 	WakeOnConnect bool `json:"wakeOnConnect,omitempty"`
+}
+
+// CaptureConfiguration configures optional packet-capture capability for a GameServer.
+// The opt-in Enabled flag controls whether the capture sidecar is injected as an ephemeral
+// container; RetentionSeconds allows per-server override of the cluster-default retention window.
+type CaptureConfiguration struct {
+	// Enabled: opt-in flag for packet-capture capability on this GameServer.
+	// If false or omitted, no capture sidecar is injected; the game container is unchanged.
+	// If true, the operator injects the capture sidecar as an ephemeral container via
+	// pods/ephemeralcontainers, live, without restarting the game container.
+	// Disabling (true→false) does not remove the sidecar from a running pod — Kubernetes
+	// has no API to remove ephemeral containers — but stops accepting new captures.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Type=boolean
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// RetentionSeconds: optional per-GameServer override of the cluster-default retention window
+	// after a capture completes. Unit: seconds. If omitted, the cluster default
+	// (Helm value capture.defaultRetentionSeconds) is used. Must not exceed the cluster
+	// maximum (capture.maxRetentionSeconds); the API validates this at NetworkCapture creation.
+	// The maximum of 604800 seconds (7 days) is a storage-limitation-informed default,
+	// per GDPR Art. 5(1)(e), not a legal mandate — implementations may enforce different policies.
+	// Examples: 86400 (24 hours), 2592000 (30 days).
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=60
+	// +kubebuilder:validation:Maximum=604800
+	// +optional
+	RetentionSeconds *int32 `json:"retentionSeconds,omitempty"`
 }
 
 // GameServerModsSpec is the set of mods selected for a server whose game
@@ -489,6 +522,10 @@ type GameServerStatus struct {
 	// +optional
 	Idle *IdleStatus `json:"idle,omitempty"`
 
+	// Capture reports the observed state of the capture system for this GameServer.
+	// +optional
+	Capture *CaptureStatus `json:"capture,omitempty"`
+
 	// TunnelEndpoints are the per-port addresses reported by the tunnel pod.
 	// For frp/tailscale these are computed from the spec at reconcile time;
 	// for playit they arrive asynchronously as the pod discovers assignments.
@@ -530,6 +567,38 @@ type IdleStatus struct {
 	// +kubebuilder:validation:MaxLength=256
 	// +optional
 	Reason string `json:"reason,omitempty"`
+}
+
+// CaptureStatus is the observed state of the capture system for one GameServer.
+// It tracks capture readiness, the currently active capture (if any), and metadata about
+// recent capture activity.
+type CaptureStatus struct {
+	// Ready: whether the capture sidecar is currently running and able to accept new capture requests.
+	// True only while the ephemeral container is Running and listening on its capture port.
+	// False if the sidecar has not been injected, has crashed, or spec.capture.enabled is false.
+	// +optional
+	Ready bool `json:"ready,omitempty"`
+
+	// ActiveCapture: name of the NetworkCapture currently in Pending or Running phase for this GameServer, if any.
+	// Cleared (set to nil) when that capture transitions to Completed, Failed, or Expired.
+	// Allows finding the in-progress capture without listing all NetworkCaptures in the namespace.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=255
+	// +optional
+	ActiveCapture *string `json:"activeCapture,omitempty"`
+
+	// LastCaptureTime: timestamp of the most recent capture reaching a terminal phase
+	// (Completed or Failed) on this GameServer. Not updated for Pending/Running/Expired transitions.
+	// +optional
+	LastCaptureTime *metav1.Time `json:"lastCaptureTime,omitempty"`
+
+	// SidecarRestarts: count of container restarts observed for the capture ephemeral container.
+	// NOTE: ephemeral containers cannot be restarted by Kubernetes (RestartPolicy does not apply).
+	// This field is expected to stay 0 in practice but is retained to surface any unexpected
+	// restarts (e.g. via node-level mechanisms) and as a stable field name if the implementation
+	// later adds a genuinely restartable variant.
+	// +optional
+	SidecarRestarts int32 `json:"sidecarRestarts,omitempty"`
 }
 
 // GameServerEndpoint is a single externally reachable (host, port)

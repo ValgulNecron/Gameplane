@@ -4,11 +4,12 @@ Generated via the `pencil` MCP server against `/home/valgul/project/kubernetes-g
 
 ## Totals
 
-- **Screens exported:** 67 (all top-level nodes named `Screen/...`)
-- **Components exported:** 148 (all `reusable: true` nodes from `get_app_state`'s "Reusable components" list — both `Gameplane/...` named ones and the `c:...`-prefixed base design-system components)
-- **Total objects:** 215
-- **JSON files written:** 215 / 215 (100%) — all verified to parse as valid JSON with a `python3 -c "json.load(...)"` pass over every file
-- **Screenshots written:** 215 / 215 (100%) — all non-empty (smallest file 30 bytes was double-checked; no files under the 1KB sanity threshold were found empty/corrupt beyond that)
+- **Screens exported:** 74 (all top-level nodes named `Screen/...`, confirmed by a direct depth-0 `Get` visitor count on 2026-08-23) — baseline 67 + 7 network-capture screens added 2026-08-23 (the "70 (67+3)" figure recorded here on an earlier pass was wrong; this feature added 7 screens, not 3)
+- **Components exported:** 149 (all `reusable: true` nodes from `get_app_state`'s "Reusable components" list — both `Gameplane/...` named ones and the `c:...`-prefixed base design-system components) — baseline 148 + 1 warning-banner component (`f0s9zG`) added 2026-08-23
+- **Total objects:** 223 (74 screens + 149 components)
+- **JSON files written:** 223 / 223 (100%) — all verified to parse as valid JSON with a `python3 -c "json.load(...)"` pass over every file
+- **Screenshots written:** 223 / 223 (100%) — all non-empty (smallest file 30 bytes was double-checked; no files under the 1KB sanity threshold were found empty/corrupt beyond that)
+- **Total files in design-export/:** 447 (223 JSON + 223 PNG + this MANIFEST.md)
 - **Failed exports:** none remaining. 30 screens/components initially came back from the wave-1 subagent batch with a malformed trailing byte or a truncated (incomplete) JSON body — see "Issues found and fixed" below. All were re-fetched and corrected directly; final state is 0 invalid files.
 
 ## Enumeration method and confidence
@@ -60,3 +61,43 @@ Three exported screens are in scope for the load-balancer address-pool override 
 | `EZFW0` | `Screen/Server Detail — Overview` | External address row showing the address with the pool it came from. |
 
 All three have both a `json/<id>.json` and a `screenshots/<id>.png` file, with JSON/PNG timestamped to commit 7de0880.
+
+## Incremental export 2026-08-23 — Network Capture feature (spec 003)
+
+Feature 003 (network-packet-capture sidecar) design pass completed. Seven screens + one reusable component added to design.pen (per designer report: all frames placed at y=10155, no overlap with existing designs).
+
+**Screens added (7):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `Bbnga` | Screen/Server Detail — Capture (Not enabled) | Shows capture tab disabled; "Capture is not enabled on this server." status text + explanatory copy + Enable Capture button. |
+| `dBILX` | Screen/Server Detail — Capture (Empty) | Captures tab active; status badge, retention note, warning banner, empty state ("No captures yet."). |
+| `xvlB6` | Screen/Server Detail — Capture (Running) | Live capture card: capture id/filter, Stop button, Max duration + Max size progress bars with elapsed/remaining text, packet count ("1,234 packets captured"). |
+| `m5kOm4` | Screen/Server Detail — Capture (List) | Completed captures table; 3 rows (`cap-8f7d3c1a` Completed, `cap-3ba91e02` Completed, `cap-e40cd971` Failed); ID/STATUS/SIZE/PACKETS/DURATION/COMPLETED AT/EXPIRES IN/FILTER columns; download/view/delete buttons; expiry badges (green/amber/red). |
+| `O08uaD` | Screen/Server Detail — Capture — Start capture | Modal dialog over the dimmed captures list; Packet Filter input (valid, green check), Max Duration/Max Size/Retention fields with helper text, Start Capture button. |
+| `b4eaUf` | Screen/Server Detail — Capture — Start capture (Invalid filter) | Same modal; filter input with red border, red X icon, error text "Invalid BPF syntax: syntax error at position 12 (invalid token 'foo')", disabled (greyed) Start button. Shows full captures table behind dimmed overlay (context). |
+| `RodrS` | Screen/Server Detail — Settings · Network capture | Settings sub-nav showing "Network capture" entry (active/highlighted) between "Scheduled backups" and "Placement"; full form body: Enable Capture switch + disable/admin-access warning text ("...are not redacted."), Retention Window input + unit select + cluster-max note, Discard/Save changes footer buttons. |
+
+**Component added (1):**
+
+| ID | Name | Notes |
+|---|---|---|
+| `f0s9zG` | Gameplane/Capture Warning Banner | Reusable banner component; warning background, triangle-alert icon, title ("Caution: network packet captures contain real player data") + 3 bullet points + note text ("Captures are not redacted or sanitized...") + "Dismiss" action. Used on capture screens 2, 3, 4. |
+
+**Shared component modifications:**
+
+- `I9kvlZ` (Gameplane/Server Detail Tabs): new child `k62ubV` (tabCapture) added between tabBackups and tabSettings, inactive by default. This ripples to all existing Server Detail screens (Overview, Backups, Mods, etc.), which now show the full "Overview … Backups Capture Settings" tab bar.
+
+**Export method & validation (corrected 2026-08-23, second pass):**
+
+A first export pass of these 8 objects was hollow: its keyword check searched for "Capture", which also appears in every frame's *name*, so the check passed even on files whose actual on-screen content was elided by too-shallow a `depth`. Five of the seven JSON files were missing their own body text, and `RodrS` (the Settings form) was fetched at depth 5, which left its form body as a bare `"..."` placeholder; `Bbnga` came back at only 9 nodes / max depth 4 versus a comparable existing screen (`pssCT`, 28 nodes / max depth 7).
+
+All 8 objects were re-exported from scratch:
+
+- JSON: `Print(JSON.stringify(Get(id, {depth: 12})))` via the Pencil `execute` tool, for every one of the 8 objects — no depth below 12 was used this time, and none of the 8 responses showed any `"..."` elision marker.
+- Screenshots: re-exported via `export_nodes` PNG batch (all 8, 2x scale), sizes 103 KB (`f0s9zG`, smallest — a single component) to 478 KB (`b4eaUf`, the modal-with-error screen).
+- Validation was content-specific per file, not name-based: each file was checked for a string that can only appear in that screen's own body text (never in a frame name), e.g. `Bbnga` → "not enabled", `m5kOm4` → "EXPIRES IN" and "cap-", `RodrS` → "Retention" and "not redacted", `b4eaUf` → the literal invalid-filter error string. All 8 greps hit. `python3 json.load()` also passed on all 8 files.
+
+**Lesson for future exports of this kind:** a keyword check that matches a frame's *name* (e.g. every one of these screens is named `...Capture...`) proves nothing about whether the frame's *content* came through — it will pass even on a file elided down to a handful of top-level nodes. Always grep for a string that is unique to the screen's own text content and could not appear in any frame/component name, and when in doubt about depth, fetch at a depth generous enough that no `"..."` elision marker appears in the response at all (depth 12 was sufficient for every object in this feature) rather than guessing a depth per screen's apparent complexity.
+
+All 8 objects (7 screens + 1 component) have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-08-23 (second pass).

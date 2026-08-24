@@ -72,6 +72,14 @@ track a rolling channel.
 {{- printf "%s/mcp-server:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
 {{- end -}}
 
+{{- define "gameplane.captureImage" -}}
+{{- if .Values.capture.image -}}
+{{- .Values.capture.image -}}
+{{- else -}}
+{{- printf "%s/capture-sidecar:%s" .Values.image.registry (include "gameplane.imageTag" .) -}}
+{{- end -}}
+{{- end -}}
+
 {{- /*
 gameplane.labels intentionally omits app.kubernetes.io/name so each
 resource can set its own (e.g. "gameplane-api", "gameplane-operator")

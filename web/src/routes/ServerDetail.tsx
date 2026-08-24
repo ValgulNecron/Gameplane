@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { GameIcon } from "@/components/ui/game-icon";
 import { capitalize, cn, formatUptime } from "@/lib/utils";
 import { ServerActionsMenu } from "@/components/server/ServerActionsMenu";
+import { CaptureWidget } from "@/components/CaptureWidget";
 
 import { OverviewTab } from "./tabs/Overview";
 import { EventsTab } from "./tabs/Events";
@@ -36,7 +37,7 @@ const FilesTab = lazy(() =>
 );
 
 type TabKey =
-  | "overview" | "events" | "console" | "logs" | "files" | "mods" | "modpacks" | "players" | "backups" | "settings";
+  | "overview" | "events" | "console" | "logs" | "files" | "mods" | "modpacks" | "players" | "backups" | "capture" | "settings";
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "overview", label: "Overview" },
@@ -48,6 +49,7 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "modpacks", label: "Modpacks" },
   { key: "players",  label: "Players" },
   { key: "backups",  label: "Backups" },
+  { key: "capture",  label: "Capture" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -273,6 +275,7 @@ export function ServerDetailPage() {
           {tab === "modpacks" && <ModpacksTab name={name} ns={ns} tmpl={tmpl} gs={gs} />}
           {tab === "players"  && <PlayersTab name={name} ns={ns} />}
           {tab === "backups"  && <BackupsTab name={name} ns={ns} />}
+          {tab === "capture"  && <CaptureWidget name={name} ns={ns} gs={gs} />}
           {tab === "settings" && (
             <SettingsTab gs={gs} name={name} ns={ns} onDirtyChange={setSettingsDirty} />
           )}

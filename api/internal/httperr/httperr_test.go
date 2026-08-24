@@ -74,6 +74,7 @@ func TestWrite_Classification(t *testing.T) {
 		{"forbidden cluster", scope.ErrForbiddenCluster, http.StatusBadRequest},
 		{"not found", apierrors.NewNotFound(gr, "n"), http.StatusNotFound},
 		{"already exists", apierrors.NewAlreadyExists(gr, "n"), http.StatusConflict},
+		{"resourceVersion conflict", apierrors.NewConflict(gr, "n", errors.New("modified")), http.StatusConflict},
 		{"forbidden", apierrors.NewForbidden(gr, "n", errors.New("rbac")), http.StatusForbidden},
 		{"unauthorized", apierrors.NewUnauthorized("nope"), http.StatusUnauthorized},
 		{"invalid", apierrors.NewInvalid(schema.GroupKind{Group: "gameplane.local", Kind: "X"}, "n", nil), http.StatusUnprocessableEntity},
@@ -114,5 +115,36 @@ func TestWrite_InvalidEchoesAPIErrMessage(t *testing.T) {
 func TestApiErrMessage_FallbackForNonStatusError(t *testing.T) {
 	if got := apiErrMessage(errors.New("plain")); got != "invalid" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// TestWrite_ConflictBodyDistinctFromAlreadyExists pins the two 409s apart.
+// Handlers hand-build their own meaningful 409s via WriteCode ("capture
+// already in progress on this server", "role is assigned to one or more
+// users", …), and classify() now maps two distinct K8s errors onto the same
+// status. The status alone was never the contract — the body is what
+// callers and the e2e suite match on — so the messages must not converge.
+func TestWrite_ConflictBodyDistinctFromAlreadyExists(t *testing.T) {
+	gr := schema.GroupResource{Resource: "networkcaptures"}
+
+	rr := httptest.NewRecorder()
+	Write(rr, newReq(), apierrors.NewConflict(gr, "cap-1", errors.New("the object has been modified")))
+	conflictBody := rr.Body.String()
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("conflict code = %d, want 409", rr.Code)
+	}
+	if !strings.Contains(conflictBody, "conflict, retry") {
+		t.Fatalf("conflict body = %q, want the retryable-conflict message", conflictBody)
+	}
+	// The raw error names the resource and the apiserver's internals; only
+	// the generic message may reach the caller.
+	if strings.Contains(conflictBody, "networkcaptures") {
+		t.Fatalf("conflict body leaks the resource: %q", conflictBody)
+	}
+
+	rr2 := httptest.NewRecorder()
+	Write(rr2, newReq(), apierrors.NewAlreadyExists(gr, "cap-1"))
+	if got := rr2.Body.String(); got == conflictBody {
+		t.Fatalf("already-exists and conflict share the body %q", got)
 	}
 }

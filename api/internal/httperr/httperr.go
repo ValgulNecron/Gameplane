@@ -74,6 +74,13 @@ func classify(err error) (int, string) {
 		return http.StatusNotFound, "not found"
 	case apierrors.IsAlreadyExists(err):
 		return http.StatusConflict, "already exists"
+	case apierrors.IsConflict(err):
+		// A resourceVersion conflict is an expected, transient condition
+		// under concurrent writers (e.g. the operator's reconciler racing
+		// an API-initiated status update) — not a server bug. Surface it
+		// as a retryable 409 rather than falling through to the opaque
+		// 500 default below.
+		return http.StatusConflict, "conflict, retry"
 	case apierrors.IsForbidden(err):
 		return http.StatusForbidden, "forbidden"
 	case apierrors.IsUnauthorized(err):

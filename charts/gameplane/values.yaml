@@ -476,3 +476,31 @@ uploadModuleSource:
   enabled: true
   name: uploads
   refreshInterval: 1h
+
+# Optional network packet capture sidecar for GameServers. When enabled cluster-wide,
+# admins can opt individual GameServers into live capture and download PCAPNG files
+# of filtered traffic. Capture is always opt-in per server; a server that does not
+# opt in has no capture sidecar attached. Off by default.
+capture:
+  enabled: false
+  # Default retention window for completed captures (seconds). Per-server overrides
+  # are clamped to the cluster maximum below; this is the default when a server does
+  # not specify a retention policy.
+  defaultRetentionSeconds: 86400   # 24 hours
+  # Cluster-wide maximum retention window (seconds). Any per-server retention request
+  # exceeding this value is rejected at API tier with HTTP 400 Bad Request. A
+  # storage-limitation-informed engineering default (7 days), not a legal requirement.
+  maxRetentionSeconds: 604800      # 7 days
+  # Default maximum duration for a single capture (seconds). A capture requested
+  # without an explicit maxDuration uses this limit; the sidecar stops the capture
+  # automatically when the duration is reached.
+  defaultMaxDurationSeconds: 300   # 5 minutes
+  # Default maximum size for a single capture file (bytes). A capture requested
+  # without an explicit maxSize uses this limit; the sidecar stops the capture
+  # automatically when the file reaches this size. This default is clamped below the
+  # capture emptyDir sizeLimit (1 GiB, hardcoded in the operator) to prevent pod
+  # eviction; raising this requires operator code changes to increase the volume limit.
+  defaultMaxSizeBytes: 943718400   # 900 MiB (safely under the 1 GiB emptyDir limit)
+  # Capture sidecar container image. Defaults to {image.registry}/capture-sidecar:{image.tag}
+  # if unset (the pattern matched by other component images like sentinel).
+  image: ""

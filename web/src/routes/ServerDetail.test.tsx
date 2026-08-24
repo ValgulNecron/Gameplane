@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -595,5 +595,103 @@ describe("ServerDetailPage failure states", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /^Stop$/i })).not.toBeDisabled(),
     );
+  });
+});
+
+describe("ServerDetailPage capture tab", () => {
+  it("renders the Capture tab between Backups and Settings", async () => {
+    server.use(http.get("/servers/alpha", () => HttpResponse.json(makeServer())));
+    renderWithQuery(<ServerDetailPage />);
+    const nav = await screen.findByRole("navigation");
+    await screen.findByRole("button", { name: "Capture" });
+    const labels = within(nav)
+      .getAllByRole("button")
+      .map((b) => b.textContent);
+    const backupsIdx = labels.indexOf("Backups");
+    const captureIdx = labels.indexOf("Capture");
+    const settingsIdx = labels.indexOf("Settings");
+    expect(backupsIdx).toBeGreaterThanOrEqual(0);
+    expect(captureIdx).toBe(backupsIdx + 1);
+    expect(settingsIdx).toBe(captureIdx + 1);
+  });
+
+  it("shows the not-enabled state (Bbnga copy) when capture is off", async () => {
+    // Default makeServer() has no spec.capture — capture defaults to off.
+    server.use(http.get("/servers/alpha", () => HttpResponse.json(makeServer())));
+    renderWithQuery(<ServerDetailPage />);
+    const captureTab = await screen.findByRole("button", { name: "Capture" });
+    await userEvent.click(captureTab);
+    expect(
+      await screen.findByText("Capture is not enabled on this server."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Network packet capture is an optional feature that records raw game protocol traffic. Enable it to capture packets from joining players for protocol analysis.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Enable Capture/i })).toBeInTheDocument();
+  });
+
+  it("shows the empty-captures state (dBILX copy) once capture is enabled", async () => {
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            spec: { templateRef: { name: "minecraft-vanilla" }, capture: { enabled: true } },
+          }),
+        ),
+      ),
+      http.get(/\/servers\/alpha:captures$/, () =>
+        HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const captureTab = await screen.findByRole("button", { name: "Capture" });
+    await userEvent.click(captureTab);
+    expect(await screen.findByText("No captures yet.")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("shows the invalid-BPF-filter error state in the start-capture modal (b4eaUf)", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("/servers/alpha", () =>
+        HttpResponse.json(
+          makeServer({
+            spec: { templateRef: { name: "minecraft-vanilla" }, capture: { enabled: true } },
+          }),
+        ),
+      ),
+      http.get(/\/servers\/alpha:captures$/, () =>
+        HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
+      ),
+      http.post(
+        /\/servers\/alpha:capture-start$/,
+        () =>
+          new HttpResponse(
+            "invalid filter: syntax error at position 12 (invalid token 'foo')",
+            { status: 400 },
+          ),
+      ),
+    );
+    renderWithQuery(<ServerDetailPage />);
+    const captureTab = await screen.findByRole("button", { name: "Capture" });
+    await user.click(captureTab);
+
+    const openBtn = await screen.findByRole("button", { name: "Start Capture" });
+    await user.click(openBtn);
+
+    const dialog = await screen.findByRole("dialog");
+    const filterInput = within(dialog).getByLabelText("Packet Filter");
+    await user.type(filterInput, "tcp prot 8080 foo");
+
+    const submitBtn = within(dialog).getByRole("button", { name: "Start Capture" });
+    await user.click(submitBtn);
+
+    expect(
+      await screen.findByText("invalid filter: syntax error at position 12 (invalid token 'foo')"),
+    ).toBeInTheDocument();
+    expect(filterInput).toHaveClass("border-danger");
+    await waitFor(() => expect(submitBtn).toBeDisabled());
   });
 });

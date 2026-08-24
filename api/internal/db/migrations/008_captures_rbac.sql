@@ -1,0 +1,9 @@
+-- Define captures:manage permission in the RBAC catalog (api/internal/rbac/catalog.go).
+-- This permission controls all capture operations: enable/disable/start/stop/delete/download.
+--
+-- Access control: Only admin grants this permission (per FR-005). Admin holds the '*'
+-- wildcard permission (seeded in 003_roles.sql), which grants all permissions including
+-- captures:manage. We do NOT explicitly seed captures:manage to admin here — that would
+-- break the convention that admin's permission set is exactly ['*'], as verified by
+-- TestRoles_ListIncludesBuiltins. The catalog entry ensures the permission is defined
+-- and validates that migrations/roles do not reference unknown permissions.

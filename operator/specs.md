@@ -103,16 +103,17 @@ Eight CRD kinds under `gameplane.local/v1alpha1`:
 | **ModuleSource** | `modulesource_types.go` | Registry of module bundles (OCI, git, HTTP, or local). Declares source location, refresh interval, optional credentials Secret, and optional cosign verification policy. Status lists available modules. |
 | **Cluster** | `cluster_types.go` | Metadata for a remote Kubernetes cluster (displayName, kubeconfig Secret ref). Cluster-scoped so multiple control planes can discover each other. Status tracks health (Unknown/Healthy/Unhealthy), lastCheckTime, conditions. |
 
-### Namespaced (4)
+### Namespaced (5)
 
 | Kind | File | Purpose |
 |------|------|---------|
-| **GameServer** | `gameserver_types.go` | Instance of a game server. References a GameTemplate for defaults; Spec declares desired replica count, suspend flag, stop grace period, module customizations, backup trigger. Status tracks phase (Pending/Starting/Running/Stopping/Stopped/Suspended/Failed), pod readiness, agent heartbeat. |
+| **GameServer** | `gameserver_types.go` | Instance of a game server. References a GameTemplate for defaults; Spec declares desired replica count, suspend flag, stop grace period, module customizations, backup trigger, **optional capture configuration**. Status tracks phase (Pending/Starting/Running/Stopping/Stopped/Suspended/Failed), pod readiness, agent heartbeat, **capture sidecar readiness and active capture**. |
 | **Backup** | `backup_types.go` | One-shot backup of a GameServer's data. Spec declares gameServer ref, optional quiesce preferences, strategy (restic or volume snapshot). Status tracks phase (Pending/Running/Succeeded/Failed), snapshot ID, restic output summary. |
 | **BackupSchedule** | `backupschedule_types.go` | Recurring backup schedule for a GameServer. Spec declares cron expression, retention rules (keep-daily, keep-weekly, keep-monthly, keep-yearly), optional suspend. Status reports next firing time, last fire time, retention condition. |
 | **Restore** | `restore_types.go` | One-shot restore of a Backup into a GameServer (typically a fresh copy). Spec refs the source Backup and target GameServer. Status tracks phase (Pending/Suspending/Running/Resuming/Succeeded/Failed), snapshot ID. Coordinates suspend → restic restore Job → resume. |
+| **NetworkCapture** | `networkcapture_types.go` | Opt-in packet-capture session for a GameServer. Spec declares gameServer ref, optional pcap filter, max duration, max file size, and optional TTL. Status tracks phase (Pending/Running/Completed/Failed/Expired), start/completion times, packet/byte counts, and error messages. Owned by its parent GameServer via ownerReferences. |
 
-**Verification:** CRD YAML in `config/crd/` generated from types via `make manifests`. All 8 kinds present and scopes correct (verified against `gameplane.local_*.yaml` files).
+**Verification:** CRD YAML in `config/crd/` generated from types via `make manifests`. All 9 kinds present and scopes correct (verified against `gameplane.local_*.yaml` files): 4 cluster-scoped (GameTemplate, Module, ModuleSource, Cluster) + 5 namespaced (GameServer, Backup, BackupSchedule, Restore, NetworkCapture).
 
 ## Reconcilers
 
@@ -128,6 +129,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Node affinity: honor spec.nodeSelector and spec.affinity preferences.
   - Ingress NetworkPolicy: enforce per-template advertised ports, admit CIDRs from `--game-ingress-from-cidr`.
   - Load-balancer address management: translate spec.networking.addressPool / .address preferences onto the Service based on the cluster's address-manager flavor (MetalLB, Cilium, or none), report assignment status via the AddressAssignment condition.
+  - **Network capture foundation** (**Phase 2 Foundational**): Pre-provision a `captures` emptyDir (1 GiB) unconditionally on every game pod's StatefulSet template (required because pod.spec.volumes is immutable on running pods; a rolling restart of all existing game pods is incurred once on upgrade). Extend the `<gs>-agent` Service with a second numeric ServicePort 9091 for the capture sidecar's control endpoint. RBAC markers grant `pods/ephemeralcontainers` access (get, list, watch, patch, update) and full CRUD on `networkcaptures` resources. The actual capture sidecar injection as an ephemeral container is **planned for Phase 2 Implementation** (T030+).
 - **Split concerns:**
   - `gameserver_config.go`: render config files, template variable substitution.
   - `gameserver_modcreds.go`: mount mod credentials Secrets.
@@ -139,6 +141,25 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - `gameserver_status.go`: phase computation from StatefulSet/Pod state + agent heartbeat, AddressAssignment condition.
   - `gameserver_stop_attach.go`: pod exec attachment for graceful stop commands.
   - `gameserver_extravolumes.go`: user-supplied additional volume mounts.
+- **Capture configuration:**
+  - **Spec fields (spec.capture):**
+    - `Enabled bool`: Optional flag to enable/disable the capture sidecar injection on this GameServer. When false or omitted, no sidecar is injected and the server is unchanged. When true, the operator injects the capture sidecar as an ephemeral container into the running game pod, live and without restarting the game container.
+    - `RetentionSeconds *int32`: Optional per-GameServer retention override, in seconds. Clamped to the cluster maximum (via `--capture-max-retention-seconds` flag) at API tier; defaults to cluster default (via `--capture-default-retention-seconds` flag) when omitted. Applied to all captures on this server unless overridden at capture-creation time.
+  - **Status fields (status.capture):**
+    - `Ready bool`: Whether the capture sidecar is currently running and listening on its :9091 port, able to accept new capture requests. True only when the ephemeral container has reached Running state and the sidecar has bound its listener; False before injection, during startup, if the container crashed, or if spec.capture.enabled is false.
+    - `ActiveCapture *string`: Name of the NetworkCapture currently in Pending or Running phase for this GameServer, if any. Set by NetworkCaptureReconciler when transitioning a capture to Running; cleared when that capture transitions to a terminal phase (Completed, Failed, or Expired). Allows finding the in-progress capture without listing all NetworkCaptures in the namespace.
+    - `LastCaptureTime *metav1.Time`: Timestamp of the most recent capture reaching a terminal phase (Completed or Failed) on this GameServer. Updated only on terminal transitions; not updated for Pending/Running/Expired transitions.
+    - `SidecarRestarts int32`: Count of restarts observed for the capture ephemeral container. NOTE: Kubernetes does not restart ephemeral containers (RestartPolicy does not apply to them). This field is retained as a stable hook for future implementations and to surface any unexpected restarts via node-level mechanisms; expected to stay 0 in practice.
+  - **Implementation status — Built:**
+    - `captures` emptyDir (1 GiB) pre-provisioned unconditionally on every game pod's StatefulSet template (persistent across pod restarts, immutable per house rule). Volume is mounted only on the capture ephemeral container when capture is enabled; never on the agent or game container.
+    - `<gs>-agent` Service extended with second numeric port "capture" on 9091.
+    - RBAC markers on GameServerReconciler grant `pods/ephemeralcontainers` (get, list, watch, patch, update) and `networkcaptures` (full CRUD).
+    - Sidecar injection as ephemeral container (conditional on spec.capture.enabled + cluster-wide `--capture-enabled` flag). Injection is live and restart-free.
+    - Sidecar lifecycle reconciliation (NetworkCaptureReconciler manages Pending → Running → Completed/Failed → Expired state machine).
+    - TTL-based auto-deletion (NetworkCapture transitions to Expired and is deleted once `status.completionTime + effective TTL` elapses, requeued at the exact remaining TTL rather than a blind poll; US4) — see "Retention / TTL-based expiry" under NetworkCaptureReconciler for the full mechanism and its one real gap (no sidecar-side file-delete endpoint yet).
+    - Edge cases and advanced scenarios: concurrency lock, pod-restart/eviction detection, sidecar-crash detection (US5) — see "Edge cases (Phase 7 / US5)" under NetworkCaptureReconciler.
+  - **Implementation status — Planned:**
+    - Dashboard UI for starting/stopping captures and browsing history (Phase 8).
 - **Status phases:** Pending, Starting, Running, Suspended, Stopping, Stopped, Failed.
 - **Address pool & assignment:**
   - **Inputs:** spec.networking.addressPool (pool name) and spec.networking.address (explicit IP).
@@ -221,10 +242,79 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
   - Report Healthy condition.
   - Requeue on interval (2 minutes).
 
+### NetworkCaptureReconciler
+- **Status:** Implemented (Phase 2 Foundational + Phase 2 Implementation + Phase 7 US5 concurrency/failure detection + Phase 6 US4 retention/expiry); dashboard UI planned (Phase 8). Retention's file-cleanup call to the sidecar has a real, tested caller (see "Retention / TTL-based expiry" below) but no real callee yet — see the "Known gap" note there before assuming production auto-deletion actually removes files.
+- **Responsibility:** Manage NetworkCapture CRD lifecycle — transition Pending → Running → Completed/Failed → Expired, inject capture sidecar, call sidecar control endpoint, monitor progress, enforce retention.
+- **Key dependencies:**
+  - `SidecarCaptureClient interface` — abstracted mTLS client to sidecar's `:9091` HTTP endpoints; injected for testability; production impl in `operator/internal/agent/sidecar_capture.go`. Four methods: `StartCapture`, `StopCapture`, `GetCaptureStatus`, `DeleteCaptureFile` (the last added for retention; see below).
+- **Reconcile state machine:**
+  - **Terminal phases (Completed, Failed):** no further lifecycle reconciliation, but still subject to the retention pass (`reconcileRetention`) described below — Kubernetes has no built-in TTL GC for custom CRDs, so this reconciler is the only enforcement of FR-007.
+  - **Expired:** retried directly through `expireCapture` (file cleanup + CR delete) — reaching this phase on a still-existing object means a previous expiry attempt's CR deletion didn't land (e.g. an apiserver hiccup).
+  - **Pending → Running:** Verify target GameServer exists and has `spec.capture.enabled = true`; enforce the concurrency lock (see "Edge cases" below); inject capture sidecar ephemeral container if not already present; record the observed Pod UID on the NetworkCapture (`gameplane.local/capture-pod-uid` annotation, used by the Running-phase health check below); call `SidecarClient.StartCapture()` with spec filter/maxDuration/maxSize; transition to Running; requeue every 5s to poll sidecar
+  - **Running:** Before polling the sidecar, check retention (safety net, see below), then Pod health (see "Edge cases" below); if healthy, poll `SidecarClient.GetCaptureStatus()` every 5s; update `status.packetsWritten`, `status.bytesWritten`, `status.message`; once sidecar reports phase=Completed or phase=Failed, transition NetworkCapture phase and record `status.completionTime`
+  - **Failure detection:** Pod-health checks (below) run before every sidecar poll; additionally, if GetCaptureStatus itself returns an error (sidecar unreachable), fail capture with reason `failed` and a descriptive message; if status.phase=Failed from sidecar, transition to Failed immediately
+  - **User-requested stop:** When API's StopNetworkCapture sets phase=Completed with message="stopped by user request", tell the sidecar to stop (once per user-stop request via `SidecarStoppedCondition` guard)
+- **Ephemeral container injection:** Inject into game pod's spec.ephemeralContainers subresource with:
+  - **Name:** "capture"
+  - **Image:** operator CLI flag `--capture-sidecar-image` (default `ghcr.io/valgulnecron/gameplane/capture-sidecar:dev`)
+  - **TargetContainerName:** "game" (shares pid/network/ipc namespaces with the game container for packet capture)
+  - **VolumeMounts:**
+    - `captures` (emptyDir pre-provisioned by gameserver_controller.go) mounted at `/tmp/captures` (read-write)
+    - `agent-tls` (Secret holding agent mTLS cert+key+CA) mounted at `/etc/tls` (read-only); certs passed via env vars below
+  - **Environment:**
+    - `TLS_CERT_FILE=/etc/tls/tls.crt` — client cert for mTLS to agent
+    - `TLS_KEY_FILE=/etc/tls/tls.key` — private key for mTLS  
+    - `TLS_CA_FILE=/etc/tls/ca.crt` — CA bundle for verifying agent server cert
+  - **SecurityContext:**
+    - `RunAsNonRoot: true` — container runs as unprivileged user (no root)
+    - `AllowPrivilegeEscalation: true` — **CRITICAL:** Must be true for file capabilities (CAP_NET_RAW/CAP_NET_ADMIN via setcap on the capture binary) to work. Kernel only honors setcap'd capabilities on exec when no_new_privs is off; combined with Capabilities.Drop: ["ALL"]/Add: ["NET_RAW"] below, the container starts with zero effective capabilities but the setcap'd binary gains CAP_NET_RAW at exec time
+    - `ReadOnlyRootFilesystem: true` — mounts /tmp/captures and /etc/tls as the only writable paths
+    - `Capabilities: Drop: ["ALL"], Add: ["NET_RAW"]` — Drop ALL empties the process's effective capability set (no ambient capabilities are set either). Drop ALL alone would also empty the *bounding* set, which makes the kernel refuse to grant the setcap'd binary's file capability at execve (EPERM) — so NET_RAW is re-added to keep it in the bounding set. The grant itself still comes from the binary's file capability (setcap cap_net_raw+ep) at exec, never from this Add alone.
+  - **No imagePullPolicy set** — inherits from pod spec (usually IfNotPresent or Always per deployment)
+- **Concurrency enforcement:** see "Edge cases" below.
+- **mTLS client reuse:** `operator/internal/agent/sidecar_capture.go`'s `CaptureClient` reuses the agent's existing mTLS http.Client (same CA cert/client cert/private key material) and addresses the sidecar via Service DNS: `https://<gs>-agent.<ns>.svc.cluster.local:9091`
+- **Not implemented (planned for later phases):**
+  - Network-partition recovery (a capture that outlives a transient loss of connectivity to the sidecar, rather than being failed outright) — no US claims this; today any sidecar-unreachable error fails the capture
+  - Dashboard UI for starting/stopping captures and browsing history — Phase 8
+
+#### Retention / TTL-based expiry (Phase 6 / US4)
+
+- **Effective TTL resolution (`effectiveRetentionSeconds`, `clampRetention`):** a capture's TTL is `spec.ttlSecondsAfterFinished` when set, else the reconciler's `CaptureDefaultRetentionSeconds`, clamped to `CaptureMaxRetentionSeconds` either way. Those two `int32` reconciler fields are **zero by default** and fall back, when zero, to this file's own package constants `defaultCaptureRetentionSeconds = 86400` (24h) and `maxCaptureRetentionSeconds = 604800` (7 days) — the same values ratified in `specs/003-network-capture-sidecar/data-model.md` and already enforced as `NetworkCaptureSpec.TTLSecondsAfterFinished`'s own `kubebuilder:validation:Minimum=60`/`Maximum=604800` ceiling, so a value that reaches this arithmetic has, in the normal path, already been bounded by the apiserver. `clampRetention` is a defensive backstop for a hand-applied or legacy object, not the primary enforcement mechanism.
+  - **Known wiring gap:** `operator/cmd/main.go` already parses `--capture-default-retention-seconds` (`captureDefaultRetention`, `int64`, default 86400) and `--capture-max-retention-seconds` (`captureMaxRetention`, `int64`, default 604800) as flags, but its `NetworkCaptureReconciler{...}` struct literal does not yet set `CaptureDefaultRetentionSeconds`/`CaptureMaxRetentionSeconds` from them (needs `int32(captureDefaultRetention)`/`int32(captureMaxRetention)`) — until that one-line wiring lands, the reconciler silently falls back to the 86400/604800 package constants, which happen to equal the flags' own defaults, so this only diverges from operator behavior when a cluster is actually configured away from those defaults.
+- **Expiry boundary (`captureExpiresAt`, `captureIsExpired`):** `expiresAt = anchorTime + ttlSeconds`; expired iff `expiresAt.Before(now)` — a **strict** less-than, matching data-model.md's documented transition condition `completionTime + ttl < now()`. A capture whose `now` lands exactly on `expiresAt` is not yet expired. `anchorTime` is `status.completionTime` for a terminal capture; a nil anchor (no completionTime yet) never expires (`captureExpiresAt` returns the zero `time.Time`, and `captureIsExpired` treats a zero `expiresAt` as never-expired).
+- **Terminal-phase pass (`reconcileRetention`):** on every reconcile of a Completed/Failed capture, computes `expiresAt` from `status.completionTime`; if not yet expired, requeues at exactly `expiresAt.Sub(now)` — the exact remaining TTL, not a blind fixed poll, so expiry lands close to on time without a hot requeue loop. `retentionPollInterval` (60s, matching research.md's proposed interval and BackupSchedule's cadence) is used only as a backstop when `completionTime` is unexpectedly nil, which should not happen for a capture this reconciler itself transitioned to a terminal phase.
+- **Running-phase safety net (`expireStuckRunningCapture`):** a capture that never reaches a terminal phase on its own (e.g. the sidecar stops reporting without actually finishing) would otherwise poll forever, since TTL is normally anchored to `completionTime`. The Running branch additionally anchors to `status.startTime` and, once that window elapses, force-stops the capture on the sidecar (best-effort — the sidecar may already be gone), clears the GameServer's active-capture pointer, sets a `RetentionStopFailed` condition if the stop call errored, and falls through to the same `expireCapture` path a terminal capture uses — this is checked *before* the pod-health/`GetCaptureStatus` poll, so a stuck-and-expired capture never reaches the sidecar for a status check first.
+- **Expiry itself (`expireCapture`):** transitions `status.phase` to Expired (persisting first, stamping `completionTime` if still nil, unless already Expired — making the function idempotent for the retry-on-still-present path above), then calls `SidecarClient.DeleteCaptureFile(ctx, namespace, serverName, captureName)`, then `r.Delete`s the CR. File deletion is best-effort: an error is recorded as a `FileCleanupFailed` condition but never blocks the CR delete, since a pod that's already gone by the time retention fires has no file left to remove anyway.
+- **Known gap — no real sidecar delete callee yet.** `DeleteCaptureFile` was added to `SidecarCaptureClient` (and implemented in the envtest `StubSidecarClient` used by this package's own tests) as the natural fourth verb alongside Start/Stop/GetStatus, mirroring how those three already talk to the sidecar's `:9091` control endpoint. **Neither side of the real implementation exists yet**: `capture-sidecar/internal/httpserver/handlers.go` defines no delete route (`contracts/capture-sidecar.md` only specifies `:start`/`:stop`/`/status`/`/file`, though its File Location section does say "Manual deletion by the operator or retention reconciler" without naming a mechanism), and `operator/internal/agent/sidecar_capture.go`'s `CaptureClient` (the concrete production implementer of `SidecarCaptureClient`, constructed in `operator/cmd/main.go` and passed as `NetworkCaptureReconciler.SidecarClient`) has no `DeleteCaptureFile` method — **so the production build does not compile until both are added.** A distroless/static sidecar container has no shell (`exec`-based `rm` is not an option), which is why this needs an actual HTTP endpoint rather than a pod-exec workaround. Follow-up work needed, in this priority order: (1) add an HTTP delete route to the sidecar (e.g. `DELETE /captures/{id}` or `POST /captures/{id}:delete`) that removes the backing PCAPNG file and treats "already gone" as success, not an error; (2) add `CaptureClient.DeleteCaptureFile` in `operator/internal/agent/sidecar_capture.go` calling it; (3) wire the two retention flags noted above in `cmd/main.go`. Until (1)+(2) land, every retention-expired capture's file is only actually removed by the emptyDir's own lifecycle (pod restart/deletion) — the CR itself, and the deletion attempt (which errors and gets recorded as `FileCleanupFailed`), work correctly today.
+
+#### Edge cases (Phase 7 / US5)
+
+- **Concurrency lock lives in the reconciler, not the API.** `api/internal/handlers/capture.go`'s `captureStart` handler does check `status.capture.activeCapture` / the server's own NetworkCaptures before creating a CR (`hasActiveCapture`), and rejects with HTTP 409 when it finds one — but that check is a best-effort fast path only, not the lock. Two concurrent `POST :capture-start` requests can both read "no active capture" and both pass that check before either has created its NetworkCapture CR, since there is no compare-and-swap between the API's read and its `CreateNetworkCapture` call: an HTTP handler has no way to hold a lock across the two Kubernetes API calls that would need to be atomic (list-then-create), and even if it could, only a single API replica's in-process lock would be enforced — a second API pod behind the same Service knows nothing about it. NetworkCaptureReconciler is the only place both requests' resulting CRs are guaranteed to be reconciled through a single, serialized queue (controller-runtime processes one object per workqueue item, and a List+decide+Update within one Reconcile call is effectively atomic against another Reconcile of a different object racing it into the same decision), so it is the sole point that can actually guarantee "exactly one Running capture per GameServer" rather than merely making the common case fast. On the Pending→Running transition, the reconciler lists every Pending/Running NetworkCapture for the same `spec.serverRef.name` (including its own not-yet-persisted Pending state) and keeps only the earliest-created one (by `creationTimestamp`, tie-broken by object name for entries created within the same timestamp resolution); every other one is failed immediately with condition reason `capture_already_in_progress` and never gets an ephemeral container or a sidecar `:start` call. The API's check exists purely so the ordinary case — no race — gets a fast 409 without ever creating a CR that would just be failed a moment later; it is documented in `api/internal/handlers/capture.go` as a fast path with an explicit pointer back to this section.
+- **Pod restart / eviction detection.** The reconciler records the observed game Pod's UID on the NetworkCapture (`gameplane.local/capture-pod-uid` annotation) at the moment it starts the capture — not a new CRD status field, to avoid a schema/codegen change for what is pure internal bookkeeping. On every Running-phase reconcile, before trusting the sidecar's reported status, the reconciler re-fetches the game pod (`<gs>-0`): if it's gone (`NotFound`), or present but its UID no longer matches the recorded one (the StatefulSet rebuilt a pod with the same name after a delete/eviction), the capture transitions straight to Failed with condition reason `PodRestarted`, skipping the sidecar poll entirely — a dead or replaced sidecar can't answer `GetCaptureStatus` meaningfully anyway, and a same-named replacement pod would otherwise surface as a misleading "capture not found" from the sidecar client rather than the real cause. `NetworkCaptureReconciler.mapPodToNetworkCaptures` watches game Pods directly (label-based lookup, since the Pod is owned by its StatefulSet, never by a NetworkCapture, so `Owns()` would never fire) and enqueues the Running NetworkCapture immediately on the delete/recreate event rather than waiting for the next 5s poll. Either way, the terminal transition clears the parent GameServer's `status.capture.activeCapture`, same as any other Failed/Completed transition.
+- **Sidecar crash, no retry.** On the same Running-phase pre-poll check, the reconciler also inspects the pod's `status.ephemeralContainerStatuses` entry for the capture container: if it reports `State.Terminated` with a non-zero exit code while the pod itself is still present and its UID unchanged (i.e. the game container is fine, only the sidecar process died), the capture is failed with condition reason `SidecarCrashed`. There is no retry path — Terminal phases (Completed/Failed/Expired) short-circuit at the top of `Reconcile` before any further work, so a crashed capture stays Failed; starting a fresh capture requires the caller to issue a new `POST :capture-start`, which is deliberate (mid-capture state on the sidecar side, e.g. a partially-written PCAPNG file, cannot be safely resumed).
+
+### Sidecar client (operator/internal/agent/sidecar_capture.go)
+
+- **`SidecarCaptureClient interface`** — injected into NetworkCaptureReconciler; abstracts mTLS communication with capture sidecar's `:9091` HTTP control endpoint (testable; tests inject a stub)
+  - `StartCapture(ctx, namespace, serverName, captureID string, filter *string, maxDurationSeconds, maxSizeBytes int64) error` — POST `/captures/{id}:start` on sidecar
+  - `StopCapture(ctx, namespace, serverName, captureID string) error` — POST `/captures/{id}:stop` on sidecar
+  - `GetCaptureStatus(ctx, namespace, serverName, captureID string) (phase string, packetsWritten, bytesWritten int64, message string, err error)` — GET `/captures/{id}/status` on sidecar; polls current state during Running phase
+  - `DeleteCaptureFile(ctx, namespace, serverName, captureID string) error` — added for retention (Phase 6 / US4); intended to remove a capture's backing PCAPNG file once its TTL elapses. **No sidecar HTTP route backs this yet and `CaptureClient` (below) has no method implementing it** — see "Known gap" under Retention / TTL-based expiry above; the interface method and its `StubSidecarClient` test double exist, the production wiring does not.
+- **`CaptureClient struct`** — production implementation of SidecarCaptureClient
+  - `NewCaptureClient(agent *Client) *CaptureClient` — factory; reuses agent's existing mTLS http.Client (same CA cert/client cert/private key material)
+  - `Disabled bool` flag — set to true if no mTLS material provided; all methods return nil on Disabled=true (graceful degradation)
+  - URLs built from `https://<serverName>-agent.<namespace>.svc.cluster.local:9091/captures/<captureID>:start|:stop` (service DNS, cluster-internal mTLS endpoint)
+  - All errors wrapped with `%w` per CLAUDE.md rule 6
+
 ### Helper Reconcilers & Utilities
 
 - **agent_certs.go:** Generate per-GameServer CA-signed mTLS server cert for agent sidecar (operator CA cert/key injected via flags).
 - **agent_rbac.go:** Create per-GameServer ServiceAccount + Role for the agent sidecar (used to verify token).
+- **internal/kube/capture.go:** Kubernetes client helper functions for NetworkCapture CRD operations (API-tier use):
+  - `CreateNetworkCapture(ctx, ns, captureID, serverName string, filter *string, maxDuration *metav1.Duration, maxSize *resource.Quantity, ttlSecondsAfterFinished *int32) (*NetworkCapture, error)` — creates NetworkCapture CR with Pending phase; sets ownerRef for cascade delete
+  - `GetNetworkCapture(ctx, ns, name string) (*NetworkCapture, error)` — fetches by namespace/name; returns nil if not found
+  - `ListNetworkCaptures(ctx, ns, serverName string) ([]NetworkCapture, error)` — lists all captures in namespace; filters by spec.serverRef.name on client side
+  - `DeleteNetworkCapture(ctx, ns, name string) error` — deletes NetworkCapture by namespace/name
 - **metrics.go:** Prometheus collectors — GameServerCollector (count by phase), BackupCollector (count by phase).
 - **retention.go:** Backup retention logic — parse keep-* rules, identify excess backups for deletion.
 - **restic_summary.go:** Parse restic container logs, extract final JSON summary (snapshot ID, duration, size).
@@ -258,6 +348,10 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 | `--game-ingress-policy` | bool | `true` | Reconcile per-GameServer ingress NetworkPolicy. |
 | `--game-ingress-from-cidr` | strings | `0.0.0.0/0` | Source CIDR(s) admitted to game ports; repeatable; canonical form enforced. |
 | `--address-manager` | string | `none` | Load-balancer address-manager flavor (metallb, cilium, or none). Validated at startup; controls how spec.networking.addressPool / .address preferences are translated onto the Service. |
+| `--capture-enabled` | bool | `false` | Enable the network capture feature cluster-wide. When false, capture capability is disabled and cannot be enabled per-GameServer. |
+| `--capture-default-retention-seconds` | int64 | `86400` | Default retention period (seconds) for completed captures; applied when spec.capture.retentionSeconds is not set. 24-hour default. |
+| `--capture-max-retention-seconds` | int64 | `604800` | Maximum retention period (seconds) for captures; clamps any higher retention request. 7-day default, a storage-limitation-informed constraint. |
+| `--capture-sidecar-image` | string | `ghcr.io/valgulnecron/gameplane/capture-sidecar:dev` | Container image for the network capture sidecar injected when capture is enabled. |
 
 **Manager configuration:**
 - CacheSyncTimeout: 5 minutes (extended from default 2m to tolerate slow apiservers on resource-constrained nodes).
@@ -272,9 +366,9 @@ make generate && make manifests
 ```
 
 Regenerates and commits atomically:
-- `operator/api/v1alpha1/zz_generated.deepcopy.go` — struct deepcopy methods.
-- `operator/config/crd/gameplane.local_*.yaml` — 8 CRD manifests.
-- `operator/config/rbac/*.yaml` — ServiceAccount, Roles, RoleBindings, ClusterRoles, ClusterRoleBindings.
+- `operator/api/v1alpha1/zz_generated.deepcopy.go` — struct deepcopy methods (includes CaptureConfiguration, CaptureStatus, NetworkCapture, NetworkCaptureList, NetworkCaptureSpec, NetworkCaptureStatus deepcopy functions).
+- `operator/config/crd/gameplane.local_*.yaml` — 9 CRD manifests (includes gameplane.local_networkcaptures.yaml; gameplane.local_gameservers.yaml extended with capture spec/status schemas).
+- `operator/config/rbac/*.yaml` — ServiceAccount, Roles, RoleBindings, ClusterRoles, ClusterRoleBindings (includes pods/ephemeralcontainers and networkcaptures CRUD permissions).
 - `charts/gameplane/crds/*.yaml` — copy of CRDs for Helm integration (Helm `crds/` directory + pre-upgrade hook for `kubectl apply --server-side`).
 
 Forgetting codegen leaves the YAML out of sync with types — CI's `make manifests` verify gate will catch it, but envtest runs will fail mysteriously first.
@@ -296,6 +390,12 @@ Forgetting codegen leaves the YAML out of sync with types — CI's `make manifes
 7. **Backup quiesce is best-effort.** If agent unavailable, backup proceeds raw (no pause). If quiesce unsupported (agent returns ErrUnsupported), backup continues degraded (success-with-note).
 
 8. **Remote cluster health checks are non-blocking.** A Cluster with health Unhealthy does not prevent GameServer creation on the local cluster; it surfaces the issue so operators can intervene.
+
+9. **Capture volume is immutable and pre-provisioned.** Every game pod carries a `captures` emptyDir (1 GiB) unconditionally, because Kubernetes pod.spec.volumes is immutable on running pods. This incurs a rolling restart of all existing game pods once on upgrade, regardless of whether capture is ever used. The volume is mounted only on the capture sidecar ephemeral container (injected conditionally based on spec.capture.enabled and cluster-wide `--capture-enabled`), never on the agent or game container.
+
+10. **Capture sidecar uses ephemeral containers, not init/sidecar containers.** Ephemeral containers are added live without restarting the game pod or agent. They have no imagePullPolicy, volumeMounts, or named containerPorts; the capture sidecar's port (9091) is exposed via the numeric TargetPort on the <gs>-agent Service. Disabling capture (spec.capture.enabled: false) does not remove the ephemeral container from running pods (Kubernetes API does not support removal); it stops accepting new captures.
+
+11. **Capture TTL-based expiry is implemented (Phase 6 / US4), with one real gap.** `NetworkCaptureReconciler` now reconciles the full Pending → Running → Completed/Failed → Expired lifecycle, including retention: see "Retention / TTL-based expiry" under NetworkCaptureReconciler above for the expiry arithmetic, the requeue-at-exact-remaining-TTL behavior, and the Running-phase safety net for a capture that never reaches a terminal phase. The one thing not actually working end-to-end yet: the sidecar has no HTTP route to delete a capture's backing file, and `operator/internal/agent/sidecar_capture.go`'s `CaptureClient` has no method calling one — so `SidecarClient.DeleteCaptureFile` (called by the retention pass) currently has no real production implementation, and **the production build does not compile** until both are added. The NetworkCapture CRD itself, and the retention pass's phase transition to Expired + CR deletion, work correctly regardless.
 
 ## Dependencies
 

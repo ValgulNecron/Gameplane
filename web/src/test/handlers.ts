@@ -112,7 +112,11 @@ export const handlers = [
       ],
     }),
   ),
-  http.get("/servers/:name", ({ params }) =>
+  // `:name([^:/]+)` excludes ':' so this never swallows a `name:verb` colon-action
+  // URL (e.g. `alpha:capture`) meant for one of the regex handlers below — a
+  // dead/misordered colon-action handler should 404 as unhandled, not silently
+  // return a plausible-looking server here.
+  http.get("/servers/:name([^:/]+)", ({ params }) =>
     HttpResponse.json(makeServer({ metadata: { name: String(params.name) } })),
   ),
   http.post("/servers", async ({ request }) => {
@@ -125,10 +129,11 @@ export const handlers = [
       }),
     );
   }),
-  http.put("/servers/:name", ({ params }) =>
+  // See the GET /servers/:name comment above — same colon-exclusion reasoning.
+  http.put("/servers/:name([^:/]+)", ({ params }) =>
     HttpResponse.json(makeServer({ metadata: { name: String(params.name) } })),
   ),
-  http.delete("/servers/:name", () => new HttpResponse(null, { status: 204 })),
+  http.delete("/servers/:name([^:/]+)", () => new HttpResponse(null, { status: 204 })),
 
   // Lifecycle: chi uses `:verb` literal-colon URL syntax, which standard
   // URL pattern matchers don't parse — fall back to regex per verb.
@@ -146,6 +151,9 @@ export const handlers = [
       }),
     );
   }),
+  http.post(/\/servers\/[^/]+:wipe-data$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:transfer$/, () => new HttpResponse(null, { status: 204 })),
+  http.put(/\/servers\/[^/]+:collaborators$/, () => new HttpResponse(null, { status: 204 })),
 
   // Tunnel credentials: GET returns configured status, PUT sets credentials, DELETE removes.
   http.get(/\/servers\/[^/]+:tunnel-credentials$/, () =>
@@ -153,6 +161,76 @@ export const handlers = [
   ),
   http.put(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
   http.delete(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
+
+  // Capture: enable/disable, start/stop, list, get, delete, and file download
+  http.post(/\/servers\/[^/]+:capture-enable(\?.*)?$/, () =>
+    HttpResponse.json({
+      name: "server-name",
+      status: { capture: { enabled: true } },
+    }),
+  ),
+  http.post(/\/servers\/[^/]+:capture-disable(\?.*)?$/, () =>
+    HttpResponse.json({
+      name: "server-name",
+      status: { capture: { enabled: false } },
+    }),
+  ),
+  http.get(/\/servers\/[^/]+:captures(\?.*)?$/, () =>
+    HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
+  ),
+  http.get(/\/servers\/[^/]+:capture$/, () =>
+    HttpResponse.json({
+      captureId: "cap-12345",
+      serverName: "server-name",
+      phase: "Completed",
+      startedAt: "2026-08-23T00:00:00Z",
+      completedAt: "2026-08-23T01:00:00Z",
+      createdAt: "2026-08-23T00:00:00Z",
+      expiresAt: "2026-08-30T00:00:00Z",
+      bytesWritten: 1024,
+      packetsWritten: 100,
+      filter: "tcp port 25565",
+    }),
+  ),
+  http.post(/\/servers\/[^/]+:capture-start(\?.*)?$/, () =>
+    HttpResponse.json(
+      {
+        captureId: "cap-12345",
+        serverName: "server-name",
+        phase: "Pending",
+        startedAt: null,
+        completedAt: null,
+        createdAt: "2026-08-23T00:00:00Z",
+        expiresAt: "2026-08-30T00:00:00Z",
+        bytesWritten: 0,
+        packetsWritten: 0,
+        filter: "tcp port 25565",
+      },
+      { status: 202 },
+    ),
+  ),
+  http.post(/\/servers\/[^/]+:capture-stop(\?.*)?$/, () =>
+    HttpResponse.json({
+      captureId: "cap-12345",
+      serverName: "server-name",
+      phase: "Completed",
+      startedAt: "2026-08-23T00:00:00Z",
+      completedAt: "2026-08-23T01:00:00Z",
+      createdAt: "2026-08-23T00:00:00Z",
+      expiresAt: "2026-08-30T00:00:00Z",
+      bytesWritten: 1024,
+      packetsWritten: 100,
+      filter: "tcp port 25565",
+    }),
+  ),
+  http.delete(/\/servers\/[^/]+:capture$/, () =>
+    HttpResponse.json({ deleted: true, captureId: "cap-12345" }),
+  ),
+  http.get(/\/servers\/[^/]+:capture-file$/, () =>
+    new HttpResponse(new Blob(["mock pcapng data"]), {
+      headers: { "Content-Type": "application/octet-stream" },
+    }),
+  ),
 
   // Templates
   http.get("/templates", () =>
@@ -397,6 +475,13 @@ export const handlers = [
           permissions: [
             { key: "servers:read", label: "View servers", namespaced: true },
             { key: "servers:write", label: "Manage servers", namespaced: true },
+          ],
+        },
+        {
+          resource: "captures",
+          label: "Network captures",
+          permissions: [
+            { key: "captures:manage", label: "Enable, start, stop, download, and delete packet captures", namespaced: true },
           ],
         },
         {

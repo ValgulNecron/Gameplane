@@ -3,23 +3,42 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
+	"github.com/gopacket/gopacket/pcapgo"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// gameTemplateGVR / gameServerGVR — typed clients aren't generated for
-// the test/e2e module; we use the dynamic client.
+// gameTemplateGVR / gameServerGVR / networkCaptureGVR — typed clients
+// aren't generated for the test/e2e module; we use the dynamic client.
 var (
-	gameTemplateGVR = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gametemplates"}
-	gameServerGVR   = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gameservers"}
+	gameTemplateGVR   = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gametemplates"}
+	gameServerGVR     = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "gameservers"}
+	networkCaptureGVR = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "networkcaptures"}
 )
+
+// testCaptureMaxSize is the maximum size requested in capture-start calls.
+// Must stay at or below charts/gameplane/values.yaml's capture.defaultMaxSizeBytes (900 MiB).
+// This is well below that limit to avoid hitting the emptyDir sizeLimit (1 GiB).
+const testCaptureMaxSize = 10485760 // 10 MiB
 
 // TestGameServer_OperatorMaterializesChildren — apply a tiny template
 // + a GameServer that references it. The operator must produce a
@@ -319,4 +338,972 @@ func TestGameServer_HeartbeatReachesRunning(t *testing.T) {
 		}
 		return true, ""
 	})
+}
+
+// TestGameServer_NetworkCaptureStartStopDownload — opt a GameServer into
+// capture (spec.capture.enabled=true; the :capture-enable/:capture-disable
+// HTTP routes are US2 and not yet built, so this is set directly on the
+// spec rather than through the API), start a capture with a BPF filter
+// restricted to a single advertised port, generate both filter-matching
+// and non-matching traffic, stop the capture, download the file, and
+// assert:
+//
+//   - SC-001 (third-party readability): the download parses cleanly as
+//     structurally valid PCAPNG via gopacket's pcapgo.NewNgReader — a
+//     real third-party parser, independent of the sidecar's own writer,
+//     so a truncated or malformed file (right magic bytes, broken
+//     structure) is caught rather than rubber-stamped. tshark/capinfos
+//     are NOT installed anywhere in this repo's CI workflows (no step
+//     in .github/workflows/*.yaml installs wireshark-common or
+//     tshark, and the ubuntu-latest/ubuntu-24.04-arm runner images
+//     don't ship them by default), so pcapgo is the actual third-party
+//     verification that runs here — this comment is deliberately
+//     explicit about that rather than claiming tshark coverage the
+//     runner can't provide.
+//   - SC-008 (filter correctness): every packet decoded from the file
+//     carries the filter-matching TCP port, at least one such packet
+//     exists (guards against a silently-empty-but-valid file passing
+//     by coincidence), and zero packets carry the non-matching port.
+func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-tmpl"
+	gsName := "e2e-cap-gs"
+	trafficPodName := "e2e-cap-traffic-gen"
+
+	const (
+		matchPort    = 12345 // advertised port from applyBusyboxTemplate
+		nonMatchPort = 54321
+	)
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	// spec.capture.enabled=true at creation time — see
+	// applyBusyboxGameServerWithCapture's doc comment for why this
+	// bypasses the (unbuilt) :capture-enable route. The operator
+	// injects the capture sidecar as an ephemeral container as soon as
+	// it observes the flag.
+	applyBusyboxGameServerWithCapture(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// The ephemeral capture container must reach Running
+	// (status.capture.ready=true on the GameServer CRD) before we start
+	// a capture against it — starting against an unready sidecar would
+	// race the sidecar's own startup and could silently produce an
+	// empty file.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		if !ready {
+			return false, "status.capture.ready still false"
+		}
+		return true, ""
+	})
+
+	// Start a capture with a filter restricted to matchPort.
+	startReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      300,
+		"maxSizeBytes":            testCaptureMaxSize,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("start capture: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start capture: status=%s body=%s", startHTTPResp.Status, startBody)
+	}
+	var startedCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(startBody, &startedCapture); err != nil {
+		t.Fatalf("parse capture-start response %q: %v", startBody, err)
+	}
+	captureID := startedCapture.CaptureID
+	if captureID == "" {
+		t.Fatalf("capture-start response had no captureId: %s", startBody)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Delete(context.Background(), captureID, metav1.DeleteOptions{})
+	})
+
+	// Wait for the operator to reconcile the NetworkCapture CRD from
+	// Pending to Running — the sidecar isn't actually recording packets
+	// until then, so generating traffic before this races capture start.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Running" {
+			return false, "phase=" + phase
+		}
+		return true, ""
+	})
+
+	// Get the pod IP to generate traffic against.
+	pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod: %v", err)
+	}
+	podIP := pod.Status.PodIP
+	if podIP == "" {
+		t.Fatalf("pod has no IP yet")
+	}
+
+	// The games namespace ships a default-deny-egress NetworkPolicy
+	// (podSelector: {}, DNS-only) and the operator's own per-server
+	// ingress policy admits only the advertised game port. Left as-is,
+	// the traffic pod's connects to nonMatchPort would never leave its
+	// own netns and the "zero packets on the non-matching port"
+	// assertion below would pass because the CNI dropped the traffic,
+	// not because BPF filtered it — proving nothing about SC-008.
+	// NetworkPolicies for a given pod are additive (OR across every
+	// policy that selects it), so adding explicit allow rules here
+	// makes the traffic genuinely reach the game pod's netns without
+	// having to touch (or fight) the always-on cluster policies.
+	trafficLabels := map[string]string{"gameplane.local/e2e-role": "capture-traffic"}
+	gamePodLabels := map[string]string{
+		"app.kubernetes.io/name":     "gameplane-game",
+		"app.kubernetes.io/instance": gsName,
+	}
+	tcpPorts := func() []networkingv1.NetworkPolicyPort {
+		proto := corev1.ProtocolTCP
+		matchP := intstr.FromInt(matchPort)
+		nonMatchP := intstr.FromInt(nonMatchPort)
+		return []networkingv1.NetworkPolicyPort{
+			{Protocol: &proto, Port: &matchP},
+			{Protocol: &proto, Port: &nonMatchP},
+		}
+	}
+	ingressAllow := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: gsName + "-e2e-allow-capture-traffic-in", Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: gamePodLabels},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From:  []networkingv1.NetworkPolicyPeer{{PodSelector: &metav1.LabelSelector{MatchLabels: trafficLabels}}},
+				Ports: tcpPorts(),
+			}},
+		},
+	}
+	egressAllow := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: trafficPodName + "-e2e-allow-capture-traffic-out", Namespace: ns},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: trafficLabels},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			Egress: []networkingv1.NetworkPolicyEgressRule{{
+				To:    []networkingv1.NetworkPolicyPeer{{PodSelector: &metav1.LabelSelector{MatchLabels: gamePodLabels}}},
+				Ports: tcpPorts(),
+			}},
+		},
+	}
+	if _, err := envInstance.K8s.NetworkingV1().NetworkPolicies(ns).Create(ctx, ingressAllow, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create ingress-allow networkpolicy: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.K8s.NetworkingV1().NetworkPolicies(ns).
+			Delete(context.Background(), ingressAllow.Name, metav1.DeleteOptions{})
+	})
+	if _, err := envInstance.K8s.NetworkingV1().NetworkPolicies(ns).Create(ctx, egressAllow, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create egress-allow networkpolicy: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.K8s.NetworkingV1().NetworkPolicies(ns).
+			Delete(context.Background(), egressAllow.Name, metav1.DeleteOptions{})
+	})
+
+	// A helper pod sends TCP connections to both the filter-matching and
+	// non-matching ports. Neither port has a real listener behind it
+	// (busybox never accepts connections), but the SYN/RST exchange is
+	// captured at the network layer regardless of whether anything
+	// answers. Uses `nc -w <secs> <ip> <port> </dev/null` rather than
+	// `-zv`: busybox's nc applet only supports -z/-v when built with
+	// NC_110_COMPAT, which the common (e.g. Alpine) build does not
+	// enable — `-w` plus redirecting stdin from /dev/null is universally
+	// supported and behaves the same way (connect, then exit).
+	trafficPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      trafficPodName,
+			Namespace: ns,
+			Labels:    trafficLabels,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:  "traffic-gen",
+					Image: "busybox:1.36",
+					Command: []string{
+						"sh", "-c",
+						fmt.Sprintf(
+							"(nc -w 2 %s %d </dev/null 2>&1; echo done-match) & "+
+								"(nc -w 2 %s %d </dev/null 2>&1; echo done-nonmatch) & wait",
+							podIP, matchPort, podIP, nonMatchPort,
+						),
+					},
+				},
+			},
+		},
+	}
+	if _, err := envInstance.K8s.CoreV1().Pods(ns).Create(ctx, trafficPod, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("create traffic pod: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.K8s.CoreV1().Pods(ns).Delete(context.Background(), trafficPodName, metav1.DeleteOptions{})
+	})
+
+	// Poll for the traffic pod to finish rather than a bare sleep — a
+	// loaded CI runner can blow past a fixed sleep before scheduling
+	// even starts the pod.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		p, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, trafficPodName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get traffic pod: " + err.Error()
+		}
+		if p.Status.Phase != corev1.PodSucceeded && p.Status.Phase != corev1.PodFailed {
+			return false, "traffic pod phase=" + string(p.Status.Phase)
+		}
+		return true, ""
+	})
+
+	// Log the traffic pod's output before any packet-count assertion —
+	// if the capture later comes back empty, this is what tells us
+	// whether the traffic generator actually ran (vs. a capture/CNI
+	// problem further down the chain).
+	if trafficLogs, err := envInstance.Kubectl(ctx, "logs", "-n", ns, trafficPodName); err != nil {
+		t.Logf("traffic pod logs: (failed to fetch: %v)", err)
+	} else {
+		t.Logf("traffic pod logs:\n%s", trafficLogs)
+	}
+
+	// Stop the capture. The contract takes captureId in the JSON body,
+	// not a query parameter.
+	stopHTTPResp, stopBody, err := cli.Post("/servers/"+gsName+":capture-stop", map[string]any{
+		"captureId": captureID,
+	})
+	if err != nil {
+		t.Fatalf("stop capture: %v", err)
+	}
+	defer func() { _ = stopHTTPResp.Body.Close() }()
+	if stopHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("stop capture: status=%s body=%s", stopHTTPResp.Status, stopBody)
+	}
+
+	// The capture must reach a terminal phase before the file is
+	// guaranteed downloadable.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Completed" {
+			return false, "phase=" + phase
+		}
+		return true, ""
+	})
+
+	// Download the capture file.
+	fileHTTPResp, fileBody, err := cli.Get("/servers/" + gsName + ":capture-file?id=" + captureID)
+	if err != nil {
+		t.Fatalf("download capture file: %v", err)
+	}
+	defer func() { _ = fileHTTPResp.Body.Close() }()
+	if fileHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("download capture file: status=%s", fileHTTPResp.Status)
+	}
+	if len(fileBody) == 0 {
+		t.Fatalf("capture file is empty")
+	}
+
+	// SC-001: parse with gopacket's pcapgo reader — a genuine
+	// third-party PCAPNG parser distinct from the sidecar's own writer.
+	reader, err := pcapgo.NewNgReader(bytes.NewReader(fileBody), pcapgo.DefaultNgReaderOptions)
+	if err != nil {
+		t.Fatalf("capture file is not valid PCAPNG: %v", err)
+	}
+
+	// SC-008: every decoded packet must carry matchPort, and at least
+	// one packet must be present.
+	matchedPackets := 0
+	for {
+		data, _, err := reader.ReadPacketData()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("read packet from capture: %v", err)
+		}
+		packet := gopacket.NewPacket(data, reader.LinkType(), gopacket.Default)
+		tcpLayer := packet.Layer(layers.LayerTypeTCP)
+		if tcpLayer == nil {
+			t.Fatalf("captured packet has no TCP layer despite filter %q: %s", startReq["filter"], packet.String())
+		}
+		tcp, ok := tcpLayer.(*layers.TCP)
+		if !ok {
+			t.Fatalf("TCP layer type assertion failed for packet: %s", packet.String())
+		}
+		srcPort := uint16(tcp.SrcPort)
+		dstPort := uint16(tcp.DstPort)
+		if srcPort != matchPort && dstPort != matchPort {
+			t.Errorf("captured packet on neither src nor dst port %d: src=%d dst=%d", matchPort, srcPort, dstPort)
+		}
+		if srcPort == nonMatchPort || dstPort == nonMatchPort {
+			t.Errorf("captured a packet on the non-matching port %d: src=%d dst=%d", nonMatchPort, srcPort, dstPort)
+		}
+		matchedPackets++
+	}
+	if matchedPackets == 0 {
+		t.Fatalf("capture file contains zero packets — filter correctness (SC-008) cannot be verified against an empty capture")
+	}
+	t.Logf("capture file size=%d bytes, packets=%d, all matched filter %q (SC-001+SC-008 verified)",
+		len(fileBody), matchedPackets, startReq["filter"])
+}
+
+// findContainerByName returns the container named `name` from cs, or nil.
+func findContainerByName(cs []corev1.Container, name string) *corev1.Container {
+	for i := range cs {
+		if cs[i].Name == name {
+			return &cs[i]
+		}
+	}
+	return nil
+}
+
+// findContainerStatusByName returns the container status named `name`
+// from css, or nil.
+func findContainerStatusByName(css []corev1.ContainerStatus, name string) *corev1.ContainerStatus {
+	for i := range css {
+		if css[i].Name == name {
+			return &css[i]
+		}
+	}
+	return nil
+}
+
+// TestGameServer_NetworkCaptureEphemeralContainer — the structural
+// counterpart to TestGameServer_NetworkCaptureStartStopDownload: no real
+// packet traffic here, just the injection/removal-refusal contract for
+// the capture ephemeral container.
+//
+// FR-001 as amended: enabling capture must not perturb the running game
+// workload — no game-container restart, no image/securityContext/mount
+// change. We snapshot the game container before enabling and diff it
+// against the same fields after.
+//
+// The disable half asserts the documented asymmetry explicitly: disable
+// stops the capability (status.capture.ready flips false, new
+// :capture-start calls are refused) but Kubernetes provides no API to
+// remove an already-injected ephemeral container, so its entry in
+// pod.status.ephemeralContainerStatuses (and pod.spec.ephemeralContainers)
+// legitimately lingers. That lingering is the ratified platform
+// behavior — assert it stays present, don't "fix" the test if it does.
+func TestGameServer_NetworkCaptureEphemeralContainer(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-ec-tmpl"
+	gsName := "e2e-cap-ec-gs"
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	// Created WITHOUT capture enabled — this test drives enable/disable
+	// entirely through the :capture-enable/:capture-disable HTTP routes.
+	applyBusyboxGameServer(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	podPre, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod pre-enable: %v", err)
+	}
+	if len(podPre.Spec.EphemeralContainers) != 0 {
+		t.Fatalf("pod already has ephemeral containers before capture was ever enabled: %+v",
+			podPre.Spec.EphemeralContainers)
+	}
+	gameContainerPre := findContainerByName(podPre.Spec.Containers, "game")
+	if gameContainerPre == nil {
+		t.Fatalf("no game container in pre-enable pod spec")
+	}
+	gameStatusPre := findContainerStatusByName(podPre.Status.ContainerStatuses, "game")
+	if gameStatusPre == nil {
+		t.Fatalf("no game container status in pre-enable pod")
+	}
+	preImage := gameContainerPre.Image
+	preSecurityContext := gameContainerPre.SecurityContext
+	preVolumeMounts := gameContainerPre.VolumeMounts
+	preRestartCount := gameStatusPre.RestartCount
+
+	// Enable capture.
+	enableHTTPResp, enableBody, err := cli.Post("/servers/"+gsName+":capture-enable", nil)
+	if err != nil {
+		t.Fatalf("enable capture: %v", err)
+	}
+	defer func() { _ = enableHTTPResp.Body.Close() }()
+	if enableHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("enable capture: status=%s body=%s", enableHTTPResp.Status, enableBody)
+	}
+
+	// The ephemeral container appears on the pod spec as soon as the
+	// operator observes spec.capture.enabled=true — no pod recreation.
+	var capEC corev1.EphemeralContainer
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		for _, ec := range pod.Spec.EphemeralContainers {
+			if ec.Name == "capture" {
+				capEC = ec
+				return true, ""
+			}
+		}
+		return false, "no capture ephemeral container in pod spec yet"
+	})
+
+	if !strings.Contains(capEC.Image, "capture-sidecar") {
+		t.Errorf("capture ephemeral container image = %q, want it to contain capture-sidecar", capEC.Image)
+	}
+	mountsCaptures := false
+	for _, m := range capEC.VolumeMounts {
+		if m.Name == "captures" {
+			mountsCaptures = true
+			break
+		}
+	}
+	if !mountsCaptures {
+		t.Errorf("capture ephemeral container does not mount the captures volume: %+v", capEC.VolumeMounts)
+	}
+	sc := capEC.SecurityContext
+	if sc == nil {
+		t.Fatalf("capture ephemeral container has no securityContext")
+	}
+	if sc.AllowPrivilegeEscalation == nil || !*sc.AllowPrivilegeEscalation {
+		t.Errorf("capture ephemeral container allowPrivilegeEscalation = %v, want true", sc.AllowPrivilegeEscalation)
+	}
+	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+		t.Errorf("capture ephemeral container runAsNonRoot = %v, want true", sc.RunAsNonRoot)
+	}
+	// Drop ALL + Add NET_RAW: Drop ALL alone would empty the bounding set,
+	// which makes the kernel refuse to grant the setcap'd binary's file
+	// capability at execve (EPERM). Re-adding NET_RAW keeps it in the
+	// bounding set only; the capability grant itself still comes from the
+	// binary's file capability (setcap cap_net_raw+ep), not from this Add.
+	if sc.Capabilities == nil || len(sc.Capabilities.Add) != 1 || sc.Capabilities.Add[0] != corev1.Capability("NET_RAW") {
+		t.Errorf("capture ephemeral container securityContext.capabilities.add = %v, want [NET_RAW]",
+			sc.Capabilities.Add)
+	}
+
+	// The game container itself must be untouched: same image, same
+	// securityContext, same mounts, no restart.
+	podPostEnable, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod post-enable: %v", err)
+	}
+	gameContainerPost := findContainerByName(podPostEnable.Spec.Containers, "game")
+	if gameContainerPost == nil {
+		t.Fatalf("no game container in post-enable pod spec")
+	}
+	if gameContainerPost.Image != preImage {
+		t.Errorf("game container image changed after enabling capture: pre=%q post=%q", preImage, gameContainerPost.Image)
+	}
+	if !reflect.DeepEqual(gameContainerPost.SecurityContext, preSecurityContext) {
+		t.Errorf("game container securityContext changed after enabling capture: pre=%+v post=%+v",
+			preSecurityContext, gameContainerPost.SecurityContext)
+	}
+	if !reflect.DeepEqual(gameContainerPost.VolumeMounts, preVolumeMounts) {
+		t.Errorf("game container volumeMounts changed after enabling capture: pre=%+v post=%+v",
+			preVolumeMounts, gameContainerPost.VolumeMounts)
+	}
+	gameStatusPost := findContainerStatusByName(podPostEnable.Status.ContainerStatuses, "game")
+	if gameStatusPost == nil {
+		t.Fatalf("no game container status in post-enable pod")
+	}
+	if gameStatusPost.RestartCount != preRestartCount {
+		t.Errorf("game container restart count changed after enabling capture: pre=%d post=%d",
+			preRestartCount, gameStatusPost.RestartCount)
+	}
+
+	// Wait for the sidecar to actually come up before disabling — this
+	// mirrors TestGameServer_NetworkCaptureStartStopDownload's rationale:
+	// disabling before the sidecar was ever observed ready would still
+	// exercise the asymmetry, but waiting first proves injection worked
+	// end to end, not just that the pod spec mutation landed.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		if !ready {
+			return false, "status.capture.ready still false"
+		}
+		return true, ""
+	})
+
+	// Disable capture.
+	disableHTTPResp, disableBody, err := cli.Post("/servers/"+gsName+":capture-disable", nil)
+	if err != nil {
+		t.Fatalf("disable capture: %v", err)
+	}
+	defer func() { _ = disableHTTPResp.Body.Close() }()
+	if disableHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("disable capture: status=%s body=%s", disableHTTPResp.Status, disableBody)
+	}
+
+	// Half one of the asymmetry: status.capture.ready flips false
+	// immediately (the operator does not wait for the ephemeral container
+	// to actually stop — it can't force that anyway).
+	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		if ready {
+			return false, "status.capture.ready still true"
+		}
+		active, found, _ := unstructured.NestedString(obj.Object, "status", "capture", "activeCapture")
+		if found && active != "" {
+			return false, "status.capture.activeCapture still set to " + active
+		}
+		return true, ""
+	})
+
+	// Half one, continued: a new capture is refused once disabled.
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", map[string]any{
+		"filter":             "tcp port 12345",
+		"maxDurationSeconds": 60,
+		"maxSizeBytes":       1048576,
+	})
+	if err != nil {
+		t.Fatalf("capture-start after disable: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusBadRequest {
+		t.Errorf("capture-start after disable: status=%s body=%s, want 400 (capture not enabled)",
+			startHTTPResp.Status, startBody)
+	}
+
+	// Half two of the asymmetry, the one nobody should ever "fix": the
+	// ephemeral container Kubernetes already injected cannot be removed
+	// through any Kubernetes API (there is no pods/ephemeralcontainers
+	// delete/remove operation), so both its spec entry and its
+	// status.ephemeralContainerStatuses entry legitimately remain on the
+	// pod after disable. This is documented, ratified platform behavior
+	// (see FR-001's amendment and US2 acceptance scenario 4 in spec.md) —
+	// asserting its absence here would be asserting a capability
+	// Kubernetes does not offer.
+	podPostDisable, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod post-disable: %v", err)
+	}
+	specStillPresent := false
+	for _, ec := range podPostDisable.Spec.EphemeralContainers {
+		if ec.Name == "capture" {
+			specStillPresent = true
+			break
+		}
+	}
+	if !specStillPresent {
+		t.Errorf("capture ephemeral container vanished from pod.spec.ephemeralContainers after disable — " +
+			"Kubernetes has no API to remove an ephemeral container; this entry should linger until the pod " +
+			"is recreated (see FR-001's disable amendment)")
+	}
+	statusStillPresent := false
+	for _, cs := range podPostDisable.Status.EphemeralContainerStatuses {
+		if cs.Name == "capture" {
+			statusStillPresent = true
+			break
+		}
+	}
+	if !statusStillPresent {
+		t.Errorf("capture entry vanished from pod.status.ephemeralContainerStatuses after disable — " +
+			"Kubernetes has no API to remove an ephemeral container; this entry should linger until the pod " +
+			"is recreated (see FR-001's disable amendment)")
+	}
+}
+
+// TestGameServer_NetworkCaptureRestartCleanup — a pod deletion mid-capture
+// must not leave the NetworkCapture in Running forever. The reconciler must
+// detect the pod restart (UID mismatch) and transition to Failed with a
+// reason. Furthermore, status.capture.activeCapture must be cleared so the
+// server is not left in a permanently locked state — we verify this by
+// starting a new capture after the pod returns and asserting it succeeds.
+func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-restart-tmpl"
+	gsName := "e2e-cap-restart-gs"
+
+	const matchPort = 12345
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServerWithCapture(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// Wait for the ephemeral capture container to be ready.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		return ready, ""
+	})
+
+	// Start a capture.
+	startReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      300,
+		"maxSizeBytes":            testCaptureMaxSize,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("start capture: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start capture: status=%s body=%s", startHTTPResp.Status, startBody)
+	}
+	var startedCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(startBody, &startedCapture); err != nil {
+		t.Fatalf("parse capture-start response: %v", err)
+	}
+	captureID := startedCapture.CaptureID
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Delete(context.Background(), captureID, metav1.DeleteOptions{})
+	})
+
+	// Wait for the NetworkCapture to reach Running.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		return phase == "Running", ""
+	})
+
+	// Capture the pod UID before deletion so we can detect the restart.
+	podPre, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pod pre-delete: %v", err)
+	}
+	oldPodUID := podPre.UID
+
+	// Delete the pod.
+	if err := envInstance.K8s.CoreV1().Pods(ns).Delete(ctx, gsName+"-0", metav1.DeleteOptions{}); err != nil {
+		t.Fatalf("delete pod: %v", err)
+	}
+
+	// Wait for the pod to be recreated with a new UID.
+	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
+		pod, err := envInstance.K8s.CoreV1().Pods(ns).Get(ctx, gsName+"-0", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pod: " + err.Error()
+		}
+		if pod.UID == oldPodUID {
+			return false, "pod still has old UID"
+		}
+		return true, ""
+	})
+
+	// Wait for the NetworkCapture to transition to Failed. The reconciler
+	// detects the pod UID mismatch and marks the capture as Failed with reason "PodRestarted".
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Failed" {
+			return false, fmt.Sprintf("phase=%s (want Failed)", phase)
+		}
+		// Verify there is a condition with reason "PodRestarted" recorded.
+		conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		for _, c := range conditions {
+			cond, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			if condType, ok := cond["type"].(string); ok && condType == "Failed" {
+				if reason, ok := cond["reason"].(string); ok && reason == "PodRestarted" {
+					return true, ""
+				}
+				return false, fmt.Sprintf("Failed condition has reason=%v message=%v (want reason PodRestarted)", cond["reason"], cond["message"])
+			}
+		}
+		return false, fmt.Sprintf("no Failed condition found in conditions=%v", conditions)
+	})
+
+	// Verify status.capture.activeCapture is cleared on the GameServer.
+	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		activeCapture, found, _ := unstructured.NestedString(obj.Object, "status", "capture", "activeCapture")
+		if found && activeCapture != "" {
+			return false, "status.capture.activeCapture still set to " + activeCapture
+		}
+		return true, ""
+	})
+
+	// Verify that a new capture can be started, proving no state is leaked
+	// and the server is playable again.
+	waitPVCBound(t, ns, gsName+"-data", 30*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// Wait for the sidecar to be ready on the new pod.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		return ready, ""
+	})
+
+	// Start a new capture to prove the lock is released.
+	newStartReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      60,
+		"maxSizeBytes":            1048576,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	newStartHTTPResp, newStartBody, err := cli.Post("/servers/"+gsName+":capture-start", newStartReq)
+	if err != nil {
+		t.Fatalf("start second capture: %v", err)
+	}
+	defer func() { _ = newStartHTTPResp.Body.Close() }()
+	if newStartHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start second capture: status=%s body=%s", newStartHTTPResp.Status, newStartBody)
+	}
+
+	var newCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(newStartBody, &newCapture); err != nil {
+		t.Fatalf("parse second capture-start response: %v", err)
+	}
+	if newCapture.CaptureID == "" {
+		t.Fatalf("second capture-start had no captureId")
+	}
+
+	t.Logf("pod restart handled correctly: first capture Failed after restart, second capture started successfully (captureId=%s)", newCapture.CaptureID)
+}
+
+// TestGameServer_NetworkCaptureConcurrencyRejected — attempting a second
+// capture while one is already Running must be rejected with 409, and the
+// first capture must proceed unaffected. After the first capture completes,
+// a third capture must be allowed to start, verifying that the lock
+// properly releases.
+func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-cap-conc-tmpl"
+	gsName := "e2e-cap-conc-gs"
+
+	const matchPort = 12345
+
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	cli := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer cli.Close()
+
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServerWithCapture(t, ns, gsName, tmpl)
+	waitPVCBound(t, ns, gsName+"-data", 90*time.Second)
+	requireAgentReady(t, ns, gsName)
+
+	// Wait for the sidecar to be ready.
+	envInstance.Eventually(t, 90*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		ready, _, _ := unstructured.NestedBool(obj.Object, "status", "capture", "ready")
+		return ready, ""
+	})
+
+	// Start the first capture.
+	startReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      60,
+		"maxSizeBytes":            1048576,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("start first capture: %v", err)
+	}
+	defer func() { _ = startHTTPResp.Body.Close() }()
+	if startHTTPResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start first capture: status=%s body=%s", startHTTPResp.Status, startBody)
+	}
+
+	var firstCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if err := json.Unmarshal(startBody, &firstCapture); err != nil {
+		t.Fatalf("parse first capture-start response: %v", err)
+	}
+	captureID := firstCapture.CaptureID
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Delete(context.Background(), captureID, metav1.DeleteOptions{})
+	})
+
+	// Immediately attempt a second capture on the same server.
+	// The API handler's fast-path concurrency check should reject this with 409.
+	secondStartResp, secondStartBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
+	if err != nil {
+		t.Fatalf("issue second capture-start: %v", err)
+	}
+	defer func() { _ = secondStartResp.Body.Close() }()
+
+	// The second capture must be rejected with 409 and the exact message.
+	if secondStartResp.StatusCode != http.StatusConflict {
+		t.Errorf("second capture-start: status=%s (want %s) body=%s",
+			secondStartResp.Status, http.StatusText(http.StatusConflict), secondStartBody)
+	} else {
+		// Verify the message matches the contract.
+		if !bytes.Contains(secondStartBody, []byte("capture already in progress")) {
+			t.Errorf("second capture-start: body=%s, want message containing 'capture already in progress'", secondStartBody)
+		}
+	}
+
+	// Wait for the first capture to reach Running to ensure it continues normally.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		return phase == "Running", ""
+	})
+
+	// Stop the first capture.
+	stopHTTPResp, stopBody, err := cli.Post("/servers/"+gsName+":capture-stop", map[string]any{
+		"captureId": captureID,
+	})
+	if err != nil {
+		t.Fatalf("stop first capture: %v", err)
+	}
+	defer func() { _ = stopHTTPResp.Body.Close() }()
+	if stopHTTPResp.StatusCode != http.StatusOK {
+		t.Fatalf("stop first capture: status=%s body=%s", stopHTTPResp.Status, stopBody)
+	}
+
+	// Wait for the first capture to complete.
+	//
+	// NOTE: the API's StopNetworkCapture patches status.phase=Completed
+	// directly and synchronously (api/internal/kube/capture.go) — there is
+	// no reconciler step in between that write and this Get. So phase ==
+	// "Completed" is observable here well before NetworkCaptureReconciler
+	// has told the sidecar to stop and released the GameServer's
+	// status.capture.activeCapture lock (see the "userStoppedMessage"
+	// branch at the top of Reconcile in
+	// operator/internal/controller/networkcapture_controller.go). Waiting
+	// on phase alone races the API's hasActiveCapture fast-path check,
+	// which also consults that lock field — so wait for the lock itself to
+	// clear, not just for the terminal phase.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
+			Get(ctx, captureID, metav1.GetOptions{})
+		if err != nil {
+			return false, "get networkcapture: " + err.Error()
+		}
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		return phase == "Completed", ""
+	})
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		active, _, _ := unstructured.NestedString(obj.Object, "status", "capture", "activeCapture")
+		if active == captureID {
+			return false, "gameserver still reports activeCapture=" + active
+		}
+		return true, ""
+	})
+
+	// Now that the first capture has completed and the operator has
+	// released the GameServer's active-capture lock, starting a new
+	// capture must succeed.
+	thirdStartReq := map[string]any{
+		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
+		"maxDurationSeconds":      60,
+		"maxSizeBytes":            1048576,
+		"ttlSecondsAfterFinished": 86400,
+	}
+	thirdStartResp, thirdStartBody, err := cli.Post("/servers/"+gsName+":capture-start", thirdStartReq)
+	if err != nil {
+		t.Fatalf("start third capture: %v", err)
+	}
+	defer func() { _ = thirdStartResp.Body.Close() }()
+
+	var thirdCapture struct {
+		CaptureID string `json:"captureId"`
+	}
+	if thirdStartResp.StatusCode != http.StatusAccepted {
+		// A non-2xx body here is plain text (see httperr), not JSON — report
+		// the status and body as-is rather than attempting to unmarshal it,
+		// which would just produce a confusing "invalid character" parse
+		// error that hides the real (status) failure.
+		t.Errorf("start third capture: status=%s (want %s) body=%s",
+			thirdStartResp.Status, http.StatusText(http.StatusAccepted), thirdStartBody)
+	} else if err := json.Unmarshal(thirdStartBody, &thirdCapture); err != nil {
+		t.Errorf("parse third capture-start response: %v (body=%s)", err, thirdStartBody)
+	} else if thirdCapture.CaptureID == "" {
+		t.Errorf("third capture-start had no captureId")
+	}
+
+	t.Logf("concurrency correctly enforced: second concurrent start rejected 409, first capture completed normally, third capture allowed (captureId=%s)",
+		thirdCapture.CaptureID)
 }

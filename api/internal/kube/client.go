@@ -43,9 +43,10 @@ var GVRs = map[string]schema.GroupVersionResource{
 // Kept separate from GVRs because /clusters is not a generic CRUD route —
 // it serves the cluster registry and mTLS kubeconfig distribution surface.
 var (
-	GVRCluster      = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "clusters"}
-	GVRModule       = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modules"}
-	GVRModuleSource = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modulesources"}
+	GVRCluster        = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "clusters"}
+	GVRModule         = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modules"}
+	GVRModuleSource   = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "modulesources"}
+	GVRNetworkCapture = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "networkcaptures"}
 )
 
 // New creates a Kubernetes client from the given rest.Config.
