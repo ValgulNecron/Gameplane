@@ -13,6 +13,7 @@ import (
 	unstructuredpkg "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 )
 
 // The api module deliberately has no compile dependency on the operator
@@ -206,13 +207,58 @@ func (c *Client) CreateNetworkCapture(
 	// Pending here via a UpdateStatus call so callers (and the reconciler,
 	// which gates on Status.Phase) see a real phase immediately rather
 	// than waiting on the first reconcile to notice an empty phase.
-	if err := unstructuredpkg.SetNestedField(created.Object, string(CapturePhasePending), "status", "phase"); err != nil {
-		return nil, fmt.Errorf("create network capture %s: set pending phase: %w", captureID, err)
-	}
-	updated, err := c.Dynamic.Resource(GVRNetworkCapture).Namespace(ns).
-		UpdateStatus(ctx, created, metav1.UpdateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("create network capture %s: set pending phase: %w", captureID, err)
+	//
+	// The freshly-created object can legitimately be modified between the
+	// Create above and this UpdateStatus — e.g. the operator's reconciler
+	// picks up the new NetworkCapture and writes a status update of its own
+	// before we get here, which is a normal, expected race (worse under
+	// CI's slower/contended runners), not a client error. A resourceVersion
+	// conflict on that update must not surface as a 500; retry against the
+	// latest version rather than let the conflict escape to the handler.
+	//
+	// `latest` is the object the next attempt writes: `created` for the
+	// first attempt, and nil after a failed one to force a re-fetch. On
+	// success `updated` holds the object the caller gets back, and it is
+	// only ever set on the closure's nil-error paths — so it is non-nil
+	// whenever retryErr == nil.
+	var updated *unstructuredpkg.Unstructured
+	latest := created
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if latest == nil {
+			fresh, getErr := c.Dynamic.Resource(GVRNetworkCapture).Namespace(ns).
+				Get(ctx, captureID, metav1.GetOptions{})
+			if getErr != nil {
+				return fmt.Errorf("re-fetch after conflict: %w", getErr)
+			}
+			latest = fresh
+		}
+		// Never write Pending over a phase the reconciler has already
+		// advanced past. The operator treats an empty phase as Pending
+		// itself (networkcapture_controller.go: `if nc.Status.Phase == ""`),
+		// so this update is a UX convenience, not a precondition — whereas
+		// stomping a Running or Failed it just set would send it back
+		// through the Pending branch and start the capture a second time.
+		if phase, _, err := unstructuredpkg.NestedString(latest.Object, "status", "phase"); err == nil && phase != "" {
+			updated = latest
+			return nil
+		}
+		if err := unstructuredpkg.SetNestedField(latest.Object, string(CapturePhasePending), "status", "phase"); err != nil {
+			return fmt.Errorf("set pending phase: %w", err)
+		}
+		result, err := c.Dynamic.Resource(GVRNetworkCapture).Namespace(ns).
+			UpdateStatus(ctx, latest, metav1.UpdateOptions{})
+		if err != nil {
+			// Both a conflict (retried) and any other failure (returned
+			// as-is by RetryOnConflict) leave `latest` stale; drop it so a
+			// retry starts from a fresh read.
+			latest = nil
+			return err
+		}
+		updated = result
+		return nil
+	})
+	if retryErr != nil {
+		return nil, fmt.Errorf("create network capture %s: set pending phase: %w", captureID, retryErr)
 	}
 
 	result := &NetworkCapture{}
