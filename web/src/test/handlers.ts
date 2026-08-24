@@ -155,19 +155,19 @@ export const handlers = [
   http.delete(/\/servers\/[^/]+:tunnel-credentials$/, () => new HttpResponse(null, { status: 204 })),
 
   // Capture: enable/disable, start/stop, list, get, delete, and file download
-  http.post(/\/servers\/[^/]+:capture-enable$/, () =>
+  http.post(/\/servers\/[^/]+:capture-enable(\?.*)?$/, () =>
     HttpResponse.json({
       name: "server-name",
       status: { capture: { enabled: true } },
     }),
   ),
-  http.post(/\/servers\/[^/]+:capture-disable$/, () =>
+  http.post(/\/servers\/[^/]+:capture-disable(\?.*)?$/, () =>
     HttpResponse.json({
       name: "server-name",
       status: { capture: { enabled: false } },
     }),
   ),
-  http.get(/\/servers\/[^/]+:captures$/, () =>
+  http.get(/\/servers\/[^/]+:captures(\?.*)?$/, () =>
     HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
   ),
   http.get(/\/servers\/[^/]+:capture\?/, () =>
@@ -184,7 +184,7 @@ export const handlers = [
       filter: "tcp port 25565",
     }),
   ),
-  http.post(/\/servers\/[^/]+:capture-start$/, () =>
+  http.post(/\/servers\/[^/]+:capture-start(\?.*)?$/, () =>
     HttpResponse.json(
       {
         captureId: "cap-12345",
@@ -201,7 +201,7 @@ export const handlers = [
       { status: 202 },
     ),
   ),
-  http.post(/\/servers\/[^/]+:capture-stop$/, () =>
+  http.post(/\/servers\/[^/]+:capture-stop(\?.*)?$/, () =>
     HttpResponse.json({
       captureId: "cap-12345",
       serverName: "server-name",

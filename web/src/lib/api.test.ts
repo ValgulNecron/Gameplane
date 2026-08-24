@@ -545,8 +545,8 @@ describe("Captures.download()", () => {
   });
 
   it("throws APIError on non-ok response with error body", async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response("File not found", { status: 404 })
+    fetchMock.mockImplementation(
+      async () => new Response("File not found", { status: 404 })
     );
     await expect(Captures.download("alpha", "cap-12345")).rejects.toMatchObject({
       status: 404,
@@ -556,7 +556,9 @@ describe("Captures.download()", () => {
   });
 
   it("throws APIError on non-ok response with empty body", async () => {
-    fetchMock.mockResolvedValueOnce(new Response("", { status: 500 }));
+    fetchMock.mockImplementation(
+      async () => new Response("", { status: 500 })
+    );
     await expect(Captures.download("alpha", "cap-12345")).rejects.toMatchObject({
       status: 500,
       body: "",

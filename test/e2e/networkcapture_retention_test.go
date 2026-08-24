@@ -189,7 +189,7 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 	}
 
 	// Assert the API omits the expired capture from List before GC deletes it.
-	listHTTPResp, listBody, err := cli.Get("/servers/" + gsName + ":capture-list")
+	listHTTPResp, listBody, err := cli.Get("/servers/" + gsName + ":captures")
 	if err != nil {
 		t.Fatalf("list captures: %v", err)
 	}

@@ -48,7 +48,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: false } },
       });
       server.use(
-        http.post(/servers\/alpha:capture-enable$/, () =>
+        http.post(/servers\/alpha:capture-enable(\?.*)?$/, () =>
           HttpResponse.json({ name: "alpha", status: { capture: { enabled: true } } }),
         ),
       );
@@ -67,7 +67,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: false } },
       });
       server.use(
-        http.post(/servers\/alpha:capture-enable$/, () =>
+        http.post(/servers\/alpha:capture-enable(\?.*)?$/, () =>
           new HttpResponse("permission denied", { status: 403 }),
         ),
       );
@@ -111,7 +111,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true, retentionSeconds: 86400 } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -127,7 +127,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -142,7 +142,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -158,8 +158,8 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () => new Promise(() => {})), // Never resolves
-        http.post(/servers\/alpha:capture-disable$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () => new Promise(() => {})), // Never resolves
+        http.post(/servers\/alpha:capture-disable(\?.*)?$/, () =>
           HttpResponse.json({ name: "alpha", status: { capture: { enabled: false } } }),
         ),
       );
@@ -180,7 +180,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
@@ -207,7 +207,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
@@ -231,7 +231,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
@@ -253,13 +253,13 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
           HttpResponse.json(activeCap),
         ),
-        http.post(/servers\/alpha:capture-stop$/, () =>
+        http.post(/servers\/alpha:capture-stop(\?.*)?$/, () =>
           HttpResponse.json({ ...activeCap, phase: "Completed", completedAt: new Date().toISOString() }),
         ),
       );
@@ -294,7 +294,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed1, completed2], total: 2, limit: 100, offset: 0 }),
         ),
       );
@@ -314,7 +314,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -334,7 +334,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -357,7 +357,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed, failed], total: 2, limit: 100, offset: 0 }),
         ),
       );
@@ -381,7 +381,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture-file\?/, () =>
@@ -428,7 +428,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -454,7 +454,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -482,7 +482,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -500,7 +500,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -522,7 +522,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
         http.delete(/servers\/alpha:capture\?/, () =>
@@ -553,7 +553,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -571,7 +571,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [cap1, cap2], total: 5, limit: 100, offset: 0 }),
         ),
       );
@@ -588,7 +588,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -610,7 +610,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -621,9 +621,12 @@ describe("CaptureWidget", () => {
       await userEvent.click(startBtn);
 
       expect(await screen.findByLabelText(/Packet Filter/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Max Duration/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Max Size/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Retention/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Max duration value/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Max duration unit/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Max size value/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Max size unit/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Retention value/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Retention unit/i)).toBeInTheDocument();
     });
 
     it("starts with default values", async () => {
@@ -631,7 +634,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -657,10 +660,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, () =>
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, () =>
           new HttpResponse("invalid filter syntax: syntax error\n", { status: 400 }),
         ),
       );
@@ -687,10 +690,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, () =>
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, () =>
           new HttpResponse("invalid filter\n", { status: 400 }),
         ),
       );
@@ -717,10 +720,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, () =>
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, () =>
           new HttpResponse("invalid filter\n", { status: 400 }),
         ),
       );
@@ -751,7 +754,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -773,7 +776,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -794,7 +797,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -815,7 +818,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -838,7 +841,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -861,10 +864,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, () =>
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, () =>
           new HttpResponse("invalid filter\n", { status: 400 }),
         ),
       );
@@ -894,10 +897,10 @@ describe("CaptureWidget", () => {
       });
       let captureStartBody: Partial<CaptureStartBody> | null = null;
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async ({ request }) => {
           captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             {
@@ -950,10 +953,10 @@ describe("CaptureWidget", () => {
       });
       let captureStartBody: Partial<CaptureStartBody> | null = null;
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async ({ request }) => {
           captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
@@ -988,10 +991,10 @@ describe("CaptureWidget", () => {
       });
       let captureStartBody: Partial<CaptureStartBody> | null = null;
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async ({ request }) => {
           captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
@@ -1026,10 +1029,10 @@ describe("CaptureWidget", () => {
       });
       let captureStartBody: Partial<CaptureStartBody> | null = null;
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async ({ request }) => {
           captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
@@ -1063,10 +1066,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async () => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async () => {
           await new Promise((r) => setTimeout(r, 100));
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
@@ -1094,10 +1097,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, () =>
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, () =>
           new HttpResponse("server error: pod not running\n", { status: 500 }),
         ),
       );
@@ -1120,7 +1123,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
       );
@@ -1147,10 +1150,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async () => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async () => {
           await new Promise((r) => setTimeout(r, 100));
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
@@ -1176,10 +1179,10 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, () =>
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, () =>
           HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
             { status: 202 },
@@ -1233,28 +1236,45 @@ describe("CaptureWidget", () => {
   });
 
   describe("helper functions coverage (through rendering)", () => {
-    it("formats duration of 0 seconds correctly", () => {
-      const activeCap = makeCapture({
-        phase: "Running",
-        captureId: "cap-active",
-        startedAt: new Date().toISOString(),
-      });
-      const gs = makeServer({
-        spec: { capture: { enabled: true } },
-      });
-      server.use(
-        http.get(/servers\/alpha:captures$/, () =>
-          HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
-        ),
-        http.get(/servers\/alpha:capture\?/, () =>
-          HttpResponse.json(activeCap),
-        ),
-      );
+    it("formats duration of 0 seconds correctly", async () => {
+      // shouldAdvanceTime keeps the fake clock ticking in step with real
+      // time so promise-based infra (msw, TanStack Query, userEvent/
+      // testing-library's findBy* polling) still resolves; a plain
+      // vi.useFakeTimers() freezes those timers and hangs the test.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const now = new Date("2026-08-24T12:00:00Z");
+        vi.setSystemTime(now);
 
-      renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
+        const activeCap = makeCapture({
+          phase: "Running",
+          captureId: "cap-active",
+          startedAt: now.toISOString(),
+        });
+        const gs = makeServer({
+          spec: { capture: { enabled: true } },
+        });
+        server.use(
+          http.get(/servers\/alpha:captures(\?.*)?$/, () =>
+            HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
+          ),
+          http.get(/servers\/alpha:capture\?/, () =>
+            HttpResponse.json(activeCap),
+          ),
+        );
 
-      // formatDuration(0) should display as "0s" through the elapsed message
-      expect(screen.getByText(/Capture started 0s ago/i)).toBeInTheDocument();
+        renderWithQuery(<CaptureWidget name="alpha" ns="gameplane-games" gs={gs} />);
+
+        // formatDuration(0) should display as "0s" through the elapsed
+        // message. The captures list comes from TanStack Query through
+        // msw and resolves asynchronously, so this must be awaited rather
+        // than asserted on the synchronous first render.
+        expect(await screen.findByText(/Capture started 0s ago/i)).toBeInTheDocument();
+      } finally {
+        // Restored unconditionally so a failed assertion above can never
+        // leak fake timers into every later test in this file.
+        vi.useRealTimers();
+      }
     });
 
     it("formats duration correctly with minutes and seconds", async () => {
@@ -1267,7 +1287,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
@@ -1291,7 +1311,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
@@ -1315,7 +1335,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
         http.get(/servers\/alpha:capture\?/, () =>
@@ -1339,7 +1359,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -1360,7 +1380,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -1381,7 +1401,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -1402,7 +1422,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -1423,7 +1443,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -1443,7 +1463,7 @@ describe("CaptureWidget", () => {
         spec: { capture: { enabled: true } },
       });
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
       );
@@ -1460,10 +1480,10 @@ describe("CaptureWidget", () => {
       });
       let captureStartBody: Partial<CaptureStartBody> | null = null;
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async ({ request }) => {
           captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
@@ -1491,10 +1511,10 @@ describe("CaptureWidget", () => {
       });
       let captureStartBody: Partial<CaptureStartBody> | null = null;
       server.use(
-        http.get(/servers\/alpha:captures$/, () =>
+        http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
         ),
-        http.post(/servers\/alpha:capture-start$/, async ({ request }) => {
+        http.post(/servers\/alpha:capture-start(\?.*)?$/, async ({ request }) => {
           captureStartBody = (await request.json()) as Partial<CaptureStartBody>;
           return HttpResponse.json(
             { captureId: "cap-new", phase: "Pending", serverName: "alpha", createdAt: new Date().toISOString(), bytesWritten: 0, packetsWritten: 0 },
