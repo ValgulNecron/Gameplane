@@ -19,6 +19,7 @@ import type {
   ModuleSource,
   PlayersResp,
   Restore,
+  NetworkCapture,
 } from "@/types";
 import type { AllConfig } from "@/lib/config";
 import type { FileEntry } from "@/lib/endpoints";
@@ -293,6 +294,25 @@ export function makeConfig(over: Partial<AllConfig> = {}): AllConfig {
     auth: { providers: [{ name: "local", kind: "local", enabled: true }] },
     notifications: { sinks: [] },
     telemetry: { sendMetrics: false },
+    ...over,
+  };
+}
+
+export function makeCapture(over: Partial<NetworkCapture> = {}): NetworkCapture {
+  return {
+    captureId: "cap-12345",
+    phase: "Completed",
+    serverName: "alpha",
+    filter: "tcp port 25565",
+    maxDurationSeconds: 3600,
+    maxSizeBytes: 104857600, // 100 MB
+    ttlSecondsAfterFinished: 86400, // 24 hours
+    createdAt: "2026-08-23T00:00:00Z",
+    startedAt: "2026-08-23T00:00:00Z",
+    completedAt: "2026-08-23T01:00:00Z",
+    bytesWritten: 1024,
+    packetsWritten: 100,
+    expiresAt: "2026-08-30T00:00:00Z",
     ...over,
   };
 }

@@ -182,6 +182,105 @@ describe("NetworkCaptureSection", () => {
     const sw = await screen.findByRole("switch", { name: /Enable Capture/i });
     await waitFor(() => expect(sw).not.toBeDisabled());
   });
+
+  it("defaults to 'minutes' unit for a 5-minute retention (300 seconds)", async () => {
+    const draft = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, capture: { enabled: true, retentionSeconds: 300 } },
+    };
+    renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
+    const value = await screen.findByLabelText("Retention window value");
+    expect(value).toHaveValue("5");
+    const unit = screen.getByLabelText("Retention window unit") as HTMLSelectElement;
+    expect(unit.value).toBe("minutes");
+  });
+
+  it("defaults to 'seconds' unit for a non-divisible-by-60 retention (61 seconds)", async () => {
+    const draft = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, capture: { enabled: true, retentionSeconds: 61 } },
+    };
+    renderWithQuery(<NetworkCaptureSection draft={draft} onChange={() => {}} />);
+    const value = await screen.findByLabelText("Retention window value");
+    expect(value).toHaveValue("61");
+    const unit = screen.getByLabelText("Retention window unit") as HTMLSelectElement;
+    expect(unit.value).toBe("seconds");
+  });
+
+  it("rejects '0' as the retention value, shows error, and does not call onChange with invalid value", async () => {
+    const draft = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, capture: { enabled: true } },
+    };
+    const onChange = vi.fn();
+    const onValidityChange = vi.fn();
+    renderWithQuery(
+      <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
+    );
+    const value = await screen.findByLabelText("Retention window value");
+    fireEvent.change(value, { target: { value: "0" } });
+
+    expect(screen.getByText(/Enter a positive number\./)).toBeInTheDocument();
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+    // Ensure onChange was never called with retentionSeconds: 0
+    expect(onChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        spec: expect.objectContaining({
+          capture: expect.objectContaining({ retentionSeconds: 0 }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects a negative retention value, shows error, and does not call onChange with invalid value", async () => {
+    const draft = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, capture: { enabled: true } },
+    };
+    const onChange = vi.fn();
+    const onValidityChange = vi.fn();
+    renderWithQuery(
+      <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
+    );
+    const value = await screen.findByLabelText("Retention window value");
+    fireEvent.change(value, { target: { value: "-5" } });
+
+    expect(screen.getByText(/Enter a positive number\./)).toBeInTheDocument();
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+    // Ensure onChange was never called with a negative retentionSeconds
+    expect(onChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        spec: expect.objectContaining({
+          capture: expect.objectContaining({ retentionSeconds: -300 }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects a non-numeric retention value, shows error, and does not call onChange", async () => {
+    const draft = {
+      ...baseDraft,
+      spec: { ...baseDraft.spec, capture: { enabled: true } },
+    };
+    const onChange = vi.fn();
+    const onValidityChange = vi.fn();
+    renderWithQuery(
+      <NetworkCaptureSection draft={draft} onChange={onChange} onValidityChange={onValidityChange} />,
+    );
+    const value = await screen.findByLabelText("Retention window value");
+    fireEvent.change(value, { target: { value: "not-a-number" } });
+
+    expect(screen.getByText(/Enter a positive number\./)).toBeInTheDocument();
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+    // onChange should not be called with any valid retentionSeconds when input is invalid
+    const calls = onChange.mock.calls;
+    const hasValidCall = calls.some((c) =>
+      c[0]?.spec?.capture?.retentionSeconds !== undefined &&
+      typeof c[0]?.spec?.capture?.retentionSeconds === "number" &&
+      Number.isFinite(c[0]?.spec?.capture?.retentionSeconds),
+    );
+    expect(hasValidCall).toBe(false);
+  });
 });
 
 describe("Settings sub-nav — Network capture position", () => {
