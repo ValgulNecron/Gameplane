@@ -267,9 +267,9 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
     - `TLS_CA_FILE=/etc/tls/ca.crt` — CA bundle for verifying agent server cert
   - **SecurityContext:**
     - `RunAsNonRoot: true` — container runs as unprivileged user (no root)
-    - `AllowPrivilegeEscalation: true` — **CRITICAL:** Must be true for file capabilities (CAP_NET_RAW/CAP_NET_ADMIN via setcap on the capture binary) to work. Kernel only honors setcap'd capabilities on exec when no_new_privs is off; combined with Capabilities.Drop: ["ALL"] below, the container starts with zero capabilities but the setcap'd binary gains them at exec time
+    - `AllowPrivilegeEscalation: true` — **CRITICAL:** Must be true for file capabilities (CAP_NET_RAW/CAP_NET_ADMIN via setcap on the capture binary) to work. Kernel only honors setcap'd capabilities on exec when no_new_privs is off; combined with Capabilities.Drop: ["ALL"]/Add: ["NET_RAW"] below, the container starts with zero effective capabilities but the setcap'd binary gains CAP_NET_RAW at exec time
     - `ReadOnlyRootFilesystem: true` — mounts /tmp/captures and /etc/tls as the only writable paths
-    - `Capabilities: Drop: ["ALL"]` — no ambient capabilities; sidecar binary gains CAP_NET_RAW via file capabilities at exec, never through container capabilities
+    - `Capabilities: Drop: ["ALL"], Add: ["NET_RAW"]` — Drop ALL empties the process's effective capability set (no ambient capabilities are set either). Drop ALL alone would also empty the *bounding* set, which makes the kernel refuse to grant the setcap'd binary's file capability at execve (EPERM) — so NET_RAW is re-added to keep it in the bounding set. The grant itself still comes from the binary's file capability (setcap cap_net_raw+ep) at exec, never from this Add alone.
   - **No imagePullPolicy set** — inherits from pod spec (usually IfNotPresent or Always per deployment)
 - **Concurrency enforcement:** see "Edge cases" below.
 - **mTLS client reuse:** `operator/internal/agent/sidecar_capture.go`'s `CaptureClient` reuses the agent's existing mTLS http.Client (same CA cert/client cert/private key material) and addresses the sidecar via Service DNS: `https://<gs>-agent.<ns>.svc.cluster.local:9091`

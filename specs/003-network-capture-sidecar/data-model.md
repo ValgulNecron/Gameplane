@@ -456,17 +456,28 @@ FR-008.
 
 The capture sidecar gets raw-socket access via a **file capability** on its binary
 (`setcap cap_net_raw+ep`), not by running the container as root and not via the pod/container
-`securityContext.capabilities.add` field:
+`securityContext.capabilities.add` field granting it directly — `add: ["NET_RAW"]` IS still set
+below, but only to preserve NET_RAW in the process's bounding set against `drop: ["ALL"]`; see the
+inline comment:
 
 ```go
 SecurityContext: &corev1.SecurityContext{
     RunAsNonRoot:             ptrTo(true),
     AllowPrivilegeEscalation: ptrTo(true), // required — see below; this is the accepted trade-off
     ReadOnlyRootFilesystem:   ptrTo(true),
-    // NOTE: no Capabilities.Add here. Kubernetes does not set ambient capabilities, so
-    // capabilities.add: ["NET_RAW"] combined with a non-root runAsUser grants nothing — the
-    // effective capability set is cleared on execve. The capability is granted at image-build
-    // time instead, via `setcap cap_net_raw+ep` on the sidecar binary.
+    Capabilities: &corev1.Capabilities{
+        Drop: []corev1.Capability{"ALL"},      // empty effective set
+        Add:  []corev1.Capability{"NET_RAW"},  // keep NET_RAW in bounding set
+    },
+    // Drop ALL empties the effective capability set, preventing unintended
+    // privilege escalation. However, it would also empty the bounding set,
+    // which would cause execve of the setcap'd binary to fail with EPERM
+    // (the kernel cannot grant a file capability that is not in the bounding
+    // set, even if the file has the capability granted via setcap). Re-adding
+    // NET_RAW keeps it in the bounding set only — the process still starts
+    // with no effective capabilities, but the kernel can now grant NET_RAW
+    // when executing the setcap'd binary. The capability is granted at
+    // image-build time via `setcap cap_net_raw+ep` on the sidecar binary.
 },
 ```
 

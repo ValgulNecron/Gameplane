@@ -1139,16 +1139,19 @@ kubectl get pod "$POD_B" -o jsonpath='{.spec.ephemeralContainers}'
    - **Fix**: Build and push capture sidecar image; verify image URI in operator code
 
 2. **Raw-socket access not effective**: per the accepted design (see `research.md`/`data-model.md`
-   D-SETCAP), the capture container does **not** request `capabilities.add: ["NET_RAW"]` under a
-   non-root `runAsUser` — Kubernetes does not set ambient capabilities, so that combination grants
-   nothing (the effective set is cleared on `execve`). Raw-socket access instead comes from a FILE
-   capability (`setcap cap_net_raw+ep`) baked onto the capture binary at image-build time, which
-   only takes effect if the container also sets `allowPrivilegeEscalation: true` — file
+   D-SETCAP), the capture container does **not** rely on `capabilities.add: ["NET_RAW"]` alone under
+   a non-root `runAsUser` — Kubernetes does not set ambient capabilities, so that combination by
+   itself grants nothing (the effective set is cleared on `execve`). Raw-socket access instead comes
+   from a FILE capability (`setcap cap_net_raw+ep`) baked onto the capture binary at image-build
+   time, which only takes effect if the container also sets `allowPrivilegeEscalation: true` — file
    capabilities are ignored under `no_new_privs`, which is what `allowPrivilegeEscalation: false`
    enforces. `runAsNonRoot` is preserved; `allowPrivilegeEscalation` is the deliberate trade-off
-   given up for it. A "restricted" PodSecurity profile forbids `allowPrivilegeEscalation: true`, so
-   the games namespace needs a documented admission exception for this container (see
-   `docs/security.md`).
+   given up for it. The container's `securityContext.capabilities` also lists `add: ["NET_RAW"]`
+   alongside `drop: ["ALL"]` — not because `add` grants anything, but because `drop: ["ALL"]` on its
+   own would empty the process's *bounding* set too, and the kernel refuses to grant the setcap'd
+   file capability at `execve` if NET_RAW isn't in the bounding set. A "restricted" PodSecurity
+   profile forbids `allowPrivilegeEscalation: true`, so the games namespace needs a documented
+   admission exception for this container (see `docs/security.md`).
    - **Check**: `kubectl describe pod <pod-name> | grep -i "securitycontext\|capability\|allowPrivilegeEscalation"`
    - **Fix**: Exempt the games namespace from the restricted admission's
      `allowPrivilegeEscalation` check for this container, and confirm `cap_net_raw+ep` is actually

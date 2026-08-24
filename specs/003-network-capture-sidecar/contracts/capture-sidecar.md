@@ -11,7 +11,7 @@ This document specifies the contract between the Kubernetes operator and the cap
 
 ## Overview
 
-The capture sidecar is an optional ephemeral container added to game pods when `spec.capture.enabled = true`. It runs as a non-root user and obtains raw-socket access from a **file capability** (`cap_net_raw+ep`) set on its own binary — not from `securityContext.capabilities.add`, and not by running as root. See "Raw-socket access (`CAP_NET_RAW`)" below for why, and for the trade-offs that choice forces. The sidecar communicates with:
+The capture sidecar is an optional ephemeral container added to game pods when `spec.capture.enabled = true`. It runs as a non-root user and obtains raw-socket access from a **file capability** (`cap_net_raw+ep`) set on its own binary — not by running as root, and not by `securityContext.capabilities.add` alone. See "Raw-socket access (`CAP_NET_RAW`)" below for why, and for the trade-offs that choice forces. The sidecar communicates with:
 - **The operator**: Via the NetworkCapture CRD's spec and status fields (Kubernetes-native state machine).
 - **The API server**: For trigger commands and status polling (mTLS-authenticated HTTP).
 - **Pre-provisioned emptyDir volume**: For writing captured `.pcapng` files. The volume is declared
@@ -66,11 +66,16 @@ spec:
       runAsNonRoot: true
       runAsUser: 65532  # nonroot user
       # Raw-socket access comes from a FILE capability on the binary
-      # (setcap cap_net_raw+ep), not from capabilities.add — Kubernetes sets no
-      # ambient capabilities, so `add: ["NET_RAW"]` under a non-root runAsUser
-      # grants nothing: the effective set is cleared on execve.
+      # (setcap cap_net_raw+ep) — Kubernetes sets no ambient capabilities, so
+      # `add: ["NET_RAW"]` alone under a non-root runAsUser grants nothing:
+      # the effective set is cleared on execve. `add: ["NET_RAW"]` IS listed
+      # below anyway, but only to counter `drop: ["ALL"]` also emptying the
+      # bounding set — without NET_RAW in the bounding set, the kernel
+      # refuses to grant the setcap'd binary's file capability at execve
+      # (EPERM). The process's own effective set is still empty at start.
       capabilities:
         drop: ["ALL"]
+        add: ["NET_RAW"]
       # REQUIRED, and deliberate: file capabilities are ignored under no_new_privs,
       # which is what allowPrivilegeEscalation: false sets. See "Raw-socket access".
       allowPrivilegeEscalation: true
@@ -147,17 +152,25 @@ Packet capture needs `CAP_NET_RAW` for `AF_PACKET` sockets. The capture containe
 **file capability on its own binary** (`setcap cap_net_raw+ep /capture`), while still running as
 non-root (UID 65532).
 
-*Why not `securityContext.capabilities.add: ["NET_RAW"]`?* Because Kubernetes does not set **ambient**
-capabilities. With a non-root `runAsUser`, the effective capability set is cleared on `execve`, so
-`add: ["NET_RAW"]` grants the process nothing. The listed capability would look correct in the pod
-spec and the socket would still fail with `EPERM`.
+*Why not `securityContext.capabilities.add: ["NET_RAW"]` alone?* Because Kubernetes does not set
+**ambient** capabilities. With a non-root `runAsUser`, the effective capability set is cleared on
+`execve`, so `add: ["NET_RAW"]` by itself grants the process nothing. The listed capability would
+look correct in the pod spec and the socket would still fail with `EPERM`.
+
+The pod spec *does* list `add: ["NET_RAW"]` (alongside `drop: ["ALL"]`) — but not because `add`
+grants the capability. `drop: ["ALL"]` on its own empties the process's *bounding* capability set as
+well as its effective set, and the kernel refuses to grant a file capability at `execve` that is not
+in the bounding set (the socket open would fail with `EPERM`, exactly as in the naive-`add`-only
+case above, but for a different reason). Re-adding `NET_RAW` keeps it in the bounding set so the
+setcap'd binary's file capability can still be granted; the process's effective set is still empty at
+container start. The actual grant remains the file capability on the binary, not this `add`.
 
 Three consequences, all of which are accepted costs rather than solved problems:
 
 1. **`allowPrivilegeEscalation: true` is mandatory for this container.** File capabilities are
    ignored under `no_new_privs`, which is exactly what `allowPrivilegeEscalation: false` sets. The
    trade is explicit: `runAsNonRoot: true` is preserved, `allowPrivilegeEscalation: false` is given
-   up. Everything else stays locked down (`drop: ["ALL"]`, `readOnlyRootFilesystem: true`).
+   up. Everything else stays locked down (`drop: ["ALL"]` plus the bounding-set-only `add: ["NET_RAW"]`, `readOnlyRootFilesystem: true`).
 2. **The `restricted` PodSecurity profile forbids `allowPrivilegeEscalation: true`.** A game
    namespace running under `restricted` cannot admit this pod. That namespace therefore needs a
    documented PodSecurity exception, and recording it is an obligation on `docs/security.md` — not

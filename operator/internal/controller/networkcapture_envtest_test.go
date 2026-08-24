@@ -657,8 +657,15 @@ func TestGameServerCapture_EnableInjectsEphemeralContainer(t *testing.T) {
 		if sc.AllowPrivilegeEscalation == nil || !*sc.AllowPrivilegeEscalation {
 			return false, "AllowPrivilegeEscalation not true (required: file capabilities are ignored under no_new_privs)"
 		}
-		if sc.Capabilities == nil || len(sc.Capabilities.Add) != 0 {
-			return false, "capabilities.add must never be set for the capture sidecar (file capabilities only)"
+		// Drop ALL + Add NET_RAW: empties effective set but keeps NET_RAW
+		// in bounding set, allowing the kernel to grant the setcap'd
+		// binary's file capability at execve (would fail with EPERM if
+		// NET_RAW were dropped).
+		if sc.Capabilities == nil {
+			return false, "capabilities not set"
+		}
+		if len(sc.Capabilities.Add) != 1 || sc.Capabilities.Add[0] != "NET_RAW" {
+			return false, fmt.Sprintf("capabilities.add = %v, want [NET_RAW]", sc.Capabilities.Add)
 		}
 		if len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
 			return false, fmt.Sprintf("capabilities.drop = %v, want [ALL]", sc.Capabilities.Drop)

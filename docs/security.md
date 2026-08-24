@@ -226,16 +226,25 @@ profile.
 **Why the exception is necessary**: The sidecar acquires `CAP_NET_RAW` capability
 via file capabilities (`setcap cap_net_raw+ep`), applied at container image build
 time. This mechanism is necessary because Kubernetes does not set ambient
-capabilities on a container's process by default. Without ambient capabilities,
-the alternative approach — declaring `securityContext.capabilities.add:
-["NET_RAW"]` on a non-root user — fails: the kernel clears the effective
-capability set when the entrypoint binary is executed (via `execve`), leaving the
-non-root process with no capabilities. File capabilities survive this exec because
-they are consulted independently by the kernel at exec time, independent of
-ambient state. However, file capabilities are ignored by the kernel when
-`no_new_privs` is set, and Kubernetes sets `no_new_privs` whenever
-`allowPrivilegeEscalation: false`. Therefore, the container must set
-`allowPrivilegeEscalation: true` for the file capability to function.
+capabilities on a container's process by default: declaring
+`securityContext.capabilities.add: ["NET_RAW"]` alone on a non-root user grants
+nothing — the kernel clears the effective capability set when the entrypoint
+binary is executed (via `execve`), leaving the non-root process with no
+capabilities. File capabilities survive this exec because they are consulted
+independently by the kernel at exec time, independent of ambient state.
+
+The container's `securityContext.capabilities` still lists
+`Drop: ["ALL"], Add: ["NET_RAW"]`, but that `Add` is not what grants the
+capability — it exists only because `Drop: ["ALL"]` on its own would also empty
+the process's *bounding* capability set, and the kernel refuses to grant a file
+capability at `execve` that isn't in the bounding set (EPERM). Re-adding NET_RAW
+keeps it available in the bounding set so the file capability grant can proceed;
+the process's own *effective* set is still empty at start, and the actual grant
+comes from the setcap'd binary at exec, not from `capabilities.add`. Separately,
+file capabilities are ignored by the kernel when `no_new_privs` is set, and
+Kubernetes sets `no_new_privs` whenever `allowPrivilegeEscalation: false`.
+Therefore, the container must also set `allowPrivilegeEscalation: true` for the
+file capability to function.
 
 The game container retains its unprivileged posture: `runAsNonRoot: true`,
 `allowPrivilegeEscalation: false`, and no elevated capabilities. Only the capture

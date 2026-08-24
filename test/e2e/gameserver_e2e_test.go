@@ -800,8 +800,13 @@ func TestGameServer_NetworkCaptureEphemeralContainer(t *testing.T) {
 	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
 		t.Errorf("capture ephemeral container runAsNonRoot = %v, want true", sc.RunAsNonRoot)
 	}
-	if sc.Capabilities != nil && len(sc.Capabilities.Add) != 0 {
-		t.Errorf("capture ephemeral container securityContext.capabilities.add = %v, want none (file capabilities only)",
+	// Drop ALL + Add NET_RAW: Drop ALL alone would empty the bounding set,
+	// which makes the kernel refuse to grant the setcap'd binary's file
+	// capability at execve (EPERM). Re-adding NET_RAW keeps it in the
+	// bounding set only; the capability grant itself still comes from the
+	// binary's file capability (setcap cap_net_raw+ep), not from this Add.
+	if sc.Capabilities == nil || len(sc.Capabilities.Add) != 1 || sc.Capabilities.Add[0] != corev1.Capability("NET_RAW") {
+		t.Errorf("capture ephemeral container securityContext.capabilities.add = %v, want [NET_RAW]",
 			sc.Capabilities.Add)
 	}
 

@@ -1558,20 +1558,29 @@ func buildCaptureEphemeralContainer(image string) corev1.EphemeralContainer {
 				// AllowPrivilegeEscalation must stay true: the capture
 				// binary relies on Linux file capabilities (CAP_NET_RAW,
 				// granted via `setcap` on the executable in the
-				// Dockerfile — never securityContext.capabilities.add) to
-				// open a raw socket, and the kernel only honors a file
-				// capability grant on exec when no_new_privs is off.
-				// capabilities.add is deliberately never used here:
-				// Kubernetes grants no ambient capabilities, so a
-				// non-root process's effective capability set is cleared
-				// on execve regardless of what capabilities.add lists —
-				// only the setcap'd binary's file-capability grant
-				// survives that exec. Combined with RunAsNonRoot and
-				// Capabilities.Drop: ["ALL"] below, the container process
-				// itself still starts with zero capabilities of its own.
+				// Dockerfile) to open a raw socket, and the kernel only
+				// honors a file capability grant on exec when no_new_privs
+				// is off. Drop ALL alone would also empty the process's
+				// bounding set, and execve() of a binary carrying
+				// cap_net_raw+ep computes the new permitted set as
+				// (bounding & fP) | (inheritable & fI): with NET_RAW
+				// missing from bounding, that computed permitted set can't
+				// contain the file's (effective) NET_RAW, so the kernel
+				// fails the exec itself with EPERM — the sidecar would
+				// never start, not merely start without the capability.
+				// Re-adding NET_RAW keeps it in the bounding set so exec
+				// succeeds and the file capability can be granted. This
+				// Add does NOT itself grant NET_RAW — Kubernetes sets no
+				// ambient capabilities, so the process's own effective set
+				// is still empty at container start; only the setcap'd
+				// binary's file-capability grant at execve makes NET_RAW
+				// effective.
 				AllowPrivilegeEscalation: ptrTo(true),
 				ReadOnlyRootFilesystem:   ptrTo(true),
-				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+					Add:  []corev1.Capability{"NET_RAW"},
+				},
 				// Matches buildAgentContainer's fixed distroless
 				// SecurityContext — the same seccomp posture every other
 				// operator-injected sidecar in this repo runs under.
