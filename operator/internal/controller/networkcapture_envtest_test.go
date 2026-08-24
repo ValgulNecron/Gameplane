@@ -104,7 +104,7 @@ func buildNetworkCapture(ns, name, gsName, filter string) *gameplanev1alpha1.Net
 			ServerRef:   corev1.LocalObjectReference{Name: gsName},
 			Filter:      ptrTo(filter),
 			MaxDuration: &metav1.Duration{Duration: 5 * time.Minute},
-			MaxSize:     resource.NewQuantity(5368709120, resource.BinarySI),
+			MaxSize:     resource.NewQuantity(10485760, resource.BinarySI), // 10 MiB, well below 900 MiB limit
 		},
 		Status: gameplanev1alpha1.NetworkCaptureStatus{
 			Phase: gameplanev1alpha1.CapturePhasePending,

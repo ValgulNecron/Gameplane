@@ -35,6 +35,11 @@ var (
 	networkCaptureGVR = schema.GroupVersionResource{Group: "gameplane.local", Version: "v1alpha1", Resource: "networkcaptures"}
 )
 
+// testCaptureMaxSize is the maximum size requested in capture-start calls.
+// Must stay at or below charts/gameplane/values.yaml's capture.defaultMaxSizeBytes (900 MiB).
+// This is well below that limit to avoid hitting the emptyDir sizeLimit (1 GiB).
+const testCaptureMaxSize = 10485760 // 10 MiB
+
 // TestGameServer_OperatorMaterializesChildren — apply a tiny template
 // + a GameServer that references it. The operator must produce a
 // StatefulSet, Service, and PVC. We do NOT wait for pods to reach
@@ -409,7 +414,7 @@ func TestGameServer_NetworkCaptureStartStopDownload(t *testing.T) {
 	startReq := map[string]any{
 		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
 		"maxDurationSeconds":      300,
-		"maxSizeBytes":            5368709120,
+		"maxSizeBytes":            testCaptureMaxSize,
 		"ttlSecondsAfterFinished": 86400,
 	}
 	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
@@ -982,7 +987,7 @@ func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
 	startReq := map[string]any{
 		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
 		"maxDurationSeconds":      300,
-		"maxSizeBytes":            5368709120,
+		"maxSizeBytes":            testCaptureMaxSize,
 		"ttlSecondsAfterFinished": 86400,
 	}
 	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)
@@ -1225,6 +1230,18 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 	}
 
 	// Wait for the first capture to complete.
+	//
+	// NOTE: the API's StopNetworkCapture patches status.phase=Completed
+	// directly and synchronously (api/internal/kube/capture.go) — there is
+	// no reconciler step in between that write and this Get. So phase ==
+	// "Completed" is observable here well before NetworkCaptureReconciler
+	// has told the sidecar to stop and released the GameServer's
+	// status.capture.activeCapture lock (see the "userStoppedMessage"
+	// branch at the top of Reconcile in
+	// operator/internal/controller/networkcapture_controller.go). Waiting
+	// on phase alone races the API's hasActiveCapture fast-path check,
+	// which also consults that lock field — so wait for the lock itself to
+	// clear, not just for the terminal phase.
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
 		obj, err := envInstance.Dyn.Resource(networkCaptureGVR).Namespace(ns).
 			Get(ctx, captureID, metav1.GetOptions{})
@@ -1234,8 +1251,22 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
 		return phase == "Completed", ""
 	})
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+		active, _, _ := unstructured.NestedString(obj.Object, "status", "capture", "activeCapture")
+		if active == captureID {
+			return false, "gameserver still reports activeCapture=" + active
+		}
+		return true, ""
+	})
 
-	// Now that the first capture has completed, starting a new capture must succeed.
+	// Now that the first capture has completed and the operator has
+	// released the GameServer's active-capture lock, starting a new
+	// capture must succeed.
 	thirdStartReq := map[string]any{
 		"filter":                  fmt.Sprintf("tcp port %d", matchPort),
 		"maxDurationSeconds":      60,
@@ -1247,16 +1278,19 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 		t.Fatalf("start third capture: %v", err)
 	}
 	defer func() { _ = thirdStartResp.Body.Close() }()
-	if thirdStartResp.StatusCode != http.StatusAccepted {
-		t.Errorf("start third capture: status=%s (want %s) body=%s",
-			thirdStartResp.Status, http.StatusText(http.StatusAccepted), thirdStartBody)
-	}
 
 	var thirdCapture struct {
 		CaptureID string `json:"captureId"`
 	}
-	if err := json.Unmarshal(thirdStartBody, &thirdCapture); err != nil {
-		t.Logf("parse third capture-start response: %v (body=%s)", err, thirdStartBody)
+	if thirdStartResp.StatusCode != http.StatusAccepted {
+		// A non-2xx body here is plain text (see httperr), not JSON — report
+		// the status and body as-is rather than attempting to unmarshal it,
+		// which would just produce a confusing "invalid character" parse
+		// error that hides the real (status) failure.
+		t.Errorf("start third capture: status=%s (want %s) body=%s",
+			thirdStartResp.Status, http.StatusText(http.StatusAccepted), thirdStartBody)
+	} else if err := json.Unmarshal(thirdStartBody, &thirdCapture); err != nil {
+		t.Errorf("parse third capture-start response: %v (body=%s)", err, thirdStartBody)
 	} else if thirdCapture.CaptureID == "" {
 		t.Errorf("third capture-start had no captureId")
 	}

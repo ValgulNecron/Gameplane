@@ -14,6 +14,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// testRetentionCaptureMaxSize is the maximum size for retention testing.
+// Must stay at or below charts/gameplane/values.yaml's capture.defaultMaxSizeBytes (900 MiB).
+// For retention/TTL tests, the actual file size is immaterial; we use a minimal value.
+const testRetentionCaptureMaxSize = 1048576 // 1 MiB
+
 // TestNetworkCapture_RetentionExpiry asserts that a completed capture whose
 // TTL has elapsed transitions to Expired phase, is cleaned up by the
 // reconciler, and is immediately refused by the API before GC removes the CR.
@@ -66,7 +71,7 @@ func TestNetworkCapture_RetentionExpiry(t *testing.T) {
 	startReq := map[string]any{
 		"filter":                  "tcp port 12345",
 		"maxDurationSeconds":      300,
-		"maxSizeBytes":            5368709120,
+		"maxSizeBytes":            testRetentionCaptureMaxSize,
 		"ttlSecondsAfterFinished": 60,
 	}
 	startHTTPResp, startBody, err := cli.Post("/servers/"+gsName+":capture-start", startReq)

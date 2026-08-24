@@ -134,7 +134,7 @@ func TestMain(m *testing.M) {
 		DefaultRetentionSeconds: 86400,
 		MaxRetentionSeconds:     604800,
 		DefaultMaxDurationSecs:  300,
-		DefaultMaxSizeBytes:     5368709120,
+		DefaultMaxSizeBytes:     943718400, // 900 MiB, matching production (charts/gameplane/values.yaml)
 	}, "", "", "")
 
 	apiSrv = httptest.NewServer(mountedR)

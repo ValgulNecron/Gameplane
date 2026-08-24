@@ -42,7 +42,7 @@ func TestCapture_StartStopDownload(t *testing.T) {
 		startReq := map[string]any{
 			"filter":                  "tcp port 25565",
 			"maxDurationSeconds":      300,
-			"maxSizeBytes":            int64(5368709120),
+			"maxSizeBytes":            int64(10485760), // 10 MiB, well below 900 MiB limit
 			"ttlSecondsAfterFinished": int64(86400),
 		}
 		resp := doJSON(t, http.MethodPost, "/servers/"+serverName+":capture-start", startReq)
@@ -78,7 +78,7 @@ func TestCapture_StartStopDownload(t *testing.T) {
 		startReq := map[string]any{
 			"filter":             "tcp port 25565",
 			"maxDurationSeconds": 300,
-			"maxSizeBytes":       int64(5368709120),
+			"maxSizeBytes":       int64(10485760), // 10 MiB, well below 900 MiB limit
 		}
 		resp := doJSON(t, http.MethodPost, "/servers/"+serverName+":capture-start", startReq)
 		defer resp.Body.Close()
@@ -194,7 +194,7 @@ func TestCapture_InvalidFilter(t *testing.T) {
 	resp := doJSON(t, http.MethodPost, "/servers/"+serverName+":capture-start", map[string]any{
 		"filter":             "invalid filter expression %%%",
 		"maxDurationSeconds": 300,
-		"maxSizeBytes":       int64(5368709120),
+		"maxSizeBytes":       int64(10485760), // 10 MiB, well below 900 MiB limit
 	})
 	defer resp.Body.Close()
 
@@ -216,7 +216,7 @@ func TestCapture_TTLExceedsMax(t *testing.T) {
 	resp := doJSON(t, http.MethodPost, "/servers/"+serverName+":capture-start", map[string]any{
 		"filter":                  "tcp port 25565",
 		"maxDurationSeconds":      300,
-		"maxSizeBytes":            int64(5368709120),
+		"maxSizeBytes":            int64(10485760), // 10 MiB, well below 900 MiB limit
 		"ttlSecondsAfterFinished": int64(10000000), // way over the 604800 max
 	})
 	defer resp.Body.Close()
@@ -231,7 +231,7 @@ func TestCapture_TTLExceedsMax(t *testing.T) {
 }
 
 // TestCapture_MaxSizeExceedsClusterMax tests that maxSizeBytes above the
-// cluster's configured cap (5368709120 in this suite) is rejected.
+// cluster's configured cap (943718400 / 900 MiB in this suite) is rejected.
 func TestCapture_MaxSizeExceedsClusterMax(t *testing.T) {
 	serverName := uniqueResourceName("cap-size")
 	createCaptureTestServer(t, serverName, true)
@@ -261,7 +261,7 @@ func TestCapture_MissingCaptureEnabled(t *testing.T) {
 	resp := doJSON(t, http.MethodPost, "/servers/"+serverName+":capture-start", map[string]any{
 		"filter":             "tcp port 25565",
 		"maxDurationSeconds": 300,
-		"maxSizeBytes":       int64(5368709120),
+		"maxSizeBytes":       int64(10485760), // 10 MiB, well below 900 MiB limit
 	})
 	defer resp.Body.Close()
 
@@ -280,7 +280,7 @@ func TestCapture_ServerNotFound(t *testing.T) {
 	resp := doJSON(t, http.MethodPost, "/servers/"+uniqueResourceName("cap-missing")+":capture-start", map[string]any{
 		"filter":             "tcp port 25565",
 		"maxDurationSeconds": 300,
-		"maxSizeBytes":       int64(5368709120),
+		"maxSizeBytes":       int64(10485760), // 10 MiB, well below 900 MiB limit
 	})
 	defer resp.Body.Close()
 
