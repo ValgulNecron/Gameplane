@@ -112,7 +112,11 @@ export const handlers = [
       ],
     }),
   ),
-  http.get("/servers/:name", ({ params }) =>
+  // `:name([^:/]+)` excludes ':' so this never swallows a `name:verb` colon-action
+  // URL (e.g. `alpha:capture`) meant for one of the regex handlers below — a
+  // dead/misordered colon-action handler should 404 as unhandled, not silently
+  // return a plausible-looking server here.
+  http.get("/servers/:name([^:/]+)", ({ params }) =>
     HttpResponse.json(makeServer({ metadata: { name: String(params.name) } })),
   ),
   http.post("/servers", async ({ request }) => {
@@ -125,10 +129,11 @@ export const handlers = [
       }),
     );
   }),
-  http.put("/servers/:name", ({ params }) =>
+  // See the GET /servers/:name comment above — same colon-exclusion reasoning.
+  http.put("/servers/:name([^:/]+)", ({ params }) =>
     HttpResponse.json(makeServer({ metadata: { name: String(params.name) } })),
   ),
-  http.delete("/servers/:name", () => new HttpResponse(null, { status: 204 })),
+  http.delete("/servers/:name([^:/]+)", () => new HttpResponse(null, { status: 204 })),
 
   // Lifecycle: chi uses `:verb` literal-colon URL syntax, which standard
   // URL pattern matchers don't parse — fall back to regex per verb.
@@ -146,6 +151,9 @@ export const handlers = [
       }),
     );
   }),
+  http.post(/\/servers\/[^/]+:wipe-data$/, () => new HttpResponse(null, { status: 202 })),
+  http.post(/\/servers\/[^/]+:transfer$/, () => new HttpResponse(null, { status: 204 })),
+  http.put(/\/servers\/[^/]+:collaborators$/, () => new HttpResponse(null, { status: 204 })),
 
   // Tunnel credentials: GET returns configured status, PUT sets credentials, DELETE removes.
   http.get(/\/servers\/[^/]+:tunnel-credentials$/, () =>
@@ -170,7 +178,7 @@ export const handlers = [
   http.get(/\/servers\/[^/]+:captures(\?.*)?$/, () =>
     HttpResponse.json({ captures: [], total: 0, limit: 100, offset: 0 }),
   ),
-  http.get(/\/servers\/[^/]+:capture\?/, () =>
+  http.get(/\/servers\/[^/]+:capture$/, () =>
     HttpResponse.json({
       captureId: "cap-12345",
       serverName: "server-name",
@@ -215,10 +223,10 @@ export const handlers = [
       filter: "tcp port 25565",
     }),
   ),
-  http.delete(/\/servers\/[^/]+:capture\?/, () =>
+  http.delete(/\/servers\/[^/]+:capture$/, () =>
     HttpResponse.json({ deleted: true, captureId: "cap-12345" }),
   ),
-  http.get(/\/servers\/[^/]+:capture-file\?/, () =>
+  http.get(/\/servers\/[^/]+:capture-file$/, () =>
     new HttpResponse(new Blob(["mock pcapng data"]), {
       headers: { "Content-Type": "application/octet-stream" },
     }),

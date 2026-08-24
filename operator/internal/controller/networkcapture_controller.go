@@ -438,6 +438,17 @@ func (r *NetworkCaptureReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if observedUID := nc.Annotations[capturePodUIDAnnotation]; observedUID != "" && observedUID != string(pod.UID) {
 			return r.failWithReason(ctx, &nc, "PodRestarted", "game pod was deleted and recreated while the capture was running")
 		}
+		// A pod mid-deletion (DeletionTimestamp set, same UID, not yet gone)
+		// is already a restart in progress: its sidecar is going down along
+		// with it. Without this check, a reconcile landing in that window
+		// falls through to the GetCaptureStatus call below, which fails for
+		// the same reason (the sidecar it's talking to is shutting down) and
+		// gets misreported through the generic fail() path as "sidecar
+		// unreachable" instead of the real cause. Catch it here, before that
+		// race can decide which message wins.
+		if pod.DeletionTimestamp != nil {
+			return r.failWithReason(ctx, &nc, "PodRestarted", "game pod is terminating (restart in progress)")
+		}
 		if cs := captureEphemeralContainerStatus(&pod); cs != nil && cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
 			return r.failWithReason(ctx, &nc, "SidecarCrashed",
 				fmt.Sprintf("capture sidecar exited unexpectedly (exit code %d, reason %s)",

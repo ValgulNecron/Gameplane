@@ -1068,7 +1068,7 @@ func TestGameServer_NetworkCaptureRestartCleanup(t *testing.T) {
 				if reason, ok := cond["reason"].(string); ok && reason == "PodRestarted" {
 					return true, ""
 				}
-				return false, fmt.Sprintf("Failed condition has reason=%v (want PodRestarted)", cond["reason"])
+				return false, fmt.Sprintf("Failed condition has reason=%v message=%v (want reason PodRestarted)", cond["reason"], cond["message"])
 			}
 		}
 		return false, fmt.Sprintf("no Failed condition found in conditions=%v", conditions)

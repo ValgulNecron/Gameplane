@@ -1,7 +1,7 @@
 import { afterEach, describe, it, expect, onTestFinished, vi } from "vitest";
 import type { ReactNode } from "react";
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
@@ -71,15 +71,29 @@ describe("CaptureWidget", () => {
       await userEvent.click(button);
 
       // Button shows the loading state while the gated request is in
-      // flight. Safe to assert synchronously: mutate() flips isPending
-      // inside the act() that userEvent.click awaits, and nothing can
-      // settle it back before the gate opens.
-      expect(button).toHaveTextContent(/Enabling/i);
+      // flight. Re-queried by its (now-changed) accessible name rather than
+      // asserted on the captured reference — the label swaps to "Enabling…"
+      // while pending, so the original name would no longer find it.
+      try {
+        await waitFor(() => {
+          const pendingBtn = screen.getByRole("button", { name: /Enabling/i });
+          expect(pendingBtn).toBeDisabled();
+        });
+      } finally {
+        // Released in `finally`, not just on the happy path: a failed
+        // assertion above would otherwise leave the handler parked on this
+        // promise forever, leaking a never-settling request past the end of
+        // the test. Releasing here (rather than from an onTestFinished
+        // hook) keeps the settle inside the test body, while the component
+        // and any per-test stubs are still alive.
+        releaseEnable();
+      }
 
-      // Release, and confirm the mutation settles back out of its pending
-      // state — which also runs the mutation's onSuccess.
-      releaseEnable();
-      await waitFor(() => expect(button).toHaveTextContent(/Enable Capture/i));
+      // Confirm the mutation settles back out of its pending state — which
+      // also runs the mutation's onSuccess.
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /Enable Capture/i })).not.toBeDisabled(),
+      );
     });
 
     it("displays error banner when enable mutation fails", async () => {
@@ -196,10 +210,22 @@ describe("CaptureWidget", () => {
       const disableBtn = await screen.findByRole("button", { name: /Disable Capture/i });
       await userEvent.click(disableBtn);
 
-      expect(disableBtn).toBeDisabled();
+      // Re-query rather than asserting on the captured reference: the
+      // button's accessible name/text is static here so the node is never
+      // replaced, but waitFor still tolerates a deferred pending commit
+      // instead of racing it.
+      try {
+        await waitFor(() => {
+          expect(screen.getByRole("button", { name: /Disable Capture/i })).toBeDisabled();
+        });
+      } finally {
+        // `finally` for the same reason as the enable test above.
+        releaseDisable();
+      }
 
-      releaseDisable();
-      await waitFor(() => expect(disableBtn).not.toBeDisabled());
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /Disable Capture/i })).not.toBeDisabled(),
+      );
     });
   });
 
@@ -213,7 +239,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
       );
@@ -240,7 +266,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
       );
@@ -264,7 +290,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
       );
@@ -292,7 +318,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
         http.post(/servers\/alpha:capture-stop(\?.*)?$/, async () => {
@@ -306,10 +332,18 @@ describe("CaptureWidget", () => {
       const stopBtn = await screen.findByRole("button", { name: /Stop Capture/i });
       await userEvent.click(stopBtn);
 
-      expect(stopBtn).toBeDisabled();
+      try {
+        await waitFor(() => {
+          expect(screen.getByRole("button", { name: /Stop Capture/i })).toBeDisabled();
+        });
+      } finally {
+        // `finally` for the same reason as the enable test above.
+        releaseStop();
+      }
 
-      releaseStop();
-      await waitFor(() => expect(stopBtn).not.toBeDisabled());
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /Stop Capture/i })).not.toBeDisabled(),
+      );
     });
   });
 
@@ -433,7 +467,19 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture-file\?/, async () => {
+        // The optional-query group is load-bearing, and a literal `\?` here
+        // is a silent no-op: msw strips the query string before matching a
+        // handler (getCleanUrl() in @mswjs/interceptors, via
+        // matchRequestUrl()), so this regex is tested against
+        // ".../servers/alpha:capture-file" with no "?" in it at all. A
+        // regex that *requires* "?" therefore never matches — and instead
+        // of failing loudly as an unhandled request, it falls through to
+        // the default http.get("/servers/:name") handler in
+        // src/test/handlers.ts, whose `:name` param happily swallows
+        // "alpha:capture-file". That stub answers instantly with a
+        // GameServer JSON body, res.blob() accepts it, and the mutation
+        // settles before the pending assertion below can ever observe it.
+        http.get(/servers\/alpha:capture-file(\?.*)?$/, async () => {
           await fileGate;
           return new HttpResponse(new Blob(["mock pcapng data"]), {
             headers: { "Content-Type": "application/octet-stream" },
@@ -468,20 +514,39 @@ describe("CaptureWidget", () => {
       await userEvent.click(downloadBtn);
 
       // Button is disabled while the (still-gated) download is in flight.
-      // Safe to assert synchronously: mutate() flips isPending inside the
-      // act() that userEvent.click awaits, and the gate guarantees nothing
-      // has settled it back.
-      expect(downloadBtn).toBeDisabled();
+      // Re-queried by aria-label inside waitFor rather than asserted on the
+      // captured reference: the pending commit is synchronous in practice,
+      // but waitFor costs nothing on the happy path and tolerates a
+      // deferred one on a loaded runner.
+      //
+      // This can't pass vacuously — the button's only other disabled input,
+      // `!downloadable`, never flips in this test (a single fixture row,
+      // phase "Completed" throughout), so "disabled" here is proof of
+      // fileMut.isPending and nothing else. And with the handler regex
+      // above actually matching, the gate guarantees the request can't have
+      // settled back to false yet.
+      try {
+        await waitFor(() => {
+          expect(screen.getByLabelText(/Download capture cap-1/i)).toBeDisabled();
+        });
+      } finally {
+        // Let the response through — in `finally` for the same reason as
+        // the enable test above. Doing it here rather than from the
+        // onTestFinished hook below matters twice over: that hook deletes
+        // the URL.createObjectURL stub, and a gate released after it would
+        // resolve the fetch straight into an onSuccess that then throws.
+        releaseFile();
+      }
 
-      // Let the response through, then wait for the mutation's onSuccess to
-      // run the full download sequence.
-      releaseFile();
+      // Wait for the mutation's onSuccess to run the full download sequence.
       await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
       expect(createURL).toHaveBeenCalledOnce();
       expect(revokeURL).toHaveBeenCalledWith("blob:test");
       // Button re-enables once the mutation settles, so the test doesn't
       // leave a pending mutation behind.
-      await waitFor(() => expect(downloadBtn).not.toBeDisabled());
+      await waitFor(() =>
+        expect(screen.getByLabelText(/Download capture cap-1/i)).not.toBeDisabled(),
+      );
     });
 
     it("expands row to show details on eye button click", async () => {
@@ -607,7 +672,13 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [completed], total: 1, limit: 100, offset: 0 }),
         ),
-        http.delete(/servers\/alpha:capture\?/, async () => {
+        // Optional-query group, not a literal `\?` — see the capture-file
+        // handler in "downloads capture file on button click" for why. Here
+        // the fall-through was even quieter: an unmatched DELETE lands on
+        // the default http.delete("/servers/:name") stub, which returns 204,
+        // api() maps 204 to undefined, and deleteMut *succeeds* instantly —
+        // closing the dialog before the pending assertion below runs.
+        http.delete(/servers\/alpha:capture(\?.*)?$/, async () => {
           await deleteGate;
           return HttpResponse.json({ deleted: true, captureId: "cap-1" });
         }),
@@ -624,13 +695,32 @@ describe("CaptureWidget", () => {
       const confirmBtn = await screen.findByRole("button", { name: "Delete capture" });
       await userEvent.click(confirmBtn);
 
-      expect(confirmBtn).toBeDisabled();
+      // ConfirmDialog swaps the confirm button's label to "Working…" while
+      // `busy` (deleteMut.isPending) is true — so re-querying by the
+      // original exact name "Delete capture" would (wrongly) report "not
+      // found" once pending lands, rather than failing on disabled state.
+      // A loose /Delete capture/i also matches the row's own "Delete
+      // capture cap-1" icon button (still present behind the dialog), so
+      // scope the query to the dialog and match on the pending-only
+      // "Working…" text — which also keeps the assertion from passing
+      // vacuously for any other reason (there is none here, since no
+      // confirmPhrase is passed and `matches` is always true, but tying it
+      // to the pending-only label keeps that true even if that changes).
+      try {
+        await waitFor(() => {
+          const dialog = screen.getByRole("dialog");
+          const pendingBtn = within(dialog).getByRole("button", { name: /Working/i });
+          expect(pendingBtn).toBeDisabled();
+        });
+      } finally {
+        // `finally` for the same reason as the enable test above.
+        releaseDelete();
+      }
 
-      // Release, and confirm the delete actually went through: onSuccess
+      // Confirm the delete actually went through: onSuccess
       // clears deleteTarget, which closes the dialog. That is the only
       // observable proof the DELETE was issued and succeeded — the
       // captures list is a fixed mock, so the row itself never disappears.
-      releaseDelete();
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
@@ -1360,7 +1450,7 @@ describe("CaptureWidget", () => {
           http.get(/servers\/alpha:captures(\?.*)?$/, () =>
             HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
           ),
-          http.get(/servers\/alpha:capture\?/, () =>
+          http.get(/servers\/alpha:capture$/, () =>
             HttpResponse.json(activeCap),
           ),
         );
@@ -1392,7 +1482,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
       );
@@ -1422,7 +1512,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
       );
@@ -1446,7 +1536,7 @@ describe("CaptureWidget", () => {
         http.get(/servers\/alpha:captures(\?.*)?$/, () =>
           HttpResponse.json({ captures: [activeCap], total: 1, limit: 100, offset: 0 }),
         ),
-        http.get(/servers\/alpha:capture\?/, () =>
+        http.get(/servers\/alpha:capture$/, () =>
           HttpResponse.json(activeCap),
         ),
       );
