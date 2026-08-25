@@ -384,7 +384,7 @@ Per-game `protocol/` dirs hold only game-specific deviations: Minecraft protocol
 
 ## References
 
-- **`specs/001-gameprotocol-e2e-coverage/contracts/probe-cli.md`** — authoritative probe CLI contract: flags, exit codes, VERDICT grammar, and `-expect-fail` semantics.
+- **`specs/done_001-gameprotocol-e2e-coverage/contracts/probe-cli.md`** — authoritative probe CLI contract: flags, exit codes, VERDICT grammar, and `-expect-fail` semantics.
 - **`gameprobe_job.go`** — `RunGameProbe`, `ProbeResult`, `GameProbe` struct, and in-cluster Job harness. Also contains `runGameBotNegativeControl()` (the automatic negative control) and `verifyNegativeControlTransportFailure()` (validation).
 - **`internal/protocol/joindepth/depth.go`** — `JoinDepth` type, constants, and comparison methods.
 - **`internal/protocol/joindepth/verdict.go`** — `ProbeVerdict` struct, wire encoding (`Encode()`, `ParseVerdict()`), and exit code mapping (`ExitCodeFromVerdict()`).

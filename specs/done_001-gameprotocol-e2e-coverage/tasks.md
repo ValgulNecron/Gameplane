@@ -4,7 +4,7 @@ description: "Task list for game protocol E2E coverage feature implementation"
 
 # Tasks: Game Protocol E2E Coverage
 
-**Input**: Design documents from `/specs/001-gameprotocol-e2e-coverage/` (spec.md, plan.md, data-model.md, contracts/)
+**Input**: Design documents from `/specs/done_001-gameprotocol-e2e-coverage/` (spec.md, plan.md, data-model.md, contracts/)
 
 **Prerequisites**: All specification documents (spec.md, plan.md, research.md, data-model.md, contracts/) and quickstart.md
 

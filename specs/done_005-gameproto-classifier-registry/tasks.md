@@ -4,7 +4,7 @@ description: "Task breakdown for spec 005 — gameproto classifier registry refa
 
 # Tasks: gameproto Classifier Registry Refactor
 
-**Input**: Design documents from `specs/005-gameproto-classifier-registry/`
+**Input**: Design documents from `specs/done_005-gameproto-classifier-registry/`
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
@@ -252,7 +252,7 @@ description: "Task breakdown for spec 005 — gameproto classifier registry refa
 
 - [X] T077 Verify Scenario 5C (Suppression Directive Audit) on CI: run grep to search for //nolint, //#nosec, //lint:ignore patterns in `gameproto/*.go` and `sentinel/*.go`; confirm zero inline suppressions appear (only config-level G115 suppression in `.golangci.yml` is authorized) (SC-004, CLAUDE.md rule 4)
 
-- [X] T078 Update `specs/005-gameproto-classifier-registry/contracts/exclusion-policy.md` documenting that the G115 suppression in `.golangci.yml` for minecraft.go (VarInt encoding/decoding uint32→int32 cast) is the only authorized suppression; confirm no new suppressions are added by this refactor (SC-004, FR-008)
+- [X] T078 Update `specs/done_005-gameproto-classifier-registry/contracts/exclusion-policy.md` documenting that the G115 suppression in `.golangci.yml` for minecraft.go (VarInt encoding/decoding uint32→int32 cast) is the only authorized suppression; confirm no new suppressions are added by this refactor (SC-004, FR-008)
 
 - [X] T079 Verify blast radius confinement (FR-009): run git diff against main; confirm changes are confined to gameproto/ and sentinel/ only; verify no changes to operator/api/v1alpha1/*.go, CRD types, database schema, web/, modules/, or any other component (FR-009)
 
@@ -399,4 +399,4 @@ Developers should ensure Phase 4 (Developer A) completes before Phase 3 tests (D
 
 **Purpose**: Remaining work found by the second convergence pass, assessing the shipped code after PR #248 (facade retirement + Detail fix). Appended by `/speckit-converge`; existing tasks above are untouched.
 
-- [X] T085 Update `specs/005-gameproto-classifier-registry/verification.md` and `specs/005-gameproto-classifier-registry/completion-summary.md`, which describe a state of the tree that no longer exists: verification.md has a section headed "Deprecated Facades Retained" (line ~107) and cites `gameproto/classifier_equivalence_test.go` as evidence for FR-005 and SC-007 (lines ~30, ~41, ~79); completion-summary.md states the facades are "retained (marked Deprecated)" (lines ~37, ~106) and lists T081 as a future follow-up (line ~137). PR #248 deleted all five facades, unexported `minecraftClassifyResult`/`terrariaClassifyResult`, and replaced the equivalence suite with `gameproto/classifier_golden_test.go`. Re-point the FR-005/SC-007 evidence at the golden suite (which is what locks that behavior now), and either correct the stale sections or add a prominent "superseded by PR #248" note at the top of each. Note `gameproto/specs.md` and `sentinel/specs.md` — the docs Constitution Principle IV actually mandates — were verified ACCURATE and need no change. per T080/T083 deliverables (contradicts)
+- [X] T085 Update `specs/done_005-gameproto-classifier-registry/verification.md` and `specs/done_005-gameproto-classifier-registry/completion-summary.md`, which describe a state of the tree that no longer exists: verification.md has a section headed "Deprecated Facades Retained" (line ~107) and cites `gameproto/classifier_equivalence_test.go` as evidence for FR-005 and SC-007 (lines ~30, ~41, ~79); completion-summary.md states the facades are "retained (marked Deprecated)" (lines ~37, ~106) and lists T081 as a future follow-up (line ~137). PR #248 deleted all five facades, unexported `minecraftClassifyResult`/`terrariaClassifyResult`, and replaced the equivalence suite with `gameproto/classifier_golden_test.go`. Re-point the FR-005/SC-007 evidence at the golden suite (which is what locks that behavior now), and either correct the stale sections or add a prominent "superseded by PR #248" note at the top of each. Note `gameproto/specs.md` and `sentinel/specs.md` — the docs Constitution Principle IV actually mandates — were verified ACCURATE and need no change. per T080/T083 deliverables (contradicts)
