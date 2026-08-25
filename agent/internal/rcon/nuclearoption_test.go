@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -13,70 +14,70 @@ import (
 
 func TestParseNuclearOptionCommand(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		wantName   string
-		wantArgs   []string
+		name     string
+		input    string
+		wantName string
+		wantArgs []string
 	}{
 		{
-			name:       "empty string",
-			input:      "",
-			wantName:   "",
-			wantArgs:   nil,
+			name:     "empty string",
+			input:    "",
+			wantName: "",
+			wantArgs: nil,
 		},
 		{
-			name:       "whitespace only",
-			input:      "   ",
-			wantName:   "",
-			wantArgs:   nil,
+			name:     "whitespace only",
+			input:    "   ",
+			wantName: "",
+			wantArgs: nil,
 		},
 		{
-			name:       "command no args",
-			input:      "get-player-list",
-			wantName:   "get-player-list",
-			wantArgs:   nil,
+			name:     "command no args",
+			input:    "get-player-list",
+			wantName: "get-player-list",
+			wantArgs: nil,
 		},
 		{
-			name:       "command with one simple arg",
-			input:      "kick-player 76561198123456789",
-			wantName:   "kick-player",
-			wantArgs:   []string{"76561198123456789"},
+			name:     "command with one simple arg",
+			input:    "kick-player 76561198123456789",
+			wantName: "kick-player",
+			wantArgs: []string{"76561198123456789"},
 		},
 		{
-			name:       "send-chat-message preserves spaces in message",
-			input:      "send-chat-message hello world from test",
-			wantName:   "send-chat-message",
-			wantArgs:   []string{"hello world from test"},
+			name:     "send-chat-message preserves spaces in message",
+			input:    "send-chat-message hello world from test",
+			wantName: "send-chat-message",
+			wantArgs: []string{"hello world from test"},
 		},
 		{
-			name:       "send-chat-message with single word",
-			input:      "send-chat-message hello",
-			wantName:   "send-chat-message",
-			wantArgs:   []string{"hello"},
+			name:     "send-chat-message with single word",
+			input:    "send-chat-message hello",
+			wantName: "send-chat-message",
+			wantArgs: []string{"hello"},
 		},
 		{
-			name:       "send-chat-message empty message",
-			input:      "send-chat-message ",
-			wantName:   "send-chat-message",
-			wantArgs:   []string{""},
+			name:     "send-chat-message empty message",
+			input:    "send-chat-message ",
+			wantName: "send-chat-message",
+			wantArgs: []string{""},
 		},
 		{
-			name:       "banlist-add with steamid and reason",
-			input:      "banlist-add 76561198123456789 cheating",
-			wantName:   "banlist-add",
-			wantArgs:   []string{"76561198123456789", "cheating"},
+			name:     "banlist-add with steamid and reason",
+			input:    "banlist-add 76561198123456789 cheating",
+			wantName: "banlist-add",
+			wantArgs: []string{"76561198123456789", "cheating"},
 		},
 		{
-			name:       "set-next-mission with three args",
-			input:      "set-next-mission BuiltIn Escalation 3600.0",
-			wantName:   "set-next-mission",
-			wantArgs:   []string{"BuiltIn", "Escalation", "3600.0"},
+			name:     "set-next-mission with three args",
+			input:    "set-next-mission BuiltIn Escalation 3600.0",
+			wantName: "set-next-mission",
+			wantArgs: []string{"BuiltIn", "Escalation", "3600.0"},
 		},
 		{
-			name:       "command with extra spaces",
-			input:      "kick-player   76561198123456789",
-			wantName:   "kick-player",
-			wantArgs:   []string{"76561198123456789"},
+			name:     "command with extra spaces",
+			input:    "kick-player   76561198123456789",
+			wantName: "kick-player",
+			wantArgs: []string{"76561198123456789"},
 		},
 	}
 
@@ -118,7 +119,8 @@ type fakeTCPServer struct {
 }
 
 func newFakeTCPServer(t *testing.T) *fakeTCPServer {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -159,7 +161,7 @@ func (s *fakeTCPServer) serve(t *testing.T) {
 	}
 }
 
-func (s *fakeTCPServer) handleConn(t *testing.T, conn net.Conn) {
+func (s *fakeTCPServer) handleConn(_ *testing.T, conn net.Conn) {
 	defer conn.Close()
 
 	for {
@@ -228,7 +230,7 @@ func (s *fakeTCPServer) sendResponse(conn net.Conn, status uint32, body interfac
 	}
 }
 
-func (s *fakeTCPServer) close(t *testing.T) {
+func (s *fakeTCPServer) close(_ *testing.T) {
 	close(s.done)
 	s.listener.Close()
 	s.wg.Wait()
@@ -254,11 +256,11 @@ func TestNuclearOptionExec(t *testing.T) {
 	client.execDeadline = 1 * time.Second
 
 	tests := []struct {
-		name        string
-		setupResp   map[string][2]interface{}
-		cmd         string
-		wantBody    string
-		wantErrMsg  string
+		name       string
+		setupResp  map[string][2]interface{}
+		cmd        string
+		wantBody   string
+		wantErrMsg string
 	}{
 		{
 			name: "success with JSON body",
@@ -357,7 +359,8 @@ func TestNuclearOptionExec(t *testing.T) {
 
 // TestNuclearOptionTruncatedHeader tests handling of truncated response headers.
 func TestNuclearOptionTruncatedHeader(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -393,7 +396,8 @@ func TestNuclearOptionTruncatedHeader(t *testing.T) {
 // TestNuclearOptionBodyLengthMismatch tests handling of body length that
 // disagrees with actual bytes sent.
 func TestNuclearOptionBodyLengthMismatch(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -436,7 +440,8 @@ func TestNuclearOptionBodyLengthMismatch(t *testing.T) {
 
 // TestNuclearOptionBodyTooLarge tests that oversized body lengths are rejected.
 func TestNuclearOptionBodyTooLarge(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -482,86 +487,69 @@ func TestNuclearOptionBodyTooLarge(t *testing.T) {
 // TestNuclearOptionMessageWithSpaces verifies that a message argument
 // containing spaces is preserved intact when sent to the server.
 func TestNuclearOptionMessageWithSpaces(t *testing.T) {
-	server := newFakeTCPServer(t)
-	defer server.close(t)
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
 
-	parts := strings.Split(server.addr, ":")
+	parts := strings.Split(listener.Addr().String(), ":")
 	port := 0
 	fmt.Sscanf(parts[1], "%d", &port)
+
+	// The captured request travels through the channel rather than through a
+	// shared variable, so the send happens-before the read with no extra
+	// synchronisation and no data race.
+	capturedCh := make(chan nuclearOptionRequest, 1)
+	go func() {
+		conn, aerr := listener.Accept()
+		if aerr != nil {
+			return
+		}
+		defer conn.Close()
+
+		lengthBuf := make([]byte, 4)
+		if _, rerr := io.ReadFull(conn, lengthBuf); rerr != nil {
+			return
+		}
+		bodyBuf := make([]byte, binary.LittleEndian.Uint32(lengthBuf))
+		if _, rerr := io.ReadFull(conn, bodyBuf); rerr != nil {
+			return
+		}
+		var req nuclearOptionRequest
+		if uerr := json.Unmarshal(bodyBuf, &req); uerr != nil {
+			return
+		}
+		capturedCh <- req
+
+		resp := make([]byte, 8)
+		binary.LittleEndian.PutUint32(resp[0:4], 2000)
+		binary.LittleEndian.PutUint32(resp[4:8], 0)
+		conn.Write(resp)
+	}()
 
 	client := NewNuclearOption("127.0.0.1", port, nil)
 	defer client.Close()
 	client.dialTimeout = 100 * time.Millisecond
 	client.execDeadline = 1 * time.Second
 
-	// Capture the actual request sent.
-	var capturedReq nuclearOptionRequest
-	server.responses = map[string][2]interface{}{
-		"send-chat-message": {
-			uint32(2000),
-			nil,
-		},
-	}
-
-	// Run a bespoke accept loop instead of the server's own, so the raw
-	// request bytes can be captured before they are decoded.
-	server.wg.Add(1)
-	go func() {
-		defer server.wg.Done()
-		for {
-			select {
-			case <-server.done:
-				return
-			default:
-			}
-
-			server.listener.(*net.TCPListener).SetDeadline(time.Now().Add(100 * time.Millisecond))
-			conn, err := server.listener.Accept()
-			if err != nil {
-				if strings.Contains(err.Error(), "timeout") {
-					continue
-				}
-				return
-			}
-
-			defer conn.Close()
-
-			// Read request.
-			lengthBuf := make([]byte, 4)
-			n, _ := conn.Read(lengthBuf)
-			if n < 4 {
-				return
-			}
-
-			bodyLen := binary.LittleEndian.Uint32(lengthBuf)
-			bodyBuf := make([]byte, bodyLen)
-			conn.Read(bodyBuf)
-
-			if err := json.Unmarshal(bodyBuf, &capturedReq); err != nil {
-				return
-			}
-
-			// Send response.
-			statusBuf := make([]byte, 4)
-			binary.LittleEndian.PutUint32(statusBuf, 2000)
-			conn.Write(statusBuf)
-			lenBuf := make([]byte, 4)
-			binary.LittleEndian.PutUint32(lenBuf, 0)
-			conn.Write(lenBuf)
-		}
-	}()
-
 	msg := "hello world from nuclear option"
-	_, err := client.Exec("send-chat-message " + msg)
-	if err != nil {
-		t.Errorf("exec: %v", err)
+	if _, eerr := client.Exec("send-chat-message " + msg); eerr != nil {
+		t.Errorf("exec: %v", eerr)
 	}
 
-	// Verify the message was preserved with spaces.
-	if len(capturedReq.Arguments) != 1 {
-		t.Errorf("arguments count: got %d, want 1", len(capturedReq.Arguments))
+	var capturedReq nuclearOptionRequest
+	select {
+	case capturedReq = <-capturedCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for captured request")
 	}
-	if len(capturedReq.Arguments) > 0 && capturedReq.Arguments[0] != msg {
+
+	if len(capturedReq.Arguments) != 1 {
+		t.Fatalf("arguments count: got %d, want 1", len(capturedReq.Arguments))
+	}
+	if capturedReq.Arguments[0] != msg {
 		t.Errorf("message: got %q, want %q", capturedReq.Arguments[0], msg)
 	}
 }

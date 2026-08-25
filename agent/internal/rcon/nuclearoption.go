@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"strings"
 	"sync"
@@ -144,15 +145,19 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 	}
 
 	// Write request: 4-byte LE length + body.
+	reqLen := len(reqBody)
+	if reqLen < 0 || reqLen > math.MaxUint32 {
+		return "", fmt.Errorf("nuclearoption rcon: request body too large (%d bytes)", reqLen)
+	}
 	lengthBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(lengthBuf, uint32(len(reqBody)))
+	binary.LittleEndian.PutUint32(lengthBuf, uint32(reqLen))
 	if _, err := c.conn.Write(lengthBuf); err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return "", fmt.Errorf("nuclearoption rcon: write length: %w", err)
 	}
 	if _, err := c.conn.Write(reqBody); err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return "", fmt.Errorf("nuclearoption rcon: write body: %w", err)
 	}
@@ -163,7 +168,7 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 		d = defaultNuclearOptionExecDeadline
 	}
 	if err := c.conn.SetDeadline(time.Now().Add(d)); err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return "", fmt.Errorf("nuclearoption rcon: set deadline: %w", err)
 	}
@@ -171,7 +176,7 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 	// Read response: 4-byte status + 4-byte body length + body.
 	statusBuf := make([]byte, 4)
 	if _, err := io.ReadFull(c.conn, statusBuf); err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return "", fmt.Errorf("nuclearoption rcon: read status: %w", err)
 	}
@@ -179,7 +184,7 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 
 	lengthBuf = make([]byte, 4)
 	if _, err := io.ReadFull(c.conn, lengthBuf); err != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return "", fmt.Errorf("nuclearoption rcon: read body length: %w", err)
 	}
@@ -187,7 +192,7 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 
 	// Bound body length to prevent unbounded allocation.
 	if bodyLen > nuclearOptionMaxBodyLength {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		return "", fmt.Errorf("nuclearoption rcon: response body too large (%d bytes)", bodyLen)
 	}
@@ -196,7 +201,7 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 	if bodyLen > 0 {
 		body = make([]byte, bodyLen)
 		if _, err := io.ReadFull(c.conn, body); err != nil {
-			c.conn.Close()
+			_ = c.conn.Close()
 			c.conn = nil
 			return "", fmt.Errorf("nuclearoption rcon: read body: %w", err)
 		}
@@ -220,16 +225,17 @@ func (c *NuclearOption) Exec(cmd string) (string, error) {
 }
 
 // parseNuclearOptionCommand splits the input command line into a command name
-// and arguments. The command name is the first space-separated word. The
-// remainder is parsed into arguments as follows:
+// and arguments. The command name is the first space-separated word.
 //
-// - For "send-chat-message": the entire remainder (after the command name)
-//   is passed as a single argument, preserving spaces.
-// - For all other commands: the remainder is split by space into arguments.
+// The remainder is parsed into arguments as follows. For "send-chat-message",
+// the entire remainder (after the command name) is passed as a single
+// argument, preserving spaces. For all other commands, the remainder is
+// split by space into arguments.
 //
 // This prevents truncation of the message in send-chat-message commands.
 func parseNuclearOptionCommand(cmd string) (name string, args []string) {
-	cmd = strings.TrimSpace(cmd)
+	// Trim only leading whitespace to preserve trailing spaces in arguments.
+	cmd = strings.TrimLeft(cmd, " \t\n\r")
 	if cmd == "" {
 		return "", nil
 	}
@@ -252,6 +258,8 @@ func parseNuclearOptionCommand(cmd string) (name string, args []string) {
 	// Special case: send-chat-message takes a single argument (the message),
 	// which may contain spaces and should not be split.
 	if strings.EqualFold(name, "send-chat-message") {
+		// Trim trailing whitespace from the message.
+		remainder = strings.TrimRight(remainder, " \t\n\r")
 		return name, []string{remainder}
 	}
 
