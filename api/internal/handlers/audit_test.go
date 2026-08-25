@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"net/http"
@@ -165,7 +164,7 @@ func TestMountAudit_Verify(t *testing.T) {
 func TestMountAudit_VerifyDBError(t *testing.T) {
 	store := newTestStore(t)
 	a := audit.New(store)
-	if _, err := store.DB.ExecContext(context.Background(), `DROP TABLE audit_events`); err != nil {
+	if _, err := store.DB.ExecContext(t.Context(), `DROP TABLE audit_events`); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
 	r := chi.NewRouter()
@@ -184,7 +183,7 @@ func TestMountAudit_DBError(t *testing.T) {
 	store := newTestStore(t)
 	a := audit.New(store)
 	// Drop the table so Page errors out.
-	if _, err := store.DB.ExecContext(context.Background(), `DROP TABLE audit_events`); err != nil {
+	if _, err := store.DB.ExecContext(t.Context(), `DROP TABLE audit_events`); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
 	r := chi.NewRouter()
