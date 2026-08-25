@@ -1,5 +1,14 @@
 # Operator Flags Contract: Install-Time Configuration
 
+> **Maintainer hybrid decision (M0–M10, see `api-http.md` §0) — reviewed, no change needed.** This
+> file's only subject is `--game-data-storage-class` / `operator.gameDataStorage.storageClassName`
+> (PVC StorageClass precedence). The hybrid DB-override-over-Helm-seed decision applies solely to
+> the API's OIDC role-mapping flags/values (`api-cli.md` §0, `helm-values.md` §0) — there is no
+> DB-overridable, admin-editable analogue for the operator's storage-class default, and nothing in
+> M0–M10 asks for one. The precedence chain in §2 below (GameServer > GameTemplate > this flag >
+> cluster default) is unrelated to role-mapping resolution and is left exactly as originally
+> specified. Confirmed unchanged as part of this pass — no edits below this note.
+
 ## 1. New Operator Flag: Game Data Storage Class
 
 **Flag Name**: `--game-data-storage-class`

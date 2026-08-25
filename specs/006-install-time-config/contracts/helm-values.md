@@ -1,5 +1,36 @@
 # Helm Values Contract: Install-Time Configuration
 
+## 0. Maintainer Decision: `api.oidc.roleMappings.*` / `defaultRole` Are Seeds, Not the Sole Source of Truth
+
+**Binding hybrid decision** (full rationale in `api-http.md` §0; CLI-level detail in
+`api-cli.md` §0): `api.oidc.roleMappings.{admin,operator,viewer}` and `api.oidc.defaultRole` — the
+keys defined in §1 below, unchanged in name and shape — configure the **install-time seed** for
+the synthetic `helm` OIDC provider's role mapping. They satisfy FR-007 / SC-003 / SC-004 (an
+OIDC-only install works with no admin account and no `bootstrap-admin` run) exactly as before.
+
+What's new is that they are no longer the *only* source: admins can layer a per-role DB override
+on top through the dashboard, carried as the `helmOverride.roleMappings` field of the *existing*
+`PUT /admin/config/auth` body (`api-http.md` §2.1) and reset via the one new route
+`DELETE /admin/config/auth/role-mappings/{role}` (`api-http.md` §2.2) — which satisfies SC-007
+(manage mappings through the dashboard, no `helm upgrade`). Resolution precedence, per role,
+independently: **DB override (admin-managed), if present for that role > this Helm-seeded value
+for that role**. `defaultRole` itself has no DB override path (M5, Helm-only in v1).
+
+**Upgrade semantics (M9)** — the reason this is a "seed" and not authoritative on every
+`helm upgrade`: changing one of these values and running `helm upgrade` updates the seed
+immediately for any role with **no** DB override, but does **not** clobber a role an admin has
+since overridden through the dashboard — that DB override keeps winning until the admin explicitly
+resets it (dashboard-only action; no Helm-side way to force it). This is deliberate: the
+alternative (Helm reasserting on every upgrade) would silently undo admin edits made through the
+UI SC-007 exists to support.
+
+**No key renames, no new Helm keys, no schema changes** result from this decision — everything in
+§1–§5 below is unchanged in name and type from a plain "Helm configures OIDC role mapping" design;
+only the runtime precedence changes, entirely on the API side (§2's Helm template rendering below
+uses a comma-joined single flag per role, not one flag per group — see `api-cli.md` §0/§4 for why).
+
+---
+
 ## 1. New & Modified Keys
 
 ### Operator Section: Game Data Storage Class
@@ -53,23 +84,33 @@ api:
     # Examples: "groups", "roles", "membership", "department"
     groupsClaim: ""
 
-    # NEW: Group-to-role mapping. Defines which IdP groups map to
-    # which dashboard roles. If omitted/nil, role mapping is disabled
-    # (new OIDC users get "viewer", existing roles never re-evaluated).
+    # NEW: Group-to-role mapping, SEEDED at install/upgrade time (§0 — hybrid
+    # decision). Defines which IdP groups map to which dashboard roles for the
+    # synthetic "helm" provider. If omitted/nil, role mapping is disabled
+    # (new OIDC users get "viewer", existing roles never re-evaluated) unless
+    # an admin has set a DB override for a role via the dashboard, which wins
+    # regardless of what's seeded here (§0).
     roleMappings:
-      # Array of IdP groups that grant "admin" dashboard role.
+      # Array of IdP groups that seed the "admin" dashboard role.
+      # A DB override (dashboard-managed, written via PUT /admin/config/auth's
+      # helmOverride.roleMappings.admin field) takes precedence over this
+      # value once set, and survives future `helm upgrade`s that change this
+      # array — see §0.
       admin: []
       # Example: ["gameplane-admins", "ops-team"]
 
-      # Array of IdP groups that grant "operator" dashboard role.
+      # Array of IdP groups that seed the "operator" dashboard role.
+      # Same DB-override precedence as "admin" above.
       operator: []
       # Example: ["gameplane-operators"]
 
-      # Array of IdP groups that grant "viewer" dashboard role.
+      # Array of IdP groups that seed the "viewer" dashboard role.
+      # Same DB-override precedence as "admin" above.
       viewer: []
       # Example: ["gameplane-viewers", "readonly-users"]
 
-    # NEW: Default role when no group matches.
+    # NEW: Default role when no group matches — Helm-only, no DB override
+    # path exists or is planned for this field (M5).
     # Accepted values: "" (default to "viewer"), "viewer", "operator", "admin", "deny"
     # "deny" = reject login (no user created/updated).
     # Only meaningful if roleMappings is set.
@@ -153,10 +194,12 @@ args:
 - `--oidc-redirect-url`
 - `--oidc-display-name`
 - `--oidc-groups-claim` **(NEW)**
-- `--oidc-default-role` **(NEW)**
-- `--oidc-role-mapping-admin`, `--oidc-role-mapping-operator`, `--oidc-role-mapping-viewer` **(NEW, repeatable)**
+- `--oidc-default-role` **(NEW, Helm-only, no DB override — M5)**
+- `--oidc-role-mapping-admin`, `--oidc-role-mapping-operator`, `--oidc-role-mapping-viewer`
+  **(NEW — single flag per role, comma-separated value; NOT repeatable, see `api-cli.md` §0/§3/§4)**
 
-Template snippet (conditional inclusion):
+Template snippet (conditional inclusion — each mapping array renders as **one** flag via `join`,
+never a `range` loop emitting one flag per group):
 ```yaml
 args:
   - serve
@@ -172,14 +215,14 @@ args:
   {{- if .Values.api.oidc.defaultRole }}
   - --oidc-default-role={{ .Values.api.oidc.defaultRole }}
   {{- end }}
-  {{- range .Values.api.oidc.roleMappings.admin }}
-  - --oidc-role-mapping-admin={{ . }}
+  {{- if .Values.api.oidc.roleMappings.admin }}
+  - --oidc-role-mapping-admin={{ join "," .Values.api.oidc.roleMappings.admin }}
   {{- end }}
-  {{- range .Values.api.oidc.roleMappings.operator }}
-  - --oidc-role-mapping-operator={{ . }}
+  {{- if .Values.api.oidc.roleMappings.operator }}
+  - --oidc-role-mapping-operator={{ join "," .Values.api.oidc.roleMappings.operator }}
   {{- end }}
-  {{- range .Values.api.oidc.roleMappings.viewer }}
-  - --oidc-role-mapping-viewer={{ . }}
+  {{- if .Values.api.oidc.roleMappings.viewer }}
+  - --oidc-role-mapping-viewer={{ join "," .Values.api.oidc.roleMappings.viewer }}
   {{- end }}
   {{- end }}
 ```
@@ -192,10 +235,10 @@ args:
 |----------|------|---------|----------|-------------|
 | `operator.gameDataStorage.storageClassName` | string | `""` | operator binary (flag `--game-data-storage-class`) + api binary (flag `--game-data-storage-class`, report-only) | FR-006 |
 | `api.oidc.groupsClaim` | string | `""` | api binary (flag `--oidc-groups-claim`) | FR-005, FR-006 |
-| `api.oidc.roleMappings.admin` | array[string] | `[]` | api binary (flags `--oidc-role-mapping-admin`) + audit event emission on role assignment | FR-007, FR-014 |
-| `api.oidc.roleMappings.operator` | array[string] | `[]` | api binary (flags `--oidc-role-mapping-operator`) + audit event emission on role assignment | FR-007, FR-014 |
-| `api.oidc.roleMappings.viewer` | array[string] | `[]` | api binary (flags `--oidc-role-mapping-viewer`) + audit event emission on role assignment | FR-007, FR-014 |
-| `api.oidc.defaultRole` | string | `""` | api binary (flag `--oidc-default-role`) | FR-007 |
+| `api.oidc.roleMappings.admin` | array[string] | `[]` | api binary (flag `--oidc-role-mapping-admin`, comma-joined); SEEDS the "admin" role for the `helm` provider — a DB override set via `PUT /admin/config/auth`'s `helmOverride.roleMappings.admin` (`api-http.md` §2.1), reset via `DELETE /admin/config/auth/role-mappings/admin` (`api-http.md` §2.2), wins over this on every future `helm upgrade` (M9) + audit event emission on role assignment | FR-007, FR-014, SC-007 |
+| `api.oidc.roleMappings.operator` | array[string] | `[]` | api binary (flag `--oidc-role-mapping-operator`, comma-joined); SEEDS the "operator" role, same DB-override precedence as `roleMappings.admin` + audit event emission on role assignment | FR-007, FR-014, SC-007 |
+| `api.oidc.roleMappings.viewer` | array[string] | `[]` | api binary (flag `--oidc-role-mapping-viewer`, comma-joined); SEEDS the "viewer" role, same DB-override precedence as `roleMappings.admin` + audit event emission on role assignment | FR-007, FR-014, SC-007 |
+| `api.oidc.defaultRole` | string | `""` | api binary (flag `--oidc-default-role`); SEEDS the default role. **Helm-only in v1 (M5) — no DB override, no PUT/DELETE endpoint accepts this field.** | FR-007, SC-007 |
 
 ---
 
@@ -212,5 +255,11 @@ args:
 ## 5. Backward Compatibility
 
 - **Empty `gameDataStorage` block**: Equivalent to `storageClassName: ""` — uses cluster default. Existing clusters unaffected.
-- **Omitted `api.oidc.groupsClaim` and `roleMappings`**: Equivalent to no role mapping. Existing Helm OIDC setups continue to work; new OIDC users default to "viewer".
+- **Omitted `api.oidc.groupsClaim` and `roleMappings`**: Equivalent to no role mapping seed. Existing Helm OIDC setups continue to work; new OIDC users default to "viewer" unless a DB override exists.
 - **No breaking changes**: All new keys default to empty/falsy values, preserving existing behavior.
+- **`helm upgrade` changing `roleMappings.*` on a role an admin has since overridden through the
+  dashboard (M9)**: safe — the new seed value is parsed and held, but does not take effect for that
+  role until the admin resets the override (the role's key simply stays present in
+  `helmOverride.roleMappings`, per `api-http.md` §1's provenance note — there is no separate
+  `source` field). No values-only way exists to force it back in; see §0. `defaultRole` has no
+  override at all (M5), so a `helm upgrade` changing it always takes effect immediately.

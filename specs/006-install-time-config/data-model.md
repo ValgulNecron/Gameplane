@@ -96,6 +96,67 @@ flag.StringVar(&gameDataStorageClass, "game-data-storage-class", "",
 
 ---
 
+### `installTimeSettings` Response Shape (Two Fields, Not One)
+
+**Orchestrator decision (binding)**: `installTimeSettings` carries **both** of the following. It is
+not `gameDataStorageClass` alone — FR-017 and SC-006 require an operator to be able to view the
+active OIDC role mappings in the admin interface, and the dashboard's client-side effective-value
+rendering (see Entity 3a's key-presence provenance) needs the Helm-seeded values to compare the
+`helmOverride` overlay against.
+
+```json
+{
+  "installTimeSettings": {
+    "gameDataStorageClass": "local-nvme",
+    "oidcHelmProvider": {
+      "groupsClaim": "groups",
+      "defaultRole": "viewer",
+      "roleMappings": {
+        "admin": ["gameplane-admins", "infrastructure-team"],
+        "operator": ["gameplane-operators"],
+        "viewer": []
+      }
+    }
+  }
+}
+```
+
+**Fields**:
+
+- **`gameDataStorageClass`** (string): the operator's install-time default StorageClass name, as
+  described above. Empty string means "use cluster default."
+- **`oidcHelmProvider`** (object): a **read-only snapshot of the Helm-seeded OIDC role-mapping
+  policy** — the same values used to build the synthetic `"helm"` provider's `ProviderPolicy`
+  (Entity 4), reported here purely for display. It is never itself writable through
+  `installTimeSettings`; the only way to change effective role assignment is the `helmOverride`
+  overlay on the `"auth"` config row (Entity 3a) via `PUT /admin/config/auth` and
+  `DELETE /admin/config/auth/role-mappings/{role}` (Entity 4b, M7).
+  - `groupsClaim` (string): the Helm-configured claim name (`api.oidc.groupsClaim`); `""` displayed
+    as `"groups"` per the existing default.
+  - `defaultRole` (string): the Helm-configured fallback role (`api.oidc.defaultRole`); Helm-only,
+    no override path in v1 (M5).
+  - `roleMappings` (object): the Helm-seeded `admin`/`operator`/`viewer` group lists
+    (`api.oidc.roleMappings.*`), exactly as passed via the `--oidc-role-mapping-*` flags.
+  - Omitted entirely (or `null`) when OIDC is not configured in Helm at all — mirrors
+    `helmOIDCPresent` being false.
+- **Why the dashboard needs this**: provenance in the `helmOverride` response is key-presence only
+  (Entity 3a, V3) — there is no server-computed "effective" view and no `source` field anywhere in
+  this feature. To render each role's *effective* mapping (Helm-seeded value, or the override that
+  replaces it), the dashboard combines `installTimeSettings.oidcHelmProvider.roleMappings` (the seed)
+  with `helmOverride.roleMappings` (the overlay) entirely client-side: a role key present in
+  `helmOverride.roleMappings` means overridden (show the override's list, offer "reset"); a role key
+  absent falls back to `oidcHelmProvider.roleMappings` for that role (show the seed, no reset
+  action). No new server-side merge logic is introduced for this display — `effectiveHelmPolicy`
+  (Entity 3b) exists only for login-time role resolution, not for building an HTTP response.
+
+**Source**: `api/internal/handlers/config.go` (`getAll` handler, or equivalent install-time-settings
+assembly point); populated from the same CLI-flag-derived values used to build the operator's PVC
+defaults and the synthetic `"helm"` provider's `ProviderPolicy`.
+
+**Cite FR-001, FR-002, FR-017, SC-006, D2, M2, M5**.
+
+---
+
 ### Resolution Function Signature
 
 **Function**: `resolveStorageClass(gs *GameServer, tmpl *GameTemplate, defaultStorageClass string) *string`
@@ -230,6 +291,144 @@ type Condition struct {
 
 ---
 
+## MAINTAINER DECISION: Hybrid Role-Mapping Layering (Helm seeds, DB overrides)
+
+> Binding resolution of the FR-007 / SC-007 tension. Supersedes any prior "Helm provider is the
+> only source of role mappings" framing below. See H1–H8 in the task brief. The synthetic `"helm"`
+> provider (Entity 4) is unchanged and still read-only (H4) — the overlay described here is a
+> **separate field on the existing `"auth"` config row**, not an edit to that provider.
+>
+> **No new table, no new migration (M1).** The overlay is carried inside the `config` table's
+> existing `"auth"` row (`api/internal/auth/registry.go:175`, `179-185`), as one optional sibling
+> field next to `"providers"`. `api/internal/db/migrations/` stays at `008_captures_rbac.sql` —
+> this feature adds zero files there.
+
+### Entity 3a: `helmOverride` — DB-Persisted Role-Mapping Overlay (admin-managed)
+
+**Storage**: the existing `config` table, row `key = "auth"` (no schema change). The JSON value
+gains one optional top-level sibling to `"providers"`:
+
+```json
+{
+  "providers": [ /* ... unchanged Provider[] ... */ ],
+  "helmOverride": {
+    "roleMappings": {
+      "admin": ["gameplane-admins", "infrastructure-team"],
+      "operator": ["gameplane-operators"],
+      "viewer": []
+    }
+  }
+}
+```
+
+**Shape rules (M2)**:
+
+- `helmOverride` (object, optional): entirely absent means no override anywhere — every role falls
+  through to the Helm-seeded value. Present-but-empty (`{"helmOverride": {}}` or
+  `{"helmOverride": {"roleMappings": {}}}`) is equivalent to absent.
+- `helmOverride.roleMappings` (object, optional): the three keys `admin`, `operator`, `viewer` are
+  **each independently optional**.
+  - **Key absent / JSON `null`** for a role: no override for that role — the Helm-seeded list for
+    that role stands.
+  - **Key present as an array** (including `[]`): that array **replaces** the Helm-seeded list for
+    that role. `[]` is a valid, meaningful override: "nobody maps to this role from any group"
+    (M3) — it is not the same as "no override" and is not coalesced with `null`/absent.
+- `helmOverride` is **not** a `Provider` entry. It is never appended to, matched against, or
+  validated by the `providers` array logic — the `"helm"` reserved-name guard at
+  `api/internal/handlers/config.go` (`validateAuth`, the `p.Name == "helm"` check) is unchanged and
+  is not relaxed or bypassed by this field.
+- `groupsClaim` and `defaultRole` have **no override path in v1** (M5): they are Helm-only, read
+  only from the synthetic `"helm"` provider's `ProviderPolicy`. `helmOverride` never carries either
+  field, and no endpoint accepts them.
+
+**Cite M1, M2, M5, FR-007, SC-007**.
+
+---
+
+### Entity 3b: Merged Role-Resolution Policy (runtime Go shape)
+
+**Verified existing `ProviderPolicy`** (`api/internal/auth/oidc.go:29-34`; this is the real type —
+there is no `auth.OIDCPolicy`):
+
+```go
+type ProviderPolicy struct {
+	Scopes       []string
+	GroupsClaim  string
+	RoleMappings *RoleMappings
+	DefaultRole  string
+}
+```
+
+**Verified existing `RoleMappings`** (`api/internal/auth/registry.go:53-57`):
+
+```go
+type RoleMappings struct {
+	Admin    []string `json:"admin,omitempty"`
+	Operator []string `json:"operator,omitempty"`
+	Viewer   []string `json:"viewer,omitempty"`
+}
+```
+
+Both structs are unchanged — `ProviderPolicy` still represents the Helm-seeded policy exactly as
+before. `computeRole` (`api/internal/auth/oidc.go:121`) is **not modified** (M4): its existing
+admin > operator > viewer tie-break, its existing fallback to `DefaultRole`, and its existing tests
+stay exactly as they are.
+
+**New helper signature** (M4 — signature only, no body; `api/internal/auth`):
+
+```go
+// effectiveHelmPolicy merges the DB overlay's per-role list replacements (M3)
+// onto the Helm-seeded base policy, producing the *ProviderPolicy that
+// computeRole is then called with, unmodified.
+func effectiveHelmPolicy(base *ProviderPolicy, ov *RoleMappings) *ProviderPolicy
+```
+
+**Parameters**:
+
+- `base` (`*ProviderPolicy`): the Helm-seeded policy for the synthetic `"helm"` provider, exactly as
+  built from CLI flags today.
+- `ov` (`*RoleMappings`): the `helmOverride.roleMappings` value decoded from the `"auth"` config row
+  (Entity 3a); `nil` when `helmOverride` is absent.
+
+**Return**: a `*ProviderPolicy` with `RoleMappings` merged per role (M3) and `Scopes`, `GroupsClaim`,
+`DefaultRole` carried through unchanged from `base` (M5 — those fields are never overridden).
+
+**Call-site semantics**: `effectiveHelmPolicy` runs once per login attempt against the `"helm"`
+provider, and its result is passed to the existing, unmodified `computeRole(groups, pol)`. No new
+call path for DB-stored (non-Helm) OIDC providers is introduced — the overlay applies only to the
+synthetic `"helm"` provider's policy, consistent with M2's storage shape living beside `providers`
+rather than inside one.
+
+**Cite M3, M4, FR-010, FR-011, FR-012**.
+
+---
+
+### Merge Algorithm (M3 — per-role list replacement, not per-claim-value lookup)
+
+`effectiveHelmPolicy` merges **whole lists per role**, independently for each of the three roles:
+
+1. For each role in `{admin, operator, viewer}`: if `helmOverride.roleMappings` supplies a
+   **non-nil** list for that role, that list **replaces** the Helm-seeded list for that role in
+   full (not a union, not a per-value lookup).
+2. Otherwise (the role's key is absent or `null`), the Helm-seeded list for that role stands
+   unchanged.
+3. An empty, non-nil list (`[]`) is a valid override meaning "nobody maps to this role" — it still
+   replaces (to an empty set), it does not fall back to the Helm-seeded list.
+4. The three roles are resolved **independently** — overriding `viewer` has no effect on whether
+   `admin` or `operator` are overridden.
+
+**Worked case (M4 — most-privileged-match-still-wins, stated explicitly)**: because the per-role
+merge happens *before* `computeRole` runs, a user whose groups match an **overridden viewer** group
+*and* a **Helm-seeded admin** group still resolves to **admin** — `computeRole`'s admin > operator >
+viewer tie-break is evaluated against the *merged* policy, so the most privileged match across both
+sources wins, exactly as it would if both lists had come from Helm alone. An earlier draft of this
+document stated this backwards (claiming the override always wins regardless of which role
+matched); that framing is wrong and is corrected here.
+
+**Cite M3, M4, FR-010, FR-011, FR-012**.
+
+---
+
 ## Entity 3: OIDC Role Mapping
 
 ### Helm Values Surface (Helm-Owned Provider Config)
@@ -262,7 +461,7 @@ api:
   - `operator` (array of strings): Group names that map to the operator role.
   - `viewer` (array of strings): Group names that map to the viewer role.
 
-- **defaultRole** (string, optional): Role assigned to users whose group does not match any mapping. Allowed values: `""` (empty, interpreted as "viewer"), `"viewer"`, `"operator"`, `"admin"`, `"deny"` (deny refuses login). Defaults to `""` (viewer).
+- **defaultRole** (string, optional): Role assigned to users whose group does not match any mapping. Allowed values: `""` (empty, interpreted as "viewer"), `"viewer"`, `"operator"`, `"admin"`, `"deny"` (deny refuses login). Defaults to `""` (viewer). **Helm-only in v1 (M5)**: `defaultRole` has no DB override path — it is never a field of `helmOverride` (Entity 3a), and no endpoint accepts a write to it. The same is true of `groupsClaim`.
 
 **Validation Rules**:
 
@@ -443,7 +642,15 @@ type Provider struct {
 2. **Cannot be edited**: Dashboard PUT `/admin/config/auth` cannot target the "helm" provider. Validation in `validateAuth()` (line 268-269, `handlers/config.go`) rejects any `Provider.Name == "helm"`.
 3. **Cannot be created**: Dashboard POST cannot create a provider named "helm"; validation rejects it.
 
-**Cite FR-007, Assumption 3**.
+**H4 — unchanged under the hybrid model**: the hybrid layering (Entity 3a/3b) does NOT make this
+provider editable. `helmOverride` is a sibling field of the `"auth"` config row's JSON (M2), merged
+into a *derived* `*ProviderPolicy` by `effectiveHelmPolicy` (M4) only at resolution time — it never
+writes to, reads from, or is merged into the stored `Provider`/`ProviderPolicy` struct for `"helm"`
+itself, and the synthesized `Provider{Name: "helm", ...}` record is unchanged by this feature. The
+dashboard's new editing surface (M7) writes `helmOverride`, not fields on the `"helm"` provider
+record. Do not describe the helm provider itself as becoming editable.
+
+**Cite FR-007, H4, Assumption 3**.
 
 ---
 
@@ -477,16 +684,20 @@ var oidcRoleMappingAdmin string
 var oidcRoleMappingOperator string
 var oidcRoleMappingViewer string
 
-flag.StringVar(&oidcGroupsClaim, "oidc-groups-claim", "", 
-    "OIDC token claim name for groups/roles. "+envOr("GAMEPLANE_OIDC_GROUPS_CLAIM", ""))
-flag.StringVar(&oidcDefaultRole, "oidc-default-role", "", 
-    "Default role for users without a group match. "+envOr("GAMEPLANE_OIDC_DEFAULT_ROLE", ""))
-flag.StringVar(&oidcRoleMappingAdmin, "oidc-role-mapping-admin", "", 
-    "Comma-separated groups that map to admin role. "+envOr("GAMEPLANE_OIDC_ROLE_MAPPING_ADMIN", ""))
-flag.StringVar(&oidcRoleMappingOperator, "oidc-role-mapping-operator", "", 
-    "Comma-separated groups that map to operator role. "+envOr("GAMEPLANE_OIDC_ROLE_MAPPING_OPERATOR", ""))
-flag.StringVar(&oidcRoleMappingViewer, "oidc-role-mapping-viewer", "", 
-    "Comma-separated groups that map to viewer role. "+envOr("GAMEPLANE_OIDC_ROLE_MAPPING_VIEWER", ""))
+// envOr sits in the default-value position, exactly as every existing
+// flag registration does (verified pattern, api/cmd/main.go:391-395 —
+// e.g. fs.StringVar(&c.oidcIssuer, "oidc-issuer", envOr("GAMEPLANE_OIDC_ISSUER", ""), "OIDC issuer URL")).
+// It is never concatenated into the usage string.
+fs.StringVar(&oidcGroupsClaim, "oidc-groups-claim", envOr("GAMEPLANE_OIDC_GROUPS_CLAIM", ""),
+    "OIDC token claim name for groups/roles")
+fs.StringVar(&oidcDefaultRole, "oidc-default-role", envOr("GAMEPLANE_OIDC_DEFAULT_ROLE", ""),
+    "Default role for users without a group match")
+fs.StringVar(&oidcRoleMappingAdmin, "oidc-role-mapping-admin", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_ADMIN", ""),
+    "Comma-separated groups that map to admin role")
+fs.StringVar(&oidcRoleMappingOperator, "oidc-role-mapping-operator", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_OPERATOR", ""),
+    "Comma-separated groups that map to operator role")
+fs.StringVar(&oidcRoleMappingViewer, "oidc-role-mapping-viewer", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_VIEWER", ""),
+    "Comma-separated groups that map to viewer role")
 
 // Parse and build the OIDC policy
 var roleMappings *auth.RoleMappings
@@ -498,7 +709,7 @@ if oidcRoleMappingAdmin != "" || oidcRoleMappingOperator != "" || oidcRoleMappin
     }
 }
 
-oidcPolicy := &auth.OIDCPolicy{
+oidcPolicy := &auth.ProviderPolicy{
     GroupsClaim:  oidcGroupsClaim,    // "" -> defaults to "groups" in handler
     RoleMappings: roleMappings,        // nil if no mappings provided
     DefaultRole:  oidcDefaultRole,     // "" -> defaults to "viewer" in computeRole
@@ -508,6 +719,103 @@ oidcAuth := auth.NewOIDCWithPolicy(cfg.oidcIssuer, ..., oidcPolicy)
 ```
 
 **Cite FR-007, FR-008**.
+
+---
+
+## Entity 4b: HTTP Surface for the `helmOverride` Overlay (M7)
+
+### Existing Route — Extended, Not Replaced
+
+**Verified current mount** (`api/internal/handlers/config.go:30-36`, `MountConfig`):
+
+```go
+func MountConfig(r chi.Router, store *db.Store, helmOIDCPresent bool) {
+    h := &configHandler{db: store, validators: newValidators(helmOIDCPresent)}
+    r.Route("/admin/config", func(r chi.Router) {
+        r.Get("/", h.getAll)
+        r.Put("/{section}", h.put)
+    })
+}
+```
+
+Called today as `handlers.MountConfig(p, store, oidcAuth != nil)` (`api/cmd/main.go:245`), with no
+auditor — but Entity 6's audit events (M8) must be written from inside `config.go` (the `put` handler
+for `"auth"` and the new reset handler below), so `MountConfig` **gains an `*audit.Auditor`
+parameter**, and its call site in `api/cmd/main.go` changes accordingly. The in-tree precedent for
+this exact pattern is `MountCapture(r chi.Router, reg *kube.Registry, auditor *audit.Auditor, cfg
+CaptureConfig, ...)` (`api/internal/handlers/capture.go:55`), which already takes an auditor the same
+way:
+
+```go
+func MountConfig(r chi.Router, store *db.Store, auditor *audit.Auditor, helmOIDCPresent bool) {
+    h := &configHandler{db: store, auditor: auditor, validators: newValidators(helmOIDCPresent)}
+    r.Route("/admin/config", func(r chi.Router) {
+        r.Get("/", h.getAll)
+        r.Put("/{section}", h.put)
+        r.Delete("/auth/role-mappings/{role}", h.resetRoleMapping)
+    })
+}
+```
+
+```go
+// api/cmd/main.go:245, updated call site:
+handlers.MountConfig(p, store, auditor, oidcAuth != nil)
+```
+
+- `GET /admin/config` — returns every recognized section as `map[string]json.RawMessage`, keyed by
+  section name (`config.go:43-68`, `getAll`).
+- `PUT /admin/config/{section}` — validates the body against `newValidators()[section]` and upserts
+  the canonicalized JSON into `config` (`config.go:70-103`, `put`). `"auth"` is one of the closed
+  set of section names (`config.go:112`, `newValidators`), validated by `validateAuth(helmOIDCPresent)`
+  (`config.go:235`).
+- **RBAC**: `MountConfig` is mounted under `p` in `api/cmd/main.go:245`, inside a router group that
+  applies `rbac.Middleware(reg)` (`main.go:235`); the `config:manage` permission
+  (`api/internal/rbac/catalog.go:68`, `{Resource: "config", ...}`) is the existing gate for writes
+  to this resource.
+
+**No new resource is invented.** `helmOverride` (Entity 3a) rides inside the same `"auth"` section
+body that `providers` already lives in:
+
+- **`GET /admin/config`** — unchanged route, unchanged shape at the top level; the `"auth"` entry's
+  JSON now includes `helmOverride` when set (M2). No new query param, no new response envelope.
+- **`PUT /admin/config/auth`** — unchanged route; `validateAuth` is extended to also parse and
+  validate the optional `helmOverride.roleMappings` field (each present role list: no empty/blank
+  elements, same rule `validateProviderMapping` already applies to `providers[*].roleMappings[*]`).
+  A write to this route is how an admin sets or changes a role's override.
+
+### New Route — Reset One Role's Override (M7, the only new route in this feature)
+
+```go
+r.Delete("/auth/role-mappings/{role}", h.resetRoleMapping)
+```
+
+Mounted alongside the existing two routes, inside the same `r.Route("/admin/config", ...)` block and
+under the same `rbac.Middleware` + `config:manage` gate as the `PUT /admin/config/{section}` route
+above — matching the existing path convention of nesting under `/admin/config/{section}/...` rather
+than a top-level resource.
+
+- **Method**: `DELETE`
+- **Path**: `DELETE /admin/config/auth/role-mappings/{role}`, `{role}` one of `admin`, `operator`,
+  `viewer` (400 on any other value — mirrors the closed-enum handling `put` already does for
+  `{section}`).
+- **Effect**: removes that one role's key from `helmOverride.roleMappings` in the `"auth"` row
+  (leaving the other two roles' overrides, if any, untouched) and re-persists the row. If the role
+  had no override, this is a no-op that still returns success (idempotent reset).
+- **RBAC**: `config:manage`, same as `PUT /admin/config/{section}`.
+- **Response**: the updated `"auth"` section body (same envelope shape as `put`'s
+  `{"section": ..., "value": ...}`), so the dashboard can refresh from the response without a
+  follow-up `GET`.
+
+### GET Response — Provenance Per Role (M7)
+
+`GET /admin/config` must let the dashboard show, **per role**, whether the effective list came from
+the DB overlay or the Helm seed — so it can render a "reset" action only where an override exists.
+The `"auth"` section's `helmOverride.roleMappings` object itself carries this: a role key **present**
+(even as `[]`) means DB-overridden; a role key **absent** means Helm-seeded. The dashboard derives
+provenance directly from presence/absence of each key — no separate provenance field is added to the
+response, since `helmOverride`'s own shape (Entity 3a, M2) already encodes it unambiguously.
+
+**Cite M7, FR-007, SC-007**.
 
 ---
 
@@ -582,6 +890,72 @@ oidc role assigned: provider=<provider_name> matched=<claim_value_or_none> from=
 
 ---
 
+## Entity 6: Audit Events for `helmOverride` Writes and Resets (M8)
+
+### Event Recording on Override Write / Reset
+
+**Function** (verified, `api/internal/audit/audit.go:689`):
+
+```go
+func (a *Auditor) WriteSync(ctx context.Context, method, path, target, reason string, status int) error
+```
+
+**Trigger**: every admin-gated write that changes `helmOverride` — a `PUT /admin/config/auth` whose
+body sets, changes, or removes a role's override list, and the dedicated
+`DELETE /admin/config/auth/role-mappings/{role}` reset route (M7, M9) — is audited via `WriteSync`.
+
+**RBAC gate**: both routes require the `config:manage` permission — the existing catalog entry for
+`{Resource: "config", ...}` (`api/internal/rbac/catalog.go:68`, "Change global settings"); overriding
+role mappings is global auth config, so no new catalog permission is introduced.
+
+**`audit_events` columns** (verified, `api/internal/db/migrations/001_init.sql:30-39` plus `reason`
+added in `007_audit_reason.sql`): `id, ts, actor, method, path, target, status, ip, reason`. There is
+**no** `action`/`metadata`/`message` column — every detail rides in the free-text `reason` string
+(M8), so this feature does not add or need one.
+
+**Event Fields** (via `WriteSync`):
+
+| Field | Value | Example |
+|-------|-------|---------|
+| **Method** | HTTP method of the mutating request | `"PUT"` (override write) / `"DELETE"` (reset) |
+| **Path** | Request path | `"/admin/config/auth"` / `"/admin/config/auth/role-mappings/admin"` |
+| **Target** | The affected role | `"admin"` |
+| **Reason** | Concrete reason string identifying the change | See format below |
+| **Status** | HTTP status code | `200` |
+
+**Reason String Format** (one consistent format, used everywhere this feature writes an audit row —
+including Entity 5's login-time role assignment, which already uses this same
+`"<subject>: <k>=<v> <k>=<v> ..."` shape):
+
+```
+oidc role mapping override set: role=<role> groups=<comma_joined_or_none>
+oidc role mapping override reset: role=<role>
+```
+
+- `role=<role>`: one of `admin`, `operator`, `viewer` — the single role this write/reset affected.
+  A `PUT /admin/config/auth` that changes more than one role's override in the same request emits
+  one audit row per changed role (each with its own `target`/`reason`), so every row still names
+  exactly one role — consistent with `target` carrying a single value.
+- `groups=<comma_joined_or_none>`: the role's new override list after the write, comma-joined (e.g.
+  `"gameplane-admins,infra-team"`), or the literal `"none"` for an empty-list override (`[]` — "nobody
+  maps to this role", per M3). Omitted entirely from the `reset` template since a reset has no new
+  list — it restores the Helm-seeded one.
+- The `actor` column (already populated by `WriteSync` from the request context) carries who made
+  the change; the reason string does not duplicate it, unlike Entity 5's format — Entity 5's
+  `from=`/`matched=` sentinels exist because a *login* has no separate "who" column meaning other
+  than the actor being logged in, whereas here `actor` is unambiguously the admin.
+
+**Example Audit Rows**:
+
+| id | ts | actor | method | path | target | status | ip | reason |
+|----|----|----|--------|------|--------|--------|-----|--------|
+| 51 | 2026-08-26T09:12:00Z | admin@example.com | PUT | /admin/config/auth | admin | 200 | 192.0.2.10 | oidc role mapping override set: role=admin groups=gameplane-admins,infra-team |
+| 52 | 2026-08-26T09:15:00Z | admin@example.com | DELETE | /admin/config/auth/role-mappings/admin | admin | 200 | 192.0.2.10 | oidc role mapping override reset: role=admin |
+
+**Cite M7, M8, M9.**
+
+---
+
 ## Precedence & Resolution Tables
 
 ### Storage Class Resolution Precedence
@@ -608,30 +982,61 @@ oidc role assigned: provider=<provider_name> matched=<claim_value_or_none> from=
 
 ---
 
-### OIDC Role Resolution Precedence
+### OIDC Role Resolution Precedence (M3/M4 — per-role merge, then unmodified `computeRole`)
 
-**Precedence Order** (highest to lowest):
+Resolution is **two steps**, not a per-claim-value lookup chain:
 
-| Rank | Source | Condition | Role Assignment |
-|------|--------|-----------|-----------------|
-| **1** | Group Membership Match | User's OIDC group in `roleMappings.Admin` | `"admin"` |
-| **2** | Group Membership Match | User's OIDC group in `roleMappings.Operator` | `"operator"` |
-| **3** | Group Membership Match | User's OIDC group in `roleMappings.Viewer` | `"viewer"` |
-| **4** | Default Role Fallback | No group match; role mappings configured | Use `provider.DefaultRole` |
-| **5** | Built-In Default | No role mappings configured | `"viewer"` |
+1. **Per-role merge** (`effectiveHelmPolicy`, M3): for each of `admin`, `operator`, `viewer`
+   independently, `helmOverride.roleMappings` supplying a non-nil list for that role **replaces**
+   the Helm-seeded list for that role; an absent/`null` key leaves the Helm-seeded list standing.
+2. **Unmodified `computeRole`** (M4) runs once against the *merged* policy: first match wins,
+   admin > operator > viewer, exactly as it does today — falling through to `DefaultRole` (Helm-only,
+   M5) and finally the built-in `"viewer"` if nothing matches.
+
+| Step | Source | Condition | Effect |
+|------|--------|-----------|--------|
+| **1a** | `helmOverride.roleMappings.admin` | Key present (incl. `[]`) | Replaces the Helm-seeded admin list in the merged policy |
+| **1b** | `helmOverride.roleMappings.operator` | Key present (incl. `[]`) | Replaces the Helm-seeded operator list in the merged policy |
+| **1c** | `helmOverride.roleMappings.viewer` | Key present (incl. `[]`) | Replaces the Helm-seeded viewer list in the merged policy |
+| **1 (no override)** | Helm-seeded value | Key absent/`null` for that role | That role's Helm-seeded list stands unchanged |
+| **2a** | `computeRole` on merged policy | User's group in merged `RoleMappings.Admin` | `"admin"` |
+| **2b** | `computeRole` on merged policy | ...group in merged `RoleMappings.Operator` | `"operator"` |
+| **2c** | `computeRole` on merged policy | ...group in merged `RoleMappings.Viewer` | `"viewer"` |
+| **3** | `computeRole` fallback | No match; mappings configured | `provider.DefaultRole` (Helm-only, M5) |
+| **3 (fallback)** | Built-in default | No mappings configured anywhere (merged policy has none, or `pol == nil`) | `"viewer"` |
 
 **Decision Table** (what role is assigned at login):
 
-| User Groups | Admin Mapping | Operator Mapping | Viewer Mapping | Default Role | Result |
-|-------------|--------------|-----------------|----------------|--------------|--------|
-| `["gameplane-admins"]` | includes "gameplane-admins" | — | — | (any) | `"admin"` |
-| `["gameplane-ops"]` | (no match) | includes "gameplane-ops" | — | (any) | `"operator"` |
-| `["users"]` | (no match) | (no match) | includes "users" | (any) | `"viewer"` |
-| `["unknown"]` | (no match) | (no match) | (no match) | `"operator"` | `"operator"` |
-| `[]` (empty groups) | (no match) | (no match) | (no match) | `""` (empty) | `"viewer"` |
-| `["any"]` | (mappings nil) | — | — | (ignored) | `"viewer"` |
+| User Groups | Admin Override | Operator Override | Viewer Override | Helm Admin Mapping | Helm Operator Mapping | Helm Viewer Mapping | Default Role | Result |
+|-------------|-----------------|---------------------|-------------------|---------------------|-------------------------|------------------------|---------------|--------|
+| `["gameplane-admins"]` | none (Helm stands) | — | — | includes "gameplane-admins" | — | — | (any) | `"admin"` |
+| `["gameplane-admins"]` | `[]` (nobody admin) | — | — | includes "gameplane-admins" (replaced by `[]`) | — | — | `"viewer"` | `"viewer"` (override replaced the list the group would have matched) |
+| `["gameplane-ops"]` | — | none (Helm stands) | — | — | includes "gameplane-ops" | — | (any) | `"operator"` |
+| `["users"]` | — | — | `["users"]` (same as Helm) | — | — | includes "users" | (any) | `"viewer"` |
+| `["unknown"]` | — | — | — | (no match) | (no match) | (no match) | `"operator"` | `"operator"` |
+| `[]` (empty groups) | — | — | — | (no match) | (no match) | (no match) | `""` (empty) | `"viewer"` |
+| `["any"]` | (no override anywhere) | (no override anywhere) | (no override anywhere) | (mappings nil) | — | — | (ignored) | `"viewer"` |
 
-**Cite FR-009, FR-010, FR-011, FR-012, SC-003, SC-004, SC-005**.
+**Worked M4 case** — overridden viewer group + Helm-seeded admin group, most-privileged match still
+wins:
+
+| User Groups | Viewer Override | Admin Override | Helm Admin Mapping | Merged Result | Login Result |
+|-------------|-------------------|-------------------|----------------------|----------------|--------------|
+| `["dev-team", "gameplane-admins"]` | `["dev-team"]` (replaces Helm viewer list, which happened to also list "dev-team") | none (Helm stands) | includes "gameplane-admins" | merged policy has "dev-team" in `Viewer` AND "gameplane-admins" still in `Admin` (untouched) | `"admin"` — `computeRole` checks `Admin` before `Viewer`; overriding one role's list never demotes a match against a different, non-overridden role. |
+
+**Cite M3, M4, FR-009, FR-010, FR-011, FR-012, SC-003, SC-004, SC-005, SC-007**.
+
+---
+
+### Upgrade-Case Rows (M9 — `helm upgrade` with changed `api.oidc.roleMappings.*` values)
+
+| Scenario | Override Present for This Role? | Helm Value Before Upgrade | Helm Value After Upgrade | Result After Upgrade | Notes |
+|----------|-------------------------------------|----------------------------|----------------------------|------------------------|-------|
+| Admin previously overrode a role | Yes — `helmOverride.roleMappings.admin = ["gameplane-admins"]` (mapped by the admin to a smaller set than Helm ships) | `roleMappings.admin: [gameplane-admins]` | `roleMappings.admin: [gameplane-admins, new-admins]` (Helm-seeded list changed) | Merged admin list is still just `["gameplane-admins"]` — `new-admins` does **not** gain admin (override still wins, M9) | Helm reasserting on upgrade would silently undo the admin's edit if the override were dropped — deliberately avoided. |
+| No admin edit yet for this role | No override key present for `viewer` | `roleMappings.viewer: [gameplane-viewers]` | `roleMappings.viewer: [gameplane-viewers, new-viewers]` (Helm-seeded list changed) | Merged viewer list picks up `new-viewers` immediately (Helm-seeded value applies) | With no override, the Helm-seeded layer is free to change on upgrade — the intended seeding behavior. |
+| Admin resets to Helm default | Was present, admin calls `DELETE /admin/config/auth/role-mappings/operator` (M7) → key removed from `helmOverride.roleMappings` | `roleMappings.operator: [gameplane-ops]` | `roleMappings.operator: [gameplane-ops]` (unchanged in this example) | `"operator"` role now sourced from the Helm-seeded list again | Explicit dashboard action (M7/M9); audited per Entity 6's `reset` reason template. |
+
+**Cite M9, FR-009, SC-007.**
 
 ---
 
@@ -639,18 +1044,37 @@ oidc role assigned: provider=<provider_name> matched=<claim_value_or_none> from=
 
 **Condition**: User logs in for the second or later time.
 
-**Behavior**:
+**Behavior** — for the synthetic `"helm"` provider, the row-hash cache does **not** apply and is not
+what delivers SC-007: `Registry.OIDCFor` short-circuits on `name == HelmProviderName` and returns
+`r.legacy` immediately, before `snapshot()` is called and before any row hash is computed
+(`api/internal/auth/registry.go:224-232`). `r.legacy` is a single `*OIDC` built once at process
+startup (`api/cmd/main.go:127`) and held for the process lifetime — it is never rebuilt from a
+hash-invalidated cache entry. The row-hash cache (`registry.go:172-186`, `rebuildTTL`) governs only
+DB-stored (non-Helm) providers.
 
-- **If provider has role mappings** (`provider.RoleMappings != nil`):
-  - Re-evaluate the user's groups against current mappings.
+Instead, SC-007 for the helm provider is delivered by reading `helmOverride` at **login time**: the
+helm provider already has the store attached (`legacy.AttachStore(store)`, wired once in
+`NewRegistry`, `registry.go:152-153`), so role resolution for the `"helm"` provider reads the
+`"auth"` config row's `helmOverride` field on every login attempt, merges it per-role via
+`effectiveHelmPolicy` (M3/M4) onto the Helm-seeded base policy, and calls the existing, unmodified
+`computeRole` with the merged result. Because this read happens fresh on each login rather than from
+a cached `*OIDC`/`*ProviderPolicy`, an admin's edit to `helmOverride` lands on the very next login
+with no API restart and no `helm upgrade` — that per-login read is the mechanism, not any caching
+layer, and no new caching layer is introduced by this feature.
+
+- **If any role has an override, or a Helm role mapping applies** (`helmOverride.roleMappings` has a
+  non-nil list for at least one role, OR `provider.RoleMappings != nil`):
+  - Re-evaluate the user's groups against `effectiveHelmPolicy`'s merged policy (M3), then
+    `computeRole`, unchanged (M4).
   - Update `users.role` and `user_role_bindings` to the newly computed role.
   - **Guard**: If the new role would remove the last user with user-management permission (admin or operator), skip the update and leave the stored role unchanged. Log a warning.
 
-- **If provider has no role mappings** (`provider.RoleMappings == nil`):
+- **If no override exists for any role and no Helm role mapping applies**
+  (`helmOverride` absent/empty AND `provider.RoleMappings == nil`):
   - Leave the user's stored role unchanged. Do not re-evaluate.
   - (This preserves role stability for OIDC-only installs that manually set up roles via `/admin/config` after first login.)
 
-**Cite FR-011, SC-005**.
+**Cite FR-011, SC-005, SC-007, M3, M4**.
 
 ---
 
@@ -672,15 +1096,24 @@ oidc role assigned: provider=<provider_name> matched=<claim_value_or_none> from=
 
 ### OIDC Role Mapping Setting (SC-008 Mapping)
 
-**Compatibility Guarantee**: Gameplane installs with OIDC enabled but no role mappings configured default all OIDC users to the viewer role; no breaking changes.
+**Compatibility Guarantee**: Gameplane installs with OIDC enabled but NO mappings configured
+anywhere — neither Helm-seeded (`api.oidc.roleMappings.*` unset) nor DB-persisted (`helmOverride`
+absent from the `"auth"` config row) — put every user on the configured default role, which is
+`"viewer"` when `defaultRole` is also unset (SC-008). This still holds under the hybrid model: the
+overlay (Entity 3a) is additive and only participates in resolution when at least one role key is
+present; an absent/empty `helmOverride` is a strict no-op, falling straight through to the
+pre-existing Helm/default-role/built-in-viewer chain via `effectiveHelmPolicy` returning the base
+policy unchanged.
 
 | Change | Impact | Migration Path | Verification |
 |--------|--------|-----------------|--------------|
 | New Helm values `api.oidc.groupsClaim`, `api.oidc.roleMappings.*`, `api.oidc.defaultRole` | Optional; if not set, OIDC behaves as before (no role mappings, all users get viewer). Existing installs see no change. | No migration needed; Helm values are optional and default to nil/empty. Existing installs without these values behave identically. | OIDC users logging in without role mappings configured receive viewer role, same as before. Role mappings take effect only if explicitly configured via new Helm values. |
 | New API CLI flags `--oidc-groups-claim`, `--oidc-role-mapping-admin`, `--oidc-role-mapping-operator`, `--oidc-role-mapping-viewer`, `--oidc-default-role` | Optional; empty/null values mean no role mappings, identical to pre-feature behavior. | If operators previously manually configured role mappings via `/admin/config`, those configurations persist in the database. The new Helm-based config is a separate, synthetic provider ("helm") and does not interact with database-stored providers. | Existing OIDC users' roles are not retroactively changed; role mappings apply on next login. If a new mapping is configured at install time, it takes effect for all future logins (including existing users on their next login). |
-| Database provider synthesis at runtime | New synthetic "helm" provider is listed alongside database-stored providers; it is read-only and cannot be edited/deleted via the dashboard. | No database migration needed; the synthetic provider is constructed at runtime from CLI flags/env vars. | Dashboard `/admin/config/auth` lists the Helm provider as a separate, non-editable entry; operators can still manage other (database-stored) OIDC providers via the dashboard. |
+| Database provider synthesis at runtime | New synthetic "helm" provider is listed alongside database-stored providers; it is read-only and cannot be edited/deleted via the dashboard (M2, H4, unchanged by the hybrid model). | No database migration needed; the synthetic provider is constructed at runtime from CLI flags/env vars. | Dashboard `/admin/config/auth` lists the Helm provider as a separate, non-editable entry; operators can still manage other (database-stored) OIDC providers via the dashboard. |
+| **`helmOverride` sibling field on the existing `"auth"` config row (Entity 3a, M1/M2) — NO new table, NO new migration** | Additive; a fresh install or an upgrade from a pre-feature version starts with `helmOverride` absent from the row. An absent/empty `helmOverride` has zero effect on resolution — `effectiveHelmPolicy` returns the Helm-seeded policy verbatim, and resolution falls through to the pre-existing Helm/default-role/viewer chain exactly as before this feature existed. | No migration; the field is parsed opportunistically from existing JSON (an old row simply has no `helmOverride` key, which unmarshals to the zero value). No backfill needed. | `effectiveHelmPolicy(base, nil)` returns `base` unchanged; a login against it produces byte-identical results to calling `computeRole(groups, base)` directly, pre-feature. |
+| Dashboard editing surface for the overlay (M7) | New UI; does not remove or gate any existing read-only display of Helm-seeded mappings. | No migration; UI-only addition, requires its own `design.pen` pass per constitution Principle II. | Admins with `config:manage` can write/reset role overrides via the extended `PUT /admin/config/auth` and the new `DELETE /admin/config/auth/role-mappings/{role}`; admins without `config:manage` see a read-only view (or no access), matching the existing `/admin/config` RBAC pattern. |
 
-**Cite SC-008, Assumption 3, Assumption 5, Assumption 6**.
+**Cite SC-007, SC-008, M1, M2, M5, M7, M9, Assumption 3, Assumption 5, Assumption 6**.
 
 ---
 
@@ -692,7 +1125,7 @@ oidc role assigned: provider=<provider_name> matched=<claim_value_or_none> from=
 
 | Step | Entity | State | Notes |
 |------|--------|-------|-------|
-| 1 | OIDC role mappings (Helm) | Configured | `operator.oidc.helmProvider.roleMappings` set at install time. |
+| 1 | OIDC role mappings (Helm) | Configured | `api.oidc.roleMappings` (M10 canonical key path — there is no `auth` level under `api.oidc.*`) set at install time. |
 | 2 | bootstrap-admin | Executed | Creates a local user with admin role; no OIDC link. |
 | 3 | Local admin user | Created in database | User has `users.role = "admin"`; no OIDC link in `oidc_links` table. |
 | 4 | OIDC user logs in | Happens after bootstrap-admin | OIDC user's role is computed from mappings (unchanged). |
@@ -731,7 +1164,9 @@ oidc role assigned: provider=<provider_name> matched=<claim_value_or_none> from=
 
 **E2E Tests** (in CI):
 
-- `test/e2e/api_auth_e2e_test.go`: `TestAPI_OIDCRoleMappingAtInstallTime`, `TestAPI_OIDCRoleMappingFirstLogin`, `TestAPI_OIDCRoleMappingReEvalOnLogin` (api-auth bucket, ~2-3 logins total).
+- `api/internal/handlers/config_test.go`: `validateAuth` extended for `helmOverride.roleMappings` shape validation; new `DELETE /admin/config/auth/role-mappings/{role}` handler test.
+- `api/internal/auth/oidc_rolemap_test.go`: new `TestEffectiveHelmPolicy()` covering per-role replacement (M3) and the M4 worked case; `computeRole`'s existing tests are untouched (M4).
+- `test/e2e/api_auth_e2e_test.go`: `TestAPI_OIDCRoleMappingAtInstallTime`, `TestAPI_OIDCRoleMappingFirstLogin`, `TestAPI_OIDCRoleMappingReEvalOnLogin`, `TestAPI_OIDCRoleMappingResetRoute` (api-auth bucket, ~2-3 logins total).
 - `test/e2e/gameserver_e2e_test.go`: `TestGameServer_StorageClassFromHelmDefault`, `TestGameServer_StorageClassNotFound`, `TestGameServer_StorageClassExplicitOverride` (operator bucket, zero logins).
 
 **Register new tests** in `test/e2e/buckets.sh` before merge.
@@ -744,9 +1179,27 @@ This data model defines:
 
 1. **Storage Class Resolution**: Helm values + operator CLI flags → precedence-ordered PVC materialization across three PVC types (data, extra volumes, mods).
 2. **Status Reporting**: Existing `Conditions[]` mechanism used; no new status fields. Error messages rendered on `ServerDetail` UI.
-3. **OIDC Role Mapping**: Helm values + CLI flags → synthetic "helm" provider → immutable, read-only at runtime. Role assignment computed at login, re-evaluated on subsequent logins if mappings configured.
-4. **Audit Trail**: OIDC role assignments recorded as audit events; reason codes distinguish initial assignment from updates.
-5. **Backward Compatibility**: All changes are optional (empty/nil defaults preserve pre-feature behavior); existing GameServers unaffected by install-time defaults; bootstrap-admin and OIDC coexist.
+3. **OIDC Role Mapping (Hybrid — Helm seeds, DB overrides, per M0-M10)**: Helm values + CLI flags
+   seed the synthetic `"helm"` provider (immutable, read-only at runtime, M2, H4, unchanged). **No
+   new table, no new migration (M1)**: a `helmOverride` field on the existing `"auth"` config row
+   (Entity 3a) lets admins replace individual roles' group lists through the dashboard's extended
+   `PUT /admin/config/auth` (M7); the write takes effect on next login with no restart and no
+   `helm upgrade`, because the helm provider path (`OIDCFor` short-circuit, `registry.go:224-232`,
+   bypassing the row-hash cache that governs only DB providers) reads `helmOverride` fresh on every
+   login attempt. Resolution is two steps: a per-role
+   merge (`effectiveHelmPolicy`, Entity 3b, M3/M4) that replaces whole role lists (never a
+   per-claim-value lookup), followed by the unchanged `computeRole` — so the most privileged match
+   still wins even when only one of two matched roles is overridden (M4's worked case). `groupsClaim`
+   and `defaultRole` have no override path in v1 (M5). On `helm upgrade` with changed values, an
+   existing per-role override wins over the new Helm value for that role (M9); the new
+   `DELETE /admin/config/auth/role-mappings/{role}` route (M7, the only new route) resets one role to
+   its Helm-seeded value.
+4. **Audit Trail**: OIDC login role assignments (Entity 5) and `helmOverride` writes/resets
+   (Entity 6, M8) are both recorded as audit events via the real `WriteSync(ctx, method, path,
+   target, reason string, status int)`, gated by the `config:manage` permission for the latter; one
+   consistent reason-string format per operation, detail carried entirely in the free-text `reason`
+   column (`audit_events` has no action/metadata/message column).
+5. **Backward Compatibility**: All changes are optional (empty/nil defaults preserve pre-feature behavior); existing GameServers unaffected by install-time defaults; bootstrap-admin and OIDC coexist; an absent/empty `helmOverride` is a strict no-op, so SC-008 (default viewer with no mappings anywhere) still holds.
 
-All entities resolve in consistent precedence order; see decision tables for role and storage class.
+All entities resolve in consistent precedence order; see decision tables for role (per-role merge then `computeRole`, M3/M4) and storage class.
 
