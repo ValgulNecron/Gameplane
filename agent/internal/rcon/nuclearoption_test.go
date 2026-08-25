@@ -296,10 +296,9 @@ func TestNuclearOptionExec(t *testing.T) {
 			wantErrMsg: "status 4003",
 		},
 		{
-			name: "4004 unknown command",
-			setupResp: map[string][2]interface{}{
-				// No entry for "bogus" — server responds 4004.
-			},
+			// setupResp is left nil: no entry for "bogus-command" means
+			// the server responds 4004.
+			name:       "4004 unknown command",
 			cmd:        "bogus-command",
 			wantErrMsg: "status 4004",
 		},
@@ -603,5 +602,255 @@ func TestNuclearOptionConnectionReuse(t *testing.T) {
 	_, err = client.Exec("test-cmd")
 	if err != nil {
 		t.Errorf("second exec: %v", err)
+	}
+}
+
+// failNthWriteConn wraps a net.Conn and fails exactly the Nth Write call
+// with a synthetic error, letting earlier writes pass through to the
+// underlying connection unmodified. Used to deterministically exercise the
+// write-error paths in Exec without depending on real network failure
+// timing.
+type failNthWriteConn struct {
+	net.Conn
+	n     int
+	calls int
+}
+
+func (f *failNthWriteConn) Write(p []byte) (int, error) {
+	f.calls++
+	if f.calls == f.n {
+		return 0, fmt.Errorf("simulated write failure")
+	}
+	return f.Conn.Write(p)
+}
+
+// failSetDeadlineConn wraps a net.Conn and always fails SetDeadline, letting
+// Read/Write pass through to the underlying connection unmodified.
+type failSetDeadlineConn struct {
+	net.Conn
+}
+
+func (f *failSetDeadlineConn) SetDeadline(time.Time) error {
+	return fmt.Errorf("simulated set deadline failure")
+}
+
+// TestNuclearOptionDefaultPort verifies that port 0 is replaced with the
+// protocol's documented default port.
+func TestNuclearOptionDefaultPort(t *testing.T) {
+	client := NewNuclearOption("127.0.0.1", 0, nil)
+	if client.port != defaultNuclearOptionPort {
+		t.Errorf("port: got %d, want %d", client.port, defaultNuclearOptionPort)
+	}
+}
+
+// TestNuclearOptionDialFailure verifies that a dial failure (nothing
+// listening on the target port) surfaces as an error from Exec.
+func TestNuclearOptionDialFailure(t *testing.T) {
+	// Reserve a port, then close the listener so nothing is listening there.
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := listener.Addr().String()
+	listener.Close()
+
+	parts := strings.Split(addr, ":")
+	port := 0
+	fmt.Sscanf(parts[1], "%d", &port)
+
+	client := NewNuclearOption("127.0.0.1", port, nil)
+	defer client.Close()
+	client.dialTimeout = 500 * time.Millisecond
+	client.execDeadline = 1 * time.Second
+
+	_, err = client.Exec("test-command")
+	if err == nil {
+		t.Fatal("expected dial error, got none")
+	}
+	if !strings.Contains(err.Error(), "dial") {
+		t.Errorf("error: got %v, want to contain 'dial'", err)
+	}
+}
+
+// TestNuclearOptionWriteLengthError verifies that a failure writing the
+// request length header is reported and the connection is reset.
+func TestNuclearOptionWriteLengthError(t *testing.T) {
+	local, remote := net.Pipe()
+	defer remote.Close()
+
+	client := NewNuclearOption("127.0.0.1", 1, nil)
+	defer client.Close()
+	client.dialTimeout = 100 * time.Millisecond
+	client.execDeadline = 1 * time.Second
+	client.conn = &failNthWriteConn{Conn: local, n: 1}
+
+	_, err := client.Exec("test-command")
+	if err == nil {
+		t.Fatal("expected write-length error, got none")
+	}
+	if !strings.Contains(err.Error(), "write length") {
+		t.Errorf("error: got %v, want to contain 'write length'", err)
+	}
+	if client.conn != nil {
+		t.Error("expected conn to be reset to nil after write error")
+	}
+}
+
+// TestNuclearOptionWriteBodyError verifies that a failure writing the
+// request body (after the length header succeeded) is reported and the
+// connection is reset.
+func TestNuclearOptionWriteBodyError(t *testing.T) {
+	local, remote := net.Pipe()
+	defer remote.Close()
+
+	// The drain goroutine's completion travels through a buffered channel,
+	// not a shared variable, so there's no race between it and the assertion
+	// below.
+	drainDone := make(chan struct{}, 1)
+	go func() {
+		_, _ = io.Copy(io.Discard, remote)
+		drainDone <- struct{}{}
+	}()
+
+	client := NewNuclearOption("127.0.0.1", 1, nil)
+	defer client.Close()
+	client.dialTimeout = 100 * time.Millisecond
+	client.execDeadline = 1 * time.Second
+	client.conn = &failNthWriteConn{Conn: local, n: 2}
+
+	_, err := client.Exec("test-command")
+	if err == nil {
+		t.Fatal("expected write-body error, got none")
+	}
+	if !strings.Contains(err.Error(), "write body") {
+		t.Errorf("error: got %v, want to contain 'write body'", err)
+	}
+	if client.conn != nil {
+		t.Error("expected conn to be reset to nil after write error")
+	}
+
+	remote.Close()
+	select {
+	case <-drainDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for drain goroutine to finish")
+	}
+}
+
+// TestNuclearOptionSetDeadlineError verifies that a failure setting the
+// response read deadline (after the request was fully written) is reported
+// and the connection is reset.
+func TestNuclearOptionSetDeadlineError(t *testing.T) {
+	local, remote := net.Pipe()
+	defer remote.Close()
+
+	drainDone := make(chan struct{}, 1)
+	go func() {
+		_, _ = io.Copy(io.Discard, remote)
+		drainDone <- struct{}{}
+	}()
+
+	client := NewNuclearOption("127.0.0.1", 1, nil)
+	defer client.Close()
+	client.dialTimeout = 100 * time.Millisecond
+	client.execDeadline = 1 * time.Second
+	client.conn = &failSetDeadlineConn{Conn: local}
+
+	_, err := client.Exec("test-command")
+	if err == nil {
+		t.Fatal("expected set-deadline error, got none")
+	}
+	if !strings.Contains(err.Error(), "set deadline") {
+		t.Errorf("error: got %v, want to contain 'set deadline'", err)
+	}
+	if client.conn != nil {
+		t.Error("expected conn to be reset to nil after set-deadline error")
+	}
+
+	remote.Close()
+	select {
+	case <-drainDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for drain goroutine to finish")
+	}
+}
+
+// TestNuclearOptionZeroExecDeadlineFallsBackToDefault verifies that a
+// non-positive execDeadline falls back to the package default instead of
+// leaving the read deadline unset.
+func TestNuclearOptionZeroExecDeadlineFallsBackToDefault(t *testing.T) {
+	server := newFakeTCPServer(t)
+	defer server.close(t)
+
+	parts := strings.Split(server.addr, ":")
+	port := 0
+	fmt.Sscanf(parts[1], "%d", &port)
+
+	client := NewNuclearOption("127.0.0.1", port, nil)
+	defer client.Close()
+	client.dialTimeout = 100 * time.Millisecond
+	client.execDeadline = 0 // Falls back to defaultNuclearOptionExecDeadline.
+
+	server.responses = map[string][2]interface{}{
+		"test-cmd": {uint32(2000), nil},
+	}
+
+	if _, err := client.Exec("test-cmd"); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestNuclearOptionTruncatedBodyLength tests handling of a connection that
+// sends a full, valid status header but is then closed before the body
+// length header arrives.
+func TestNuclearOptionTruncatedBodyLength(t *testing.T) {
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer listener.Close()
+
+	addr := listener.Addr().String()
+	parts := strings.Split(addr, ":")
+	port := 0
+	fmt.Sscanf(parts[1], "%d", &port)
+
+	acceptDone := make(chan struct{}, 1)
+	go func() {
+		defer func() { acceptDone <- struct{}{} }()
+		conn, aerr := listener.Accept()
+		if aerr != nil {
+			return
+		}
+		defer conn.Close()
+		// Read request (don't care about it).
+		buf := make([]byte, 1024)
+		conn.Read(buf)
+		// Send a full, valid status header, then close before sending the
+		// body length header.
+		statusBuf := make([]byte, 4)
+		binary.LittleEndian.PutUint32(statusBuf, 2000)
+		conn.Write(statusBuf)
+	}()
+
+	client := NewNuclearOption("127.0.0.1", port, nil)
+	defer client.Close()
+	client.dialTimeout = 100 * time.Millisecond
+	client.execDeadline = 1 * time.Second
+
+	_, err = client.Exec("test-command")
+	if err == nil {
+		t.Errorf("expected error for truncated body length, got none")
+	}
+	if !strings.Contains(err.Error(), "read body length") {
+		t.Errorf("error: got %v, want to contain 'read body length'", err)
+	}
+
+	select {
+	case <-acceptDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for server goroutine to finish")
 	}
 }
