@@ -1,7 +1,6 @@
 package rcon
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -504,8 +503,8 @@ func TestNuclearOptionMessageWithSpaces(t *testing.T) {
 		},
 	}
 
-	// Replace the server's handleConn temporarily to capture the request.
-	originalServe := server.serve
+	// Run a bespoke accept loop instead of the server's own, so the raw
+	// request bytes can be captured before they are decoded.
 	server.wg.Add(1)
 	go func() {
 		defer server.wg.Done()

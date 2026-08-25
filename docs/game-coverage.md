@@ -20,6 +20,7 @@ Every Gameplane-shipped game module is listed here with its join-protocol covera
 | `dont-starve-together` | Don't Starve Together | blocked-doc | QUERY | TestGameServer_DontStarveTogetherBot_Query | bot-heavy | — | Klei reliable-UDP frame format and handshake not documented; server credentials required at join | documentation |
 | `enshrouded` | Enshrouded | blocked-doc | QUERY | TestGameServer_EnshroudedBot_Query | bot-heavy | — | Undocumented proprietary protocol; wire format and handshake feasibility unknown | documentation |
 | `v-rising` | V Rising | blocked-doc | QUERY | TestGameServer_VRisingBot_Query | bot-heavy | — | Undocumented proprietary UDP protocol; transport layer unidentified | documentation |
+| `nuclear-option` | Nuclear Option | blocked-doc | QUERY | — | — | — | Undocumented proprietary UDP protocol; join handshake format unknown | documentation |
 
 ## Covered (in CI)
 

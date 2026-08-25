@@ -26,11 +26,9 @@
 package rcon
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
