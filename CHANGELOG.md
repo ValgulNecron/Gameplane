@@ -29,6 +29,21 @@ reaches `1.0.0`. Pre-1.0 minor versions may contain breaking changes.
   container itself (no ephemeral container, no `CAP_NET_RAW`, no network access
   change).
 
+### Added
+
+- **Default StorageClass for game-data volumes:** `operator.gameDataStorage.storageClassName`
+  (Helm value) sets a cluster-wide default for new game-data PVCs. Precedence:
+  GameServer override > GameTemplate default > install-time default > cluster
+  default. Applies only to new PVCs (immutable after creation).
+- **Helm-seeded OIDC role mappings (no bootstrap-admin needed):** Helm values
+  `api.oidc.groupsClaim`, `api.oidc.defaultRole`, and
+  `api.oidc.roleMappings.{admin,operator,viewer}` configure a read-only "helm"
+  OIDC provider, so OIDC-only installs need no bootstrap admin. Admins can
+  override role mappings from Settings → Authentication via `PUT /admin/config/auth`,
+  stored in `helmOverride.roleMappings` on the auth config; changes take effect
+  on next login (no API restart). Reset via `DELETE /admin/config/auth/role-mappings/{role}`.
+  Helm upgrades don't clobber overridden roles.
+
 ## [0.2.0-beta.8] — 2026-08-22
 
 A dependency sweep: all Go modules bumped to latest available versions,
