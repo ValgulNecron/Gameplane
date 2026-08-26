@@ -295,6 +295,9 @@ spec:
             {{- if .Values.operator.agentLogLevel }}
             - --agent-log-level={{ .Values.operator.agentLogLevel }}
             {{- end }}
+            {{- if .Values.operator.gameDataStorage.storageClassName }}
+            - --game-data-storage-class={{ .Values.operator.gameDataStorage.storageClassName }}
+            {{- end }}
             {{- if and .Values.networkPolicies.enabled .Values.networkPolicies.gameIngress.enabled }}
             {{- if not .Values.networkPolicies.gameIngress.fromCIDRs }}
             {{- fail "networkPolicies.gameIngress.fromCIDRs is empty: the operator cannot distinguish an explicit empty list from an unset flag and falls back to its own default (0.0.0.0/0), which OPENS player ingress to the whole internet instead of restricting it. An empty fromCIDRs is not a way to disable player ingress — set networkPolicies.gameIngress.enabled: false for that, or provide at least one CIDR to restrict access to." }}

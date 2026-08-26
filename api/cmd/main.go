@@ -345,11 +345,16 @@ type config struct {
 	dbDSN    string
 	logLevel string
 
-	oidcIssuer       string
-	oidcClientID     string
-	oidcClientSecret string
-	oidcRedirectURL  string
-	oidcDisplayName  string
+	oidcIssuer              string
+	oidcClientID            string
+	oidcClientSecret        string
+	oidcRedirectURL         string
+	oidcDisplayName         string
+	oidcGroupsClaim         string
+	oidcDefaultRole         string
+	oidcRoleMappingAdmin    string
+	oidcRoleMappingOperator string
+	oidcRoleMappingViewer   string
 
 	telemetryEndpoint  string
 	telemetryAuth      string
@@ -393,6 +398,16 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("GAMEPLANE_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
 	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("GAMEPLANE_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("GAMEPLANE_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
+	fs.StringVar(&c.oidcGroupsClaim, "oidc-groups-claim", envOr("GAMEPLANE_OIDC_GROUPS_CLAIM", ""),
+		"OIDC claim name containing group memberships; empty defaults to \"groups\"")
+	fs.StringVar(&c.oidcDefaultRole, "oidc-default-role", envOr("GAMEPLANE_OIDC_DEFAULT_ROLE", ""),
+		"Default role for new OIDC users when no group matches: \"viewer\" (default), \"operator\", \"admin\", or \"deny\". Helm-only — not DB-overridable.")
+	fs.StringVar(&c.oidcRoleMappingAdmin, "oidc-role-mapping-admin", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_ADMIN", ""),
+		"Comma-separated IdP group(s) seeding the admin role")
+	fs.StringVar(&c.oidcRoleMappingOperator, "oidc-role-mapping-operator", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_OPERATOR", ""),
+		"Comma-separated IdP group(s) seeding the operator role")
+	fs.StringVar(&c.oidcRoleMappingViewer, "oidc-role-mapping-viewer", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_VIEWER", ""),
+		"Comma-separated IdP group(s) seeding the viewer role")
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("GAMEPLANE_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
 	// Like the audit webhook auth, the telemetry ingest token is a
 	// credential and only comes from the environment (a mounted Secret),

@@ -98,6 +98,15 @@ operator:
     existingClaim: ""
     hostPath: ""
     mountPath: /var/lib/gameplane/modules
+  # Install-time default for game server data volume storage class.
+  # Applies to all GameServer.spec.storage when neither GameServer nor
+  # GameTemplate explicitly override it.
+  gameDataStorage:
+    # empty string (default) = use cluster's default StorageClass
+    # "fast-nvme", "gpu-attached", etc. = use named StorageClass
+    # If the named class doesn't exist, PVC provisioning fails and GameServer
+    # status.conditions surfaces "StorageClassNotFound" reason.
+    storageClassName: ""
 
 api:
   replicas: 1        # SQLite driver is single-writer on a RWO volume; only values >1 are safe with db.driver=postgres
@@ -230,6 +239,34 @@ api:
       name: gameplane-oidc
       key:  clientSecret
     redirectURL: ""
+    # OIDC claim name containing group/role memberships. Default: "groups"
+    # if empty or omitted. Examples: "groups", "roles", "membership",
+    # "department".
+    groupsClaim: ""
+    # Default role when no group matches. Helm-only, no dashboard override
+    # path exists for this field. Accepted values: "" (default to "viewer"),
+    # "viewer", "operator", "admin", "deny". "deny" = reject login (no user
+    # created/updated). Only meaningful if roleMappings is set.
+    defaultRole: ""
+    # Group-to-role mapping, seeded at install/upgrade time. Defines which
+    # IdP groups map to which dashboard roles for the synthetic "helm"
+    # provider. If omitted/empty, role mapping is disabled (new OIDC users
+    # get "viewer", existing roles never re-evaluated) unless an admin has
+    # set a DB override for a role via the dashboard, which takes precedence.
+    roleMappings:
+      # Array of IdP groups that seed the "admin" dashboard role. A DB
+      # override (dashboard-managed) takes precedence over this value once
+      # set, and survives future helm upgrades that change this array.
+      # Example: ["gameplane-admins", "ops-team"]
+      admin: []
+      # Array of IdP groups that seed the "operator" dashboard role. Same
+      # DB-override precedence as "admin" above.
+      # Example: ["gameplane-operators"]
+      operator: []
+      # Array of IdP groups that seed the "viewer" dashboard role. Same
+      # DB-override precedence as "admin" above.
+      # Example: ["gameplane-viewers", "readonly-users"]
+      viewer: []
 
   # mTLS material the API presents to in-pod agents. When unset, the
   # chart provisions a self-signed CA + cert via a post-install hook.

@@ -177,6 +177,14 @@ type GameServerReconciler struct {
 	// --capture-sidecar-image operator flag so air-gapped installs can point it
 	// at a private registry mirror. Empty falls back to DefaultCaptureSidecarImage.
 	CaptureSidecarImage string
+
+	// DefaultStorageClassName is the install-time default StorageClass name for
+	// game server data volumes. Set from the --game-data-storage-class CLI flag.
+	// Empty string means use the cluster's default StorageClass.
+	// Precedence: GameServer.Spec.Storage.StorageClassName (explicit override) >
+	// GameTemplate.Spec.Storage.StorageClassName (template default) >
+	// DefaultStorageClassName (install-time default) > cluster default.
+	DefaultStorageClassName string
 }
 
 // AgentStopper issues the module-declared graceful stop sequence to a game's
