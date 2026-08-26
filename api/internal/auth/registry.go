@@ -133,6 +133,7 @@ type Registry struct {
 	secrets     SecretReader
 	legacy      *OIDC
 	legacyLabel string
+	helmPolicy  *ProviderPolicy
 
 	mu    sync.Mutex
 	built map[string]builtEntry
@@ -141,8 +142,10 @@ type Registry struct {
 }
 
 // NewRegistry builds a Registry. legacy is the Helm-flag OIDC provider
-// (nil when the flags are unset) and legacyLabel its login-button text.
-func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabel string) *Registry {
+// (nil when the flags are unset), legacyLabel its login-button text, and
+// helmPolicy the Helm-seeded role mapping policy (nil when OIDC is not
+// configured or role mappings are unset).
+func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabel string, helmPolicy *ProviderPolicy) *Registry {
 	if legacyLabel == "" {
 		legacyLabel = "Single sign-on"
 	}
@@ -157,6 +160,7 @@ func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabe
 		secrets:     secrets,
 		legacy:      legacy,
 		legacyLabel: legacyLabel,
+		helmPolicy:  helmPolicy,
 		built:       map[string]builtEntry{},
 		now:         time.Now,
 	}
@@ -197,9 +201,19 @@ func (r *Registry) Enabled(ctx context.Context) []Provider {
 		}
 	}
 	if r.legacy != nil {
-		out = append(out, Provider{
-			Name: HelmProviderName, Kind: "oidc", DisplayName: r.legacyLabel, Enabled: true,
-		})
+		helmProvider := Provider{
+			Name:        HelmProviderName,
+			Kind:        "oidc",
+			DisplayName: r.legacyLabel,
+			Enabled:     true,
+		}
+		// Populate the synthetic provider with Helm-seeded policy fields.
+		if r.helmPolicy != nil {
+			helmProvider.GroupsClaim = r.helmPolicy.GroupsClaim
+			helmProvider.RoleMappings = r.helmPolicy.RoleMappings
+			helmProvider.DefaultRole = r.helmPolicy.DefaultRole
+		}
+		out = append(out, helmProvider)
 	}
 	return out
 }

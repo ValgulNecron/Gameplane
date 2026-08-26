@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -72,6 +73,26 @@ func main() {
 	logger = newLogger(cfg.logLevel)
 	slog.SetDefault(logger)
 
+	// Validate OIDC configuration flags.
+	if cfg.oidcDefaultRole != "" {
+		validRoles := map[string]bool{
+			"viewer":   true,
+			"operator": true,
+			"admin":    true,
+			"deny":     true,
+		}
+		if !validRoles[cfg.oidcDefaultRole] {
+			msg := fmt.Sprintf("invalid --oidc-default-role %q (accepted: '', 'viewer', 'operator', 'admin', 'deny')", cfg.oidcDefaultRole)
+			logger.Error(msg)
+			os.Exit(1)
+		}
+	}
+
+	// Parse OIDC role mapping lists.
+	cfg.oidcRoleMappingAdminParsed = parseRoleMapping(cfg.oidcRoleMappingAdmin)
+	cfg.oidcRoleMappingOperatorParsed = parseRoleMapping(cfg.oidcRoleMappingOperator)
+	cfg.oidcRoleMappingViewerParsed = parseRoleMapping(cfg.oidcRoleMappingViewer)
+
 	// Validate and trim trusted proxies CIDR list.
 	validProxies := []string{}
 	for _, p := range cfg.trustedProxies {
@@ -124,12 +145,31 @@ func main() {
 	// The Helm-flag OIDC provider (if any) is built once at startup; the
 	// registry lists it as the read-only "helm" provider next to the
 	// dashboard-managed providers it resolves live from the auth config.
-	oidcAuth, err := auth.NewOIDC(ctx, cfg.oidcIssuer, cfg.oidcClientID, cfg.oidcClientSecret, cfg.oidcRedirectURL)
+	// Build the Helm-seeded role mapping policy from the parsed CLI flags.
+	var helmPolicy *auth.ProviderPolicy
+	if cfg.oidcIssuer != "" {
+		// Only create RoleMappings if at least one role list is non-empty;
+		// nil RoleMappings disables mapping entirely (SC-008 backward compat).
+		var roleMappings *auth.RoleMappings
+		if len(cfg.oidcRoleMappingAdminParsed) > 0 || len(cfg.oidcRoleMappingOperatorParsed) > 0 || len(cfg.oidcRoleMappingViewerParsed) > 0 {
+			roleMappings = &auth.RoleMappings{
+				Admin:    cfg.oidcRoleMappingAdminParsed,
+				Operator: cfg.oidcRoleMappingOperatorParsed,
+				Viewer:   cfg.oidcRoleMappingViewerParsed,
+			}
+		}
+		helmPolicy = &auth.ProviderPolicy{
+			GroupsClaim:  cfg.oidcGroupsClaim,
+			DefaultRole:  cfg.oidcDefaultRole,
+			RoleMappings: roleMappings,
+		}
+	}
+	oidcAuth, err := auth.NewOIDCWithPolicy(ctx, cfg.oidcIssuer, cfg.oidcClientID, cfg.oidcClientSecret, cfg.oidcRedirectURL, helmPolicy)
 	if err != nil && cfg.oidcIssuer != "" {
 		logger.Warn("oidc disabled", "err", err)
 	}
 	authRegistry := auth.NewRegistry(store,
-		auth.NewK8sSecretReader(k8s, cfg.namespace), oidcAuth, cfg.oidcDisplayName)
+		auth.NewK8sSecretReader(k8s, cfg.namespace), oidcAuth, cfg.oidcDisplayName, helmPolicy)
 
 	var auditOpts []audit.Option
 	var webhookDone <-chan struct{}
@@ -166,6 +206,11 @@ func main() {
 		}
 	}
 	auditor := audit.New(store, auditOpts...)
+	// Wire the Helm OIDC provider to the auditor for role-assignment audit events (FR-014).
+	if oidcAuth != nil {
+		oidcAuth.AttachAuditor(auditor)
+		oidcAuth.SetProviderName(auth.HelmProviderName)
+	}
 
 	// Notification delivery: watch CRD status transitions (server health,
 	// backup/restore outcomes) and push matching events to the sinks
@@ -345,16 +390,19 @@ type config struct {
 	dbDSN    string
 	logLevel string
 
-	oidcIssuer              string
-	oidcClientID            string
-	oidcClientSecret        string
-	oidcRedirectURL         string
-	oidcDisplayName         string
-	oidcGroupsClaim         string
-	oidcDefaultRole         string
-	oidcRoleMappingAdmin    string
-	oidcRoleMappingOperator string
-	oidcRoleMappingViewer   string
+	oidcIssuer                    string
+	oidcClientID                  string
+	oidcClientSecret              string
+	oidcRedirectURL               string
+	oidcDisplayName               string
+	oidcGroupsClaim               string
+	oidcDefaultRole               string
+	oidcRoleMappingAdmin          string
+	oidcRoleMappingOperator       string
+	oidcRoleMappingViewer         string
+	oidcRoleMappingAdminParsed    []string
+	oidcRoleMappingOperatorParsed []string
+	oidcRoleMappingViewerParsed   []string
 
 	telemetryEndpoint  string
 	telemetryAuth      string
@@ -510,6 +558,21 @@ func envOrInt64(key string, def int64) int64 {
 		}
 	}
 	return def
+}
+
+// parseRoleMapping parses a comma-separated list of group names, trimming
+// whitespace and dropping empty entries.
+func parseRoleMapping(csv string) []string {
+	if csv == "" {
+		return nil
+	}
+	out := make([]string, 0, 4)
+	for _, g := range strings.Split(csv, ",") {
+		if g = strings.TrimSpace(g); g != "" {
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 // bodyLimit wraps every request body in MaxBytesReader so a decoder

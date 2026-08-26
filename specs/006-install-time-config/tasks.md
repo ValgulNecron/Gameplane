@@ -26,9 +26,9 @@ description: "Task list for install-time configuration feature (storage class & 
 
 **⚠️ CRITICAL**: These infrastructure tasks MUST complete before any story work begins.
 
-- [ ] T001 [P] Add Helm values keys for operator.gameDataStorage.storageClassName and OIDC role-mapping configuration (oidc.groupsClaim, oidc.defaultRole, oidc.roleMapping.admin/operator/viewer) in charts/gameplane/values.yaml
-- [ ] T002 [P] Add conditional --game-data-storage-class flag binding to operator Deployment args in charts/gameplane/templates/operator.yaml
-- [ ] T003 [P] Add conditional --oidc-* and --game-data-storage-class flag binding to api Deployment args in charts/gameplane/templates/api.yaml
+- [X] T001 [P] Add Helm values keys for operator.gameDataStorage.storageClassName and OIDC role-mapping configuration (oidc.groupsClaim, oidc.defaultRole, oidc.roleMapping.admin/operator/viewer) in charts/gameplane/values.yaml
+- [X] T002 [P] Add conditional --game-data-storage-class flag binding to operator Deployment args in charts/gameplane/templates/operator.yaml
+- [X] T003 [P] Add conditional --oidc-* and --game-data-storage-class flag binding to api Deployment args in charts/gameplane/templates/api.yaml
 
 ---
 
@@ -38,8 +38,8 @@ description: "Task list for install-time configuration feature (storage class & 
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 [P] Add --game-data-storage-class CLI flag with GAMEPLANE_GAME_DATA_STORAGE_CLASS env fallback and GameServerReconciler.DefaultStorageClassName struct field in operator/cmd/main.go
-- [ ] T005 [P] Add --oidc-groups-claim, --oidc-default-role, --oidc-role-mapping-admin, --oidc-role-mapping-operator, and --oidc-role-mapping-viewer CLI flags (each a single comma-separated string, not a repeatable flag) with GAMEPLANE_OIDC_* env fallbacks to api/cmd/main.go serve subcommand
+- [X] T004 [P] Add --game-data-storage-class CLI flag with GAMEPLANE_GAME_DATA_STORAGE_CLASS env fallback and GameServerReconciler.DefaultStorageClassName struct field in operator/cmd/main.go
+- [X] T005 [P] Add --oidc-groups-claim, --oidc-default-role, --oidc-role-mapping-admin, --oidc-role-mapping-operator, and --oidc-role-mapping-viewer CLI flags (each a single comma-separated string, not a repeatable flag) with GAMEPLANE_OIDC_* env fallbacks to api/cmd/main.go serve subcommand
 
 **Checkpoint**: Foundation ready — user story implementation can now begin in parallel.
 
@@ -62,11 +62,11 @@ A fresh Gameplane install with OIDC enabled and role mappings pre-configured (vi
 
 ### Slice 4: OIDC Helm Provider Synthesis & Flag Processing
 
-- [ ] T006 [US1] Add validation and error handling for OIDC flag values (defined in T005) in api/cmd/main.go: reject invalid --oidc-default-role values (must be 'admin', 'operator', or 'viewer'), reject empty entries in comma-separated role mapping lists
-- [ ] T007 [P] [US1] Synthesize read-only Helm-configured OIDC provider ("helm") in api/internal/auth/registry.go using the parsed policy from CLI flags; provider is immutable through dashboard
-- [ ] T008 [US1] Implement groups-claim extraction and first-match role assignment, plus per-login re-evaluation against the Helm-synthesized policy, in api/internal/auth/oidc.go. Must honour the configured claim name (policy.GroupsClaim — never hardcode "groups") for both first-login assignment and every subsequent re-evaluation. Re-evaluation MUST NOT silently demote a locally-granted role: per research.md Decision 7, re-evaluation runs only when the provider's RoleMappings are configured, and the update must be skipped (retaining the prior role, applied=false) when it would remove the last user capable of managing users. Sequential with T009 — both edit this file, and T009's audit event depends on the assignment/re-evaluation outcome this task produces.
-- [ ] T009 [US1] Thread audit recorder through OIDC login path (depends on T008 landing first; same file) and emit FR-014 audit events on role assignment (first login and role re-evaluation) with format: user name, new role, mapping rule trigger in api/internal/auth/oidc.go
-- [ ] T010 [P] [US1] Add unit test cases for OIDC flag parsing, role claim extraction, Helm provider synthesis, audit event format, and role re-evaluation logic, including a case asserting a bootstrap-admin local account and an OIDC-mapped admin coexist without either clobbering the other (FR-013), in api/internal/auth/oidc_rolemap_test.go
+- [X] T006 [US1] Add validation and error handling for OIDC flag values (defined in T005) in api/cmd/main.go: reject invalid --oidc-default-role values (must be 'admin', 'operator', or 'viewer'), reject empty entries in comma-separated role mapping lists
+- [X] T007 [P] [US1] Synthesize read-only Helm-configured OIDC provider ("helm") in api/internal/auth/registry.go using the parsed policy from CLI flags; provider is immutable through dashboard
+- [X] T008 [US1] Implement groups-claim extraction and first-match role assignment, plus per-login re-evaluation against the Helm-synthesized policy, in api/internal/auth/oidc.go. Must honour the configured claim name (policy.GroupsClaim — never hardcode "groups") for both first-login assignment and every subsequent re-evaluation. Re-evaluation MUST NOT silently demote a locally-granted role: per research.md Decision 7, re-evaluation runs only when the provider's RoleMappings are configured, and the update must be skipped (retaining the prior role, applied=false) when it would remove the last user capable of managing users. Sequential with T009 — both edit this file, and T009's audit event depends on the assignment/re-evaluation outcome this task produces.
+- [X] T009 [US1] Thread audit recorder through OIDC login path (depends on T008 landing first; same file) and emit FR-014 audit events on role assignment (first login and role re-evaluation) with format: user name, new role, mapping rule trigger in api/internal/auth/oidc.go
+- [X] T010 [P] [US1] Add unit test cases for OIDC flag parsing, role claim extraction, Helm provider synthesis, audit event format, and role re-evaluation logic, including a case asserting a bootstrap-admin local account and an OIDC-mapped admin coexist without either clobbering the other (FR-013), in api/internal/auth/oidc_rolemap_test.go
 
 ### Slice 5: `helmOverride` Overlay for Admin-Managed OIDC Role Mapping Overrides (Settled Hybrid Design — no new table, no migration)
 
@@ -132,20 +132,20 @@ The operator's `--game-data-storage-class` CLI flag and the `GameServerReconcile
 
 ### Slice 2-3: PVC Storage Class Injection Across Reconciliation Paths
 
-- [ ] T035 [P] [US2] Inject install-time default storage class after precedence chain (GameServer.Spec.Storage.StorageClassName > GameTemplate default > DefaultStorageClassName flag > nil/cluster default) in reconcilePVC() function in operator/internal/controller/gameserver_controller.go
-- [ ] T036 [P] [US2] Inject install-time default storage class in reconcileExtraPVCs() loop for each extra volume after applying GameServer/GameTemplate overrides in operator/internal/controller/gameserver_extravolumes.go
-- [ ] T037 [P] [US2] Inject install-time default storage class after precedence chain in reconcileModPVC() function in operator/internal/controller/gameserver_version.go
+- [X] T035 [P] [US2] Inject install-time default storage class after precedence chain (GameServer.Spec.Storage.StorageClassName > GameTemplate default > DefaultStorageClassName flag > nil/cluster default) in reconcilePVC() function in operator/internal/controller/gameserver_controller.go
+- [X] T036 [P] [US2] Inject install-time default storage class in reconcileExtraPVCs() loop for each extra volume after applying GameServer/GameTemplate overrides in operator/internal/controller/gameserver_extravolumes.go
+- [X] T037 [P] [US2] Inject install-time default storage class after precedence chain in reconcileModPVC() function in operator/internal/controller/gameserver_version.go
 
 ### Slice 2-3: Storage Class Precedence & Error Handling Tests
 
-- [ ] T038 [P] [US2] Add 4 envtest cases for storage class precedence (GameServer override > GameTemplate default > operator default > cluster default) and immutability in operator/internal/controller/gameserver_storage_envtest_test.go (NEW)
-- [ ] T039 [US2] Add PVC provisioning error detection in reconcileStatus() by checking PVC conditions and extracting StorageClass-not-found error reason, modeling after MetalLB IPAddressPool pattern in operator/internal/controller/gameserver_status.go; set Ready condition to False with reason PVCProvisioningFailed
-- [ ] T040 [P] [US2] Add 2 envtest cases for PVC provisioning failure detection (nonexistent StorageClass results in Ready condition False with reason PVCProvisioningFailed) in operator/internal/controller/gameserver_status_envtest_test.go (NEW)
+- [X] T038 [P] [US2] Add 4 envtest cases for storage class precedence (GameServer override > GameTemplate default > operator default > cluster default) and immutability in operator/internal/controller/gameserver_storage_envtest_test.go (NEW)
+- [X] T039 [US2] Add PVC provisioning error detection in reconcileStatus() by checking PVC conditions and extracting StorageClass-not-found error reason, modeling after MetalLB IPAddressPool pattern in operator/internal/controller/gameserver_status.go; set Ready condition to False with reason PVCProvisioningFailed
+- [X] T040 [P] [US2] Add 2 envtest cases for PVC provisioning failure detection (nonexistent StorageClass results in Ready condition False with reason PVCProvisioningFailed) in operator/internal/controller/gameserver_status_envtest_test.go (NEW)
 
 ### Slice 9: E2E Tests for Storage Class Configuration (Operator Bucket)
 
-- [ ] T041 [P] [US2] Add 3 e2e tests in test/e2e/gameserver_e2e_test.go: (1) GameServer PVC created with Helm-configured default storage class, (2) nonexistent storage class results in Pending status with clear error shown in dashboard, (3) explicit GameServer override takes precedence over operator default
-- [ ] T042 [US2] Register 3 e2e tests (from T041) in operator bucket in test/e2e/buckets.sh
+- [X] T041 [P] [US2] Add 3 e2e tests in test/e2e/gameserver_e2e_test.go: (1) GameServer PVC created with Helm-configured default storage class, (2) nonexistent storage class results in Pending status with clear error shown in dashboard, (3) explicit GameServer override takes precedence over operator default
+- [X] T042 [US2] Register 3 e2e tests (from T041) in operator bucket in test/e2e/buckets.sh
 
 **Checkpoint**: User Story 2 (Storage) is fully functional and independently testable. An operator can deploy with a default storage class configured at install time.
 
@@ -157,12 +157,12 @@ The operator's `--game-data-storage-class` CLI flag and the `GameServerReconcile
 
 **Note**: `operator/specs.md` (T046) and `api/specs.md` (T047) are listed here for completeness of the documentation sweep, but per Constitution Principle IV (specs.md updated in the same commit as the behavior it documents), they MAY instead land alongside their corresponding implementation tasks — T039/T035-T037 for T046, and T012/T013-T014 for T047 — rather than waiting for this Polish phase. `web/specs.md` already follows this pattern: it is updated in Slice 7/8 (T028, T032), not here.
 
-- [ ] T043 [P] Add per-IdP (Okta, Azure AD, Keycloak) OIDC role claim configuration examples and walkthrough, including how to set `helmOverride` role-mapping overrides via the dashboard and reset one to the Helm default, in docs/oidc.md
-- [ ] T044 [P] Document operator.gameDataStorage.storageClassName and OIDC-related Helm values in docs/install.md (values schema, defaults, examples)
-- [ ] T045 [P] Add OIDC role-mapping security model, Helm-seeded-vs-`helmOverride` per-role precedence, upgrade semantics (an existing override survives a `helm upgrade` that changes the Helm-seeded value for that role), and audit trail sections in docs/security.md
+- [X] T043 [P] Add per-IdP (Okta, Azure AD, Keycloak) OIDC role claim configuration examples and walkthrough, including how to set `helmOverride` role-mapping overrides via the dashboard and reset one to the Helm default, in docs/oidc.md
+- [X] T044 [P] Document operator.gameDataStorage.storageClassName and OIDC-related Helm values in docs/install.md (values schema, defaults, examples)
+- [X] T045 [P] Add OIDC role-mapping security model, Helm-seeded-vs-`helmOverride` per-role precedence, upgrade semantics (an existing override survives a `helm upgrade` that changes the Helm-seeded value for that role), and audit trail sections in docs/security.md
 - [ ] T046 [P] Document PVC StorageClass selection precedence chain, install-time default injection logic, and error surfacing (PVCProvisioningFailed) in operator/specs.md
 - [ ] T047 [P] Document OIDC Helm-provider synthesis at API startup, CLI flag definitions, group claim extraction, the `helmOverride` overlay (storage shape, merge/reset, no new table or migration), role mapping rules, and the FR-014 / override-audit event emission formats in api/specs.md
-- [ ] T048 [P] Add v0.2.0 release feature entries for install-time storage class configuration and install-time OIDC role mapping (Helm-seeded + `helmOverride` hybrid) in CHANGELOG.md
+- [X] T048 [P] Add v0.2.0 release feature entries for install-time storage class configuration and install-time OIDC role mapping (Helm-seeded + `helmOverride` hybrid) in CHANGELOG.md
 
 ---
 

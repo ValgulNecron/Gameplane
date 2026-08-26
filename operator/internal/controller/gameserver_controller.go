@@ -250,6 +250,7 @@ const (
 // (see poolExistence) — read-only, and deliberately narrow (no list/delete)
 // since the operator only ever needs to know whether one named pool exists.
 // +kubebuilder:rbac:groups=metallb.io,resources=ipaddresspools,verbs=get;list;watch
+// +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses,verbs=get;list;watch
 
 func (r *GameServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -531,6 +532,8 @@ func (r *GameServerReconciler) reconcilePVC(
 				pvc.Spec.StorageClassName = gs.Spec.Storage.StorageClassName
 			} else if tmpl.Spec.Storage.StorageClassName != nil {
 				pvc.Spec.StorageClassName = tmpl.Spec.Storage.StorageClassName
+			} else if r.DefaultStorageClassName != "" {
+				pvc.Spec.StorageClassName = &r.DefaultStorageClassName
 			}
 			// Seed the volume from a CSI VolumeSnapshot when requested
 			// (this is how volume-snapshot Restores stand up a new server).

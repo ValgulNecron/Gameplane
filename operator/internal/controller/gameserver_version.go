@@ -209,6 +209,8 @@ func (r *GameServerReconciler) reconcileModPVC(
 				pvc.Spec.StorageClassName = gs.Spec.Storage.StorageClassName
 			} else if tmpl.Spec.Storage.StorageClassName != nil {
 				pvc.Spec.StorageClassName = tmpl.Spec.Storage.StorageClassName
+			} else if r.DefaultStorageClassName != "" {
+				pvc.Spec.StorageClassName = &r.DefaultStorageClassName
 			}
 		}
 		return controllerutil.SetControllerReference(gs, pvc, r.Scheme)

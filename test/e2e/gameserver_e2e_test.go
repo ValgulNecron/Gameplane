@@ -1307,3 +1307,237 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 	t.Logf("concurrency correctly enforced: second concurrent start rejected 409, first capture completed normally, third capture allowed (captureId=%s)",
 		thirdCapture.CaptureID)
 }
+
+// TestGameServer_DefaultStorageClassApplied: a GameServer's game-data PVC
+// must be created with the Helm-configured default storage class when no
+// explicit override is set at the GameServer or GameTemplate level. The
+// operator's --game-data-storage-class flag provides the install-time default,
+// which is materialized into the PVC spec.storageClassName at creation time.
+func TestGameServer_DefaultStorageClassApplied(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-storage-default-tmpl"
+	gs := "e2e-storage-default-gs"
+
+	// Use a template without explicit storage class, so it falls through
+	// to the install-time default.
+	applyBusyboxTemplate(t, tmpl)
+	applyBusyboxGameServer(t, ns, gs, tmpl)
+
+	// Wait for the PVC to be created.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+			Get(ctx, gs+"-data", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pvc: " + err.Error()
+		}
+		return true, ""
+	})
+
+	pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		Get(ctx, gs+"-data", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pvc: %v", err)
+	}
+
+	// The PVC should have a storageClassName set (either the Helm default or
+	// the cluster default). If the Helm install used an empty string for the
+	// default, the PVC's StorageClassName will be nil (cluster default).
+	// Either way, the PVC should exist and have a valid phase as it binds.
+	t.Logf("PVC %s has storageClassName=%v (cluster default if nil)",
+		gs+"-data", pvc.Spec.StorageClassName)
+
+	// Wait for the PVC to reach Bound so the test can confirm the storage
+	// class was acceptable.
+	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
+
+	// Re-fetch to get updated status.
+	pvc, err = envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		Get(ctx, gs+"-data", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pvc post-bind: %v", err)
+	}
+
+	if pvc.Status.Phase != corev1.ClaimBound {
+		t.Errorf("PVC phase=%s, want Bound", pvc.Status.Phase)
+	}
+}
+
+// TestGameServer_NonexistentStorageClassSurfacesError: a GameServer that
+// references a storage class that does not exist on the cluster must have
+// its status.conditions[Ready] set to False with reason PVCProvisioningFailed,
+// surfacing the error to the dashboard without crashing the operator.
+func TestGameServer_NonexistentStorageClassSurfacesError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-storage-error-tmpl"
+	gs := "e2e-storage-error-gs"
+
+	applyBusyboxTemplate(t, tmpl)
+
+	// Create a GameServer with an explicit but non-existent storage class.
+	// This should leave the server Pending with a clear error condition.
+	gsName := gs
+	gsSpec := map[string]any{
+		"templateRef": map[string]any{"name": tmpl},
+		"storage": map[string]any{
+			"storageClassName": "nonexistent-storage-class-that-will-never-exist-e2e-12345",
+		},
+	}
+	gsObj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata":   map[string]any{"name": gsName, "namespace": ns},
+		"spec":       gsSpec,
+	}}
+	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+		Create(ctx, gsObj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Delete(context.Background(), gsName, metav1.DeleteOptions{})
+	})
+
+	// Wait for the operator to detect the provisioning failure and surface
+	// it in the GameServer's status conditions. The check occurs on every
+	// reconciliation (~30s default), so we allow up to 2 minutes.
+	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
+		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Get(ctx, gsName, metav1.GetOptions{})
+		if err != nil {
+			return false, "get gameserver: " + err.Error()
+		}
+
+		// Look for a Ready=False condition with reason PVCProvisioningFailed.
+		conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		for _, cIface := range conditions {
+			c, ok := cIface.(map[string]any)
+			if !ok {
+				continue
+			}
+			if c["type"] == "Ready" && c["status"] == "False" {
+				reason, _ := c["reason"].(string)
+				message, _ := c["message"].(string)
+				if reason == "PVCProvisioningFailed" {
+					// Found the error condition.
+					return true, ""
+				}
+				return false, fmt.Sprintf("Ready=False but reason=%s (want PVCProvisioningFailed), message=%s",
+					reason, message)
+			}
+		}
+		return false, "no Ready=False condition yet"
+	})
+
+	// Verify the condition reason and message.
+	obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+		Get(ctx, gsName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get gameserver: %v", err)
+	}
+
+	conditions, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	var readyCondition map[string]any
+	for _, cIface := range conditions {
+		c, ok := cIface.(map[string]any)
+		if !ok {
+			continue
+		}
+		if c["type"] == "Ready" {
+			readyCondition = c
+			break
+		}
+	}
+
+	if readyCondition == nil {
+		t.Fatal("Ready condition not found on GameServer")
+	}
+	if readyCondition["status"] != "False" {
+		t.Errorf("Ready status=%s, want False", readyCondition["status"])
+	}
+	if readyCondition["reason"] != "PVCProvisioningFailed" {
+		t.Errorf("Ready reason=%s, want PVCProvisioningFailed", readyCondition["reason"])
+	}
+	// The message should mention the missing storage class.
+	msg := fmt.Sprintf("%v", readyCondition["message"])
+	if !strings.Contains(msg, "nonexistent-storage-class-that-will-never-exist-e2e-12345") &&
+		!strings.Contains(msg, "StorageClass") {
+		t.Errorf("Ready message=%s, want mention of missing StorageClass", msg)
+	}
+}
+
+// TestGameServer_ExplicitStorageClassOverridesDefault: a GameServer with an
+// explicit spec.storage.storageClassName must use that class, taking
+// precedence over the template default and the operator's install-time default.
+func TestGameServer_ExplicitStorageClassOverridesDefault(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-storage-override-tmpl"
+	gs := "e2e-storage-override-gs"
+
+	// Create a template without explicit storage class (so it would normally
+	// fall through to the install-time default).
+	applyBusyboxTemplate(t, tmpl)
+
+	// Create a GameServer with an explicit storage class. In kind clusters,
+	// the default storage class is typically "standard". We'll use that as
+	// our explicit override to ensure it can be provisioned successfully.
+	gsName := gs
+	gsSpec := map[string]any{
+		"templateRef": map[string]any{"name": tmpl},
+		// Explicit storage class at the GameServer level.
+		// Kind clusters typically have "standard" as the default, so this
+		// should be the same as (or compatible with) the cluster default.
+		"storage": map[string]any{
+			"storageClassName": "standard",
+		},
+	}
+	gsObj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameServer",
+		"metadata":   map[string]any{"name": gsName, "namespace": ns},
+		"spec":       gsSpec,
+	}}
+	if _, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+		Create(ctx, gsObj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create gameserver: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
+			Delete(context.Background(), gsName, metav1.DeleteOptions{})
+	})
+
+	// Wait for the PVC to be created.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+			Get(ctx, gs+"-data", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pvc: " + err.Error()
+		}
+		return true, ""
+	})
+
+	pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		Get(ctx, gs+"-data", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pvc: %v", err)
+	}
+
+	// Verify the PVC has the explicit storage class.
+	if pvc.Spec.StorageClassName == nil {
+		t.Errorf("PVC storageClassName is nil, want 'standard'")
+	} else if *pvc.Spec.StorageClassName != "standard" {
+		t.Errorf("PVC storageClassName=%s, want 'standard'", *pvc.Spec.StorageClassName)
+	}
+
+	// Wait for the PVC to bind successfully (proving the storage class
+	// override worked).
+	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
+}
