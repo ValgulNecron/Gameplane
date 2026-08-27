@@ -535,14 +535,18 @@ describe("AdminSettingsPage", () => {
     );
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
-    expect(await screen.findByText("Helm-seeded OIDC provider")).toBeInTheDocument();
-    expect(screen.getByText("teams")).toBeInTheDocument();
+    const helmCardHeading = await screen.findByText("Helm-seeded OIDC provider");
+    const helmCard = helmCardHeading.closest("div");
+    expect(helmCard).toBeInTheDocument();
+    expect(within(helmCard!).getByText("teams")).toBeInTheDocument();
     // Scope "viewer" to the default role display, since it appears in both
     // the default role and the viewer role mapping; use within() to disambiguate
-    const defaultRoleLabel = screen.getByText("Default role");
+    const defaultRoleLabel = within(helmCard!).getByText("Default role");
     const defaultRoleContainer = defaultRoleLabel.closest("div");
     expect(within(defaultRoleContainer!).getByText("viewer")).toBeInTheDocument();
-    expect(screen.getByText("gameplane-admins")).toBeInTheDocument();
+    // Scope "gameplane-admins" to the Helm-seeded card to distinguish it from the
+    // override card below which also has group names
+    expect(within(helmCard!).getByText("gameplane-admins")).toBeInTheDocument();
   });
 
   // T026: FR-012 empty state renders when no role mappings
@@ -703,15 +707,14 @@ describe("AdminSettingsPage", () => {
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
 
-    // Wait for the role mapping card to render, then add a group
-    const adminInputs = await screen.findAllByPlaceholderText("Add IdP group name…");
-    const adminInput = adminInputs[0]; // Admin role is first
+    // Wait for the role mapping card to render, then add a group.
+    // Find the Admin role section by its accessible group label
+    const adminRoleSection = await screen.findByRole("group", { name: /admin role mapping/i });
+    const adminInput = within(adminRoleSection).getByPlaceholderText("Add IdP group name…");
     await userEvent.type(adminInput, "new-admin-group");
 
-    // This should trigger the confirmation dialog for admin role.
-    // Scope the add button query to the admin role's section to avoid depending on index order.
-    const adminRoleSection = adminInput.parentElement?.parentElement; // Up to the space-y-3 container
-    const adminAddBtn = within(adminRoleSection!).getByRole("button", { name: "Add group" });
+    // Find the add button within the admin role's section
+    const adminAddBtn = within(adminRoleSection).getByRole("button", { name: "Add group" });
     await userEvent.click(adminAddBtn);
 
     // Find and click the confirmation button in the dialog
@@ -937,12 +940,13 @@ describe("AdminSettingsPage", () => {
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
 
-    const adminInput = await screen.findByPlaceholderText("Add IdP group name…");
+    // Find the Admin role section by its accessible group label
+    const adminRoleSection = await screen.findByRole("group", { name: /admin role mapping/i });
+    const adminInput = within(adminRoleSection).getByPlaceholderText("Add IdP group name…");
     await userEvent.type(adminInput, "new-admin");
 
-    // Click add for admin role. Scope to the admin role's section to avoid index-based selection.
-    const adminRoleSection = adminInput.parentElement?.parentElement; // Up to the space-y-3 container
-    const adminAddBtn = within(adminRoleSection!).getByRole("button", { name: "Add group" });
+    // Find the add button within the admin role's section
+    const adminAddBtn = within(adminRoleSection).getByRole("button", { name: "Add group" });
     await userEvent.click(adminAddBtn);
 
     // Dialog should appear with exact warning text
@@ -992,12 +996,13 @@ describe("AdminSettingsPage", () => {
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
 
-    const adminInput = await screen.findByPlaceholderText("Add IdP group name…");
+    // Find the Admin role section by its accessible group label
+    const adminRoleSection = await screen.findByRole("group", { name: /admin role mapping/i });
+    const adminInput = within(adminRoleSection).getByPlaceholderText("Add IdP group name…");
     await userEvent.type(adminInput, "test-admin");
 
-    // Click add for admin. Scope to the admin role's section to avoid index-based selection.
-    const adminRoleSection = adminInput.parentElement?.parentElement; // Up to the space-y-3 container
-    const adminAddBtn = within(adminRoleSection!).getByRole("button", { name: "Add group" });
+    // Find the add button within the admin role's section
+    const adminAddBtn = within(adminRoleSection).getByRole("button", { name: "Add group" });
     await userEvent.click(adminAddBtn);
 
     // Dialog appears with confirmation button
@@ -1050,12 +1055,13 @@ describe("AdminSettingsPage", () => {
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
 
-    const adminInput = await screen.findByPlaceholderText("Add IdP group name…");
+    // Find the Admin role section by its accessible group label
+    const adminRoleSection = await screen.findByRole("group", { name: /admin role mapping/i });
+    const adminInput = within(adminRoleSection).getByPlaceholderText("Add IdP group name…");
     await userEvent.type(adminInput, "security-team");
 
-    // Click add for admin. Scope to the admin role's section to avoid index-based selection.
-    const adminRoleSection = adminInput.parentElement?.parentElement; // Up to the space-y-3 container
-    const adminAddBtn = within(adminRoleSection!).getByRole("button", { name: "Add group" });
+    // Find the add button within the admin role's section
+    const adminAddBtn = within(adminRoleSection).getByRole("button", { name: "Add group" });
     await userEvent.click(adminAddBtn);
 
     // Exact copy from design spec (FR-015)

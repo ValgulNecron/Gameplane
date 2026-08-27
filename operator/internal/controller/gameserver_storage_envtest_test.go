@@ -32,7 +32,9 @@ func TestGameServerStorage_ExplicitOverrideWins(t *testing.T) {
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
 	gsSCName := "explicit-override"
-	gs.Spec.Storage.StorageClassName = &gsSCName
+	gs.Spec.Storage = &gameplanev1alpha1.GameStorageSpec{
+		StorageClassName: &gsSCName,
+	}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)
 	}

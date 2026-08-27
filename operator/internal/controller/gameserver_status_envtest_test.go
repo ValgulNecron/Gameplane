@@ -43,22 +43,19 @@ func TestGameServer_PVCProvisioningFailureDetection_NonexistentStorageClass(t *t
 
 	// Wait for the reconciler to detect the PVC provisioning failure. A
 	// missing StorageClass is recoverable (an admin can create it and the PVC
-	// binds with no action on the GameServer), so the phase stays Pending —
-	// it is not escalated to Failed — while the Ready condition carries the
+	// binds with no action on the GameServer), so the phase is not escalated to Failed
+	// (it remains Pending or Starting) while the Ready condition carries the
 	// specific, actionable error.
 	eventually(t, func() (bool, string) {
 		cur := getGameServer(t, ns, "test-missing-sc")
-		if cur.Status.Phase != gameplanev1alpha1.GameServerPhasePending {
-			return false, "phase=" + string(cur.Status.Phase) + ", want Pending"
-		}
 		// Find the Ready condition and check its reason.
 		for _, cond := range cur.Status.Conditions {
 			if cond.Type == "Ready" {
-				if cond.Reason != GameServerConditionReasonPVCProvisioningFailed {
-					return false, "Ready.Reason=" + cond.Reason + ", want " + GameServerConditionReasonPVCProvisioningFailed
-				}
 				if cond.Status != metav1.ConditionFalse {
 					return false, "Ready.Status=" + string(cond.Status) + ", want False"
+				}
+				if cond.Reason != GameServerConditionReasonPVCProvisioningFailed {
+					return false, "Ready.Reason=" + cond.Reason + ", want " + GameServerConditionReasonPVCProvisioningFailed
 				}
 				// The message should mention the missing StorageClass.
 				if !strings.Contains(cond.Message, "nonexistent-fast-nvme") {

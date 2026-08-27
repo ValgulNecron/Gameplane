@@ -1629,7 +1629,7 @@ function RoleMappingOverridesCard({
                   : setViewerInput;
 
             return (
-              <div key={role}>
+              <div key={role} role="group" aria-label={`${role.charAt(0).toUpperCase() + role.slice(1)} role mapping`}>
                 {role !== "admin" && <div className="h-px bg-border" />}
                 <div className="space-y-3 pt-3">
                   <div className="flex items-center justify-between">
@@ -1643,6 +1643,7 @@ function RoleMappingOverridesCard({
                       <Button
                         variant="ghost"
                         size="sm"
+                        aria-label={`Reset ${role} role mapping to Helm default`}
                         onClick={() => handleReset(typedRole)}
                         disabled={resetMutation.isPending}
                       >
