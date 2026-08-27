@@ -1089,4 +1089,198 @@ describe("AdminSettingsPage", () => {
     expect(allText).toContain("Anyone in these groups gets full admin access from their next login");
     expect(allText).toContain(exactWarning);
   });
+
+  // T050: Admin mapping warning in provider editor
+  it("T050: shows FR-015 warning when adding admin groups in provider editor", async () => {
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({
+          auth: {
+            providers: [
+              { name: "Local accounts", kind: "local", enabled: true },
+            ],
+          },
+          general: { instanceName: "", externalURL: "https://example.com", defaultNamespace: "" },
+        }),
+      ),
+      http.get("/auth/providers", () =>
+        HttpResponse.json({ providers: [] }),
+      ),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
+
+    // Find the Add provider button
+    const addBtn = await screen.findByRole("button", { name: "Add provider" });
+    await userEvent.click(addBtn);
+
+    // Fill in the form with admin groups
+    const nameInput = await screen.findByDisplayValue("", { selector: "input[placeholder='corp-sso']" });
+    await userEvent.type(nameInput, "test-provider");
+
+    const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
+    await userEvent.type(issuerInput, "https://example.com");
+
+    const clientIDInput = screen.getAllByRole("textbox")[4]; // Client ID field
+    await userEvent.type(clientIDInput, "test-client");
+
+    const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
+    await userEvent.type(passwordInputs[0], "test-secret");
+
+    // Fill in admin groups
+    const adminInput = screen.getByDisplayValue("", { selector: "input[placeholder='gameplane-admins']" });
+    await userEvent.type(adminInput, "admin-group");
+
+    // Click Add provider button (the one in the form)
+    const submitBtn = screen.getByRole("button", { name: "Add provider" });
+    await userEvent.click(submitBtn);
+
+    // Dialog should appear with exact warning text
+    expect(
+      await screen.findByText(/Mapping users to the admin role grants full cluster control/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Ensure the mapped group contains only authorized personnel/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Anyone in these groups gets full admin access from their next login/),
+    ).toBeInTheDocument();
+
+    // Confirm button should be present
+    const confirmBtn = await screen.findByRole("button", { name: /Map to admin role/ });
+    expect(confirmBtn).toBeInTheDocument();
+  });
+
+  // T051: Confirmation required in provider editor
+  it("T051: requires confirmation before adding provider with admin groups", async () => {
+    const addHandler = vi.fn(() => new HttpResponse(null, { status: 204 }));
+    const secretHandler = vi.fn(() =>
+      HttpResponse.json({
+        name: "test-provider-secret",
+      }),
+    );
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({
+          auth: {
+            providers: [
+              { name: "Local accounts", kind: "local", enabled: true },
+            ],
+          },
+          general: { instanceName: "", externalURL: "https://example.com", defaultNamespace: "" },
+        }),
+      ),
+      http.get("/auth/providers", () =>
+        HttpResponse.json({ providers: [] }),
+      ),
+      http.post("/auth/providers/test-provider/secret", secretHandler),
+      http.put("/admin/config/auth", addHandler),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
+
+    // Find the Add provider button
+    const addBtn = await screen.findByRole("button", { name: "Add provider" });
+    await userEvent.click(addBtn);
+
+    // Fill in the form
+    const nameInput = await screen.findByDisplayValue("", { selector: "input[placeholder='corp-sso']" });
+    await userEvent.type(nameInput, "test-provider");
+
+    const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
+    await userEvent.type(issuerInput, "https://example.com");
+
+    const clientIDInput = screen.getAllByRole("textbox")[4]; // Client ID field
+    await userEvent.type(clientIDInput, "test-client");
+
+    const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
+    await userEvent.type(passwordInputs[0], "test-secret");
+
+    // Fill in admin groups
+    const adminInput = screen.getByDisplayValue("", { selector: "input[placeholder='gameplane-admins']" });
+    await userEvent.type(adminInput, "admin-group");
+
+    // Click Add provider button
+    const submitBtn = screen.getByRole("button", { name: "Add provider" });
+    await userEvent.click(submitBtn);
+
+    // Dialog appears — close it without confirming
+    await screen.findByText(/Mapping users to the admin role grants full cluster control/);
+    await userEvent.keyboard("{Escape}");
+
+    // Verify the secret handler was never called (provider was not added)
+    expect(secretHandler).not.toHaveBeenCalled();
+
+    // Verify the config update was not called
+    expect(addHandler).not.toHaveBeenCalled();
+
+    // Dialog should be closed
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Map to admin role/ })).not.toBeInTheDocument();
+    });
+  });
+
+  // T051: Confirmation completes the add
+  it("T051: provider with admin groups is added after confirmation", async () => {
+    const secretHandler = vi.fn(() =>
+      HttpResponse.json({
+        name: "test-provider-secret",
+      }),
+    );
+    server.use(
+      http.get("/admin/config", () =>
+        HttpResponse.json({
+          auth: {
+            providers: [
+              { name: "Local accounts", kind: "local", enabled: true },
+            ],
+          },
+          general: { instanceName: "", externalURL: "https://example.com", defaultNamespace: "" },
+        }),
+      ),
+      http.get("/auth/providers", () =>
+        HttpResponse.json({ providers: [] }),
+      ),
+      http.post("/auth/providers/test-provider/secret", secretHandler),
+    );
+    renderWithQuery(<AdminSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
+
+    // Find and click the Add provider button
+    const addBtn = await screen.findByRole("button", { name: "Add provider" });
+    await userEvent.click(addBtn);
+
+    // Fill in the form with admin groups
+    const nameInput = await screen.findByDisplayValue("", { selector: "input[placeholder='corp-sso']" });
+    await userEvent.type(nameInput, "test-provider");
+
+    const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
+    await userEvent.type(issuerInput, "https://example.com");
+
+    const clientIDInput = screen.getAllByRole("textbox")[4]; // Client ID field
+    await userEvent.type(clientIDInput, "test-client");
+
+    const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
+    await userEvent.type(passwordInputs[0], "test-secret");
+
+    // Fill in admin groups
+    const adminInput = screen.getByDisplayValue("", { selector: "input[placeholder='gameplane-admins']" });
+    await userEvent.type(adminInput, "admin-group");
+
+    // Click Add provider button
+    const submitBtn = screen.getByRole("button", { name: "Add provider" });
+    await userEvent.click(submitBtn);
+
+    // Dialog appears
+    await screen.findByText(/Mapping users to the admin role grants full cluster control/);
+
+    // Click the confirm button
+    const confirmBtn = screen.getByRole("button", { name: /Map to admin role/ });
+    await userEvent.click(confirmBtn);
+
+    // Verify the secret was stored (indicating the form was submitted)
+    await waitFor(() => {
+      expect(secretHandler).toHaveBeenCalled();
+    });
+  });
 });

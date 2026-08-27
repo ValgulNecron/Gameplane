@@ -447,6 +447,7 @@ function AddProviderForm({
   const [defaultRole, setDefaultRole] = useState<AuthDefaultRole | "">("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingAdmin, setConfirmingAdmin] = useState(false);
 
   // Role-mapping lists, parsed live so the Default role select can unlock
   // as soon as any mapping exists (the API rejects defaultRole without
@@ -511,6 +512,16 @@ function AddProviderForm({
     } finally {
       setBusy(false);
     }
+  };
+
+  // Handle submit button click — if admin groups exist and not yet confirmed,
+  // show confirmation dialog; otherwise proceed with submit
+  const handleSubmitClick = () => {
+    if (adminList.length > 0 && !confirmingAdmin) {
+      setConfirmingAdmin(true);
+      return;
+    }
+    void submit();
   };
 
   return (
@@ -646,10 +657,52 @@ function AddProviderForm({
       {error && <p className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={!valid || busy} onClick={() => void submit()}>
+        <Button disabled={!valid || busy} onClick={handleSubmitClick}>
           {busy ? "Storing…" : "Add provider"}
         </Button>
       </div>
+
+      {/* T050: Admin mapping confirmation dialog */}
+      <ConfirmDialog
+        open={confirmingAdmin}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingAdmin(false);
+          }
+        }}
+        title="Confirm admin role mapping?"
+        description={
+          <div className="space-y-4">
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
+              <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-medium text-warning mb-1">Full admin access</div>
+                <p className="text-warning/80">
+                  Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only
+                  authorized personnel. Anyone in these groups gets full admin access from their next login.
+                </p>
+              </div>
+            </div>
+            {adminList.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted">Group(s) being mapped to admin:</p>
+                <div className="flex flex-wrap gap-2">
+                  {adminList.map((group) => (
+                    <span key={group} className="px-2 py-1 rounded text-xs bg-muted/20 text-muted">
+                      {group}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+        confirmLabel="Map to admin role"
+        onConfirm={() => {
+          setConfirmingAdmin(false);
+          void submit();
+        }}
+      />
     </div>
   );
 }
