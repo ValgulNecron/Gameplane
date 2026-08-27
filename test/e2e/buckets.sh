@@ -97,6 +97,7 @@ TestAPI_AuditEmitsOnMutation
 TestAPI_AuditPaginationAndFilter
 TestAPI_LogoutInvalidatesSession
 TestAPI_PasswordResetInvalidatesSession
+TestAPI_AuthConfig_RoleMappings
 EOF
 }
 

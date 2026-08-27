@@ -122,6 +122,12 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 ### GameServerReconciler
 - **Responsibility:** Reconcile GameServer → StatefulSet, Service, Config ConfigMap, PVC, NetworkPolicy.
 - **Key functions:**
+  - **PVC StorageClass selection** — apply precedence chain at PVC creation time (only):
+    - Chain: GameServer.Spec.Storage.StorageClassName (explicit override) > GameTemplate.Spec.Storage.StorageClassName (template default) > operator `--game-data-storage-class` flag (install-time default) > nil (cluster default)
+    - Applied on creation only at three sites: reconcilePVC (game data volume), reconcileExtraPVCs (user-supplied extra volumes), reconcileModPVC (mod-install cache). Once a PVC exists, its `spec.storageClassName` is never mutated — PVCs are immutable per Kubernetes rules, so later changes to the flag affect only new servers.
+    - Empty flag value is a strict no-op — preserves pre-feature behavior (all three sources nil → cluster default).
+    - Error handling: `checkPVCProvisioningFailure` detects missing StorageClass and surfaces it as Ready condition False, reason `PVCProvisioningFailed`, with message naming the class — leaves GameServer in phase Pending (not Failed, so it is recoverable once an admin creates the StorageClass).
+    - Requires `storage.k8s.io/storageclasses` get/list permission (on each reconcile to verify existence).
   - Pod spec assembly: inject agent sidecar (image + pull policy + env), mount agent certs + logs volume.
   - Config & credentials: render game startup config (template vars, port mappings, mod credentials).
   - RCON integration: create agent RBAC, mTLS certs; expose RCON port if template declares it.
@@ -345,6 +351,7 @@ Primary reconcilers register with the manager in `cmd/main.go` and handle CRD li
 | `--agent-ca-secret-name` | string | `gameplane-agent-ca` | Name of Secret holding agent CA cert+key for signing per-GameServer certs. |
 | `--agent-ca-secret-namespace` | string | `gameplane-system` | Namespace of agent CA Secret. |
 | `--control-plane-namespace` | string | `gameplane-system` or `POD_NAMESPACE` env | Namespace where operator runs and where cluster kubeconfig Secrets live. |
+| `--game-data-storage-class` | string | `` (cluster default) | StorageClass name for game server data volumes (PVC.spec.storageClassName). Empty value is a no-op, preserving pre-feature behavior. Overridable per-GameServer or per-template; precedence chain: GameServer.spec > template.spec > this flag > cluster default. Applied on PVC creation only, never mutated on existing PVCs. |
 | `--game-ingress-policy` | bool | `true` | Reconcile per-GameServer ingress NetworkPolicy. |
 | `--game-ingress-from-cidr` | strings | `0.0.0.0/0` | Source CIDR(s) admitted to game ports; repeatable; canonical form enforced. |
 | `--address-manager` | string | `none` | Load-balancer address-manager flavor (metallb, cilium, or none). Validated at startup; controls how spec.networking.addressPool / .address preferences are translated onto the Service. |

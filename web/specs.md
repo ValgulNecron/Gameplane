@@ -147,6 +147,70 @@ package.json                # @gameplane/web v0.2.0-beta.8; dev: vite, npm scrip
    - Sections: General (version, telemetry), Authentication (OIDC providers), Mod registries (API keys),
      Notification sinks (Discord/Slack/SMTP/webhook), Backup destinations
 
+### Install-Time Settings Display & OIDC Role Mapping Overrides (AdminSettings & Cluster split)
+
+**Pattern:** Install-time cluster configuration (set via Helm values at deploy time) is read-only in the dashboard. These settings are **never dashboard-editable**; they originate from `installTimeSettings` injected via the API's `GET /admin/config` response.
+
+**Data source:** `GET /admin/config` returns an optional `installTimeSettings` object (absent when there is nothing to report) containing:
+- `gameDataStorageClass` — the `operator.gameDataStorage.storageClassName` Helm value (a plain string; never null when the object is present)
+- `oidcHelmProvider` — OIDC provider metadata: `groupsClaim` (string), `defaultRole` (string), and `roleMappings` (the **Helm-seeded** role mappings as `{ admin?, operator?, viewer? }`, each role key optionally present)
+
+**Split display across two routes (not one):**
+1. **Cluster.tsx** displays the **storage class card** — `gameDataStorageClass` value or "Cluster default" badge if unset; rendered with a contextual hint when unset
+2. **AdminSettings.tsx** displays the **OIDC provider and role mappings overrides** — all auth-related configuration
+
+**Why the split:**  
+A StorageClass is a cluster infrastructure concern, not an authentication concern. Cluster.tsx is the natural home for infrastructure settings; AdminSettings.tsx owns auth-only config. This separation keeps concerns aligned with where users expect to find them.
+
+**Permission gating:**  
+- **Route guard (web/src/router/tree.tsx):** The `/admin` route itself is guarded by `config:manage` permission (admin and operator roles only).
+- **AdminSettings.tsx** (OIDC/auth section): The `RoleMappingOverridesCard` component is gated by `config:read` permission check at render time (line 397: `{can(me, "config:read") && ...}`). This creates an edge case: a custom role with `config:manage` but lacking `config:read` can reach the Authentication page but will not see the role-mapping overrides card. This mismatch between the route-level `config:manage` guard and the component-level `config:read` gate has not been deliberately designed; it is recorded here so it is visible. RBAC is DB-configurable, so the two permissions can be held separately, and the two gates should be reconciled rather than assumed to agree.
+- **Cluster.tsx** (storage card): Is **not** already admin-only, so it requires an explicit `can(me, "config:read")` permission check on both the query (to avoid 403 errors) and the rendered card (to hide it from viewers lacking permission). Precedent: Dashboard.tsx:51 and Users.tsx:688.
+
+**OIDC Role Mapping Overrides (AdminSettings.tsx):**
+
+The `helmOverride` object in the API's `AuthCfg` response (`auth.helmOverride.roleMappings`) allows dashboard users to override the Helm-seeded role mappings **per role**. Each role (admin/operator/viewer) is independently optional:
+
+- **Key present** (including empty list `[]`): an override exists, stored in the dashboard database, superseding the Helm value
+- **Key absent**: no override; the role uses the Helm-seeded value
+- **Empty list `[]`**: distinct from absent; means "nobody maps to this role" (intentionally empty)
+
+**Provenance is derived client-side from key presence**, not from a server-provided `source` field:
+- If `helmOverride.roleMappings[role]` is present → "Overridden in dashboard"
+- If absent and Helm-seeded value exists → "From Helm values"
+- If absent and no Helm-seeded value → "Not configured"
+
+**Per-role UI in RoleMappingOverridesCard (AdminSettings.tsx):**
+
+For each role (admin/operator/viewer), the card displays:
+1. **Effective mapping:** the list of IdP group names currently mapped (from override if present, else from Helm-seeded)
+2. **Provenance badge:** one of the three states above
+3. **Edit controls:** add/remove IdP group names
+4. **Reset button:** "Reset to Helm default" shown only when an override exists (allows reverting to Helm values)
+5. **Empty state:** a visual indicator when zero groups are mapped
+
+**FR-012 — Empty state & remediation:**  
+When no role mappings exist (neither overridden nor Helm-seeded), the card displays an empty state. Two remediation paths:
+1. If the operator *is* configured (Helm `oidc.enabled`): add role mappings via the overrides editor
+2. If the operator *is not* configured: the Helm provider panel shows a banner; no override editor is available (no mappings to configure)
+
+**FR-015 — Admin-role mapping confirmation modal:**
+
+Mapping users to the admin role grants full cluster control. The dashboard enforces a two-step confirmation:
+
+- **Read-only Helm-seeded path (HelmOIDCProviderCard):** If Helm-seeded role mappings include admin mappings, show a warning banner (no confirm step; the admin already made this decision at deploy time)
+- **Editable override path (RoleMappingOverridesCard):** When a user tries to **add** an admin role mapping via the overrides editor, show `AdminMappingConfirmDialog`
+
+The confirm dialog displays:
+- A fixed warning banner with exact copy: "Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only authorized personnel. Anyone in these groups gets full admin access from their next login."
+- The group name(s) being mapped
+- Requires explicit user confirmation before the override is saved
+
+**Warning unconditional on group size:**  
+The warning is shown regardless of how many groups are being added (single or multiple). Gameplane cannot enumerate IdP membership at the dashboard layer, so it cannot verify that a group contains only authorized personnel — the warning applies uniformly.
+
+**Implementation:** Uses existing form patterns (`useSectionForm`, `useUpdateConfigSection`, `useResetRoleMapping` hook for the reset DELETE request) for unified save/cancel. Overrides are written via the existing `PUT /admin/config` endpoint's `AuthCfg` round-trip (no separate endpoint). Resets use `DELETE /admin/config/auth/role-mappings/{role}`.
+
 10. **AuditLog** (`/admin/audit`) → `AuditLogPage` (gated by `audit:read` permission)
     - Paginated audit event table (action, actor, resource, result, timestamp)
     - Verify audit trail hash chain, export to CSV

@@ -1,10 +1,12 @@
 import { useState, type ChangeEvent, type ComponentType, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Archive,
   Bell,
   BellRing,
   Boxes,
+  CircleSlash2,
   Cog,
   Flame,
   Gamepad2,
@@ -16,6 +18,7 @@ import {
   Plus,
   Puzzle,
   RefreshCcw,
+  RotateCcw,
   ShieldCheck,
   Activity,
   Trash2,
@@ -32,21 +35,25 @@ import { SlackIcon } from "@/components/ui/slack-icon";
 import { cn, formatRelative } from "@/lib/utils";
 import { errorText } from "@/lib/errors";
 import { Auth, AuthProviders, BackupDestinations, Cluster, ModRegistries, Notifications } from "@/lib/endpoints";
+import { can, useMe } from "@/lib/auth";
 import type { ClusterInfo } from "@/types";
 import {
   useConfig,
   useUpdateConfigSection,
+  useResetRoleMapping,
   type AuthCfg,
   type AuthDefaultRole,
   type AuthKind,
   type AuthProvider,
   type GeneralCfg,
+  type InstallTimeSettings,
   type KeyedRegistryProvider,
   type ModRegistryEntry,
   type ModRegistriesCfg,
   type NotifEventType,
   type NotifSink,
   type NotificationsCfg,
+  type OIDCHelmProvider,
   type SinkKind,
   type TelemetryCfg,
 } from "@/lib/config";
@@ -111,7 +118,7 @@ export function AdminSettingsPage() {
             </Card>
           )}
           {cfg.data && section === "general"       && <GeneralSection       initial={cfg.data.general} />}
-          {cfg.data && section === "auth"          && <AuthSection          initial={cfg.data.auth} general={cfg.data.general} />}
+          {cfg.data && section === "auth"          && <AuthSection          initial={cfg.data.auth} general={cfg.data.general} installTimeSettings={cfg.data.installTimeSettings} />}
           {section === "backups"                   && <BackupDestSection />}
           {section === "modules"                   && <ModuleSourcesPanel />}
           {cfg.data && section === "modRegistries" && <ModRegistriesSection initial={cfg.data.modRegistries} />}
@@ -266,7 +273,7 @@ const parseGroups = (raw: string) =>
     .map((g) => g.trim())
     .filter(Boolean);
 
-function AuthSection({ initial, general }: { initial?: AuthCfg; general?: GeneralCfg }) {
+function AuthSection({ initial, general, installTimeSettings }: { initial?: AuthCfg; general?: GeneralCfg; installTimeSettings?: InstallTimeSettings }) {
   const f = useSectionForm<AuthCfg>(initial ?? defaultAuth, "auth");
   const [adding, setAdding] = useState(false);
   // Runtime providers reveal whether a Helm-flag ("helm") provider exists;
@@ -295,98 +302,107 @@ function AuthSection({ initial, general }: { initial?: AuthCfg; general?: Genera
     }
     f.replace({ ...f.draft, providers: f.draft.providers.filter((_, i) => i !== idx) });
   };
+  const me = useMe().data;
   return (
-    <SectionCard
-      title="Authentication"
-      subtitle="Built-in local accounts plus federated identity providers. Changes take effect on save — no restart needed."
-      footer={
-        <>
-          <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
-          <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
-        </>
-      }
-    >
-      {f.draft.providers.length === 0 && !helm && (
-        <div className="text-sm text-muted">No identity providers configured yet.</div>
-      )}
-      <ul className="divide-y divide-border">
-        {f.draft.providers.map((p, idx) => (
-          <li key={p.name} className="flex items-center gap-3 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface">
-              <Key className="h-4 w-4 text-muted" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm">{p.displayName || p.name}</div>
-              <div className="truncate text-xs text-muted">
-                {p.kind}
-                {p.issuer ? ` · ${p.issuer}` : p.configRef ? ` · ${p.configRef}` : ""}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={togglerFor(idx)}
-              disabled={p.enabled && lastToggleLocked}
-              title={
-                p.enabled && lastToggleLocked
-                  ? "At least one identity provider must stay enabled."
-                  : undefined
-              }
-              className={cn(
-                "rounded px-2 py-0.5 text-[10px] font-mono uppercase disabled:cursor-not-allowed disabled:opacity-60",
-                p.enabled ? "bg-success/15 text-success" : "bg-muted/15 text-muted",
-              )}
-            >
-              {p.enabled ? "Enabled" : "Disabled"}
-            </button>
-            {p.kind !== "local" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Delete provider ${p.name}`}
-                onClick={() => removeProvider(idx)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </li>
-        ))}
-        {helm && (
-          <li className="flex items-center gap-3 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface">
-              <Lock className="h-4 w-4 text-muted" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm">{helm.label}</div>
-              <div className="truncate text-xs text-muted">
-                oidc · configured via Helm — manage in values.yaml
-              </div>
-            </div>
-            <span className="rounded bg-success/15 px-2 py-0.5 text-[10px] font-mono uppercase text-success">
-              Enabled
-            </span>
-          </li>
+    <div className="space-y-6">
+      <SectionCard
+        title="Authentication"
+        subtitle="Built-in local accounts plus federated identity providers. Changes take effect on save — no restart needed."
+      >
+        {f.draft.providers.length === 0 && !helm && (
+          <div className="text-sm text-muted">No identity providers configured yet.</div>
         )}
-      </ul>
-      {lastToggleLocked && (
-        <p className="mt-2 text-xs text-muted">
-          At least one identity provider must stay enabled — the last enabled
-          provider can&apos;t be turned off.
-        </p>
+        <ul className="divide-y divide-border">
+          {f.draft.providers.map((p, idx) => (
+            <li key={p.name} className="flex items-center gap-3 py-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface">
+                <Key className="h-4 w-4 text-muted" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">{p.displayName || p.name}</div>
+                <div className="truncate text-xs text-muted">
+                  {p.kind}
+                  {p.issuer ? ` · ${p.issuer}` : p.configRef ? ` · ${p.configRef}` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={togglerFor(idx)}
+                disabled={p.enabled && lastToggleLocked}
+                title={
+                  p.enabled && lastToggleLocked
+                    ? "At least one identity provider must stay enabled."
+                    : undefined
+                }
+                className={cn(
+                  "rounded px-2 py-0.5 text-[10px] font-mono uppercase disabled:cursor-not-allowed disabled:opacity-60",
+                  p.enabled ? "bg-success/15 text-success" : "bg-muted/15 text-muted",
+                )}
+              >
+                {p.enabled ? "Enabled" : "Disabled"}
+              </button>
+              {p.kind !== "local" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete provider ${p.name}`}
+                  onClick={() => removeProvider(idx)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+          {helm && (
+            <li className="flex items-center gap-3 py-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface">
+                <Lock className="h-4 w-4 text-muted" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">{helm.label}</div>
+                <div className="truncate text-xs text-muted">
+                  oidc · configured via Helm — manage in values.yaml
+                </div>
+              </div>
+              <span className="rounded bg-success/15 px-2 py-0.5 text-[10px] font-mono uppercase text-success">
+                Enabled
+              </span>
+            </li>
+          )}
+        </ul>
+        {lastToggleLocked && (
+          <p className="mt-2 text-xs text-muted">
+            At least one identity provider must stay enabled — the last enabled
+            provider can&apos;t be turned off.
+          </p>
+        )}
+        {adding ? (
+          <AddProviderForm
+            existing={f.draft.providers.map((p) => p.name)}
+            externalURLSet={Boolean(general?.externalURL)}
+            onAdd={(p) => f.replace({ ...f.draft, providers: [...f.draft.providers, p] })}
+            onClose={() => setAdding(false)}
+          />
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add provider
+          </Button>
+        )}
+      </SectionCard>
+      {installTimeSettings?.oidcHelmProvider && (
+        <HelmOIDCProviderCard provider={installTimeSettings.oidcHelmProvider} />
       )}
-      {adding ? (
-        <AddProviderForm
-          existing={f.draft.providers.map((p) => p.name)}
-          externalURLSet={Boolean(general?.externalURL)}
-          onAdd={(p) => f.replace({ ...f.draft, providers: [...f.draft.providers, p] })}
-          onClose={() => setAdding(false)}
+      {can(me, "config:read") && (
+        <RoleMappingOverridesCard
+          initial={f.draft}
+          installTimeSettings={installTimeSettings}
+          onUpdate={f.replace}
+          formState={{ pending: f.pending, error: f.error, saved: f.saved }}
+          onSave={f.save}
         />
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add provider
-        </Button>
       )}
-    </SectionCard>
+    </div>
   );
 }
 
@@ -1376,6 +1392,363 @@ function AboutSection() {
         <dt className="text-muted">License</dt><dd>AGPL-3.0</dd>
       </dl>
     </SectionCard>
+  );
+}
+
+// T023: Read-only Helm-seeded OIDC provider display (from installTimeSettings.oidcHelmProvider)
+function HelmOIDCProviderCard({ provider }: { provider: OIDCHelmProvider }) {
+  const hasRoleMappings = provider.roleMappings && Object.keys(provider.roleMappings).length > 0;
+  const adminMapped = provider.roleMappings?.admin && provider.roleMappings.admin.length > 0;
+  return (
+    <SectionCard
+      title="Helm-seeded OIDC provider"
+      subtitle="Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time. Connection settings are not editable here; role mappings can be overridden below."
+    >
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <div className="font-medium text-sm">Provider</div>
+          <p className="text-xs text-muted">
+            Groups claim and default role are seeded from the same Helm values and are not editable here.
+          </p>
+        </div>
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs text-muted">Groups claim</span>
+          <span className="font-mono text-sm">{provider.groupsClaim}</span>
+        </div>
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs text-muted">Default role</span>
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-muted/20 text-muted">
+            {provider.defaultRole}
+          </span>
+        </div>
+        {hasRoleMappings ? (
+          <div className="space-y-3 pt-2">
+            <div className="text-xs text-muted">Helm-seeded role mappings</div>
+            {["admin", "operator", "viewer"].map((role) => {
+              const groups = provider.roleMappings?.[role as keyof typeof provider.roleMappings];
+              return (
+                <div key={role} className="flex items-start gap-3">
+                  <span className="text-xs font-medium w-16 flex-shrink-0 capitalize">{role}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {groups && groups.length > 0 ? (
+                      groups.map((group) => (
+                        <span
+                          key={group}
+                          className="px-2 py-1 rounded text-xs bg-muted/20 text-muted"
+                        >
+                          {group}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted italic">—</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-md border border-border bg-surface/50 p-4 space-y-2">
+            <div className="font-medium text-sm">No OIDC role mappings yet</div>
+            <p className="text-xs text-muted">
+              Every OIDC user currently signs in with the {provider.defaultRole} default role. Two ways to change that:
+              add mappings in Role mapping overrides below — they apply from the next login, with no restart or Helm
+              re-run — or seed them at install time with api.oidc.roleMappings.admin / .operator / .viewer in your
+              Helm values.
+            </p>
+          </div>
+        )}
+        {adminMapped && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
+            <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <div className="font-medium text-warning mb-1">Helm-configured admin mapping</div>
+              <p className="text-warning/80">
+                The group(s) on the Admin row above were mapped to admin via Helm values, not the dashboard, so there
+                is no confirmation step here. Verify they contain only trusted accounts — anyone in them gets full
+                admin access.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
+// T024: Role mapping overrides card
+function RoleMappingOverridesCard({
+  initial,
+  installTimeSettings,
+  onUpdate,
+  formState,
+  onSave,
+}: {
+  initial: AuthCfg;
+  installTimeSettings?: InstallTimeSettings;
+  onUpdate: (cfg: AuthCfg) => void;
+  formState: { pending: boolean; error: string | null; saved: boolean };
+  onSave: () => void;
+}) {
+  const [adminInput, setAdminInput] = useState("");
+  const [operatorInput, setOperatorInput] = useState("");
+  const [viewerInput, setViewerInput] = useState("");
+  const [confirmingRole, setConfirmingRole] = useState<string | null>(null);
+  const [pendingGroups, setPendingGroups] = useState<string[]>([]);
+  const resetMutation = useResetRoleMapping();
+
+  const helmMappings = installTimeSettings?.oidcHelmProvider?.roleMappings;
+
+  const getRoleMapping = (role: "admin" | "operator" | "viewer") => {
+    return initial.helmOverride?.roleMappings?.[role];
+  };
+
+  const getProvenance = (role: "admin" | "operator" | "viewer"): string => {
+    const hasOverride = initial.helmOverride?.roleMappings && role in initial.helmOverride.roleMappings;
+    if (hasOverride) return "Overridden in dashboard";
+    if (helmMappings) return "From Helm values";
+    return "Not configured";
+  };
+
+  const getRoleGroups = (role: "admin" | "operator" | "viewer"): string[] => {
+    const override = getRoleMapping(role);
+    if (override !== undefined) return override;
+    return helmMappings?.[role] || [];
+  };
+
+  const handleAddGroup = (role: "admin" | "operator" | "viewer", group: string) => {
+    const trimmed = group.trim();
+    if (!trimmed) return;
+
+    // Check if it's trying to add an admin mapping - if so, show confirmation
+    if (role === "admin" && !confirmingRole) {
+      setConfirmingRole(role);
+      setPendingGroups([...getRoleGroups(role), trimmed]);
+      return;
+    }
+
+    const current = getRoleGroups(role);
+    if (current.includes(trimmed)) return;
+
+    const newMapping = [...current, trimmed];
+    const newOverride = {
+      ...initial.helmOverride,
+      roleMappings: {
+        ...initial.helmOverride?.roleMappings,
+        [role]: newMapping,
+      },
+    };
+    onUpdate({
+      ...initial,
+      helmOverride: newOverride,
+    });
+
+    if (role === "admin") setAdminInput("");
+    else if (role === "operator") setOperatorInput("");
+    else setViewerInput("");
+  };
+
+  const handleRemoveGroup = (role: "admin" | "operator" | "viewer", group: string) => {
+    const current = getRoleGroups(role);
+    const newMapping = current.filter((g) => g !== group);
+    const newOverride = {
+      ...initial.helmOverride,
+      roleMappings: {
+        ...initial.helmOverride?.roleMappings,
+        [role]: newMapping,
+      },
+    };
+    onUpdate({
+      ...initial,
+      helmOverride: newOverride,
+    });
+  };
+
+  const handleReset = (role: "admin" | "operator" | "viewer") => {
+    resetMutation.mutate(role, {
+      onSuccess: () => {
+        // Invalidates config query via the mutation hook, which will refetch
+      },
+      onError: (err) => {
+        console.error("Failed to reset role mapping:", err);
+      },
+    });
+  };
+
+  const handleConfirmAdminMapping = () => {
+    if (confirmingRole === "admin" && pendingGroups.length > 0) {
+      const newOverride = {
+        ...initial.helmOverride,
+        roleMappings: {
+          ...initial.helmOverride?.roleMappings,
+          admin: pendingGroups,
+        },
+      };
+      onUpdate({
+        ...initial,
+        helmOverride: newOverride,
+      });
+    }
+    setConfirmingRole(null);
+    setPendingGroups([]);
+    setAdminInput("");
+  };
+
+  return (
+    <>
+      <SectionCard
+        title="Role mapping overrides"
+        subtitle="Override the Helm-seeded OIDC group mappings per role from here. A change takes effect the next time an affected user logs in — no restart or reinstall needed."
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <p className="text-xs text-muted">
+              Saved changes take effect on next login for affected users — no restart or reinstall needed.
+            </p>
+            <div className="flex gap-2">
+              <SaveStatus pending={formState.pending} error={formState.error} saved={formState.saved} />
+              <Button variant="outline" onClick={onSave} disabled={formState.pending}>
+                Save role mappings
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          {["admin", "operator", "viewer"].map((role) => {
+            const typedRole = role as "admin" | "operator" | "viewer";
+            const groups = getRoleGroups(typedRole);
+            const hasOverride =
+              initial.helmOverride?.roleMappings && typedRole in initial.helmOverride.roleMappings;
+            const input =
+              typedRole === "admin" ? adminInput : typedRole === "operator" ? operatorInput : viewerInput;
+            const setInput =
+              typedRole === "admin"
+                ? setAdminInput
+                : typedRole === "operator"
+                  ? setOperatorInput
+                  : setViewerInput;
+
+            return (
+              <div key={role}>
+                {role !== "admin" && <div className="h-px bg-border" />}
+                <div className="space-y-3 pt-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm capitalize">{role}</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-muted/20 text-muted">
+                        {getProvenance(typedRole)}
+                      </span>
+                    </div>
+                    {hasOverride && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReset(typedRole)}
+                        disabled={resetMutation.isPending}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                        Reset to Helm default
+                      </Button>
+                    )}
+                  </div>
+
+                  {groups.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {groups.map((group) => (
+                        <div
+                          key={group}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-muted/20 text-muted text-xs"
+                        >
+                          {group}
+                          <button
+                            type="button"
+                            aria-label={`Remove group ${group}`}
+                            onClick={() => handleRemoveGroup(typedRole, group)}
+                            className="ml-1 hover:opacity-70"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-2.5 py-2 rounded border border-border text-xs text-muted">
+                      <CircleSlash2 className="h-3.5 w-3.5" />
+                      No groups mapped — nobody signs in as {role} via OIDC.
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Add IdP group name…"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddGroup(typedRole, input);
+                        }
+                      }}
+                      className="text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      aria-label="Add group"
+                      onClick={() => handleAddGroup(typedRole, input)}
+                      disabled={!input.trim()}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      {/* T030: Admin mapping confirmation dialog */}
+      <ConfirmDialog
+        open={confirmingRole === "admin"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingRole(null);
+            setPendingGroups([]);
+            setAdminInput("");
+          }
+        }}
+        title="Confirm admin role mapping?"
+        description={
+          <div className="space-y-4">
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 flex gap-3">
+              <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-medium text-warning mb-1">Full admin access</div>
+                <p className="text-warning/80">
+                  Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only
+                  authorized personnel. Anyone in these groups gets full admin access from their next login.
+                </p>
+              </div>
+            </div>
+            {pendingGroups.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted">Group(s) being mapped to admin:</p>
+                <div className="flex flex-wrap gap-2">
+                  {pendingGroups.map((group) => (
+                    <span key={group} className="px-2 py-1 rounded text-xs bg-muted/20 text-muted">
+                      {group}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+        confirmLabel="Map to admin role"
+        onConfirm={handleConfirmAdminMapping}
+      />
+    </>
   );
 }
 
