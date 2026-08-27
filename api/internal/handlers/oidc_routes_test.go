@@ -56,7 +56,7 @@ func oidcRoutesRegistry(t *testing.T, issuerURL string) *auth.Registry {
 		}
 		return map[string][]byte{"clientSecret": []byte("s3cret")}, nil
 	}
-	return auth.NewRegistry(store, secrets, nil, "")
+	return auth.NewRegistry(store, secrets, nil, "", nil)
 }
 
 func oidcRouter(reg *auth.Registry) chi.Router {

@@ -131,7 +131,7 @@ func TestRegistrySecret_RefusesForeignAndDeletesManagedOnly(t *testing.T) {
 func TestRegistrySecret_NeverLeaksIntoConfig(t *testing.T) {
 	store := newTestStore(t)
 	configRouter := chi.NewRouter()
-	MountConfig(configRouter, store, false)
+	MountConfig(configRouter, store, nil, false, "", nil)
 
 	body := bytes.NewReader([]byte(`{"registries":[{"provider":"curseforge","configRef":"gameplane-modreg-curseforge"}]}`))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/admin/config/modRegistries", body)

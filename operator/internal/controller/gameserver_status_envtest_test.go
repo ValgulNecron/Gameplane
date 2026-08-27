@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -30,10 +31,11 @@ func TestGameServer_PVCProvisioningFailureDetection_NonexistentStorageClass(t *t
 
 	// Create a GameServer that specifies a nonexistent StorageClass.
 	gs := buildGameServer(ns, "test-missing-sc", tmpl.Name)
+	scName := "nonexistent-fast-nvme"
 	gs.Spec.Storage = &gameplanev1alpha1.GameStorageSpec{
 		MountPath:        "/data",
-		StorageClassName: "nonexistent-fast-nvme",
-		Size:             "20Gi",
+		StorageClassName: &scName,
+		Size:             resource.MustParse("20Gi"),
 	}
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)

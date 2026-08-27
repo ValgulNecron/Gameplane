@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -23,14 +24,16 @@ func TestGameServerStorage_ExplicitOverrideWins(t *testing.T) {
 	startMgr(t, ns, withGameServerReconcilerStorageClass(t, ns, "install-time-default"))
 
 	tmpl := buildGameTemplate(uniqueName("minecraft"))
-	tmpl.Spec.Storage.StorageClassName = "template-default"
+	tmplSCName := "template-default"
+	tmpl.Spec.Storage.StorageClassName = &tmplSCName
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
 		t.Fatalf("create template: %v", err)
 	}
 	deleteCleanup(t, tmpl)
 
 	gs := buildGameServer(ns, "smp", tmpl.Name)
-	gs.Spec.Storage.StorageClassName = "explicit-override"
+	gsSCName := "explicit-override"
+	gs.Spec.Storage.StorageClassName = &gsSCName
 	if err := k8sClient.Create(context.Background(), gs); err != nil {
 		t.Fatalf("create gameserver: %v", err)
 	}
@@ -61,7 +64,8 @@ func TestGameServerStorage_TemplateDefaultWhenServerUnset(t *testing.T) {
 	startMgr(t, ns, withGameServerReconcilerStorageClass(t, ns, "install-time-default"))
 
 	tmpl := buildGameTemplate(uniqueName("valheim"))
-	tmpl.Spec.Storage.StorageClassName = "template-default"
+	tmplSCName := "template-default"
+	tmpl.Spec.Storage.StorageClassName = &tmplSCName
 	if err := k8sClient.Create(context.Background(), tmpl); err != nil {
 		t.Fatalf("create template: %v", err)
 	}

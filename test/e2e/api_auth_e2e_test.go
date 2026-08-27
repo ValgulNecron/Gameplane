@@ -417,19 +417,23 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		// override via PUT /admin/config/auth and reading it back via GET /admin/config.
 
 		// Start with a clean slate to isolate this subtest.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
 			"helmOverride": map[string]any{
 				"roleMappings": map[string]any{},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("clear state: %v %s", err, string(body))
 		}
 
 		// Set role mappings via the helmOverride.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err = admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
@@ -440,12 +444,19 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 					"viewer":   []string{"test-viewer-group"},
 				},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("set role mappings: %v %s", err, string(body))
 		}
 
 		// Verify the mappings were saved by retrieving the config.
-		resp, body, err := admin.Get("/admin/config")
+		resp, body, err = admin.Get("/admin/config")
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
 		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("get config: %v %s", err, string(body))
 		}
@@ -467,19 +478,23 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		// regression point.
 
 		// Start with a clean slate to isolate this subtest.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
 			"helmOverride": map[string]any{
 				"roleMappings": map[string]any{},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("clear state: %v %s", err, string(body))
 		}
 
 		// Set admin role to an empty list (nobody).
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err = admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
@@ -488,19 +503,26 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 					"admin": []string{}, // Empty list = "nobody"
 				},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("set empty admin mapping: %v %s", err, string(body))
 		}
 
 		// Verify the empty list is preserved (key presence indicates provenance).
 		// The JSON should contain "admin":[] not absent "admin" key.
-		if resp, body, err := admin.Get("/admin/config"); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err = admin.Get("/admin/config")
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("get config: %v %s", err, string(body))
-		} else {
-			// Check for the presence of "admin":[] or "admin": []
-			if !strings.Contains(string(body), `"admin":[]`) && !strings.Contains(string(body), `"admin": []`) {
-				t.Fatalf("config should preserve empty admin list (key presence = provenance), got: %s", string(body))
-			}
+		}
+		// Check for the presence of "admin":[] or "admin": []
+		if !strings.Contains(string(body), `"admin":[]`) && !strings.Contains(string(body), `"admin": []`) {
+			t.Fatalf("config should preserve empty admin list (key presence = provenance), got: %s", string(body))
 		}
 	})
 
@@ -509,19 +531,23 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		// mappings untouched. Updating admin does not affect operator or viewer.
 
 		// Start with a clean slate to isolate this subtest.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
 			"helmOverride": map[string]any{
 				"roleMappings": map[string]any{},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("clear state: %v %s", err, string(body))
 		}
 
 		// Set initial mappings for all three roles.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err = admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
@@ -532,12 +558,16 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 					"viewer":   []string{"initial-viewer"},
 				},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("set initial mappings: %v %s", err, string(body))
 		}
 
 		// Update only the admin role.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err = admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
@@ -547,23 +577,30 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 					// Intentionally omit operator and viewer
 				},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("update admin mapping: %v %s", err, string(body))
 		}
 
 		// Verify admin was updated but operator and viewer remain unchanged.
-		if resp, body, err := admin.Get("/admin/config"); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err = admin.Get("/admin/config")
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("get config after partial update: %v %s", err, string(body))
-		} else {
-			if !strings.Contains(string(body), `"updated-admin"`) {
-				t.Fatalf("admin mapping was not updated: %s", string(body))
-			}
-			if !strings.Contains(string(body), `"initial-op"`) {
-				t.Fatalf("operator mapping was lost on admin update: %s", string(body))
-			}
-			if !strings.Contains(string(body), `"initial-viewer"`) {
-				t.Fatalf("viewer mapping was lost on admin update: %s", string(body))
-			}
+		}
+		if !strings.Contains(string(body), `"updated-admin"`) {
+			t.Fatalf("admin mapping was not updated: %s", string(body))
+		}
+		if !strings.Contains(string(body), `"initial-op"`) {
+			t.Fatalf("operator mapping was lost on admin update: %s", string(body))
+		}
+		if !strings.Contains(string(body), `"initial-viewer"`) {
+			t.Fatalf("viewer mapping was lost on admin update: %s", string(body))
 		}
 	})
 
@@ -572,19 +609,23 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		// exactly one role's override and leaves others untouched.
 
 		// Start with a clean slate to isolate this subtest.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
 			"helmOverride": map[string]any{
 				"roleMappings": map[string]any{},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("clear state: %v %s", err, string(body))
 		}
 
 		// Set mappings for all three roles.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err = admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
@@ -595,28 +636,39 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 					"viewer":   []string{"viewer-stays"},
 				},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("set mappings: %v %s", err, string(body))
 		}
 
 		// Delete the admin role mapping.
-		if resp, body, err := admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/admin", nil); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err = admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/admin", nil)
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("delete admin mapping: %v %s", err, string(body))
 		}
 
 		// Verify admin was removed but operator and viewer remain.
-		if resp, body, err := admin.Get("/admin/config"); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err = admin.Get("/admin/config")
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("get config after delete: %v %s", err, string(body))
-		} else {
-			if strings.Contains(string(body), `"admin-to-delete"`) {
-				t.Fatalf("admin mapping was not removed: %s", string(body))
-			}
-			if !strings.Contains(string(body), `"op-stays"`) {
-				t.Fatalf("operator mapping was lost on admin delete: %s", string(body))
-			}
-			if !strings.Contains(string(body), `"viewer-stays"`) {
-				t.Fatalf("viewer mapping was lost on admin delete: %s", string(body))
-			}
+		}
+		if strings.Contains(string(body), `"admin-to-delete"`) {
+			t.Fatalf("admin mapping was not removed: %s", string(body))
+		}
+		if !strings.Contains(string(body), `"op-stays"`) {
+			t.Fatalf("operator mapping was lost on admin delete: %s", string(body))
+		}
+		if !strings.Contains(string(body), `"viewer-stays"`) {
+			t.Fatalf("viewer mapping was lost on admin delete: %s", string(body))
 		}
 	})
 
@@ -626,19 +678,23 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		// invalid role names with 400.
 
 		// Start with a clean slate to isolate this subtest.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
 			"helmOverride": map[string]any{
 				"roleMappings": map[string]any{},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("clear state: %v %s", err, string(body))
 		}
 
 		// Set a mapping for testing.
-		if resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+		resp, body, err = admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
 			"providers": []map[string]any{
 				{"name": "local", "kind": "local", "enabled": true},
 			},
@@ -647,22 +703,38 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 					"admin": []string{"test-group"},
 				},
 			},
-		}); err != nil || resp.StatusCode != http.StatusOK {
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("set mapping: %v %s", err, string(body))
 		}
 
 		// Delete the admin role mapping (first delete).
-		if resp, body, err := admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/admin", nil); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err = admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/admin", nil)
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("delete admin mapping: %v %s", err, string(body))
 		}
 
 		// Delete again (idempotent) — should still succeed.
-		if resp, body, err := admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/admin", nil); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err = admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/admin", nil)
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("delete admin mapping again (idempotent): %v %s", err, string(body))
 		}
 
 		// Try to delete an invalid role name — should fail with 400.
-		if resp, body, err := admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/invalid-role-name", nil); err != nil || resp.StatusCode != http.StatusBadRequest {
+		resp, body, err = admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/invalid-role-name", nil)
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("delete invalid role should be 400, got %d: %v %s", resp.StatusCode, err, string(body))
 		}
 	})

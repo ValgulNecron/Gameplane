@@ -25,7 +25,7 @@ func providersRegistry(t *testing.T, authJSON string) *auth.Registry {
 		t.Fatal("providers listing must not read Secrets")
 		return nil, nil
 	}
-	return auth.NewRegistry(store, noSecrets, nil, "")
+	return auth.NewRegistry(store, noSecrets, nil, "", nil)
 }
 
 func seedAuthConfig(t *testing.T, store *db.Store, blob string) {

@@ -670,9 +670,9 @@ describe("AdminSettingsPage", () => {
 
   // T027: Save action calls PUT with helmOverride.roleMappings
   it("T027: role mapping override save calls PUT /admin/config/auth with helmOverride.roleMappings", async () => {
-    let capturedBody: Record<string, unknown> | null = null;
-    const saveHandler = vi.fn<(req: Request) => Promise<HttpResponse>>(async (req) => {
-      capturedBody = await req.json();
+    let capturedBody: unknown = null;
+    const saveHandler = vi.fn(async ({ request }) => {
+      capturedBody = await request.json();
       return new HttpResponse(null, { status: 204 });
     });
     server.use(
@@ -724,8 +724,9 @@ describe("AdminSettingsPage", () => {
 
     expect(capturedBody).toBeDefined();
     if (!capturedBody) throw new Error("capturedBody is null");
-    expect(capturedBody.helmOverride).toBeDefined();
-    const helmOverride = capturedBody.helmOverride as Record<string, unknown> | undefined;
+    const configBody = capturedBody as Record<string, unknown>;
+    expect(configBody.helmOverride).toBeDefined();
+    const helmOverride = configBody.helmOverride as Record<string, unknown> | undefined;
     expect(helmOverride?.roleMappings).toBeDefined();
     const roleMappings = helmOverride?.roleMappings as Record<string, string[]> | undefined;
     expect(roleMappings?.admin).toContain("new-admin-group");
@@ -733,7 +734,7 @@ describe("AdminSettingsPage", () => {
 
   // T027: Reset action calls DELETE /admin/config/auth/role-mappings/{role}
   it("T027: reset role mapping calls DELETE /admin/config/auth/role-mappings/{role}", async () => {
-    const resetHandler = vi.fn<(req: Request) => HttpResponse>(() => new HttpResponse(null, { status: 204 }));
+    const resetHandler = vi.fn(() => new HttpResponse(null, { status: 204 }));
     server.use(
       http.get("/admin/config", () =>
         HttpResponse.json({
