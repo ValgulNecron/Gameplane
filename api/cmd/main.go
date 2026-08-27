@@ -207,8 +207,10 @@ func main() {
 	}
 	auditor := audit.New(store, auditOpts...)
 	// Wire the Helm OIDC provider to the auditor for role-assignment audit events (FR-014).
+	// auth must not import audit (audit imports auth), so the dependency is inverted here
+	// via a closure over the concrete auditor's WriteSync method.
 	if oidcAuth != nil {
-		oidcAuth.AttachAuditor(auditor)
+		oidcAuth.AttachAuditWriteSyncFunc(auditor.WriteSync)
 		oidcAuth.SetProviderName(auth.HelmProviderName)
 	}
 

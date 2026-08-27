@@ -671,7 +671,7 @@ describe("AdminSettingsPage", () => {
   // T027: Save action calls PUT with helmOverride.roleMappings
   it("T027: role mapping override save calls PUT /admin/config/auth with helmOverride.roleMappings", async () => {
     let capturedBody: Record<string, unknown> | null = null;
-    const saveHandler = vi.fn(async (req) => {
+    const saveHandler = vi.fn<(req: Request) => Promise<HttpResponse>>(async (req) => {
       capturedBody = await req.json();
       return new HttpResponse(null, { status: 204 });
     });
@@ -723,8 +723,9 @@ describe("AdminSettingsPage", () => {
     await waitFor(() => expect(saveHandler).toHaveBeenCalled());
 
     expect(capturedBody).toBeDefined();
-    expect(capturedBody?.helmOverride).toBeDefined();
-    const helmOverride = capturedBody?.helmOverride as Record<string, unknown> | undefined;
+    if (!capturedBody) throw new Error("capturedBody is null");
+    expect(capturedBody.helmOverride).toBeDefined();
+    const helmOverride = capturedBody.helmOverride as Record<string, unknown> | undefined;
     expect(helmOverride?.roleMappings).toBeDefined();
     const roleMappings = helmOverride?.roleMappings as Record<string, string[]> | undefined;
     expect(roleMappings?.admin).toContain("new-admin-group");
@@ -732,7 +733,7 @@ describe("AdminSettingsPage", () => {
 
   // T027: Reset action calls DELETE /admin/config/auth/role-mappings/{role}
   it("T027: reset role mapping calls DELETE /admin/config/auth/role-mappings/{role}", async () => {
-    const resetHandler = vi.fn(() => new HttpResponse(null, { status: 204 }));
+    const resetHandler = vi.fn<(req: Request) => HttpResponse>(() => new HttpResponse(null, { status: 204 }));
     server.use(
       http.get("/admin/config", () =>
         HttpResponse.json({
@@ -771,7 +772,9 @@ describe("AdminSettingsPage", () => {
     await userEvent.click(resetButtons[0]);
 
     await waitFor(() => expect(resetHandler).toHaveBeenCalled());
-    const call = resetHandler.mock.calls[0][0] as Request;
+    const calls = resetHandler.mock.calls as Array<[Request]>;
+    expect(calls.length).toBeGreaterThan(0);
+    const call = calls[0][0];
     expect(call.url).toContain("/operator");
   });
 
@@ -1062,5 +1065,6 @@ describe("AdminSettingsPage", () => {
     expect(allText).toContain("Mapping users to the admin role grants full cluster control");
     expect(allText).toContain("Ensure the mapped group contains only authorized personnel");
     expect(allText).toContain("Anyone in these groups gets full admin access from their next login");
+    expect(allText).toContain(exactWarning);
   });
 });

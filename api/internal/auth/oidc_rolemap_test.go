@@ -8,9 +8,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/ValgulNecron/gameplane/api/internal/audit"
-	"github.com/ValgulNecron/gameplane/api/internal/db"
 )
 
 func TestExtractGroups(t *testing.T) {
@@ -131,11 +128,18 @@ func callbackViaIDP(t *testing.T, o *OIDC, sessions *SessionStore, nonce string)
 	return rr
 }
 
-// newTestAuditor creates an auditor for test use, configured to write to
-// the provided store.
-func newTestAuditor(t *testing.T, s *db.Store) *audit.Auditor {
-	t.Helper()
-	return audit.New(s)
+// auditWriteRecorder is a stub audit-write func for OIDC tests that need to
+// observe FR-014 audit event emission without depending on the audit
+// package (which imports auth, so a real *audit.Auditor cannot be used from
+// a test file in package auth without forming an import cycle). Each call's
+// reason string is appended to reasons in call order.
+type auditWriteRecorder struct {
+	reasons []string
+}
+
+func (r *auditWriteRecorder) write(_ context.Context, _, _, _, reason string, _ int) error {
+	r.reasons = append(r.reasons, reason)
+	return nil
 }
 
 // TestHandleCallback_RoleMappingFirstLogin — first login through a
@@ -808,10 +812,10 @@ func TestHandleCallback_FirstLoginAuditEventEmitted(t *testing.T) {
 	store := newAuthDB(t)
 	o.AttachStore(store)
 
-	// Attach an auditor to capture audit events.
+	// Attach a stub audit-write func to capture audit events.
 	SetFastHashParams(t)
-	auditor := newTestAuditor(t, store)
-	o.AttachAuditor(auditor)
+	rec := &auditWriteRecorder{}
+	o.AttachAuditWriteSyncFunc(rec.write)
 	o.SetProviderName("helm")
 
 	rr := callbackViaIDP(t, o, NewSessionStore(store), "nonce-audit1")
@@ -819,12 +823,11 @@ func TestHandleCallback_FirstLoginAuditEventEmitted(t *testing.T) {
 		t.Fatalf("login code=%d body=%q", rr.Code, rr.Body)
 	}
 
-	// Query the audit_events table for the role assignment event.
-	var reason string
-	if err := store.DB.QueryRowContext(context.Background(),
-		`SELECT reason FROM audit_events WHERE reason LIKE 'oidc role assigned:%'`).Scan(&reason); err != nil {
-		t.Fatalf("query audit event: %v", err)
+	// Verify exactly one role-assignment audit event was recorded.
+	if len(rec.reasons) != 1 {
+		t.Fatalf("reasons=%v, want exactly 1 audit event", rec.reasons)
 	}
+	reason := rec.reasons[0]
 
 	// Verify the reason string contains the expected format.
 	if !strings.Contains(reason, "provider=helm") {
@@ -864,8 +867,8 @@ func TestHandleCallback_ReLoginAuditEventEmitted(t *testing.T) {
 	sessions := NewSessionStore(store)
 
 	SetFastHashParams(t)
-	auditor := newTestAuditor(t, store)
-	o.AttachAuditor(auditor)
+	rec := &auditWriteRecorder{}
+	o.AttachAuditWriteSyncFunc(rec.write)
 	o.SetProviderName("helm")
 
 	// First login: viewer role.
@@ -881,14 +884,11 @@ func TestHandleCallback_ReLoginAuditEventEmitted(t *testing.T) {
 		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
 	}
 
-	// Query the second audit event (role change from viewer to operator).
-	var reason string
-	if err := store.DB.QueryRowContext(context.Background(),
-		`SELECT reason FROM audit_events
-		 WHERE reason LIKE 'oidc role assigned:%'
-		 ORDER BY ts DESC LIMIT 1`).Scan(&reason); err != nil {
-		t.Fatalf("query audit event: %v", err)
+	// The second (re-login) audit event is the role change from viewer to operator.
+	if len(rec.reasons) != 2 {
+		t.Fatalf("reasons=%v, want exactly 2 audit events", rec.reasons)
 	}
+	reason := rec.reasons[1]
 
 	// Verify the reason string contains the role change.
 	if !strings.Contains(reason, "provider=helm") {

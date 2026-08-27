@@ -12,7 +12,6 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/ValgulNecron/gameplane/api/internal/audit"
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/scope"
 )
@@ -56,7 +55,7 @@ type OIDC struct {
 	oauth                *oauth2.Config
 	policy               *ProviderPolicy
 	db                   *db.Store
-	auditor              *audit.Auditor
+	auditWriteSync       func(ctx context.Context, method, path, target, reason string, status int) error
 	providerName         string
 	getHelmRoleOverrides func(context.Context) *RoleMappings
 }
@@ -281,10 +280,10 @@ func getMatchedGroup(groups []string, pol *ProviderPolicy) string {
 // blocked by the demotion guard (Applied=false), it logs a warning instead and does
 // not emit an audit event.
 //
-// A nil auditor is a safe no-op — no event is emitted. An audit write failure is
-// logged but does not break the login flow.
+// A nil auditWriteSync func is a safe no-op — no event is emitted. An audit write
+// failure is logged but does not break the login flow.
 func (o *OIDC) emitRoleAssignmentAudit(ctx context.Context, user *User, target string, outcome *RoleAssignmentOutcome) {
-	if o.auditor == nil {
+	if o.auditWriteSync == nil {
 		return
 	}
 	if outcome == nil {
@@ -316,16 +315,23 @@ func (o *OIDC) emitRoleAssignmentAudit(ctx context.Context, user *User, target s
 	// Enrich the context with the newly-authenticated user so WriteSync can extract the actor.
 	enrichedCtx := WithUser(ctx, user)
 
-	// Call WriteSync. An audit write failure is logged by WriteSync itself (via slog.Warn),
-	// so we just call it without additional error handling — the login still succeeds.
-	_ = o.auditor.WriteSync(enrichedCtx, "POST", "/auth/oidc/callback", target, reason, http.StatusOK)
+	// Call the audit write func. An audit write failure is logged by the underlying
+	// auditor itself (via slog.Warn), so we just call it without additional error
+	// handling — the login still succeeds.
+	_ = o.auditWriteSync(enrichedCtx, "POST", "/auth/oidc/callback", target, reason, http.StatusOK)
 }
 
 // AttachStore attaches a database store to the OIDC handler.
 func (o *OIDC) AttachStore(s *db.Store) { o.db = s }
 
-// AttachAuditor attaches an audit recorder to the OIDC handler for FR-014 audit event emission.
-func (o *OIDC) AttachAuditor(a *audit.Auditor) { o.auditor = a }
+// AttachAuditWriteSyncFunc attaches a function that performs a synchronous audit
+// write for FR-014 OIDC role-assignment audit event emission. The signature mirrors
+// audit.Auditor.WriteSync (method, path, target, reason, status) without importing
+// the audit package, avoiding an import cycle (audit imports auth). Pass nil to
+// disable audit emission; a nil func is a safe no-op.
+func (o *OIDC) AttachAuditWriteSyncFunc(fn func(ctx context.Context, method, path, target, reason string, status int) error) {
+	o.auditWriteSync = fn
+}
 
 // SetProviderName sets the provider name (e.g., "helm", "okta") used in audit events.
 func (o *OIDC) SetProviderName(name string) { o.providerName = name }

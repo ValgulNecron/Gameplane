@@ -88,7 +88,7 @@ func (r *GameServerReconciler) reconcileStatus(
 	var prov *provisioningInfo
 	if phase == gameplanev1alpha1.GameServerPhasePending || phase == gameplanev1alpha1.GameServerPhaseStarting {
 		pvcName := gs.Name + "-data"
-		if _, pvcMsg, provisioning, err := checkPVCProvisioningFailure(ctx, r, gs.Namespace, pvcName); err != nil {
+		if _, pvcMsg, provisioning, err := checkPVCProvisioningFailure(ctx, r.Client, gs.Namespace, pvcName); err != nil {
 			// Non-NotFound error checking the PVC or StorageClass; surface it.
 			return 0, fmt.Errorf("check PVC provisioning: %w", err)
 		} else if provisioning {

@@ -445,9 +445,11 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		}
 
 		// Verify the mappings were saved by retrieving the config.
-		if resp, body, err := admin.Get("/admin/config"); err != nil || resp.StatusCode != http.StatusOK {
+		resp, body, err := admin.Get("/admin/config")
+		if err != nil || resp.StatusCode != http.StatusOK {
 			t.Fatalf("get config: %v %s", err, string(body))
-		} else if !strings.Contains(string(body), `"test-admin-group"`) {
+		}
+		if !strings.Contains(string(body), `"test-admin-group"`) {
 			t.Fatalf("config missing test-admin-group mapping: %s", string(body))
 		}
 		if !strings.Contains(string(body), `"test-op-group"`) {

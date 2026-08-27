@@ -1308,27 +1308,36 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 		thirdCapture.CaptureID)
 }
 
-// TestGameServer_DefaultStorageClassApplied: a GameServer's game-data PVC
-// must be created with the Helm-configured default storage class when no
-// explicit override is set at the GameServer or GameTemplate level. The
-// operator's --game-data-storage-class flag provides the install-time default,
-// which is materialized into the PVC spec.storageClassName at creation time.
-func TestGameServer_DefaultStorageClassApplied(t *testing.T) {
+// TestGameServer_NoExplicitOverrideFallsBackToClusterDefault: when a GameServer
+// has no explicit spec.storage.storageClassName, and the template has none,
+// and the operator has no install-time default configured (--game-data-storage-class
+// is empty), the resulting PVC must have storageClassName=nil. This tells
+// Kubernetes to use the cluster's default StorageClass, allowing the PVC to
+// bind and proving the fallback precedence works correctly.
+//
+// This test runs in the e2e environment where the Helm install does not set
+// operator.gameDataStorage.storageClassName, so the operator has no install-time
+// default to apply. It verifies that the absence of an explicit override results
+// in the PVC being created with storageClassName=nil (cluster default), not some
+// invalid state.
+func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	ns := "gameplane-games"
-	tmpl := "e2e-storage-default-tmpl"
-	gs := "e2e-storage-default-gs"
+	tmpl := "e2e-storage-fallback-tmpl"
+	gs := "e2e-storage-fallback-gs"
 
-	// Use a template without explicit storage class, so it falls through
-	// to the install-time default.
+	// Use a template without explicit storage class.
+	// No install-time default is configured in the e2e environment (the Helm
+	// install does not pass --set operator.gameDataStorage.storageClassName).
+	// The expected result: PVC has storageClassName=nil (use cluster default).
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 
 	// Wait for the PVC to be created.
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
-		pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		_, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
 			Get(ctx, gs+"-data", metav1.GetOptions{})
 		if err != nil {
 			return false, "get pvc: " + err.Error()
@@ -1342,18 +1351,18 @@ func TestGameServer_DefaultStorageClassApplied(t *testing.T) {
 		t.Fatalf("get pvc: %v", err)
 	}
 
-	// The PVC should have a storageClassName set (either the Helm default or
-	// the cluster default). If the Helm install used an empty string for the
-	// default, the PVC's StorageClassName will be nil (cluster default).
-	// Either way, the PVC should exist and have a valid phase as it binds.
-	t.Logf("PVC %s has storageClassName=%v (cluster default if nil)",
-		gs+"-data", pvc.Spec.StorageClassName)
+	// Verify the PVC has nil storageClassName, which tells Kubernetes to use
+	// the cluster's default StorageClass (the fallback in the precedence chain).
+	if pvc.Spec.StorageClassName != nil {
+		t.Errorf("PVC storageClassName=%v, want nil (cluster default fallback)",
+			*pvc.Spec.StorageClassName)
+	}
 
-	// Wait for the PVC to reach Bound so the test can confirm the storage
-	// class was acceptable.
+	// Wait for the PVC to reach Bound, proving the cluster default was acceptable
+	// and the precedence chain worked correctly end-to-end.
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 
-	// Re-fetch to get updated status.
+	// Re-fetch to verify it remained Bound after the wait.
 	pvc, err = envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
 		Get(ctx, gs+"-data", metav1.GetOptions{})
 	if err != nil {
@@ -1516,7 +1525,7 @@ func TestGameServer_ExplicitStorageClassOverridesDefault(t *testing.T) {
 
 	// Wait for the PVC to be created.
 	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
-		pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		_, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
 			Get(ctx, gs+"-data", metav1.GetOptions{})
 		if err != nil {
 			return false, "get pvc: " + err.Error()
