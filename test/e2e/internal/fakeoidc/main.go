@@ -135,7 +135,7 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("fake OIDC issuer listening on :%s (issuer=%q)", port, issuer)
+	log.Print("fake OIDC issuer listening")
 	if err := httpSrv.ListenAndServe(); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
@@ -182,7 +182,7 @@ func (s *server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing redirect_uri", http.StatusBadRequest)
 		return
 	}
-	u, err := url.Parse(redirectURI)
+	_, err := url.Parse(redirectURI)
 	if err != nil {
 		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
 		return
@@ -218,6 +218,17 @@ func (s *server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Unlock()
 
+	// Parse the configured redirect URI (untainted configuration) to add query params,
+	// not the request's redirect_uri parameter (tainted input). We already validated
+	// that request redirectURI == s.redirectURI, so using the configured value is
+	// behaviourally equivalent and breaks the G710 taint chain.
+	u, err := url.Parse(s.redirectURI)
+	if err != nil {
+		// This should never happen at runtime since s.redirectURI comes from
+		// environment vars validated at startup, but handle it gracefully
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	qs := u.Query()
 	qs.Set("state", q.Get("state"))
 	qs.Set("code", code)
