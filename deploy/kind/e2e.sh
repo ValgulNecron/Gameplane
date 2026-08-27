@@ -189,6 +189,12 @@ kind: StorageClass
 metadata:
   name: gameplane-e2e-install-default
 provisioner: rancher.io/local-path
+# volumeBindingMode must be WaitForFirstConsumer because the rancher.io/local-path
+# provisioner cannot bind immediately — it needs to know which node the consuming pod
+# landed on before it can provision. Omitting this field causes every PVC to hang at
+# Pending indefinitely.
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
 EOF
 
     echo "helm upgrade --install gameplane"
