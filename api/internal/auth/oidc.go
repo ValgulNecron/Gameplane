@@ -358,7 +358,7 @@ func (o *OIDC) HandleStartAt(cookiePath string) http.HandlerFunc {
 		nonce := randomToken()
 		ttl := 5 * time.Minute
 		http.SetCookie(w, &http.Cookie{
-			Name:     oidcStateCookie, Value: state, Path: cookiePath, HttpOnly: true, Secure: true,
+			Name: oidcStateCookie, Value: state, Path: cookiePath, HttpOnly: true, Secure: true,
 			SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(ttl),
 		})
 		// Nonce is bound to the ID token via OpenID Connect spec — the
@@ -366,7 +366,7 @@ func (o *OIDC) HandleStartAt(cookiePath string) http.HandlerFunc {
 		// matches the cookie prevents ID-token replay, complementing
 		// the CSRF-style state check.
 		http.SetCookie(w, &http.Cookie{
-			Name:     oidcNonceCookie, Value: nonce, Path: cookiePath, HttpOnly: true, Secure: true,
+			Name: oidcNonceCookie, Value: nonce, Path: cookiePath, HttpOnly: true, Secure: true,
 			SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(ttl),
 		})
 		http.Redirect(w, req, o.oauth.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)

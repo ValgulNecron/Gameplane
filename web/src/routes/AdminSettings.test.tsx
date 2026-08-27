@@ -646,8 +646,12 @@ describe("AdminSettingsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
     expect(await screen.findByText("old-claim")).toBeInTheDocument();
 
-    // Replace with new config
-    server.resetHandlers(
+    // Replace with new config. Use server.use() rather than
+    // server.resetHandlers(handlers): the latter REPLACES msw's initial
+    // handler list for the whole file, so the default /users/me handler
+    // vanishes and every later test's useMe() 404s -- which silently
+    // turns off every can()-gated section.
+    server.use(
       http.get("/admin/config", () =>
         HttpResponse.json({
           auth: {

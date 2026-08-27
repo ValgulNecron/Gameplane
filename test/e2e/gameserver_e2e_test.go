@@ -1317,8 +1317,8 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 //
 // This test runs in the e2e environment where the Helm install does not set
 // operator.gameDataStorage.storageClassName, so the operator has no install-time
-// default to apply. It verifies that the absence of an explicit override results
-// in the PVC being created with storageClassName=nil (cluster default), not some
+// default to apply. It verifies that the operator leaves storageClassName unset,
+// so the PVC lands on whatever class the cluster marks default -- not on some
 // invalid state.
 func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
 	t.Parallel()
@@ -1351,11 +1351,23 @@ func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
 		t.Fatalf("get pvc: %v", err)
 	}
 
-	// Verify the PVC has nil storageClassName, which tells Kubernetes to use
-	// the cluster's default StorageClass (the fallback in the precedence chain).
-	if pvc.Spec.StorageClassName != nil {
-		t.Errorf("PVC storageClassName=%v, want nil (cluster default fallback)",
-			*pvc.Spec.StorageClassName)
+	// The operator must not set a class of its own here. It writes
+	// storageClassName=nil, but the apiserver's DefaultStorageClass admission
+	// plugin then stamps the cluster's default class onto the persisted object,
+	// so a read-back never observes nil on a cluster that has a default (kind
+	// ships "standard"). Assert against that default rather than against nil.
+	defaultSC := clusterDefaultStorageClass(t)
+	switch {
+	case defaultSC == "":
+		if pvc.Spec.StorageClassName != nil {
+			t.Errorf("PVC storageClassName=%v, want nil (no default StorageClass on cluster)",
+				*pvc.Spec.StorageClassName)
+		}
+	case pvc.Spec.StorageClassName == nil:
+		// Admission has not stamped it yet; nil still means "cluster default".
+	case *pvc.Spec.StorageClassName != defaultSC:
+		t.Errorf("PVC storageClassName=%q, want %q (cluster default fallback)",
+			*pvc.Spec.StorageClassName, defaultSC)
 	}
 
 	// Wait for the PVC to reach Bound, proving the cluster default was acceptable
@@ -1372,6 +1384,23 @@ func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
 	if pvc.Status.Phase != corev1.ClaimBound {
 		t.Errorf("PVC phase=%s, want Bound", pvc.Status.Phase)
 	}
+}
+
+// clusterDefaultStorageClass returns the name of the StorageClass marked
+// default on the cluster, or "" when no class carries the annotation.
+func clusterDefaultStorageClass(t *testing.T) string {
+	t.Helper()
+	list, err := envInstance.K8s.StorageV1().StorageClasses().
+		List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list storageclasses: %v", err)
+	}
+	for _, sc := range list.Items {
+		if sc.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
+			return sc.Name
+		}
+	}
+	return ""
 }
 
 // TestGameServer_NonexistentStorageClassSurfacesError: a GameServer that

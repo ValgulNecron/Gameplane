@@ -526,9 +526,15 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 		}
 	})
 
-	t.Run("PerRoleIndependence", func(t *testing.T) {
-		// Verify that overriding one role's mapping leaves the other roles'
-		// mappings untouched. Updating admin does not affect operator or viewer.
+	t.Run("PutReplacesTheWholeOverrideMap", func(t *testing.T) {
+		// PUT /admin/config/auth writes the whole "auth" section, exactly as
+		// every other config section behaves and exactly as the dashboard
+		// sends it (it always submits the full helmOverride object it holds).
+		// So a body carrying only the admin key REPLACES the stored map --
+		// operator and viewer overrides are dropped, not merged. Per-role
+		// independence lives elsewhere: in effectiveHelmPolicy's merge against
+		// the Helm seed, and in DELETE .../role-mappings/{role}, covered by
+		// the DeleteRemovesOnly subtest below.
 
 		// Start with a clean slate to isolate this subtest.
 		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
@@ -585,22 +591,22 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 			t.Fatalf("update admin mapping: %v %s", err, string(body))
 		}
 
-		// Verify admin was updated but operator and viewer remain unchanged.
+		// Verify admin was updated and the omitted roles were replaced away.
 		resp, body, err = admin.Get("/admin/config")
 		if resp != nil {
 			defer func() { _ = resp.Body.Close() }()
 		}
 		if err != nil || resp.StatusCode != http.StatusOK {
-			t.Fatalf("get config after partial update: %v %s", err, string(body))
+			t.Fatalf("get config after full-section update: %v %s", err, string(body))
 		}
 		if !strings.Contains(string(body), `"updated-admin"`) {
 			t.Fatalf("admin mapping was not updated: %s", string(body))
 		}
-		if !strings.Contains(string(body), `"initial-op"`) {
-			t.Fatalf("operator mapping was lost on admin update: %s", string(body))
+		if strings.Contains(string(body), `"initial-op"`) {
+			t.Fatalf("operator override survived a section-replacing PUT that omitted it: %s", string(body))
 		}
-		if !strings.Contains(string(body), `"initial-viewer"`) {
-			t.Fatalf("viewer mapping was lost on admin update: %s", string(body))
+		if strings.Contains(string(body), `"initial-viewer"`) {
+			t.Fatalf("viewer override survived a section-replacing PUT that omitted it: %s", string(body))
 		}
 	})
 
