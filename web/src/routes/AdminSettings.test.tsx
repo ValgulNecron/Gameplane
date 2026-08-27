@@ -1115,20 +1115,20 @@ describe("AdminSettingsPage", () => {
     await userEvent.click(addBtn);
 
     // Fill in the form with admin groups
-    const nameInput = await screen.findByDisplayValue("", { selector: "input[placeholder='corp-sso']" });
+    const nameInput = await screen.findByLabelText("Name");
     await userEvent.type(nameInput, "test-provider");
 
-    const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
+    const issuerInput = screen.getByLabelText("Issuer URL");
     await userEvent.type(issuerInput, "https://example.com");
 
     const clientIDInput = screen.getByLabelText("Client ID");
     await userEvent.type(clientIDInput, "test-client");
 
-    const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
-    await userEvent.type(passwordInputs[0], "test-secret");
+    const clientSecretInput = screen.getByLabelText("Client secret");
+    await userEvent.type(clientSecretInput, "test-secret");
 
     // Fill in admin groups
-    const adminInput = screen.getByDisplayValue("", { selector: "input[placeholder='gameplane-admins']" });
+    const adminInput = screen.getByLabelText("Admin groups");
     await userEvent.type(adminInput, "admin-group");
 
     // Click Add provider button (the one in the form)
@@ -1184,20 +1184,20 @@ describe("AdminSettingsPage", () => {
     await userEvent.click(addBtn);
 
     // Fill in the form
-    const nameInput = await screen.findByDisplayValue("", { selector: "input[placeholder='corp-sso']" });
+    const nameInput = await screen.findByLabelText("Name");
     await userEvent.type(nameInput, "test-provider");
 
-    const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
+    const issuerInput = screen.getByLabelText("Issuer URL");
     await userEvent.type(issuerInput, "https://example.com");
 
     const clientIDInput = screen.getByLabelText("Client ID");
     await userEvent.type(clientIDInput, "test-client");
 
-    const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
-    await userEvent.type(passwordInputs[0], "test-secret");
+    const clientSecretInput = screen.getByLabelText("Client secret");
+    await userEvent.type(clientSecretInput, "test-secret");
 
     // Fill in admin groups
-    const adminInput = screen.getByDisplayValue("", { selector: "input[placeholder='gameplane-admins']" });
+    const adminInput = screen.getByLabelText("Admin groups");
     await userEvent.type(adminInput, "admin-group");
 
     // Click Add provider button
@@ -1251,20 +1251,20 @@ describe("AdminSettingsPage", () => {
     await userEvent.click(addBtn);
 
     // Fill in the form with admin groups
-    const nameInput = await screen.findByDisplayValue("", { selector: "input[placeholder='corp-sso']" });
+    const nameInput = await screen.findByLabelText("Name");
     await userEvent.type(nameInput, "test-provider");
 
-    const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
+    const issuerInput = screen.getByLabelText("Issuer URL");
     await userEvent.type(issuerInput, "https://example.com");
 
     const clientIDInput = screen.getByLabelText("Client ID");
     await userEvent.type(clientIDInput, "test-client");
 
-    const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
-    await userEvent.type(passwordInputs[0], "test-secret");
+    const clientSecretInput = screen.getByLabelText("Client secret");
+    await userEvent.type(clientSecretInput, "test-secret");
 
     // Fill in admin groups
-    const adminInput = screen.getByDisplayValue("", { selector: "input[placeholder='gameplane-admins']" });
+    const adminInput = screen.getByLabelText("Admin groups");
     await userEvent.type(adminInput, "admin-group");
 
     // Click Add provider button
