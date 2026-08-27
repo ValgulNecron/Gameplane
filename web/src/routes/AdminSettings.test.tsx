@@ -1121,7 +1121,7 @@ describe("AdminSettingsPage", () => {
     const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
     await userEvent.type(issuerInput, "https://example.com");
 
-    const clientIDInput = screen.getAllByRole("textbox")[4]; // Client ID field
+    const clientIDInput = screen.getByLabelText("Client ID");
     await userEvent.type(clientIDInput, "test-client");
 
     const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
@@ -1173,7 +1173,7 @@ describe("AdminSettingsPage", () => {
       http.get("/auth/providers", () =>
         HttpResponse.json({ providers: [] }),
       ),
-      http.post("/auth/providers/test-provider/secret", secretHandler),
+      http.put("/admin/auth/providers/test-provider/secret", secretHandler),
       http.put("/admin/config/auth", addHandler),
     );
     renderWithQuery(<AdminSettingsPage />);
@@ -1190,7 +1190,7 @@ describe("AdminSettingsPage", () => {
     const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
     await userEvent.type(issuerInput, "https://example.com");
 
-    const clientIDInput = screen.getAllByRole("textbox")[4]; // Client ID field
+    const clientIDInput = screen.getByLabelText("Client ID");
     await userEvent.type(clientIDInput, "test-client");
 
     const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
@@ -1241,7 +1241,7 @@ describe("AdminSettingsPage", () => {
       http.get("/auth/providers", () =>
         HttpResponse.json({ providers: [] }),
       ),
-      http.post("/auth/providers/test-provider/secret", secretHandler),
+      http.put("/admin/auth/providers/test-provider/secret", secretHandler),
     );
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
@@ -1257,7 +1257,7 @@ describe("AdminSettingsPage", () => {
     const issuerInput = screen.getByDisplayValue("", { selector: "input[placeholder='https://idp.example.com']" });
     await userEvent.type(issuerInput, "https://example.com");
 
-    const clientIDInput = screen.getAllByRole("textbox")[4]; // Client ID field
+    const clientIDInput = screen.getByLabelText("Client ID");
     await userEvent.type(clientIDInput, "test-client");
 
     const passwordInputs = screen.getAllByDisplayValue("", { selector: "input[type='password']" });
