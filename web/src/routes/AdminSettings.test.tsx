@@ -830,10 +830,13 @@ describe("AdminSettingsPage", () => {
     // Most importantly: Reset button MUST appear (only shows when override exists)
     // This distinguishes [] (override exists) from undefined (no override, use Helm)
     const resetButtons = await screen.findAllByRole("button", { name: /Reset to Helm default/ });
-    // Viewer should have a reset button since it has an override
+    // Viewer should have a reset button since it has an override. The role
+    // label renders as literal lowercase "viewer" text — "capitalize" in its
+    // className is a CSS text-transform only, it doesn't change textContent —
+    // so match case-insensitively rather than against "Viewer".
     const viewerResetBtn = resetButtons.find((btn) => {
       const parent = btn.closest<HTMLElement>("div");
-      return parent?.textContent?.includes("Viewer");
+      return parent?.textContent?.toLowerCase().includes("viewer");
     });
     expect(viewerResetBtn).toBeDefined();
   });
@@ -952,9 +955,12 @@ describe("AdminSettingsPage", () => {
     const adminAddBtn = within(adminRoleSection).getByRole("button", { name: "Add group" });
     await userEvent.click(adminAddBtn);
 
-    // Dialog should appear with exact warning text
+    // Dialog should appear with exact warning text. The three sentences render
+    // as one flowing paragraph (a single text node), so a plain exact-match
+    // string here would never match — only a substring/regex query does,
+    // matching the pattern already used for the next two assertions.
     expect(
-      await screen.findByText("Mapping users to the admin role grants full cluster control"),
+      await screen.findByText(/Mapping users to the admin role grants full cluster control/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Ensure the mapped group contains only authorized personnel/),

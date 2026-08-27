@@ -89,7 +89,7 @@ func NewOIDCWithPolicy(
 	return &OIDC{
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
-		oauth:    &oauth2.Config{
+		oauth: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,

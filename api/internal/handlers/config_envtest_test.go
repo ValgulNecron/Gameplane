@@ -71,7 +71,7 @@ func configAdminUser() *auth.User {
 		ID:       1,
 		Username: "config-admin",
 		Role:     rbac.RoleAdmin,
-		Perms:    map[string]map[string]map[string]struct{}{
+		Perms: map[string]map[string]map[string]struct{}{
 			"*": {"*": {"*": {}}},
 		},
 	}
@@ -83,7 +83,7 @@ func configOperatorUser() *auth.User {
 		ID:       101,
 		Username: "config-operator",
 		Role:     rbac.RoleOperator,
-		Perms:    map[string]map[string]map[string]struct{}{
+		Perms: map[string]map[string]map[string]struct{}{
 			"*": {"*": {
 				"servers:read":     {},
 				"servers:write":    {},
@@ -107,7 +107,7 @@ func configViewerUser() *auth.User {
 		ID:       102,
 		Username: "config-viewer",
 		Role:     rbac.RoleViewer,
-		Perms:    map[string]map[string]map[string]struct{}{
+		Perms: map[string]map[string]map[string]struct{}{
 			"*": {"*": {
 				"servers:read":     {},
 				"backups:read":     {},
@@ -782,8 +782,8 @@ func TestConfig_InstallTimeSettingsWithStorageClass(t *testing.T) {
 // includes the Helm-configured OIDC provider (groupsClaim, defaultRole, roleMappings).
 func TestConfig_InstallTimeSettingsWithHelmOIDC(t *testing.T) {
 	helmPolicy := &auth.ProviderPolicy{
-		GroupsClaim:  "groups",
-		DefaultRole:  "viewer",
+		GroupsClaim: "groups",
+		DefaultRole: "viewer",
 		RoleMappings: &auth.RoleMappings{
 			Admin:    []string{"helm-admins"},
 			Operator: []string{"helm-ops"},
@@ -873,8 +873,8 @@ func TestConfig_InstallTimeSettingsWithHelmOIDC(t *testing.T) {
 // still shows the Helm seed while the "auth" section shows the override.
 func TestConfig_InstallTimeSettingsUnaffectedByOverride(t *testing.T) {
 	helmPolicy := &auth.ProviderPolicy{
-		GroupsClaim:  "groups",
-		DefaultRole:  "operator",
+		GroupsClaim: "groups",
+		DefaultRole: "operator",
 		RoleMappings: &auth.RoleMappings{
 			Admin:    []string{"helm-admins"},
 			Operator: []string{"helm-ops"},

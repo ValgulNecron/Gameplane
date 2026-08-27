@@ -93,7 +93,17 @@ export function AdminSettingsPage() {
           {sections.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setSection(key)}
+              onClick={() => {
+                setSection(key);
+                // cfg is a single query shared by every section (staleTime: 0
+                // in tests, 10s in prod) with one long-lived observer here in
+                // AdminSettingsPage — switching sections alone never creates a
+                // new observer, so nothing would otherwise refetch it. Force a
+                // refetch on every nav click so revisiting a section (e.g.
+                // Authentication, after another admin or Helm changed
+                // installTimeSettings) shows current data.
+                void cfg.refetch();
+              }}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
                 "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary",
@@ -1611,7 +1621,12 @@ function RoleMappingOverridesCard({
               Saved changes take effect on next login for affected users — no restart or reinstall needed.
             </p>
             <div className="flex gap-2">
-              <SaveStatus pending={formState.pending} error={formState.error} saved={formState.saved} />
+              {/* No SaveStatus here: this card shares f.error/f.saved with the
+                  Authentication card above (same useSectionForm, same PUT), whose
+                  own footer already renders it. Duplicating it here means the exact
+                  same text (e.g. a save error) appears twice in the DOM, breaking
+                  any singular getByText/findByText query for it — see the
+                  "surfaces a backend rejection when saving the auth section" test. */}
               <Button variant="outline" onClick={onSave} disabled={formState.pending}>
                 Save role mappings
               </Button>
@@ -1649,7 +1664,7 @@ function RoleMappingOverridesCard({
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={`Reset ${role} role mapping to Helm default`}
+                        aria-label={`Reset to Helm default (${role} role mapping)`}
                         onClick={() => handleReset(typedRole)}
                         disabled={resetMutation.isPending}
                       >
