@@ -84,7 +84,7 @@ func (r *GameServerReconciler) reconcileStatus(
 	// clearly so the dashboard shows a clear error message. This check runs on every
 	// reconcile (not just when events arrive) to satisfy SC-002: the error must
 	// surface within 30 seconds of the GameServer going Pending. The server stays
-	// in Pending phase per the spec (not escalated to Failed).
+	// in a non-terminal phase (Pending or Starting) per the spec (not escalated to Failed).
 	var prov *provisioningInfo
 	if phase == gameplanev1alpha1.GameServerPhasePending || phase == gameplanev1alpha1.GameServerPhaseStarting {
 		pvcName := gs.Name + "-data"

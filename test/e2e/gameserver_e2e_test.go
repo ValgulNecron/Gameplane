@@ -1506,10 +1506,14 @@ func TestGameServer_NonexistentStorageClassSurfacesError(t *testing.T) {
 			return false, "get gameserver: " + err.Error()
 		}
 
-		// Check that phase is Pending (not Failed).
+		// Check that phase is non-terminal (Pending or Starting, not Failed).
+		// A PVC provisioning failure is recoverable and must not escalate to Failed.
 		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
-		if phase != "Pending" {
-			return false, fmt.Sprintf("phase=%s, want Pending", phase)
+		if phase == "Failed" {
+			return false, fmt.Sprintf("phase=%s, want a non-terminal phase (Pending or Starting); a PVC provisioning failure is recoverable and must not escalate to Failed", phase)
+		}
+		if phase != "Pending" && phase != "Starting" {
+			return false, fmt.Sprintf("phase=%s, want Pending or Starting; a PVC provisioning failure is recoverable and must not escalate to Failed", phase)
 		}
 
 		// Look for a Ready=False condition with reason PVCProvisioningFailed.

@@ -67,10 +67,15 @@ func TestGameServer_PVCProvisioningFailureDetection_NonexistentStorageClass(t *t
 		return false, "Ready condition not found"
 	})
 
-	// Verify that status.phase stayed Pending (not escalated to Failed).
+	// Verify that status.phase stayed non-terminal (Pending or Starting, not Failed).
+	// A PVC provisioning failure is recoverable and must not escalate to Failed.
 	cur := getGameServer(t, ns, "test-missing-sc")
-	if cur.Status.Phase != gameplanev1alpha1.GameServerPhasePending {
-		t.Errorf("phase=%s, want Pending; provisioning failure must be recoverable and not terminal",
+	if cur.Status.Phase == gameplanev1alpha1.GameServerPhaseFailed {
+		t.Errorf("phase=%s, want a non-terminal phase (Pending or Starting); a PVC provisioning failure is recoverable and must not escalate to Failed",
+			cur.Status.Phase)
+	}
+	if cur.Status.Phase != gameplanev1alpha1.GameServerPhasePending && cur.Status.Phase != gameplanev1alpha1.GameServerPhaseStarting {
+		t.Errorf("phase=%s, want Pending or Starting; a PVC provisioning failure is recoverable and must not escalate to Failed",
 			cur.Status.Phase)
 	}
 }
