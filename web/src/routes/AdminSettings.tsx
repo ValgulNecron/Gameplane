@@ -308,6 +308,12 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
       <SectionCard
         title="Authentication"
         subtitle="Built-in local accounts plus federated identity providers. Changes take effect on save — no restart needed."
+        footer={
+          <>
+            <SaveStatus pending={f.pending} error={f.error} saved={f.saved} />
+            <Button onClick={f.save} disabled={f.pending}>Save changes</Button>
+          </>
+        }
       >
         {f.draft.providers.length === 0 && !helm && (
           <div className="text-sm text-muted">No identity providers configured yet.</div>

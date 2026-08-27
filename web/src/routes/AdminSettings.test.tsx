@@ -536,7 +536,10 @@ describe("AdminSettingsPage", () => {
     renderWithQuery(<AdminSettingsPage />);
     await userEvent.click(screen.getByRole("button", { name: /Authentication/i }));
     const helmCardHeading = await screen.findByText("Helm-seeded OIDC provider");
-    const helmCard = helmCardHeading.closest("div");
+    // The heading's immediate ancestor div only wraps the title/subtitle
+    // block (see SectionCard) — walk up to the enclosing Card so the query
+    // also covers the card's body content (groups claim, mappings, etc).
+    const helmCard = helmCardHeading.closest(".rounded-lg");
     expect(helmCard).toBeInTheDocument();
     expect(within(helmCard!).getByText("teams")).toBeInTheDocument();
     // Scope "viewer" to the default role display, since it appears in both

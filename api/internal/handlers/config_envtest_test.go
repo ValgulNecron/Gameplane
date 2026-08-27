@@ -566,21 +566,20 @@ func TestConfig_AuditEventsOnPutChange(t *testing.T) {
 		t.Fatalf("PUT = %d; body=%s", rr.Code, rr.Body.String())
 	}
 
-	// Query audit events and verify at least one event exists with the expected action.
+	// Query audit events and verify at least one event exists with the expected reason.
 	rows, err := captureAuditStore.DB.QueryContext(t.Context(),
-		`SELECT action, reason FROM audit_events WHERE reason LIKE 'oidc role mapping override%'`)
+		`SELECT reason FROM audit_events WHERE reason LIKE 'oidc role mapping override%'`)
 	if err != nil {
 		t.Fatalf("query audit events: %v", err)
 	}
 	defer rows.Close()
 
-	var actions, reasons []string
+	var reasons []string
 	for rows.Next() {
-		var action, reason string
-		if err := rows.Scan(&action, &reason); err != nil {
+		var reason string
+		if err := rows.Scan(&reason); err != nil {
 			t.Fatalf("scan audit event: %v", err)
 		}
-		actions = append(actions, action)
 		reasons = append(reasons, reason)
 	}
 
@@ -641,7 +640,7 @@ func TestConfig_AuditEventsOnDeleteChange(t *testing.T) {
 
 	// Query audit events and verify the DELETE event.
 	rows, err := captureAuditStore.DB.QueryContext(t.Context(),
-		`SELECT action, reason FROM audit_events WHERE reason LIKE 'oidc role mapping override reset%'`)
+		`SELECT reason FROM audit_events WHERE reason LIKE 'oidc role mapping override reset%'`)
 	if err != nil {
 		t.Fatalf("query audit events: %v", err)
 	}
@@ -649,8 +648,8 @@ func TestConfig_AuditEventsOnDeleteChange(t *testing.T) {
 
 	var reasons []string
 	for rows.Next() {
-		var action, reason string
-		if err := rows.Scan(&action, &reason); err != nil {
+		var reason string
+		if err := rows.Scan(&reason); err != nil {
 			t.Fatalf("scan audit event: %v", err)
 		}
 		reasons = append(reasons, reason)

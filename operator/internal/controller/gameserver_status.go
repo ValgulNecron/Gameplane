@@ -363,6 +363,14 @@ func computeConditions(
 		// doing, so the dashboard can show "Pulling image" /
 		// "Installing server files" / "Waiting for agent".
 		if prov != nil {
+			// Promote PVC provisioning failures to the Ready condition so the
+			// error is visible (mirroring the Pending case). Other prov reasons
+			// (pod scheduling, image pull, etc.) affect only Progressing —
+			// they're benign progress refinements, not failures.
+			if prov.reason == GameServerConditionReasonPVCProvisioningFailed {
+				ready.Reason = prov.reason
+				ready.Message = prov.message
+			}
 			if prov.reason != "" {
 				progressing.Reason = prov.reason
 			}
