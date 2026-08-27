@@ -43,9 +43,9 @@ func TestGameServer_PVCProvisioningFailureDetection_NonexistentStorageClass(t *t
 
 	// Wait for the reconciler to detect the PVC provisioning failure. A
 	// missing StorageClass is recoverable (an admin can create it and the PVC
-	// binds with no action on the GameServer), so the phase is not escalated to Failed
-	// (it remains Pending or Starting) while the Ready condition carries the
-	// specific, actionable error.
+	// binds with no action on the GameServer), so the phase stays Pending (not
+	// escalated to Failed) while the Ready condition carries the specific,
+	// actionable error.
 	eventually(t, func() (bool, string) {
 		cur := getGameServer(t, ns, "test-missing-sc")
 		// Find the Ready condition and check its reason.
@@ -66,6 +66,13 @@ func TestGameServer_PVCProvisioningFailureDetection_NonexistentStorageClass(t *t
 		}
 		return false, "Ready condition not found"
 	})
+
+	// Verify that status.phase stayed Pending (not escalated to Failed).
+	cur := getGameServer(t, ns, "test-missing-sc")
+	if cur.Status.Phase != gameplanev1alpha1.GameServerPhasePending {
+		t.Errorf("phase=%s, want Pending; provisioning failure must be recoverable and not terminal",
+			cur.Status.Phase)
+	}
 }
 
 // TestGameServer_PVCProvisioningFailureDetection_SuccessfulProvisioning — a

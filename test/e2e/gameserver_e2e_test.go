@@ -1497,11 +1497,19 @@ func TestGameServer_NonexistentStorageClassSurfacesError(t *testing.T) {
 	// Wait for the operator to detect the provisioning failure and surface
 	// it in the GameServer's status conditions. The check occurs on every
 	// reconciliation (~30s default), so we allow up to 2 minutes.
+	// The phase must stay Pending (not escalated to Failed) since a missing
+	// StorageClass is recoverable.
 	envInstance.Eventually(t, 2*time.Minute, func() (bool, string) {
 		obj, err := envInstance.Dyn.Resource(gameServerGVR).Namespace(ns).
 			Get(ctx, gsName, metav1.GetOptions{})
 		if err != nil {
 			return false, "get gameserver: " + err.Error()
+		}
+
+		// Check that phase is Pending (not Failed).
+		phase, _, _ := unstructured.NestedString(obj.Object, "status", "phase")
+		if phase != "Pending" {
+			return false, fmt.Sprintf("phase=%s, want Pending", phase)
 		}
 
 		// Look for a Ready=False condition with reason PVCProvisioningFailed.
