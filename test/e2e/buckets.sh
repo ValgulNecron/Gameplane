@@ -97,15 +97,19 @@ TestAPI_AuditEmitsOnMutation
 TestAPI_AuditPaginationAndFilter
 TestAPI_LogoutInvalidatesSession
 TestAPI_PasswordResetInvalidatesSession
-TestAPI_AuthConfig_RoleMappings
 EOF
 }
 
+# TestAPI_AuthConfig_RoleMappings belongs with auth by subject, but api-auth was
+# already at its admin-login ceiling (per-user burst 6, 3/min, one shared IP per
+# job) and a ninth login there made TestAPI_LogoutInvalidatesSession fail 429.
+# It lives here, in a bucket that spends 4.
 bucket_api_roles() { cat <<'EOF'
 TestAPI_CustomRole_Lifecycle
 TestAPI_BuiltinRole_Immutable
 TestAPI_PerNamespaceBinding_GrantsScopedAccess
 TestAPI_OwnerCollaboratorAccess
+TestAPI_AuthConfig_RoleMappings
 EOF
 }
 
