@@ -1116,7 +1116,7 @@ func TestHandleCallback_HelmOverride_LiveRead_SC007(t *testing.T) {
 
 	// Mutable override source: held in a closure so we can mutate it between logins.
 	var helmOverride *RoleMappings
-	getOverride := func(ctx context.Context) *RoleMappings {
+	getOverride := func(_ context.Context) *RoleMappings {
 		return helmOverride
 	}
 
@@ -1148,6 +1148,12 @@ func TestHandleCallback_HelmOverride_LiveRead_SC007(t *testing.T) {
 	if role != "admin" {
 		t.Fatalf("login 1: role=%q want admin (base policy: helm-admins -> admin)", role)
 	}
+
+	// syncUserRole refuses to demote the install's LAST user-manager (see
+	// oidc.go's last-admin lockout guard), and the OIDC user from login 1
+	// is currently the only one. Seed a second local admin so the demotion
+	// below actually applies instead of being silently skipped.
+	seedUser(t, store, "backup-admin", "pw-backup-admin", "admin")
 
 	// === Login 2: Override with empty admin list ===
 	// User still has groups ["helm-admins"], but override makes Admin = [],
