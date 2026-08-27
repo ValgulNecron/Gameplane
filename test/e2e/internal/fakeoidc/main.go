@@ -69,13 +69,6 @@ type jwksDoc struct {
 	Keys []jwk `json:"keys"`
 }
 
-type tokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	IDToken     string `json:"id_token"`
-	ExpiresIn   int    `json:"expires_in"`
-}
-
 // pendingCode is what /authorize stashed for one issued authorization
 // code, read back (and consumed) by /token to mint the ID token.
 type pendingCode struct {
@@ -87,9 +80,10 @@ type pendingCode struct {
 }
 
 type server struct {
-	issuer   string
-	clientID string
-	priv     *rsa.PrivateKey
+	issuer      string
+	clientID    string
+	redirectURI string
+	priv        *rsa.PrivateKey
 
 	mu      sync.Mutex
 	pending map[string]pendingCode
@@ -104,6 +98,10 @@ func main() {
 	if clientID == "" {
 		log.Fatal("CLIENT_ID env var is required")
 	}
+	redirectURI := os.Getenv("REDIRECT_URI")
+	if redirectURI == "" {
+		log.Fatal("REDIRECT_URI env var is required")
+	}
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -115,10 +113,11 @@ func main() {
 	}
 
 	s := &server{
-		issuer:   issuer,
-		clientID: clientID,
-		priv:     priv,
-		pending:  map[string]pendingCode{},
+		issuer:      issuer,
+		clientID:    clientID,
+		redirectURI: redirectURI,
+		priv:        priv,
+		pending:     map[string]pendingCode{},
 	}
 
 	mux := http.NewServeMux()
@@ -136,7 +135,7 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("fake OIDC issuer listening on :%s (issuer=%s)", port, issuer)
+	log.Printf("fake OIDC issuer listening on :%s (issuer=%q)", port, issuer)
 	if err := httpSrv.ListenAndServe(); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
@@ -186,6 +185,10 @@ func (s *server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
 		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
+		return
+	}
+	if redirectURI != s.redirectURI {
+		http.Error(w, "redirect_uri mismatch", http.StatusBadRequest)
 		return
 	}
 
@@ -247,11 +250,11 @@ func (s *server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	resp := tokenResponse{
-		AccessToken: "fakeoidc-access-token",
-		TokenType:   "Bearer",
-		IDToken:     idToken,
-		ExpiresIn:   3600,
+	resp := map[string]any{
+		"access_token": "fakeoidc-access-token",
+		"token_type":   "Bearer",
+		"id_token":     idToken,
+		"expires_in":   3600,
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("encode token response: %v", err)
