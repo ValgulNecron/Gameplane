@@ -879,7 +879,7 @@ func oidcDo(t *testing.T, cli *http.Client, method, rawURL string, body io.Reade
 }
 
 // oidcHelmPorts port-forwards both the API and the fake IdP Services and
-// returns their loopback base URLs plus a combined teardown func.
+// returns their loopback base URLs; both port-forwards are torn down via t.Cleanup.
 func oidcHelmPorts(t *testing.T) (apiBase, idpBase string) {
 	t.Helper()
 	apiPort, apiStop := envInstance.PortForward(t, "gameplane-system", "svc/gameplane-api", 80)

@@ -109,11 +109,19 @@ EOF
 # fake in-cluster IdP (test/e2e/internal/fakeoidc), never as e2e-admin,
 # and their one rate limiter (auth.OIDCCallbackLimiter, burst 10/min) is
 # untouched by every other test in this bucket. See T049.
+#
+# WARNING: Do NOT move any test that writes helmOverride.roleMappings into
+# api-auth — it overrides the Helm-seeded admin mapping at login time and
+# would flake TestAPI_OIDCHelmSeeded_*.
 
 # TestAPI_AuthConfig_RoleMappings belongs with auth by subject, but api-auth was
 # already at its admin-login ceiling (per-user burst 6, 3/min, one shared IP per
 # job) and a ninth login there made TestAPI_LogoutInvalidatesSession fail 429.
 # It lives here, in a bucket that spends 4.
+#
+# WARNING: Do NOT move any test that writes helmOverride.roleMappings into
+# api-auth — it overrides the Helm-seeded admin mapping at login time and
+# would flake TestAPI_OIDCHelmSeeded_*.
 bucket_api_roles() { cat <<'EOF'
 TestAPI_CustomRole_Lifecycle
 TestAPI_BuiltinRole_Immutable

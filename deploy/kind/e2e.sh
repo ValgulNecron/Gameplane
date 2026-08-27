@@ -183,7 +183,7 @@ EOF
     # Helm-seeded OIDC role-mapping e2e tests (T049). Every bucket's
     # cluster gets it — its Dockerfile lives outside the per-component
     # <name>/Dockerfile convention, so it isn't covered by the loop above.
-    echo "loading gameplane-test/fakeoidc:${TAG} images into kind"
+    echo "loading gameplane-test/fakeoidc:${TAG} into kind"
     if ! docker image inspect "gameplane-test/fakeoidc:${TAG}" >/dev/null 2>&1; then
         echo "  missing local image gameplane-test/fakeoidc:${TAG} — building"
         docker build -t "gameplane-test/fakeoidc:${TAG}" -f "${REPO}/test/e2e/Dockerfile.fakeoidc" "${REPO}"
@@ -243,10 +243,19 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: gameplane-test-fakeoidc }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: fakeoidc
           image: gameplane-test/fakeoidc:${TAG}
           imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 200m, memory: 64Mi }
           ports:
             - { name: http, containerPort: 8080 }
           env:
