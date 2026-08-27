@@ -261,6 +261,7 @@ spec:
           env:
             - { name: ISSUER, value: "http://gameplane-test-fakeoidc.gameplane-system.svc.cluster.local:8080" }
             - { name: CLIENT_ID, value: "gameplane-e2e-helm-oidc" }
+            - { name: REDIRECT_URI, value: "https://gameplane.e2e.invalid/auth/oidc/helm/callback" }
           readinessProbe:
             httpGet: { path: /.well-known/openid-configuration, port: http }
             initialDelaySeconds: 1
