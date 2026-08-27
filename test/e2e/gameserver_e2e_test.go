@@ -1308,30 +1308,30 @@ func TestGameServer_NetworkCaptureConcurrencyRejected(t *testing.T) {
 		thirdCapture.CaptureID)
 }
 
-// TestGameServer_NoExplicitOverrideFallsBackToClusterDefault: when a GameServer
-// has no explicit spec.storage.storageClassName, and the template has none,
-// and the operator has no install-time default configured (--game-data-storage-class
-// is empty), the resulting PVC must have storageClassName=nil. This tells
-// Kubernetes to use the cluster's default StorageClass, allowing the PVC to
-// bind and proving the fallback precedence works correctly.
+// TestGameServer_InstallTimeDefaultApplies: when a GameServer has no
+// explicit spec.storage.storageClassName, and the template has none,
+// the operator must apply the install-time default (--game-data-storage-class
+// from the Helm value operator.gameDataStorage.storageClassName). This test
+// verifies SC-001: the PVC spec.storageClassName reflects the install-time
+// default, and the PVC reaches Bound.
 //
-// This test runs in the e2e environment where the Helm install does not set
-// operator.gameDataStorage.storageClassName, so the operator has no install-time
-// default to apply. It verifies that the operator leaves storageClassName unset,
-// so the PVC lands on whatever class the cluster marks default -- not on some
-// invalid state.
-func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
+// This test runs in the e2e environment where the Helm install sets
+// operator.gameDataStorage.storageClassName=gameplane-e2e-install-default,
+// so the operator has an install-time default to apply. It verifies that
+// the operator uses that default, proving the install-time rung of the
+// precedence chain (GameServer > GameTemplate > install-time > cluster default).
+func TestGameServer_InstallTimeDefaultApplies(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	ns := "gameplane-games"
-	tmpl := "e2e-storage-fallback-tmpl"
-	gs := "e2e-storage-fallback-gs"
+	tmpl := "e2e-install-default-tmpl"
+	gs := "e2e-install-default-gs"
 
 	// Use a template without explicit storage class.
-	// No install-time default is configured in the e2e environment (the Helm
-	// install does not pass --set operator.gameDataStorage.storageClassName).
-	// The expected result: PVC has storageClassName=nil (use cluster default).
+	// The Helm install configures operator.gameDataStorage.storageClassName
+	// to gameplane-e2e-install-default, so the operator will apply that.
+	// Expected result: PVC has storageClassName=gameplane-e2e-install-default.
 	applyBusyboxTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 
@@ -1351,27 +1351,18 @@ func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
 		t.Fatalf("get pvc: %v", err)
 	}
 
-	// The operator must not set a class of its own here. It writes
-	// storageClassName=nil, but the apiserver's DefaultStorageClass admission
-	// plugin then stamps the cluster's default class onto the persisted object,
-	// so a read-back never observes nil on a cluster that has a default (kind
-	// ships "standard"). Assert against that default rather than against nil.
-	defaultSC := clusterDefaultStorageClass(t)
-	switch {
-	case defaultSC == "":
-		if pvc.Spec.StorageClassName != nil {
-			t.Errorf("PVC storageClassName=%v, want nil (no default StorageClass on cluster)",
-				*pvc.Spec.StorageClassName)
-		}
-	case pvc.Spec.StorageClassName == nil:
-		// Admission has not stamped it yet; nil still means "cluster default".
-	case *pvc.Spec.StorageClassName != defaultSC:
-		t.Errorf("PVC storageClassName=%q, want %q (cluster default fallback)",
-			*pvc.Spec.StorageClassName, defaultSC)
+	// Verify the PVC has the install-time default storage class.
+	const installTimeDefault = "gameplane-e2e-install-default"
+	if pvc.Spec.StorageClassName == nil {
+		t.Errorf("PVC storageClassName is nil, want %q (install-time default)",
+			installTimeDefault)
+	} else if *pvc.Spec.StorageClassName != installTimeDefault {
+		t.Errorf("PVC storageClassName=%q, want %q (install-time default)",
+			*pvc.Spec.StorageClassName, installTimeDefault)
 	}
 
-	// Wait for the PVC to reach Bound, proving the cluster default was acceptable
-	// and the precedence chain worked correctly end-to-end.
+	// Wait for the PVC to reach Bound, proving the install-time default was
+	// acceptable and the precedence chain worked correctly end-to-end (SC-001).
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 
 	// Re-fetch to verify it remained Bound after the wait.
@@ -1386,21 +1377,83 @@ func TestGameServer_NoExplicitOverrideFallsBackToClusterDefault(t *testing.T) {
 	}
 }
 
-// clusterDefaultStorageClass returns the name of the StorageClass marked
-// default on the cluster, or "" when no class carries the annotation.
-func clusterDefaultStorageClass(t *testing.T) string {
-	t.Helper()
-	list, err := envInstance.K8s.StorageV1().StorageClasses().
-		List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		t.Fatalf("list storageclasses: %v", err)
+// TestGameServer_TemplateDefaultOverridesInstallTime: a GameTemplate with an
+// explicit spec.storage.storageClassName must override the operator's
+// install-time default. This verifies the precedence rung: GameTemplate default
+// > install-time default.
+//
+// The e2e cluster has an install-time default configured
+// (gameplane-e2e-install-default), but this GameServer's template specifies
+// "standard" (kind's default StorageClass), which must win.
+func TestGameServer_TemplateDefaultOverridesInstallTime(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ns := "gameplane-games"
+	tmpl := "e2e-template-storage-override-tmpl"
+	gs := "e2e-template-storage-override-gs"
+
+	// Create a template with an explicit storage class override.
+	// Even though the operator has install-time default=gameplane-e2e-install-default,
+	// this template specifies "standard", which must take precedence.
+	tmplSpec := map[string]any{
+		"displayName": "E2E busybox (" + tmpl + ")",
+		"game":        "busybox",
+		"version":     "1",
+		"image":       "busybox:1.36",
+		"command":     []any{"sh", "-c", "sleep 100000"},
+		"ports": []any{
+			map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
+		},
+		// Template-level storage class override
+		"storage": map[string]any{
+			"storageClassName": "standard",
+		},
 	}
-	for _, sc := range list.Items {
-		if sc.Annotations["storageclass.kubernetes.io/is-default-class"] == "true" {
-			return sc.Name
+	tmplObj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameTemplate",
+		"metadata":   map[string]any{"name": tmpl},
+		"spec":       tmplSpec,
+	}}
+	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).
+		Create(ctx, tmplObj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create template: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameTemplateGVR).
+			Delete(context.Background(), tmpl, metav1.DeleteOptions{})
+	})
+
+	// Create a GameServer pointing at this template, with no server-level override.
+	applyBusyboxGameServer(t, ns, gs, tmpl)
+
+	// Wait for the PVC to be created.
+	envInstance.Eventually(t, 60*time.Second, func() (bool, string) {
+		_, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+			Get(ctx, gs+"-data", metav1.GetOptions{})
+		if err != nil {
+			return false, "get pvc: " + err.Error()
 		}
+		return true, ""
+	})
+
+	pvc, err := envInstance.K8s.CoreV1().PersistentVolumeClaims(ns).
+		Get(ctx, gs+"-data", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get pvc: %v", err)
 	}
-	return ""
+
+	// Verify the PVC has the template's storage class (not the install-time default).
+	if pvc.Spec.StorageClassName == nil {
+		t.Errorf("PVC storageClassName is nil, want 'standard' (from template)")
+	} else if *pvc.Spec.StorageClassName != "standard" {
+		t.Errorf("PVC storageClassName=%q, want 'standard' (template overrides install-time default)",
+			*pvc.Spec.StorageClassName)
+	}
+
+	// Wait for the PVC to bind successfully (proving the template override worked).
+	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 }
 
 // TestGameServer_NonexistentStorageClassSurfacesError: a GameServer that

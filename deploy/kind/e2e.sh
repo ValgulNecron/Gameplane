@@ -179,6 +179,18 @@ EOF
         kind load docker-image "gameplane-test/gameprobe:${TAG}" --name "${CLUSTER}"
     fi
 
+    # Create a second StorageClass for e2e install-time-default testing.
+    # This must be created before the Helm install so the operator can find
+    # it when materializing PVCs.
+    echo "creating gameplane-e2e-install-default StorageClass"
+    kubectl apply -f - <<'EOF'
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gameplane-e2e-install-default
+provisioner: rancher.io/local-path
+EOF
+
     echo "helm upgrade --install gameplane"
     # Bump the API container's memory limit above the chart default of
     # 256Mi. The bootstrap-admin subcommand and every login endpoint
@@ -207,6 +219,7 @@ EOF
         --set "api.resources.limits.memory=1Gi" \
         --set "operator.leaderElect=false" \
         --set "operator.addressManager=metallb" \
+        --set "operator.gameDataStorage.storageClassName=gameplane-e2e-install-default" \
         --set "defaultModuleSource.enabled=false" \
         --wait --timeout 5m
 
