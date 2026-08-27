@@ -3,8 +3,11 @@
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -744,4 +747,211 @@ func TestAPI_AuthConfig_RoleMappings(t *testing.T) {
 			t.Fatalf("delete invalid role should be 400, got %d: %v %s", resp.StatusCode, err, string(body))
 		}
 	})
+}
+
+// oidcHelmAdminGroup is the IdP group deploy/kind/e2e.sh seeds via
+// --set api.oidc.roleMappings.admin[0]=... at the one shared cluster
+// bring-up Helm install. It must match exactly, or TestAPI_OIDCHelmSeeded_*
+// below would legitimately fail as if the mapping were misconfigured.
+const oidcHelmAdminGroup = "gameplane-e2e-oidc-admins"
+
+// oidcHelmLogin drives one full OIDC authorization-code round trip
+// against the Helm-seeded "helm" provider — api/internal/auth/registry.go's
+// Registry.legacy, built exactly once at API process startup from the
+// chart's api.oidc.* values (see deploy/kind/e2e.sh) — via the
+// in-cluster fake IdP (test/e2e/internal/fakeoidc), and returns the
+// resulting session's role as reported by GET /users/me.
+//
+// This exercises the real Helm-seeded code path end to end: HandleStartAt
+// (state/nonce cookies + AuthCodeURL), a genuine RS256 ID-token exchange
+// against the fake IdP's /token, HandleCallbackAt's nonce/claims
+// verification, extractGroups, computeRole, and resolveOrLinkUser/
+// syncUserRole — the same mechanism a real OIDC provider would drive.
+//
+// sub identifies the OIDC subject; calling this twice with the same sub
+// and different groups exercises re-evaluation on a subsequent login
+// (T049 scenario (b)) against the same Gameplane user. groups is
+// embedded verbatim into the fake IdP's ID token "groups" claim.
+//
+// idpBase must be a port-forwarded (not cluster-DNS) base URL: the fake
+// IdP's /authorize is dialed directly by the test process (standing in
+// for a browser), which cannot resolve in-cluster Service DNS — every
+// other hop (discovery, /token, /jwks) is dialed by the API pod itself,
+// server-side, over the cluster-internal issuer URL.
+func oidcHelmLogin(t *testing.T, apiBase, idpBase, sub, email string, groups []string) string {
+	t.Helper()
+
+	cli := &http.Client{
+		Jar:           newInsecureCookieJar(),
+		Timeout:       30 * time.Second,
+		CheckRedirect: oidcNoRedirect,
+	}
+
+	// 1. GET /auth/oidc/helm/start — the API sets state/nonce cookies
+	// (captured into cli's jar) and redirects to the IdP's authorize
+	// endpoint (at its cluster-internal DNS name).
+	startResp := oidcDo(t, cli, http.MethodGet, apiBase+"/auth/oidc/helm/start", nil)
+	_ = startResp.Body.Close()
+	if startResp.StatusCode != http.StatusFound {
+		t.Fatalf("oidc start status = %d, want 302", startResp.StatusCode)
+	}
+	authorizeURL, err := url.Parse(startResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse start Location: %v", err)
+	}
+
+	// 2. Rewrite the authorize URL onto the fake IdP's port-forward, and
+	// inject the identity this login should authenticate as (see the
+	// fakeoidc package doc: the caller stands in for the IdP's login
+	// screen).
+	idpURL, err := url.Parse(idpBase)
+	if err != nil {
+		t.Fatalf("parse idp base: %v", err)
+	}
+	authorizeURL.Scheme = idpURL.Scheme
+	authorizeURL.Host = idpURL.Host
+	q := authorizeURL.Query()
+	q.Set("sub", sub)
+	q.Set("email", email)
+	q.Set("groups", strings.Join(groups, ","))
+	authorizeURL.RawQuery = q.Encode()
+
+	// 3. GET the fake IdP's /authorize — it stashes the chosen identity
+	// against a fresh code and redirects back to the configured
+	// redirect_uri (never dialed — it's a placeholder host; only its
+	// query string, containing state+code, matters to step 4).
+	authorizeResp := oidcDo(t, cli, http.MethodGet, authorizeURL.String(), nil)
+	_ = authorizeResp.Body.Close()
+	if authorizeResp.StatusCode != http.StatusFound {
+		t.Fatalf("fake idp authorize status = %d, want 302", authorizeResp.StatusCode)
+	}
+	callbackLoc, err := url.Parse(authorizeResp.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("parse authorize Location: %v", err)
+	}
+
+	// 4. GET /auth/oidc/helm/callback — the API exchanges the code
+	// against the fake IdP's /token (dialed server-side, in-cluster),
+	// verifies the ID token, computes the role, and creates/updates the
+	// user before redirecting to "/" with a session cookie.
+	callbackResp := oidcDo(t, cli, http.MethodGet, apiBase+"/auth/oidc/helm/callback?"+callbackLoc.RawQuery, nil)
+	cbBody, _ := io.ReadAll(callbackResp.Body)
+	_ = callbackResp.Body.Close()
+	if callbackResp.StatusCode != http.StatusFound {
+		t.Fatalf("oidc callback status = %d, want 302: %s", callbackResp.StatusCode, string(cbBody))
+	}
+
+	// 5. GET /users/me with the session cookie the callback just set.
+	meResp := oidcDo(t, cli, http.MethodGet, apiBase+"/users/me", nil)
+	meBody, _ := io.ReadAll(meResp.Body)
+	_ = meResp.Body.Close()
+	if meResp.StatusCode != http.StatusOK {
+		t.Fatalf("/users/me %d: %s", meResp.StatusCode, string(meBody))
+	}
+	var me struct {
+		Role string `json:"role"`
+	}
+	if err := json.Unmarshal(meBody, &me); err != nil {
+		t.Fatalf("decode /users/me: %v\n%s", err, string(meBody))
+	}
+	return me.Role
+}
+
+// oidcNoRedirect stops http.Client from following redirects on its own:
+// oidcHelmLogin inspects each hop's Location header itself.
+func oidcNoRedirect(_ *http.Request, _ []*http.Request) error {
+	return http.ErrUseLastResponse
+}
+
+// oidcDo issues one GET through cli, never following redirects itself
+// (the caller inspects each Location header explicitly).
+func oidcDo(t *testing.T, cli *http.Client, method, rawURL string, body io.Reader) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), method, rawURL, body)
+	if err != nil {
+		t.Fatalf("build request for %s: %v", rawURL, err)
+	}
+	resp, err := cli.Do(req)
+	if err != nil {
+		t.Fatalf("do %s %s: %v", method, rawURL, err)
+	}
+	return resp
+}
+
+// oidcHelmPorts port-forwards both the API and the fake IdP Services and
+// returns their loopback base URLs plus a combined teardown func.
+func oidcHelmPorts(t *testing.T) (apiBase, idpBase string) {
+	t.Helper()
+	apiPort, apiStop := envInstance.PortForward(t, "gameplane-system", "svc/gameplane-api", 80)
+	t.Cleanup(apiStop)
+	idpPort, idpStop := envInstance.PortForward(t, "gameplane-system", "svc/gameplane-test-fakeoidc", 8080)
+	t.Cleanup(idpStop)
+	return fmt.Sprintf("http://127.0.0.1:%d", apiPort), fmt.Sprintf("http://127.0.0.1:%d", idpPort)
+}
+
+// TestAPI_OIDCHelmSeeded_AdminOnFirstLogin covers T049 scenario (a): a
+// user whose OIDC groups claim includes the Helm-seeded admin group
+// (api.oidc.roleMappings.admin, wired in deploy/kind/e2e.sh) receives
+// the admin role the very first time they log in — no bootstrap-admin,
+// no dashboard config step (FR-007..FR-010, SC-003, SC-004).
+//
+// t.Parallel(): a fresh, unique OIDC subject; the only shared resource is
+// OIDCCallbackLimiter (burst 10/min), and this test makes exactly one
+// callback call. No admin login — the whole flow authenticates as the
+// OIDC user, never as e2e-admin, so it spends 0 of the bucket's
+// local-login budget.
+func TestAPI_OIDCHelmSeeded_AdminOnFirstLogin(t *testing.T) {
+	t.Parallel()
+	apiBase, idpBase := oidcHelmPorts(t)
+
+	role := oidcHelmLogin(t, apiBase, idpBase,
+		"e2e-oidc-admin-first-login", "oidc-admin@e2e.example", []string{oidcHelmAdminGroup})
+	if role != "admin" {
+		t.Fatalf("role = %q, want admin (first login, member of the Helm-seeded admin group)", role)
+	}
+}
+
+// TestAPI_OIDCHelmSeeded_DefaultRoleOnNoMapping covers T049 scenario (c):
+// a user whose groups claim matches no configured mapping receives the
+// configured default role — viewer, since api.oidc.defaultRole is left
+// unset in deploy/kind/e2e.sh (FR-008(c), FR-010, SC-008).
+//
+// t.Parallel(): fresh unique subject, 0 admin logins, one OIDC callback.
+func TestAPI_OIDCHelmSeeded_DefaultRoleOnNoMapping(t *testing.T) {
+	t.Parallel()
+	apiBase, idpBase := oidcHelmPorts(t)
+
+	role := oidcHelmLogin(t, apiBase, idpBase,
+		"e2e-oidc-default-role", "oidc-nogroup@e2e.example", []string{"some-unmapped-group"})
+	if role != "viewer" {
+		t.Fatalf("role = %q, want viewer (no group matched a role mapping)", role)
+	}
+}
+
+// TestAPI_OIDCHelmSeeded_RoleReevaluatedOnGroupChange covers T049
+// scenario (b): the SAME OIDC subject logs in twice; between the two
+// logins their groups claim changes from unmapped to the Helm-seeded
+// admin group, and the second login's role reflects the new membership
+// — role assignment is re-evaluated on every login, not just the first
+// (FR-011, SC-005).
+//
+// t.Parallel(): fresh unique subject (isolated from the other two OIDC
+// tests above), 0 admin logins, two OIDC callbacks against the same
+// user — well inside OIDCCallbackLimiter's burst of 10.
+func TestAPI_OIDCHelmSeeded_RoleReevaluatedOnGroupChange(t *testing.T) {
+	t.Parallel()
+	apiBase, idpBase := oidcHelmPorts(t)
+
+	const sub = "e2e-oidc-reeval-user"
+	firstRole := oidcHelmLogin(t, apiBase, idpBase,
+		sub, "oidc-reeval@e2e.example", []string{"some-unmapped-group"})
+	if firstRole != "viewer" {
+		t.Fatalf("first login role = %q, want viewer", firstRole)
+	}
+
+	secondRole := oidcHelmLogin(t, apiBase, idpBase,
+		sub, "oidc-reeval@e2e.example", []string{oidcHelmAdminGroup})
+	if secondRole != "admin" {
+		t.Fatalf("second login (after group membership changed) role = %q, want admin", secondRole)
+	}
 }

@@ -98,8 +98,17 @@ TestAPI_AuditEmitsOnMutation
 TestAPI_AuditPaginationAndFilter
 TestAPI_LogoutInvalidatesSession
 TestAPI_PasswordResetInvalidatesSession
+TestAPI_OIDCHelmSeeded_AdminOnFirstLogin
+TestAPI_OIDCHelmSeeded_DefaultRoleOnNoMapping
+TestAPI_OIDCHelmSeeded_RoleReevaluatedOnGroupChange
 EOF
 }
+
+# The three TestAPI_OIDCHelmSeeded_* tests above spend 0 of this bucket's
+# admin-login budget: they authenticate entirely as OIDC users against a
+# fake in-cluster IdP (test/e2e/internal/fakeoidc), never as e2e-admin,
+# and their one rate limiter (auth.OIDCCallbackLimiter, burst 10/min) is
+# untouched by every other test in this bucket. See T049.
 
 # TestAPI_AuthConfig_RoleMappings belongs with auth by subject, but api-auth was
 # already at its admin-login ceiling (per-user burst 6, 3/min, one shared IP per

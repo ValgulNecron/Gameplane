@@ -175,10 +175,11 @@ KIND_E2E_CLUSTER ?= gameplane-e2e
 KIND_E2E_TAG     ?= e2e
 
 .PHONY: e2e-images
-e2e-images: ## Build operator/api/agent images tagged for e2e
+e2e-images: ## Build operator/api/agent/fakeoidc images tagged for e2e
 	docker build -t gameplane-test/operator:$(KIND_E2E_TAG) -f operator/Dockerfile .
 	docker build -t gameplane-test/api:$(KIND_E2E_TAG)      -f api/Dockerfile      .
 	docker build -t gameplane-test/agent:$(KIND_E2E_TAG)    -f agent/Dockerfile    .
+	docker build -t gameplane-test/fakeoidc:$(KIND_E2E_TAG) -f test/e2e/Dockerfile.fakeoidc .
 
 .PHONY: test-e2e
 test-e2e: ## Run E2E tests (CLUSTER=kind spins an ephemeral cluster; CLUSTER=remote reuses REMOTE_KUBECONFIG)

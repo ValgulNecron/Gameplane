@@ -179,6 +179,17 @@ EOF
         kind load docker-image "gameplane-test/gameprobe:${TAG}" --name "${CLUSTER}"
     fi
 
+    # The fake OIDC issuer (test/e2e/internal/fakeoidc) backs the
+    # Helm-seeded OIDC role-mapping e2e tests (T049). Every bucket's
+    # cluster gets it — its Dockerfile lives outside the per-component
+    # <name>/Dockerfile convention, so it isn't covered by the loop above.
+    echo "loading gameplane-test/fakeoidc:${TAG} images into kind"
+    if ! docker image inspect "gameplane-test/fakeoidc:${TAG}" >/dev/null 2>&1; then
+        echo "  missing local image gameplane-test/fakeoidc:${TAG} — building"
+        docker build -t "gameplane-test/fakeoidc:${TAG}" -f "${REPO}/test/e2e/Dockerfile.fakeoidc" "${REPO}"
+    fi
+    kind load docker-image "gameplane-test/fakeoidc:${TAG}" --name "${CLUSTER}"
+
     # Create a second StorageClass for e2e install-time-default testing.
     # This must be created before the Helm install so the operator can find
     # it when materializing PVCs.
@@ -196,6 +207,70 @@ provisioner: rancher.io/local-path
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 EOF
+
+    # Stand up the fake OIDC issuer and its Secret *before* the one Helm
+    # install below: the API process performs OIDC discovery against
+    # --oidc-issuer synchronously at startup (api/cmd/main.go), once,
+    # never retried — if the issuer isn't already reachable the "helm"
+    # provider silently never comes into existence for the pod's whole
+    # lifetime (see api/internal/auth/registry.go's Registry.legacy).
+    # gameplane-system must pre-exist since Helm's --create-namespace
+    # only runs during the install call further down.
+    echo "creating gameplane-system namespace (pre-Helm, for the fake-OIDC fixture)"
+    kubectl create namespace gameplane-system --dry-run=client -o yaml | kubectl apply -f -
+
+    echo "creating gameplane-oidc client-secret Secret"
+    kubectl create secret generic gameplane-oidc \
+        --namespace gameplane-system \
+        --from-literal=clientSecret=e2e-test-oidc-client-secret \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+    echo "deploying gameplane-test-fakeoidc fixture"
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gameplane-test-fakeoidc
+  namespace: gameplane-system
+  labels:
+    app.kubernetes.io/name: gameplane-test-fakeoidc
+    app.kubernetes.io/component: e2e-fixture
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: gameplane-test-fakeoidc }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: gameplane-test-fakeoidc }
+    spec:
+      containers:
+        - name: fakeoidc
+          image: gameplane-test/fakeoidc:${TAG}
+          imagePullPolicy: Never
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: ISSUER, value: "http://gameplane-test-fakeoidc.gameplane-system.svc.cluster.local:8080" }
+            - { name: CLIENT_ID, value: "gameplane-e2e-helm-oidc" }
+          readinessProbe:
+            httpGet: { path: /.well-known/openid-configuration, port: http }
+            initialDelaySeconds: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gameplane-test-fakeoidc
+  namespace: gameplane-system
+  labels:
+    app.kubernetes.io/name: gameplane-test-fakeoidc
+    app.kubernetes.io/component: e2e-fixture
+spec:
+  selector: { app.kubernetes.io/name: gameplane-test-fakeoidc }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+EOF
+    kubectl rollout status --namespace gameplane-system \
+        deployment/gameplane-test-fakeoidc --timeout=120s
 
     echo "helm upgrade --install gameplane"
     # Bump the API container's memory limit above the chart default of
@@ -223,6 +298,11 @@ EOF
         --set "capture.enabled=true" \
         --set "capture.image=gameplane-test/capture-sidecar:${TAG}" \
         --set "api.resources.limits.memory=1Gi" \
+        --set "api.oidc.enabled=true" \
+        --set "api.oidc.issuer=http://gameplane-test-fakeoidc.gameplane-system.svc.cluster.local:8080" \
+        --set "api.oidc.clientID=gameplane-e2e-helm-oidc" \
+        --set "api.oidc.redirectURL=https://gameplane.e2e.invalid/auth/oidc/helm/callback" \
+        --set "api.oidc.roleMappings.admin[0]=gameplane-e2e-oidc-admins" \
         --set "operator.leaderElect=false" \
         --set "operator.addressManager=metallb" \
         --set "operator.gameDataStorage.storageClassName=gameplane-e2e-install-default" \

@@ -1,0 +1,26 @@
+# Fake OIDC issuer for e2e tests of the Helm-seeded OIDC role-mapping
+# path (spec 006-install-time-config, T049). Unlike the per-game probes
+# built by ./Dockerfile, this one is needed by every e2e bucket's shared
+# cluster bring-up (deploy/kind/e2e.sh enables api.oidc.* at the single
+# helm install), so it lives in the base "e2e" bake group, not the
+# standalone gameprobe target.
+#
+# Source lives at internal/fakeoidc/main.go — deliberately named main.go,
+# not app.go, so ./Dockerfile's `internal/*/app.go` glob (which builds
+# every per-game probe into one image) does not also pick it up.
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+COPY test/e2e/ ./
+# Builds against test/e2e's own go.mod, isolated from the go.work
+# workspace's k8s dependencies — see the package doc comment in
+# internal/fakeoidc/main.go for why this uses stdlib crypto/rsa instead
+# of a JOSE library dependency.
+ENV GOWORK=off
+ENV CGO_ENABLED=0
+RUN go build -trimpath -ldflags "-s -w" -o /out/fakeoidc ./internal/fakeoidc
+
+FROM gcr.io/distroless/static:nonroot
+USER 65532:65532
+COPY --from=build /out/fakeoidc /fakeoidc
+EXPOSE 8080
+ENTRYPOINT ["/fakeoidc"]
