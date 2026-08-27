@@ -552,12 +552,11 @@ function AddProviderForm({
             </span>
           )}
         </FieldLabel>
-        <FieldLabel label="Name">
+        <FieldLabel
+          label="Name"
+          hint="A short lowercase identifier (letters, digits, and dashes) used in the login route and the Secret name."
+        >
           <Input placeholder="corp-sso" value={name} onChange={(e) => setName(e.target.value)} />
-          <span className="text-[11px] text-muted">
-            A short lowercase identifier (letters, digits, and dashes) used in the login
-            route and the Secret name.
-          </span>
         </FieldLabel>
         <FieldLabel label="Display name (login button)">
           <Input
