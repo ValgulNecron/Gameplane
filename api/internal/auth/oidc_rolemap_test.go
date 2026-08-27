@@ -1095,3 +1095,94 @@ func TestEffectiveHelmPolicy_SC008_ByteIdenticalWithNilOverride(t *testing.T) {
 		t.Fatalf("effectiveHelmPolicy(base, nil) must return base unchanged (same pointer)")
 	}
 }
+
+// TestHandleCallback_HelmOverride_LiveRead_SC007 verifies that the Helm role-mapping
+// override is read fresh on every login (not cached at API startup), proving SC-007:
+// changes to role mappings take effect immediately on the next login without restart.
+// The test drives the OIDC callback three times with mutations to the override between
+// calls, asserting that the resolved role changes each time.
+func TestHandleCallback_HelmOverride_LiveRead_SC007(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.nonce = "nonce-helm-override"
+	idp.groups = []string{"helm-admins"}
+
+	// Base policy: admins can get admin role, others default to viewer.
+	basePolicy := &ProviderPolicy{
+		RoleMappings: &RoleMappings{
+			Admin: []string{"helm-admins"},
+		},
+		DefaultRole: "viewer",
+	}
+
+	// Mutable override source: held in a closure so we can mutate it between logins.
+	var helmOverride *RoleMappings
+	getOverride := func(ctx context.Context) *RoleMappings {
+		return helmOverride
+	}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", basePolicy)
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	// Set provider name to "helm" and attach the mutable override func.
+	o.SetProviderName(HelmProviderName)
+	o.AttachHelmRoleOverridesFunc(getOverride)
+
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	// === Login 1: No override, base policy only ===
+	// User has groups ["helm-admins"] which match Admin in base policy.
+	helmOverride = nil
+	rr := callbackViaIDP(t, o, sessions, "nonce-helm-override")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login 1: code=%d body=%q", rr.Code, rr.Body)
+	}
+	var role string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("login 1: user not created: %v", err)
+	}
+	if role != "admin" {
+		t.Fatalf("login 1: role=%q want admin (base policy: helm-admins -> admin)", role)
+	}
+
+	// === Login 2: Override with empty admin list ===
+	// User still has groups ["helm-admins"], but override makes Admin = [],
+	// so the user no longer matches admin and gets default viewer role.
+	helmOverride = &RoleMappings{
+		Admin: []string{}, // Empty override list means nobody can get admin role.
+	}
+	// Mutate the nonce to simulate a fresh login attempt.
+	idp.nonce = "nonce-helm-override-2"
+	rr = callbackViaIDP(t, o, sessions, "nonce-helm-override-2")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login 2: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("login 2: query: %v", err)
+	}
+	if role != "viewer" {
+		t.Fatalf("login 2: role=%q want viewer (override clears admin, default applies)", role)
+	}
+
+	// === Login 3: Clear override, back to base policy ===
+	// Override is nil again, so we're back to base policy.
+	// User still has groups ["helm-admins"] which match Admin in base.
+	helmOverride = nil
+	idp.nonce = "nonce-helm-override-3"
+	rr = callbackViaIDP(t, o, sessions, "nonce-helm-override-3")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login 3: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("login 3: query: %v", err)
+	}
+	if role != "admin" {
+		t.Fatalf("login 3: role=%q want admin (back to base policy: helm-admins -> admin)", role)
+	}
+}

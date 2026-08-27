@@ -122,12 +122,19 @@ EOF
 # WARNING: Do NOT move any test that writes helmOverride.roleMappings into
 # api-auth — it overrides the Helm-seeded admin mapping at login time and
 # would flake TestAPI_OIDCHelmSeeded_*.
+#
+# TestAPI_OIDCHelmOverride_EffectiveAtLoginTime writes helmOverride.roleMappings
+# and must not share an api-auth bucket with TestAPI_OIDCHelmSeeded_* tests
+# (separate CI job/cluster per bucket, so no conflict, but maintains login-budget discipline).
+# It costs +1 admin login, bringing api-roles to 5 (up from the previous 4).
+# Budget remains within the ~7 admin-logins-per-job ceiling.
 bucket_api_roles() { cat <<'EOF'
 TestAPI_CustomRole_Lifecycle
 TestAPI_BuiltinRole_Immutable
 TestAPI_PerNamespaceBinding_GrantsScopedAccess
 TestAPI_OwnerCollaboratorAccess
 TestAPI_AuthConfig_RoleMappings
+TestAPI_OIDCHelmOverride_EffectiveAtLoginTime
 EOF
 }
 

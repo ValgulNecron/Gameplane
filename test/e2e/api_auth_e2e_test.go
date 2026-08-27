@@ -955,3 +955,83 @@ func TestAPI_OIDCHelmSeeded_RoleReevaluatedOnGroupChange(t *testing.T) {
 		t.Fatalf("second login (after group membership changed) role = %q, want admin", secondRole)
 	}
 }
+
+// TestAPI_OIDCHelmOverride_EffectiveAtLoginTime covers T053 scenarios (a) and (b):
+// an admin sets a helmOverride.roleMappings list for a role via PUT /admin/config/auth
+// that differs from the Helm-seeded mapping, and a subsequent OIDC login resolves to
+// the override value with no API restart (SC-007), then DELETE /admin/config/auth/role-mappings/{role}
+// reverts the mapping back to the Helm-seeded value on the next login (also with no restart).
+//
+// NOT t.Parallel(): writes helmOverride.roleMappings which, if shared with other
+// config-mutating tests, could interfere. The test reuses one admin session for both
+// the PUT and DELETE, costing +1 admin login to bring the api-roles bucket to 5.
+// Budget: one admin login total.
+func TestAPI_OIDCHelmOverride_EffectiveAtLoginTime(t *testing.T) {
+	envInstance.BootstrapAdmin(t, adminUsername, adminPassword)
+	admin := envInstance.APIClient(t, adminUsername, adminPassword)
+	defer admin.Close()
+
+	apiBase, idpBase := oidcHelmPorts(t)
+
+	const (
+		overrideRole  = "operator"
+		overrideGroup = "e2e-oidc-override-operator"
+		oidcSubject   = "e2e-oidc-override-test"
+		oidcEmail     = "override@e2e.example"
+	)
+
+	t.Run("OverrideTakesEffectAtLogin", func(t *testing.T) {
+		// Set helmOverride for operator role to use a unique test group.
+		resp, body, err := admin.Do(http.MethodPut, "/admin/config/auth", map[string]any{
+			"providers": []map[string]any{
+				{"name": "local", "kind": "local", "enabled": true},
+			},
+			"helmOverride": map[string]any{
+				"roleMappings": map[string]any{
+					"operator": []string{overrideGroup},
+				},
+			},
+		})
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("PUT /admin/config/auth with override: %v %s", err, string(body))
+		}
+
+		// OIDC login with the override group should resolve to operator role.
+		role := oidcHelmLogin(t, apiBase, idpBase, oidcSubject, oidcEmail, []string{overrideGroup})
+		if role != "operator" {
+			t.Fatalf("role after helmOverride = %q, want operator (SC-007: override took effect immediately)", role)
+		}
+	})
+
+	t.Run("DeleteRevertToHelmSeed", func(t *testing.T) {
+		// Delete the operator override via the reset route.
+		resp, body, err := admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/operator", nil)
+		if resp != nil {
+			defer func() { _ = resp.Body.Close() }()
+		}
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("DELETE /admin/config/auth/role-mappings/operator: %v %s", err, string(body))
+		}
+
+		// OIDC login with the same group should now resolve to the default role (viewer),
+		// since the override is gone and the Helm-seeded mapping for operator likely
+		// does not include our test group.
+		role := oidcHelmLogin(t, apiBase, idpBase, oidcSubject, oidcEmail, []string{overrideGroup})
+		if role != "viewer" {
+			t.Fatalf("role after delete override = %q, want viewer (Helm-seeded default, SC-007)", role)
+		}
+	})
+
+	// Cleanup: idempotent delete to ensure the override is not left behind to leak
+	// into other tests in the bucket. The second subtest already deleted it, but
+	// this ensures cleanup even if the test fails mid-way.
+	t.Cleanup(func() {
+		resp, _, _ := admin.Do(http.MethodDelete, "/admin/config/auth/role-mappings/operator", nil)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	})
+}

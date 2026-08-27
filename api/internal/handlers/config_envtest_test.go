@@ -307,7 +307,9 @@ func TestConfig_HelmOverridePersistenceAndReflection(t *testing.T) {
 
 // TestConfig_OverrideTakesEffectOnNextLogin tests that overrides take effect
 // immediately on the next login without requiring an API restart (SC-007).
-// This is a schema/persistence test; actual login merging is tested in auth_envtest_test.go.
+// This is a schema/persistence test; the actual login merging behavior (proving
+// the override is read per-login, not cached at startup) is covered by unit tests
+// in api/internal/auth/oidc_rolemap_test.go and e2e subtests in test/e2e/api_auth_e2e_test.go.
 func TestConfig_OverrideTakesEffectOnNextLogin(t *testing.T) {
 	r := newConfigRBACRouter(t)
 	admin := configAdminUser()
