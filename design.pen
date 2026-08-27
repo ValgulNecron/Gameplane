@@ -41049,7 +41049,7 @@
                                   "fill": "$c:--muted-foreground",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "StorageClass for new GameServers' game-data volumes — set by the operator.gameDataStorage.storageClassName Helm value, passed to the API as --game-data-storage-class.",
+                                  "content": "StorageClass for new GameServers' game-data volumes — set by the operator.gameDataStorage.storageClassName Helm value and applied by the operator to every new PVC; the API is passed the same value as --game-data-storage-class only to report it here.",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -49380,7 +49380,7 @@
                                   "fill": "$c:--muted-foreground",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time — not editable from the dashboard.",
+                                  "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time. Connection settings are not editable here; role mappings can be overridden below.",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
@@ -49423,7 +49423,7 @@
                                       "fill": "$c:--muted-foreground",
                                       "textGrowth": "fixed-width",
                                       "width": "fill_container",
-                                      "content": "Claim and role values below come straight from the Helm values; role mappings can be overridden in the card below.",
+                                      "content": "Groups claim and default role are seeded from the same Helm values and are not editable here.",
                                       "fontFamily": "$c:--font-secondary",
                                       "fontSize": 11,
                                       "fontWeight": "normal"
@@ -49904,15 +49904,10 @@
                                               "fontWeight": "600"
                                             },
                                             {
-                                              "id": "GGTXr",
+                                              "id": "UarEZ",
                                               "type": "ref",
-                                              "ref": "c:it00G",
-                                              "name": "provenance_operator",
-                                              "descendants": {
-                                                "c:izLyj": {
-                                                  "content": "From Helm values"
-                                                }
-                                              }
+                                              "ref": "Rwnu3",
+                                              "name": "provenance_operator"
                                             }
                                           ]
                                         }
@@ -80950,7 +80945,7 @@
                                   "fill": "$c:--muted-foreground",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time — not editable from the dashboard.",
+                                  "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time. Connection settings are not editable here; role mappings can be overridden below.",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
@@ -80993,7 +80988,7 @@
                                       "fill": "$c:--muted-foreground",
                                       "textGrowth": "fixed-width",
                                       "width": "fill_container",
-                                      "content": "Claim and role values below come straight from the Helm values.",
+                                      "content": "Groups claim and default role are seeded from the same Helm values and are not editable here.",
                                       "fontFamily": "$c:--font-secondary",
                                       "fontSize": 11,
                                       "fontWeight": "normal"
@@ -81203,15 +81198,10 @@
                                               "fontWeight": "600"
                                             },
                                             {
-                                              "id": "uMANQ",
+                                              "id": "MNGVu",
                                               "type": "ref",
-                                              "ref": "c:it00G",
-                                              "name": "provenance_admin",
-                                              "descendants": {
-                                                "c:izLyj": {
-                                                  "content": "From Helm values"
-                                                }
-                                              }
+                                              "ref": "BV5ei",
+                                              "name": "provenance_admin"
                                             }
                                           ]
                                         }
@@ -81337,15 +81327,10 @@
                                               "fontWeight": "600"
                                             },
                                             {
-                                              "id": "o1r2Yg",
+                                              "id": "KrenL",
                                               "type": "ref",
-                                              "ref": "c:it00G",
-                                              "name": "provenance_operator",
-                                              "descendants": {
-                                                "c:izLyj": {
-                                                  "content": "From Helm values"
-                                                }
-                                              }
+                                              "ref": "BV5ei",
+                                              "name": "provenance_operator"
                                             }
                                           ]
                                         }
@@ -81471,15 +81456,10 @@
                                               "fontWeight": "600"
                                             },
                                             {
-                                              "id": "FJQBG",
+                                              "id": "anO56",
                                               "type": "ref",
-                                              "ref": "c:it00G",
-                                              "name": "provenance_viewer",
-                                              "descendants": {
-                                                "c:izLyj": {
-                                                  "content": "From Helm values"
-                                                }
-                                              }
+                                              "ref": "BV5ei",
+                                              "name": "provenance_viewer"
                                             }
                                           ]
                                         }
@@ -81624,15 +81604,18 @@
       "x": 1072,
       "y": 27599,
       "name": "Gameplane/Removable Group Chip/Secondary",
+      "theme": {
+        "c:Mode": "Dark"
+      },
       "reusable": true,
       "fill": "$c:--secondary",
       "cornerRadius": "$c:--radius-pill",
       "gap": 6,
       "padding": [
-        4,
-        4,
-        4,
-        8
+        8,
+        8,
+        8,
+        12
       ],
       "alignItems": "center",
       "children": [
@@ -81642,6 +81625,7 @@
           "name": "chipLabel",
           "fill": "$c:--secondary-foreground",
           "content": "group-name",
+          "lineHeight": 1.1428571428571428,
           "fontFamily": "$c:--font-primary",
           "fontSize": 14,
           "fontWeight": "500"
@@ -81693,7 +81677,7 @@
               "content": "Full admin access"
             },
             "c:X4L5E": {
-              "content": "Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only authorized personnel. This action cannot be reversed through the dashboard."
+              "content": "Mapping users to the admin role grants full cluster control. Ensure the mapped group contains only authorized personnel. Anyone in these groups gets full admin access from their next login."
             }
           }
         },
@@ -82040,7 +82024,7 @@
                                   "fill": "$c:--muted-foreground",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "StorageClass for new GameServers' game-data volumes — set by the operator.gameDataStorage.storageClassName Helm value, passed to the API as --game-data-storage-class. Left unset, so new volumes use the cluster's default StorageClass.",
+                                  "content": "StorageClass for new GameServers' game-data volumes — set by the operator.gameDataStorage.storageClassName Helm value and applied by the operator to every new PVC; the API is passed the same value as --game-data-storage-class only to report it here. Left unset, so new volumes use the cluster's default StorageClass.",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 11,
                                   "fontWeight": "normal"
@@ -83135,15 +83119,18 @@
       "x": 1261,
       "y": 27599,
       "name": "Gameplane/Removable Group Chip/Orange",
+      "theme": {
+        "c:Mode": "Dark"
+      },
       "reusable": true,
       "fill": "$c:--color-warning",
       "cornerRadius": "$c:--radius-pill",
       "gap": 6,
       "padding": [
-        4,
-        4,
-        4,
-        8
+        8,
+        8,
+        8,
+        12
       ],
       "alignItems": "center",
       "children": [
@@ -83153,6 +83140,7 @@
           "name": "chipLabel",
           "fill": "$c:--color-warning-foreground",
           "content": "group-name",
+          "lineHeight": 1.1428571428571428,
           "fontFamily": "$c:--font-primary",
           "fontSize": 14,
           "fontWeight": "500"
@@ -83187,15 +83175,18 @@
       "x": 1481,
       "y": 27599,
       "name": "Gameplane/Removable Group Chip/Violet",
+      "theme": {
+        "c:Mode": "Dark"
+      },
       "reusable": true,
       "fill": "$c:--color-info",
       "cornerRadius": "$c:--radius-pill",
       "gap": 6,
       "padding": [
-        4,
-        4,
-        4,
-        8
+        8,
+        8,
+        8,
+        12
       ],
       "alignItems": "center",
       "children": [
@@ -83205,6 +83196,7 @@
           "name": "chipLabel",
           "fill": "$c:--color-info-foreground",
           "content": "group-name",
+          "lineHeight": 1.1428571428571428,
           "fontFamily": "$c:--font-primary",
           "fontSize": 14,
           "fontWeight": "500"
@@ -83239,6 +83231,9 @@
       "x": 1701,
       "y": 27599,
       "name": "Gameplane/Provenance Badge/Overridden",
+      "theme": {
+        "c:Mode": "Dark"
+      },
       "reusable": true,
       "fill": "#00000000",
       "cornerRadius": "$c:--radius-pill",
@@ -84065,7 +84060,7 @@
                                   "fill": "$c:--muted-foreground",
                                   "textGrowth": "fixed-width",
                                   "width": "fill_container",
-                                  "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time — not editable from the dashboard.",
+                                  "content": "Read-only snapshot of the identity provider configured via api.oidc.* Helm values at install time. Connection settings are not editable here; role mappings can be overridden below.",
                                   "fontFamily": "$c:--font-secondary",
                                   "fontSize": 12,
                                   "fontWeight": "normal"
@@ -84108,7 +84103,7 @@
                                       "fill": "$c:--muted-foreground",
                                       "textGrowth": "fixed-width",
                                       "width": "fill_container",
-                                      "content": "Claim and role values below come straight from the Helm values; role mappings can be overridden in the card below.",
+                                      "content": "Groups claim and default role are seeded from the same Helm values and are not editable here.",
                                       "fontFamily": "$c:--font-secondary",
                                       "fontSize": 11,
                                       "fontWeight": "normal"
@@ -84602,15 +84597,10 @@
                                               "fontWeight": "600"
                                             },
                                             {
-                                              "id": "fr5KH",
+                                              "id": "hf41a",
                                               "type": "ref",
-                                              "ref": "c:it00G",
-                                              "name": "provenance_operator",
-                                              "descendants": {
-                                                "c:izLyj": {
-                                                  "content": "From Helm values"
-                                                }
-                                              }
+                                              "ref": "Rwnu3",
+                                              "name": "provenance_operator"
                                             }
                                           ]
                                         }
@@ -84895,6 +84885,94 @@
       "width": 700,
       "height": 0,
       "content": "Error states — Role mapping overrides (PUT /admin/config/auth)\n\nThis screen is the rejected-save variant of “Screen/Admin Settings — Authentication”. Both treatments are conditional and absent on the happy path.\n\nField level — a blank group name is rejected client-side before the PUT: the input takes a destructive border and “Group name can't be blank.” appears under the row. Add stays disabled while the field is empty.\n\nCard level — Gameplane/Error Banner at the foot of the card content, above the actions. One message per response:\n• 400 — “Save failed (400): validation failed — <details from the API>. No changes were saved.”\n• 401 — session expired; redirect to login rather than showing the banner.\n• 403 — “You don't have permission to change role mappings (config:manage required).”\n• 500 — “Save failed (500): the server couldn't store the change. Nothing was saved — try again.”\n\nThe banner clears on the next successful save. The editor keeps the admin's unsaved edits on screen so nothing is lost to a failed request."
+    },
+    {
+      "type": "frame",
+      "id": "Rwnu3",
+      "x": 1929,
+      "y": 27599,
+      "name": "Gameplane/Provenance Badge/From Helm",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "reusable": true,
+      "fill": "#00000000",
+      "cornerRadius": "$c:--radius-pill",
+      "stroke": "$c:--border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "gap": 6,
+      "padding": [
+        3,
+        10
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "kgQwp",
+          "name": "pbIcon",
+          "width": 12,
+          "height": 12,
+          "icon": "package",
+          "library": "lucide",
+          "fill": "$c:--muted-foreground"
+        },
+        {
+          "type": "text",
+          "id": "d5cgOs",
+          "name": "pbLabel",
+          "fill": "$c:--muted-foreground",
+          "content": "From Helm values",
+          "fontFamily": "$c:--font-primary",
+          "fontSize": 12,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "BV5ei",
+      "x": 2107,
+      "y": 27599,
+      "name": "Gameplane/Provenance Badge/Not configured",
+      "theme": {
+        "c:Mode": "Dark"
+      },
+      "reusable": true,
+      "fill": "#00000000",
+      "cornerRadius": "$c:--radius-pill",
+      "stroke": "$c:--border",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "gap": 6,
+      "padding": [
+        3,
+        10
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "icon",
+          "id": "n9DCGF",
+          "name": "pbIcon",
+          "width": 12,
+          "height": 12,
+          "icon": "minus",
+          "library": "lucide",
+          "fill": "$c:--muted-foreground"
+        },
+        {
+          "type": "text",
+          "id": "zXhnc",
+          "name": "pbLabel",
+          "fill": "$c:--muted-foreground",
+          "content": "Not configured",
+          "fontFamily": "$c:--font-primary",
+          "fontSize": 12,
+          "fontWeight": "500"
+        }
+      ]
     }
   ],
   "themes": {

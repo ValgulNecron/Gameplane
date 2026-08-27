@@ -4,19 +4,17 @@ Generated via the `pencil` MCP server against `/home/valgul/project/kubernetes-g
 
 ## Totals
 
-*(Recounted 2026-08-26 during the spec-006 install-time-config export refresh. Every figure below was measured, not carried forward — the previous "74 screens / 149 components / 223 objects / 447 files" block was stale.)*
+*(Re-measured 2026-08-27 after the spec-006 design-review pass. Every figure below was measured directly from disk, not carried forward — the concurrent spec-006 export refresh had undercounted by 2 components due to the review adding `Rwnu3` and `BV5ei` after that export completed. The previous "74 screens / 149 components / 223 objects / 447 files" block (pre-spec-006) was stale.)*
 
 - **Screens exported:** 77 — counted with the depth-0 `Get` visitor described below, filtering top-level nodes whose name starts with `Screen/` (138 top-level nodes, 77 of them screens). Baseline 74 + 3 added by spec 006 (`nNGDX`, `dxdEi`, `QgW58`).
-- **Components exported:** 155 — every id in `get_app_state`'s "Reusable components" list (55 `Gameplane/...` definitions + 100 `c:...` base design-system primitives). Baseline 149 + 6 added by spec 006 (`Kp48V`, `XL5ZU`, `vStkb`, `R65Xyx`, `qvQPg`, and `uw0dB`, which existed as a node but had only ever been exported under the wrong filename — see below).
-- **Total objects:** 232 (77 screens + 155 components)
-- **JSON files written:** 232 / 232 (100%) — `ls json/ | wc -l` = 232, and the id set (with `c_` → `c:` un-sanitized) is an exact set-equality match against the 232 expected ids: zero missing, zero extra.
-- **Screenshots written:** 232 / 232 (100%) — `ls screenshots/ | wc -l` = 232, id set identical to the JSON set.
-- **Total files in design-export/:** 465 (232 JSON + 232 PNG + this MANIFEST.md)
+- **Components exported:** 157 — every id in `get_app_state`'s "Reusable components" list (57 `Gameplane/...` definitions + 100 `c:...` base design-system primitives). Baseline 149 + 6 added by spec 006 (`Kp48V`, `XL5ZU`, `vStkb`, `R65Xyx`, `qvQPg`, and `uw0dB`) + 2 added by the spec 006 design-review pass (`Rwnu3`, `BV5ei`).
+- **Total objects:** 234 (77 screens + 157 components)
+- **JSON files written:** 234 / 234 (100%) — `ls json/ | wc -l` = 234, and the id set (with `c_` → `c:` un-sanitized) is an exact set-equality match against the 234 expected ids: zero missing, zero extra.
+- **Screenshots written:** 234 / 234 (100%) — `ls screenshots/ | wc -l` = 234, id set identical to the JSON set.
+- **Total files in design-export/:** 469 (234 JSON + 234 PNG + this MANIFEST.md)
 - **Failed exports:** none.
 
 Three top-level nodes are deliberately **not** exported, as in every previous pass: the `Shared Components Band` and `Gameplane/Connection Card — Tunnel States (reference)` scaffolding frames, and the three `Note — …` annotation frames (`m8wjom`, `I96cW`, `R6iab`) added by spec 006. They are neither screens nor reusable components, so they are outside the counted object set.
-
-**Stale file removed:** `json/c_uw0dB.json` + `screenshots/c_uw0dB.png` held the `uw0dB` component under a `c:`-prefixed filename it never had (its own body reads `"id": "uw0dB"`). It was also pre-dating the chip rework. Both were deleted and replaced by correctly-named `uw0dB.json` / `uw0dB.png`.
 
 ## Enumeration method and confidence
 
@@ -31,7 +29,7 @@ Get((n, ctx) => {
 
 Filtering that list for names starting with `Screen/` yielded exactly 67 screens. This is a complete, non-sampled enumeration (not a partial/heuristic scan), so confidence in the screen count is **high** — the walk completed without truncation, crash, or a result-count cap. The task brief's "~100-120" estimate was speculative; the actual count in this document is 67. Design areas mentioned in the brief (Login variants, Create Server steps 1-5, Modules Catalog, Backups Index/Schedules/Restores, Share Link states x5, Cluster Settings, Server Detail tabs incl. all Settings sub-pages and Overview state variants, Users & RBAC incl. sub-pages, Admin Settings incl. all sub-pages, Mobile screens) are all present in the exported list — nothing that looked like an expected category was obviously missing.
 
-**Components:** Taken directly from `get_app_state`'s "Reusable components" line, which the task brief already identified as reliable and non-truncated. 148 components total (48 `Gameplane/...` component definitions + 100 base `c:...` design-system primitives living inside the "lunaris: design system components" wrapper frame).
+**Components:** Taken directly from `get_app_state`'s "Reusable components" line, which the task brief already identified as reliable and non-truncated. 157 components total (57 `Gameplane/...` component definitions + 100 base `c:...` design-system primitives living inside the "lunaris: design system components" wrapper frame), after exports from specs 006 (6 components: `Kp48V`, `XL5ZU`, `vStkb`, `R65Xyx`, `qvQPg`, `uw0dB`) and the 006 design-review pass (2 components: `Rwnu3`, `BV5ei`).
 
 ## Issues found and fixed
 
@@ -50,7 +48,7 @@ Affected IDs (now all valid): `atqRh`, `BX0XM`, `bYDHC`, `DMnEi`, `DPrYX`, `dQV9
 
 ## Skipped IDs
 
-None. All 232 discovered objects (77 screens + 155 components) have both a JSON file and a PNG screenshot. (This line previously read "215 (67 screens + 148 components)" — a wave-1 figure never updated as screens and components were added; corrected 2026-08-26 against a live recount.)
+None. All 234 discovered objects (77 screens + 157 components) have both a JSON file and a PNG screenshot. (This line was corrected 2026-08-27 to reflect the two components added by the design-review pass; prior entries incorrectly stated "232 objects" and "155 components" after the spec-006 export but before the review.)
 
 ## Filename sanitization
 
@@ -127,7 +125,7 @@ Feature 006 (`specs/006-install-time-config/`, Slices 7 / 7b / 8 — FR-012, FR-
 | ID | Name | Notes |
 |---|---|---|
 | `Kp48V` | Gameplane/Dialog/Confirm Admin Mapping | FR-015 confirmation dialog — a `WwNlX` instance overriding title, the "Full admin access" warning alert, and a chip preview of the group(s) being mapped to admin. |
-| `uw0dB` | Gameplane/Removable Group Chip/Secondary | Re-exported after the chip rework (14px label, `[4,4,4,8]` padding) and renamed to the `/Secondary` variant. First correctly-named export (see the stale-file note under Totals). |
+| `uw0dB` | Gameplane/Removable Group Chip/Secondary | Exported after the chip rework (14px label, `[4,4,4,8]` padding) as the `/Secondary` variant. First export. |
 | `XL5ZU` | Gameplane/Removable Group Chip/Orange | Admin-role chip colour (`$c:--color-warning`). |
 | `vStkb` | Gameplane/Removable Group Chip/Violet | Operator-role chip colour (`$c:--color-info`). |
 | `R65Xyx` | Gameplane/Provenance Badge/Overridden | Role-neutral outlined badge (`$c:--border` stroke, lucide `pencil`, "Overridden in dashboard") — deliberately not a `Label/Orange` or `Label/Violet`, both of which already carry role meaning. |
@@ -140,3 +138,32 @@ Feature 006 (`specs/006-install-time-config/`, Slices 7 / 7b / 8 — FR-012, FR-
 - Screenshots: `export_nodes` PNG batch at 2x; all 11 verified non-empty with real pixel dimensions (`uw0dB` 236×52 smallest, `QgW58` 2880×3320 largest).
 - Validation greps were content-specific — a string that appears only in the object's own body text, never in a frame name: `j9W8A` → "Game data storage class", `dxdEi` → "Cluster default", `uMiwd` → "Role mapping overrides", `nNGDX` → "No OIDC role mappings yet", `QgW58` → "Save failed (400)", `Kp48V` → "Mapping users to the admin role grants full cluster control", `R65Xyx` → "Overridden in dashboard". All hit.
 - Size sanity: the five screens came back at 19.0–21.3 KB against ~7–11 KB for the comparable depth-6 Admin Settings exports (`n6Xlo` 8.0 KB, `RC3Kf` 7.2 KB, `g5mEpx` 8.8 KB) — richer, not hollow. `uMiwd` grew 8.0 KB → 20.7 KB and `j9W8A` 10.7 KB → 19.0 KB over their previous exports.
+
+## Incremental export 2026-08-27 — Spec 006 design-review fixes (provenance badges, chip metric)
+
+Follow-up pass on the spec 006 objects, addressing four defects raised independently by two design reviewers. Nine objects re-exported (3 screens, 4 existing components, 2 new components).
+
+**Screens (3):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `uMiwd` | Screen/Admin Settings — Authentication | **Re-exported.** The Operator row's "From Helm values" badge is no longer a per-instance content override on the lunaris `c:it00G` (`Label/Secondary`); it is now an instance (`UarEZ`) of the new `Gameplane/Provenance Badge/From Helm` (`Rwnu3`), so it renders as a sibling of the outlined "Overridden in dashboard" badge instead of a filled secondary pill. Removable group chips are 32px tall (was 26px), matching the Icon Label chips on the Helm card above. |
+| `nNGDX` | Screen/Admin Settings — Authentication (No OIDC mappings) | **Re-exported.** All three per-role provenance badges (`uMANQ`/`o1r2Yg`/`FJQBG`, now `MNGVu`/`KrenL`/`anO56`) previously read "From Helm values" on a screen whose own subtitle states nothing is seeded from Helm. They now use `Gameplane/Provenance Badge/Not configured` (`BV5ei`). |
+| `QgW58` | Screen/Admin Settings — Authentication (Save rejected) | **Re-exported.** Same two changes as `uMiwd`: Operator badge retargeted to `Rwnu3` (`hf41a`), chips on the 32px metric. |
+
+**Components (6):**
+
+| ID | Name | Notes |
+|---|---|---|
+| `Rwnu3` | Gameplane/Provenance Badge/From Helm | **New.** Sibling of `R65Xyx`, frame-identical (transparent fill, `$c:--border` 1px inner stroke, `$c:--radius-pill`, `[3,10]` padding, gap 6, 12px/500 `$c:--muted-foreground` label) with lucide `package` instead of `pencil`. Gives the provenance axis two visually related states instead of one component plus one one-off label override. |
+| `BV5ei` | Gameplane/Provenance Badge/Not configured | **New.** Third sibling on the same frame, lucide `minus`, label "Not configured" — the neutral state for an install with no Helm seed and no dashboard override. |
+| `R65Xyx` | Gameplane/Provenance Badge/Overridden | **Re-exported.** Added the missing `theme: {"c:Mode":"Dark"}` pin so the standalone component resolves in Dark like every other `Gameplane/*` component. No visual change in situ. |
+| `uw0dB` | Gameplane/Removable Group Chip/Secondary | **Re-exported.** Theme pinned to Dark; padding `[4,4,4,8]` → `[8,8,8,12]` and `chipLabel` `lineHeight: 1.1428571428571428`, bringing the chip onto the same 32px metric as the lunaris `Icon Label/*` chips used on the Helm-seeded card and the confirm dialog. |
+| `XL5ZU` | Gameplane/Removable Group Chip/Orange | **Re-exported.** Same theme pin and 32px metric change. |
+| `vStkb` | Gameplane/Removable Group Chip/Violet | **Re-exported.** Same theme pin and 32px metric change. |
+
+**Verification:**
+
+- Chip metric measured, not eyeballed: on `uMiwd`, `BkZku` (`chip_admin_gameplane-admins`, Removable Group Chip family) was 169×26 and `gK9nC` (`chip_admin_gameplane-admins`, Icon Label family, Helm card on the same screen) 151×32. After the change both families measure 32px tall (`BkZku` 177×32, `vHQ8A` 152×32, `bIySP` 152×32; `gK9nC` 151×32, `B7qPG7` 126×32, `rS14I` 159×32).
+- `Get(screen, (n,c) => c.problems && …)` over `uMiwd`, `nNGDX`, `QgW58`, `Kp48V` reports only the two pre-existing `Sidebar Item/*` "partially clipped" entries per screen — nothing introduced by this pass.
+- JSON re-exported at `depth: 30`, extracted from the persisted `tool-results/` file (no hand transcription), `json.loads`-validated, and asserted free of `"..."` elision markers. Note the screens no longer contain the literal string "From Helm values": the label now lives in the `Rwnu3` component body, so the content-specific grep for these screens is the component id (`Rwnu3` on `uMiwd`/`QgW58`, `BV5ei` ×3 on `nNGDX`).
