@@ -149,13 +149,7 @@ func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabe
 	if legacyLabel == "" {
 		legacyLabel = "Single sign-on"
 	}
-	// The legacy provider needs the store for account linking; wiring it
-	// here also fixes the Helm-flag path, whose callback previously ran
-	// with no store attached and 500'd on every login.
-	if legacy != nil {
-		legacy.AttachStore(store)
-	}
-	return &Registry{
+	reg := &Registry{
 		store:       store,
 		secrets:     secrets,
 		legacy:      legacy,
@@ -164,6 +158,17 @@ func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabe
 		built:       map[string]builtEntry{},
 		now:         time.Now,
 	}
+	// The legacy provider needs the store for account linking; wiring it
+	// here also fixes the Helm-flag path, whose callback previously ran
+	// with no store attached and 500'd on every login. Also attach the
+	// helm role overrides function so it can be read on every login (SC-007).
+	if legacy != nil {
+		legacy.AttachStore(store)
+		legacy.AttachHelmRoleOverridesFunc(func(ctx context.Context) *RoleMappings {
+			return reg.HelmRoleOverrides(ctx)
+		})
+	}
+	return reg
 }
 
 // defaultProviders is the provider set of an install whose auth config
@@ -187,6 +192,30 @@ func (r *Registry) snapshot(ctx context.Context) ([]Provider, [sha256.Size]byte)
 		return defaultProviders(), sha256.Sum256(nil)
 	}
 	return cfg.Providers, sha256.Sum256([]byte(raw))
+}
+
+// HelmRoleOverrides returns the current helmOverride.roleMappings from the
+// "auth" config row, if present. It parses the row to extract the optional
+// per-role override lists that the login path uses to compute the effective
+// Helm policy. Returns nil if the auth row is missing, malformed, or carries
+// no helmOverride.
+func (r *Registry) HelmRoleOverrides(ctx context.Context) *RoleMappings {
+	raw, ok, err := r.store.ConfigValue(ctx, "auth")
+	if err != nil || !ok {
+		return nil
+	}
+	var cfg struct {
+		HelmOverride *struct {
+			RoleMappings *RoleMappings `json:"roleMappings"`
+		} `json:"helmOverride"`
+	}
+	if json.Unmarshal([]byte(raw), &cfg) != nil {
+		return nil
+	}
+	if cfg.HelmOverride == nil || cfg.HelmOverride.RoleMappings == nil {
+		return nil
+	}
+	return cfg.HelmOverride.RoleMappings
 }
 
 // Enabled lists the providers the login page may offer: enabled DB
@@ -303,6 +332,9 @@ func (r *Registry) build(ctx context.Context, p Provider) (*OIDC, error) {
 		return nil, fmt.Errorf("provider %q: discover issuer: %w", p.Name, err)
 	}
 	o.AttachStore(r.store)
+	o.AttachHelmRoleOverridesFunc(func(ctx context.Context) *RoleMappings {
+		return r.HelmRoleOverrides(ctx)
+	})
 	return o, nil
 }
 

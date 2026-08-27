@@ -51,13 +51,14 @@ type ProviderPolicy struct {
 
 // OIDC handles OpenID Connect authentication.
 type OIDC struct {
-	provider     *oidc.Provider
-	verifier     *oidc.IDTokenVerifier
-	oauth        *oauth2.Config
-	policy       *ProviderPolicy
-	db           *db.Store
-	auditor      *audit.Auditor
-	providerName string
+	provider             *oidc.Provider
+	verifier             *oidc.IDTokenVerifier
+	oauth                *oauth2.Config
+	policy               *ProviderPolicy
+	db                   *db.Store
+	auditor              *audit.Auditor
+	providerName         string
+	getHelmRoleOverrides func(context.Context) *RoleMappings
 }
 
 // NewOIDCWithPolicy is NewOIDC carrying a group→role mapping policy. The
@@ -135,6 +136,60 @@ func extractGroups(claims map[string]any, claimName string) []string {
 	default:
 		return nil
 	}
+}
+
+// effectiveHelmPolicy merges the DB overlay's per-role list replacements onto
+// the Helm-seeded base policy, producing the *ProviderPolicy that computeRole
+// is then called with, unmodified. Per-role list replacement (M3): for each
+// of admin/operator/viewer, a non-nil override list replaces the Helm-seeded
+// list for that role only; an empty non-nil list validly means "nobody maps
+// to this role"; a nil override leaves the Helm-seeded list standing. The
+// three roles resolve independently.
+//
+// Parameters:
+// - base: the Helm-seeded policy for the synthetic "helm" provider
+// - ov: the helmOverride.roleMappings value from the "auth" config row; nil
+//   when helmOverride is absent
+//
+// Return: a *ProviderPolicy with RoleMappings merged per role and Scopes,
+// GroupsClaim, DefaultRole carried through unchanged from base. Returns base
+// unchanged when ov is nil (SC-008 — no override = byte-identical behavior).
+func effectiveHelmPolicy(base *ProviderPolicy, ov *RoleMappings) *ProviderPolicy {
+	if base == nil {
+		return nil
+	}
+	if ov == nil {
+		// No override — return base unchanged (SC-008)
+		return base
+	}
+
+	// Start with a copy of the base policy
+	effective := &ProviderPolicy{
+		Scopes:       base.Scopes,
+		GroupsClaim:  base.GroupsClaim,
+		RoleMappings: &RoleMappings{},
+		DefaultRole:  base.DefaultRole,
+	}
+
+	// Copy base role mappings
+	if base.RoleMappings != nil {
+		effective.RoleMappings.Admin = base.RoleMappings.Admin
+		effective.RoleMappings.Operator = base.RoleMappings.Operator
+		effective.RoleMappings.Viewer = base.RoleMappings.Viewer
+	}
+
+	// Apply per-role overrides: non-nil override list replaces the base list for that role
+	if ov.Admin != nil {
+		effective.RoleMappings.Admin = ov.Admin
+	}
+	if ov.Operator != nil {
+		effective.RoleMappings.Operator = ov.Operator
+	}
+	if ov.Viewer != nil {
+		effective.RoleMappings.Viewer = ov.Viewer
+	}
+
+	return effective
 }
 
 // computeRole resolves a user's dashboard role from their IdP groups. A
@@ -275,6 +330,13 @@ func (o *OIDC) AttachAuditor(a *audit.Auditor) { o.auditor = a }
 // SetProviderName sets the provider name (e.g., "helm", "okta") used in audit events.
 func (o *OIDC) SetProviderName(name string) { o.providerName = name }
 
+// AttachHelmRoleOverridesFunc attaches a function that reads the current Helm-seeded
+// role-mapping overrides from the auth config row. Called on every login for the Helm
+// provider to deliver SC-007 (no restart needed after admin edit).
+func (o *OIDC) AttachHelmRoleOverridesFunc(fn func(context.Context) *RoleMappings) {
+	o.getHelmRoleOverrides = fn
+}
+
 // HandleStart returns an HTTP handler for starting an OIDC authorization flow.
 func (o *OIDC) HandleStart() http.HandlerFunc {
 	return o.HandleStartAt("/")
@@ -374,7 +436,16 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 		}
 		groups := extractGroups(rawClaims, claimName)
 
-		role, deny := computeRole(groups, o.policy)
+		// For the Helm provider, read the current helmOverride and build the effective policy
+		// on every login attempt (SC-007: no cache, read at login time).
+		resolvePolicy := o.policy
+		if o.providerName == HelmProviderName && o.getHelmRoleOverrides != nil {
+			if helmOverride := o.getHelmRoleOverrides(req.Context()); helmOverride != nil {
+				resolvePolicy = effectiveHelmPolicy(o.policy, helmOverride)
+			}
+		}
+
+		role, deny := computeRole(groups, resolvePolicy)
 		if deny {
 			// Log the identity, never the tokens.
 			slog.Warn("oidc login denied: no group grants a role and defaultRole is deny",
@@ -384,7 +455,9 @@ func (o *OIDC) HandleCallbackAt(sessions *SessionStore, cookiePath string) http.
 		}
 
 		// Determine which group matched a role mapping (or "none" if default role applies).
-		matchedGroup := getMatchedGroup(groups, o.policy)
+		// For the Helm provider with overrides, use the effective policy to match against
+		// the merged role mappings, ensuring audit events report the correct matched group.
+		matchedGroup := getMatchedGroup(groups, resolvePolicy)
 
 		// Re-evaluation only runs when role mappings are configured.
 		syncRole := o.policy != nil && o.policy.RoleMappings != nil

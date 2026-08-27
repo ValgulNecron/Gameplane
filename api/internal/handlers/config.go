@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/ValgulNecron/gameplane/api/internal/audit"
+	"github.com/ValgulNecron/gameplane/api/internal/auth"
 	"github.com/ValgulNecron/gameplane/api/internal/db"
 	"github.com/ValgulNecron/gameplane/api/internal/httperr"
 	"github.com/ValgulNecron/gameplane/api/internal/notify"
@@ -27,17 +30,37 @@ import (
 // helmOIDCPresent reports whether the Helm-flag OIDC provider is
 // configured — it counts as an always-enabled provider for validateAuth's
 // lockout guard.
-func MountConfig(r chi.Router, store *db.Store, helmOIDCPresent bool) {
-	h := &configHandler{db: store, validators: newValidators(helmOIDCPresent)}
+//
+// gameDataStorageClass is the StorageClass name passed via the Helm
+// value operator.gameDataStorage.storageClassName to the API's
+// --game-data-storage-class CLI flag (empty if using cluster default).
+// Returned read-only in installTimeSettings.gameDataStorageClass.
+//
+// helmPolicy is the Helm-seeded OIDC provider policy, containing groupsClaim,
+// defaultRole, and roleMappings. If non-nil, its values are returned read-only
+// in installTimeSettings.oidcHelmProvider (the raw seed, not merged with
+// helmOverride overrides). Passed as *auth.ProviderPolicy from main.go.
+func MountConfig(r chi.Router, store *db.Store, auditor *audit.Auditor, helmOIDCPresent bool, gameDataStorageClass string, helmPolicy *auth.ProviderPolicy) {
+	h := &configHandler{
+		db:                       store,
+		auditor:                  auditor,
+		validators:               newValidators(helmOIDCPresent),
+		gameDataStorageClass:     gameDataStorageClass,
+		helmPolicy:               helmPolicy,
+	}
 	r.Route("/admin/config", func(r chi.Router) {
 		r.Get("/", h.getAll)
 		r.Put("/{section}", h.put)
+		r.Delete("/auth/role-mappings/{role}", h.resetRoleMapping)
 	})
 }
 
 type configHandler struct {
-	db         *db.Store
-	validators map[string]func([]byte) (json.RawMessage, error)
+	db                   *db.Store
+	auditor              *audit.Auditor
+	validators           map[string]func([]byte) (json.RawMessage, error)
+	gameDataStorageClass string
+	helmPolicy           *auth.ProviderPolicy
 }
 
 func (h *configHandler) getAll(w http.ResponseWriter, req *http.Request) {
@@ -64,6 +87,14 @@ func (h *configHandler) getAll(w http.ResponseWriter, req *http.Request) {
 		}
 		out[key] = json.RawMessage(value)
 	}
+
+	// Add installTimeSettings: a read-only snapshot of install-time configuration.
+	// Present if gameDataStorageClass is set or helmPolicy is configured.
+	installSettings := h.buildInstallTimeSettings()
+	if installSettings != nil {
+		out["installTimeSettings"] = installSettings
+	}
+
 	writeJSON(w, out)
 }
 
@@ -88,6 +119,16 @@ func (h *configHandler) put(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
+
+	// For "auth" section, detect helmOverride changes before persisting.
+	var auditEvents []struct {
+		role   string
+		groups string
+	}
+	if section == "auth" {
+		auditEvents = h.detectAuthAuditEvents(req.Context(), canon)
+	}
+
 	if _, err := h.db.DB.ExecContext(req.Context(),
 		`INSERT INTO config(key, value, updated_at)
 		 VALUES (?, ?, datetime('now'))
@@ -99,7 +140,276 @@ func (h *configHandler) put(w http.ResponseWriter, req *http.Request) {
 		httperr.Write(w, req, err)
 		return
 	}
+
+	// Emit audit events for any helmOverride changes.
+	for _, evt := range auditEvents {
+		reason := fmt.Sprintf("oidc role mapping override set: role=%s groups=%s", evt.role, evt.groups)
+		if err := h.auditor.WriteSync(req.Context(), http.MethodPut, "/admin/config/auth", evt.role, reason, http.StatusOK); err != nil {
+			// Audit failure does not fail the request; log it but continue.
+			// This matches the pattern in capture.go's auditWriteOrFail behavior.
+		}
+	}
+
 	writeJSON(w, map[string]any{"section": section, "value": canon})
+}
+
+// resetRoleMapping removes a single role's override from helmOverride.roleMappings
+// in the "auth" config row, restoring the Helm-seeded value for that role.
+// It is idempotent: returns 200 even if the role had no override.
+func (h *configHandler) resetRoleMapping(w http.ResponseWriter, req *http.Request) {
+	roleParam := chi.URLParam(req, "role")
+	validRoles := map[string]bool{"admin": true, "operator": true, "viewer": true}
+	if !validRoles[roleParam] {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error":   "validation failed",
+			"details": "role must be one of admin, operator, viewer",
+		})
+		return
+	}
+
+	// Fetch the current auth config row.
+	var authJSON string
+	err := h.db.DB.QueryRowContext(req.Context(),
+		`SELECT value FROM config WHERE key = 'auth'`).Scan(&authJSON)
+	if err != nil && err.Error() != "sql: no rows" {
+		httperr.Write(w, req, err)
+		return
+	}
+
+	// Parse the auth config. If the row doesn't exist, start with an empty config.
+	var c authCfg
+	if err == nil {
+		if err := json.Unmarshal([]byte(authJSON), &c); err != nil {
+			httperr.Write(w, req, err)
+			return
+		}
+	}
+
+	// Check if the role had an override before removal (for audit event).
+	hadOverride := c.HelmOverride != nil &&
+		c.HelmOverride.RoleMappings != nil &&
+		((roleParam == "admin" && c.HelmOverride.RoleMappings.Admin != nil) ||
+			(roleParam == "operator" && c.HelmOverride.RoleMappings.Operator != nil) ||
+			(roleParam == "viewer" && c.HelmOverride.RoleMappings.Viewer != nil))
+
+	// Remove the role's key from helmOverride.roleMappings if it exists.
+	if c.HelmOverride != nil && c.HelmOverride.RoleMappings != nil {
+		switch roleParam {
+		case "admin":
+			c.HelmOverride.RoleMappings.Admin = nil
+		case "operator":
+			c.HelmOverride.RoleMappings.Operator = nil
+		case "viewer":
+			c.HelmOverride.RoleMappings.Viewer = nil
+		}
+
+		// If all roles are now nil, remove the roleMappings field.
+		if c.HelmOverride.RoleMappings.Admin == nil &&
+			c.HelmOverride.RoleMappings.Operator == nil &&
+			c.HelmOverride.RoleMappings.Viewer == nil {
+			c.HelmOverride.RoleMappings = nil
+		}
+
+		// If helmOverride is now empty, remove it.
+		if c.HelmOverride.RoleMappings == nil {
+			c.HelmOverride = nil
+		}
+	}
+
+	// Marshal the potentially modified config back to JSON.
+	canon, err := json.Marshal(c)
+	if err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+
+	// Persist the updated config (even if unchanged, for idempotency).
+	if _, err := h.db.DB.ExecContext(req.Context(),
+		`INSERT INTO config(key, value, updated_at)
+		 VALUES (?, ?, datetime('now'))
+		 ON CONFLICT(key) DO UPDATE SET
+		     value      = excluded.value,
+		     updated_at = excluded.updated_at`,
+		"auth", string(canon),
+	); err != nil {
+		httperr.Write(w, req, err)
+		return
+	}
+
+	// Emit audit event only if there was an actual change.
+	if hadOverride {
+		reason := fmt.Sprintf("oidc role mapping override reset: role=%s", roleParam)
+		if err := h.auditor.WriteSync(req.Context(), http.MethodDelete, "/admin/config/auth/role-mappings/"+roleParam, roleParam, reason, http.StatusOK); err != nil {
+			// Audit failure does not fail the request; just ignore it.
+		}
+	}
+
+	// Return the updated auth section in the same envelope as put().
+	writeJSON(w, map[string]any{"section": "auth", "value": json.RawMessage(canon)})
+}
+
+// detectAuthAuditEvents compares the old auth config (from the database) with the
+// new one (canonicalized request body) to detect changes to helmOverride.roleMappings.
+// Returns a list of roles that were actually changed, along with their new group lists
+// (or "none" for empty lists). Emits an audit event only if a role's override list
+// changed (was set, updated, or removed).
+func (h *configHandler) detectAuthAuditEvents(ctx context.Context, newCanon json.RawMessage) []struct {
+	role   string
+	groups string
+} {
+	// Read the old auth config from the database.
+	var oldAuthJSON string
+	err := h.db.DB.QueryRowContext(ctx,
+		`SELECT value FROM config WHERE key = 'auth'`).Scan(&oldAuthJSON)
+	if err != nil && err.Error() != "sql: no rows" {
+		// On query error, play it safe and emit no audit events.
+		return nil
+	}
+
+	// Parse both configs.
+	var oldCfg, newCfg authCfg
+	if err == nil {
+		// Old config exists; parse it.
+		if err := json.Unmarshal([]byte(oldAuthJSON), &oldCfg); err != nil {
+			return nil
+		}
+	}
+	// New config is already validated and canonicalized.
+	if err := json.Unmarshal(newCanon, &newCfg); err != nil {
+		return nil
+	}
+
+	// Extract the old and new override mappings (or nil if absent).
+	var oldOverrides, newOverrides *authRoleMappingsPtr
+	if oldCfg.HelmOverride != nil {
+		oldOverrides = oldCfg.HelmOverride.RoleMappings
+	}
+	if newCfg.HelmOverride != nil {
+		newOverrides = newCfg.HelmOverride.RoleMappings
+	}
+
+	var changes []struct {
+		role   string
+		groups string
+	}
+
+	// Check each role independently.
+	for _, role := range []string{"admin", "operator", "viewer"} {
+		oldList := getRoleList(oldOverrides, role)
+		newList := getRoleList(newOverrides, role)
+
+		// Only emit if there was an actual change.
+		if !roleListsEqual(oldList, newList) {
+			groupsStr := formatGroupsForAudit(newList)
+			changes = append(changes, struct {
+				role   string
+				groups string
+			}{role, groupsStr})
+		}
+	}
+
+	return changes
+}
+
+// getRoleList extracts the list of groups for a given role from an authRoleMappingsPtr,
+// returning nil if the role or the pointer is nil.
+func getRoleList(m *authRoleMappingsPtr, role string) *[]string {
+	if m == nil {
+		return nil
+	}
+	switch role {
+	case "admin":
+		return m.Admin
+	case "operator":
+		return m.Operator
+	case "viewer":
+		return m.Viewer
+	}
+	return nil
+}
+
+// roleListsEqual compares two role lists, treating nil and non-nil empty lists as different
+// (per M3: an empty non-nil list is a valid override meaning "nobody").
+func roleListsEqual(a, b *[]string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if len(*a) != len(*b) {
+		return false
+	}
+	for i := range *a {
+		if (*a)[i] != (*b)[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// formatGroupsForAudit converts a group list to the audit format: comma-joined for
+// non-empty lists, or the literal string "none" for an empty list.
+func formatGroupsForAudit(groups *[]string) string {
+	if groups == nil {
+		// This shouldn't be called with nil, but handle it defensively.
+		return "none"
+	}
+	if len(*groups) == 0 {
+		return "none"
+	}
+	return strings.Join(*groups, ",")
+}
+
+// buildInstallTimeSettings constructs the read-only installTimeSettings
+// response section from Helm-seeded values. Returns nil if there is nothing
+// to report (no gameDataStorageClass and no helmPolicy configured).
+func (h *configHandler) buildInstallTimeSettings() json.RawMessage {
+	if h.gameDataStorageClass == "" && h.helmPolicy == nil {
+		return nil
+	}
+
+	// Build the outer map that will be JSON-encoded
+	settings := map[string]any{}
+
+	// gameDataStorageClass is always included if it has a value or if we have
+	// install-time settings to report (even if empty string); include it whenever
+	// installTimeSettings exists.
+	// Note: always include the field if installTimeSettings is present;
+	// per the contract, gameDataStorageClass is a sibling of oidcHelmProvider.
+	if h.gameDataStorageClass != "" || h.helmPolicy != nil {
+		settings["gameDataStorageClass"] = h.gameDataStorageClass
+	}
+
+	// Include the Helm OIDC provider snapshot if Helm OIDC is configured.
+	// This is the raw seed, not merged with helmOverride.
+	if h.helmPolicy != nil {
+		oidcHelm := map[string]any{
+			"groupsClaim": h.helmPolicy.GroupsClaim,
+			"defaultRole": h.helmPolicy.DefaultRole,
+		}
+		// Include roleMappings if it was configured (non-nil); nil means
+		// no role mappings were set up via CLI flags.
+		if h.helmPolicy.RoleMappings != nil {
+			oidcHelm["roleMappings"] = map[string][]string{
+				"admin":    h.helmPolicy.RoleMappings.Admin,
+				"operator": h.helmPolicy.RoleMappings.Operator,
+				"viewer":   h.helmPolicy.RoleMappings.Viewer,
+			}
+		}
+		settings["oidcHelmProvider"] = oidcHelm
+	}
+
+	// Marshal to JSON and return as RawMessage.
+	data, err := json.Marshal(settings)
+	if err != nil {
+		// Should never happen; if it does, silently omit installTimeSettings
+		// rather than failing the entire request.
+		return nil
+	}
+	return json.RawMessage(data)
 }
 
 // newValidators owns both the closed allowlist of section names and the
@@ -153,6 +463,24 @@ type authRoleMappings struct {
 	Viewer   []string `json:"viewer,omitempty"`
 }
 
+// authHelmOverride carries the optional per-role override lists for the
+// synthetic Helm-configured OIDC provider. Each role's list (if present, even
+// as []) replaces the Helm-seeded list for that role; nil/absent means the
+// Helm-seeded list stands. Pointers to slices preserve the empty-list-vs-nil
+// distinction for provenance signaling.
+type authHelmOverride struct {
+	RoleMappings *authRoleMappingsPtr `json:"roleMappings,omitempty"`
+}
+
+// authRoleMappingsPtr parallels authRoleMappings but uses pointers to slices
+// to preserve empty-list-vs-nil distinction (key presence/absence signals
+// provenance).
+type authRoleMappingsPtr struct {
+	Admin    *[]string `json:"admin,omitempty"`
+	Operator *[]string `json:"operator,omitempty"`
+	Viewer   *[]string `json:"viewer,omitempty"`
+}
+
 type authProvider struct {
 	Name        string `json:"name"`
 	Kind        string `json:"kind"` // "local" | "oidc" | "google" | "github"
@@ -172,12 +500,40 @@ type authProvider struct {
 }
 
 type authCfg struct {
-	Providers []authProvider `json:"providers"`
+	Providers    []authProvider    `json:"providers"`
+	HelmOverride *authHelmOverride `json:"helmOverride,omitempty"`
 }
 
 var validAuthKinds = map[string]bool{"local": true, "oidc": true, "google": true, "github": true}
 
 var validDefaultRoles = map[string]bool{"": true, "viewer": true, "operator": true, "admin": true, "deny": true}
+
+// validateHelmRoleMapping checks the role mappings in helmOverride.roleMappings,
+// trimming whitespace from each group string in place. Reuses the same validation
+// rule as validateProviderMapping: each role list (if present) must be an array
+// of non-blank strings. Empty non-nil lists are valid and meaningful.
+func validateHelmRoleMapping(ov *authRoleMappingsPtr) error {
+	if ov == nil {
+		return nil
+	}
+	for role, groups := range map[string]*[]string{
+		"admin":    ov.Admin,
+		"operator": ov.Operator,
+		"viewer":   ov.Viewer,
+	} {
+		if groups == nil {
+			continue
+		}
+		for j, g := range *groups {
+			trimmed := strings.TrimSpace(g)
+			if trimmed == "" {
+				return fmt.Errorf("helmOverride.roleMappings.%s[%d] must not be empty", role, j)
+			}
+			(*groups)[j] = trimmed
+		}
+	}
+	return nil
+}
 
 // validateProviderMapping checks the group→role mapping fields of one
 // provider entry, trimming scope tokens and the groups claim in place so
@@ -293,6 +649,12 @@ func validateAuth(helmOIDCPresent bool) func([]byte) (json.RawMessage, error) {
 		// trust each client to guard the toggle.
 		if !anyEnabled {
 			return nil, fmt.Errorf("at least one identity provider must stay enabled")
+		}
+		// Validate helmOverride.roleMappings if present.
+		if c.HelmOverride != nil && c.HelmOverride.RoleMappings != nil {
+			if err := validateHelmRoleMapping(c.HelmOverride.RoleMappings); err != nil {
+				return nil, err
+			}
 		}
 		return json.Marshal(c)
 	}

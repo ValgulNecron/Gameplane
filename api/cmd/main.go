@@ -287,7 +287,7 @@ func main() {
 		handlers.MountUsers(p, store, sessions, reg)
 		handlers.MountRoles(p, store)
 		handlers.MountAudit(p, auditor)
-		handlers.MountConfig(p, store, oidcAuth != nil)
+		handlers.MountConfig(p, store, auditor, oidcAuth != nil, cfg.gameDataStorageClass, helmPolicy)
 		handlers.MountNotifications(p, notifier, k8s, cfg.namespace)
 		handlers.MountAuthProviderSecrets(p, k8s, cfg.namespace)
 		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps, cfg.updateChannel)
@@ -431,6 +431,8 @@ type config struct {
 	captureDefaultMaxDurationS  int
 	captureDefaultMaxSizeBytes  int64
 
+	gameDataStorageClass string
+
 	namespace      string
 	trustedProxies []string
 }
@@ -491,6 +493,8 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	c.captureDefaultMaxSizeBytes = envOrInt64("GAMEPLANE_CAPTURE_DEFAULT_MAX_SIZE", 5368709120)
 	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "gameplane-system"),
 		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
+	fs.StringVar(&c.gameDataStorageClass, "game-data-storage-class", envOr("GAMEPLANE_GAME_DATA_STORAGE_CLASS", ""),
+		"StorageClass name for game data PVCs (empty = cluster default)")
 
 	// Trusted proxy networks for client IP extraction. Comma-separated CIDRs.
 	// Default: loopback + private ranges, which work out-of-the-box for

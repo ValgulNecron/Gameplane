@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, Config } from "@/lib/api";
 
 // Section schemas mirror api/internal/handlers/config.go validators.
 // Keep these in sync if you add or rename a field server-side.
@@ -43,8 +43,17 @@ export interface AuthProvider {
   defaultRole?: AuthDefaultRole;
 }
 
+// Admin-managed overrides for Helm-seeded OIDC role mappings. Each role key
+// (admin, operator, viewer) is independently optional — presence means
+// DB-overridden; absence means Helm-seeded value stands. No "source" field:
+// provenance is derived from key presence.
+export interface HelmRoleOverride {
+  roleMappings?: AuthRoleMappings;
+}
+
 export interface AuthCfg {
   providers: AuthProvider[];
+  helmOverride?: HelmRoleOverride;
 }
 
 export type SinkKind = "discord" | "slack" | "smtp" | "webhook" | "ntfy";
@@ -98,6 +107,25 @@ export interface ModRegistriesCfg {
   registries: ModRegistryEntry[];
 }
 
+// Helm-seeded OIDC settings: read-only snapshot of the install-time values
+// passed via api.oidc.* Helm flags. The dashboard combines these with
+// auth.helmOverride client-side to compute effective per-role mappings
+// (FR-017, SC-006). groupsClaim and defaultRole have no DB override path in v1.
+export interface OIDCHelmProvider {
+  groupsClaim: string;
+  defaultRole: AuthDefaultRole;
+  roleMappings?: AuthRoleMappings;
+}
+
+// Install-time configuration snapshot: gameDataStorageClass (report-only,
+// unrelated to role-mapping hybrid) and oidcHelmProvider (Helm-seeded OIDC
+// values). The entire installTimeSettings object is omitted from the response
+// if there is nothing to report (no gameDataStorageClass and no helmPolicy).
+export interface InstallTimeSettings {
+  gameDataStorageClass: string;
+  oidcHelmProvider?: OIDCHelmProvider;
+}
+
 // AllConfig is the shape of GET /admin/config — every section is optional
 // because the row only exists once it's been written. Defaults are
 // supplied by the section components, not by the API.
@@ -112,6 +140,7 @@ export interface AllConfig {
   notifications?: NotificationsCfg;
   telemetry?: TelemetryCfg;
   modRegistries?: ModRegistriesCfg;
+  installTimeSettings?: InstallTimeSettings;
 }
 
 const KEY = ["config"] as const;
@@ -131,6 +160,17 @@ export function useUpdateConfigSection<K extends keyof AllConfig>(section: K) {
   return useMutation({
     mutationFn: (body: AllConfig[K]) =>
       api(`/admin/config/${section}`, { method: "PUT", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+// useResetRoleMapping DELETEs a single role's override, restoring its
+// Helm-seeded value, and invalidates the cached AllConfig so the GET re-fires
+// on success. The role must be one of "admin", "operator", or "viewer".
+export function useResetRoleMapping() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (role: string) => Config.deleteRoleMapping(role),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }

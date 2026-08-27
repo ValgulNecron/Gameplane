@@ -904,3 +904,194 @@ func TestHandleCallback_ReLoginAuditEventEmitted(t *testing.T) {
 		t.Fatalf("reason=%q missing matched=gp-ops", reason)
 	}
 }
+
+// TestEffectiveHelmPolicy verifies that effectiveHelmPolicy correctly merges
+// a DB override's per-role list replacements onto a Helm-seeded base policy.
+func TestEffectiveHelmPolicy(t *testing.T) {
+	baseMappings := &RoleMappings{
+		Admin:    []string{"helm-admins", "infra"},
+		Operator: []string{"helm-ops"},
+		Viewer:   []string{"helm-view"},
+	}
+	basePolicy := &ProviderPolicy{
+		RoleMappings: baseMappings,
+		Scopes:       []string{"openid", "profile", "email", "groups"},
+		GroupsClaim:  "groups",
+		DefaultRole:  "viewer",
+	}
+
+	cases := []struct {
+		name string
+		base *ProviderPolicy
+		ov   *RoleMappings
+		want *ProviderPolicy
+	}{
+		{
+			"nil override returns base unchanged",
+			basePolicy,
+			nil,
+			basePolicy,
+		},
+		{
+			"non-nil override replaces admin list",
+			basePolicy,
+			&RoleMappings{Admin: []string{"override-admin"}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"override-admin"},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"empty override list means nobody for that role",
+			basePolicy,
+			&RoleMappings{Admin: []string{}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"absent key leaves seeded list standing",
+			basePolicy,
+			&RoleMappings{Operator: []string{"override-ops"}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"helm-admins", "infra"},
+					Operator: []string{"override-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"roles resolve independently",
+			basePolicy,
+			&RoleMappings{
+				Admin:  []string{"new-admin"},
+				Viewer: []string{"new-view"},
+			},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"new-admin"},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"new-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"upgrade does not clobber existing override",
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"old-override"},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+			&RoleMappings{Operator: []string{"new-seeded-ops"}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"old-override"},
+					Operator: []string{"new-seeded-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := effectiveHelmPolicy(tc.base, tc.ov)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %+v want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestEffectiveHelmPolicy_MostPrivilegedWins verifies that when an override
+// and seeded lists coexist for different roles, computeRole on the merged
+// policy still applies most-privileged-match-wins (no group priority change
+// due to override placement).
+func TestEffectiveHelmPolicy_MostPrivilegedWins(t *testing.T) {
+	baseMappings := &RoleMappings{
+		Admin:  []string{"seeded-admins"},
+		Viewer: []string{"seeded-viewers"},
+	}
+	basePolicy := &ProviderPolicy{
+		RoleMappings: baseMappings,
+	}
+
+	// Override viewer but keep admin seeded.
+	overrideMappings := &RoleMappings{
+		Viewer: []string{"override-viewer"},
+	}
+	effectivePolicy := effectiveHelmPolicy(basePolicy, overrideMappings)
+
+	// User has both an override-viewer group and a seeded-admin group.
+	// Even though viewer is overridden, admin (from seed) is higher privilege
+	// and should win when computeRole runs on the merged policy.
+	groups := []string{"override-viewer", "seeded-admins"}
+	role, deny := computeRole(groups, effectivePolicy)
+
+	if role != "admin" || deny {
+		t.Fatalf("got (%q, %v) want (admin, false): most-privileged must win", role, deny)
+	}
+}
+
+// TestEffectiveHelmPolicy_SC008_ByteIdenticalWithNilOverride verifies that
+// calling effectiveHelmPolicy(base, nil) returns the SAME pointer (and thus
+// byte-identical behavior) to calling computeRole directly on the base when
+// no override is present (SC-008).
+func TestEffectiveHelmPolicy_SC008_ByteIdenticalWithNilOverride(t *testing.T) {
+	mappings := &RoleMappings{
+		Admin:    []string{"admins"},
+		Operator: []string{"ops"},
+		Viewer:   []string{"viewers"},
+	}
+	basePolicy := &ProviderPolicy{
+		RoleMappings: mappings,
+		DefaultRole:  "viewer",
+	}
+
+	groups := []string{"admins", "ops", "viewers"}
+
+	// Direct call on base.
+	directRole, directDeny := computeRole(groups, basePolicy)
+
+	// Call through effectiveHelmPolicy with nil override.
+	effectivePolicy := effectiveHelmPolicy(basePolicy, nil)
+	effectiveRole, effectiveDeny := computeRole(groups, effectivePolicy)
+
+	if directRole != effectiveRole || directDeny != effectiveDeny {
+		t.Fatalf("direct=(%q,%v) effective=(%q,%v), must be identical",
+			directRole, directDeny, effectiveRole, effectiveDeny)
+	}
+
+	// Verify that effectivePolicy IS the same object (pointer equality).
+	if effectivePolicy != basePolicy {
+		t.Fatalf("effectiveHelmPolicy(base, nil) must return base unchanged (same pointer)")
+	}
+}
