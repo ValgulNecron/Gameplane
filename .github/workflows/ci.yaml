@@ -36,15 +36,13 @@ concurrency:
 # change under test.
 #   GOPROXY  - fall through to a second mirror, then to the origin, instead of
 #              failing when proxy.golang.org is unwell.
-#   GOSUMDB  - off. This does NOT weaken verification: every module hash is
-#              pinned in the committed go.sum and is still checked on every
-#              download. It only stops jobs from depending on sum.golang.org
-#              tile fetches for modules we have already pinned. New
-#              dependencies are added locally, where the checksum database is
-#              consulted normally.
+# GOSUMDB is NOT disabled here. It is turned off only on the two `go mod
+# download` steps, where every hash is already pinned in the committed go.sum
+# and re-verified locally, so skipping the tile fetch costs nothing. Every
+# `go install` keeps the checksum database on, because a tool fetched outside
+# the module graph has no go.sum entry to verify it against.
 env:
   GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
-  GOSUMDB: "off"
 
 permissions:
   contents: read
@@ -340,6 +338,13 @@ jobs:
         # that has nothing to do with the change under test. Retry with backoff;
         # a genuinely broken dependency still fails on the final attempt, whose
         # output is the one that reaches the log.
+        #
+        # GOSUMDB is off for this step only: every module here is pinned in the
+        # committed go.sum and its hash is still checked on download, so the
+        # sum.golang.org tile fetch adds nothing but a failure mode. It stays on
+        # everywhere else, including every go install.
+        env:
+          GOSUMDB: "off"
         run: |
           for attempt in 1 2 3 4; do
             if go mod download; then exit 0; fi
@@ -395,6 +400,13 @@ jobs:
         # that has nothing to do with the change under test. Retry with backoff;
         # a genuinely broken dependency still fails on the final attempt, whose
         # output is the one that reaches the log.
+        #
+        # GOSUMDB is off for this step only: every module here is pinned in the
+        # committed go.sum and its hash is still checked on download, so the
+        # sum.golang.org tile fetch adds nothing but a failure mode. It stays on
+        # everywhere else, including every go install.
+        env:
+          GOSUMDB: "off"
         run: |
           for attempt in 1 2 3 4; do
             if go mod download; then exit 0; fi
@@ -442,7 +454,7 @@ jobs:
         # a real coverage shortfall fails fast instead of being retried.
         run: |
           fetch() {
-            go install github.com/wadey/gocovmerge@latest &&
+            go install github.com/wadey/gocovmerge@v0.0.0-20160331181800-b5bfa59ec0ad &&
             go install github.com/vladopajic/go-test-coverage/v2@v2.18.9
           }
           for attempt in 1 2 3; do
