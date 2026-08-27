@@ -2,10 +2,25 @@
   "version": "0.16.1",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "claude"
+    "claude",
+    "agy",
+    "zed",
+    "codex"
   ],
   "integration_settings": {
     "claude": {
+      "script": "sh",
+      "invoke_separator": "-"
+    },
+    "agy": {
+      "script": "sh",
+      "invoke_separator": "-"
+    },
+    "zed": {
+      "script": "sh",
+      "invoke_separator": "-"
+    },
+    "codex": {
       "script": "sh",
       "invoke_separator": "-"
     }
