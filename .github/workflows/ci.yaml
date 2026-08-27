@@ -318,7 +318,19 @@ jobs:
           key-suffix: lint-${{ matrix.module }}
       - name: go mod download
         working-directory: ${{ matrix.module }}
-        run: go mod download
+        # proxy.golang.org and sum.golang.org intermittently drop HTTP/2 streams
+        # mid-download ("stream error: stream ID N; INTERNAL_ERROR; received
+        # from peer"), which fails the whole job on a transient upstream fault
+        # that has nothing to do with the change under test. Retry with backoff;
+        # a genuinely broken dependency still fails on the final attempt, whose
+        # output is the one that reaches the log.
+        run: |
+          for attempt in 1 2; do
+            if go mod download; then exit 0; fi
+            echo "go mod download failed (attempt ${attempt}/3) — retrying in $((attempt * 20))s"
+            sleep $((attempt * 20))
+          done
+          go mod download
       - name: lint (operator/api - envtest build tags)
         if: matrix.module == 'operator' || matrix.module == 'api'
         uses: golangci/golangci-lint-action@v9
@@ -361,7 +373,19 @@ jobs:
           key-suffix: ${{ matrix.module }}
       - name: go mod download
         working-directory: ${{ matrix.module }}
-        run: go mod download
+        # proxy.golang.org and sum.golang.org intermittently drop HTTP/2 streams
+        # mid-download ("stream error: stream ID N; INTERNAL_ERROR; received
+        # from peer"), which fails the whole job on a transient upstream fault
+        # that has nothing to do with the change under test. Retry with backoff;
+        # a genuinely broken dependency still fails on the final attempt, whose
+        # output is the one that reaches the log.
+        run: |
+          for attempt in 1 2; do
+            if go mod download; then exit 0; fi
+            echo "go mod download failed (attempt ${attempt}/3) — retrying in $((attempt * 20))s"
+            sleep $((attempt * 20))
+          done
+          go mod download
       - name: go vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
