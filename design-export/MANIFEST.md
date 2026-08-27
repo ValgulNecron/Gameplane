@@ -4,13 +4,19 @@ Generated via the `pencil` MCP server against `/home/valgul/project/kubernetes-g
 
 ## Totals
 
-- **Screens exported:** 74 (all top-level nodes named `Screen/...`, confirmed by a direct depth-0 `Get` visitor count on 2026-08-23) — baseline 67 + 7 network-capture screens added 2026-08-23 (the "70 (67+3)" figure recorded here on an earlier pass was wrong; this feature added 7 screens, not 3)
-- **Components exported:** 149 (all `reusable: true` nodes from `get_app_state`'s "Reusable components" list — both `Gameplane/...` named ones and the `c:...`-prefixed base design-system components) — baseline 148 + 1 warning-banner component (`f0s9zG`) added 2026-08-23
-- **Total objects:** 223 (74 screens + 149 components)
-- **JSON files written:** 223 / 223 (100%) — all verified to parse as valid JSON with a `python3 -c "json.load(...)"` pass over every file
-- **Screenshots written:** 223 / 223 (100%) — all non-empty (smallest file 30 bytes was double-checked; no files under the 1KB sanity threshold were found empty/corrupt beyond that)
-- **Total files in design-export/:** 447 (223 JSON + 223 PNG + this MANIFEST.md)
-- **Failed exports:** none remaining. 30 screens/components initially came back from the wave-1 subagent batch with a malformed trailing byte or a truncated (incomplete) JSON body — see "Issues found and fixed" below. All were re-fetched and corrected directly; final state is 0 invalid files.
+*(Recounted 2026-08-26 during the spec-006 install-time-config export refresh. Every figure below was measured, not carried forward — the previous "74 screens / 149 components / 223 objects / 447 files" block was stale.)*
+
+- **Screens exported:** 77 — counted with the depth-0 `Get` visitor described below, filtering top-level nodes whose name starts with `Screen/` (138 top-level nodes, 77 of them screens). Baseline 74 + 3 added by spec 006 (`nNGDX`, `dxdEi`, `QgW58`).
+- **Components exported:** 155 — every id in `get_app_state`'s "Reusable components" list (55 `Gameplane/...` definitions + 100 `c:...` base design-system primitives). Baseline 149 + 6 added by spec 006 (`Kp48V`, `XL5ZU`, `vStkb`, `R65Xyx`, `qvQPg`, and `uw0dB`, which existed as a node but had only ever been exported under the wrong filename — see below).
+- **Total objects:** 232 (77 screens + 155 components)
+- **JSON files written:** 232 / 232 (100%) — `ls json/ | wc -l` = 232, and the id set (with `c_` → `c:` un-sanitized) is an exact set-equality match against the 232 expected ids: zero missing, zero extra.
+- **Screenshots written:** 232 / 232 (100%) — `ls screenshots/ | wc -l` = 232, id set identical to the JSON set.
+- **Total files in design-export/:** 465 (232 JSON + 232 PNG + this MANIFEST.md)
+- **Failed exports:** none.
+
+Three top-level nodes are deliberately **not** exported, as in every previous pass: the `Shared Components Band` and `Gameplane/Connection Card — Tunnel States (reference)` scaffolding frames, and the three `Note — …` annotation frames (`m8wjom`, `I96cW`, `R6iab`) added by spec 006. They are neither screens nor reusable components, so they are outside the counted object set.
+
+**Stale file removed:** `json/c_uw0dB.json` + `screenshots/c_uw0dB.png` held the `uw0dB` component under a `c:`-prefixed filename it never had (its own body reads `"id": "uw0dB"`). It was also pre-dating the chip rework. Both were deleted and replaced by correctly-named `uw0dB.json` / `uw0dB.png`.
 
 ## Enumeration method and confidence
 
@@ -44,7 +50,7 @@ Affected IDs (now all valid): `atqRh`, `BX0XM`, `bYDHC`, `DMnEi`, `DPrYX`, `dQV9
 
 ## Skipped IDs
 
-None. All 215 discovered objects (67 screens + 148 components) have both a JSON file and a PNG screenshot.
+None. All 232 discovered objects (77 screens + 155 components) have both a JSON file and a PNG screenshot. (This line previously read "215 (67 screens + 148 components)" — a wave-1 figure never updated as screens and components were added; corrected 2026-08-26 against a live recount.)
 
 ## Filename sanitization
 
@@ -101,3 +107,36 @@ All 8 objects were re-exported from scratch:
 **Lesson for future exports of this kind:** a keyword check that matches a frame's *name* (e.g. every one of these screens is named `...Capture...`) proves nothing about whether the frame's *content* came through — it will pass even on a file elided down to a handful of top-level nodes. Always grep for a string that is unique to the screen's own text content and could not appear in any frame/component name, and when in doubt about depth, fetch at a depth generous enough that no `"..."` elision marker appears in the response at all (depth 12 was sufficient for every object in this feature) rather than guessing a depth per screen's apparent complexity.
 
 All 8 objects (7 screens + 1 component) have both `json/<id>.json` and `screenshots/<id>.png` files in design-export/, timestamped 2026-08-23 (second pass).
+
+## Incremental export 2026-08-26 — Install-time configuration (spec 006)
+
+Feature 006 (`specs/006-install-time-config/`, Slices 7 / 7b / 8 — FR-012, FR-015, FR-017, SC-006, SC-007) added the Helm-seeded OIDC snapshot, the dashboard-side role-mapping override editor, and moved the install-time storage-class row onto Cluster Settings. Eleven objects were exported or re-exported.
+
+**Screens (5):**
+
+| ID | Name | Export notes |
+|---|---|---|
+| `j9W8A` | Screen/Cluster Settings | **Re-exported.** New `Storage Card` (`DMHH5`) sits between the page header and the node grid: title "Storage", subtitle "Set at install time via Helm values — not editable from the dashboard.", and the `Game data storage class` row (hint naming `operator.gameDataStorage.storageClassName` / `--game-data-storage-class`) with the value `fast-nvme`. Node grid unchanged below it. |
+| `dxdEi` | Screen/Cluster Settings — Default storage class | **New.** Second value state of the storage card (`VvdTF`): the value is an `Icon Label/Secondary` pill reading "Cluster default" and the hint adds "Left unset, so new volumes use the cluster's default StorageClass." — the contract's empty-string semantic. |
+| `uMiwd` | Screen/Admin Settings — Authentication | **Re-exported (1440×1591).** Both new cards now live in a `Settings Column` (`klk20`) inside the settings layout, under the pre-existing Authentication panel: the read-only **Helm OIDC Provider Card** (`gVIBn` — groups claim, default role, Helm-seeded role mappings per role, and the conditional `HelmAdminMappingWarning` banner) and the **Role Mapping Overrides Card** (`txRYA` — per-role provenance badges, removable group chips, add-group rows, and a Save action with next-login helper copy). The install-time storage row that used to sit here has moved to `j9W8A`. |
+| `nNGDX` | Screen/Admin Settings — Authentication (No OIDC mappings) | **Re-exported (1440×1463).** Empty-state variant: info alert "No OIDC role mappings yet" offering both remedies (add mappings here, or seed `api.oidc.roleMappings.*` at install), plus its own Role Mapping Overrides Card (`qDB71`) with all three roles in the not-overridden treatment and per-role empty states. |
+| `QgW58` | Screen/Admin Settings — Authentication (Save rejected) | **New.** Error variant: field-level red-stroked input + "Group name can't be blank.", and a card-level `Gameplane/Error Banner` carrying the 400 response ("…helmOverride.roleMappings.admin must not contain blank group names. No changes were saved."). |
+
+**Components (6):**
+
+| ID | Name | Notes |
+|---|---|---|
+| `Kp48V` | Gameplane/Dialog/Confirm Admin Mapping | FR-015 confirmation dialog — a `WwNlX` instance overriding title, the "Full admin access" warning alert, and a chip preview of the group(s) being mapped to admin. |
+| `uw0dB` | Gameplane/Removable Group Chip/Secondary | Re-exported after the chip rework (14px label, `[4,4,4,8]` padding) and renamed to the `/Secondary` variant. First correctly-named export (see the stale-file note under Totals). |
+| `XL5ZU` | Gameplane/Removable Group Chip/Orange | Admin-role chip colour (`$c:--color-warning`). |
+| `vStkb` | Gameplane/Removable Group Chip/Violet | Operator-role chip colour (`$c:--color-info`). |
+| `R65Xyx` | Gameplane/Provenance Badge/Overridden | Role-neutral outlined badge (`$c:--border` stroke, lucide `pencil`, "Overridden in dashboard") — deliberately not a `Label/Orange` or `Label/Violet`, both of which already carry role meaning. |
+| `qvQPg` | Gameplane/Input/Small | 220×32 input documenting the smaller height used beside the Small/Outline "Add" buttons, replacing per-instance height overrides on `Gameplane/Input`. |
+
+**Export method & validation:**
+
+- JSON: `Print(JSON.stringify(Get(id, {depth: 14})))` per object. **Zero `"..."` elision markers** in any of the 11 files — checked programmatically, not by eye.
+- The `Print` output was piped to disk without hand-transcription: each call appended a large padding string so the MCP result exceeded the inline-response cap and was persisted to a `tool-results/` file, from which the JSON was extracted between `<<<BEGIN id>>>` / `<<<END id>>>` markers, `json.loads`-validated, and re-serialised compactly to match the existing files' formatting. This removes the copy/paste corruption class that damaged 15 files in the wave-1 export.
+- Screenshots: `export_nodes` PNG batch at 2x; all 11 verified non-empty with real pixel dimensions (`uw0dB` 236×52 smallest, `QgW58` 2880×3320 largest).
+- Validation greps were content-specific — a string that appears only in the object's own body text, never in a frame name: `j9W8A` → "Game data storage class", `dxdEi` → "Cluster default", `uMiwd` → "Role mapping overrides", `nNGDX` → "No OIDC role mappings yet", `QgW58` → "Save failed (400)", `Kp48V` → "Mapping users to the admin role grants full cluster control", `R65Xyx` → "Overridden in dashboard". All hit.
+- Size sanity: the five screens came back at 19.0–21.3 KB against ~7–11 KB for the comparable depth-6 Admin Settings exports (`n6Xlo` 8.0 KB, `RC3Kf` 7.2 KB, `g5mEpx` 8.8 KB) — richer, not hollow. `uMiwd` grew 8.0 KB → 20.7 KB and `j9W8A` 10.7 KB → 19.0 KB over their previous exports.
