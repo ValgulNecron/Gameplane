@@ -88,10 +88,26 @@ func main() {
 		}
 	}
 
-	// Parse OIDC role mapping lists.
-	cfg.oidcRoleMappingAdminParsed = parseRoleMapping(cfg.oidcRoleMappingAdmin)
-	cfg.oidcRoleMappingOperatorParsed = parseRoleMapping(cfg.oidcRoleMappingOperator)
-	cfg.oidcRoleMappingViewerParsed = parseRoleMapping(cfg.oidcRoleMappingViewer)
+	// Validate and parse OIDC role mapping lists.
+	var err error
+	cfg.oidcRoleMappingAdminParsed, err = parseRoleMapping(cfg.oidcRoleMappingAdmin)
+	if err != nil {
+		msg := fmt.Sprintf("invalid --oidc-role-mapping-admin: %v", err)
+		logger.Error(msg)
+		os.Exit(1)
+	}
+	cfg.oidcRoleMappingOperatorParsed, err = parseRoleMapping(cfg.oidcRoleMappingOperator)
+	if err != nil {
+		msg := fmt.Sprintf("invalid --oidc-role-mapping-operator: %v", err)
+		logger.Error(msg)
+		os.Exit(1)
+	}
+	cfg.oidcRoleMappingViewerParsed, err = parseRoleMapping(cfg.oidcRoleMappingViewer)
+	if err != nil {
+		msg := fmt.Sprintf("invalid --oidc-role-mapping-viewer: %v", err)
+		logger.Error(msg)
+		os.Exit(1)
+	}
 
 	// Validate and trim trusted proxies CIDR list.
 	validProxies := []string{}
@@ -567,18 +583,20 @@ func envOrInt64(key string, def int64) int64 {
 }
 
 // parseRoleMapping parses a comma-separated list of group names, trimming
-// whitespace and dropping empty entries.
-func parseRoleMapping(csv string) []string {
+// whitespace and rejecting empty entries.
+func parseRoleMapping(csv string) ([]string, error) {
 	if csv == "" {
-		return nil
+		return nil, nil
 	}
 	out := make([]string, 0, 4)
 	for _, g := range strings.Split(csv, ",") {
-		if g = strings.TrimSpace(g); g != "" {
-			out = append(out, g)
+		g = strings.TrimSpace(g)
+		if g == "" {
+			return nil, errors.New("empty entry detected (check for consecutive commas or leading/trailing commas)")
 		}
+		out = append(out, g)
 	}
-	return out
+	return out, nil
 }
 
 // bodyLimit wraps every request body in MaxBytesReader so a decoder
