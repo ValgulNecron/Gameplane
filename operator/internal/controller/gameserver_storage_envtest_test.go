@@ -260,13 +260,13 @@ func withGameServerReconcilerStorageClass(t *testing.T, ns, storageClassName str
 	seedAgentCA(t, ns, "agent-ca")
 	return func(mgr manager.Manager) error {
 		return (&GameServerReconciler{
-			Client:                   mgr.GetClient(),
-			APIReader:                mgr.GetAPIReader(),
-			Scheme:                   mgr.GetScheme(),
-			AgentImage:               "ghcr.io/valgulnecron/gameplane/agent:test",
-			AgentCASecretName:        "agent-ca",
-			AgentCASecretNamespace:   ns,
-			DefaultStorageClassName:  storageClassName,
+			Client:                  mgr.GetClient(),
+			APIReader:               mgr.GetAPIReader(),
+			Scheme:                  mgr.GetScheme(),
+			AgentImage:              "ghcr.io/valgulnecron/gameplane/agent:test",
+			AgentCASecretName:       "agent-ca",
+			AgentCASecretNamespace:  ns,
+			DefaultStorageClassName: storageClassName,
 		}).SetupWithManager(mgr)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,11 +43,11 @@ import (
 // helmOverride overrides). Passed as *auth.ProviderPolicy from main.go.
 func MountConfig(r chi.Router, store *db.Store, auditor *audit.Auditor, helmOIDCPresent bool, gameDataStorageClass string, helmPolicy *auth.ProviderPolicy) {
 	h := &configHandler{
-		db:                       store,
-		auditor:                  auditor,
-		validators:               newValidators(helmOIDCPresent),
-		gameDataStorageClass:     gameDataStorageClass,
-		helmPolicy:               helmPolicy,
+		db:                   store,
+		auditor:              auditor,
+		validators:           newValidators(helmOIDCPresent),
+		gameDataStorageClass: gameDataStorageClass,
+		helmPolicy:           helmPolicy,
 	}
 	r.Route("/admin/config", func(r chi.Router) {
 		r.Get("/", h.getAll)
@@ -145,8 +146,10 @@ func (h *configHandler) put(w http.ResponseWriter, req *http.Request) {
 	for _, evt := range auditEvents {
 		reason := fmt.Sprintf("oidc role mapping override set: role=%s groups=%s", evt.role, evt.groups)
 		if err := h.auditor.WriteSync(req.Context(), http.MethodPut, "/admin/config/auth", evt.role, reason, http.StatusOK); err != nil {
-			// Audit failure does not fail the request; log it but continue.
-			// This matches the pattern in capture.go's auditWriteOrFail behavior.
+			// An audit failure must not fail the request, but it must not be
+			// silent either: the override still took effect.
+			slog.Error("config: oidc role mapping override audit write failed",
+				"role", evt.role, "err", err)
 		}
 	}
 
@@ -242,7 +245,10 @@ func (h *configHandler) resetRoleMapping(w http.ResponseWriter, req *http.Reques
 	if hadOverride {
 		reason := fmt.Sprintf("oidc role mapping override reset: role=%s", roleParam)
 		if err := h.auditor.WriteSync(req.Context(), http.MethodDelete, "/admin/config/auth/role-mappings/"+roleParam, roleParam, reason, http.StatusOK); err != nil {
-			// Audit failure does not fail the request; just ignore it.
+			// An audit failure must not fail the request, but it must not be
+			// silent either: the reset still took effect.
+			slog.Error("config: oidc role mapping reset audit write failed",
+				"role", roleParam, "err", err)
 		}
 	}
 

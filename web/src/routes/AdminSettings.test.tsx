@@ -539,13 +539,13 @@ describe("AdminSettingsPage", () => {
     // The heading's immediate ancestor div only wraps the title/subtitle
     // block (see SectionCard) — walk up to the enclosing Card so the query
     // also covers the card's body content (groups claim, mappings, etc).
-    const helmCard = helmCardHeading.closest(".rounded-lg");
+    const helmCard = helmCardHeading.closest<HTMLElement>(".rounded-lg");
     expect(helmCard).toBeInTheDocument();
     expect(within(helmCard!).getByText("teams")).toBeInTheDocument();
     // Scope "viewer" to the default role display, since it appears in both
     // the default role and the viewer role mapping; use within() to disambiguate
     const defaultRoleLabel = within(helmCard!).getByText("Default role");
-    const defaultRoleContainer = defaultRoleLabel.closest("div");
+    const defaultRoleContainer = defaultRoleLabel.closest<HTMLElement>("div");
     expect(within(defaultRoleContainer!).getByText("viewer")).toBeInTheDocument();
     // Scope "gameplane-admins" to the Helm-seeded card to distinguish it from the
     // override card below which also has group names
@@ -832,7 +832,7 @@ describe("AdminSettingsPage", () => {
     const resetButtons = await screen.findAllByRole("button", { name: /Reset to Helm default/ });
     // Viewer should have a reset button since it has an override
     const viewerResetBtn = resetButtons.find((btn) => {
-      const parent = btn.closest("div");
+      const parent = btn.closest<HTMLElement>("div");
       return parent?.textContent?.includes("Viewer");
     });
     expect(viewerResetBtn).toBeDefined();
