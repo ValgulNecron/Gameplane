@@ -1025,10 +1025,14 @@ describe("AdminSettingsPage", () => {
     // Close dialog by pressing Escape (standard dialog behavior)
     await userEvent.keyboard("{Escape}");
 
-    // After closing, the input should be cleared (per handleConfirmAdminMapping close)
+    // After closing, the input should be cleared (per handleConfirmAdminMapping
+    // close). Scope the query to the admin section: all three role sections
+    // carry an input with this placeholder, so an unscoped getBy* matches
+    // three elements and throws -- which inside waitFor only ever surfaces as
+    // a 5s test timeout.
     await waitFor(() => {
-      const newInput = screen.getByPlaceholderText("Add IdP group name…");
-      expect(newInput).toHaveValue("");
+      const section = screen.getByRole("group", { name: /admin role mapping/i });
+      expect(within(section).getByPlaceholderText("Add IdP group name…")).toHaveValue("");
     });
 
     // Verify save was not called

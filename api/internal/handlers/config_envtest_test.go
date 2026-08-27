@@ -128,9 +128,9 @@ func TestConfigRBAC_PutAuthForbiddenWithoutManagePermission(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -189,9 +189,9 @@ func TestConfigRBAC_AdminCanManage(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -226,9 +226,9 @@ func TestConfig_HelmOverridePersistenceAndReflection(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -316,9 +316,9 @@ func TestConfig_OverrideTakesEffectOnNextLogin(t *testing.T) {
 	payload1 := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -357,9 +357,9 @@ func TestConfig_OverrideTakesEffectOnNextLogin(t *testing.T) {
 	payload2 := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -407,9 +407,9 @@ func TestConfig_DeleteRoleMappingResetsToHelmSeed(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -484,9 +484,9 @@ func TestConfig_DeleteRoleMappingIdempotent(t *testing.T) {
 	initialPayload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -548,9 +548,9 @@ func TestConfig_AuditEventsOnPutChange(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -611,9 +611,9 @@ func TestConfig_AuditEventsOnDeleteChange(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -682,9 +682,9 @@ func TestConfig_NoAuditEventOnIdempotentDelete(t *testing.T) {
 	payload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
@@ -888,9 +888,9 @@ func TestConfig_InstallTimeSettingsUnaffectedByOverride(t *testing.T) {
 	overridePayload := map[string]any{
 		"providers": []map[string]any{
 			{
-				"name":      "local",
-				"kind":      "local",
-				"enabled":   true,
+				"name":        "local",
+				"kind":        "local",
+				"enabled":     true,
 				"displayName": "Local",
 			},
 		},
