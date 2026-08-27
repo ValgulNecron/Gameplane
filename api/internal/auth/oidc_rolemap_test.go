@@ -515,7 +515,7 @@ func TestHandleCallback_BootstrapAdminAndOIDCCoexist(t *testing.T) {
 		t.Fatalf("hash: %v", err)
 	}
 	if _, err := store.DB.ExecContext(context.Background(),
-		`INSERT INTO users(username, display_name, email, role, password_hash)
+		`INSERT INTO users(username, display_name, email, role, pw_hash)
 		 VALUES ('bootstrap-admin', 'Bootstrap Admin', 'bootstrap@local', 'admin', ?)`,
 		bootstrapHash,
 	); err != nil {

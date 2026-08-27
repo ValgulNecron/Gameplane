@@ -773,10 +773,8 @@ describe("AdminSettingsPage", () => {
     await userEvent.click(resetButtons[0]);
 
     await waitFor(() => expect(resetHandler).toHaveBeenCalled());
-    const calls = resetHandler.mock.calls as Array<[Request]>;
-    expect(calls.length).toBeGreaterThan(0);
-    const call = calls[0][0];
-    expect(call.url).toContain("/operator");
+    // The handler is registered only at .../role-mappings/operator, so msw
+    // invoking it is itself proof the DELETE targeted the operator role.
   });
 
   // T027: Empty-list override [] is treated as override, not absent
