@@ -402,3 +402,14 @@ This is now fully delivered by the tasks listed above; no question remains open 
 - **No new handler file, no new table, no new migration**: Slice 5's HTTP surface change (the `DELETE` reset route) lives in the existing api/internal/handlers/config.go alongside the existing `GET`/`PUT /admin/config` handlers, not a new file — and the `helmOverride` overlay reuses the existing `"auth"` row of the existing `config` table. `api/internal/db/migrations/` stays at `008_captures_rbac.sql`; this feature adds zero files there.
 - **Test-first for e2e**: e2e tests (T033, T041) must be written to FAIL before story implementation begins, then implementation makes them PASS. Note: E2E task IDs appear after implementation tasks in the list, but e2e tests should be authored concurrently with (not after) their story's implementation tasks; task ID order is not strict execution order across independent slices
 - **specs.md commit timing**: `operator/specs.md` (T046) and `api/specs.md` (T047) are listed in Phase 5 for the documentation sweep, but per Constitution Principle IV they may instead be committed alongside the implementation task whose behavior they document, rather than deferred to Polish — see the Phase 5 section note.
+
+---
+
+## Phase 6: Convergence
+
+**Purpose**: Close gaps found by `/speckit-converge` between the artifacts (spec.md, plan.md, tasks.md) and the state of the code. Appended without modifying any existing task.
+
+- [ ] T049 CRITICAL: Add the three missing OIDC login-time e2e tests to test/e2e/api_auth_e2e_test.go via a fake OIDC IdP fixture — (a) a user in a Helm-seeded admin group receives the admin role on first login, (b) the role is re-evaluated and updated on a subsequent login after the group changes, (c) a user matching no mapping receives the default role — and register all three in the api-auth bucket in test/e2e/buckets.sh within the ~7-login-per-job budget, per T033/T034 and Constitution Principle I (missing)
+- [ ] T050 Add the FR-015 admin-role warning banner and confirmation step to `AddProviderForm` in web/src/routes/AdminSettings.tsx, mirroring `RoleMappingOverridesCard`'s `confirmingRole`/`ConfirmDialog` pattern and using the same plan-approved copy, gated on the Admin groups field being non-empty at submit time, per FR-015 / plan.md Slice 8 (partial)
+- [ ] T051 Add the matching vitest case in web/src/routes/AdminSettings.test.tsx asserting the admin-mapping warning and confirm step appear in the `AddProviderForm` editor (the second surface T031 was to cover), per T031 (partial)
+- [ ] T052 Assert `status.phase` stays Pending (and never becomes Failed) in TestGameServer_NonexistentStorageClassSurfacesError in test/e2e/gameserver_e2e_test.go and in the matching missing-StorageClass case in operator/internal/controller/gameserver_status_envtest_test.go, replacing the comment-only claim, per plan.md T039 (partial)
