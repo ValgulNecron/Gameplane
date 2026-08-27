@@ -164,7 +164,7 @@ A StorageClass is a cluster infrastructure concern, not an authentication concer
 
 **Permission gating:**  
 - **Route guard (web/src/router/tree.tsx):** The `/admin` route itself is guarded by `config:manage` permission (admin and operator roles only).
-- **AdminSettings.tsx** (OIDC/auth section): The `RoleMappingOverridesCard` component is gated by `config:read` permission check at render time (line 397: `{can(me, "config:read") && ...}`). This creates an edge case: a custom role with `config:manage` but lacking `config:read` can reach the Authentication page but will not see the role-mapping overrides card. This mismatch between the route-level `config:manage` guard and the component-level `config:read` gate has not been deliberately designed; it is recorded here so it is visible. RBAC is DB-configurable, so the two permissions can be held separately, and the two gates should be reconciled rather than assumed to agree.
+- **AdminSettings.tsx** (OIDC/auth section): The `RoleMappingOverridesCard` component is gated by `config:manage` permission check at render time — since it is an editing surface for role mappings (not read-only display). The route-level and component-level gates are now aligned.
 - **Cluster.tsx** (storage card): Is **not** already admin-only, so it requires an explicit `can(me, "config:read")` permission check on both the query (to avoid 403 errors) and the rendered card (to hide it from viewers lacking permission). Precedent: Dashboard.tsx:51 and Users.tsx:688.
 
 **OIDC Role Mapping Overrides (AdminSettings.tsx):**

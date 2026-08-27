@@ -409,7 +409,7 @@ function AuthSection({ initial, general, installTimeSettings }: { initial?: Auth
       {installTimeSettings?.oidcHelmProvider && (
         <HelmOIDCProviderCard provider={installTimeSettings.oidcHelmProvider} />
       )}
-      {can(me, "config:read") && (
+      {can(me, "config:manage") && (
         <RoleMappingOverridesCard
           initial={f.draft}
           installTimeSettings={installTimeSettings}
