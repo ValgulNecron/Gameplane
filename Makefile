@@ -45,7 +45,10 @@ GO_BUILDFLAGS  ?= -trimpath
 
 # Pinned versions of coverage tooling — pulled via `go run` so no install step.
 GO_TEST_COVERAGE_PKG := github.com/vladopajic/go-test-coverage/v2@v2.18.9
-GOCOVMERGE_PKG       := github.com/wadey/gocovmerge@latest
+# Pinned, not @latest: an unpinned tool resolves to whatever the mirror serves
+# that day, so the checksum database is the only thing standing between CI and
+# a swapped upstream. gocovmerge has had one commit since 2016.
+GOCOVMERGE_PKG       := github.com/wadey/gocovmerge@v0.0.0-20160331181800-b5bfa59ec0ad
 
 # -------- help --------
 .PHONY: help
@@ -172,10 +175,11 @@ KIND_E2E_CLUSTER ?= gameplane-e2e
 KIND_E2E_TAG     ?= e2e
 
 .PHONY: e2e-images
-e2e-images: ## Build operator/api/agent images tagged for e2e
+e2e-images: ## Build operator/api/agent/fakeoidc images tagged for e2e
 	docker build -t gameplane-test/operator:$(KIND_E2E_TAG) -f operator/Dockerfile .
 	docker build -t gameplane-test/api:$(KIND_E2E_TAG)      -f api/Dockerfile      .
 	docker build -t gameplane-test/agent:$(KIND_E2E_TAG)    -f agent/Dockerfile    .
+	docker build -t gameplane-test/fakeoidc:$(KIND_E2E_TAG) -f test/e2e/Dockerfile.fakeoidc .
 
 .PHONY: test-e2e
 test-e2e: ## Run E2E tests (CLUSTER=kind spins an ephemeral cluster; CLUSTER=remote reuses REMOTE_KUBECONFIG)

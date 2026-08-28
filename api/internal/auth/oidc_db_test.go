@@ -13,21 +13,28 @@ func TestResolveOrLinkUser_FirstLoginCreatesUser(t *testing.T) {
 	o := &OIDC{}
 	o.AttachStore(store)
 
-	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice", "viewer", false)
+	u, outcome, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice", "viewer", "none", false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 	if u.Username != "alice@x" || u.Role != "viewer" {
 		t.Fatalf("got %+v", u)
 	}
+	if outcome == nil || outcome.NewRole != "viewer" {
+		t.Fatalf("outcome: %+v", outcome)
+	}
 
 	// Calling again must hit the existing-link path and return the same row.
-	u2, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice", "viewer", false)
+	u2, outcome2, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "alice@x", "Alice", "viewer", "none", false)
 	if err != nil {
 		t.Fatalf("second: %v", err)
 	}
 	if u2.ID != u.ID {
 		t.Fatalf("expected reuse, got new id %d vs %d", u2.ID, u.ID)
+	}
+	// Re-calling the same user with syncRole=false should not change the role.
+	if outcome2.Applied != true || outcome2.NewRole != "viewer" {
+		t.Fatalf("outcome2: %+v", outcome2)
 	}
 }
 
@@ -37,7 +44,7 @@ func TestResolveOrLinkUser_FallsBackToSubWhenEmailEmpty(t *testing.T) {
 	store := newAuthDB(t)
 	o := &OIDC{}
 	o.AttachStore(store)
-	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "subsub", "", "Anon", "viewer", false)
+	u, _, err := o.resolveOrLinkUser(context.Background(), "https://idp", "subsub", "", "Anon", "viewer", "none", false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -61,8 +68,8 @@ func TestPickUniqueUsername_Disambiguates(t *testing.T) {
 
 	o := &OIDC{}
 	o.AttachStore(store)
-	u, err := o.resolveOrLinkUser(
-		context.Background(), "https://idp", "subject-12345678ab", "alice@x", "Alice IdP", "viewer", false,
+	u, _, err := o.resolveOrLinkUser(
+		context.Background(), "https://idp", "subject-12345678ab", "alice@x", "Alice IdP", "viewer", "none", false,
 	)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -87,7 +94,7 @@ func TestPickUniqueUsername_ShortSubKeepsAll(t *testing.T) {
 	}
 	o := &OIDC{}
 	o.AttachStore(store)
-	u, err := o.resolveOrLinkUser(context.Background(), "https://idp", "abc", "x", "X", "viewer", false)
+	u, _, err := o.resolveOrLinkUser(context.Background(), "https://idp", "abc", "x", "X", "viewer", "none", false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

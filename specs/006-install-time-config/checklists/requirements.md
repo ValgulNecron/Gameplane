@@ -92,7 +92,7 @@
   - **Finding**: All mandatory sections are present and filled after revision. User stories (2 remaining) are prioritized and independently testable. Functional requirements (17 total) are numbered, unambiguous, and implementation-agnostic. Success criteria (8 total) are measurable. Assumptions (10) are explicit and justified. Verification claims are named with one verified and two unverified. No blocking clarifications exist. Spec has been corrected to: remove Story 3 (re-specified existing functionality), remove login-page pre-auth disclosure, establish Helm provider architecture per HelmProviderName convention, remove implementation leakage, add security requirements for audit events and over-broad mapping risk. Spec is suitable for handoff to planning phase.
   - **Status**: PASS
 
-- [ ] **REQ018** — Spec has been reviewed by stakeholder (user/maintainer) for priority alignment and correctness.
+- [X] **REQ018** — Spec has been reviewed by stakeholder (user/maintainer) for priority alignment and correctness.
   - **Finding**: Not applicable in this review context. This checklist is generated during initial specification; stakeholder review is a separate gate before plan phase.
   - **Status**: DEFERRED (not part of this checklist's scope)
 

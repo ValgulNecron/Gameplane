@@ -106,13 +106,47 @@ Top-level knobs (see `values.yaml` for the full list):
   upstream pins; retag them to a private registry mirror for air-gapped clusters
   where Docker Hub is unreachable. They map to the operator's
   `--config-init-image` / `--restic-image` flags, mirroring `operator.agentImage`
+- `operator.gameDataStorage.storageClassName` — install-time default storage class
+  for game server data volumes (default `""`). Empty string uses the cluster's
+  default StorageClass. Applies to all GameServers where neither the GameTemplate
+  nor GameServer-level override specifies a class. **Precedence**: GameServer
+  override > GameTemplate default > install-time default > cluster default.
+  **Immutability**: Changing this value affects only new PVCs — existing volumes
+  persist unchanged (PVCs are immutable by Kubernetes design). **Error handling**:
+  If the named StorageClass doesn't exist, PVC provisioning fails and the
+  GameServer enters Pending with a `PVCProvisioningFailed` condition (visible in
+  the dashboard); no pod starts until resolved. Example:
+  `--set operator.gameDataStorage.storageClassName=fast-nvme`
 - `api.db.driver` — `sqlite` (default, production-tested) or `postgres` (experimental, work-in-progress)
 - `api.db.dsn` — connection string; SQLite default persists to a PVC
-- `api.oidc.enabled` + `issuer` / `clientID` / `clientSecretRef` — wire OIDC login
-  from Helm (shows up as the read-only `helm` provider). Providers can also be
-  added at runtime under **Admin Settings → Authentication** — no Helm values
-  or restart needed; see [security](security.md#dashboard-managed-providers).
-  Per-IdP walkthroughs (Keycloak, Authentik, Google) live in [oidc.md](oidc.md)
+- `api.oidc.enabled` + the following settings — wire OIDC login from Helm (shows
+  up as the read-only `helm` provider). Providers can also be added at runtime
+  under **Admin Settings → Authentication** — no Helm values or restart needed;
+  see [security](security.md#dashboard-managed-providers). Settings:
+  - Core connection: `issuer` / `clientID` / `clientSecretRef` / `redirectURL` /
+    `displayName` — OIDC provider credentials and endpoints. Per-IdP walkthroughs
+    (Keycloak, Authentik, Google) live in [oidc.md](oidc.md)
+  - Role mapping (new, seeded at install time):
+    - `groupsClaim` — OIDC claim name containing group memberships (default `""`).
+      Typically `"groups"` or `"roles"` depending on your IdP. Empty/omitted =
+      group-based role mapping disabled; new OIDC users default to `defaultRole`
+      (see below). Example: `--set api.oidc.groupsClaim=groups`
+    - `roleMappings.admin`, `roleMappings.operator`, `roleMappings.viewer` — arrays
+      of IdP group names mapping to each dashboard role (default `[]`). Example:
+      `roleMappings.admin: ["gameplane-admins", "ops-team"]` means users in either
+      group receive the `admin` role. **These Helm values seed the mappings at
+      install/upgrade time.** After install, admins can override any role's groups
+      from the dashboard (**Admin Settings → Authentication**) without restarting;
+      a dashboard override survives future `helm upgrade`s that change the Helm
+      value. Per-role precedence: dashboard override (if present) > Helm seed. No
+      admin account or `bootstrap-admin` run needed for OIDC-only installs.
+    - `defaultRole` — Helm-only (no dashboard override in v1). Default role when a
+      user's IdP groups don't match any `roleMappings` entry (default `""`).
+      Accepted values: `""` (treat as `"viewer"`), `"viewer"`, `"operator"`,
+      `"admin"`, or `"deny"` (reject login). Meaningful only if `groupsClaim` and
+      `roleMappings` are configured. Example: `--set api.oidc.defaultRole=viewer`
+  **Backward compatibility**: Omitting `groupsClaim` and `roleMappings` disables
+  group-based mapping — existing OIDC setups continue unchanged
 - `ingress.host` — dashboard hostname
 - `gamesNamespace` — namespace where GameServers are created (default `gameplane-games`)
 - `networkPolicies.enabled` — default-deny in games namespace (recommended on)

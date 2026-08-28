@@ -64,6 +64,13 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, get, list, patch, watch]
+  # PVC-provisioning-failure detection Gets the StorageClass a pending PVC
+  # names, to tell "the class does not exist" apart from "not bound yet" and
+  # surface PVCProvisioningFailed. Without this the check 403s and the
+  # GameServer sits in a generic Pending. Read-only, cluster-scoped.
+  - apiGroups: ["storage.k8s.io"]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
   # CSI VolumeSnapshots back the volume-snapshot backup strategy: the
   # backup controller watches them cluster-wide for readyToUse and reads
   # the (cluster-scoped) content objects they bind to. Creation/deletion is
@@ -294,6 +301,9 @@ spec:
             {{- end }}
             {{- if .Values.operator.agentLogLevel }}
             - --agent-log-level={{ .Values.operator.agentLogLevel }}
+            {{- end }}
+            {{- if .Values.operator.gameDataStorage.storageClassName }}
+            - --game-data-storage-class={{ .Values.operator.gameDataStorage.storageClassName }}
             {{- end }}
             {{- if and .Values.networkPolicies.enabled .Values.networkPolicies.gameIngress.enabled }}
             {{- if not .Values.networkPolicies.gameIngress.fromCIDRs }}

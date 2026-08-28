@@ -133,6 +133,7 @@ type Registry struct {
 	secrets     SecretReader
 	legacy      *OIDC
 	legacyLabel string
+	helmPolicy  *ProviderPolicy
 
 	mu    sync.Mutex
 	built map[string]builtEntry
@@ -141,25 +142,33 @@ type Registry struct {
 }
 
 // NewRegistry builds a Registry. legacy is the Helm-flag OIDC provider
-// (nil when the flags are unset) and legacyLabel its login-button text.
-func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabel string) *Registry {
+// (nil when the flags are unset), legacyLabel its login-button text, and
+// helmPolicy the Helm-seeded role mapping policy (nil when OIDC is not
+// configured or role mappings are unset).
+func NewRegistry(store *db.Store, secrets SecretReader, legacy *OIDC, legacyLabel string, helmPolicy *ProviderPolicy) *Registry {
 	if legacyLabel == "" {
 		legacyLabel = "Single sign-on"
 	}
-	// The legacy provider needs the store for account linking; wiring it
-	// here also fixes the Helm-flag path, whose callback previously ran
-	// with no store attached and 500'd on every login.
-	if legacy != nil {
-		legacy.AttachStore(store)
-	}
-	return &Registry{
+	reg := &Registry{
 		store:       store,
 		secrets:     secrets,
 		legacy:      legacy,
 		legacyLabel: legacyLabel,
+		helmPolicy:  helmPolicy,
 		built:       map[string]builtEntry{},
 		now:         time.Now,
 	}
+	// The legacy provider needs the store for account linking; wiring it
+	// here also fixes the Helm-flag path, whose callback previously ran
+	// with no store attached and 500'd on every login. Also attach the
+	// helm role overrides function so it can be read on every login (SC-007).
+	if legacy != nil {
+		legacy.AttachStore(store)
+		legacy.AttachHelmRoleOverridesFunc(func(ctx context.Context) *RoleMappings {
+			return reg.HelmRoleOverrides(ctx)
+		})
+	}
+	return reg
 }
 
 // defaultProviders is the provider set of an install whose auth config
@@ -185,6 +194,30 @@ func (r *Registry) snapshot(ctx context.Context) ([]Provider, [sha256.Size]byte)
 	return cfg.Providers, sha256.Sum256([]byte(raw))
 }
 
+// HelmRoleOverrides returns the current helmOverride.roleMappings from the
+// "auth" config row, if present. It parses the row to extract the optional
+// per-role override lists that the login path uses to compute the effective
+// Helm policy. Returns nil if the auth row is missing, malformed, or carries
+// no helmOverride.
+func (r *Registry) HelmRoleOverrides(ctx context.Context) *RoleMappings {
+	raw, ok, err := r.store.ConfigValue(ctx, "auth")
+	if err != nil || !ok {
+		return nil
+	}
+	var cfg struct {
+		HelmOverride *struct {
+			RoleMappings *RoleMappings `json:"roleMappings"`
+		} `json:"helmOverride"`
+	}
+	if json.Unmarshal([]byte(raw), &cfg) != nil {
+		return nil
+	}
+	if cfg.HelmOverride == nil || cfg.HelmOverride.RoleMappings == nil {
+		return nil
+	}
+	return cfg.HelmOverride.RoleMappings
+}
+
 // Enabled lists the providers the login page may offer: enabled DB
 // providers plus the synthetic Helm provider when the flags are set.
 // Row read only — no Secret fetch, no discovery.
@@ -197,9 +230,19 @@ func (r *Registry) Enabled(ctx context.Context) []Provider {
 		}
 	}
 	if r.legacy != nil {
-		out = append(out, Provider{
-			Name: HelmProviderName, Kind: "oidc", DisplayName: r.legacyLabel, Enabled: true,
-		})
+		helmProvider := Provider{
+			Name:        HelmProviderName,
+			Kind:        "oidc",
+			DisplayName: r.legacyLabel,
+			Enabled:     true,
+		}
+		// Populate the synthetic provider with Helm-seeded policy fields.
+		if r.helmPolicy != nil {
+			helmProvider.GroupsClaim = r.helmPolicy.GroupsClaim
+			helmProvider.RoleMappings = r.helmPolicy.RoleMappings
+			helmProvider.DefaultRole = r.helmPolicy.DefaultRole
+		}
+		out = append(out, helmProvider)
 	}
 	return out
 }
@@ -289,6 +332,9 @@ func (r *Registry) build(ctx context.Context, p Provider) (*OIDC, error) {
 		return nil, fmt.Errorf("provider %q: discover issuer: %w", p.Name, err)
 	}
 	o.AttachStore(r.store)
+	o.AttachHelmRoleOverridesFunc(func(ctx context.Context) *RoleMappings {
+		return r.HelmRoleOverrides(ctx)
+	})
 	return o, nil
 }
 

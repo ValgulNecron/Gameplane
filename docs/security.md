@@ -460,6 +460,161 @@ by several layers:
   bindings created independently on the target cluster, not by
   federation. See [install.md](install.md#rbac-and-permissions).
 
+## Install-Time OIDC Role Mappings
+
+When OIDC authentication is configured at install time via Helm values
+(`api.oidc.groupsClaim`, `api.oidc.roleMappings`, `api.oidc.defaultRole`),
+Gameplane automatically assigns roles to users based on their OIDC provider's
+group/role claims on every login. This eliminates the need for a bootstrap-admin
+account in OIDC-only deployments — an operator can configure group mappings at
+install time and the first user to log in receives the correct role immediately.
+The security model consists of:
+
+### Trust Chain: IdP Group Membership → Gameplane Roles
+
+**Core risk**: Gameplane trusts the IdP's group claim unconditionally. Whoever
+controls IdP group membership effectively controls Gameplane role assignments.
+If an attacker compromises the IdP or its group directory (LDAP, Active Directory,
+cloud identity service), they can add themselves to a mapped group and gain that
+group's Gameplane role on their next login — up to and including admin access.
+
+This is an accepted architectural boundary: the IdP is a trust root. If the IdP
+is compromised, Gameplane cannot defend against that. Mitigation is at the IdP
+level: strong authentication to the IdP, audit logging of group membership changes,
+and monitoring for suspicious group additions.
+
+### Helm-Seeded Values vs. Database Overrides (Hybrid Model)
+
+Install-time values (`api.oidc.roleMappings.*`) seed the role-mapping policy in
+the database when the API starts. An admin can then override one or more roles'
+group lists through the dashboard (`PUT /admin/config/auth` with `helmOverride`)
+at runtime, without restarting the API or re-running Helm. Each role's effective
+mapping is determined independently:
+
+- **Database override present** (even if an empty list `[]`): That list is the
+  effective mapping for that role, used on every login. An empty list means
+  "nobody maps to this role from any group" — a valid and meaningful override
+  distinct from "no override set."
+- **Database override absent**: The Helm-seeded value is the effective mapping for
+  that role.
+
+When an operator runs `helm upgrade` and changes a Helm value (`api.oidc.roleMappings.*`),
+the new value updates the seed — but it does NOT overwrite a database override that
+has already been set for that role. The override persists until explicitly reset via
+the dashboard (`DELETE /admin/config/auth/role-mappings/{role}`). This is deliberate:
+Helm upgrades should not silently undo admin customizations made through the UI.
+
+Consequences for operators: the effective role mappings in the dashboard may not
+match what is in `values.yaml` after one or more roles have been dashboard-overridden.
+To audit what is actually configured, consult the dashboard's `/admin/config` view
+(`installTimeSettings.oidcHelmProvider` shows the Helm seed, `auth.helmOverride`
+shows any database overrides) rather than relying on Helm values alone.
+
+### Most-Privileged-Match Rule Across Sources
+
+When resolving a user's role, Gameplane matches the user's groups against every
+role's effective mapping (seed + overrides merged) and assigns the **highest
+privilege match**: `admin` > `operator` > `viewer`. This is applied *after* the
+per-role merge of Helm seed and database override, so a user matching both an
+overridden (database-managed) viewer group *and* a Helm-seeded admin group still
+resolves to `admin`.
+
+Overriding a lower role does **not** revoke a higher one. Example: if the database
+overrides the `viewer` list to `[]` (nobody maps to viewer), but the Helm-seeded
+`admin` list is `["admins"]`, a user in the "admins" group still resolves to `admin`
+on the next login — the admin mapping was never overridden.
+
+### Re-evaluation on Every Login
+
+On each OIDC login, Gameplane:
+
+1. Extracts the user's group membership from the OIDC token's group claim (configured
+   via `api.oidc.groupsClaim`; defaults to `"groups"`).
+2. Reads the effective role mappings: the Helm-seeded values, merged with any
+   database overrides for each role independently.
+3. Matches the user's groups against the effective mappings to compute their role.
+4. If no role matches, assigns the default role (configured via `api.oidc.defaultRole`;
+   defaults to `viewer`; can be set to `deny` to reject login).
+
+This re-evaluation runs only when Helm OIDC role mappings are configured
+(i.e., `api.oidc.roleMappings` has at least one non-empty role array). If role
+mappings are not configured, new OIDC users receive the fixed `viewer` role and
+existing users' roles are never re-evaluated.
+
+Two guards prevent lockout during re-evaluation:
+
+- **No lockout rule at login**: If re-evaluating a user's role would remove the
+  last user able to manage users (hold the `users:manage` permission), the
+  re-evaluation is **not applied** — that user retains their old role and can
+  still manage other users. This prevents an operator from accidentally creating
+  an unrecoverable lockout via an override change.
+- **Break-glass mechanism**: If role mappings are misconfigured such that nobody
+  can reach admin, an operator can run the `bootstrap-admin` break-glass command
+  to create a local admin account and fix the mappings. Bootstrap-admin and
+  OIDC-mapped admin accounts coexist peacefully.
+
+### Admin-Mapping Warning (FR-015)
+
+Gameplane **always warns** when an operator configures or changes a role mapping
+that includes a group. The warning text states: "Be aware that an OIDC group may
+include a large number of users, and assigning it to the admin role grants admin
+access to all members of that group." This warning is unconditional — it appears
+on every such configuration change, not just when the operator first enables role
+mappings.
+
+**Why unconditional**: Gameplane cannot enumerate OIDC group membership — it cannot
+tell whether a group name refers to a 3-person team or a 3000-person organization.
+An attacker with dashboard access who knows the group structure could configure a
+mapping for an unexpectedly large group to gain access. Operators must be aware of
+this risk at every configuration step. The warning does not prevent the change, but
+it ensures operators cannot claim they were not aware of the risk.
+
+### Audit Trail: Every Assignment, Override, and Reset
+
+Every role assignment driven by OIDC group mappings (on initial login or re-evaluation)
+is recorded in `audit_events` with the matched group name and role transition:
+
+- **Action**: OIDC login with role assignment
+- **Target**: the user (subject of the OIDC token)
+- **Details recorded**:
+  - Which OIDC provider performed the assignment (always `"helm"` for Helm-seeded mappings)
+  - Which group matched a mapping rule (or `"none"` if no mapping matched)
+  - The user's old role (`"new_user"` on first login, or the previous role)
+  - The assigned role (`"viewer"`, `"operator"`, `"admin"`, or `"denied"` if rejected)
+
+Examples of what gets logged:
+- First login, matched admin group: user created with admin role from group membership
+- Re-evaluation, no mapping match: role re-evaluated to default role on next login
+- Subsequent login, role upgraded: user's role changed from viewer to operator based on new group membership
+
+Every dashboard change to a role's override — writing a new group list via
+`PUT /admin/config/auth` or resetting it via `DELETE /admin/config/auth/role-mappings/{role}`
+— is also audited as a configuration change:
+
+- **Action**: Role mapping override write or reset
+- **Target**: the affected role (`"admin"`, `"operator"`, or `"viewer"`)
+- **Details recorded**:
+  - Which admin made the change (from session)
+  - The new or reset value (the group list, if changed)
+
+This allows operators to track who changed what mappings and when, and to
+correlate unexpected role assignments with dashboard configuration changes.
+
+### `groupsClaim` and `defaultRole` Are Helm-Only
+
+`api.oidc.groupsClaim` (the claim name from the OIDC token that holds group
+information) and `api.oidc.defaultRole` (the fallback role when no group matches)
+are configured via Helm values only — there is no dashboard write path for either
+in v1.
+
+**Why this matters for security**: An attacker with dashboard admin access can
+override individual role mappings but **cannot** repoint the group claim to a
+different OIDC token field (e.g., changing from `"groups"` to a field they control),
+nor can they change the default role fallback to `"deny"` to lock everyone out. These
+two settings remain under the operator's full control, via Helm values only, and
+require a `helm upgrade` to change — an out-of-band action that can be audited and
+gated by access controls on the cluster itself (e.g., who can run Helm in production).
+
 ## Pre-auth screens
 
 No internal infrastructure metrics are displayed on the login page or

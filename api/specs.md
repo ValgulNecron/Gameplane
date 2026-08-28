@@ -73,9 +73,12 @@ api/
 Two subcommands:
 
 1. **`serve` (default)** — starts the HTTP server
-   - Flags: `--addr`, `--db-driver`, `--db-dsn`, `--log-level`, `--oidc-*`, `--audit-*`, `--agent-*`, `--namespace`, `--cluster-ops`, `--update-channel`, `--curseforge-api-key`, `--telemetry-*`, `--capture-*` (default retention, max retention, max duration, max size)
+   - **Core flags:** `--addr`, `--db-driver`, `--db-dsn`, `--log-level`
+   - **OIDC flags** (install-time, Helm-seeded): `--oidc-issuer`, `--oidc-client-id`, `--oidc-client-secret`, `--oidc-redirect-url`, `--oidc-display-name` (login button label, no hostname — pre-auth surface), `--oidc-groups-claim` (configurable claim name, defaults to "groups"), `--oidc-default-role` (default for unmapped users: "", "viewer", "operator", "admin", or "deny"), `--oidc-role-mapping-admin` (comma-separated group names for admin role), `--oidc-role-mapping-operator`, `--oidc-role-mapping-viewer`. All have `GAMEPLANE_OIDC_*` env fallbacks (preferred over flags for credentials).
+   - **Storage class (report-only):** `--game-data-storage-class` — echoed in `GET /admin/config`'s `installTimeSettings.gameDataStorageClass`, read-only, unaffected by overrides.
+   - **Other flags:** `--audit-*`, `--agent-*`, `--namespace`, `--cluster-ops`, `--update-channel`, `--curseforge-api-key`, `--telemetry-*`, `--capture-*` (default retention, max retention, max duration, max size)
    - Env overrides via GAMEPLANE_* vars (credentials come from env only, never flags)
-   - Initialize: database + migrations, K8s client, auth (local + OIDC), audit (sinks), notifier, cluster watch, telemetry, session GC, capture config
+   - Initialize: database + migrations, K8s client, auth (local + OIDC with Helm-seeded provider synthesis), audit (sinks), notifier, cluster watch, telemetry, session GC, capture config
    - Routes all mounted at startup; chi router with security middleware (secure headers, body limit, audit, session auth, RBAC, rate limiting); MountCapture wires capture endpoints
 
 2. **`bootstrap-admin`** — seed or reset the initial admin user
@@ -220,6 +223,43 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
   - Gated by `captures:manage` permission
   - Audit: synchronous write before response with reason "feature_disabled", "server_not_found", "terminating", "patch_failed", or "" on success
 
+### OIDC role mapping and Helm-seeded provider (install-time configuration)
+
+**Helm-seeded provider synthesis & coexistence:**
+- **Startup:** API synthesizes a read-only "helm" provider when `--oidc-issuer` is set (Helm-seeded OIDC configuration exists). This synthetic provider coexists with:
+  - Dashboard-managed OIDC providers (stored in the "auth" config row, can be created/edited/deleted via API)
+  - Local login (always available unless explicitly disabled)
+  - Legacy fallback paths for backward compat (legacy provider mirrors Helm config as identity)
+- **Provenance:** The "helm" provider's groupsClaim, defaultRole, and roleMappings come from CLI flags (`--oidc-groups-claim`, `--oidc-default-role`, `--oidc-role-mapping-*`) only. It is not a database row; it is synthesized at runtime from flags and the optional `helmOverride.roleMappings` overlay (see below).
+- **Per-login re-evaluation:** Role mappings are read at login time from the current "auth" config row, so override changes take effect immediately on the next login without restart or Helm upgrade.
+
+**Group-claim extraction & role assignment:**
+- **Claim name:** Defaults to "groups" when `--oidc-groups-claim` is empty or unset. Otherwise uses the configured name. Extraction honors the configured (or default) name on every login (not cached).
+- **First-match precedence:** Roles are assigned in strict precedence order: admin → operator → viewer. A user whose IdP groups match any group in the admin mapping gets the admin role, even if they also match operator/viewer groups. If no tier matches, the policy's DefaultRole applies ("", "viewer", "operator", "admin", or "deny" to refuse login).
+- **Per-login re-evaluation:** Role assignment is computed fresh on every successful OIDC login, so a user's role changes immediately if their IdP groups change (or if the group-claim name in config changes).
+- **Two safety guards:**
+  1. Role assignment only applies when mappings are explicitly configured (when overrides exist or when Helm seeded them). No automatic role assignment from bare group names without explicit mapping.
+  2. Demotion guard: A user who is the **only user able to manage users** (sole admin, or sole admin-equivalent) cannot be demoted or removed from the admin role by the login-time role assignment flow. This prevents accidental lockout: if a user is currently the only admin and a role remapping would remove their admin status, the remapping is skipped (logged as warn), leaving them as admin. The guard applies only on login re-evaluation; the override API (PATCH /admin/config/auth) does not enforce it (an explicit admin action).
+
+**The helmOverride overlay:**
+- **Storage:** Lives in the "auth" config row as `helmOverride.roleMappings.{admin, operator, viewer}`. No separate table, no migration beyond the existing config table. The entire overlay is optional.
+- **Shape:** Each role key (admin/operator/viewer) is independently optional:
+  - **Absent:** use the Helm-seeded value (from `--oidc-role-mapping-*` flags)
+  - **Non-nil array (including `[]`):** override with this array; `[]` means "nobody maps to this role"
+  - Provenance is **derived from key presence** — no explicit `source` field exists. A key's presence alone means DB-overridden; absence means Helm-seeded.
+- **Merge semantics:** Non-nil replaces the Helm seed in full (not a merge); `[]` is distinct from absent.
+- **Reset route:** `DELETE /admin/config/auth/role-mappings/{role}` removes a single role's key, restoring the Helm-seeded value for that role.
+- **API:** Writes go through `PUT /admin/config` with the full auth config (including the helmOverride overlay). Reads via `GET /admin/config` return both the current override state (helmOverride) and the original Helm seed (installTimeSettings.oidcHelmProvider) as separate fields, never merged.
+- **Audit:** Set/change operations are audited with reason "oidc role mapping override set: role=<role> groups=<groups>". Reset operations are audited with reason "oidc role mapping override reset: role=<role>".
+
+**installTimeSettings response object:**
+- **Returned by:** `GET /admin/config` (requires `config:read` permission)
+- **Content:** Read-only snapshot of Helm-seeded values captured at startup:
+  - `gameDataStorageClass` (string, the value of `--game-data-storage-class` flag)
+  - `oidcHelmProvider` (object with `groupsClaim`, `defaultRole`, `roleMappings.{admin, operator, viewer}` — the original Helm seed, never merged with overrides)
+- **Immutability:** Never changes after startup, unaffected by any override (helmOverride.roleMappings changes do not appear here). Allows clients to always see what was Helm-configured vs. what was overridden.
+- **Presence:** Absent entirely when no install-time values are reportable (empty storage class, no Helm OIDC).
+
 ### Capture operation auditing
 
 **Scope — which operations are audited** (per T010, specs/003-network-capture-sidecar/research.md):
@@ -341,6 +381,7 @@ audit:read, config:read, config:manage (cluster-scoped)
 10. **Cluster dispatch validation:** `?cluster=` matched against registered Cluster CRDs via registry; unknown cluster is a 400
 11. **WebSocket/HTTP proxy path validation:** `api/internal/ws/dialer.go` takes the namespace and pod name from the request path before building the agent's upstream URL. Both are validated as DNS-1123 labels (`isDNS1123Label`) and rejected with a 400 before any URL is constructed — gosec's taint analysis doesn't model a custom validator as a sanitizer, hence the scoped G704 exclusion on that file.
 12. **Capture rule-table ordering:** All 8 capture permission checks (POST `:capture-enable`, `:capture-disable`, `:capture-start`, `:capture-stop`; GET `:captures`, `:capture`, `:capture-file`; DELETE `:capture`) **MUST precede** the `servers:write` catch-all rule in `api/internal/rbac/rbac.go` lines 189-196 before line 211. Because all `/servers/{name}:verb` paths match the segment "servers" (chi's `{name}` segment strips the verb suffix), an unordered insertion after `servers:write` (which the operator role holds) would **silently grant all 8 capture endpoints to the operator role**, breaking the security requirement that only admin has capture permissions (FR-005/SC-005). This regression is a structural bug CI does not currently catch — moving the capture rules after servers:write is a one-line security break. Any future RBAC edits must preserve this order; consider a structural test to prevent silent reordering.
+13. **Helm-seeded OIDC role mappings:** The "helm" provider is synthesized from CLI flags and the optional helmOverride overlay. No database migration carries the Helm seed; it lives only in flags. The helmOverride.roleMappings lives on the existing "auth" config row, per-role independently optional (key presence = overridden, absence = use Helm seed). Re-evaluated at login time so changes take effect without restart. Demotion guard prevents removing the last user able to manage users.
 
 ## Dependencies
 

@@ -60,7 +60,7 @@ func secretFor(name string) map[string]map[string][]byte {
 
 func TestRegistry_DefaultsWithoutRow(t *testing.T) {
 	s := newAuthDB(t)
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	if !reg.LocalEnabled(context.Background()) {
 		t.Fatal("missing auth row must mean local login enabled")
 	}
@@ -73,7 +73,7 @@ func TestRegistry_DefaultsWithoutRow(t *testing.T) {
 func TestRegistry_MalformedRowFailsOpen(t *testing.T) {
 	s := newAuthDB(t)
 	seedConfigRow(t, s, "auth", `{not json`)
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	if !reg.LocalEnabled(context.Background()) {
 		t.Fatal("malformed auth row must degrade to local login, not a lockout")
 	}
@@ -82,7 +82,7 @@ func TestRegistry_MalformedRowFailsOpen(t *testing.T) {
 func TestRegistry_LocalDisabled(t *testing.T) {
 	s := newAuthDB(t)
 	seedConfigRow(t, s, "auth", `{"providers":[{"name":"local","kind":"local","enabled":false}]}`)
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	if reg.LocalEnabled(context.Background()) {
 		t.Fatal("local disabled in the row must gate local login")
 	}
@@ -92,7 +92,7 @@ func TestRegistry_LocalDisabled(t *testing.T) {
 // the whole point of the registry.
 func TestRegistry_PicksUpConfigChangesLive(t *testing.T) {
 	s := newAuthDB(t)
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	ctx := context.Background()
 
 	if got := len(reg.Enabled(ctx)); got != 1 {
@@ -115,7 +115,7 @@ func TestRegistry_OIDCForBuildsAndCaches(t *testing.T) {
 	seedExternalURL(t, s)
 	idp := newFakeIDP(t, "gameplane")
 	seedConfigRow(t, s, "auth", authRow(providerRow("corp", idp.issuer(), true)))
-	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "")
+	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "", nil)
 	ctx := context.Background()
 
 	o, err := reg.OIDCFor(ctx, "corp")
@@ -148,7 +148,7 @@ func TestRegistry_UnknownDisabledLocal(t *testing.T) {
 	s := newAuthDB(t)
 	idp := newFakeIDP(t, "gameplane")
 	seedConfigRow(t, s, "auth", authRow(providerRow("off", idp.issuer(), false)))
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	ctx := context.Background()
 	for _, name := range []string{"ghost", "off", "local"} {
 		if _, err := reg.OIDCFor(ctx, name); !errors.Is(err, ErrUnknownProvider) {
@@ -169,7 +169,7 @@ func TestRegistry_BuildErrorBacksOff(t *testing.T) {
 	}))
 	t.Cleanup(broken.Close)
 	seedConfigRow(t, s, "auth", authRow(providerRow("corp", broken.URL, true)))
-	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "")
+	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "", nil)
 	now := time.Now()
 	reg.now = func() time.Time { return now }
 	ctx := context.Background()
@@ -201,14 +201,14 @@ func TestRegistry_MissingSecretAndKeys(t *testing.T) {
 	seedConfigRow(t, s, "auth", authRow(providerRow("corp", idp.issuer(), true)))
 
 	// No Secret at all.
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	if _, err := reg.OIDCFor(context.Background(), "corp"); err == nil || errors.Is(err, ErrUnknownProvider) {
 		t.Fatalf("missing secret: err = %v, want a build error", err)
 	}
 	// Secret present but without the clientSecret key.
 	reg = NewRegistry(s, staticSecrets(map[string]map[string][]byte{
 		"gameplane-auth-corp": {"wrong": []byte("x")},
-	}), nil, "")
+	}), nil, "", nil)
 	if _, err := reg.OIDCFor(context.Background(), "corp"); err == nil || !strings.Contains(err.Error(), "clientSecret") {
 		t.Fatalf("missing key: err = %v, want clientSecret complaint", err)
 	}
@@ -218,7 +218,7 @@ func TestRegistry_RequiresExternalURL(t *testing.T) {
 	s := newAuthDB(t)
 	idp := newFakeIDP(t, "gameplane")
 	seedConfigRow(t, s, "auth", authRow(providerRow("corp", idp.issuer(), true)))
-	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "")
+	reg := NewRegistry(s, staticSecrets(secretFor("corp")), nil, "", nil)
 	if _, err := reg.OIDCFor(context.Background(), "corp"); err == nil || !strings.Contains(err.Error(), "External URL") {
 		t.Fatalf("err = %v, want the externalURL guidance", err)
 	}
@@ -231,7 +231,7 @@ func TestRegistry_HelmProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("legacy oidc: %v", err)
 	}
-	reg := NewRegistry(s, staticSecrets(nil), legacy, "Acme SSO")
+	reg := NewRegistry(s, staticSecrets(nil), legacy, "Acme SSO", nil)
 	ctx := context.Background()
 
 	if legacy.db == nil {
@@ -253,7 +253,7 @@ func TestRegistry_HelmProvider(t *testing.T) {
 	}
 
 	// Without the flags there is no helm provider.
-	none := NewRegistry(s, staticSecrets(nil), nil, "")
+	none := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	if _, err := none.OIDCFor(ctx, HelmProviderName); err == nil {
 		t.Fatal("OIDCFor(helm) without flags must fail")
 	}
@@ -263,7 +263,7 @@ func TestRegistry_HelmProvider(t *testing.T) {
 func TestRegistry_RedirectURL(t *testing.T) {
 	s := newAuthDB(t)
 	seedExternalURL(t, s)
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	got, err := reg.redirectURL(context.Background(), "corp")
 	if err != nil {
 		t.Fatalf("redirectURL: %v", err)
@@ -278,7 +278,7 @@ func TestRegistry_RedirectURL(t *testing.T) {
 func TestLogin_DisabledByRegistry(t *testing.T) {
 	s := newAuthDB(t)
 	seedConfigRow(t, s, "auth", `{"providers":[{"name":"local","kind":"local","enabled":false}]}`)
-	reg := NewRegistry(s, staticSecrets(nil), nil, "")
+	reg := NewRegistry(s, staticSecrets(nil), nil, "", nil)
 	// A username no other test in this package logs in with:
 	// LoginUserLimiter is a package singleton keyed by username, and the
 	// local_test logins would otherwise have drained "alice"'s bucket by

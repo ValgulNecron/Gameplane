@@ -235,6 +235,24 @@ spec:
             - --oidc-issuer={{ .Values.api.oidc.issuer }}
             - --oidc-client-id={{ .Values.api.oidc.clientID }}
             - --oidc-redirect-url={{ .Values.api.oidc.redirectURL }}
+            {{- if .Values.api.oidc.groupsClaim }}
+            - --oidc-groups-claim={{ .Values.api.oidc.groupsClaim }}
+            {{- end }}
+            {{- if .Values.api.oidc.defaultRole }}
+            - --oidc-default-role={{ .Values.api.oidc.defaultRole }}
+            {{- end }}
+            {{- if .Values.api.oidc.roleMappings.admin }}
+            - --oidc-role-mapping-admin={{ join "," .Values.api.oidc.roleMappings.admin }}
+            {{- end }}
+            {{- if .Values.api.oidc.roleMappings.operator }}
+            - --oidc-role-mapping-operator={{ join "," .Values.api.oidc.roleMappings.operator }}
+            {{- end }}
+            {{- if .Values.api.oidc.roleMappings.viewer }}
+            - --oidc-role-mapping-viewer={{ join "," .Values.api.oidc.roleMappings.viewer }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.operator.gameDataStorage.storageClassName }}
+            - --game-data-storage-class={{ .Values.operator.gameDataStorage.storageClassName }}
             {{- end }}
             - --agent-ca-bundle=/etc/gameplane/agent-ca/ca.crt
             - --agent-client-cert=/etc/gameplane/agent-client/tls.crt

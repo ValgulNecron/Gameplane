@@ -168,6 +168,10 @@ describe("AdminSettings sections", () => {
     await userEvent.type(screen.getByLabelText(/Viewer groups/i), "gp-view");
     await userEvent.selectOptions(screen.getByRole("combobox", { name: /Default role/i }), "deny");
     await userEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
+    // FR-015: a non-empty admin-group mapping gates the add behind an
+    // explicit confirmation dialog before the provider is actually saved.
+    await screen.findByText(/Mapping users to the admin role grants full cluster control/i);
+    await userEvent.click(screen.getByRole("button", { name: /Map to admin role/i }));
     await screen.findByText(/oidc · https:\/\/idp\.corp\.example/i);
     await userEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     await waitFor(() => expect(saved).toBeDefined());

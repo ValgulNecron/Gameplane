@@ -30,6 +30,20 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The Go module mirror and checksum database have repeatedly dropped HTTP/2
+# streams mid-transfer ("stream error: stream ID N; INTERNAL_ERROR; received
+# from peer"), reddening jobs for reasons that have nothing to do with the
+# change under test.
+#   GOPROXY  - fall through to a second mirror, then to the origin, instead of
+#              failing when proxy.golang.org is unwell.
+# GOSUMDB is NOT disabled here. It is turned off only on the two `go mod
+# download` steps, where every hash is already pinned in the committed go.sum
+# and re-verified locally, so skipping the tile fetch costs nothing. Every
+# `go install` keeps the checksum database on, because a tool fetched outside
+# the module graph has no go.sum entry to verify it against.
+env:
+  GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
+
 permissions:
   contents: read
   # Lets the coverage steps publish a per-module commit status carrying
@@ -318,7 +332,26 @@ jobs:
           key-suffix: lint-${{ matrix.module }}
       - name: go mod download
         working-directory: ${{ matrix.module }}
-        run: go mod download
+        # proxy.golang.org and sum.golang.org intermittently drop HTTP/2 streams
+        # mid-download ("stream error: stream ID N; INTERNAL_ERROR; received
+        # from peer"), which fails the whole job on a transient upstream fault
+        # that has nothing to do with the change under test. Retry with backoff;
+        # a genuinely broken dependency still fails on the final attempt, whose
+        # output is the one that reaches the log.
+        #
+        # GOSUMDB is off for this step only: every module here is pinned in the
+        # committed go.sum and its hash is still checked on download, so the
+        # sum.golang.org tile fetch adds nothing but a failure mode. It stays on
+        # everywhere else, including every go install.
+        env:
+          GOSUMDB: "off"
+        run: |
+          for attempt in 1 2 3 4; do
+            if go mod download; then exit 0; fi
+            echo "go mod download failed (attempt ${attempt}/5) — retrying in $((attempt * 30))s"
+            sleep $((attempt * 30))
+          done
+          go mod download
       - name: lint (operator/api - envtest build tags)
         if: matrix.module == 'operator' || matrix.module == 'api'
         uses: golangci/golangci-lint-action@v9
@@ -361,7 +394,26 @@ jobs:
           key-suffix: ${{ matrix.module }}
       - name: go mod download
         working-directory: ${{ matrix.module }}
-        run: go mod download
+        # proxy.golang.org and sum.golang.org intermittently drop HTTP/2 streams
+        # mid-download ("stream error: stream ID N; INTERNAL_ERROR; received
+        # from peer"), which fails the whole job on a transient upstream fault
+        # that has nothing to do with the change under test. Retry with backoff;
+        # a genuinely broken dependency still fails on the final attempt, whose
+        # output is the one that reaches the log.
+        #
+        # GOSUMDB is off for this step only: every module here is pinned in the
+        # committed go.sum and its hash is still checked on download, so the
+        # sum.golang.org tile fetch adds nothing but a failure mode. It stays on
+        # everywhere else, including every go install.
+        env:
+          GOSUMDB: "off"
+        run: |
+          for attempt in 1 2 3 4; do
+            if go mod download; then exit 0; fi
+            echo "go mod download failed (attempt ${attempt}/5) — retrying in $((attempt * 30))s"
+            sleep $((attempt * 30))
+          done
+          go mod download
       - name: go vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
@@ -395,6 +447,22 @@ jobs:
           go test -tags=envtest -timeout 10m \
             -covermode=atomic -coverpkg=./... \
             -coverprofile=coverage/envtest.out ./...
+      - name: warm coverage tool cache
+        # cover-go-merge and cover-go-check `go run` pinned tools, so they hit
+        # the module mirror as well and fail the same transient way. Fetch them
+        # here, with retries, so the gate itself runs from the module cache and
+        # a real coverage shortfall fails fast instead of being retried.
+        run: |
+          fetch() {
+            go install github.com/wadey/gocovmerge@v0.0.0-20160331181800-b5bfa59ec0ad &&
+            go install github.com/vladopajic/go-test-coverage/v2@v2.18.9
+          }
+          for attempt in 1 2 3; do
+            if fetch; then exit 0; fi
+            echo "coverage tool fetch failed (attempt ${attempt}/4) — retrying in $((attempt * 30))s"
+            sleep $((attempt * 30))
+          done
+          fetch
       - name: merge profiles + threshold gate
         run: make cover-go-merge && make cover-go-check
 

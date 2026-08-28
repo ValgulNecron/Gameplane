@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -72,6 +73,42 @@ func main() {
 	logger = newLogger(cfg.logLevel)
 	slog.SetDefault(logger)
 
+	// Validate OIDC configuration flags.
+	if cfg.oidcDefaultRole != "" {
+		validRoles := map[string]bool{
+			"viewer":   true,
+			"operator": true,
+			"admin":    true,
+			"deny":     true,
+		}
+		if !validRoles[cfg.oidcDefaultRole] {
+			msg := fmt.Sprintf("invalid --oidc-default-role %q (accepted: '', 'viewer', 'operator', 'admin', 'deny')", cfg.oidcDefaultRole)
+			logger.Error(msg)
+			os.Exit(1)
+		}
+	}
+
+	// Validate and parse OIDC role mapping lists.
+	var err error
+	cfg.oidcRoleMappingAdminParsed, err = parseRoleMapping(cfg.oidcRoleMappingAdmin)
+	if err != nil {
+		msg := fmt.Sprintf("invalid --oidc-role-mapping-admin: %v", err)
+		logger.Error(msg)
+		os.Exit(1)
+	}
+	cfg.oidcRoleMappingOperatorParsed, err = parseRoleMapping(cfg.oidcRoleMappingOperator)
+	if err != nil {
+		msg := fmt.Sprintf("invalid --oidc-role-mapping-operator: %v", err)
+		logger.Error(msg)
+		os.Exit(1)
+	}
+	cfg.oidcRoleMappingViewerParsed, err = parseRoleMapping(cfg.oidcRoleMappingViewer)
+	if err != nil {
+		msg := fmt.Sprintf("invalid --oidc-role-mapping-viewer: %v", err)
+		logger.Error(msg)
+		os.Exit(1)
+	}
+
 	// Validate and trim trusted proxies CIDR list.
 	validProxies := []string{}
 	for _, p := range cfg.trustedProxies {
@@ -124,12 +161,31 @@ func main() {
 	// The Helm-flag OIDC provider (if any) is built once at startup; the
 	// registry lists it as the read-only "helm" provider next to the
 	// dashboard-managed providers it resolves live from the auth config.
-	oidcAuth, err := auth.NewOIDC(ctx, cfg.oidcIssuer, cfg.oidcClientID, cfg.oidcClientSecret, cfg.oidcRedirectURL)
+	// Build the Helm-seeded role mapping policy from the parsed CLI flags.
+	var helmPolicy *auth.ProviderPolicy
+	if cfg.oidcIssuer != "" {
+		// Only create RoleMappings if at least one role list is non-empty;
+		// nil RoleMappings disables mapping entirely (SC-008 backward compat).
+		var roleMappings *auth.RoleMappings
+		if len(cfg.oidcRoleMappingAdminParsed) > 0 || len(cfg.oidcRoleMappingOperatorParsed) > 0 || len(cfg.oidcRoleMappingViewerParsed) > 0 {
+			roleMappings = &auth.RoleMappings{
+				Admin:    cfg.oidcRoleMappingAdminParsed,
+				Operator: cfg.oidcRoleMappingOperatorParsed,
+				Viewer:   cfg.oidcRoleMappingViewerParsed,
+			}
+		}
+		helmPolicy = &auth.ProviderPolicy{
+			GroupsClaim:  cfg.oidcGroupsClaim,
+			DefaultRole:  cfg.oidcDefaultRole,
+			RoleMappings: roleMappings,
+		}
+	}
+	oidcAuth, err := auth.NewOIDCWithPolicy(ctx, cfg.oidcIssuer, cfg.oidcClientID, cfg.oidcClientSecret, cfg.oidcRedirectURL, helmPolicy)
 	if err != nil && cfg.oidcIssuer != "" {
 		logger.Warn("oidc disabled", "err", err)
 	}
 	authRegistry := auth.NewRegistry(store,
-		auth.NewK8sSecretReader(k8s, cfg.namespace), oidcAuth, cfg.oidcDisplayName)
+		auth.NewK8sSecretReader(k8s, cfg.namespace), oidcAuth, cfg.oidcDisplayName, helmPolicy)
 
 	var auditOpts []audit.Option
 	var webhookDone <-chan struct{}
@@ -166,6 +222,13 @@ func main() {
 		}
 	}
 	auditor := audit.New(store, auditOpts...)
+	// Wire the Helm OIDC provider to the auditor for role-assignment audit events (FR-014).
+	// auth must not import audit (audit imports auth), so the dependency is inverted here
+	// via a closure over the concrete auditor's WriteSync method.
+	if oidcAuth != nil {
+		oidcAuth.AttachAuditWriteSyncFunc(auditor.WriteSync)
+		oidcAuth.SetProviderName(auth.HelmProviderName)
+	}
 
 	// Notification delivery: watch CRD status transitions (server health,
 	// backup/restore outcomes) and push matching events to the sinks
@@ -242,7 +305,7 @@ func main() {
 		handlers.MountUsers(p, store, sessions, reg)
 		handlers.MountRoles(p, store)
 		handlers.MountAudit(p, auditor)
-		handlers.MountConfig(p, store, oidcAuth != nil)
+		handlers.MountConfig(p, store, auditor, oidcAuth != nil, cfg.gameDataStorageClass, helmPolicy)
 		handlers.MountNotifications(p, notifier, k8s, cfg.namespace)
 		handlers.MountAuthProviderSecrets(p, k8s, cfg.namespace)
 		handlers.MountCluster(p, k8s, store, Version, cfg.clusterOps, cfg.updateChannel)
@@ -345,11 +408,19 @@ type config struct {
 	dbDSN    string
 	logLevel string
 
-	oidcIssuer       string
-	oidcClientID     string
-	oidcClientSecret string
-	oidcRedirectURL  string
-	oidcDisplayName  string
+	oidcIssuer                    string
+	oidcClientID                  string
+	oidcClientSecret              string
+	oidcRedirectURL               string
+	oidcDisplayName               string
+	oidcGroupsClaim               string
+	oidcDefaultRole               string
+	oidcRoleMappingAdmin          string
+	oidcRoleMappingOperator       string
+	oidcRoleMappingViewer         string
+	oidcRoleMappingAdminParsed    []string
+	oidcRoleMappingOperatorParsed []string
+	oidcRoleMappingViewerParsed   []string
 
 	telemetryEndpoint  string
 	telemetryAuth      string
@@ -378,6 +449,8 @@ type config struct {
 	captureDefaultMaxDurationS  int
 	captureDefaultMaxSizeBytes  int64
 
+	gameDataStorageClass string
+
 	namespace      string
 	trustedProxies []string
 }
@@ -393,6 +466,16 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.oidcClientSecret, "oidc-client-secret", envOr("GAMEPLANE_OIDC_CLIENT_SECRET", ""), "OIDC client secret")
 	fs.StringVar(&c.oidcRedirectURL, "oidc-redirect-url", envOr("GAMEPLANE_OIDC_REDIRECT_URL", ""), "OIDC redirect URL")
 	fs.StringVar(&c.oidcDisplayName, "oidc-display-name", envOr("GAMEPLANE_OIDC_DISPLAY_NAME", "Single sign-on"), "label for the OIDC login button (no hostname — shown pre-auth)")
+	fs.StringVar(&c.oidcGroupsClaim, "oidc-groups-claim", envOr("GAMEPLANE_OIDC_GROUPS_CLAIM", ""),
+		"OIDC claim name containing group memberships; empty defaults to \"groups\"")
+	fs.StringVar(&c.oidcDefaultRole, "oidc-default-role", envOr("GAMEPLANE_OIDC_DEFAULT_ROLE", ""),
+		"Default role for new OIDC users when no group matches: \"viewer\" (default), \"operator\", \"admin\", or \"deny\". Helm-only — not DB-overridable.")
+	fs.StringVar(&c.oidcRoleMappingAdmin, "oidc-role-mapping-admin", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_ADMIN", ""),
+		"Comma-separated IdP group(s) seeding the admin role")
+	fs.StringVar(&c.oidcRoleMappingOperator, "oidc-role-mapping-operator", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_OPERATOR", ""),
+		"Comma-separated IdP group(s) seeding the operator role")
+	fs.StringVar(&c.oidcRoleMappingViewer, "oidc-role-mapping-viewer", envOr("GAMEPLANE_OIDC_ROLE_MAPPING_VIEWER", ""),
+		"Comma-separated IdP group(s) seeding the viewer role")
 	fs.StringVar(&c.telemetryEndpoint, "telemetry-endpoint", envOr("GAMEPLANE_TELEMETRY_ENDPOINT", ""), "URL to POST anonymous usage metrics to (empty = telemetry off)")
 	// Like the audit webhook auth, the telemetry ingest token is a
 	// credential and only comes from the environment (a mounted Secret),
@@ -428,6 +511,8 @@ func (c *config) bindFlags(fs *flag.FlagSet) {
 	c.captureDefaultMaxSizeBytes = envOrInt64("GAMEPLANE_CAPTURE_DEFAULT_MAX_SIZE", 5368709120)
 	fs.StringVar(&c.namespace, "namespace", envOr("GAMEPLANE_NAMESPACE", "gameplane-system"),
 		"namespace the control plane runs in (module upload ConfigMaps are stored here)")
+	fs.StringVar(&c.gameDataStorageClass, "game-data-storage-class", envOr("GAMEPLANE_GAME_DATA_STORAGE_CLASS", ""),
+		"StorageClass name for game data PVCs (empty = cluster default)")
 
 	// Trusted proxy networks for client IP extraction. Comma-separated CIDRs.
 	// Default: loopback + private ranges, which work out-of-the-box for
@@ -495,6 +580,23 @@ func envOrInt64(key string, def int64) int64 {
 		}
 	}
 	return def
+}
+
+// parseRoleMapping parses a comma-separated list of group names, trimming
+// whitespace and rejecting empty entries.
+func parseRoleMapping(csv string) ([]string, error) {
+	if csv == "" {
+		return nil, nil
+	}
+	out := make([]string, 0, 4)
+	for _, g := range strings.Split(csv, ",") {
+		g = strings.TrimSpace(g)
+		if g == "" {
+			return nil, errors.New("empty entry detected (check for consecutive commas or leading/trailing commas)")
+		}
+		out = append(out, g)
+	}
+	return out, nil
 }
 
 // bodyLimit wraps every request body in MaxBytesReader so a decoder

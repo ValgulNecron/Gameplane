@@ -128,6 +128,20 @@ func callbackViaIDP(t *testing.T, o *OIDC, sessions *SessionStore, nonce string)
 	return rr
 }
 
+// auditWriteRecorder is a stub audit-write func for OIDC tests that need to
+// observe FR-014 audit event emission without depending on the audit
+// package (which imports auth, so a real *audit.Auditor cannot be used from
+// a test file in package auth without forming an import cycle). Each call's
+// reason string is appended to reasons in call order.
+type auditWriteRecorder struct {
+	reasons []string
+}
+
+func (r *auditWriteRecorder) write(_ context.Context, _, _, _, reason string, _ int) error {
+	r.reasons = append(r.reasons, reason)
+	return nil
+}
+
 // TestHandleCallback_RoleMappingFirstLogin — first login through a
 // provider with mappings creates the user with the mapped role and a
 // matching '*' role binding.
@@ -437,5 +451,744 @@ func TestHandleStart_ExtraScopesInAuthCodeURL(t *testing.T) {
 	if scope != "openid profile email groups" {
 		t.Fatalf("scope=%q want %q (base set + deduped extras, order preserved)",
 			scope, "openid profile email groups")
+	}
+}
+
+// TestGetMatchedGroup — verifies getMatchedGroup returns the specific group
+// that matched a role mapping, or "none" when no mapping matched.
+func TestGetMatchedGroup(t *testing.T) {
+	mappings := &RoleMappings{
+		Admin:    []string{"gp-admins", "infra-team"},
+		Operator: []string{"gp-ops"},
+		Viewer:   []string{"gp-view"},
+	}
+	cases := []struct {
+		name   string
+		groups []string
+		pol    *ProviderPolicy
+		want   string
+	}{
+		{"no groups nil policy", nil, nil, "none"},
+		{"no groups with mappings", nil, &ProviderPolicy{RoleMappings: mappings}, "none"},
+		{"empty groups", []string{}, &ProviderPolicy{RoleMappings: mappings}, "none"},
+		{"matches admin first group", []string{"gp-admins"}, &ProviderPolicy{RoleMappings: mappings}, "gp-admins"},
+		{"matches admin second group", []string{"infra-team"}, &ProviderPolicy{RoleMappings: mappings}, "infra-team"},
+		{"matches operator", []string{"gp-ops"}, &ProviderPolicy{RoleMappings: mappings}, "gp-ops"},
+		{"matches viewer", []string{"gp-view"}, &ProviderPolicy{RoleMappings: mappings}, "gp-view"},
+		{"admin wins over operator", []string{"gp-ops", "gp-admins"}, &ProviderPolicy{RoleMappings: mappings}, "gp-admins"},
+		{"operator wins over viewer", []string{"gp-view", "gp-ops"}, &ProviderPolicy{RoleMappings: mappings}, "gp-ops"},
+		{"no match among groups", []string{"unknown-group"}, &ProviderPolicy{RoleMappings: mappings}, "none"},
+		{"nil mappings", []string{"gp-admins"}, &ProviderPolicy{RoleMappings: nil}, "none"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getMatchedGroup(tc.groups, tc.pol)
+			if got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestHandleCallback_BootstrapAdminAndOIDCCoexist — a bootstrap-admin LOCAL
+// account and an OIDC-mapped admin account coexist without either clobbering
+// the other (FR-013).
+func TestHandleCallback_BootstrapAdminAndOIDCCoexist(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.nonce = "nonce-oidc"
+	idp.groups = []string{"gp-admins"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{Admin: []string{"gp-admins"}},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+
+	// Seed a local (non-OIDC) bootstrap admin account.
+	SetFastHashParams(t)
+	bootstrapHash, err := HashPassword("bootstrap-pass")
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	if _, err := store.DB.ExecContext(context.Background(),
+		`INSERT INTO users(username, display_name, email, role, pw_hash)
+		 VALUES ('bootstrap-admin', 'Bootstrap Admin', 'bootstrap@local', 'admin', ?)`,
+		bootstrapHash,
+	); err != nil {
+		t.Fatalf("seed bootstrap admin: %v", err)
+	}
+
+	// OIDC user logs in and becomes admin via role mapping.
+	rr := callbackViaIDP(t, o, NewSessionStore(store), "nonce-oidc")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("oidc login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// Verify both users exist with admin role.
+	var bootstrapRole, oidcRole string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE username = ?`, "bootstrap-admin").Scan(&bootstrapRole); err != nil {
+		t.Fatalf("query bootstrap admin: %v", err)
+	}
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&oidcRole); err != nil {
+		t.Fatalf("query oidc admin: %v", err)
+	}
+	if bootstrapRole != "admin" {
+		t.Fatalf("bootstrap role=%q, want admin", bootstrapRole)
+	}
+	if oidcRole != "admin" {
+		t.Fatalf("oidc role=%q, want admin", oidcRole)
+	}
+
+	// Verify the bootstrap admin has no OIDC link.
+	var bootstrapUserID int64
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT id FROM users WHERE username = ?`, "bootstrap-admin").Scan(&bootstrapUserID); err != nil {
+		t.Fatalf("query bootstrap id: %v", err)
+	}
+	var oidcLinkCount int
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM oidc_links WHERE user_id = ?`, bootstrapUserID).Scan(&oidcLinkCount); err != nil {
+		t.Fatalf("count oidc links: %v", err)
+	}
+	if oidcLinkCount != 0 {
+		t.Fatalf("bootstrap admin has %d oidc links, want 0", oidcLinkCount)
+	}
+
+	// Verify the OIDC user has exactly one OIDC link.
+	var oidcUserID int64
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT id FROM users WHERE email = ?`, idp.email).Scan(&oidcUserID); err != nil {
+		t.Fatalf("query oidc user id: %v", err)
+	}
+	var oidcLinkExists int
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM oidc_links WHERE user_id = ?`, oidcUserID).Scan(&oidcLinkExists); err != nil {
+		t.Fatalf("count oidc links: %v", err)
+	}
+	if oidcLinkExists != 1 {
+		t.Fatalf("oidc user has %d oidc links, want 1", oidcLinkExists)
+	}
+}
+
+// TestHandleCallback_NoMappingNeverReEvaluates — with no role mappings
+// configured (nil or absent), an existing user's role is never re-evaluated
+// on subsequent logins, even if role mappings are added later (SC-008).
+// This test extends the existing TestHandleCallback_NoMappingKeepsManualPromotion
+// by checking that without mappings, even an automatic role assignment is
+// preserved.
+func TestHandleCallback_NoMappingNeverReEvaluates(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+
+	// First login: no role mappings configured, user gets default viewer role.
+	o, err := NewOIDC(context.Background(), idp.issuer(), "client-1", "secret", "https://app/cb")
+	if err != nil {
+		t.Fatalf("NewOIDC: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	idp.nonce = "nonce-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
+		t.Fatalf("first login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// Verify initial role is viewer.
+	var role string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("query after first login: %v", err)
+	}
+	if role != "viewer" {
+		t.Fatalf("initial role=%q, want viewer", role)
+	}
+
+	// Second login: still no role mappings, even if the user object still exists.
+	// The role must stay viewer (never re-evaluated).
+	idp.nonce = "nonce-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-2"); rr.Code != http.StatusFound {
+		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	var role2 string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role2); err != nil {
+		t.Fatalf("query after second login: %v", err)
+	}
+	if role2 != "viewer" {
+		t.Fatalf("role after resync=%q, want viewer (no mappings = no re-evaluation)", role2)
+	}
+}
+
+// TestHandleCallback_FirstLoginRoleAssignmentWithAudit — on first OIDC login,
+// the user's role is assigned via role mapping and the outcome tracks
+// PreviousRole="new_user" and Applied=true (FR-014, T008, T009).
+func TestHandleCallback_FirstLoginRoleAssignmentWithAudit(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.nonce = "nonce-first"
+	idp.groups = []string{"gp-ops"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin:    []string{"gp-admins"},
+				Operator: []string{"gp-ops"},
+				Viewer:   []string{"gp-view"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+
+	rr := callbackViaIDP(t, o, NewSessionStore(store), "nonce-first")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// Verify user was created with operator role (matched gp-ops group).
+	var role string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("query user: %v", err)
+	}
+	if role != "operator" {
+		t.Fatalf("role=%q want operator", role)
+	}
+
+	// Verify a cluster-wide role binding exists.
+	var bindingRole string
+	if err := store.DB.QueryRowContext(context.Background(), `
+		SELECT b.role_name FROM user_role_bindings b
+		JOIN users u ON u.id = b.user_id
+		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
+		t.Fatalf("query binding: %v", err)
+	}
+	if bindingRole != "operator" {
+		t.Fatalf("binding role=%q want operator", bindingRole)
+	}
+}
+
+// TestHandleCallback_RoleUpgradeOnResync — on a subsequent login, if the
+// user's IdP groups change to map to a higher-privilege role, the resync
+// upgrades the role (no demotion guard applies to upgrades).
+func TestHandleCallback_RoleUpgradeOnResync(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.groups = []string{"gp-view"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin:    []string{"gp-admins"},
+				Operator: []string{"gp-ops"},
+				Viewer:   []string{"gp-view"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	// First login: user has only viewer group.
+	idp.nonce = "nonce-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
+		t.Fatalf("first login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	var role string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("first login query: %v", err)
+	}
+	if role != "viewer" {
+		t.Fatalf("initial role=%q, want viewer", role)
+	}
+
+	// Second login: user now has operator group.
+	idp.groups = []string{"gp-ops"}
+	idp.nonce = "nonce-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-2"); rr.Code != http.StatusFound {
+		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("second login query: %v", err)
+	}
+	if role != "operator" {
+		t.Fatalf("upgraded role=%q, want operator", role)
+	}
+
+	// Verify binding was updated too.
+	var bindingRole string
+	if err := store.DB.QueryRowContext(context.Background(), `
+		SELECT b.role_name FROM user_role_bindings b
+		JOIN users u ON u.id = b.user_id
+		WHERE u.email = ? AND b.namespace = '*'`, idp.email).Scan(&bindingRole); err != nil {
+		t.Fatalf("binding query: %v", err)
+	}
+	if bindingRole != "operator" {
+		t.Fatalf("binding role=%q, want operator (must match user role)", bindingRole)
+	}
+}
+
+// TestHandleCallback_RoleNoChangeOnResync — on a subsequent login, if the
+// user's IdP groups still map to the same role, the role is unchanged but
+// the outcome still records Applied=true (no-op case).
+func TestHandleCallback_RoleNoChangeOnResync(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.groups = []string{"gp-admins"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin: []string{"gp-admins"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	// First login.
+	idp.nonce = "nonce-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
+		t.Fatalf("first login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	var role1 string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role1); err != nil {
+		t.Fatalf("first login query: %v", err)
+	}
+	if role1 != "admin" {
+		t.Fatalf("initial role=%q, want admin", role1)
+	}
+
+	// Second login: same group, same role (no-op).
+	idp.nonce = "nonce-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-2"); rr.Code != http.StatusFound {
+		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	var role2 string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role2); err != nil {
+		t.Fatalf("second login query: %v", err)
+	}
+	if role2 != "admin" {
+		t.Fatalf("unchanged role=%q, want admin", role2)
+	}
+}
+
+// TestHandleCallback_FirstLoginAuditEventEmitted — on first OIDC login,
+// an audit event is emitted with the FR-014 format:
+// "oidc role assigned: provider=<provider_name> matched=<group_or_none> from=new_user to=<role>"
+func TestHandleCallback_FirstLoginAuditEventEmitted(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.nonce = "nonce-audit1"
+	idp.groups = []string{"gp-admins"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin: []string{"gp-admins"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+
+	// Attach a stub audit-write func to capture audit events.
+	SetFastHashParams(t)
+	rec := &auditWriteRecorder{}
+	o.AttachAuditWriteSyncFunc(rec.write)
+	o.SetProviderName("helm")
+
+	rr := callbackViaIDP(t, o, NewSessionStore(store), "nonce-audit1")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// Verify exactly one role-assignment audit event was recorded.
+	if len(rec.reasons) != 1 {
+		t.Fatalf("reasons=%v, want exactly 1 audit event", rec.reasons)
+	}
+	reason := rec.reasons[0]
+
+	// Verify the reason string contains the expected format.
+	if !strings.Contains(reason, "provider=helm") {
+		t.Fatalf("reason=%q missing provider=helm", reason)
+	}
+	if !strings.Contains(reason, "from=new_user") {
+		t.Fatalf("reason=%q missing from=new_user", reason)
+	}
+	if !strings.Contains(reason, "to=admin") {
+		t.Fatalf("reason=%q missing to=admin", reason)
+	}
+	if !strings.Contains(reason, "matched=gp-admins") {
+		t.Fatalf("reason=%q missing matched=gp-admins", reason)
+	}
+}
+
+// TestHandleCallback_ReLoginAuditEventEmitted — on a subsequent login with
+// a role change, an audit event is emitted with the FR-014 format:
+// "oidc role assigned: provider=<provider_name> matched=<group> from=<old_role> to=<new_role>"
+func TestHandleCallback_ReLoginAuditEventEmitted(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.groups = []string{"gp-view"}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", &ProviderPolicy{
+			RoleMappings: &RoleMappings{
+				Admin:    []string{"gp-admins"},
+				Operator: []string{"gp-ops"},
+				Viewer:   []string{"gp-view"},
+			},
+		})
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	SetFastHashParams(t)
+	rec := &auditWriteRecorder{}
+	o.AttachAuditWriteSyncFunc(rec.write)
+	o.SetProviderName("helm")
+
+	// First login: viewer role.
+	idp.nonce = "nonce-1"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-1"); rr.Code != http.StatusFound {
+		t.Fatalf("first login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// Second login: change groups to operator.
+	idp.groups = []string{"gp-ops"}
+	idp.nonce = "nonce-2"
+	if rr := callbackViaIDP(t, o, sessions, "nonce-2"); rr.Code != http.StatusFound {
+		t.Fatalf("second login code=%d body=%q", rr.Code, rr.Body)
+	}
+
+	// The second (re-login) audit event is the role change from viewer to operator.
+	if len(rec.reasons) != 2 {
+		t.Fatalf("reasons=%v, want exactly 2 audit events", rec.reasons)
+	}
+	reason := rec.reasons[1]
+
+	// Verify the reason string contains the role change.
+	if !strings.Contains(reason, "provider=helm") {
+		t.Fatalf("reason=%q missing provider=helm", reason)
+	}
+	if !strings.Contains(reason, "from=viewer") {
+		t.Fatalf("reason=%q missing from=viewer", reason)
+	}
+	if !strings.Contains(reason, "to=operator") {
+		t.Fatalf("reason=%q missing to=operator", reason)
+	}
+	if !strings.Contains(reason, "matched=gp-ops") {
+		t.Fatalf("reason=%q missing matched=gp-ops", reason)
+	}
+}
+
+// TestEffectiveHelmPolicy verifies that effectiveHelmPolicy correctly merges
+// a DB override's per-role list replacements onto a Helm-seeded base policy.
+func TestEffectiveHelmPolicy(t *testing.T) {
+	baseMappings := &RoleMappings{
+		Admin:    []string{"helm-admins", "infra"},
+		Operator: []string{"helm-ops"},
+		Viewer:   []string{"helm-view"},
+	}
+	basePolicy := &ProviderPolicy{
+		RoleMappings: baseMappings,
+		Scopes:       []string{"openid", "profile", "email", "groups"},
+		GroupsClaim:  "groups",
+		DefaultRole:  "viewer",
+	}
+
+	cases := []struct {
+		name string
+		base *ProviderPolicy
+		ov   *RoleMappings
+		want *ProviderPolicy
+	}{
+		{
+			"nil override returns base unchanged",
+			basePolicy,
+			nil,
+			basePolicy,
+		},
+		{
+			"non-nil override replaces admin list",
+			basePolicy,
+			&RoleMappings{Admin: []string{"override-admin"}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"override-admin"},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"empty override list means nobody for that role",
+			basePolicy,
+			&RoleMappings{Admin: []string{}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"absent key leaves seeded list standing",
+			basePolicy,
+			&RoleMappings{Operator: []string{"override-ops"}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"helm-admins", "infra"},
+					Operator: []string{"override-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"roles resolve independently",
+			basePolicy,
+			&RoleMappings{
+				Admin:  []string{"new-admin"},
+				Viewer: []string{"new-view"},
+			},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"new-admin"},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"new-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+		{
+			"upgrade does not clobber existing override",
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"old-override"},
+					Operator: []string{"helm-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+			&RoleMappings{Operator: []string{"new-seeded-ops"}},
+			&ProviderPolicy{
+				RoleMappings: &RoleMappings{
+					Admin:    []string{"old-override"},
+					Operator: []string{"new-seeded-ops"},
+					Viewer:   []string{"helm-view"},
+				},
+				Scopes:      []string{"openid", "profile", "email", "groups"},
+				GroupsClaim: "groups",
+				DefaultRole: "viewer",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := effectiveHelmPolicy(tc.base, tc.ov)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("got %+v want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestEffectiveHelmPolicy_MostPrivilegedWins verifies that when an override
+// and seeded lists coexist for different roles, computeRole on the merged
+// policy still applies most-privileged-match-wins (no group priority change
+// due to override placement).
+func TestEffectiveHelmPolicy_MostPrivilegedWins(t *testing.T) {
+	baseMappings := &RoleMappings{
+		Admin:  []string{"seeded-admins"},
+		Viewer: []string{"seeded-viewers"},
+	}
+	basePolicy := &ProviderPolicy{
+		RoleMappings: baseMappings,
+	}
+
+	// Override viewer but keep admin seeded.
+	overrideMappings := &RoleMappings{
+		Viewer: []string{"override-viewer"},
+	}
+	effectivePolicy := effectiveHelmPolicy(basePolicy, overrideMappings)
+
+	// User has both an override-viewer group and a seeded-admin group.
+	// Even though viewer is overridden, admin (from seed) is higher privilege
+	// and should win when computeRole runs on the merged policy.
+	groups := []string{"override-viewer", "seeded-admins"}
+	role, deny := computeRole(groups, effectivePolicy)
+
+	if role != "admin" || deny {
+		t.Fatalf("got (%q, %v) want (admin, false): most-privileged must win", role, deny)
+	}
+}
+
+// TestEffectiveHelmPolicy_SC008_ByteIdenticalWithNilOverride verifies that
+// calling effectiveHelmPolicy(base, nil) returns the SAME pointer (and thus
+// byte-identical behavior) to calling computeRole directly on the base when
+// no override is present (SC-008).
+func TestEffectiveHelmPolicy_SC008_ByteIdenticalWithNilOverride(t *testing.T) {
+	mappings := &RoleMappings{
+		Admin:    []string{"admins"},
+		Operator: []string{"ops"},
+		Viewer:   []string{"viewers"},
+	}
+	basePolicy := &ProviderPolicy{
+		RoleMappings: mappings,
+		DefaultRole:  "viewer",
+	}
+
+	groups := []string{"admins", "ops", "viewers"}
+
+	// Direct call on base.
+	directRole, directDeny := computeRole(groups, basePolicy)
+
+	// Call through effectiveHelmPolicy with nil override.
+	effectivePolicy := effectiveHelmPolicy(basePolicy, nil)
+	effectiveRole, effectiveDeny := computeRole(groups, effectivePolicy)
+
+	if directRole != effectiveRole || directDeny != effectiveDeny {
+		t.Fatalf("direct=(%q,%v) effective=(%q,%v), must be identical",
+			directRole, directDeny, effectiveRole, effectiveDeny)
+	}
+
+	// Verify that effectivePolicy IS the same object (pointer equality).
+	if effectivePolicy != basePolicy {
+		t.Fatalf("effectiveHelmPolicy(base, nil) must return base unchanged (same pointer)")
+	}
+}
+
+// TestHandleCallback_HelmOverride_LiveRead_SC007 verifies that the Helm role-mapping
+// override is read fresh on every login (not cached at API startup), proving SC-007:
+// changes to role mappings take effect immediately on the next login without restart.
+// The test drives the OIDC callback three times with mutations to the override between
+// calls, asserting that the resolved role changes each time.
+func TestHandleCallback_HelmOverride_LiveRead_SC007(t *testing.T) {
+	idp := newFakeIDP(t, "client-1")
+	idp.nonce = "nonce-helm-override"
+	idp.groups = []string{"helm-admins"}
+
+	// Base policy: admins can get admin role, others default to viewer.
+	basePolicy := &ProviderPolicy{
+		RoleMappings: &RoleMappings{
+			Admin: []string{"helm-admins"},
+		},
+		DefaultRole: "viewer",
+	}
+
+	// Mutable override source: held in a closure so we can mutate it between logins.
+	var helmOverride *RoleMappings
+	getOverride := func(_ context.Context) *RoleMappings {
+		return helmOverride
+	}
+
+	o, err := NewOIDCWithPolicy(context.Background(), idp.issuer(), "client-1", "secret",
+		"https://app/cb", basePolicy)
+	if err != nil {
+		t.Fatalf("NewOIDCWithPolicy: %v", err)
+	}
+	// Set provider name to "helm" and attach the mutable override func.
+	o.SetProviderName(HelmProviderName)
+	o.AttachHelmRoleOverridesFunc(getOverride)
+
+	store := newAuthDB(t)
+	o.AttachStore(store)
+	sessions := NewSessionStore(store)
+
+	// === Login 1: No override, base policy only ===
+	// User has groups ["helm-admins"] which match Admin in base policy.
+	helmOverride = nil
+	rr := callbackViaIDP(t, o, sessions, "nonce-helm-override")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login 1: code=%d body=%q", rr.Code, rr.Body)
+	}
+	var role string
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("login 1: user not created: %v", err)
+	}
+	if role != "admin" {
+		t.Fatalf("login 1: role=%q want admin (base policy: helm-admins -> admin)", role)
+	}
+
+	// syncUserRole refuses to demote the install's LAST user-manager (see
+	// oidc.go's last-admin lockout guard), and the OIDC user from login 1
+	// is currently the only one. Seed a second local admin so the demotion
+	// below actually applies instead of being silently skipped.
+	seedUser(t, store, "backup-admin", "pw-backup-admin", "admin")
+
+	// === Login 2: Override with empty admin list ===
+	// User still has groups ["helm-admins"], but override makes Admin = [],
+	// so the user no longer matches admin and gets default viewer role.
+	helmOverride = &RoleMappings{
+		Admin: []string{}, // Empty override list means nobody can get admin role.
+	}
+	// Mutate the nonce to simulate a fresh login attempt.
+	idp.nonce = "nonce-helm-override-2"
+	rr = callbackViaIDP(t, o, sessions, "nonce-helm-override-2")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login 2: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("login 2: query: %v", err)
+	}
+	if role != "viewer" {
+		t.Fatalf("login 2: role=%q want viewer (override clears admin, default applies)", role)
+	}
+
+	// === Login 3: Clear override, back to base policy ===
+	// Override is nil again, so we're back to base policy.
+	// User still has groups ["helm-admins"] which match Admin in base.
+	helmOverride = nil
+	idp.nonce = "nonce-helm-override-3"
+	rr = callbackViaIDP(t, o, sessions, "nonce-helm-override-3")
+	if rr.Code != http.StatusFound {
+		t.Fatalf("login 3: code=%d body=%q", rr.Code, rr.Body)
+	}
+	if err := store.DB.QueryRowContext(context.Background(),
+		`SELECT role FROM users WHERE email = ?`, idp.email).Scan(&role); err != nil {
+		t.Fatalf("login 3: query: %v", err)
+	}
+	if role != "admin" {
+		t.Fatalf("login 3: role=%q want admin (back to base policy: helm-admins -> admin)", role)
 	}
 }

@@ -173,3 +173,21 @@ export const Captures = {
     return res.blob();
   },
 };
+
+// ConfigUpdateResponse mirrors the envelope returned by PUT /admin/config/{section}
+// and DELETE /admin/config/auth/role-mappings/{role}, containing the updated section
+// and its new value (as a JSON object, not raw message — api<T>() parses it).
+export interface ConfigUpdateResponse {
+  section: string;
+  value: Record<string, unknown>;
+}
+
+export const Config = {
+  // DELETE /admin/config/auth/role-mappings/{role} — resets one role's override
+  // to its Helm-seeded value, returning the updated auth section.
+  deleteRoleMapping: (role: string) =>
+    api<ConfigUpdateResponse>(
+      `/admin/config/auth/role-mappings/${encodeURIComponent(role)}`,
+      { method: "DELETE" },
+    ),
+};

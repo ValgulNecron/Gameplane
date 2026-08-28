@@ -29,9 +29,9 @@ It was one of three `go.work` modules without CI lint coverage until this featur
 
 ## The `//go:build e2e` boundary — why this module is invisible to ordinary tooling
 
-51 of this directory's 79 `.go` files carry `//go:build e2e` (every `*_test.go` file plus the shared non-test helpers they depend on: `env.go`, `gameprobe_job.go`). Without `-tags=e2e`, the Go toolchain — `go build ./...`, `go vet ./...`, `gofmt`, an editor's language server, a plain `go test ./...` — silently skips every one of those files. This has a direct, previously-burned consequence documented project-wide in `MEMORY.md`: **`go vet ./...` does not compile envtest/e2e-tagged files**, so a bad import or a broken reference introduced here passes local checks and every other CI job cleanly, and only reddens the run once the dedicated e2e job compiles with the tag. There is no cheap local signal for a broken build in this module short of `go vet -tags=e2e ./...` (or, per the project's "nothing runs locally" rule, waiting for CI). Treat any change under `test/e2e/` as unverified until the e2e CI job runs it.
+53 of this directory's 82 `.go` files carry `//go:build e2e` (every `*_test.go` file plus the shared non-test helpers they depend on: `env.go`, `gameprobe_job.go`). Without `-tags=e2e`, the Go toolchain — `go build ./...`, `go vet ./...`, `gofmt`, an editor's language server, a plain `go test ./...` — silently skips every one of those files. This has a direct, previously-burned consequence documented project-wide in `MEMORY.md`: **`go vet ./...` does not compile envtest/e2e-tagged files**, so a bad import or a broken reference introduced here passes local checks and every other CI job cleanly, and only reddens the run once the dedicated e2e job compiles with the tag. There is no cheap local signal for a broken build in this module short of `go vet -tags=e2e ./...` (or, per the project's "nothing runs locally" rule, waiting for CI). Treat any change under `test/e2e/` as unverified until the e2e CI job runs it.
 
-The golangci-lint job mirrors this: it must be invoked with `--build-tags=e2e` or it lints an effectively-empty package (only the 28 untagged files: `Dockerfile`-adjacent Go tooling, `internal/` package code not gated by the tag, fixtures, etc.).
+The golangci-lint job mirrors this: it must be invoked with `--build-tags=e2e` or it lints an effectively-empty package (only the 29 untagged files: `Dockerfile`-adjacent Go tooling, `internal/` package code not gated by the tag, fixtures, etc.).
 
 ## The bucket contract — the module's most important invariant
 
@@ -73,9 +73,12 @@ test/e2e/
 ├── test_helpers_e2e_test.go    # Misc test-local helpers
 ├── gamebot_helpers_e2e_test.go # Shared helpers for the *_bot_e2e_test.go files
 ├── Dockerfile                  # Builds the in-cluster game-bot probe image (docker-bake target)
+├── Dockerfile.fakeoidc         # Builds the e2e fake-OIDC issuer fixture image
 ├── fixtures/                   # YAML manifests applied via Env.ApplyYAML (oras-push Jobs, sample CRs, etc.)
 ├── testdata/                   # Static test fixtures (non-YAML)
 ├── internal/                   # Per-game protocol clients + shared probe harness — see internal/specs.md
+│   ├── fakeoidc/               # Fake OIDC issuer implementation (not part of the probe harness)
+│   ├── probe/, protocol/, <game>/
 ├── joincoverage.sh, joincoverage_test.sh  # JoinDepth coverage reporting for the bot suite
 └── go.mod, go.sum              # Standalone module; workspace-linked via go.work
 ```

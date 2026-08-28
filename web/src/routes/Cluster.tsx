@@ -9,6 +9,9 @@ import { cn, formatBytes, formatUptime } from "@/lib/utils";
 import { APIError } from "@/lib/api";
 import type { ClusterInfo, ClusterNode, ClusterView, NodeJoinInfo } from "@/types";
 import { Cluster } from "@/lib/endpoints";
+import { useMe, can } from "@/lib/auth";
+import type { AllConfig } from "@/lib/config";
+import { api } from "@/lib/api";
 
 // opMessage turns a cluster-op error into user copy — 501 means the
 // operator hasn't enabled clusterOps.
@@ -21,6 +24,9 @@ function opMessage(e: unknown): string {
 }
 
 export function ClusterPage() {
+  const { data: me } = useMe();
+  const canReadConfig = can(me, "config:read");
+
   const { data } = useQuery({
     queryKey: ["cluster"],
     queryFn: () => Cluster.view().catch(() => ({} as ClusterView)),
@@ -29,6 +35,11 @@ export function ClusterPage() {
   const { data: info } = useQuery({
     queryKey: ["cluster-info"],
     queryFn: () => Cluster.info().catch(() => ({} as ClusterInfo)),
+  });
+  const { data: config } = useQuery({
+    queryKey: ["config"],
+    queryFn: () => api<AllConfig>("/admin/config"),
+    enabled: canReadConfig,
   });
   // Only an explicit false disables the buttons — an older API (or a
   // failed info fetch) leaves them active, and the 501 opMessage still
@@ -146,6 +157,42 @@ export function ClusterPage() {
             <div className="font-medium">No node data yet.</div>
             <div className="pt-1 text-sm text-muted">
               No nodes are reporting yet — check the API and operator connection.
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {canReadConfig && config?.installTimeSettings && (
+        <Card className="space-y-4 p-5">
+          <div className="space-y-1">
+            <h3 className="text-base font-medium">Storage</h3>
+            <p className="text-sm text-muted">
+              Set at install time via Helm values — not editable from the dashboard.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex-1 space-y-1">
+                <div className="text-sm font-medium">Game data storage class</div>
+                <p className="text-xs text-muted">
+                  StorageClass for new GameServers' game-data volumes — set by the
+                  operator.gameDataStorage.storageClassName Helm value and applied by the operator to
+                  every new PVC; the API is passed the same value as --game-data-storage-class only to
+                  report it here.{" "}
+                  {config.installTimeSettings.gameDataStorageClass === "" &&
+                    "Left unset, so new volumes use the cluster's default StorageClass."}
+                </p>
+              </div>
+              {config.installTimeSettings.gameDataStorageClass ? (
+                <div className="font-mono text-sm font-medium">
+                  {config.installTimeSettings.gameDataStorageClass}
+                </div>
+              ) : (
+                <div className="rounded-full bg-surface px-3 py-1 text-sm text-muted">
+                  Cluster default
+                </div>
+              )}
             </div>
           </div>
         </Card>

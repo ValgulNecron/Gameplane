@@ -136,6 +136,8 @@ func TestMain(m *testing.M) {
 		DefaultMaxDurationSecs:  300,
 		DefaultMaxSizeBytes:     943718400, // 900 MiB, matching production (charts/gameplane/values.yaml)
 	}, "", "", "")
+	// Config routes require the database and auditor.
+	MountConfig(mountedR, captureAuditStore, captureAuditor, false, "", nil)
 
 	apiSrv = httptest.NewServer(mountedR)
 	apiBase = apiSrv.URL

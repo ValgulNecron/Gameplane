@@ -49,6 +49,10 @@ TestGameServer_SuspendScalesToZeroAndBack
 TestGameServer_IdleNeverSleepsWithoutAPlayerCount
 TestGameServer_HeartbeatReachesRunning
 TestGameServer_PVCSurvivesPodDelete
+TestGameServer_InstallTimeDefaultApplies
+TestGameServer_TemplateDefaultOverridesInstallTime
+TestGameServer_ExplicitStorageClassOverridesDefault
+TestGameServer_NonexistentStorageClassSurfacesError
 TestGameServer_VersionSwitch
 TestGameServer_CascadingDelete
 TestGameServer_IngressNetworkPolicyShapeAndCascade
@@ -94,14 +98,43 @@ TestAPI_AuditEmitsOnMutation
 TestAPI_AuditPaginationAndFilter
 TestAPI_LogoutInvalidatesSession
 TestAPI_PasswordResetInvalidatesSession
+TestAPI_OIDCHelmSeeded_AdminOnFirstLogin
+TestAPI_OIDCHelmSeeded_DefaultRoleOnNoMapping
+TestAPI_OIDCHelmSeeded_RoleReevaluatedOnGroupChange
 EOF
 }
 
+# The three TestAPI_OIDCHelmSeeded_* tests above spend 0 of this bucket's
+# admin-login budget: they authenticate entirely as OIDC users against a
+# fake in-cluster IdP (test/e2e/internal/fakeoidc), never as e2e-admin,
+# and their one rate limiter (auth.OIDCCallbackLimiter, burst 10/min) is
+# untouched by every other test in this bucket. See T049.
+#
+# WARNING: Do NOT move any test that writes helmOverride.roleMappings into
+# api-auth — it overrides the Helm-seeded admin mapping at login time and
+# would flake TestAPI_OIDCHelmSeeded_*.
+
+# TestAPI_AuthConfig_RoleMappings belongs with auth by subject, but api-auth was
+# already at its admin-login ceiling (per-user burst 6, 3/min, one shared IP per
+# job) and a ninth login there made TestAPI_LogoutInvalidatesSession fail 429.
+# It lives here, in a bucket that spends 4.
+#
+# WARNING: Do NOT move any test that writes helmOverride.roleMappings into
+# api-auth — it overrides the Helm-seeded admin mapping at login time and
+# would flake TestAPI_OIDCHelmSeeded_*.
+#
+# TestAPI_OIDCHelmOverride_EffectiveAtLoginTime writes helmOverride.roleMappings
+# and must not share an api-auth bucket with TestAPI_OIDCHelmSeeded_* tests
+# (separate CI job/cluster per bucket, so no conflict, but maintains login-budget discipline).
+# It costs +1 admin login, bringing api-roles to 5 (up from the previous 4).
+# Budget remains within the ~7 admin-logins-per-job ceiling.
 bucket_api_roles() { cat <<'EOF'
 TestAPI_CustomRole_Lifecycle
 TestAPI_BuiltinRole_Immutable
 TestAPI_PerNamespaceBinding_GrantsScopedAccess
 TestAPI_OwnerCollaboratorAccess
+TestAPI_AuthConfig_RoleMappings
+TestAPI_OIDCHelmOverride_EffectiveAtLoginTime
 EOF
 }
 

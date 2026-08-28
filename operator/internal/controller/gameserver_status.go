@@ -10,6 +10,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,9 @@ import (
 // Reported values (playersOnline, etc.) are kept across short dropouts;
 // the Healthy condition flips false once this window elapses.
 const heartbeatFreshness = 60 * time.Second
+
+// GameServerConditionReasonPVCProvisioningFailed is the reason for a PVC provisioning failure.
+const GameServerConditionReasonPVCProvisioningFailed = "PVCProvisioningFailed"
 
 // reconcileStatus derives phase / conditions / endpoints / startedAt
 // from observed StatefulSet, Service, and the agent heartbeat. It's a
@@ -75,13 +79,35 @@ func (r *GameServerReconciler) reconcileStatus(
 
 	phase := derivePhase(gs, ssExists, ss.Status.ReadyReplicas > 0, heartbeatFresh(gs), idle)
 
+	// Check for PVC provisioning failures early. If the game-data PVC is stuck
+	// Pending due to a missing StorageClass or other provisioning error, report it
+	// clearly so the dashboard shows a clear error message. This check runs on every
+	// reconcile (not just when events arrive) to satisfy SC-002: the error must
+	// surface within 30 seconds of the GameServer going Pending. The server stays
+	// in a non-terminal phase (Pending or Starting) per the spec (not escalated to Failed).
+	var prov *provisioningInfo
+	if phase == gameplanev1alpha1.GameServerPhasePending || phase == gameplanev1alpha1.GameServerPhaseStarting {
+		pvcName := gs.Name + "-data"
+		if _, pvcMsg, provisioning, err := checkPVCProvisioningFailure(ctx, r.Client, gs.Namespace, pvcName); err != nil {
+			// Non-NotFound error checking the PVC or StorageClass; surface it.
+			return 0, fmt.Errorf("check PVC provisioning: %w", err)
+		} else if provisioning {
+			// PVC provisioning error detected. checkPVCProvisioningFailure already
+			// names the missing StorageClass, so prefix only the PVC and keep the
+			// terse phrasing FR-005 asks for rather than restating the class twice.
+			prov = &provisioningInfo{
+				reason:  GameServerConditionReasonPVCProvisioningFailed,
+				message: fmt.Sprintf("PVC %q: %s", pvcName, pvcMsg),
+			}
+		}
+	}
+
 	// While Starting, read the pod's container states to either explain
 	// *why* it isn't Running yet (pulling the image, creating the
 	// container, installing on first boot, waiting for the agent) — feeding
 	// the dashboard's provisioning sub-status — or, if startup has
 	// terminally failed, escalate the phase to Failed.
-	var prov *provisioningInfo
-	if phase == gameplanev1alpha1.GameServerPhaseStarting {
+	if phase == gameplanev1alpha1.GameServerPhaseStarting && prov == nil {
 		var pod corev1.Pod
 		podErr := r.Get(ctx, types.NamespacedName{Name: gs.Name + "-0", Namespace: gs.Namespace}, &pod)
 		switch {
@@ -309,6 +335,25 @@ func computeConditions(
 		progressing.Reason = "Stable"
 		healthy.Status = metav1.ConditionTrue
 		healthy.Reason = "AgentFresh"
+	case gameplanev1alpha1.GameServerPhasePending:
+		ready.Status = metav1.ConditionFalse
+		ready.Reason = "Pending"
+		progressing.Status = metav1.ConditionTrue
+		progressing.Reason = "Pending"
+		healthy.Status = metav1.ConditionFalse
+		healthy.Reason = "Pending"
+		// Refine the generic "Pending" with what is actually pending if known.
+		// A PVC provisioning failure also names the missing StorageClass on
+		// Ready (not just Progressing): the phase stays Pending — this is
+		// recoverable once an admin creates the StorageClass — but the
+		// dashboard's Ready condition is what the e2e/envtest suites and the
+		// UI poll for a clear, specific error, mirroring the Failed case below.
+		if prov != nil && prov.reason != "" {
+			ready.Reason = prov.reason
+			ready.Message = prov.message
+			progressing.Reason = prov.reason
+			progressing.Message = prov.message
+		}
 	case gameplanev1alpha1.GameServerPhaseStarting:
 		ready.Status = metav1.ConditionFalse
 		ready.Reason = "Starting"
@@ -318,6 +363,14 @@ func computeConditions(
 		// doing, so the dashboard can show "Pulling image" /
 		// "Installing server files" / "Waiting for agent".
 		if prov != nil {
+			// Promote PVC provisioning failures to the Ready condition so the
+			// error is visible (mirroring the Pending case). Other prov reasons
+			// (pod scheduling, image pull, etc.) affect only Progressing —
+			// they're benign progress refinements, not failures.
+			if prov.reason == GameServerConditionReasonPVCProvisioningFailed {
+				ready.Reason = prov.reason
+				ready.Message = prov.message
+			}
 			if prov.reason != "" {
 				progressing.Reason = prov.reason
 			}
@@ -864,6 +917,53 @@ func containerFailure(cs *corev1.ContainerStatus) (reason, message string, faile
 			t.ExitCode), true
 	}
 	return "", "", false
+}
+
+// checkPVCProvisioningFailure inspects the game-data PVC for provisioning errors.
+// It returns (storageClass, message, provisioning, err) where:
+//   - provisioning=true and err==nil: a provisioning failure was detected (e.g., StorageClass not found)
+//   - provisioning=false and err!=nil: an error occurred checking the PVC or StorageClass (e.g., RBAC issue)
+//   - provisioning=false and err==nil: no provisioning failure
+//
+// When the PVC is Bound, no failure is reported. When the PVC is Pending and references
+// a StorageClass that does not exist on the cluster, that is reported as a provisioning
+// failure. Errors (other than NotFound for StorageClass) are not silently swallowed but
+// are returned to the caller to surface.
+func checkPVCProvisioningFailure(ctx context.Context, r client.Client, ns, pvcName string) (storageClass, message string, provisioning bool, err error) {
+	var pvc corev1.PersistentVolumeClaim
+	if getErr := r.Get(ctx, types.NamespacedName{Name: pvcName, Namespace: ns}, &pvc); getErr != nil {
+		if apierrors.IsNotFound(getErr) {
+			// PVC doesn't exist yet; no provisioning failure.
+			return "", "", false, nil
+		}
+		// PVC Get failed for a real reason (RBAC, API server, etc.); return the error.
+		return "", "", false, fmt.Errorf("fetch PVC: %w", getErr)
+	}
+
+	// If the PVC is Bound, there is no failure.
+	if pvc.Status.Phase == corev1.ClaimBound {
+		return "", "", false, nil
+	}
+
+	// PVC is not Bound (likely Pending). If it references a specific StorageClass, verify it exists.
+	if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName != "" {
+		scName := *pvc.Spec.StorageClassName
+		var sc storagev1.StorageClass
+		getErr := r.Get(ctx, types.NamespacedName{Name: scName}, &sc)
+		if getErr != nil {
+			if apierrors.IsNotFound(getErr) {
+				// StorageClass does not exist; this is a provisioning failure.
+				msg := fmt.Sprintf("StorageClass '%s' not found on cluster.", scName)
+				return scName, msg, true, nil
+			}
+			// StorageClass Get failed for a real reason (RBAC, API server, etc.);
+			// return the error so the operator knows there's a configuration problem.
+			return "", "", false, fmt.Errorf("check StorageClass '%s': %w", scName, getErr)
+		}
+	}
+
+	// No provisioning failure detected.
+	return "", "", false, nil
 }
 
 // podReady reports whether the pod's Ready condition is true.

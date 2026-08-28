@@ -4,7 +4,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { server } from "@/test/server";
 import { renderWithQuery } from "@/test/render";
-import { makeClusterInfo, makeClusterView } from "@/test/factories";
+import { makeClusterInfo, makeClusterView, makeUser } from "@/test/factories";
 import { ClusterPage } from "./Cluster";
 
 describe("ClusterPage", () => {
@@ -442,6 +442,106 @@ describe("ClusterPage", () => {
     await waitFor(() => {
       expect(screen.queryByText(/operation failed/i)).not.toBeInTheDocument();
       expect(screen.getByText(/kubeadm join/)).toBeInTheDocument();
+    });
+  });
+
+  describe("Storage section", () => {
+    it("renders the storage card when installTimeSettings is present with a configured class", async () => {
+      server.use(
+        http.get("/admin/config", () =>
+          HttpResponse.json({
+            general: {
+              instanceName: "Gameplane",
+              externalURL: "https://gameplane.local",
+              defaultNamespace: "gameplane-games",
+            },
+            installTimeSettings: {
+              gameDataStorageClass: "fast-nvme",
+            },
+          }),
+        ),
+      );
+      renderWithQuery(<ClusterPage />);
+      // Wait for the page to render and the config to load.
+      expect(await screen.findByText("Storage")).toBeInTheDocument();
+      expect(screen.getByText("Game data storage class")).toBeInTheDocument();
+      expect(screen.getByText("fast-nvme")).toBeInTheDocument();
+      expect(screen.getByText(/StorageClass for new GameServers/)).toBeInTheDocument();
+    });
+
+    it("renders the storage card with 'Cluster default' when gameDataStorageClass is unset", async () => {
+      server.use(
+        http.get("/admin/config", () =>
+          HttpResponse.json({
+            general: {
+              instanceName: "Gameplane",
+              externalURL: "https://gameplane.local",
+              defaultNamespace: "gameplane-games",
+            },
+            installTimeSettings: {
+              gameDataStorageClass: "",
+            },
+          }),
+        ),
+      );
+      renderWithQuery(<ClusterPage />);
+      expect(await screen.findByText("Storage")).toBeInTheDocument();
+      expect(screen.getByText("Game data storage class")).toBeInTheDocument();
+      // Should render the "Cluster default" pill badge.
+      expect(screen.getByText("Cluster default")).toBeInTheDocument();
+      // Should NOT render the storage class as plain text.
+      expect(screen.queryByText(/^fast-nvme$/)).not.toBeInTheDocument();
+      // Should include the additional hint text about using cluster default.
+      expect(screen.getByText(/Left unset, so new volumes use the cluster's default StorageClass/)).toBeInTheDocument();
+    });
+
+    it("does not render the storage card when installTimeSettings is absent", async () => {
+      server.use(
+        http.get("/admin/config", () =>
+          HttpResponse.json({
+            general: {
+              instanceName: "Gameplane",
+              externalURL: "https://gameplane.local",
+              defaultNamespace: "gameplane-games",
+            },
+          }),
+        ),
+      );
+      renderWithQuery(<ClusterPage />);
+      // The page should still render (with node data).
+      await screen.findByText("node-1");
+      // But the storage section should not be present.
+      expect(screen.queryByText("Storage")).not.toBeInTheDocument();
+      expect(screen.queryByText("Game data storage class")).not.toBeInTheDocument();
+    });
+
+    it("does not render storage card and does not fire admin-config query for users without config:read permission", async () => {
+      const configHandler = vi.fn(() =>
+        HttpResponse.json({
+          general: {
+            instanceName: "Gameplane",
+            externalURL: "https://gameplane.local",
+            defaultNamespace: "gameplane-games",
+          },
+          installTimeSettings: {
+            gameDataStorageClass: "fast-nvme",
+          },
+        }),
+      );
+      server.use(
+        http.get("/users/me", () => HttpResponse.json(makeUser({ role: "viewer" }))),
+        http.get("/admin/config", configHandler),
+      );
+      const { client } = renderWithQuery(<ClusterPage />);
+      // Wait for the viewer identity to load.
+      await waitFor(() => expect(client.getQueryData(["me"])).toBeTruthy());
+      // Wait for the page to render (the cluster data should load).
+      await screen.findByText("node-1");
+      // The storage section should NOT be present.
+      expect(screen.queryByText("Storage")).not.toBeInTheDocument();
+      expect(screen.queryByText("Game data storage class")).not.toBeInTheDocument();
+      // The /admin/config handler should NOT have been called.
+      expect(configHandler).not.toHaveBeenCalled();
     });
   });
 });

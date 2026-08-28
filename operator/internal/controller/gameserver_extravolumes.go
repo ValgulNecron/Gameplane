@@ -114,6 +114,9 @@ func extraVolumeMounts(
 // list is deliberately left in place — GC'd only when the GameServer itself
 // is deleted via the owner reference — so editing spec.storage.extra can
 // never silently destroy a directory's persistent data.
+// StorageClass precedence: per-volume override (GameServer.Spec.Storage.StorageClassName)
+// > template default (GameTemplate.Spec.Storage.StorageClassName)
+// > install-time default (r.DefaultStorageClassName) > cluster default.
 func (r *GameServerReconciler) reconcileExtraPVCs(
 	ctx context.Context, gs *gameplanev1alpha1.GameServer, tmpl *gameplanev1alpha1.GameTemplate,
 ) error {
@@ -126,7 +129,11 @@ func (r *GameServerReconciler) reconcileExtraPVCs(
 			if pvc.CreationTimestamp.IsZero() {
 				pvc.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 				pvc.Spec.Resources.Requests = corev1.ResourceList{corev1.ResourceStorage: ev.Size}
-				pvc.Spec.StorageClassName = sc
+				if sc != nil {
+					pvc.Spec.StorageClassName = sc
+				} else if r.DefaultStorageClassName != "" {
+					pvc.Spec.StorageClassName = &r.DefaultStorageClassName
+				}
 			}
 			return controllerutil.SetControllerReference(gs, pvc, r.Scheme)
 		})

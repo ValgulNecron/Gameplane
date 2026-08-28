@@ -120,7 +120,7 @@ func TestAttachStore(t *testing.T) {
 
 func TestResolveOrLinkUser_NoStoreErrors(t *testing.T) {
 	o := &OIDC{}
-	_, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "u@x", "U", "viewer", false)
+	_, _, err := o.resolveOrLinkUser(context.Background(), "https://idp", "sub-1", "u@x", "U", "viewer", "none", false)
 	if err == nil || !strings.Contains(err.Error(), "no store attached") {
 		t.Fatalf("got %v", err)
 	}

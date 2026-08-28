@@ -140,6 +140,7 @@ func main() {
 		metalLBNamespace                 string
 		gameIngressPolicy                bool
 		gameIngressFromCIDR              cidrListFlag
+		gameDataStorageClass             string
 		captureEnabled                   bool
 		captureDefaultRetention          int64
 		captureMaxRetention              int64
@@ -243,6 +244,10 @@ func main() {
 	flag.Var(&gameIngressFromCIDR, "game-ingress-from-cidr",
 		"Source CIDR admitted to advertised game ports by the ingress NetworkPolicy. Repeatable. "+
 			"Defaults to 0.0.0.0/0 (games are meant to be publicly reachable) when not supplied.")
+	flag.StringVar(&gameDataStorageClass, "game-data-storage-class", os.Getenv("GAMEPLANE_GAME_DATA_STORAGE_CLASS"),
+		"StorageClass for game server data volumes (GameServer spec.storage.storageClassName). "+
+			"Empty (default) uses the cluster's default StorageClass. "+
+			"Applies when a GameServer does not explicitly set spec.storage.storageClassName.")
 
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
@@ -382,6 +387,7 @@ func main() {
 		CaptureDefaultMaxDurationSeconds: captureDefaultMaxDurationSeconds,
 		CaptureDefaultMaxSizeBytes:       captureDefaultMaxSizeBytes,
 		CaptureSidecarImage:              captureSidecarImage,
+		DefaultStorageClassName:          gameDataStorageClass,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up controller", "controller", "GameServer")
 		os.Exit(1)
