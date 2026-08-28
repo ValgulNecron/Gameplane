@@ -262,7 +262,7 @@ All cluster-dispatch routes accept `?cluster={name}` (validates against register
 
 ### Capture operation auditing
 
-**Scope — which operations are audited** (per T010, specs/003-network-capture-sidecar/research.md):
+**Scope — which operations are audited** (per T010, specs/done_003-network-capture-sidecar/research.md):
 
 - **REQUIRED (FR-006):** All capture write/delete operations are audited synchronously:
   - POST `:capture-enable` (enable) — recorded before response

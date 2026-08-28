@@ -4,7 +4,7 @@
 // Design source: design-export/json/{f0s9zG,Bbnga,dBILX,xvlB6,m5kOm4,
 // O08uaD,b4eaUf}.json — read directly (never design.pen; see CLAUDE.md
 // rule 2). Endpoints and error-body shape follow
-// specs/003-network-capture-sidecar/contracts/rest-api.md (plain-text
+// specs/done_003-network-capture-sidecar/contracts/rest-api.md (plain-text
 // httperr bodies, `:verb` route suffixes, capture id as a query param).
 import { Fragment, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

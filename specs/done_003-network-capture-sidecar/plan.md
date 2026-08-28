@@ -1,8 +1,8 @@
 # Implementation Plan: Network Capture Sidecar for Game Servers
 
-**Branch**: `003-network-capture-sidecar` | **Date**: 2026-08-23 | **Spec**: [specs/003-network-capture-sidecar/spec.md](/specs/003-network-capture-sidecar/spec.md)
+**Branch**: `003-network-capture-sidecar` | **Date**: 2026-08-23 | **Spec**: [specs/done_003-network-capture-sidecar/spec.md](/specs/done_003-network-capture-sidecar/spec.md)
 
-**Input**: Feature specification from `specs/003-network-capture-sidecar/spec.md`; Phase 0 research consolidated in `research.md`; Phase 1 data model, quickstart, and contracts in `data-model.md`, `quickstart.md`, and `contracts/`.
+**Input**: Feature specification from `specs/done_003-network-capture-sidecar/spec.md`; Phase 0 research consolidated in `research.md`; Phase 1 data model, quickstart, and contracts in `data-model.md`, `quickstart.md`, and `contracts/`.
 
 **Status of this document**: Planning artifact only. Nothing described below has been built,
 run, or tested. No section may be read as evidence that any behavior works, any test
@@ -110,7 +110,7 @@ that code exists, compiles, or passes any test.*
 ### Documentation (this feature)
 
 ```text
-specs/003-network-capture-sidecar/
+specs/done_003-network-capture-sidecar/
 ├── plan.md              # This file (implementation plan)
 ├── spec.md              # Feature specification (US2 scenario 4 / FR-001 disable clause already correct as
 │                        #   written, no amendment needed there; genuinely amended 2026-08-23 for FR-001/SC-007's
