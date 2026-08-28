@@ -48,6 +48,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/ValgulNecron/gameplane/netguard"
 )
 
 const (
@@ -289,7 +291,18 @@ func (c *WebSocket) ensureLocked() error {
 	dialCtx, cancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer cancel()
 
-	conn, resp, err := websocket.Dial(dialCtx, wsURL, nil)
+	// Route the dial through a netguard-guarded HTTP client. The game server
+	// address comes from the GameServer CRD (admin-controlled), so this is
+	// defense-in-depth rather than a primary security boundary. We use
+	// netguard.IsAllowed (permissive, allows loopback and private addresses)
+	// rather than IsPublic (strict) because game servers legitimately run
+	// INSIDE the pod or cluster on loopback or RFC1918 addresses. IsAllowed
+	// still blocks the cloud metadata endpoint and other high-value SSRF
+	// targets (link-local, multicast, NAT64/6to4 prefixes).
+	httpClient := netguard.HTTPClient(dialTimeout, netguard.IsAllowed)
+	conn, resp, err := websocket.Dial(dialCtx, wsURL, &websocket.DialOptions{
+		HTTPClient: httpClient,
+	})
 	if err != nil {
 		return fmt.Errorf("websocket rcon: dial %s: %w", c.baseURL, err)
 	}
