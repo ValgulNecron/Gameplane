@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -758,10 +759,10 @@ func TestUnzipInto_AcceptsValidEntriesWithConfinePath(t *testing.T) {
 func TestUnzipInto_AcceptsDotfilesAndNestedEntries(t *testing.T) {
 	// Create an archive with dotfiles and nested paths (typical for real archives).
 	zipPath := makeZip(t, map[string]string{
-		".gitkeep":           "",                            // dotfile at root
-		"config/.gitignore":  "*.tmp\n",                     // dotfile in subdirectory
-		"plugins/Cool.dll":   "DLLBYTES",                    // nested file
-		"src/main/.settings": "debug=false\n",               // nested dotfile
+		".gitkeep":            "",              // dotfile at root
+		"config/.gitignore":   "*.tmp\n",       // dotfile in subdirectory
+		"plugins/Cool.dll":    "DLLBYTES",      // nested file
+		"src/main/.settings":  "debug=false\n", // nested dotfile
 	})
 	dst := filepath.Join(t.TempDir(), "out")
 
@@ -780,5 +781,168 @@ func TestUnzipInto_AcceptsDotfilesAndNestedEntries(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("file %q should exist: %v", path, err)
 		}
+	}
+}
+
+func TestUpload_BadArchive(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".zip"},
+		Extract:    true,
+	}
+	srv := newSrv(t, root, spec)
+
+	// Create a bad zip file and upload it
+	badZipPath := filepath.Join(t.TempDir(), "bad.zip")
+	if err := os.WriteFile(badZipPath, []byte("definitely not a zip"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open the file and send it as multipart upload
+	zipFile, err := os.Open(badZipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zipFile.Close()
+
+	// Build the multipart form body.
+	client := &http.Client{}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "bad.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(part, zipFile)
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload", &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 for bad archive", resp.StatusCode)
+	}
+}
+
+func TestUpload_SizeCap(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".zip"},
+	}
+	srv := newSrv(t, root, spec)
+
+	// Create a large file (exceeds default cap)
+	largeData := bytes.Repeat([]byte("A"), 300<<20) // 300 MiB, exceeds 256 MiB default
+	client := &http.Client{}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "large.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.Copy(part, bytes.NewReader(largeData))
+	writer.Close()
+
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d, want 413 for oversized upload", resp.StatusCode)
+	}
+}
+
+func TestUpload_WrongExtension(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{
+		Path:       "plugins",
+		Extensions: []string{".dll"},
+	}
+	srv := newSrv(t, root, spec)
+
+	client := &http.Client{}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("file", "plugin.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte("zipdata"))
+	writer.Close()
+
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 for wrong extension", resp.StatusCode)
+	}
+}
+
+func TestUpload_InvalidForm(t *testing.T) {
+	root := t.TempDir()
+	spec := &caps.Mods{Path: "plugins"}
+	srv := newSrv(t, root, spec)
+
+	// Send a POST without proper multipart form
+	client := &http.Client{}
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/mods/upload",
+		bytes.NewReader([]byte("not a form")))
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400 for invalid form", resp.StatusCode)
+	}
+}
+
+func TestRemove_MissingMod(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	// Try to remove a mod that doesn't exist
+	status, body := do(t, srv, http.MethodDelete, "/mods?name=nonexistent.jar", nil)
+	if status != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404; body=%s", status, body)
+	}
+}
+
+func TestList_Empty(t *testing.T) {
+	root := t.TempDir()
+	// Create the mods directory but leave it empty
+	if err := os.MkdirAll(filepath.Join(root, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	status, body := do(t, srv, http.MethodGet, "/mods", nil)
+	if status != http.StatusOK || strings.TrimSpace(string(body)) != "[]" {
+		t.Fatalf("status=%d body=%s", status, body)
 	}
 }

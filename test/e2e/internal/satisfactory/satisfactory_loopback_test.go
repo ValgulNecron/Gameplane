@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 )
 
@@ -145,7 +146,7 @@ func TestQueryServerStateRejectsNonLoopback(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := queryServerState(nil, tc.addr)
+			_, err := queryServerState(context.TODO(), tc.addr)
 			if err == nil {
 				t.Errorf("queryServerState(%q) should reject non-loopback address, but got nil error", tc.addr)
 			}
@@ -194,7 +195,7 @@ func TestQueryServerStateAcceptsLoopback(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := queryServerState(nil, tc.addr)
+			_, err := queryServerState(context.TODO(), tc.addr)
 			// We expect an error (context nil), but NOT a loopback rejection error.
 			// The loopback guard should pass, and only the nil context or missing server should cause the error.
 			if err != nil {

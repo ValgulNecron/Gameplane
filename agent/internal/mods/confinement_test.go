@@ -287,61 +287,61 @@ func TestConfinePath_TableDriven(t *testing.T) {
 	}{
 		{
 			name:    "valid name",
-			setup:   func(_ *testing.T, root string) string { return "validmod" },
+			setup:   func(_ *testing.T, _ string) string { return "validmod" },
 			wantErr: nil,
 		},
 		{
 			name:    "valid name with underscore",
-			setup:   func(_ *testing.T, root string) string { return "valid_mod_123" },
+			setup:   func(_ *testing.T, _ string) string { return "valid_mod_123" },
 			wantErr: nil,
 		},
 		{
 			name:    "empty component",
-			setup:   func(_ *testing.T, root string) string { return "" },
+			setup:   func(_ *testing.T, _ string) string { return "" },
 			wantErr: ErrEmpty,
 		},
 		{
 			name:    "dot only",
-			setup:   func(_ *testing.T, root string) string { return "." },
+			setup:   func(_ *testing.T, _ string) string { return "." },
 			wantErr: ErrDot,
 		},
 		{
 			name:    "dotdot",
-			setup:   func(_ *testing.T, root string) string { return ".." },
+			setup:   func(_ *testing.T, _ string) string { return ".." },
 			wantErr: ErrDotDot,
 		},
 		{
 			name:    "dotdot slash",
-			setup:   func(_ *testing.T, root string) string { return "../evil" },
+			setup:   func(_ *testing.T, _ string) string { return "../evil" },
 			wantErr: ErrTraversal,
 		},
 		{
 			name:    "absolute path",
-			setup:   func(_ *testing.T, root string) string { return "/etc/passwd" },
+			setup:   func(_ *testing.T, _ string) string { return "/etc/passwd" },
 			wantErr: ErrAbsolute,
 		},
 		{
 			name:    "slash separator",
-			setup:   func(_ *testing.T, root string) string { return "sub/dir" },
+			setup:   func(_ *testing.T, _ string) string { return "sub/dir" },
 			wantErr: ErrSeparator,
 		},
 		{
 			name:    "leading dot",
-			setup:   func(_ *testing.T, root string) string { return ".hidden" },
+			setup:   func(_ *testing.T, _ string) string { return ".hidden" },
 			wantErr: ErrLeadingDot,
 		},
 		{
 			name:    "too long",
-			setup:   func(_ *testing.T, root string) string { return strings.Repeat("x", 201) },
+			setup:   func(_ *testing.T, _ string) string { return strings.Repeat("x", 201) },
 			wantErr: ErrTooLong,
 		},
 		{
 			name:    "null byte",
-			setup:   func(_ *testing.T, root string) string { return "file\x00.txt" },
+			setup:   func(_ *testing.T, _ string) string { return "file\x00.txt" },
 			wantErr: ErrControlChar,
 		},
 		{
-			name:    "symlink escape",
+			name: "symlink escape",
 			setup: func(t *testing.T, root string) string {
 				escaped := t.TempDir()
 				linkPath := filepath.Join(root, "escape")

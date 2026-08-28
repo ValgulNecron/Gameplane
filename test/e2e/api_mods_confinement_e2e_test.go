@@ -5,13 +5,64 @@ package e2e
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+// applyModsExtractTemplate is applyModsTemplate (see api_mods_e2e_test.go)
+// plus "extract": true on the mods capability, so an uploaded archive is
+// actually unpacked via swapInArchive/unzipInto instead of being stored as
+// an inert file (agent/internal/mods/mods.go: with extract unset, uploads
+// are just os.Rename'd into place and the confinement guard on the
+// extraction path never runs). The confinement tests in this file need
+// extraction enabled to exercise the guard they claim to verify.
+func applyModsExtractTemplate(t *testing.T, tmplName string) {
+	t.Helper()
+	ctx := context.Background()
+	tmpl := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "gameplane.local/v1alpha1",
+		"kind":       "GameTemplate",
+		"metadata":   map[string]any{"name": tmplName},
+		"spec": map[string]any{
+			"displayName": "E2E mods confinement busybox (" + tmplName + ")",
+			"game":        "busybox",
+			"version":     "1",
+			"image":       "busybox:1.36",
+			"command":     []any{"sh", "-c", "sleep 100000"},
+			"ports": []any{
+				map[string]any{"name": "noop", "containerPort": int64(12345), "advertise": true, "protocol": "TCP"},
+			},
+			"capabilities": map[string]any{
+				"mods": map[string]any{
+					"path":    "mods",
+					"extract": true,
+					"install": map[string]any{
+						"allowedHosts": []any{"raw.githubusercontent.com"},
+						"maxSizeMB":    int64(16),
+					},
+				},
+			},
+		},
+	}}
+	if _, err := envInstance.Dyn.Resource(gameTemplateGVR).
+		Create(ctx, tmpl, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create template %s: %v", tmplName, err)
+	}
+	t.Cleanup(func() {
+		_ = envInstance.Dyn.Resource(gameTemplateGVR).
+			Delete(context.Background(), tmplName, metav1.DeleteOptions{})
+	})
+}
 
 // TestAPI_ModArchiveConfinement_PathTraversalRejected proves that the mod
 // archive extraction confinement guard rejects path traversal entries
@@ -27,7 +78,7 @@ func TestAPI_ModArchiveConfinement_PathTraversalRejected(t *testing.T) {
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer cli.Close()
 
-	applyModsTemplate(t, tmpl)
+	applyModsExtractTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
@@ -95,19 +146,25 @@ func TestAPI_ModArchiveConfinement_PathTraversalRejected(t *testing.T) {
 	_, _ = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 
-	// The upload should fail (extraction error) or succeed but listing should show nothing
-	// (the extraction was rejected by ConfinePath validation).
+	// With extraction enabled, unzipInto rejects the traversal entry via
+	// ConfineRelPath, the staging dir is discarded, and the upload fails —
+	// this is the expected, common outcome.
 	// CodeQL alerts are cleared when the confinement validation rejects the traversal.
 	if resp.StatusCode != http.StatusOK {
 		// Rejection at upload time is acceptable (agent caught it)
 		return
 	}
 
-	// If upload appeared to succeed, verify nothing was actually extracted
-	// by listing mods and confirming the malicious archive did not land
+	// If upload appeared to succeed despite the traversal entry, verify
+	// nothing was actually extracted by listing mods and confirming the
+	// archive did not land. Extraction installs archives under a folder
+	// named after the archive with its extension stripped (see
+	// agent/internal/mods/mods.go archiveFolderName), not the raw upload
+	// filename.
+	installName := strings.TrimSuffix("malicious.zip", ".zip")
 	mods := listServerMods(t, cli, gs)
 	for _, m := range mods {
-		if m.Name == "malicious.zip" {
+		if m.Name == "malicious.zip" || m.Name == installName {
 			t.Fatalf("malicious archive landed in mods list: %+v (confinement validation failed)", m)
 		}
 	}
@@ -127,7 +184,7 @@ func TestAPI_ModArchiveConfinement_SymlinkEscapeRejected(t *testing.T) {
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer cli.Close()
 
-	applyModsTemplate(t, tmpl)
+	applyModsExtractTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
@@ -163,9 +220,9 @@ func TestAPI_ModArchiveConfinement_SymlinkEscapeRejected(t *testing.T) {
 	// Add a symlink entry: name is the link, content is the target.
 	// We manually create the file header with the symlink bit set.
 	h := &zip.FileHeader{
-		Name:           "escape-link",
-		Method:         zip.Store,
-		ExternalAttrs:  0o120777 << 16, // Unix symlink permissions
+		Name:          "escape-link",
+		Method:        zip.Store,
+		ExternalAttrs: 0o120777 << 16, // Unix symlink permissions
 	}
 	w, err = zw.CreateHeader(h)
 	if err != nil {
@@ -237,7 +294,7 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 	cli := envInstance.APIClient(t, adminUsername, adminPassword)
 	defer cli.Close()
 
-	applyModsTemplate(t, tmpl)
+	applyModsExtractTemplate(t, tmpl)
 	applyBusyboxGameServer(t, ns, gs, tmpl)
 	waitPVCBound(t, ns, gs+"-data", 90*time.Second)
 	requireAgentReady(t, ns, gs)
