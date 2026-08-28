@@ -278,3 +278,16 @@ After MVP merge: Phase 3 (US1) proceeds in a follow-up, then Phase 5/6 (Dependab
 - All builds, tests, linting, and e2e runs happen on GitHub Actions CI (`ci.yaml` workflow and dedicated e2e jobs).
 - A locally-green compile is not verification; only CI green is verification.
 - Alert closure and Dependabot PR closure are GitHub-side state changes observable only after master re-analysis (CodeQL runs on the default branch, not on feature branches).
+
+---
+
+## Phase 10: Convergence
+
+**Goal**: Close the gaps between the artifacts and the current state of the code, found by `/speckit-converge`.
+
+**Scope note**: Unmerged Dependabot PRs (#262–#283) and un-dismissed CodeQL alerts (#1–#14) were assessed and found to be remaining work, but every one of them already maps 1:1 onto an existing unchecked task (T026–T047). They are deliberately NOT re-appended here — completing the existing tasks closes them. Likewise the pending maintainer sign-off for alert #3 is already covered by T025.
+
+- [ ] T061 CRITICAL: Open a pull request from `009-remediate-security-dependabot` to master via `gh pr create -R ValgulNecron/Gameplane` so that CI compiles and tests this branch's 8 implementation commits for the first time; `.github/workflows/ci.yaml` triggers only on `push: branches: [master]` and `pull_request`, and `gh run list --branch 009-remediate-security-dependabot` currently returns `[]`, so T004–T024 have never been built or tested by anything. Then fix every failing check with follow-up commits per SC-003/SC-005 (missing)
+- [ ] T062 CRITICAL: Merge this feature branch's own commits into master once every check in the `ci` workflow is green, using `gh pr merge <n> -R ValgulNecron/Gameplane --admin --merge`; T051 says "delete merged feature branch" but no prior task ever merges it, so the Phase A remediation work has no path to the default branch — and CodeQL only re-analyses master, so alerts #1–#14 cannot reach `fixed` until this lands per SC-001 (missing)
+- [ ] T063 Add the `len(relPath) > 4096` rejection to ConfineRelPath in agent/internal/mods/confinement.go, which currently implements 12 of the 13 rejection rules; note this is a defensive resource bound, not an escape check — `isConfined()` and the per-segment `..` rejection already prevent escape at any length — per contracts/path-confinement.md:135 (partial)
+- [ ] T064 Add a length-limit test for ConfineRelPath in agent/internal/mods/confinement_test.go asserting that a relative path longer than 4096 characters is rejected; every other rejection row in the contract table already has coverage, per T005 (partial)
