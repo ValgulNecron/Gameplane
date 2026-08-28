@@ -476,6 +476,38 @@ func TestConfineRelPath_RejectControlCharacters(t *testing.T) {
 	}
 }
 
+func TestConfineRelPath_RejectPathTooLong(t *testing.T) {
+	root := t.TempDir()
+
+	// Build a path longer than 4096 characters.
+	// Use pattern "a/a/a/.../a": each "a/" is 2 chars, so 2048 repetitions = 4096,
+	// plus one more "a" = 4097 total.
+	tooLongPath := strings.Repeat("a/", 2048) + "a"
+	if len(tooLongPath) <= 4096 {
+		t.Fatalf("test setup error: path is %d chars, need > 4096", len(tooLongPath))
+	}
+
+	_, err := ConfineRelPath(root, tooLongPath)
+	if err == nil {
+		t.Fatalf("got nil error, want ErrTooLong")
+	}
+	if !errors.Is(err, ErrTooLong) {
+		t.Fatalf("got %v, want ErrTooLong", err)
+	}
+
+	// Test boundary: acceptable length (4095 chars) should not be rejected.
+	// Use same pattern: 2047 repetitions + "a" = 4095 chars.
+	acceptablePath := strings.Repeat("a/", 2047) + "a"
+	if len(acceptablePath) >= 4096 {
+		t.Fatalf("test setup error: boundary path is %d chars, need < 4096", len(acceptablePath))
+	}
+
+	_, err = ConfineRelPath(root, acceptablePath)
+	if err != nil {
+		t.Fatalf("acceptable-length path failed: %v", err)
+	}
+}
+
 func TestConfineRelPath_NormalizeBackslashes(t *testing.T) {
 	root := t.TempDir()
 	// Backslashes in archive entries (Windows-style) should be normalized to forward slashes

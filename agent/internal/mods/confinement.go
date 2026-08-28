@@ -156,6 +156,11 @@ func ConfineRelPath(root, relPath string) (string, error) {
 		return "", fmt.Errorf("relative path is empty: %w", ErrEmpty)
 	}
 
+	// Reject paths longer than 4096 characters
+	if len(relPath) > 4096 {
+		return "", fmt.Errorf("relative path is too long: %w", ErrTooLong)
+	}
+
 	// Reject absolute paths
 	if filepath.IsAbs(relPath) {
 		return "", fmt.Errorf("path is absolute: %w", ErrAbsolute)
