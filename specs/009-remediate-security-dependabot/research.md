@@ -8,10 +8,10 @@ Feature 009 addresses 14 open CodeQL security scanning alerts across the Gamepla
 
 ## Decisions
 
-### D-001: Triage Outcome — 12 False Positives, 1 Real Defect, 1 Latent Gap
+### D-001: Triage Outcome — 13 False Positives, 1 Real Defect, 1 Latent Gap
 
 **Decision**: The 14 open CodeQL alerts comprise:
-- **12 false positives**: sites where existing in-code guards or caller-side validation prevent the flagged data flow, but CodeQL's sanitizer models do not recognize the pattern as a barrier.
+- **13 false positives**: sites where existing in-code guards or caller-side validation prevent the flagged data flow, but CodeQL's sanitizer models do not recognize the pattern as a barrier.
 - **1 real defect**: `test/e2e/internal/satisfactory/app.go:188`, unconditional `InsecureSkipVerify: true` in `queryServerState` with no loopback guard.
 - **1 known latent gap** (not currently alerted by CodeQL): `agent/internal/rcon/websocket.go` line ~292 dials a WebSocket with no netguard policy; this is defense-in-depth since the input is admin-controlled via the GameServer CRD.
 
@@ -65,7 +65,7 @@ Currently, `safeName()` (agent/internal/mods/mods.go:625–645) validates filena
 **Proposal**: Extract a unified path-confinement helper:
 
 ```
-func confineToDir(rootDir, untrustedName string) (string, error)
+func ConfinePath(rootDir, untrustedName string) (string, error)
 ```
 
 This helper takes:
@@ -78,7 +78,7 @@ It returns:
 
 Implementation basis: `agent/internal/files/files.go:57–98` `resolve()` is the strongest existing pattern — it applies `filepath.Clean`, `filepath.EvalSymlinks` on both the target and the deepest existing ancestor, and a prefix check. The new helper should do the same, possibly reusing `resolve()` internally.
 
-**Effect**: Callers pass untrusted input to `confineToDir()`, get back a fresh string known to be confined, and use that result directly. Validation and use are now in the same function boundary, visible to CodeQL.
+**Effect**: Callers pass untrusted input to `ConfinePath()`, get back a fresh string known to be confined, and use that result directly. Validation and use are now in the same function boundary, visible to CodeQL.
 
 **Sites affected**: #8 `removeEntry`, #9 `removeEntry` (same fix), #10 `download`, #11 `swapInArchive`, #12 `swapInArchive` (same fix), #13 `remove`.
 
@@ -302,7 +302,7 @@ This log will be appended to `contracts/dependabot-merge-log.md` for audit trail
 ### No Uncertainties Remaining
 
 All decisions in this research are settled by the brief and user decisions. No further clarification is needed on:
-- False-positive triage (12 identified and verified)
+- False-positive triage (13 identified and verified)
 - Refactoring strategy per alert family (concrete proposals for each)
 - Dependabot merge order (sequenced by blast radius)
 - Deferral strategy for TS 7 / ESLint 10 (gated phase with known blockers)
@@ -313,7 +313,7 @@ All decisions in this research are settled by the brief and user decisions. No f
 ## Next Steps
 
 1. **Codegen**: Run `make generate && make manifests` if CRD changes are needed (none are expected for this feature).
-2. **Phase 1 (Planning)**: Develop detailed task breakdown per remediation site, including commit message templates and test expectations.
-3. **Phase 2 (Implementation)**: Refactor path-confinement sites, uncontrolled-allocation clamp, and add loopback guard to test satisfactory. Merge Dependabot PRs in the sequenced order.
-4. **Phase 3 (Verification)**: Confirm CI passes on master; confirm CodeQL analysis marks alerts as fixed; confirm all 21 PRs are merged.
+2. **Phase A (Planning)**: Develop detailed task breakdown per remediation site, including commit message templates and test expectations.
+3. **Phase B–C (Implementation)**: Refactor path-confinement sites, uncontrolled-allocation clamp, and add loopback guard to test satisfactory. Merge Dependabot PRs in the sequenced order.
+4. **Phase D (Verification)**: Confirm CI passes on master; confirm CodeQL analysis marks alerts as fixed; confirm all 21 PRs are merged.
 

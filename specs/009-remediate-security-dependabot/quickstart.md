@@ -60,7 +60,7 @@ Note: The spec lists 20 PRs (#262–#281); it omits #283 (brace-expansion + js-y
 
 ## Scenario A: Alert Remediation Verified
 
-For each of the 12 false-positive alerts (1–3, 5–13) and the 2 real defects (4, 14), fixes must be committed. After each commit merges to master, CodeQL runs on the default branch and reports alert state as `fixed`.
+Alert #4 (real defect) requires a code fix. Alerts #1–#2 and #7–#14 (false positives) are addressed by refactoring; dismissal is deferred until post-merge CodeQL analysis on master confirms whether the refactor cleared the alert. Alerts #5 and #6 are false positives where refactoring is attempted, but dismissal is the expected outcome. Alert #3 is closed by dismissal only, with no code change. After each commit merges to master, CodeQL runs on the default branch and reports alert state as either `fixed` (refactored) or `dismissed`.
 
 ### Observing CI on the Feature Branch
 
@@ -189,12 +189,12 @@ gh run list \
 
 Confirm `e2e-go e2e-auth` job (the api-auth bucket, which contains TestAPI_AuditPaginationAndFilter) is green.
 
-**Query the audit endpoint locally after merge to verify**:
+**Query the audit endpoint against deployed test cluster to verify**:
 
-Once merged to master and deployed to a test cluster, query the audit endpoint with extreme limits and confirm the response is bounded:
+Once merged to master and deployed to a test cluster, query the audit endpoint via kubectl port-forward with extreme limits and confirm the response is bounded:
 
 ```bash
-# These queries can be run manually against a deployed instance (not on CI).
+# These queries run against a deployed test cluster instance (never on CI, per Principle VI).
 # Assuming the API is port-forwarded to :8000 and an admin session is established.
 
 # Query with limit=-1 (should be clamped to default 100)

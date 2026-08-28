@@ -8,7 +8,7 @@
 
 This feature has two independent halves sharing a branch but no functional overlap: **(a)** remediate 14 CodeQL security alerts, and **(b)** merge 21 Dependabot PRs individually. The work is primarily making existing, correct defences legible to CodeQL, not adding missing ones.
 
-**Triage finding**: the spec was written assuming all 14 alerts are real defects requiring fixes. Inspection of the live code contradicts that: **12 of 14 are verified false positives with guards already in place** (path confinement, SSRF validation, loopback checks, ZIP-slip detection, redaction), **1 is a real unguarded `InsecureSkipVerify` in an e2e helper** (`test/e2e/internal/satisfactory/app.go:188`), and **1 is a latent gap**: `agent/internal/rcon/websocket.go` dials an admin-supplied URL with no netguard policy (defence-in-depth, not active vulnerability). The false-positive policy is to refactor each site into a shape CodeQL's built-in sanitizer models recognize, or dismiss via the code-scanning API with a documented justification. No in-source suppressions are permitted.
+**Triage finding**: the spec was written assuming all 14 alerts are real defects requiring fixes. Inspection of the live code contradicts that: **13 of 14 are verified false positives with guards already in place** (path confinement, SSRF validation, loopback checks, ZIP-slip detection, redaction), **1 is a real unguarded `InsecureSkipVerify` in an e2e helper** (`test/e2e/internal/satisfactory/app.go:188`). Additionally, **1 separate latent gap** exists (not counted in the 14 alerts): `agent/internal/rcon/websocket.go` dials an admin-supplied URL with no netguard policy (defence-in-depth, not active vulnerability). The false-positive policy is to refactor each site into a shape CodeQL's built-in sanitizer models recognize, or dismiss via the code-scanning API with a documented justification. No in-source suppressions are permitted.
 
 **Dependabot PR count correction**: the spec lists 20 PRs (#262–#281). Triage found 21: the list omits #283, a real security bump (brace-expansion CVE-2026-13149 + js-yaml DoS), with green checks and in scope for Phase B. The spec's version targets still match the live PRs; the PR count becomes 21, not 20.
 
@@ -30,7 +30,7 @@ This feature has two independent halves sharing a branch but no functional overl
 
 **Constraints**: No in-source lint suppressions or scanner directives; CI is the sole verifier; per-module coverage gates must not regress. CodeQL dismissal is a GitHub-side action (code-scanning API) with an audit trail, not an in-source suppression, and sits outside Principle III's prohibition.
 
-**Scale/Scope**: 14 CodeQL alerts (12 false positives + 1 real defect + 1 latent gap), 21 Dependabot PRs (18 green, 1 diagnosis-pending, 2 major migrations deferred to Phase D). Roughly 6 source files touched for alert remediation: agent/internal/mods/mods.go, agent/internal/rcon/satisfactory.go, agent/internal/rcon/websocket.go, api/internal/kube/watch.go, api/internal/audit/audit.go, api/internal/handlers/audit.go, test/e2e/internal/satisfactory/app.go.
+**Scale/Scope**: 14 CodeQL alerts (13 false positives + 1 real defect), plus 1 separate latent gap in `agent/internal/rcon/websocket.go` (defence-in-depth). 21 Dependabot PRs (18 green, 1 diagnosis-pending, 2 major migrations deferred to Phase D). Roughly 6 source files touched for alert remediation: agent/internal/mods/mods.go, agent/internal/rcon/satisfactory.go, agent/internal/rcon/websocket.go, api/internal/kube/watch.go, api/internal/audit/audit.go, api/internal/handlers/audit.go, test/e2e/internal/satisfactory/app.go.
 
 ## Constitution Check
 
@@ -124,7 +124,7 @@ This feature adds no new module or package boundary. The confinement helpers (sa
 
 ### Phase D — Major Migrations (Gated, Separate Cycle)
 
-**Scope**: PR #272 (typescript 6.0.3 → 7.0.2, 4 failing checks) and PR #268 (eslint 9 → 10, 1 failing check). These are NOT started until Phase B is complete.
+**Scope**: PR #272 (typescript 6.0.3 → 7.0.2, 4 failing checks) and PR #268 (eslint 9 → 10, 1 failing check). These are NOT started until Phase B is complete. Phase D's tasks are enumerated in tasks.md.
 
 **Branch**: separate feature branch off master (after Phase A+B merge), e.g., `009-ts7-eslint10`.
 
@@ -143,5 +143,5 @@ No constitution principles are violated. Two spec deviations are recorded:
 
 | Spec Claim | Correction | Reason |
 |---|---|---|
-| "20 PRs (#262–#281)" + "all 14 alerts are real defects" | 21 PRs (adds #283 security bump) + 12 false positives, 1 real defect, 1 latent gap | Live PR listing shows #283 (brace-expansion CVE + js-yaml DoS) with green checks, in scope for Phase B. Triage of the 14 CodeQL alerts found 12 with existing guards (path confinement, SSRF validation, loopback, zip-slip, redaction, pagination clamp); 1 unguarded e2e defect (satisfactory TLS); 1 latent gap (websocket netguard). |
+| "20 PRs (#262–#281)" + "all 14 alerts are real defects" | 21 PRs (adds #283 security bump) + 13 false positives, 1 real defect | Live PR listing shows #283 (brace-expansion CVE + js-yaml DoS) with green checks, in scope for Phase B. Triage of the 14 CodeQL alerts found 13 with existing guards (path confinement, SSRF validation, loopback, zip-slip, redaction, pagination clamp); 1 unguarded e2e defect (satisfactory TLS). Separate from the 14: 1 latent gap in websocket netguard (defence-in-depth). |
 | "FR-018 (TS 7.0.2) and FR-020 (ESLint 10) in main scope" | Deferred to Phase D, separate gated cycle, not started until Phase B merged | Maintainer decision: two major migrations with failing checks must not block 18 green dependency bumps. Phase A + B can run concurrently; B's completion gates Phase D. |

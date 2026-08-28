@@ -56,7 +56,7 @@ DISMISSED → REOPENED (code change re-triggers the alert)
 | 13 | go/path-injection | agent/internal/mods/mods.go | 594 | FALSE POSITIVE (`os.Stat(target)` guarded by `safeName()` at 586, then Clean+Join+Clean at 591–593) | Refactor or dismiss `false_positive` |
 | 14 | go/uncontrolled-allocation-size | api/internal/audit/audit.go | 834 | FALSE POSITIVE (`make([]Event, 0, limit)` clamped by 820–822; handler parses at 25 but Auditor clamps pre-allocation in same function) | Refactor or dismiss `false_positive` |
 
-**Spec Drift Note**: The spec says 14 alerts (correct), but does not acknowledge that 12 of the 14 are false positives — only 2 are genuine defects (#4 and #14 actually, though #14's false positive is minor since clamping happens before allocation). Verdicts documented above supersede any implicit assumption in the spec's requirements that all 14 are real defects.
+**Spec Drift Note**: The spec says 14 alerts (correct), but does not acknowledge that 13 of the 14 are false positives — #4 is the single real defect. The un-flagged latent gap in agent/internal/rcon/websocket.go is separate from the 14 CodeQL alerts entirely. Verdicts documented above supersede any implicit assumption in the spec's requirements that all 14 are real defects.
 
 ---
 
@@ -198,6 +198,6 @@ Any `tls.Config{InsecureSkipVerify: true}` assignment MUST be guarded by a verif
 The specification states:
 - "14 open alerts" (correct)
 - "20 Dependabot PRs (#262–#281)" (off by 1: actually 21, includes #283)
-- Implicitly assumes all 14 alerts are real defects (incorrect: 12 are false positives, 2 are real)
+- Implicitly assumes all 14 alerts are real defects (incorrect: 13 are false positives, 1 is real)
 
 The BRIEF.md ground truth corrects the count and categorizes each alert. This data model records that correction explicitly.

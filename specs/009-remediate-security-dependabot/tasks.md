@@ -77,11 +77,11 @@
 ### Fixes for User Story 2
 
 - [ ] T023 [US2] Fix alert #4 in test/e2e/internal/satisfactory/app.go:188 queryServerState by adding loopback guard mirroring isLoopbackHost logic from agent/internal/rcon/satisfactory.go:220–226
-- [ ] T024 [US2] Fix alert #14 (flagged allocation `out := make([]Event, 0, limit)` at api/internal/audit/audit.go:834) in api/internal/handlers/audit.go:25 and api/internal/audit/audit.go:820–822 by introducing AuditMaxLimit named constant (500), clamping untrusted limit value at handler layer before passing to Auditor.Page, and using new bounded variable instead of parameter reassignment
+- [ ] T024 [US2] Fix alert #14 (flagged allocation `out := make([]Event, 0, limit)` at api/internal/audit/audit.go:834) in api/internal/handlers/audit.go:25 and api/internal/audit/audit.go:820–822 by introducing MaxAuditPageSize named constant (500), clamping untrusted limit value at handler layer before passing to Auditor.Page, and using new bounded variable instead of parameter reassignment
 
 ### Dismissal for User Story 2
 
-- [ ] T025 [US2] Obtain maintainer sign-off for alert #3 dismissal at agent/internal/rcon/satisfactory.go:199 (rationale: InsecureSkipVerify in production satisfactory.go is guarded by isLoopbackHost check accepting only localhost/loopback IPs; Satisfactory generates self-signed cert with no CA supply API; connection is pod-local; this is verified unclearable without removing InsecureSkipVerify entirely; package documentation at lines 60–76 records full rationale)
+- [ ] T025 [US2] Obtain maintainer sign-off for alert #3 dismissal at agent/internal/rcon/satisfactory.go:199; this sign-off blocks the dismissal submission task (T046) in Phase 7 and is recorded in contracts/alert-disposition.md alongside the justification. Rationale: InsecureSkipVerify in production satisfactory.go is guarded by isLoopbackHost check accepting only localhost/loopback IPs; Satisfactory generates self-signed cert with no CA supply API; connection is pod-local; this is verified unclearable without removing InsecureSkipVerify entirely; package documentation at lines 60–76 records full rationale
 
 ---
 
@@ -101,7 +101,7 @@
 - [ ] T032 [US3] Merge PR #269 x/net 0.57.0 → 0.58.0 across 7 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, test/e2e); rebase if needed
 - [ ] T033 [US3] Merge PR #273 minio-go 7.2.1 → 7.3.0 across 8 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, telemetry-receiver, test/e2e); rebase if needed
 - [ ] T034 [US3] Merge PR #265 go-containerregistry 0.21.7 → 0.22.0 across 8 modules (agent, api, capture-sidecar, mcp-server, operator, sentinel, telemetry-receiver, test/e2e); rebase if needed
-- [ ] T035 [US3] Diagnose failing check on PR #263 sigstore 1.10.8 → 1.10.9 (3 modules: capture-sidecar, operator, test/e2e); document outcome (fix, workaround, or documented blocker)
+- [ ] T035 [US3] Diagnose failing check on PR #263 sigstore 1.10.8 → 1.10.9 (3 modules: capture-sidecar, operator, test/e2e); accept as done when root cause is identified from CI logs read via the gh CLI and either (a) a fix is landed, or (b) the blocker is documented in contracts/dependency-upgrade.md with the relevant log excerpt. An inconclusive diagnosis does not close the task
 
 ---
 
@@ -133,8 +133,8 @@
 
 - [ ] T045 [US5] Re-query code-scanning alerts on master via gh api repos/ValgulNecron/Gameplane/code-scanning/alerts and record which alerts are now `fixed` vs remain `open`
 - [ ] T046 [US5] Submit dismissal for alert #3 via gh api PATCH to code-scanning/alerts/3 with state=dismissed, dismissed_reason=false_positive, and documented justification from contracts/alert-disposition.md
-- [ ] T047 [US5] Submit dismissals for any non-cleared alerts from refactor attempts (if any remain) via gh api PATCH calls with false_positive reason and full justification per contracts/alert-disposition.md
-- [ ] T048 [US5] Verify Dependabot PR list via gh pr list -R ValgulNecron/Gameplane --author=dependabot --state=open shows only #263, #272, #268 remaining (all others closed)
+- [ ] T047 [US5] Submit dismissals for any non-cleared alerts from T045's re-query that remain open via gh api PATCH calls with false_positive reason and full justification per contracts/alert-disposition.md
+- [ ] T048 [US5] Verify Dependabot PR list via gh pr list -R ValgulNecron/Gameplane --author=dependabot --state=open shows only #263 remaining if its diagnosis in T035 concluded it is blocked (all others closed)
 - [ ] T049 [US5] Confirm master branch CI is fully green across all ci.yaml jobs (lint, go, web, web-e2e-mock, helm, chart-template, go-e2e-unit, e2e-buckets, e2e-go, e2e-multicluster, e2e-upgrade, e2e-web-live, e2e-game-bot, report)
 - [ ] T050 [US5] Walk through specs/009-remediate-security-dependabot/quickstart.md end-to-end to verify baseline capture, alert re-query, dismissal submission, and final verification steps all execute
 
@@ -146,7 +146,26 @@
 
 - [ ] T051 Delete merged feature branch remote via git push origin --delete 009-remediate-security-dependabot per branch-lifecycle rule
 - [ ] T052 Delete merged feature branch local via git branch -d 009-remediate-security-dependabot per branch-lifecycle rule
-- [ ] T053 Update specs/009-remediate-security-dependabot/contracts/alert-disposition.md with actual final state for each of the 14 alerts (fixed or dismissed with datetime and outcome notes); note that spec's original stale count of 20 PRs is corrected to 21 (adds #283 security bump) and all-14-real-defects claim is corrected to 12 false positives + 1 real defect + 1 latent gap
+- [ ] T053 Update specs/009-remediate-security-dependabot/contracts/alert-disposition.md with actual final state for each of the 14 alerts (fixed or dismissed with datetime and outcome notes); note that spec's original stale count of 20 PRs is corrected to 21 (adds #283 security bump) and all-14-real-defects claim is corrected to 13 false positives + 1 real defect, with the latent gap described as separate from the 14 alerts rather than counted among them
+
+---
+
+## Phase 9: Major Frontend Dependency Migrations (Plan Phase D)
+
+**Purpose**: Reconcile and merge major TypeScript and ESLint version upgrades that require code migrations.
+
+**Prerequisite**: Phase 6 (US4 main wave) must be complete before Phase 9 starts.  
+**Execution**: Runs on its own branch off master after Phase 6 merges.
+
+**Note**: PR #272 (TypeScript 7) and PR #268 (ESLint 10) are deferred from Phase 6 due to breaking changes requiring source code updates; they are tackled here with explicit diagnosis of type errors and linting violations, and acceptance criteria that forbid `// @ts-ignore` and `// eslint-disable` per constitution Principle III.
+
+- [ ] T054 [US4] Diagnose failing checks on PR #272 (typescript 6.0.3 → 7.0.2) by reading CI logs via gh api repos/ValgulNecron/Gameplane/actions/runs/<run_id>/attempts/<attempt>/logs and recording specific type errors encountered in web/ migration
+- [ ] T055 [US4] Apply TypeScript 7 migration in web/ by updating web/package.json to 7.0.2, web/tsconfig.json as needed, and fixing all resulting type errors in web/src source files; constitution Principle III forbids resolving any error with // @ts-ignore
+- [ ] T056 [US4] Merge PR #272 once all CI checks are green via gh pr merge 272 -R ValgulNecron/Gameplane --admin --merge
+- [ ] T057 [US4] Diagnose failing check on PR #268 (@eslint/js 9.39.5 → 10.0.1) by reading CI logs via gh API and recording specific linting violations encountered; note that ESLint 10 drops eslintrc support, removes deprecated SourceCode and rule-context methods, and raises the Node floor to ^20.19 || ^22.13 || >=24
+- [ ] T058 [US4] Apply ESLint 10 migration in web/ by updating web/package.json and web/eslint.config.js to 10.0.1, removing any deprecated rule-context or SourceCode usage, and fixing all resulting linting violations; constitution Principle III forbids resolving any finding with // eslint-disable
+- [ ] T059 [US4] Merge PR #268 once all CI checks are green via gh pr merge 268 -R ValgulNecron/Gameplane --admin --merge
+- [ ] T060 [US4] Confirm web CI jobs (web, web-e2e-mock) are green on master after both migrations are merged
 
 ---
 
@@ -159,6 +178,8 @@
 - **US1 and US2 are independent**: Can run on separate branches concurrently or sequentially on the same branch; no shared code.
 - **Phase 3 (US3) and Phase 4 (US4) are independent**: Go PRs and npm PRs touch disjoint files; can merge in parallel.
 - **Phase 5 (US5)** → Phase 6 (Polish): All PR merges and refactors must be complete before final verification.
+- **Phase 6 (US4)** → Phase 9 (Major Frontend Migrations): PR #272 and #268 are deferred from Phase 6 to Phase 9 (separate branch off master) due to breaking changes requiring source migrations.
+- **Phase 9** runs after Phase 6 merges and requires explicit diagnosis and code fixes for TypeScript 7 and ESLint 10 migrations.
 
 **Parallel Opportunities**:
 
@@ -169,6 +190,7 @@ Within each phase:
 - **Phase 4 (US2) unit tests** (T021, T022) can run in parallel (separate modules).
 - **Phase 5 (US3) Go PR merges** (T026–T035) are sequential due to go.sum conflicts (each invalidates the next PR's sum).
 - **Phase 6 (US4) npm PR merges** (T036–T044) are [P] relative to Phase 5 (US3) due to disjoint files, but sequential within US4 (all touch package-lock.json).
+- **Phase 9 (Major Frontend Migrations) tasks** (T054–T060) are sequential: each PR diagnosis feeds into its migration task, which must complete before merging, before the next PR cycle starts.
 
 **Parallel Example**:
 
@@ -199,7 +221,14 @@ Phase 7 (US5, final gates):
 
 Phase 8 (Polish, post-merge cleanup):
   T051–T053 (branch delete, outcome documentation)
+
+Phase 9 (Major Frontend Migrations, after Phase 6 on separate branch):
+  T054 (diagnose #272 TypeScript) → T055 (apply migration) → T056 (merge #272)
+  → T057 (diagnose #268 ESLint) → T058 (apply migration) → T059 (merge #268)
+  → T060 (verify web CI green on master)
 ```
+
+**Total Task Count**: 60 tasks across 9 phases (T001–T060)
 
 ---
 
