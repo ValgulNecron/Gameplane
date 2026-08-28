@@ -10,9 +10,9 @@
 
 **Purpose**: Establish baseline state and verify tooling prerequisites
 
-- [ ] T001 Create and check out feature branch `009-remediate-security-dependabot` from master
-- [ ] T002 Record baseline CodeQL alert count and Dependabot PR count to baseline.txt via gh api queries (expected: 14 alerts, 21 open PRs)
-- [ ] T003 Confirm gh token has security_events scope by attempting to read alert #1 via gh api repos/ValgulNecron/Gameplane/code-scanning/alerts/1
+- [X] T001 Create and check out feature branch `009-remediate-security-dependabot` from master
+- [X] T002 Record baseline CodeQL alert count and Dependabot PR count to baseline.txt via gh api queries (expected: 14 alerts, 21 open PRs)
+- [X] T003 Confirm gh token has security_events scope by attempting to read alert #1 via gh api repos/ValgulNecron/Gameplane/code-scanning/alerts/1
 
 ---
 
@@ -22,8 +22,8 @@
 
 **Blocking Prerequisite**: US1 cannot start until ConfinePath helper is complete and unit-tested.
 
-- [ ] T004 Implement ConfinePath helper function in agent/internal/mods/confinement.go per signature and contract in contracts/path-confinement.md; base implementation on filepath.Clean, filepath.EvalSymlinks symlink resolution pattern, and prefix-confinement check from agent/internal/files/files.go:57–98
-- [ ] T005 Write unit tests for ConfinePath in agent/internal/mods/confinement_test.go covering all rejection rows from contracts/path-confinement.md table: empty component, `.`, `..`, `../` prefix, absolute paths, path separators, leading dots, length > 200, control characters, backslashes, symlink escape attempts, ancestor escape attempts
+- [X] T004 Implement ConfinePath helper function in agent/internal/mods/confinement.go per signature and contract in contracts/path-confinement.md; base implementation on filepath.Clean, filepath.EvalSymlinks symlink resolution pattern, and prefix-confinement check from agent/internal/files/files.go:57–98
+- [X] T005 Write unit tests for ConfinePath in agent/internal/mods/confinement_test.go covering all rejection rows from contracts/path-confinement.md table: empty component, `.`, `..`, `../` prefix, absolute paths, path separators, leading dots, length > 200, control characters, backslashes, symlink escape attempts, ancestor escape attempts
 
 ---
 
@@ -34,33 +34,33 @@
 
 ### Unit Tests for User Story 1
 
-- [ ] T006 [P] [US1] Write unit tests for path-confining operations in agent/internal/mods/mods_test.go covering removeEntry, download, swapInArchive, remove, and unzipInto with ConfinePath return values
+- [X] T006 [P] [US1] Write unit tests for path-confining operations in agent/internal/mods/mods_test.go covering removeEntry, download, swapInArchive, remove, and unzipInto with ConfinePath return values
 
 ### Per-Site Migrations for User Story 1
 
-- [ ] T007 [US1] Fix alerts #8 at :389 and #9 at :391 in agent/internal/mods/mods.go removeEntry by replacing inline Join+Clean+HasPrefix guard with ConfinePath call
-- [ ] T008 [US1] Fix alert #10 at :446 in agent/internal/mods/mods.go download by calling ConfinePath in download() itself instead of relying on caller's safeName()
-- [ ] T009 [US1] Fix alerts #11 at :486 and #12 at :490 in agent/internal/mods/mods.go swapInArchive by replacing inline Join+Clean+HasPrefix guard with ConfinePath call
-- [ ] T010 [US1] Fix alert #13 at :594 in agent/internal/mods/mods.go remove by replacing inline Join+Clean+HasPrefix guard with ConfinePath call
-- [ ] T011 [US1] Fix alert #7 at :508 in agent/internal/mods/mods.go unzipInto by replacing continue-on-escape branch at :511 with single-exit error return that rejects any escaping archive entry
-- [ ] T012 [US1] Fix alerts #1 at :40 and #2 at :54 in api/internal/kube/watch.go by renaming secretKey variable to remove heuristic taint source; document that this is cosmetic with respect to real security since kubeconfig bytes never enter log output
+- [X] T007 [US1] Fix alerts #8 at :389 and #9 at :391 in agent/internal/mods/mods.go removeEntry by replacing inline Join+Clean+HasPrefix guard with ConfinePath call
+- [X] T008 [US1] Fix alert #10 at :446 in agent/internal/mods/mods.go download by calling ConfinePath in download() itself instead of relying on caller's safeName()
+- [X] T009 [US1] Fix alerts #11 at :486 and #12 at :490 in agent/internal/mods/mods.go swapInArchive by replacing inline Join+Clean+HasPrefix guard with ConfinePath call
+- [X] T010 [US1] Fix alert #13 at :594 in agent/internal/mods/mods.go remove by replacing inline Join+Clean+HasPrefix guard with ConfinePath call
+- [X] T011 [US1] Fix alert #7 at :508 in agent/internal/mods/mods.go unzipInto by replacing continue-on-escape branch at :511 with single-exit error return that rejects any escaping archive entry
+- [X] T012 [US1] Fix alerts #1 at :40 and #2 at :54 in api/internal/kube/watch.go by renaming secretKey variable to remove heuristic taint source; document that this is cosmetic with respect to real security since kubeconfig bytes never enter log output
 
 ### SSRF & Latent Gaps for User Story 1
 
-- [ ] T013 [US1] Attempt barrier-recognizable restructuring for alerts #5 at :405 in agent/internal/mods/mods.go and #6 at :281 in api/internal/ws/dialer.go to make SSRF validation more explicit to CodeQL's model; note that dismissal is the expected outcome per contracts/alert-disposition.md
-- [ ] T014 [US1] Add netguard policy to agent/internal/rcon/websocket.go line 292 ensureLocked() to route admin-supplied WebSocket URLs through netguard dial policy for defence-in-depth
+- [X] T013 [US1] Attempt barrier-recognizable restructuring for alerts #5 at :405 in agent/internal/mods/mods.go and #6 at :281 in api/internal/ws/dialer.go to make SSRF validation more explicit to CodeQL's model; note that dismissal is the expected outcome per contracts/alert-disposition.md
+- [X] T014 [US1] Add netguard policy to agent/internal/rcon/websocket.go line 292 ensureLocked() to route admin-supplied WebSocket URLs through netguard dial policy for defence-in-depth
 
 ### E2E Tests for User Story 1
 
-- [ ] T015 [US1] Write e2e test case for path traversal rejection in test/e2e/api_mods_confinement_e2e_test.go verifying extraction rejects `../` archive entries
-- [ ] T016 [US1] Write e2e test case for symlink rejection in test/e2e/api_mods_confinement_e2e_test.go verifying ConfinePath rejects symlink targets outside sandbox
-- [ ] T017 [US1] Write e2e test case for extraction sandbox confinement in test/e2e/api_mods_confinement_e2e_test.go verifying all extracted files stay within designated directory
+- [X] T015 [US1] Write e2e test case for path traversal rejection in test/e2e/api_mods_confinement_e2e_test.go verifying extraction rejects `../` archive entries
+- [X] T016 [US1] Write e2e test case for symlink rejection in test/e2e/api_mods_confinement_e2e_test.go verifying ConfinePath rejects symlink targets outside sandbox
+- [X] T017 [US1] Write e2e test case for extraction sandbox confinement in test/e2e/api_mods_confinement_e2e_test.go verifying all extracted files stay within designated directory
 
 ### E2E Bucket Registration & Specifications Update for User Story 1
 
-- [ ] T018 [US1] Register three new e2e tests in test/e2e/buckets.sh under api-mods bucket; state in task notes that e2e-buckets CI job fails on unbucketed tests, all new tests use t.Parallel() with unique per-test resource names, and api-mods bucket has ~7 admin-login budget
-- [ ] T019 [US1] Update agent/specs.md to document path confinement helper contract and migration from safeName-only to ConfinePath-based validation
-- [ ] T020 [US1] Update api/specs.md to document clear-text logging change for cluster watch secretKey variable rename
+- [X] T018 [US1] Register three new e2e tests in test/e2e/buckets.sh under api-mods bucket; state in task notes that e2e-buckets CI job fails on unbucketed tests, all new tests use t.Parallel() with unique per-test resource names, and api-mods bucket has ~7 admin-login budget
+- [X] T019 [US1] Update agent/specs.md to document path confinement helper contract and migration from safeName-only to ConfinePath-based validation
+- [X] T020 [US1] Update api/specs.md to document clear-text logging change for cluster watch secretKey variable rename
 
 ---
 
@@ -71,13 +71,13 @@
 
 ### Unit Tests for User Story 2
 
-- [ ] T021 [P] [US2] Write unit tests in test/e2e/internal/satisfactory/satisfactory_loopback_test.go covering loopback guard both rejecting non-loopback addresses (0.0.0.0, 8.8.8.8) and accepting loopback addresses (127.0.0.1, ::1); this untagged unit test is the real CI gate since satisfactory_bot_e2e_test.go lives in the bot-heavy bucket (which never runs in CI), so the go-e2e-unit CI job verifies the loopback guard
-- [ ] T022 [P] [US2] Write unit tests in api/internal/handlers/audit_test.go for audit limit clamping covering negative limits, zero limits, extremely large limits, and normal limits
+- [X] T021 [P] [US2] Write unit tests in test/e2e/internal/satisfactory/satisfactory_loopback_test.go covering loopback guard both rejecting non-loopback addresses (0.0.0.0, 8.8.8.8) and accepting loopback addresses (127.0.0.1, ::1); this untagged unit test is the real CI gate since satisfactory_bot_e2e_test.go lives in the bot-heavy bucket (which never runs in CI), so the go-e2e-unit CI job verifies the loopback guard
+- [X] T022 [P] [US2] Write unit tests in api/internal/handlers/audit_test.go for audit limit clamping covering negative limits, zero limits, extremely large limits, and normal limits
 
 ### Fixes for User Story 2
 
-- [ ] T023 [US2] Fix alert #4 in test/e2e/internal/satisfactory/app.go:188 queryServerState by adding loopback guard mirroring isLoopbackHost logic from agent/internal/rcon/satisfactory.go:220–226
-- [ ] T024 [US2] Fix alert #14 (flagged allocation `out := make([]Event, 0, limit)` at api/internal/audit/audit.go:834) in api/internal/handlers/audit.go:25 and api/internal/audit/audit.go:820–822 by introducing MaxAuditPageSize named constant (500), clamping untrusted limit value at handler layer before passing to Auditor.Page, and using new bounded variable instead of parameter reassignment
+- [X] T023 [US2] Fix alert #4 in test/e2e/internal/satisfactory/app.go:188 queryServerState by adding loopback guard mirroring isLoopbackHost logic from agent/internal/rcon/satisfactory.go:220–226
+- [X] T024 [US2] Fix alert #14 (flagged allocation `out := make([]Event, 0, limit)` at api/internal/audit/audit.go:834) in api/internal/handlers/audit.go:25 and api/internal/audit/audit.go:820–822 by introducing MaxAuditPageSize named constant (500), clamping untrusted limit value at handler layer before passing to Auditor.Page, and using new bounded variable instead of parameter reassignment
 
 ### Dismissal for User Story 2
 
@@ -287,7 +287,7 @@ After MVP merge: Phase 3 (US1) proceeds in a follow-up, then Phase 5/6 (Dependab
 
 **Scope note**: Unmerged Dependabot PRs (#262–#283) and un-dismissed CodeQL alerts (#1–#14) were assessed and found to be remaining work, but every one of them already maps 1:1 onto an existing unchecked task (T026–T047). They are deliberately NOT re-appended here — completing the existing tasks closes them. Likewise the pending maintainer sign-off for alert #3 is already covered by T025.
 
-- [ ] T061 CRITICAL: Open a pull request from `009-remediate-security-dependabot` to master via `gh pr create -R ValgulNecron/Gameplane` so that CI compiles and tests this branch's 8 implementation commits for the first time; `.github/workflows/ci.yaml` triggers only on `push: branches: [master]` and `pull_request`, and `gh run list --branch 009-remediate-security-dependabot` currently returns `[]`, so T004–T024 have never been built or tested by anything. Then fix every failing check with follow-up commits per SC-003/SC-005 (missing)
+- [X] T061 CRITICAL: Open a pull request from `009-remediate-security-dependabot` to master via `gh pr create -R ValgulNecron/Gameplane` so that CI compiles and tests this branch's 8 implementation commits for the first time; `.github/workflows/ci.yaml` triggers only on `push: branches: [master]` and `pull_request`, and `gh run list --branch 009-remediate-security-dependabot` currently returns `[]`, so T004–T024 have never been built or tested by anything. Then fix every failing check with follow-up commits per SC-003/SC-005 (missing)
 - [ ] T062 CRITICAL: Merge this feature branch's own commits into master once every check in the `ci` workflow is green, using `gh pr merge <n> -R ValgulNecron/Gameplane --admin --merge`; T051 says "delete merged feature branch" but no prior task ever merges it, so the Phase A remediation work has no path to the default branch — and CodeQL only re-analyses master, so alerts #1–#14 cannot reach `fixed` until this lands per SC-001 (missing)
-- [ ] T063 Add the `len(relPath) > 4096` rejection to ConfineRelPath in agent/internal/mods/confinement.go, which currently implements 12 of the 13 rejection rules; note this is a defensive resource bound, not an escape check — `isConfined()` and the per-segment `..` rejection already prevent escape at any length — per contracts/path-confinement.md:135 (partial)
-- [ ] T064 Add a length-limit test for ConfineRelPath in agent/internal/mods/confinement_test.go asserting that a relative path longer than 4096 characters is rejected; every other rejection row in the contract table already has coverage, per T005 (partial)
+- [X] T063 Add the `len(relPath) > 4096` rejection to ConfineRelPath in agent/internal/mods/confinement.go, which currently implements 12 of the 13 rejection rules; note this is a defensive resource bound, not an escape check — `isConfined()` and the per-segment `..` rejection already prevent escape at any length — per contracts/path-confinement.md:135 (partial)
+- [X] T064 Add a length-limit test for ConfineRelPath in agent/internal/mods/confinement_test.go asserting that a relative path longer than 4096 characters is rejected; every other rejection row in the contract table already has coverage, per T005 (partial)
