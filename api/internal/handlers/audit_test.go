@@ -532,3 +532,185 @@ func TestMountAudit_ExportBareNoFilters(t *testing.T) {
 		t.Fatalf("got %d records, want 4 (header + 3 data rows)", len(recs))
 	}
 }
+
+// TestMountAudit_PageLimitClamping tests that the handler layer properly clamps
+// untrusted limit values before passing them to the Auditor.
+func TestMountAudit_PageLimitClamping(t *testing.T) {
+	store := newTestStore(t)
+	a := audit.New(store)
+
+	// Insert test events so we can verify pagination results.
+	for i := 0; i < 10; i++ {
+		ts := "2026-01-0" + strconv.Itoa((i%9)+1) + "T00:00:0" + strconv.Itoa(i%6) + "Z"
+		_, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
+			VALUES (?, 'admin', 'POST', '/x', '', 201, '')`, ts)
+		if err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+
+	r := chi.NewRouter()
+	MountAudit(r, a)
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	tests := []struct {
+		name       string
+		limit      string
+		wantStatus int
+		wantLen    int
+		checkCap   bool
+	}{
+		{
+			name:       "negative limit defaults to DefaultAuditPageSize",
+			limit:      "-1",
+			wantStatus: http.StatusOK,
+			wantLen:    10,
+			checkCap:   true,
+		},
+		{
+			name:       "zero limit defaults to DefaultAuditPageSize",
+			limit:      "0",
+			wantStatus: http.StatusOK,
+			wantLen:    10,
+			checkCap:   true,
+		},
+		{
+			name:       "valid limit under max",
+			limit:      "3",
+			wantStatus: http.StatusOK,
+			wantLen:    3,
+			checkCap:   true,
+		},
+		{
+			name:       "limit at max boundary",
+			limit:      strconv.Itoa(audit.MaxAuditPageSize),
+			wantStatus: http.StatusOK,
+			wantLen:    10, // only 10 events exist
+			checkCap:   true,
+		},
+		{
+			name:       "limit exceeding max defaults to DefaultAuditPageSize",
+			limit:      strconv.Itoa(audit.MaxAuditPageSize + 1),
+			wantStatus: http.StatusOK,
+			wantLen:    10,
+			checkCap:   true,
+		},
+		{
+			name:       "huge limit value (math.MaxInt32) defaults to DefaultAuditPageSize",
+			limit:      "2147483647",
+			wantStatus: http.StatusOK,
+			wantLen:    10,
+			checkCap:   true,
+		},
+		{
+			name:       "empty limit defaults to DefaultAuditPageSize",
+			limit:      "",
+			wantStatus: http.StatusOK,
+			wantLen:    10,
+			checkCap:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := srv.URL + "/admin/audit"
+			if tt.limit != "" {
+				url += "?limit=" + tt.limit
+			}
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			resp, err := srv.Client().Do(req)
+			if err != nil {
+				t.Fatalf("get: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("status=%d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+			var got []audit.Event
+			if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if len(got) != tt.wantLen {
+				t.Fatalf("got %d events, want %d", len(got), tt.wantLen)
+			}
+		})
+	}
+}
+
+// TestAuditorPage_LimitClamping tests that Auditor.Page properly clamps
+// the limit parameter to MaxAuditPageSize, using a new variable instead of
+// reassigning the parameter so taint analysis can recognize the bound.
+func TestAuditorPage_LimitClamping(t *testing.T) {
+	store := newTestStore(t)
+	a := audit.New(store)
+
+	// Insert many events to exceed the max page size if it were unclamped.
+	for i := 0; i < 600; i++ {
+		ts := "2026-01-0" + strconv.Itoa((i%9)+1) + "T00:00:0" + strconv.Itoa(i%6) + "Z"
+		_, err := store.DB.ExecContext(t.Context(), `INSERT INTO audit_events(ts, actor, method, path, target, status, ip)
+			VALUES (?, 'admin', 'POST', '/x', '', 201, '')`, ts)
+		if err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+
+	tests := []struct {
+		name        string
+		limit       int
+		expectedMax int
+	}{
+		{
+			name:        "negative limit clamped to DefaultAuditPageSize",
+			limit:       -100,
+			expectedMax: audit.DefaultAuditPageSize,
+		},
+		{
+			name:        "zero limit clamped to DefaultAuditPageSize",
+			limit:       0,
+			expectedMax: audit.DefaultAuditPageSize,
+		},
+		{
+			name:        "valid limit under max",
+			limit:       50,
+			expectedMax: 50,
+		},
+		{
+			name:        "limit at max boundary",
+			limit:       audit.MaxAuditPageSize,
+			expectedMax: audit.MaxAuditPageSize,
+		},
+		{
+			name:        "limit exceeding max clamped to DefaultAuditPageSize",
+			limit:       audit.MaxAuditPageSize + 1,
+			expectedMax: audit.DefaultAuditPageSize,
+		},
+		{
+			name:        "huge limit clamped to DefaultAuditPageSize",
+			limit:       2147483647, // math.MaxInt32
+			expectedMax: audit.DefaultAuditPageSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := a.Page(req, tt.limit, 0)
+			if err != nil {
+				t.Fatalf("page: %v", err)
+			}
+			// The slice capacity should never exceed the expected max.
+			if cap(got) > tt.expectedMax {
+				t.Fatalf("slice cap=%d exceeds expected max=%d", cap(got), tt.expectedMax)
+			}
+			// The returned length should not exceed the expected max either.
+			if len(got) > tt.expectedMax {
+				t.Fatalf("slice len=%d exceeds expected max=%d", len(got), tt.expectedMax)
+			}
+		})
+	}
+}
