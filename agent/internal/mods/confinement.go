@@ -54,6 +54,13 @@ func ConfinePath(root, component string) (string, error) {
 	// inside root. This allows creation in new subdirectories while still
 	// catching symlink escapes.
 	for parent := filepath.Dir(abs); ; parent = filepath.Dir(parent) {
+		if parent == root {
+			// Reached the sandbox boundary: nothing between abs and root
+			// exists yet, so there is no symlink in the chain to escape
+			// through. root itself is the caller's trusted boundary, and
+			// abs was already checked against it above.
+			return abs, nil
+		}
 		if resolvedParent, err := filepath.EvalSymlinks(parent); err == nil {
 			if !isConfined(resolvedParent, root) {
 				return "", fmt.Errorf("ancestor %s (resolved to %s) escapes root %s: %w", parent, resolvedParent, root, ErrEscapesRoot)
@@ -223,6 +230,13 @@ func ConfineRelPath(root, relPath string) (string, error) {
 	// inside root. This allows creation in new subdirectories while still
 	// catching symlink escapes.
 	for parent := filepath.Dir(abs); ; parent = filepath.Dir(parent) {
+		if parent == root {
+			// Reached the sandbox boundary: nothing between abs and root
+			// exists yet, so there is no symlink in the chain to escape
+			// through. root itself is the caller's trusted boundary, and
+			// abs was already checked against it above.
+			return abs, nil
+		}
 		if resolvedParent, err := filepath.EvalSymlinks(parent); err == nil {
 			if !isConfined(resolvedParent, root) {
 				return "", fmt.Errorf("ancestor %s (resolved to %s) escapes root %s: %w", parent, resolvedParent, root, ErrEscapesRoot)

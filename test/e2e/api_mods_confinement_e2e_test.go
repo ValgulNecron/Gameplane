@@ -34,7 +34,7 @@ func TestAPI_ModArchiveConfinement_PathTraversalRejected(t *testing.T) {
 
 	// Wait for mods endpoint readiness
 	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
-		resp, body, err := cli.Get("/servers/" + gs + "/mods")
+		resp, _, err := cli.Get("/servers/" + gs + "/mods")
 		if err != nil {
 			return false, "GET /mods: " + err.Error()
 		}
@@ -134,7 +134,7 @@ func TestAPI_ModArchiveConfinement_SymlinkEscapeRejected(t *testing.T) {
 
 	// Wait for mods endpoint readiness
 	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
-		resp, body, err := cli.Get("/servers/" + gs + "/mods")
+		resp, _, err := cli.Get("/servers/" + gs + "/mods")
 		if err != nil {
 			return false, "GET /mods: " + err.Error()
 		}
@@ -244,7 +244,7 @@ func TestAPI_ModArchiveConfinement_ValidArchiveExtracts(t *testing.T) {
 
 	// Wait for mods endpoint readiness
 	envInstance.Eventually(t, 30*time.Second, func() (bool, string) {
-		resp, body, err := cli.Get("/servers/" + gs + "/mods")
+		resp, _, err := cli.Get("/servers/" + gs + "/mods")
 		if err != nil {
 			return false, "GET /mods: " + err.Error()
 		}

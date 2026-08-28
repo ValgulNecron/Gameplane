@@ -728,9 +728,9 @@ func TestUnzipInto_RejectsTraversalWithConfinePath(t *testing.T) {
 func TestUnzipInto_AcceptsValidEntriesWithConfinePath(t *testing.T) {
 	// Create an archive with only valid entries.
 	zipPath := makeZip(t, map[string]string{
-		"plugins/Cool.dll":  "DLLBYTES",
-		"config/data.json":  `{"version":1}`,
-		"readme.txt":        "Instructions",
+		"plugins/Cool.dll": "DLLBYTES",
+		"config/data.json": `{"version":1}`,
+		"readme.txt":       "Instructions",
 	})
 	dst := filepath.Join(t.TempDir(), "out")
 

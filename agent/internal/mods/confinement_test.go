@@ -276,66 +276,68 @@ func TestConfinePath_NewFileUnderNonExistentParent(t *testing.T) {
 }
 
 func TestConfinePath_TableDriven(t *testing.T) {
-	// Comprehensive table-driven test covering multiple scenarios
+	// Comprehensive table-driven test covering multiple scenarios.
+	// setup returns the component to pass to ConfinePath; wantPath is checked
+	// only when wantErr is nil.
 	tests := []struct {
-		name      string
-		setup     func(t *testing.T, root string) string // setup returns component
-		wantErr   error
-		wantPath  string // if wantErr is nil, check the path
+		name     string
+		setup    func(t *testing.T, root string) string
+		wantErr  error
+		wantPath string
 	}{
 		{
 			name:    "valid name",
-			setup:   func(t *testing.T, root string) string { return "validmod" },
+			setup:   func(_ *testing.T, root string) string { return "validmod" },
 			wantErr: nil,
 		},
 		{
 			name:    "valid name with underscore",
-			setup:   func(t *testing.T, root string) string { return "valid_mod_123" },
+			setup:   func(_ *testing.T, root string) string { return "valid_mod_123" },
 			wantErr: nil,
 		},
 		{
 			name:    "empty component",
-			setup:   func(t *testing.T, root string) string { return "" },
+			setup:   func(_ *testing.T, root string) string { return "" },
 			wantErr: ErrEmpty,
 		},
 		{
 			name:    "dot only",
-			setup:   func(t *testing.T, root string) string { return "." },
+			setup:   func(_ *testing.T, root string) string { return "." },
 			wantErr: ErrDot,
 		},
 		{
 			name:    "dotdot",
-			setup:   func(t *testing.T, root string) string { return ".." },
+			setup:   func(_ *testing.T, root string) string { return ".." },
 			wantErr: ErrDotDot,
 		},
 		{
 			name:    "dotdot slash",
-			setup:   func(t *testing.T, root string) string { return "../evil" },
+			setup:   func(_ *testing.T, root string) string { return "../evil" },
 			wantErr: ErrTraversal,
 		},
 		{
 			name:    "absolute path",
-			setup:   func(t *testing.T, root string) string { return "/etc/passwd" },
+			setup:   func(_ *testing.T, root string) string { return "/etc/passwd" },
 			wantErr: ErrAbsolute,
 		},
 		{
 			name:    "slash separator",
-			setup:   func(t *testing.T, root string) string { return "sub/dir" },
+			setup:   func(_ *testing.T, root string) string { return "sub/dir" },
 			wantErr: ErrSeparator,
 		},
 		{
 			name:    "leading dot",
-			setup:   func(t *testing.T, root string) string { return ".hidden" },
+			setup:   func(_ *testing.T, root string) string { return ".hidden" },
 			wantErr: ErrLeadingDot,
 		},
 		{
 			name:    "too long",
-			setup:   func(t *testing.T, root string) string { return strings.Repeat("x", 201) },
+			setup:   func(_ *testing.T, root string) string { return strings.Repeat("x", 201) },
 			wantErr: ErrTooLong,
 		},
 		{
 			name:    "null byte",
-			setup:   func(t *testing.T, root string) string { return "file\x00.txt" },
+			setup:   func(_ *testing.T, root string) string { return "file\x00.txt" },
 			wantErr: ErrControlChar,
 		},
 		{
