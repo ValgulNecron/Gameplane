@@ -385,6 +385,12 @@ func (h *handler) removeEntry(name string) error {
 	if err != nil {
 		return fmt.Errorf("path escape attempt: %w", err)
 	}
+	// Re-check inline so the guard is visible at the point of use.
+	rootClean := filepath.Clean(h.dir)
+	target = filepath.Clean(target)
+	if target != rootClean && !strings.HasPrefix(target, rootClean+string(os.PathSeparator)) {
+		return errors.New("path escape attempt")
+	}
 	if h.extract {
 		return os.RemoveAll(target)
 	}
@@ -506,6 +512,13 @@ func (h *handler) swapInArchive(tmpZip, folder string, maxBytes int64) error {
 		_ = os.RemoveAll(staging)
 		return fmt.Errorf("path escape attempt: %w", err)
 	}
+	// Re-check inline so the guard is visible at the point of use.
+	rootClean := filepath.Clean(h.dir)
+	final = filepath.Clean(final)
+	if final != rootClean && !strings.HasPrefix(final, rootClean+string(os.PathSeparator)) {
+		_ = os.RemoveAll(staging)
+		return errors.New("path escape attempt")
+	}
 	if err := os.RemoveAll(final); err != nil {
 		_ = os.RemoveAll(staging)
 		return err
@@ -536,6 +549,11 @@ func unzipInto(zipPath, dst string, maxBytes int64) error {
 		target, confineErr := ConfineRelPath(dstClean, f.Name)
 		if confineErr != nil {
 			return fmt.Errorf("zip-slip: %w", confineErr)
+		}
+		// Re-check inline so the guard is visible at the point of use.
+		target = filepath.Clean(target)
+		if target != dstClean && !strings.HasPrefix(target, dstClean+string(os.PathSeparator)) {
+			return fmt.Errorf("zip-slip: %w", ErrEscapesRoot)
 		}
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(target, 0o750); err != nil {
@@ -614,6 +632,13 @@ func (h *handler) remove(w http.ResponseWriter, req *http.Request) {
 	target, err := ConfinePath(h.dir, name)
 	if err != nil {
 		httpjson.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// Re-check inline so the guard is visible at the point of use.
+	rootClean := filepath.Clean(h.dir)
+	target = filepath.Clean(target)
+	if target != rootClean && !strings.HasPrefix(target, rootClean+string(os.PathSeparator)) {
+		httpjson.Error(w, http.StatusBadRequest, "path escape attempt")
 		return
 	}
 	if _, statErr := os.Stat(target); errors.Is(statErr, os.ErrNotExist) {
