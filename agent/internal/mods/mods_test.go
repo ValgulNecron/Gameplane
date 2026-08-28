@@ -512,15 +512,16 @@ func makeZip(t *testing.T, entries map[string]string) string {
 func TestUnzipInto_RejectsZipSlip(t *testing.T) {
 	zipPath := makeZip(t, map[string]string{"good.txt": "ok", "../evil.txt": "pwned"})
 	dst := filepath.Join(t.TempDir(), "out")
-	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
-		t.Fatalf("unzipInto: %v", err)
+	// After refactoring to use ConfinePath, unzipInto now returns an error
+	// immediately on any traversal entry (rather than silently skipping).
+	// This makes the guard explicit to CodeQL's taint analysis.
+	err := unzipInto(zipPath, dst, 1<<20)
+	if err == nil {
+		t.Fatalf("unzipInto should error on traversal entry, not skip it")
 	}
-	if _, err := os.Stat(filepath.Join(dst, "good.txt")); err != nil {
-		t.Fatalf("good.txt should be extracted: %v", err)
-	}
-	// The traversal entry is skipped — nothing lands beside the staging dir.
+	// No files should be extracted if a traversal is detected early.
 	if _, err := os.Stat(filepath.Join(filepath.Dir(dst), "evil.txt")); !os.IsNotExist(err) {
-		t.Fatalf("evil.txt escaped the staging dir: %v", err)
+		t.Fatalf("evil.txt should not have escaped: %v", err)
 	}
 }
 
@@ -569,3 +570,215 @@ func TestInstall_ExtractBadArchive(t *testing.T) {
 // The SSRF IP-classification table (isPublic / IsAllowed) now lives in the
 // shared netguard module's TestIsPublic; the agent tests cover only its use
 // of the guard (default-refuses loopback, redirect host re-check).
+
+// --- Tests for ConfinePath-based refactors (T006) ---
+
+// TestRemoveEntry_ConfinePath verifies that removeEntry uses ConfinePath
+// to validate the target and rejects path traversal attempts.
+func TestRemoveEntry_ConfinePath(t *testing.T) {
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a file to remove.
+	target := filepath.Join(modsDir, "test.jar")
+	if err := os.WriteFile(target, []byte("data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandler(root, modsSpec("mods", nil))
+
+	// removeEntry should accept a valid name and delete the file.
+	if err := h.removeEntry("test.jar"); err != nil {
+		t.Errorf("removeEntry(valid) = %v, want nil", err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("file should be deleted but still exists")
+	}
+
+	// removeEntry should reject path traversal attempts.
+	for _, bad := range []string{"../escape", "a/b", "..", ".hidden"} {
+		if err := h.removeEntry(bad); err == nil {
+			t.Errorf("removeEntry(%q) should fail on traversal", bad)
+		}
+	}
+}
+
+// TestDownload_ConfinePath verifies that download uses ConfinePath to validate
+// the destination and rejects traversal attempts.
+func TestDownload_ConfinePath(t *testing.T) {
+	allowLoopback(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("TESTDATA"))
+	}))
+	defer upstream.Close()
+	host, _, _ := net.SplitHostPort(strings.TrimPrefix(upstream.URL, "http://"))
+
+	root := t.TempDir()
+	h := newHandler(root, modsSpec("mods", &caps.ModInstall{AllowedHosts: []string{host}}))
+
+	// download should accept a valid name and save the file.
+	n, err := h.download(t.Context(), upstream.URL+"/test.jar", "valid.jar")
+	if err != nil || n != 8 {
+		t.Errorf("download(valid) = %v, %d, want nil, 8", err, n)
+	}
+	if _, err := os.Stat(filepath.Join(root, "mods", "valid.jar")); err != nil {
+		t.Errorf("file should exist: %v", err)
+	}
+
+	// download should reject traversal attempts by ConfinePath.
+	for _, bad := range []string{"../escape", "a/b"} {
+		_, err := h.download(t.Context(), upstream.URL+"/x.jar", bad)
+		if err == nil {
+			t.Errorf("download(%q) should fail on traversal", bad)
+		}
+	}
+}
+
+// TestSwapInArchive_ConfinePath verifies that swapInArchive uses ConfinePath
+// to validate the destination and rejects traversal attempts.
+func TestSwapInArchive_ConfinePath(t *testing.T) {
+	root := t.TempDir()
+	modsDir := filepath.Join(root, "mods")
+	if err := os.MkdirAll(modsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHandler(root, &caps.Mods{Path: "mods", Extract: true})
+
+	// Create a valid zip to extract.
+	validZip := makeZip(t, map[string]string{
+		"plugin.dll": "DLLBYTES",
+		"config.yml": "key: value",
+	})
+
+	// swapInArchive should accept a valid folder name.
+	if err := h.swapInArchive(validZip, "MyPlugin", 1<<20); err != nil {
+		t.Errorf("swapInArchive(valid) = %v, want nil", err)
+	}
+	if _, err := os.Stat(filepath.Join(modsDir, "MyPlugin", "plugin.dll")); err != nil {
+		t.Errorf("extracted file should exist: %v", err)
+	}
+
+	// swapInArchive should reject traversal attempts by ConfinePath.
+	for _, bad := range []string{"../escape", "a/b", "..", ".hidden"} {
+		badZip := makeZip(t, map[string]string{"file.txt": "data"})
+		if err := h.swapInArchive(badZip, bad, 1<<20); err == nil {
+			t.Errorf("swapInArchive(%q) should fail on traversal", bad)
+		}
+	}
+}
+
+// TestRemoveWithConfinePath verifies that the remove handler uses ConfinePath
+// to validate the name parameter and rejects traversal attempts.
+func TestRemoveWithConfinePath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "mods"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "mods", "gone.jar")
+	if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := newSrv(t, root, modsSpec("mods", nil))
+
+	// remove should work for a valid name.
+	if status, _ := do(t, srv, http.MethodDelete, "/mods?name=gone.jar", nil); status != http.StatusNoContent {
+		t.Errorf("delete status=%d, want 204", status)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatal("file should be gone")
+	}
+
+	// remove should reject traversal attempts via ConfinePath validation.
+	for _, bad := range []string{"../escape", "a/b", ".."} {
+		status, _ := do(t, srv, http.MethodDelete, "/mods?name="+bad, nil)
+		if status != http.StatusBadRequest {
+			t.Errorf("delete name=%q status=%d, want 400", bad, status)
+		}
+	}
+}
+
+// TestUnzipInto_RejectsTraversalWithConfinePath verifies that unzipInto now
+// rejects archive entries containing traversal attempts (rather than silently
+// skipping them) by returning an error immediately.
+func TestUnzipInto_RejectsTraversalWithConfinePath(t *testing.T) {
+	// Create an archive with a traversal entry.
+	zipPath := makeZip(t, map[string]string{
+		"../evil.txt": "should not extract",
+	})
+	dst := filepath.Join(t.TempDir(), "out")
+
+	// unzipInto should now reject the traversal entry and return an error.
+	err := unzipInto(zipPath, dst, 1<<20)
+	if err == nil {
+		t.Fatal("unzipInto should error on traversal entry, not skip it")
+	}
+
+	// Verify the evil file escaped nowhere.
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dst), "evil.txt")); !os.IsNotExist(err) {
+		t.Fatal("evil.txt should not have escaped")
+	}
+}
+
+// TestUnzipInto_AcceptsValidEntriesWithConfinePath verifies that unzipInto
+// still extracts valid entries correctly after the ConfinePath refactor.
+func TestUnzipInto_AcceptsValidEntriesWithConfinePath(t *testing.T) {
+	// Create an archive with only valid entries.
+	zipPath := makeZip(t, map[string]string{
+		"plugins/Cool.dll":  "DLLBYTES",
+		"config/data.json":  `{"version":1}`,
+		"readme.txt":        "Instructions",
+	})
+	dst := filepath.Join(t.TempDir(), "out")
+
+	// unzipInto should succeed.
+	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
+		t.Fatalf("unzipInto valid archive: %v", err)
+	}
+
+	// All files should be extracted.
+	for _, path := range []string{
+		filepath.Join(dst, "plugins", "Cool.dll"),
+		filepath.Join(dst, "config", "data.json"),
+		filepath.Join(dst, "readme.txt"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("file %q should exist: %v", filepath.Base(path), err)
+		}
+	}
+}
+
+// TestUnzipInto_AcceptsDotfilesAndNestedEntries verifies that unzipInto
+// accepts archives with dotfiles and nested directories (using ConfineRelPath).
+// This is the key regression test for DEFECT 2 — archives legitimately contain
+// nested paths and dotfiles, which ConfinePath would have rejected.
+func TestUnzipInto_AcceptsDotfilesAndNestedEntries(t *testing.T) {
+	// Create an archive with dotfiles and nested paths (typical for real archives).
+	zipPath := makeZip(t, map[string]string{
+		".gitkeep":           "",                            // dotfile at root
+		"config/.gitignore":  "*.tmp\n",                     // dotfile in subdirectory
+		"plugins/Cool.dll":   "DLLBYTES",                    // nested file
+		"src/main/.settings": "debug=false\n",               // nested dotfile
+	})
+	dst := filepath.Join(t.TempDir(), "out")
+
+	// unzipInto should succeed with ConfineRelPath.
+	if err := unzipInto(zipPath, dst, 1<<20); err != nil {
+		t.Fatalf("unzipInto archive with dotfiles: %v", err)
+	}
+
+	// All files and dotfiles should be extracted.
+	for _, path := range []string{
+		filepath.Join(dst, ".gitkeep"),
+		filepath.Join(dst, "config", ".gitignore"),
+		filepath.Join(dst, "plugins", "Cool.dll"),
+		filepath.Join(dst, "src", "main", ".settings"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("file %q should exist: %v", path, err)
+		}
+	}
+}
